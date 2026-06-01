@@ -1,0 +1,255 @@
+import Foundation
+import Observation
+import AppKit
+import DuoUpdaterCore
+
+/// Owns the scanned app list, their update status, and in-flight installs.
+@MainActor
+@Observable
+final class AppListModel {
+    private(set) var results: [UpdateResult] = []
+    private(set) var isScanning = false
+    private(set) var isChecking = false
+    private(set) var lastScan: Date?
+
+    /// Per-app install progress, keyed by app id.
+    private(set) var installing: [String: InstallStage] = [:]
+    /// Per-app install error message, keyed by app id.
+    private(set) var installErrors: [String: String] = [:]
+    /// App ids whose on-disk bundle is newer than the version their running
+    /// process launched with — i.e. updated (by us, the app's own updater, or
+    /// brew) but not yet relaunched, so still executing old code.
+    private(set) var needsRestart: Set<String> = []
+    /// id → the build version the running instance launched with, for display.
+    private var runningVersionByID: [String: String] = [:]
+
+    func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
+
+    var updateCount: Int { results.filter(\.hasUpdate).count }
+
+    private let sparkleInstaller = SparkleInstaller()
+    private let homebrewInstaller = HomebrewInstaller()
+    private let packageInstaller = PackageInstaller()
+
+    /// Scan the disk, then check every app for updates.
+    func refresh() async {
+        isScanning = true
+        let found = await Task.detached(priority: .userInitiated) {
+            AppScanner().scan()
+        }.value
+        results = found.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
+        lastScan = .now
+        isScanning = false
+
+        isChecking = true
+        // Rebuilt each refresh so the App Store source re-reads the signed-in
+        // storefront — picking up an Apple ID region switch without a restart.
+        let checker = UpdateChecker(sources: [
+            MacAppStoreSource(),
+            SparkleAppcastSource(),
+            HomebrewCaskSource()
+        ])
+        let checked = await checker.check(found)
+        results = sorted(checked)
+        computeRestartInfo()
+        isChecking = false
+    }
+
+    /// True when this update installs seamlessly in place (Sparkle EdDSA, or a
+    /// drag-to-Applications Homebrew cask). Excludes `pkg` casks, which need the
+    /// system installer — see `requiresInstaller`.
+    func canAutoInstall(_ result: UpdateResult) -> Bool {
+        switch result.remote?.sourceName {
+        case "Sparkle":
+            return result.app.sparkleEdPublicKey?.isEmpty == false
+                && result.remote?.edSignature != nil
+        case "Homebrew":
+            return result.remote?.sourceIdentifier != nil
+                && result.remote?.requiresManualInstaller == false
+                && !result.app.hasSelfUpdater
+        default:
+            return false
+        }
+    }
+
+    /// True when the app manages its own updates (Electron/Squirrel). We respect
+    /// that channel: show the update but open the app to let it self-update,
+    /// rather than installing a possibly-staler cask over it.
+    func isSelfUpdating(_ result: UpdateResult) -> Bool {
+        result.app.hasSelfUpdater && result.remote?.sourceName == "Homebrew"
+    }
+
+    /// True when this update is a `pkg` cask: we download the official package
+    /// and open it in the system installer (which prompts for admin itself).
+    func requiresInstaller(_ result: UpdateResult) -> Bool {
+        result.remote?.sourceName == "Homebrew"
+            && result.remote?.requiresManualInstaller == true
+    }
+
+    /// Install an update, routing to the right installer for its source.
+    func install(_ result: UpdateResult) async {
+        let id = result.id
+        installErrors[id] = nil
+
+        // Defensive re-check: the app may already be current — e.g. a manual
+        // pkg install we couldn't observe, or it was updated by its own updater
+        // since the last scan. Re-read it from disk and re-query before we
+        // download or replace anything.
+        installing[id] = .checking
+        let result = await recheck(result)
+        replaceRow(result)
+        guard result.hasUpdate else {
+            // Already current on disk — but the running instance may predate
+            // that update, so recompute whether a restart is needed.
+            computeRestartInfo()
+            installing[id] = nil
+            return
+        }
+
+        do {
+            // pkg casks: download the official installer and open it. The
+            // actual install happens in macOS's installer under the user's
+            // control, so we don't mark it up to date — a later rescan will.
+            if requiresInstaller(result) {
+                installing[id] = .downloading(fraction: 0)
+                try await packageInstaller.downloadAndOpen(url: result.remote?.downloadURL) { stage in
+                    Task { @MainActor in self.installing[id] = stage }
+                }
+                installing[id] = nil
+                return
+            }
+
+            switch result.remote?.sourceName {
+            case "Homebrew":
+                guard let token = result.remote?.sourceIdentifier else { return }
+                installing[id] = .runningCommand("starting brew…")
+                try await homebrewInstaller.upgrade(caskToken: token) { line in
+                    Task { @MainActor in self.installing[id] = .runningCommand(line) }
+                }
+            default:
+                installing[id] = .downloading(fraction: 0)
+                try await sparkleInstaller.install(result) { stage in
+                    Task { @MainActor in self.installing[id] = stage }
+                }
+            }
+            // Re-read from disk to reflect the new version, then recompute the
+            // Restart flag by comparing each running instance's launch version
+            // to what's now on disk. In-place installs (Homebrew) leave the old
+            // process running stale code; Sparkle relaunches, so it won't show.
+            let updated = await recheck(result)
+            replaceRow(updated)
+            computeRestartInfo()
+        } catch {
+            installErrors[id] = error.localizedDescription
+        }
+        installing[id] = nil
+    }
+
+    /// Flag apps whose running instance launched with an older build than
+    /// what's now on disk — reliably, by reading the live launch version from
+    /// LaunchServices (`lsappinfo`), which is cached at launch and so differs
+    /// from the on-disk Info.plist after an update. Covers our own installs,
+    /// the app's own updater, and brew — across app restarts.
+    private func computeRestartInfo() {
+        let running = runningBuildVersions()
+        var ids: Set<String> = []
+        var versions: [String: String] = [:]
+        for result in results where !result.hasUpdate {
+            guard let bundleID = result.app.bundleID,
+                  let runVersion = running[bundleID],
+                  let disk = result.app.buildVersion ?? result.app.shortVersion,
+                  VersionComparator.isNewer(disk, than: runVersion) else { continue }
+            ids.insert(result.id)
+            versions[result.id] = runVersion
+        }
+        needsRestart = ids
+        runningVersionByID = versions
+    }
+
+    /// Map of bundle id → the build version each running app launched with,
+    /// parsed from `lsappinfo list` (one call for all running apps).
+    private func runningBuildVersions() -> [String: String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/lsappinfo")
+        process.arguments = ["list"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do { try process.run() } catch { return [:] }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard let text = String(data: data, encoding: .utf8) else { return [:] }
+
+        var map: [String: String] = [:]
+        var current: String?
+        for line in text.split(separator: "\n") {
+            if let bundleID = quotedValue(after: "bundleID", in: line) {
+                current = bundleID
+            } else if let cur = current, map[cur] == nil,
+                      let version = quotedValue(after: "Version", in: line) {
+                map[cur] = version
+            }
+        }
+        return map
+    }
+
+    /// Extract the value of a `key="value"` pair from a line.
+    private func quotedValue(after key: String, in line: Substring) -> String? {
+        guard let start = line.range(of: key + "=\"") else { return nil }
+        let rest = line[start.upperBound...]
+        guard let end = rest.firstIndex(of: "\"") else { return nil }
+        return String(rest[..<end])
+    }
+
+    /// Quit the stale running instance and relaunch it so the new version takes
+    /// effect. Graceful only — if it won't quit (unsaved work), we leave it and
+    /// keep the Restart prompt for the user to retry.
+    func restart(_ result: UpdateResult) async {
+        guard let bundleID = result.app.bundleID else { return }
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        guard !running.isEmpty else { needsRestart.remove(result.id); return }
+        for app in running { app.terminate() }
+        for _ in 0..<30 {
+            if NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty { break }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        guard NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty else {
+            return  // still up (likely a save prompt) — leave the badge
+        }
+        NSWorkspace.shared.open(result.app.path)
+        needsRestart.remove(result.id)
+        runningVersionByID[result.id] = nil
+    }
+
+    /// Re-read one app from disk and re-check it across all sources. Cheap
+    /// enough to run right before installing, as a guard against acting on a
+    /// stale row.
+    private func recheck(_ result: UpdateResult) async -> UpdateResult {
+        let id = result.id
+        let apps = await Task.detached(priority: .userInitiated) {
+            AppScanner().scan()
+        }.value
+        guard let fresh = apps.first(where: { $0.id == id }) else { return result }
+        let checker = UpdateChecker(sources: [
+            MacAppStoreSource(),
+            SparkleAppcastSource(),
+            HomebrewCaskSource()
+        ])
+        return await checker.check(fresh)
+    }
+
+    /// Replace a single row by id and re-sort.
+    private func replaceRow(_ updated: UpdateResult) {
+        if let idx = results.firstIndex(where: { $0.id == updated.id }) {
+            results[idx] = updated
+            results = sorted(results)
+        }
+    }
+
+    private func sorted(_ list: [UpdateResult]) -> [UpdateResult] {
+        list.sorted { a, b in
+            if a.hasUpdate != b.hasUpdate { return a.hasUpdate }
+            return a.app.name.localizedCaseInsensitiveCompare(b.app.name) == .orderedAscending
+        }
+    }
+}

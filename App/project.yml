@@ -1,0 +1,32 @@
+name: DuoUpdater
+options:
+  bundleIdPrefix: com.duoupdater
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+packages:
+  DuoUpdaterCore:
+    path: ../DuoUpdaterCore
+
+targets:
+  DuoUpdater:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+    dependencies:
+      - package: DuoUpdaterCore
+        product: DuoUpdaterCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.app
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        # Menu-bar-only app: no Dock icon, no main window.
+        INFOPLIST_KEY_LSUIElement: YES
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: "-"

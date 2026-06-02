@@ -24,5 +24,13 @@ struct DuoUpdaterApp: App {
         }
         .defaultSize(width: 860, height: 560)
         .windowResizability(.contentMinSize)
+
+        // Per-app download traffic, tracked to the byte. Its own window so it
+        // survives the popover dismissing; shares the one model instance.
+        Window("Traffic", id: TrafficWindowView.windowID) {
+            TrafficWindowView(model: model)
+        }
+        .defaultSize(width: 720, height: 520)
+        .windowResizability(.contentMinSize)
     }
 }

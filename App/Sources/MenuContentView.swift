@@ -122,6 +122,12 @@ struct MenuContentView: View {
             }
             .buttonStyle(.borderless)
             .font(.caption)
+            Button("Traffic…") {
+                openWindow(id: TrafficWindowView.windowID)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
             Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.borderless)
                 .font(.caption)

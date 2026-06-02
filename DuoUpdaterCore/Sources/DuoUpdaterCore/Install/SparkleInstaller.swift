@@ -52,10 +52,13 @@ public actor SparkleInstaller {
         }
     }
 
+    /// Returns the exact number of bytes downloaded for the update, for per-app
+    /// traffic accounting.
+    @discardableResult
     public func install(
         _ result: UpdateResult,
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) async throws {
+    ) async throws -> Int64 {
         guard let remote = result.remote, remote.sourceName == "Sparkle" else {
             throw InstallError.notSparkleUpdate
         }
@@ -78,6 +81,7 @@ public actor SparkleInstaller {
             onStage(.downloading(fraction: fraction))
         }
         let archive = try await downloader.download(downloadURL)
+        let bytesDownloaded = downloader.bytesDownloaded
 
         // 2. Gate 1 — EdDSA signature over the exact bytes we downloaded
         onStage(.verifyingSignature)
@@ -115,6 +119,7 @@ public actor SparkleInstaller {
         try installApp(newApp, over: result.app.path)
 
         onStage(.done)
+        return bytesDownloaded
     }
 
     // MARK: - Install

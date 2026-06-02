@@ -2,9 +2,24 @@ import SwiftUI
 import AppKit
 import DuoUpdaterCore
 
+/// Caches app icons by path. `NSWorkspace.icon(forFile:)` hits the disk, and rows
+/// re-render on every install-progress tick — without a cache that's one icon
+/// lookup per row per tick, a real source of stutter while downloads run.
+@MainActor
+enum AppIconCache {
+    private static var cache: [String: NSImage] = [:]
+    static func icon(for path: String) -> NSImage {
+        if let cached = cache[path] { return cached }
+        let image = NSWorkspace.shared.icon(forFile: path)
+        cache[path] = image
+        return image
+    }
+}
+
 struct MenuContentView: View {
     @Bindable var model: AppListModel
     @State private var showAll = false
+    @Environment(\.openWindow) private var openWindow
 
     private var visible: [UpdateResult] {
         showAll ? model.results
@@ -21,7 +36,13 @@ struct MenuContentView: View {
         }
         .frame(width: 360)
         .task {
-            if model.results.isEmpty { await model.refresh() }
+            // First open: full (networked) check. Every later open: a cheap
+            // local rescan to catch background self-updates and surface Restart.
+            if model.results.isEmpty {
+                await model.refresh()
+            } else {
+                await model.refreshLocal()
+            }
         }
     }
 
@@ -43,9 +64,12 @@ struct MenuContentView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(visible) { result in
+                    ForEach(Array(visible.enumerated()), id: \.element.id) { index, result in
+                        // Divider *between* rows only — a trailing one after the
+                        // last row left a dangling line floating over the empty
+                        // space below a short list.
+                        if index > 0 { Divider() }
                         AppRow(result: result, model: model)
-                        Divider()
                     }
                 }
             }
@@ -92,6 +116,12 @@ struct MenuContentView: View {
                 .toggleStyle(.checkbox)
                 .font(.caption)
             Spacer()
+            Button("Changelog…") {
+                openWindow(id: ChangelogWindowView.windowID)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
             Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.borderless)
                 .font(.caption)
@@ -106,6 +136,7 @@ private struct AppRow: View {
     @Bindable var model: AppListModel
     @State private var showRegionHint = false
     @State private var showMajorWarning = false
+    @State private var showMacCompatHint = false
 
     private var stage: InstallStage? { model.installing[result.id] }
     private var installError: String? { model.installErrors[result.id] }
@@ -113,7 +144,7 @@ private struct AppRow: View {
     var body: some View {
         VStack(spacing: 4) {
             HStack(spacing: 10) {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: result.app.path.path))
+                Image(nsImage: AppIconCache.icon(for: result.app.path.path))
                     .resizable()
                     .frame(width: 30, height: 30)
 
@@ -141,15 +172,57 @@ private struct AppRow: View {
         switch result.status {
         case .updateAvailable(let latest):
             HStack(spacing: 4) {
-                Text(result.app.shortVersion ?? "?")
+                fromVersion(latest: latest)
                 Image(systemName: "arrow.right").font(.caption2)
-                Text(latest).fontWeight(.semibold).foregroundStyle(.tint)
+                toVersion(latest: latest)
             }
             .font(.caption)
+            // Long date-style versions (Warp) would otherwise wrap mid-number;
+            // keep it one line and shrink slightly instead.
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
         default:
             Text("v\(result.app.shortVersion ?? "?")")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    /// True when this update keeps the same marketing version but bumps the
+    /// build — e.g. Surge shipping "6.6.0 (11270)" over "6.6.0 (11260)". The
+    /// comparator catches it on the build key, but the marketing version alone
+    /// reads as "6.6.0 → 6.6.0", so we surface the build numbers instead.
+    private func buildBump(latest: String) -> (installed: String, remote: String)? {
+        guard latest == result.app.shortVersion,
+              let installedBuild = result.app.buildVersion,
+              let remoteBuild = result.remote?.version,
+              installedBuild != remoteBuild else { return nil }
+        return (installedBuild, remoteBuild)
+    }
+
+    /// The installed-version side of the "from → to" line.
+    @ViewBuilder
+    private func fromVersion(latest: String) -> some View {
+        let marketing = result.app.shortVersion ?? "?"
+        if let bump = buildBump(latest: latest) {
+            // Marketing version is just context; the build is what changed.
+            Text(marketing).foregroundStyle(.secondary)
+            + Text(" (\(bump.installed))")
+        } else {
+            Text(marketing)
+        }
+    }
+
+    /// The available-version side. When only the build changed, highlight the
+    /// build number — not the unchanged marketing version — so the eye lands on
+    /// what's actually new.
+    @ViewBuilder
+    private func toVersion(latest: String) -> some View {
+        if let bump = buildBump(latest: latest) {
+            Text("\(latest) ").foregroundStyle(.secondary)
+            + Text("(\(bump.remote))").fontWeight(.semibold).foregroundStyle(.tint)
+        } else {
+            Text(latest).fontWeight(.semibold).foregroundStyle(.tint)
         }
     }
 
@@ -160,26 +233,37 @@ private struct AppRow: View {
         } else {
             switch result.status {
             case .updateAvailable:
-                if result.isMajorUpgrade && (model.canAutoInstall(result) || model.requiresInstaller(result)) {
+                if result.remote?.sourceName == "Toolbox" {
+                    // Detected via Toolbox's own cache — it installs, we just route.
+                    toolboxButton
+                } else if result.isMajorUpgrade && (model.canAutoInstall(result) || model.requiresInstaller(result)) {
                     majorUpgradeBadge
                 } else if model.canAutoInstall(result) {
                     autoUpdateButton
-                } else if model.isSelfUpdating(result) {
-                    selfUpdateButton
                 } else if model.requiresInstaller(result) {
                     installerButton
                 } else if let info = result.remote?.appStore {
                     appStoreTrailing(info)
                 } else {
-                    revealButton
+                    openButton
                 }
             case .error:
                 errorBadge
             case .unknown:
                 Text(sourceHint).font(.caption2).foregroundStyle(.tertiary)
+            case .appStoreManaged:
+                appStoreManagedLabel
+            case .toolboxManaged:
+                toolboxButton
             case .upToDate:
                 if model.needsRestart.contains(result.id) {
                     restartButton
+                } else if result.app.isMASApp {
+                    // We checked it against the store and it's current — but keep
+                    // the "App Store" signal so a managed app never looks like an
+                    // app we can update ourselves (a bare ✅ reads the same as
+                    // Sparkle/brew). Same label as `.appStoreManaged`.
+                    appStoreManagedLabel
                 } else {
                     Image(systemName: "checkmark").foregroundStyle(.secondary).font(.caption)
                 }
@@ -192,11 +276,23 @@ private struct AppRow: View {
         HStack(spacing: 6) {
             if case .downloading(let f) = stage {
                 ProgressView(value: f).frame(width: 50).controlSize(.small)
+                // Fixed-width, right-aligned, monospaced digits: "2%" and "100%"
+                // both end at the same edge, so neither the bar nor the row moves.
+                Text("\(Int(f * 100))%")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .frame(width: 34, alignment: .trailing)
             } else {
                 ProgressView().controlSize(.small)
+                Text(stageLabel(stage))
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            Text(stageLabel(stage)).font(.caption2).foregroundStyle(.secondary)
         }
+        // Right-align the bar+label as a tight group inside a constant-width slot,
+        // so it sits flush right (matching the buttons) and the row never reflows
+        // as the percentage changes — the source of the jitter with many downloads.
+        .frame(width: 96, alignment: .trailing)
     }
 
     private func stageLabel(_ stage: InstallStage) -> String {
@@ -234,15 +330,6 @@ private struct AppRow: View {
             return "Running \(running) but \(disk) is installed — restart to apply it"
         }
         return "You’re running an older version — restart to finish updating"
-    }
-
-    /// Electron/Squirrel app that updates itself: respect its own channel
-    /// (often fresher than the cask) — open the app and let it self-update.
-    private var selfUpdateButton: some View {
-        Button("Open") { NSWorkspace.shared.open(result.app.path) }
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .help("This app updates itself — open it to install the update")
     }
 
     /// pkg cask: download the official installer and open it (system installer
@@ -288,12 +375,56 @@ private struct AppRow: View {
         .frame(width: 290)
     }
 
-    /// Reveal-in-Finder fallback for sources we can't act on inline yet.
-    private var revealButton: some View {
-        Button("Get") { NSWorkspace.shared.activateFileViewerSelecting([result.app.path]) }
+    /// Fallback for updates we can detect but not install in place (GitHub
+    /// releases, self-updating apps like Chrome). Opens the official download /
+    /// releases page in the browser so the user can grab it through the app's own
+    /// channel; only reveals in Finder if there's no URL to open.
+    private var openButton: some View {
+        Button("Open") { openAction() }
             .controlSize(.small)
             .buttonStyle(.bordered)
-            .help("Reveal in Finder")
+            .help(openHelp)
+    }
+
+    private func openAction() {
+        guard let url = result.remote?.downloadURL else {
+            NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
+            return
+        }
+        if let scheme = url.scheme, scheme != "http", scheme != "https" {
+            // App-internal deep link (e.g. chrome://settings/help). Hand it to the
+            // app itself so it acts through its own update channel — for Chrome,
+            // opening that page triggers a Keystone update check + download.
+            let config = NSWorkspace.OpenConfiguration()
+            NSWorkspace.shared.open([url], withApplicationAt: result.app.path, configuration: config)
+        } else {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// JetBrains Toolbox manages this app's updates. Toolbox registers no URL
+    /// scheme, so there's no per-tool deep link — we just open the Toolbox window,
+    /// where the user updates it through its own channel.
+    private var toolboxButton: some View {
+        Button("Toolbox") { openToolbox() }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .help("Managed by JetBrains Toolbox — open Toolbox to update \(result.app.name)")
+    }
+
+    private func openToolbox() {
+        if let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.jetbrains.toolbox") {
+            NSWorkspace.shared.openApplication(at: url, configuration: .init())
+        }
+    }
+
+    private var openHelp: String {
+        guard let url = result.remote?.downloadURL else { return "Reveal in Finder" }
+        if let scheme = url.scheme, scheme != "http", scheme != "https" {
+            return "Open \(result.app.name)’s built-in updater (it updates itself)"
+        }
+        return "Open the official download page"
     }
 
     /// App Store apps: when the app is in the signed-in region, a Get button
@@ -302,7 +433,20 @@ private struct AppRow: View {
     /// Available").
     @ViewBuilder
     private func appStoreTrailing(_ info: AppStoreAvailability) -> some View {
-        if info.isRegionMismatch {
+        if info.isLatestMacIncompatible {
+            // A newer build exists but Apple has marked it as no longer running on
+            // Macs — installing it here is impossible, so flag it rather than
+            // offering a "Get" the store would reject.
+            Button { showMacCompatHint = true } label: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.borderless)
+            .help("The latest version no longer supports this Mac — click for details")
+            .popover(isPresented: $showMacCompatHint, arrowEdge: .bottom) {
+                macCompatHintPopover(info)
+            }
+        } else if info.isRegionMismatch {
             Button { showRegionHint = true } label: {
                 Image(systemName: "globe.badge.chevron.backward")
                     .foregroundStyle(.orange)
@@ -344,8 +488,32 @@ private struct AppRow: View {
         .frame(width: 290)
     }
 
+    private func macCompatHintPopover(_ info: AppStoreAvailability) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Not supported on this Mac", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+            Text("\(result.app.name) is an iPhone/iPad app running on Apple Silicon. Its latest version\(result.remote?.displayVersion.map { " (\($0))" } ?? "") no longer supports Mac, so the App Store won't install it on this device.")
+                .font(.callout)
+            Text("You can keep using the installed version (\(result.app.shortVersion ?? "current")). Updating isn't possible until the developer ships a Mac-compatible build again — it's the vendor's choice, not a refresh problem.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Open App Store anyway") { openInAppStore(info) }
+                .controlSize(.small)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+
     private static func regionName(_ code: String) -> String {
         Locale.current.localizedString(forRegionCode: code.uppercased()) ?? code.uppercased()
+    }
+
+    /// The "App Store" tag shown for any store-managed app — whether it's up to
+    /// date or the lookup returned nothing. Either way, updates are the store's
+    /// job, so the row never offers an action we can't perform.
+    private var appStoreManagedLabel: some View {
+        Text("App Store").font(.caption2).foregroundStyle(.tertiary)
+            .help("Managed by the App Store — it handles this app's updates")
     }
 
     private var errorBadge: some View {

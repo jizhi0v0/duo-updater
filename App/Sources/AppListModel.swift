@@ -30,12 +30,22 @@ final class AppListModel {
     private let sparkleInstaller = SparkleInstaller()
     private let homebrewInstaller = HomebrewInstaller()
     private let packageInstaller = PackageInstaller()
+    private let vendorInstaller = VendorInstaller()
+
+    /// GitHub API token, resolved once (env / `gh` CLI / a user-set value) to
+    /// lift the 60/hour anonymous rate limit. nil → unauthenticated requests.
+    private let githubToken: String? = GitHubToken.resolve(
+        explicit: UserDefaults.standard.string(forKey: "GitHubToken")
+    )
 
     /// Scan the disk, then check every app for updates.
     func refresh() async {
         isScanning = true
+        // One Toolbox snapshot shared by the scan (to tag managed apps) and the
+        // checker (to read latest-build info) — a single read of its local cache.
+        let toolbox = ToolboxInventory()
         let found = await Task.detached(priority: .userInitiated) {
-            AppScanner().scan()
+            AppScanner(toolbox: toolbox).scan()
         }.value
         results = found.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
         lastScan = .now
@@ -47,8 +57,13 @@ final class AppListModel {
         let checker = UpdateChecker(sources: [
             MacAppStoreSource(),
             SparkleAppcastSource(),
-            HomebrewCaskSource()
-        ])
+            HomebrewCaskSource(),
+            // GitHub Releases for apps distributed that way (detection only).
+            GitHubReleasesSource(token: githubToken),
+            // Last resort: bespoke per-vendor version endpoints. Only fires when
+            // the earlier sources all miss and a recipe exists.
+            VendorProbeSource()
+        ], toolbox: ToolboxSource(inventory: toolbox))
         let checked = await checker.check(found)
         results = sorted(checked)
         await computeRestartInfo()
@@ -58,6 +73,11 @@ final class AppListModel {
     /// True when this update installs seamlessly in place (Sparkle EdDSA, or a
     /// drag-to-Applications Homebrew cask). Excludes `pkg` casks, which need the
     /// system installer — see `requiresInstaller`.
+    ///
+    /// A Homebrew result only ever reaches us when the app was *actually*
+    /// installed via Homebrew (the source gates on the local Caskroom), so
+    /// `brew install --cask --force` here updates through the app's real
+    /// channel — no cross-channel mixing.
     func canAutoInstall(_ result: UpdateResult) -> Bool {
         switch result.remote?.sourceName {
         case "Sparkle":
@@ -66,24 +86,86 @@ final class AppListModel {
         case "Homebrew":
             return result.remote?.sourceIdentifier != nil
                 && result.remote?.requiresManualInstaller == false
-                && !result.app.hasSelfUpdater
+        case "Vendor":
+            // An official-website app with a resolved installer archive (zip/dmg/
+            // tar.gz). We download it, verify the code signature matches the
+            // installed app's Team ID, then swap in place — same channel, no mix.
+            return result.remote?.vendorInstallerKind != nil
+                && result.remote?.requiresManualInstaller == false
         default:
             return false
         }
     }
 
-    /// True when the app manages its own updates (Electron/Squirrel). We respect
-    /// that channel: show the update but open the app to let it self-update,
-    /// rather than installing a possibly-staler cask over it.
-    func isSelfUpdating(_ result: UpdateResult) -> Bool {
-        result.app.hasSelfUpdater && result.remote?.sourceName == "Homebrew"
+    /// True when this update is a `pkg` (a `pkg` cask, or a vendor pkg): we
+    /// download the official package and open it in the system installer (which
+    /// prompts for admin itself).
+    ///
+    /// For Vendor we key strictly on a `.pkg` install spec — NOT on
+    /// `requiresManualInstaller`, which a *detection-only* vendor recipe also
+    /// sets (meaning "send the user to download by hand"). Conflating the two
+    /// made detection-only apps (LM Studio, Chrome, …) wrongly show an installer
+    /// button pointed at their version-check endpoint.
+    func requiresInstaller(_ result: UpdateResult) -> Bool {
+        switch result.remote?.sourceName {
+        case "Homebrew":
+            return result.remote?.requiresManualInstaller == true
+        case "Vendor":
+            return result.remote?.vendorInstallerKind == .pkg
+        default:
+            return false
+        }
     }
 
-    /// True when this update is a `pkg` cask: we download the official package
-    /// and open it in the system installer (which prompts for admin itself).
-    func requiresInstaller(_ result: UpdateResult) -> Bool {
-        result.remote?.sourceName == "Homebrew"
-            && result.remote?.requiresManualInstaller == true
+    /// A cheap, network-free rescan to run whenever the menu opens. Re-reads each
+    /// app from disk and re-evaluates it against the remote we already fetched, so
+    /// we notice an app that updated itself in the background (its own Sparkle/
+    /// Squirrel/Keystone updater, or brew) — the on-disk version jumps ahead while
+    /// the running process stays old. That flips its row to up-to-date AND lets
+    /// `computeRestartInfo` surface a Restart badge. No network: the full update
+    /// check still runs on first open and on the manual refresh.
+    func refreshLocal() async {
+        guard !results.isEmpty, !isChecking else { return }
+        let found = await Task.detached(priority: .userInitiated) {
+            AppScanner().scan()
+        }.value
+        let prior = Dictionary(results.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let updated = found.map { app -> UpdateResult in
+            guard let was = prior[app.id] else {
+                return UpdateResult(app: app, remote: nil, status: .unknown)
+            }
+            // Re-derive status from the cached remote against the fresh on-disk
+            // version. With no remote (App Store / Toolbox / unknown) keep what we
+            // had, just refreshed to the new bundle info.
+            guard let remote = was.remote else {
+                return UpdateResult(app: app, remote: nil, status: was.status)
+            }
+            // Toolbox owns its apps' status (computed from its own cache, not a
+            // version compare) — keep it; don't re-evaluate locally.
+            guard remote.sourceName != "Toolbox" else {
+                return UpdateResult(app: app, remote: remote, status: was.status)
+            }
+            return UpdateResult(
+                app: app, remote: remote,
+                status: UpdateChecker.evaluate(installed: app, remote: remote))
+        }
+        results = sorted(updated)
+        computeRestartInfo()
+    }
+
+    /// Update one app's install stage, coalescing download progress to whole
+    /// percent. A `URLSession` download fires `didWriteData` dozens of times per
+    /// second; each write would otherwise mutate `installing` and re-render every
+    /// row (the dictionary invalidates as a whole). Skipping same-percent ticks
+    /// cuts that churn by ~50× and removes the visible jitter when several apps
+    /// download at once.
+    private func setStage(_ id: String, _ stage: InstallStage) {
+        if case .downloading(let f) = stage,
+           case .downloading(let prev)? = installing[id],
+           Int(f * 100) == Int(prev * 100) {
+            return  // same whole percent — nothing the user can see changed
+        }
+        installing[id] = stage
     }
 
     /// Install an update, routing to the right installer for its source.
@@ -112,8 +194,11 @@ final class AppListModel {
             // control, so we don't mark it up to date — a later rescan will.
             if requiresInstaller(result) {
                 installing[id] = .downloading(fraction: 0)
-                try await packageInstaller.downloadAndOpen(url: result.remote?.downloadURL) { stage in
-                    Task { @MainActor in self.installing[id] = stage }
+                try await packageInstaller.downloadAndOpen(
+                    url: result.remote?.downloadURL,
+                    headers: result.remote?.downloadHeaders ?? [:]
+                ) { stage in
+                    Task { @MainActor in self.setStage(id, stage) }
                 }
                 installing[id] = nil
                 return
@@ -124,12 +209,17 @@ final class AppListModel {
                 guard let token = result.remote?.sourceIdentifier else { return }
                 installing[id] = .runningCommand("starting brew…")
                 try await homebrewInstaller.upgrade(caskToken: token) { line in
-                    Task { @MainActor in self.installing[id] = .runningCommand(line) }
+                    Task { @MainActor in self.setStage(id, .runningCommand(line)) }
+                }
+            case "Vendor":
+                installing[id] = .downloading(fraction: 0)
+                try await vendorInstaller.install(result) { stage in
+                    Task { @MainActor in self.setStage(id, stage) }
                 }
             default:
                 installing[id] = .downloading(fraction: 0)
                 try await sparkleInstaller.install(result) { stage in
-                    Task { @MainActor in self.installing[id] = stage }
+                    Task { @MainActor in self.setStage(id, stage) }
                 }
             }
             // Re-read from disk to reflect the new version, then recompute the
@@ -249,8 +339,13 @@ final class AppListModel {
         let checker = UpdateChecker(sources: [
             MacAppStoreSource(),
             SparkleAppcastSource(),
-            HomebrewCaskSource()
-        ])
+            HomebrewCaskSource(),
+            // GitHub Releases for apps distributed that way (detection only).
+            GitHubReleasesSource(token: githubToken),
+            // Last resort: bespoke per-vendor version endpoints. Only fires when
+            // the earlier sources all miss and a recipe exists.
+            VendorProbeSource()
+        ], toolbox: ToolboxSource())
         return await checker.check(fresh)
     }
 

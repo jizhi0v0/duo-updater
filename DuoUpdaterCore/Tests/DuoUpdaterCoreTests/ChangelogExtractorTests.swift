@@ -619,6 +619,65 @@ private let ollamaFixture = """
 </section>
 """
 
+// Trimmed real markup from github.com/rustdesk/rustdesk/releases. Same GitHub
+// release-section shape as Ollama, but the sr-only <h2> carries a bare version
+// ("1.4.7", no leading "v"). Body opens with a screenshot link before the
+// change bullets, and one item uses &amp; to prove entity decoding.
+private let rustDeskFixture = """
+<section aria-labelledby="hd-ff5db60a">
+  <h2 class="sr-only" id="hd-ff5db60a">1.4.7</h2>
+  <div class="d-flex flex-column flex-md-row">
+    <div>
+      <div class="mb-2 f4">
+        <relative-time class="no-wrap" prefix="" datetime="2026-06-02T10:14:04Z">
+          02 Jun 10:14
+        </relative-time>
+      </div>
+    </div>
+    <div>
+      <div class="markdown-body tmp-my-3">
+        <p><a href="https://example.com/shot.png"><img src="shot.png" alt="screenshot"></a></p>
+        <ul>
+          <li>Allow disabling the clipboard for security <a href="#1">#14440</a></li>
+          <li>Better multi-monitor handling &amp; performance fixes</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+<section aria-labelledby="hd-aa11bb22">
+  <h2 class="sr-only" id="hd-aa11bb22">1.4.5</h2>
+  <div class="d-flex flex-column flex-md-row">
+    <div>
+      <div class="mb-2 f4">
+        <relative-time class="no-wrap" prefix="" datetime="2026-01-09T08:00:00Z">
+          09 Jan 08:00
+        </relative-time>
+      </div>
+    </div>
+    <div>
+      <div class="markdown-body tmp-my-3"><ul>
+        <li>Allow configuring remote control permissions for different users</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+"""
+
+@Test func extractsRustDeskEntriesInOrder() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.carriez.rustdesk"))
+    let changelog = try #require(ChangelogExtractor.extract(from: rustDeskFixture, using: recipe))
+
+    #expect(changelog.entries.count == 2)
+    #expect(changelog.entries[0].version == "1.4.7")
+    #expect(changelog.entries[0].date == "2026-06-02")
+    #expect(changelog.entries[0].items.count == 2)
+    #expect(changelog.entries[0].items[1] == "Better multi-monitor handling & performance fixes")
+    #expect(changelog.entries[1].version == "1.4.5")
+    #expect(changelog.entries[1].date == "2026-01-09")
+    #expect(changelog.entries[1].items.count == 1)
+}
+
 // Trimmed real markup from docs.orbstack.dev/release-notes. Two VitePress
 // h2 entries: v2.1.3 (3 items, May 10) and v2.1.2 (2 items, May 9, one with
 // a <strong> tag to prove stripping). OrbStack does not print a year so date

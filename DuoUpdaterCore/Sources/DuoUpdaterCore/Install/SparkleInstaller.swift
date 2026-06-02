@@ -1,5 +1,4 @@
 import Foundation
-import AppKit
 
 /// Stages emitted as an install proceeds, for driving UI.
 public enum InstallStage: Sendable, Equatable {
@@ -10,7 +9,6 @@ public enum InstallStage: Sendable, Equatable {
     case extracting
     case verifyingCodeSignature
     case installing
-    case relaunching
     /// A command-line installer (Homebrew) is running; payload is its latest
     /// output line.
     case runningCommand(String)
@@ -19,7 +17,14 @@ public enum InstallStage: Sendable, Equatable {
 
 /// Drives the full Sparkle update pipeline for a single app:
 /// download → EdDSA verify → extract → code-signature + Team ID verify →
-/// quit running instance → swap bundle → relaunch.
+/// swap bundle in place.
+///
+/// The bundle is replaced even while the app is running: macOS keeps the live
+/// process on the code it already mapped, so the app keeps working untouched on
+/// the old version, and the caller surfaces a "Restart" prompt. We never quit or
+/// relaunch the app — the user restarts it on their own schedule, through the
+/// app's own quit flow (so its save-on-quit prompts run). A not-running app just
+/// updates silently.
 ///
 /// Every gate must pass; a failure throws and leaves the installed app
 /// untouched (we only delete the old bundle once the new one is fully verified).
@@ -32,7 +37,6 @@ public actor SparkleInstaller {
         case noPublicKey
         case noDownloadURL
         case targetNotReplaceable(String)
-        case appWouldNotQuit(String)
 
         public var errorDescription: String? {
             switch self {
@@ -44,8 +48,6 @@ public actor SparkleInstaller {
                 return "The update has no download URL."
             case .targetNotReplaceable(let msg):
                 return "Could not replace the installed app: \(msg)"
-            case .appWouldNotQuit(let name):
-                return "\(name) wouldn’t quit (it may have unsaved changes). Quit it yourself, then update again. Nothing was changed."
             }
         }
     }
@@ -98,56 +100,15 @@ public actor SparkleInstaller {
             downloadedApp: newApp
         )
 
-        // 5. Quit the running instance (if any) so we can swap the bundle.
-        // Aborts (before touching anything) if it won't quit gracefully — we
-        // never force-kill, to avoid destroying unsaved work.
-        let bundleID = result.app.bundleID
-        let wasRunning = try await quitRunningInstance(bundleID: bundleID)
-
-        // 6. Swap the bundle into place
+        // 5. Swap the bundle into place. We do this even while the app is
+        // running: macOS keeps the live process on the code it already mapped,
+        // so it keeps working on the old version until the user restarts it (the
+        // caller surfaces a "Restart" prompt). We never force a quit — that would
+        // skip the app's own save-on-quit flow.
         onStage(.installing)
         try installApp(newApp, over: result.app.path)
 
-        // 7. Relaunch if it had been running
-        if wasRunning {
-            onStage(.relaunching)
-            await relaunch(at: result.app.path)
-        }
-
         onStage(.done)
-    }
-
-    // MARK: - Quit / relaunch
-
-    /// Ask a running instance to quit gracefully (like Cmd-Q, so the app can run
-    /// its own save prompts). Returns whether it had been running. Throws if it
-    /// won't quit within the grace period — we deliberately never force-kill,
-    /// because that would discard unsaved work. Pre-swap, so aborting is safe.
-    @MainActor
-    private func quitRunningInstance(bundleID: String?) async throws -> Bool {
-        guard let bundleID else { return false }
-        var running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-        guard !running.isEmpty else { return false }
-        let name = running.first?.localizedName ?? "The app"
-
-        for app in running { app.terminate() }
-
-        // Give it a few seconds to exit gracefully.
-        for _ in 0..<30 {
-            running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            if running.isEmpty { return true }
-            try? await Task.sleep(for: .milliseconds(200))
-        }
-        // Still alive — most likely a blocking prompt (unsaved changes). Bail
-        // out rather than force-terminate.
-        throw InstallError.appWouldNotQuit(name)
-    }
-
-    @MainActor
-    private func relaunch(at url: URL) {
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = false
-        NSWorkspace.shared.openApplication(at: url, configuration: config)
     }
 
     // MARK: - Install

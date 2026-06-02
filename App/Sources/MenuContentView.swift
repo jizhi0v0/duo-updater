@@ -302,7 +302,6 @@ private struct AppRow: View {
         case .verifyingSignature, .verifyingCodeSignature: return "Verifying"
         case .extracting: return "Extracting"
         case .installing: return "Installing"
-        case .relaunching: return "Relaunching"
         case .runningCommand: return "Installing"
         case .done: return "Done"
         }

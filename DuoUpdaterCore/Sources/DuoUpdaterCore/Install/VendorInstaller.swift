@@ -1,5 +1,4 @@
 import Foundation
-import AppKit
 import CryptoKit
 
 /// Installs an in-place update for an *official-website* app that we detect via a
@@ -13,10 +12,15 @@ import CryptoKit
 ///      real guarantee that the download is the same vendor's notarized build,
 ///      not a substituted bundle.
 ///
-/// Pipeline: download → (checksum) → unpack → signature/Team gate → quit running
-/// instance → swap bundle → relaunch. Any gate failure throws and leaves the
-/// installed app untouched (the old bundle is removed only after the new one is
-/// fully verified).
+/// Pipeline: download → (checksum) → unpack → signature/Team gate → swap bundle
+/// in place. Any gate failure throws and leaves the installed app untouched (the
+/// old bundle is removed only after the new one is fully verified).
+///
+/// The swap happens even while the app is running — macOS keeps the live process
+/// on the code it already mapped, so it keeps working on the old version and the
+/// caller surfaces a "Restart" prompt. We never quit or relaunch the app: the
+/// user restarts it on their own schedule (so its save-on-quit flow runs). A
+/// not-running app just updates silently.
 public actor VendorInstaller {
 
     public init() {}
@@ -27,7 +31,6 @@ public actor VendorInstaller {
         case unknownKind
         case checksumMismatch
         case targetNotReplaceable(String)
-        case appWouldNotQuit(String)
 
         public var errorDescription: String? {
             switch self {
@@ -41,8 +44,6 @@ public actor VendorInstaller {
                 return "The download's checksum didn't match — it may be corrupt or tampered. Nothing was changed."
             case .targetNotReplaceable(let msg):
                 return "Could not replace the installed app: \(msg)"
-            case .appWouldNotQuit(let name):
-                return "\(name) wouldn’t quit (it may have unsaved changes). Quit it yourself, then update again. Nothing was changed."
             }
         }
     }
@@ -96,19 +97,13 @@ public actor VendorInstaller {
             downloadedApp: newApp
         )
 
-        // 5. Quit the running instance (if any). Aborts before touching anything
-        // if it won't quit gracefully — we never force-kill (unsaved work).
-        let wasRunning = try await quitRunningInstance(bundleID: result.app.bundleID)
-
-        // 6. Swap the bundle into place.
+        // 5. Swap the bundle into place. We do this even while the app is
+        // running: macOS keeps the live process on the code it already mapped,
+        // so it keeps working on the old version until the user restarts it (the
+        // caller surfaces a "Restart" prompt). We never force a quit — that would
+        // skip the app's own save-on-quit flow.
         onStage(.installing)
         try installApp(newApp, over: result.app.path)
-
-        // 7. Relaunch if it had been running.
-        if wasRunning {
-            onStage(.relaunching)
-            await relaunch(at: result.app.path)
-        }
 
         onStage(.done)
     }
@@ -140,32 +135,6 @@ public actor VendorInstaller {
         try? FileManager.default.removeItem(at: renamed)
         try FileManager.default.moveItem(at: file, to: renamed)
         return renamed
-    }
-
-    // MARK: - Quit / relaunch
-
-    @MainActor
-    private func quitRunningInstance(bundleID: String?) async throws -> Bool {
-        guard let bundleID else { return false }
-        var running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-        guard !running.isEmpty else { return false }
-        let name = running.first?.localizedName ?? "The app"
-
-        for app in running { app.terminate() }
-
-        for _ in 0..<30 {
-            running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            if running.isEmpty { return true }
-            try? await Task.sleep(for: .milliseconds(200))
-        }
-        throw InstallError.appWouldNotQuit(name)
-    }
-
-    @MainActor
-    private func relaunch(at url: URL) {
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = false
-        NSWorkspace.shared.openApplication(at: url, configuration: config)
     }
 
     // MARK: - Install

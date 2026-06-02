@@ -38,6 +38,11 @@ final class AppListModel {
         explicit: UserDefaults.standard.string(forKey: "GitHubToken")
     )
 
+    init() {
+        // Ask once so finished-update notifications can fire later.
+        UpdateNotifier.requestAuthorization()
+    }
+
     /// Scan the disk, then check every app for updates.
     func refresh() async {
         isScanning = true
@@ -229,6 +234,17 @@ final class AppListModel {
             let updated = await recheck(result)
             replaceRow(updated)
             await computeRestartInfo()
+
+            // Tell the user it landed. If the app was running, its live process
+            // is still on the old code (so it's in needsRestart) — point them at
+            // the Restart action. Otherwise the in-place swap is already fully in
+            // effect and there's nothing left to do.
+            let version = updated.app.shortVersion
+            if needsRestart.contains(updated.id) {
+                UpdateNotifier.readyToRestart(app: updated.app.name, version: version)
+            } else {
+                UpdateNotifier.updated(app: updated.app.name, version: version)
+            }
         } catch {
             installErrors[id] = error.localizedDescription
         }
@@ -322,9 +338,12 @@ final class AppListModel {
         guard NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty else {
             return  // still up (likely a save prompt) — leave the badge
         }
-        NSWorkspace.shared.open(result.app.path)
+        let relaunched = NSWorkspace.shared.open(result.app.path)
         needsRestart.remove(result.id)
         runningVersionByID[result.id] = nil
+        if relaunched {
+            UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion)
+        }
     }
 
     /// Re-read one app from disk and re-check it across all sources. Cheap

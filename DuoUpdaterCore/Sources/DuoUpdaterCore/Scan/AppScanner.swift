@@ -142,7 +142,7 @@ public struct AppScanner: Sendable {
         // declare it explicitly via `KSChannelID`; otherwise we infer it from the
         // bundle id suffix or a channel word in the display name. This gates
         // cross-channel updates downstream (see `ReleaseChannel`).
-        let releaseChannel = ReleaseChannel.detect(
+        var releaseChannel = ReleaseChannel.detect(
             name: displayName,
             bundleID: bundleID,
             keystoneChannel: plist["KSChannelID"] as? String,
@@ -150,6 +150,18 @@ public struct AppScanner: Sendable {
             // so Mozilla's "152.0b6"/"…esr" suffix can be read for channel.
             version: shortVersion
         )
+
+        // Some apps hide the user's channel choice in a private preference (no
+        // standard Sparkle schema). For those, read it: it gives the authoritative
+        // channel and, for feed-swap apps, the channel's feed — otherwise e.g. a
+        // Fork Stable user would be checked against the Developer feed and offered
+        // a beta build. See `ChannelBinding`.
+        var channelIsAuthoritative = false
+        if let bound = ChannelBinding.resolve(bundleID: bundleID) {
+            releaseChannel = bound.channel
+            channelIsAuthoritative = true
+            if let feed = bound.feedOverride { feedURL = feed }
+        }
 
         return InstalledApp(
             name: displayName,
@@ -165,7 +177,8 @@ public struct AppScanner: Sendable {
             sparkleEdPublicKey: (plist["SUPublicEDKey"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
             hasSelfUpdater: hasSelfUpdater,
-            releaseChannel: releaseChannel
+            releaseChannel: releaseChannel,
+            channelIsAuthoritative: channelIsAuthoritative
         )
     }
 }

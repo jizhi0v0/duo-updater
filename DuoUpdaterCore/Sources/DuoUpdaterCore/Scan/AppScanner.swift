@@ -53,6 +53,7 @@ public struct AppScanner: Sendable {
             }
         }
 
+        Log.scan.info("scanned \(self.locations.count, privacy: .public) locations → \(apps.count, privacy: .public) apps")
         return apps.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }

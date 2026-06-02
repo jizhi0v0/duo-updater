@@ -29,23 +29,8 @@ public struct SparkleAppcastSource: UpdateSource {
         }
 
         let items = SparkleAppcastParser.parse(data)
-        guard !items.isEmpty else { return nil }
-
-        let osVersion = Self.numericSystemVersion()
-        let usable = items.filter { item in
-            // Skip delta updates — they patch a specific old build.
-            guard item.deltaFrom == nil else { return false }
-            // Honor minimum system version when declared.
-            if let minOS = item.minimumSystemVersion, !minOS.isEmpty {
-                return VersionComparator.compare(osVersion, minOS) != .orderedAscending
-            }
-            return true
-        }
-
-        let best = usable.max { lhs, rhs in
-            VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) == .orderedAscending
-        }
-        guard let best else { return nil }
+        guard let best = Self.bestItem(for: app, from: items, osVersion: Self.numericSystemVersion())
+        else { return nil }
 
         return RemoteVersion(
             shortVersion: best.shortVersionString,
@@ -57,6 +42,71 @@ public struct SparkleAppcastSource: UpdateSource {
             releaseNotesHTML: best.descriptionHTML,
             changelogURL: best.releaseNotesLink
         )
+    }
+
+    /// Pick the best appcast item for an app: the highest-versioned, runnable,
+    /// in-channel entry. Pure (no network) so the selection — especially the
+    /// channel gating — is unit-testable.
+    ///
+    /// Sparkle gates prerelease items behind a `<sparkle:channel>`. The host app
+    /// opts into a channel in code (`SPUUpdaterDelegate.allowedChannels`), which
+    /// is compiled in and NOT exposed in Info.plist or the app's UserDefaults —
+    /// so we can't read the subscription from outside the bundle. We infer it
+    /// instead from the build the user is actually running: match the installed
+    /// version to a feed item and read its channel. A stable build (default
+    /// channel) is then never offered a prerelease, and a beta build is offered
+    /// only same-channel betas — never a stable that may be incompatible. When
+    /// the installed build isn't in the feed (trimmed history) we fall back to
+    /// the default channel, the conservative choice that never pushes a surprise
+    /// prerelease.
+    static func bestItem(
+        for app: InstalledApp,
+        from items: [SparkleAppcastItem],
+        osVersion: String
+    ) -> SparkleAppcastItem? {
+        guard !items.isEmpty else { return nil }
+        let installedChannel = channel(ofInstalled: app, in: items)
+        let usable = items.filter { item in
+            // Skip delta updates — they patch a specific old build.
+            guard item.deltaFrom == nil else { return false }
+            // Only the channel the installed build is on (default channel == nil).
+            guard normalizeChannel(item.channel) == installedChannel else { return false }
+            // Honor minimum system version when declared.
+            if let minOS = item.minimumSystemVersion, !minOS.isEmpty {
+                return VersionComparator.compare(osVersion, minOS) != .orderedAscending
+            }
+            return true
+        }
+        return usable.max { lhs, rhs in
+            VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) == .orderedAscending
+        }
+    }
+
+    /// The Sparkle channel the installed build sits on, found by matching the
+    /// installed version to a feed item — build number first (Sparkle's
+    /// canonical key), then the marketing string. nil = the default (stable)
+    /// channel, either because the matched item carried no `<sparkle:channel>`
+    /// or because the installed build isn't in the feed at all.
+    static func channel(ofInstalled app: InstalledApp, in items: [SparkleAppcastItem]) -> String? {
+        let match = items.first { item in
+            if let b = app.buildVersion, let v = item.version, !b.isEmpty, b == v {
+                return true
+            }
+            if let s = app.shortVersion, let sv = item.shortVersionString, !s.isEmpty, s == sv {
+                return true
+            }
+            return false
+        }
+        return normalizeChannel(match?.channel)
+    }
+
+    /// Collapse an absent or whitespace-only channel to nil so the default
+    /// channel compares equal however the feed spells it.
+    static func normalizeChannel(_ raw: String?) -> String? {
+        guard let c = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty else {
+            return nil
+        }
+        return c
     }
 
     /// e.g. "26.6.0" — used to evaluate `minimumSystemVersion`.
@@ -79,6 +129,9 @@ struct SparkleAppcastItem {
     var edSignature: String?
     var minimumSystemVersion: String?
     var deltaFrom: String?
+    /// `<sparkle:channel>` — names a non-default release track (e.g. "beta").
+    /// nil/absent means the default (stable) channel, which Sparkle always ships.
+    var channel: String?
     /// Inline release notes — the `<description>` body, usually CDATA-wrapped HTML.
     var descriptionHTML: String?
     /// `<sparkle:releaseNotesLink>` — an external notes page, when the feed links
@@ -160,6 +213,8 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             }
         case "sparkle:minimumSystemVersion":
             current?.minimumSystemVersion = text
+        case "sparkle:channel":
+            if current?.channel == nil, !text.isEmpty { current?.channel = text }
         case "description":
             // Only inside an <item>; the channel-level <description> has no
             // `current` to attach to, so it's harmlessly dropped.

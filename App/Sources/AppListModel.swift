@@ -69,10 +69,12 @@ final class AppListModel {
             // the earlier sources all miss and a recipe exists.
             VendorProbeSource()
         ], toolbox: ToolboxSource(inventory: toolbox))
+        Log.app.info("refresh: checking \(found.count, privacy: .public) apps")
         let checked = await checker.check(found)
         results = sorted(checked)
         await computeRestartInfo()
         isChecking = false
+        Log.app.info("refresh done: \(self.updateCount, privacy: .public) updates, \(self.needsRestart.count, privacy: .public) need restart")
     }
 
     /// True when this update installs seamlessly in place (Sparkle EdDSA, or a
@@ -155,7 +157,7 @@ final class AppListModel {
                 status: UpdateChecker.evaluate(installed: app, remote: remote))
         }
         results = sorted(updated)
-        computeRestartInfo()
+        await computeRestartInfo()
     }
 
     /// Update one app's install stage, coalescing download progress to whole
@@ -177,6 +179,7 @@ final class AppListModel {
     func install(_ result: UpdateResult) async {
         let id = result.id
         installErrors[id] = nil
+        Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
 
         // Defensive re-check: the app may already be current — e.g. a manual
         // pkg install we couldn't observe, or it was updated by its own updater
@@ -188,6 +191,7 @@ final class AppListModel {
         guard result.hasUpdate else {
             // Already current on disk — but the running instance may predate
             // that update, so recompute whether a restart is needed.
+            Log.install.info("install skipped: \(result.app.name, privacy: .public) already current on disk")
             await computeRestartInfo()
             installing[id] = nil
             return
@@ -241,11 +245,14 @@ final class AppListModel {
             // effect and there's nothing left to do.
             let version = updated.app.shortVersion
             if needsRestart.contains(updated.id) {
+                Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
                 UpdateNotifier.readyToRestart(app: updated.app.name, version: version)
             } else {
+                Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
                 UpdateNotifier.updated(app: updated.app.name, version: version)
             }
         } catch {
+            Log.install.error("install failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             installErrors[id] = error.localizedDescription
         }
         installing[id] = nil
@@ -260,16 +267,24 @@ final class AppListModel {
         let running = await Self.runningBuildVersions()
         var ids: Set<String> = []
         var versions: [String: String] = [:]
-        for result in results where !result.hasUpdate {
+        for result in results {
             guard let bundleID = result.app.bundleID,
                   let runVersion = running[bundleID],
                   let disk = result.app.buildVersion ?? result.app.shortVersion,
                   VersionComparator.isNewer(disk, than: runVersion) else { continue }
-            ids.insert(result.id)
+            // Always record the lagging running version — even for a row that
+            // also has a newer update pending — so the update row can show it as
+            // "current". The Restart badge, though, only makes sense when there's
+            // nothing newer to install: an update-available row shows Update and
+            // installing it re-triggers the restart prompt afterward.
             versions[result.id] = runVersion
+            if !result.hasUpdate { ids.insert(result.id) }
         }
         needsRestart = ids
         runningVersionByID = versions
+        // Re-sort: a row that just flipped to needs-restart should move up into
+        // the actionable tier rather than stay wherever it last sorted.
+        results = sorted(results)
     }
 
     /// Map of bundle id → the build version each running app launched with,
@@ -328,6 +343,7 @@ final class AppListModel {
     /// keep the Restart prompt for the user to retry.
     func restart(_ result: UpdateResult) async {
         guard let bundleID = result.app.bundleID else { return }
+        Log.app.info("restart: \(result.app.name, privacy: .public) [\(bundleID, privacy: .public)]")
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         guard !running.isEmpty else { needsRestart.remove(result.id); return }
         for app in running { app.terminate() }
@@ -336,11 +352,13 @@ final class AppListModel {
             try? await Task.sleep(for: .milliseconds(200))
         }
         guard NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty else {
+            Log.app.error("restart: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving badge")
             return  // still up (likely a save prompt) — leave the badge
         }
         let relaunched = NSWorkspace.shared.open(result.app.path)
         needsRestart.remove(result.id)
         runningVersionByID[result.id] = nil
+        Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
         if relaunched {
             UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion)
         }
@@ -368,6 +386,21 @@ final class AppListModel {
         return await checker.check(fresh)
     }
 
+    /// Re-run the update check for one app whose source errored — the retry
+    /// affordance on an `.error` row (e.g. a transient GitHub rate-limit). Reuses
+    /// the install-stage spinner to show "Checking" on just that row, and bails
+    /// if the row is already busy (installing or mid-recheck).
+    func retry(_ result: UpdateResult) async {
+        let id = result.id
+        guard installing[id] == nil else { return }
+        Log.app.info("retry: re-checking \(result.app.name, privacy: .public)")
+        installing[id] = .checking
+        let updated = await recheck(result)
+        installing[id] = nil
+        replaceRow(updated)
+        Log.app.info("retry done: \(updated.app.name, privacy: .public) → \(String(describing: updated.status), privacy: .public)")
+    }
+
     /// Replace a single row by id and re-sort.
     private func replaceRow(_ updated: UpdateResult) {
         if let idx = results.firstIndex(where: { $0.id == updated.id }) {
@@ -376,9 +409,20 @@ final class AppListModel {
         }
     }
 
+    /// Actionable rows first: pending updates, then apps updated-on-disk that
+    /// still need a restart, then everything else — each tier alphabetical. A
+    /// restart row is just as actionable as an update, so it stays grouped with
+    /// them up top instead of sinking into the up-to-date list at the bottom
+    /// (which read as the row "disappearing" right after you clicked Update).
     private func sorted(_ list: [UpdateResult]) -> [UpdateResult] {
-        list.sorted { a, b in
-            if a.hasUpdate != b.hasUpdate { return a.hasUpdate }
+        func rank(_ r: UpdateResult) -> Int {
+            if r.hasUpdate { return 0 }
+            if needsRestart.contains(r.id) { return 1 }
+            return 2
+        }
+        return list.sorted { a, b in
+            let ra = rank(a), rb = rank(b)
+            if ra != rb { return ra < rb }
             return a.app.name.localizedCaseInsensitiveCompare(b.app.name) == .orderedAscending
         }
     }

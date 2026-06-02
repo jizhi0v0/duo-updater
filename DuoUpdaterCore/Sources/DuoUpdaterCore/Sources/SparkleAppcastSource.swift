@@ -44,6 +44,7 @@ public struct SparkleAppcastSource: UpdateSource {
             edSignature: best.edSignature,
             minimumSystemVersion: best.minimumSystemVersion,
             sourceName: name,
+            minimumAutoupdateVersion: best.minimumAutoupdateVersion,
             releaseNotesHTML: best.descriptionHTML,
             structuredChangelog: structured,
             changelogURL: best.releaseNotesLink
@@ -165,6 +166,12 @@ struct SparkleAppcastItem {
     /// `<sparkle:channel>` — names a non-default release track (e.g. "beta").
     /// nil/absent means the default (stable) channel, which Sparkle always ships.
     var channel: String?
+    /// `<sparkle:minimumAutoupdateVersion>` — the vendor-declared build version
+    /// below which this release must never silently auto-install. Sparkle derives
+    /// `SUAppcastItem.majorUpgrade` from it, and vendors set it at a paid/license
+    /// boundary or other notable upgrade. Expressed in `sparkle:version` (build)
+    /// terms. Absent for the vast majority of feeds.
+    var minimumAutoupdateVersion: String?
     /// Inline release notes — the `<description>` body, usually CDATA-wrapped HTML.
     var descriptionHTML: String?
     /// Inline release notes shipped as Markdown via `<markdownDescription>` — some
@@ -224,6 +231,10 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             if let delta = attributeDict["sparkle:deltaFrom"] {
                 current?.deltaFrom = delta
             }
+            // Usually an item-level child element, but tolerate it on enclosure.
+            if let m = attributeDict["sparkle:minimumAutoupdateVersion"] {
+                current?.minimumAutoupdateVersion = m
+            }
         default:
             break
         }
@@ -257,6 +268,10 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             current?.minimumSystemVersion = text
         case "sparkle:channel":
             if current?.channel == nil, !text.isEmpty { current?.channel = text }
+        case "sparkle:minimumAutoupdateVersion":
+            if current?.minimumAutoupdateVersion == nil, !text.isEmpty {
+                current?.minimumAutoupdateVersion = text
+            }
         case "description":
             // Only inside an <item>; the channel-level <description> has no
             // `current` to attach to, so it's harmlessly dropped.

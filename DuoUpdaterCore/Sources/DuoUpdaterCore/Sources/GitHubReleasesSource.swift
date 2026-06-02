@@ -16,18 +16,41 @@ public struct GitHubReleaseRule: Sendable {
     /// (e.g. strip a leading `v`, or a `.stable_00` suffix).
     public let versionPattern: String
 
+    /// Regex matched against each release asset's *filename* to pick the macOS
+    /// installer to one-click install in place. nil keeps the rule detection-only
+    /// (the default and safe stance): we surface the version and link to the
+    /// releases page, never install an artifact. Only set this once the asset is
+    /// confirmed to be a notarized build signed by the **same Team ID** as the
+    /// installed app — `VendorInstaller` enforces that gate, but author defensively.
+    public let installAssetPattern: String?
+    /// Archive format of the matched asset, so the installer unpacks it correctly.
+    /// Required when `installAssetPattern` is set; ignored otherwise.
+    public let installerKind: VendorInstallerKind?
+
     public init(
         bundleID: String,
         owner: String,
         repo: String,
         usePrereleases: Bool = false,
-        versionPattern: String = #"v?([0-9]+(?:\.[0-9]+)+)"#
+        versionPattern: String = #"v?([0-9]+(?:\.[0-9]+)+)"#,
+        installAssetPattern: String? = nil,
+        installerKind: VendorInstallerKind? = nil
     ) {
         self.bundleID = bundleID
         self.owner = owner
         self.repo = repo
         self.usePrereleases = usePrereleases
         self.versionPattern = versionPattern
+        self.installAssetPattern = installAssetPattern
+        self.installerKind = installerKind
+    }
+
+    /// First release asset whose filename matches `installAssetPattern`. Pure and
+    /// static so the arch/format selection is unit-testable without a fetch.
+    static func installableAsset(
+        from assets: [(name: String, url: URL)], matching pattern: String
+    ) -> URL? {
+        assets.first { $0.name.range(of: pattern, options: .regularExpression) != nil }?.url
     }
 
     var slug: String { "\(owner)/\(repo)" }
@@ -126,12 +149,24 @@ public struct GitHubReleasesSource: UpdateSource {
                 let structured = body.flatMap {
                     GitHubMarkdownParser.parse(body: $0, version: version, date: release.publishedAt)
                 }
+
+                // When the rule names an installable asset and this release ships
+                // a matching one, offer a one-click in-place install (the Team-ID
+                // gate in VendorInstaller still guards the swap). Otherwise stay
+                // detection-only: link to the releases page, install nothing.
+                let installURL = rule.installAssetPattern.flatMap {
+                    GitHubReleaseRule.installableAsset(from: release.assets, matching: $0)
+                }
+                let installable = installURL != nil && rule.installerKind != nil
+
                 return RemoteVersion(
                     shortVersion: version,
                     version: nil,
-                    downloadURL: URL(string: "https://github.com/\(rule.slug)/releases"),
+                    downloadURL: installURL
+                        ?? URL(string: "https://github.com/\(rule.slug)/releases"),
                     sourceName: name,
-                    requiresManualInstaller: true,
+                    requiresManualInstaller: !installable,
+                    vendorInstallerKind: installable ? rule.installerKind : nil,
                     releaseNotesHTML: structured == nil ? body : nil,
                     structuredChangelog: structured,
                     changelogURL: page
@@ -142,12 +177,14 @@ public struct GitHubReleasesSource: UpdateSource {
         return nil
     }
 
-    /// A GitHub release reduced to the fields we use: tag, notes body, page URL, date.
+    /// A GitHub release reduced to the fields we use: tag, notes body, page URL,
+    /// date, and downloadable assets (filename → URL, for installer selection).
     private struct Release {
         let tag: String
         let body: String?
         let htmlURL: URL?
         let publishedAt: String?
+        let assets: [(name: String, url: URL)]
     }
 
     /// Extract releases from either a single release object or a list.
@@ -161,11 +198,19 @@ public struct GitHubReleasesSource: UpdateSource {
         }
         return objects.compactMap { obj in
             guard let tag = obj["tag_name"] as? String else { return nil }
+            let assets: [(name: String, url: URL)] = (obj["assets"] as? [[String: Any]] ?? [])
+                .compactMap { asset in
+                    guard let name = asset["name"] as? String,
+                          let urlString = asset["browser_download_url"] as? String,
+                          let url = URL(string: urlString) else { return nil }
+                    return (name, url)
+                }
             return Release(
                 tag: tag,
                 body: obj["body"] as? String,
                 htmlURL: (obj["html_url"] as? String).flatMap { URL(string: $0) },
-                publishedAt: obj["published_at"] as? String
+                publishedAt: obj["published_at"] as? String,
+                assets: assets
             )
         }
     }
@@ -187,10 +232,17 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.alienator88.Pearcleaner",
             owner: "alienator88", repo: "Pearcleaner"),
 
-        // RustDesk — tags have no `v` prefix.
+        // RustDesk — tags have no `v` prefix. One-click installs the arm64 dmg
+        // asset (`rustdesk-<ver>-aarch64.dmg`): the official GitHub build is a
+        // notarized Developer ID app, Team ID HZF9JMC8YN (zhou huabing), matching
+        // the installed copy — so the VendorInstaller Team-ID gate passes. arm64
+        // only, like the other Apple-silicon recipes; an Intel asset also ships
+        // (`…-x86_64.dmg`) but we don't select it.
         GitHubReleaseRule(
             bundleID: "com.carriez.rustdesk",
-            owner: "rustdesk", repo: "rustdesk"),
+            owner: "rustdesk", repo: "rustdesk",
+            installAssetPattern: #"aarch64\.dmg$"#,
+            installerKind: .dmg),
 
         // Alcove — dedicated releases repo, no `v` prefix.
         GitHubReleaseRule(

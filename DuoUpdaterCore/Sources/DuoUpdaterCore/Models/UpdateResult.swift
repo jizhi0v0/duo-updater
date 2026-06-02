@@ -58,6 +58,13 @@ public struct RemoteVersion: Sendable, Hashable {
     /// Human-readable name of the source that produced this ("Sparkle" etc.).
     public let sourceName: String
 
+    /// Sparkle `minimumAutoupdateVersion`: the vendor-declared build version
+    /// below which this release must not silently auto-install. When set, it is
+    /// the authoritative "is this a notable/paid-boundary upgrade?" signal — we
+    /// trust it over the version-number heuristic. Expressed in build-version
+    /// (`sparkle:version`) terms. Nil for non-Sparkle sources and most feeds.
+    public let minimumAutoupdateVersion: String?
+
     /// Source-specific identifier needed to act on this update — currently the
     /// Homebrew cask token, used by `brew install --cask`.
     public let sourceIdentifier: String?
@@ -107,6 +114,7 @@ public struct RemoteVersion: Sendable, Hashable {
         edSignature: String? = nil,
         minimumSystemVersion: String? = nil,
         sourceName: String,
+        minimumAutoupdateVersion: String? = nil,
         sourceIdentifier: String? = nil,
         appStore: AppStoreAvailability? = nil,
         requiresManualInstaller: Bool = false,
@@ -123,6 +131,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.edSignature = edSignature
         self.minimumSystemVersion = minimumSystemVersion
         self.sourceName = sourceName
+        self.minimumAutoupdateVersion = minimumAutoupdateVersion
         self.sourceIdentifier = sourceIdentifier
         self.appStore = appStore
         self.requiresManualInstaller = requiresManualInstaller
@@ -182,13 +191,50 @@ public struct UpdateResult: Sendable, Identifiable {
         return false
     }
 
-    /// True when the available update is a major version bump (e.g. 6.x → 7.x).
-    /// Used to warn that a commercial app may require a new license — the same
-    /// heuristic MacUpdater surfaces.
+    /// Source channels whose updates carry no "expired paid license" risk, so a
+    /// major-number bump arriving through them is just a release, not a boundary:
+    ///  - "Vendor": our hand-curated probe registry — vetted free GA builds we
+    ///    already one-click install (Postman, Chrome, VLC, …).
+    ///  - "GitHub": open-source release feeds.
+    ///  - "App Store": the store enforces entitlements itself; we never warn.
+    /// Deliberately excludes "Homebrew" (some casks wrap paid apps) and a Sparkle
+    /// feed that merely set no `minimumAutoupdateVersion` (a paid app may simply
+    /// omit it), both of which keep the warning — the conservative direction.
+    private static let licenseNeutralSources: Set<String> = ["Vendor", "GitHub", "App Store"]
+
+    /// True when the available update is a notable/major upgrade — the signal we
+    /// surface to warn that a commercial app may require a new license (the same
+    /// heuristic MacUpdater surfaces).
+    ///
+    /// Three tiers, authoritative-first:
+    ///  1. If the feed declares `minimumAutoupdateVersion`, trust it in BOTH
+    ///     directions: the vendor has explicitly drawn the line, so a fast-cadence
+    ///     app that bumps its major number but sets no floor (Postman-style) is
+    ///     correctly NOT flagged, and one whose floor we sit below IS — regardless
+    ///     of how the marketing numbers move. Compared in build-version terms,
+    ///     which is what Sparkle's own `majorUpgrade` uses.
+    ///  2. Otherwise fall back to the marketing-major-bump guess, but suppress the
+    ///     two shapes where that guess is reliably wrong: updates from a
+    ///     license-neutral source, and CalVer (year-led) version schemes.
+    ///  3. We do NOT suppress on a high major number alone — Parallels (v26) and
+    ///     Office 2024 are high-major yet paid per major, so magnitude is unsafe.
     public var isMajorUpgrade: Bool {
-        guard case .updateAvailable = status,
-              let from = app.shortVersion,
-              let to = remote?.displayVersion else { return false }
-        return VersionComparator.isMajorUpgrade(from: from, to: to)
+        guard case .updateAvailable = status else { return false }
+
+        if let floor = remote?.minimumAutoupdateVersion?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !floor.isEmpty,
+           let installed = app.buildVersion ?? app.shortVersion {
+            return VersionComparator.compare(installed, floor) == .orderedAscending
+        }
+
+        guard let from = app.shortVersion, let to = remote?.displayVersion,
+              VersionComparator.isMajorUpgrade(from: from, to: to) else { return false }
+
+        if let source = remote?.sourceName, Self.licenseNeutralSources.contains(source) {
+            return false
+        }
+        if VersionComparator.isCalendarVersion(to) { return false }
+
+        return true
     }
 }

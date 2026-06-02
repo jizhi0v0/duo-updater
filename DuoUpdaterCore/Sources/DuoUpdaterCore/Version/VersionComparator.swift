@@ -47,6 +47,23 @@ public enum VersionComparator {
         return b > a
     }
 
+    /// True when `version`'s leading numeric component is a four-digit calendar
+    /// year (CalVer — JetBrains "2024.1", "2024.11.5", etc.). A year-led scheme
+    /// increments its leading number every release, so a "major bump" there is a
+    /// date rolling over, never a paid product-line boundary. Only the *leading*
+    /// number counts: "12.13.2" (major 12) is not CalVer, "1.2024" isn't either.
+    /// Two-digit-year and YYYYMMDD shapes are deliberately excluded — they alias
+    /// ordinary semver too readily to detect safely.
+    public static func isCalendarVersion(_ version: String) -> Bool {
+        for token in tokenize(version) {
+            if case let .number(n) = token {
+                return (2000...2099).contains(n)
+            }
+            // Leading non-numeric run (e.g. a "v" prefix): skip and keep looking.
+        }
+        return false
+    }
+
     // MARK: - Tokenizing
 
     private enum Token {

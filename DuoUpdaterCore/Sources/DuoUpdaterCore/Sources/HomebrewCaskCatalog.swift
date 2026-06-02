@@ -37,6 +37,13 @@ public actor HomebrewCaskCatalog {
         self.session = session
     }
 
+    /// Test seam: seed a fixed index so source-level tests run offline instead of
+    /// fetching the 5 MB live catalog.
+    init(testIndex: CaskIndex) {
+        self.session = .shared
+        self.index = testIndex
+    }
+
     /// Look up the cask that installs an app with the given bundle filename.
     func entry(forAppFilename filename: String) async throws -> CaskEntry? {
         try await loadedIndex().byAppFilename[filename.lowercased()]

@@ -12,8 +12,17 @@ public struct AppScanner: Sendable {
     /// `state.json` so we can tag installs as Toolbox-managed.
     private let toolbox: ToolboxInventory
 
-    public init(locations: [URL]? = nil, toolbox: ToolboxInventory = ToolboxInventory()) {
+    /// TestFlight's macOS builds — read once per scan from its local DB so we can
+    /// tag installs as TestFlight-managed (and keep them out of the MAS path).
+    private let testflight: TestFlightInventory
+
+    public init(
+        locations: [URL]? = nil,
+        toolbox: ToolboxInventory = ToolboxInventory(),
+        testflight: TestFlightInventory = TestFlightInventory()
+    ) {
         self.toolbox = toolbox
+        self.testflight = testflight
         if let locations {
             self.locations = locations
         } else {
@@ -98,10 +107,16 @@ public struct AppScanner: Sendable {
             ?? bundleURL.deletingPathExtension().lastPathComponent
 
         // Wrapped iOS apps can only come from the Mac App Store; native Mac apps
-        // carry a `_MASReceipt` when bought there.
+        // carry a `_MASReceipt` when bought there. TestFlight builds ALSO carry a
+        // `_MASReceipt`, so decide TestFlight first (by matching the installed
+        // build against TestFlight's DB) and exclude it from the MAS flag — else a
+        // TestFlight app would be checked against the App Store's stable track.
         let receiptURL = bundleURL
             .appendingPathComponent("Contents/_MASReceipt/receipt")
-        let isMAS = isiOSAppOnMac || fm.fileExists(atPath: receiptURL.path)
+        let bundleID = plist["CFBundleIdentifier"] as? String
+        let buildVersion = plist["CFBundleVersion"] as? String
+        let isTestFlight = testflight.isManaged(bundleID: bundleID, installedBuild: buildVersion)
+        let isMAS = !isTestFlight && (isiOSAppOnMac || fm.fileExists(atPath: receiptURL.path))
 
         var feedURL: URL?
         if let feed = plist["SUFeedURL"] as? String {
@@ -123,8 +138,6 @@ public struct AppScanner: Sendable {
         let displayShortVersion = toolboxTool
             .map(\.displayVersion).flatMap { $0.isEmpty ? nil : $0 } ?? shortVersion
 
-        let bundleID = plist["CFBundleIdentifier"] as? String
-
         // Release channel (Stable/Beta/Canary/…). Chrome & other Keystone apps
         // declare it explicitly via `KSChannelID`; otherwise we infer it from the
         // bundle id suffix or a channel word in the display name. This gates
@@ -142,11 +155,12 @@ public struct AppScanner: Sendable {
             name: displayName,
             bundleID: bundleID,
             shortVersion: displayShortVersion,
-            buildVersion: plist["CFBundleVersion"] as? String,
+            buildVersion: buildVersion,
             path: bundleURL,
             isMASApp: isMAS,
             isiOSAppOnMac: isiOSAppOnMac,
             isToolboxManaged: toolbox.isManaged(appPath: bundleURL),
+            isTestFlightApp: isTestFlight,
             sparkleFeedURL: feedURL,
             sparkleEdPublicKey: (plist["SUPublicEDKey"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),

@@ -252,6 +252,9 @@ private struct AppRow: View {
                 if result.remote?.sourceName == "Toolbox" {
                     // Detected via Toolbox's own cache — it installs, we just route.
                     toolboxButton
+                } else if result.remote?.sourceName == "TestFlight" {
+                    // Detected via TestFlight's cache — it installs, we just route.
+                    testFlightButton
                 } else if result.isMajorUpgrade && (model.canAutoInstall(result) || model.requiresInstaller(result)) {
                     majorUpgradeBadge
                 } else if model.canAutoInstall(result) {
@@ -271,6 +274,8 @@ private struct AppRow: View {
                 appStoreManagedLabel
             case .toolboxManaged:
                 toolboxButton
+            case .testFlightManaged:
+                testFlightManagedLabel
             case .upToDate:
                 // needsRestart is handled above, before the status switch.
                 if result.app.isMASApp {
@@ -279,6 +284,10 @@ private struct AppRow: View {
                     // app we can update ourselves (a bare ✅ reads the same as
                     // Sparkle/brew). Same label as `.appStoreManaged`.
                     appStoreManagedLabel
+                } else if result.app.isTestFlightApp {
+                    // Current on TestFlight — keep the channel tag rather than a
+                    // bare check, so it never reads like a self-updatable app.
+                    testFlightManagedLabel
                 } else {
                     Image(systemName: "checkmark").foregroundStyle(.secondary).font(.caption)
                 }
@@ -433,6 +442,23 @@ private struct AppRow: View {
         }
     }
 
+    /// TestFlight manages this beta's updates. There's no per-app deep link we can
+    /// rely on, so we just open TestFlight, where the user installs the update
+    /// through its own channel.
+    private var testFlightButton: some View {
+        Button("TestFlight") { openTestFlight() }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .help("Managed by TestFlight — open TestFlight to update \(result.app.name)")
+    }
+
+    private func openTestFlight() {
+        if let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.apple.TestFlight") {
+            NSWorkspace.shared.openApplication(at: url, configuration: .init())
+        }
+    }
+
     private var openHelp: String {
         guard let url = result.remote?.downloadURL else { return "Reveal in Finder" }
         if let scheme = url.scheme, scheme != "http", scheme != "https" {
@@ -528,6 +554,14 @@ private struct AppRow: View {
     private var appStoreManagedLabel: some View {
         Text("App Store").font(.caption2).foregroundStyle(.tertiary)
             .help("Managed by the App Store — it handles this app's updates")
+    }
+
+    /// The "TestFlight" tag shown for a TestFlight-managed app that's current (or
+    /// whose cache returned nothing). Updates are TestFlight's job, so the row
+    /// shows the channel rather than an action we can't perform here.
+    private var testFlightManagedLabel: some View {
+        Text("TestFlight").font(.caption2).foregroundStyle(.tertiary)
+            .help("Managed by TestFlight — it handles this beta's updates")
     }
 
     /// A source was tried and failed — most often a transient GitHub rate-limit.

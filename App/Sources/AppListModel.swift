@@ -49,8 +49,11 @@ final class AppListModel {
         // One Toolbox snapshot shared by the scan (to tag managed apps) and the
         // checker (to read latest-build info) — a single read of its local cache.
         let toolbox = ToolboxInventory()
+        // One TestFlight snapshot shared by the scan (to tag managed apps) and the
+        // checker (to read latest-build info) — a single read of its local cache.
+        let testflight = TestFlightInventory()
         let found = await Task.detached(priority: .userInitiated) {
-            AppScanner(toolbox: toolbox).scan()
+            AppScanner(toolbox: toolbox, testflight: testflight).scan()
         }.value
         results = found.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
         lastScan = .now
@@ -68,7 +71,7 @@ final class AppListModel {
             // Last resort: bespoke per-vendor version endpoints. Only fires when
             // the earlier sources all miss and a recipe exists.
             VendorProbeSource()
-        ], toolbox: ToolboxSource(inventory: toolbox))
+        ], toolbox: ToolboxSource(inventory: toolbox), testflight: testflight)
         Log.app.info("refresh: checking \(found.count, privacy: .public) apps")
         let checked = await checker.check(found)
         results = sorted(checked)
@@ -147,9 +150,9 @@ final class AppListModel {
             guard let remote = was.remote else {
                 return UpdateResult(app: app, remote: nil, status: was.status)
             }
-            // Toolbox owns its apps' status (computed from its own cache, not a
-            // version compare) — keep it; don't re-evaluate locally.
-            guard remote.sourceName != "Toolbox" else {
+            // Toolbox and TestFlight own their apps' status (computed from their
+            // own cache, not a version compare) — keep it; don't re-evaluate.
+            guard remote.sourceName != "Toolbox", remote.sourceName != "TestFlight" else {
                 return UpdateResult(app: app, remote: remote, status: was.status)
             }
             return UpdateResult(
@@ -369,8 +372,9 @@ final class AppListModel {
     /// stale row.
     private func recheck(_ result: UpdateResult) async -> UpdateResult {
         let id = result.id
+        let testflight = TestFlightInventory()
         let apps = await Task.detached(priority: .userInitiated) {
-            AppScanner().scan()
+            AppScanner(testflight: testflight).scan()
         }.value
         guard let fresh = apps.first(where: { $0.id == id }) else { return result }
         let checker = UpdateChecker(sources: [
@@ -382,7 +386,7 @@ final class AppListModel {
             // Last resort: bespoke per-vendor version endpoints. Only fires when
             // the earlier sources all miss and a recipe exists.
             VendorProbeSource()
-        ], toolbox: ToolboxSource())
+        ], toolbox: ToolboxSource(), testflight: testflight)
         return await checker.check(fresh)
     }
 

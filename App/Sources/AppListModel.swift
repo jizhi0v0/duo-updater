@@ -96,10 +96,12 @@ final class AppListModel {
         case "Homebrew":
             return result.remote?.sourceIdentifier != nil
                 && result.remote?.requiresManualInstaller == false
-        case "Vendor":
-            // An official-website app with a resolved installer archive (zip/dmg/
-            // tar.gz). We download it, verify the code signature matches the
-            // installed app's Team ID, then swap in place — same channel, no mix.
+        case "Vendor", "GitHub":
+            // A vendor-website or GitHub-release app with a resolved installer
+            // archive (zip/dmg/tar.gz). We download it, verify the code signature
+            // matches the installed app's Team ID, then swap in place — same
+            // channel, no mix. GitHub rules without an asset pattern stay
+            // detection-only (vendorInstallerKind nil), so they fall through here.
             return result.remote?.vendorInstallerKind != nil
                 && result.remote?.requiresManualInstaller == false
         default:
@@ -120,7 +122,7 @@ final class AppListModel {
         switch result.remote?.sourceName {
         case "Homebrew":
             return result.remote?.requiresManualInstaller == true
-        case "Vendor":
+        case "Vendor", "GitHub":
             return result.remote?.vendorInstallerKind == .pkg
         default:
             return false
@@ -223,7 +225,7 @@ final class AppListModel {
                 try await homebrewInstaller.upgrade(caskToken: token) { line in
                     Task { @MainActor in self.setStage(id, .runningCommand(line)) }
                 }
-            case "Vendor":
+            case "Vendor", "GitHub":
                 installing[id] = .downloading(fraction: 0)
                 try await vendorInstaller.install(result) { stage in
                     Task { @MainActor in self.setStage(id, stage) }

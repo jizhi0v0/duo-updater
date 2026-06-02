@@ -35,7 +35,7 @@ public actor VendorInstaller {
         public var errorDescription: String? {
             switch self {
             case .notVendorUpdate:
-                return "This update did not come from a vendor probe."
+                return "This update isn't an in-place installable archive."
             case .noDownloadURL:
                 return "The update has no resolved download URL."
             case .unknownKind:
@@ -52,7 +52,13 @@ public actor VendorInstaller {
         _ result: UpdateResult,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
-        guard let remote = result.remote, remote.sourceName == "Vendor" else {
+        // Accept any source whose RemoteVersion carries a resolved installer
+        // archive we vet ourselves: the vendor-probe registry ("Vendor") and
+        // GitHub release rules with an asset pattern ("GitHub"). Both download a
+        // notarized build and gate on a Team-ID match below, so the swap stays
+        // same-channel. Sparkle/Homebrew install through their own pipelines.
+        guard let remote = result.remote,
+              remote.sourceName == "Vendor" || remote.sourceName == "GitHub" else {
             throw InstallError.notVendorUpdate
         }
         guard let downloadURL = remote.downloadURL else {

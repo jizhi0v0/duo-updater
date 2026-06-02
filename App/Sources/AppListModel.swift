@@ -51,7 +51,7 @@ final class AppListModel {
         ])
         let checked = await checker.check(found)
         results = sorted(checked)
-        computeRestartInfo()
+        await computeRestartInfo()
         isChecking = false
     }
 
@@ -101,7 +101,7 @@ final class AppListModel {
         guard result.hasUpdate else {
             // Already current on disk — but the running instance may predate
             // that update, so recompute whether a restart is needed.
-            computeRestartInfo()
+            await computeRestartInfo()
             installing[id] = nil
             return
         }
@@ -138,7 +138,7 @@ final class AppListModel {
             // process running stale code; Sparkle relaunches, so it won't show.
             let updated = await recheck(result)
             replaceRow(updated)
-            computeRestartInfo()
+            await computeRestartInfo()
         } catch {
             installErrors[id] = error.localizedDescription
         }
@@ -150,8 +150,8 @@ final class AppListModel {
     /// LaunchServices (`lsappinfo`), which is cached at launch and so differs
     /// from the on-disk Info.plist after an update. Covers our own installs,
     /// the app's own updater, and brew — across app restarts.
-    private func computeRestartInfo() {
-        let running = runningBuildVersions()
+    private func computeRestartInfo() async {
+        let running = await Self.runningBuildVersions()
         var ids: Set<String> = []
         var versions: [String: String] = [:]
         for result in results where !result.hasUpdate {
@@ -168,33 +168,49 @@ final class AppListModel {
 
     /// Map of bundle id → the build version each running app launched with,
     /// parsed from `lsappinfo list` (one call for all running apps).
-    private func runningBuildVersions() -> [String: String] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/lsappinfo")
-        process.arguments = ["list"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        do { try process.run() } catch { return [:] }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard let text = String(data: data, encoding: .utf8) else { return [:] }
+    ///
+    /// Runs entirely off the main actor: `lsappinfo` talks to `coreservicesd`
+    /// and can be slow or hang — most acutely right after we terminate and
+    /// relaunch a batch of apps during an install. Blocking `@MainActor` here
+    /// froze the whole UI (spin report) and stranded the half-restarted app.
+    nonisolated private static func runningBuildVersions() async -> [String: String] {
+        await Task.detached(priority: .utility) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/lsappinfo")
+            process.arguments = ["list"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            // nullDevice, not Pipe(): an undrained stderr pipe deadlocks once
+            // its 64KB buffer fills — lsappinfo blocks writing, we block in
+            // waitUntilExit(), forever.
+            process.standardError = FileHandle.nullDevice
+            do { try process.run() } catch { return [:] }
 
-        var map: [String: String] = [:]
-        var current: String?
-        for line in text.split(separator: "\n") {
-            if let bundleID = quotedValue(after: "bundleID", in: line) {
-                current = bundleID
-            } else if let cur = current, map[cur] == nil,
-                      let version = quotedValue(after: "Version", in: line) {
-                map[cur] = version
+            // Timeout backstop so a wedged lsappinfo can't hang us indefinitely.
+            let timeout = DispatchWorkItem { process.terminate() }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5, execute: timeout)
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            timeout.cancel()
+            guard let text = String(data: data, encoding: .utf8) else { return [:] }
+
+            var map: [String: String] = [:]
+            var current: String?
+            for line in text.split(separator: "\n") {
+                if let bundleID = quotedValue(after: "bundleID", in: line) {
+                    current = bundleID
+                } else if let cur = current, map[cur] == nil,
+                          let version = quotedValue(after: "Version", in: line) {
+                    map[cur] = version
+                }
             }
-        }
-        return map
+            return map
+        }.value
     }
 
     /// Extract the value of a `key="value"` pair from a line.
-    private func quotedValue(after key: String, in line: Substring) -> String? {
+    nonisolated private static func quotedValue(after key: String, in line: Substring) -> String? {
         guard let start = line.range(of: key + "=\"") else { return nil }
         let rest = line[start.upperBound...]
         guard let end = rest.firstIndex(of: "\"") else { return nil }

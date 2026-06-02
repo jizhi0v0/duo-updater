@@ -123,9 +123,24 @@ public struct AppScanner: Sendable {
         let displayShortVersion = toolboxTool
             .map(\.displayVersion).flatMap { $0.isEmpty ? nil : $0 } ?? shortVersion
 
+        let bundleID = plist["CFBundleIdentifier"] as? String
+
+        // Release channel (Stable/Beta/Canary/…). Chrome & other Keystone apps
+        // declare it explicitly via `KSChannelID`; otherwise we infer it from the
+        // bundle id suffix or a channel word in the display name. This gates
+        // cross-channel updates downstream (see `ReleaseChannel`).
+        let releaseChannel = ReleaseChannel.detect(
+            name: displayName,
+            bundleID: bundleID,
+            keystoneChannel: plist["KSChannelID"] as? String,
+            // Use the RAW marketing version (not the Toolbox-aligned display one)
+            // so Mozilla's "152.0b6"/"…esr" suffix can be read for channel.
+            version: shortVersion
+        )
+
         return InstalledApp(
             name: displayName,
-            bundleID: plist["CFBundleIdentifier"] as? String,
+            bundleID: bundleID,
             shortVersion: displayShortVersion,
             buildVersion: plist["CFBundleVersion"] as? String,
             path: bundleURL,
@@ -135,7 +150,8 @@ public struct AppScanner: Sendable {
             sparkleFeedURL: feedURL,
             sparkleEdPublicKey: (plist["SUPublicEDKey"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-            hasSelfUpdater: hasSelfUpdater
+            hasSelfUpdater: hasSelfUpdater,
+            releaseChannel: releaseChannel
         )
     }
 }

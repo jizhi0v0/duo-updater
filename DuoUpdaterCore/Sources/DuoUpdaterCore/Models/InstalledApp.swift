@@ -65,6 +65,13 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// `sparkleFeedURL`, which IS the app's own channel.)
     public let hasSelfUpdater: Bool
 
+    /// The release channel this install is on (Stable, Beta, Canary, …),
+    /// detected at scan time. A source is only allowed to update this app from a
+    /// recipe that targets the SAME channel — so a stable-channel recipe can
+    /// never overwrite a Canary/Beta install that happens to share a bundle id.
+    /// Defaults to `.stable`, the channel every current recipe targets.
+    public let releaseChannel: ReleaseChannel
+
     public init(
         name: String,
         bundleID: String?,
@@ -76,7 +83,8 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         isToolboxManaged: Bool = false,
         sparkleFeedURL: URL?,
         sparkleEdPublicKey: String? = nil,
-        hasSelfUpdater: Bool = false
+        hasSelfUpdater: Bool = false,
+        releaseChannel: ReleaseChannel = .stable
     ) {
         self.name = name
         self.bundleID = bundleID
@@ -89,5 +97,6 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.sparkleFeedURL = sparkleFeedURL
         self.sparkleEdPublicKey = sparkleEdPublicKey
         self.hasSelfUpdater = hasSelfUpdater
+        self.releaseChannel = releaseChannel
     }
 }

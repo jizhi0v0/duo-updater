@@ -92,10 +92,16 @@ public actor SparkleInstaller {
         onStage(.extracting)
         let newApp = try ArchiveExtractor.extractApp(from: archive, workDir: workDir)
 
-        // 4. Gate 2 + 3 — code signature valid AND same Team ID as installed
+        // 4. Gate 2 + 3 + 4 — code signature valid, same Team ID, AND same signed
+        // bundle identifier as installed (pins the swap to this exact app, not
+        // just this vendor/Team).
         onStage(.verifyingCodeSignature)
         try SignatureVerifier.verifyCodeSignature(appAt: newApp)
         try SignatureVerifier.verifyTeamIdentifierMatch(
+            installedApp: result.app.path,
+            downloadedApp: newApp
+        )
+        try SignatureVerifier.verifyBundleIdentifierMatch(
             installedApp: result.app.path,
             downloadedApp: newApp
         )

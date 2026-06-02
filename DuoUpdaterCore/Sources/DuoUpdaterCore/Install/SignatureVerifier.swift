@@ -12,6 +12,8 @@ public enum SignatureVerifier {
         case codeSignatureInvalid(OSStatus)
         case noTeamIdentifier(which: String)
         case teamIdentifierMismatch(installed: String, downloaded: String)
+        case noBundleIdentifier(which: String)
+        case bundleIdentifierMismatch(installed: String, downloaded: String)
 
         public var errorDescription: String? {
             switch self {
@@ -25,6 +27,10 @@ public enum SignatureVerifier {
                 return "Could not read a Team Identifier from the \(which) app."
             case .teamIdentifierMismatch(let installed, let downloaded):
                 return "Team Identifier mismatch: installed “\(installed)” vs downloaded “\(downloaded)”. Refusing to install."
+            case .noBundleIdentifier(let which):
+                return "Could not read a signed bundle identifier from the \(which) app."
+            case .bundleIdentifierMismatch(let installed, let downloaded):
+                return "Bundle identifier mismatch: installed “\(installed)” vs downloaded “\(downloaded)”. Refusing to install."
             }
         }
     }
@@ -88,6 +94,39 @@ public enum SignatureVerifier {
     }
 
     public static func teamIdentifier(at url: URL) throws -> String? {
+        try signingInfo(at: url)[kSecCodeInfoTeamIdentifier as String] as? String
+    }
+
+    // MARK: Gate 4 — signed bundle identifier must match the installed app
+
+    /// Belt-and-suspenders on top of the Team ID gate: the downloaded build must
+    /// carry the SAME signed identifier as the app it's replacing. Team ID alone
+    /// permits any app from the same vendor (Google's Chrome vs Earth); this pins
+    /// the swap to the exact product. We read the *signed* identifier
+    /// (`kSecCodeInfoIdentifier`), not the raw Info.plist, so it's covered by the
+    /// code seal already verified in Gate 2 and can't be spoofed.
+    public static func verifyBundleIdentifierMatch(
+        installedApp: URL,
+        downloadedApp: URL
+    ) throws {
+        guard let installedID = try signingIdentifier(at: installedApp) else {
+            throw VerifyError.noBundleIdentifier(which: "installed")
+        }
+        guard let downloadedID = try signingIdentifier(at: downloadedApp) else {
+            throw VerifyError.noBundleIdentifier(which: "downloaded")
+        }
+        guard installedID == downloadedID else {
+            throw VerifyError.bundleIdentifierMismatch(
+                installed: installedID, downloaded: downloadedID
+            )
+        }
+    }
+
+    public static func signingIdentifier(at url: URL) throws -> String? {
+        try signingInfo(at: url)[kSecCodeInfoIdentifier as String] as? String
+    }
+
+    private static func signingInfo(at url: URL) throws -> [String: Any] {
         let code = try staticCode(at: url)
         var info: CFDictionary?
         let flags = SecCSFlags(rawValue: kSecCSSigningInformation)
@@ -95,7 +134,7 @@ public enum SignatureVerifier {
         guard status == errSecSuccess, let dict = info as? [String: Any] else {
             throw VerifyError.codeSignatureInvalid(status)
         }
-        return dict[kSecCodeInfoTeamIdentifier as String] as? String
+        return dict
     }
 
     private static func staticCode(at url: URL) throws -> SecStaticCode {

@@ -16,7 +16,11 @@ import Foundation
 public struct VendorProbeSource: UpdateSource {
     public let name = "Vendor"
 
-    private let recipes: [String: VendorProbeRecipe]
+    /// Keyed by bundle id → the recipes for that id, one per release channel.
+    /// Most apps have a single (stable) recipe; channels that share a bundle id
+    /// (e.g. Android Studio stable + Canary) list several and are disambiguated
+    /// by the installed app's detected channel.
+    private let recipes: [String: [VendorProbeRecipe]]
     private let session: URLSession
     /// A session that does NOT follow redirects, for recipes whose endpoint 302s
     /// to a large binary (we want the redirect's `Location`/body, not the file).
@@ -43,11 +47,8 @@ public struct VendorProbeSource: UpdateSource {
         recipes: [VendorProbeRecipe] = VendorProbeRegistry.recipes,
         session: URLSession = .shared
     ) {
-        // Index by bundle id; first recipe wins on duplicates.
-        self.recipes = Dictionary(
-            recipes.map { ($0.bundleID, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        // Group by bundle id; each group holds that id's per-channel recipes.
+        self.recipes = Dictionary(grouping: recipes, by: { $0.bundleID })
         self.session = session
         self.noRedirectSession = URLSession(
             configuration: .ephemeral,
@@ -60,8 +61,20 @@ public struct VendorProbeSource: UpdateSource {
         // vendor endpoint here would offer a cross-channel install — exactly what
         // we forbid — so defer to Toolbox even when a recipe matches the bundle.
         guard !app.isToolboxManaged else { return nil }
-        guard let bundleID = app.bundleID, let recipe = recipes[bundleID] else {
+        guard let bundleID = app.bundleID, let candidates = recipes[bundleID] else {
             return nil  // no recipe for this app — not applicable
+        }
+        // Channel gate: pick the recipe whose channel matches the installed app's,
+        // and refuse if none does. When channels share a bundle id (e.g. Android
+        // Studio's stable and Canary both carry `com.google.android.studio`), this
+        // selects the right endpoint; when only a stable recipe exists, a detected
+        // Beta/Canary install finds no match and is skipped rather than offered —
+        // and one-click installed — a cross-channel build. Better "unknown" than
+        // crossing channels.
+        guard let recipe = candidates.first(where: { $0.channel == app.releaseChannel }) else {
+            Log.source.info(
+                "vendor probe skip \(bundleID, privacy: .public): no recipe for app channel \(app.releaseChannel.rawValue, privacy: .public)")
+            return nil
         }
         // Swallow every failure: a probe that can't answer must look like "this
         // source doesn't apply", not like an error or a confident result.

@@ -110,6 +110,13 @@ public struct VendorProbeRecipe: Sendable {
     /// `CFBundleIdentifier` of the installed app this recipe targets.
     public let bundleID: String
 
+    /// The release channel this recipe's endpoint serves. The source refuses to
+    /// apply the recipe unless the installed app is on the SAME channel, so a
+    /// stable endpoint can never be served to a Beta/Canary install that shares
+    /// the bundle id. Every recipe here targets Stable, so this defaults to
+    /// `.stable`; set it explicitly when adding a channel-specific endpoint.
+    public let channel: ReleaseChannel
+
     /// The endpoint to probe (a stable "latest" redirect, or a version API).
     public let url: URL
 
@@ -166,9 +173,11 @@ public struct VendorProbeRecipe: Sendable {
         changelogURL: URL? = nil,
         selectHighest: Bool = false,
         install: VendorInstallSpec? = nil,
-        followRedirects: Bool = true
+        followRedirects: Bool = true,
+        channel: ReleaseChannel = .stable
     ) {
         self.bundleID = bundleID
+        self.channel = channel
         self.url = url
         self.mode = mode
         self.versionPattern = versionPattern
@@ -247,9 +256,12 @@ public struct VendorProbeRecipe: Sendable {
 /// Known-unfeasible (left out, would only mislead): Spotify (version API needs
 /// an account token), Paste (no public version API; direct build outruns MAS),
 /// ToDesk (appcast behind a JS bot-challenge), WeLink (Zoom-SDK private
-/// updater), RunnerNotify / STCM Editor (ad-hoc internal builds). Android Studio
-/// is pending a dedicated channel-filtered source (its releases list mixes
-/// canary/stable, and the machine has a stale duplicate bundle).
+/// updater), RunnerNotify / STCM Editor (ad-hoc internal builds). The Android
+/// Studio recipe below targets the Stable channel only; a Canary/Preview install
+/// (which shares `com.google.android.studio`) is detected as a non-stable
+/// `ReleaseChannel` and skipped by `VendorProbeSource`'s channel gate, so it's
+/// never overwritten with a Stable build — a dedicated canary endpoint is still
+/// pending.
 ///
 /// GitHub-released apps are handled by `GitHubReleasesSource`, not here.
 public enum VendorProbeRegistry {
@@ -305,6 +317,275 @@ public enum VendorProbeRegistry {
             // Chrome itself rather than a browser.)
             downloadURL: URL(string: "chrome://settings/help")!,
             changelogURL: URL(string: "https://developer.chrome.com/release-notes")),
+
+        // Google Chrome — Beta / Dev / Canary channels. Each ships its OWN bundle
+        // id (`com.google.Chrome.beta` / `.dev` / `.canary`) and is detected as
+        // its own `ReleaseChannel`, so the channel gate routes each install to its
+        // matching feed — a Beta install never gets the Stable version and vice
+        // versa. Same rollout-aware `fraction:1` pattern as Stable (the
+        // VersionHistory API is identical per channel; Canary publishes every
+        // build at fraction 1). Detection only — all Chrome channels self-update
+        // through Keystone, so we never install over them.
+        VendorProbeRecipe(
+            bundleID: "com.google.Chrome.beta",
+            url: URL(string: "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/beta/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")!,
+            mode: .responseBody,
+            versionPattern: #""fraction"\s*:\s*1(?:\.0+)?\s*,\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "chrome://settings/help")!,
+            changelogURL: URL(string: "https://developer.chrome.com/release-notes"),
+            channel: .beta),
+        VendorProbeRecipe(
+            bundleID: "com.google.Chrome.dev",
+            url: URL(string: "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/dev/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")!,
+            mode: .responseBody,
+            versionPattern: #""fraction"\s*:\s*1(?:\.0+)?\s*,\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "chrome://settings/help")!,
+            changelogURL: URL(string: "https://developer.chrome.com/release-notes"),
+            channel: .dev),
+        VendorProbeRecipe(
+            bundleID: "com.google.Chrome.canary",
+            url: URL(string: "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/canary/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")!,
+            mode: .responseBody,
+            versionPattern: #""fraction"\s*:\s*1(?:\.0+)?\s*,\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "chrome://settings/help")!,
+            changelogURL: URL(string: "https://developer.chrome.com/release-notes"),
+            channel: .canary),
+
+        // Microsoft Edge — Stable / Beta / Dev. One enterprise endpoint lists all
+        // products; each per-channel pattern scopes to that Product's first
+        // (newest) MacOS release. Distinct bundle ids (`…edgemac[.Beta/.Dev]`) so
+        // the channel gate routes each install to its own version. Detection only
+        // — Edge self-updates via Microsoft AutoUpdate. (Edge Canary isn't carried
+        // by this enterprise API, so it stays "unknown" rather than mis-served.)
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.edgemac",
+            url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
+            mode: .responseBody,
+            versionPattern: #"(?s)"Product"\s*:\s*"Stable".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            downloadURL: URL(string: "https://www.microsoft.com/edge/download"),
+            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes")),
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.edgemac.Beta",
+            url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
+            mode: .responseBody,
+            versionPattern: #"(?s)"Product"\s*:\s*"Beta".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
+            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-beta-channel"),
+            channel: .beta),
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.edgemac.Dev",
+            url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
+            mode: .responseBody,
+            versionPattern: #"(?s)"Product"\s*:\s*"Dev".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
+            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-dev-channel"),
+            channel: .dev),
+
+        // Firefox — Mozilla's `product-details` endpoint carries every channel's
+        // current version in one JSON. Release, Beta and ESR all ship as
+        // `org.mozilla.firefox` (only the version string's `b`/`esr` suffix tells
+        // them apart — see `ReleaseChannel`), so three recipes share that bundle
+        // id and are picked by the install's detected channel. Developer Edition
+        // and Nightly have their own bundle ids. The captured version KEEPS the
+        // `bN`/`esr` suffix so it compares equal to the installed app's
+        // `CFBundleShortVersionString` (stripping it would read as a downgrade and
+        // never offer an update). Detection only — Firefox self-updates.
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.firefox",
+            url: URL(string: "https://product-details.mozilla.org/1.0/firefox_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""LATEST_FIREFOX_VERSION"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
+            downloadURL: URL(string: "https://www.mozilla.org/firefox/"),
+            changelogURL: URL(string: "https://www.mozilla.org/firefox/notes/")),
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.firefox",
+            url: URL(string: "https://product-details.mozilla.org/1.0/firefox_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""LATEST_FIREFOX_RELEASED_DEVEL_VERSION"\s*:\s*"([0-9]+\.[0-9]+b[0-9]+)""#,
+            downloadURL: URL(string: "https://www.mozilla.org/firefox/channel/desktop/"),
+            changelogURL: URL(string: "https://www.mozilla.org/firefox/beta/notes/"),
+            channel: .beta),
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.firefox",
+            url: URL(string: "https://product-details.mozilla.org/1.0/firefox_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""FIREFOX_ESR"\s*:\s*"([0-9]+(?:\.[0-9]+)+esr)""#,
+            downloadURL: URL(string: "https://www.mozilla.org/firefox/enterprise/"),
+            changelogURL: URL(string: "https://www.mozilla.org/firefox/organizations/notes/"),
+            channel: .esr),
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.firefoxdeveloperedition",
+            url: URL(string: "https://product-details.mozilla.org/1.0/firefox_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""FIREFOX_DEVEDITION"\s*:\s*"([0-9]+\.[0-9]+b[0-9]+)""#,
+            downloadURL: URL(string: "https://www.mozilla.org/firefox/developer/"),
+            changelogURL: URL(string: "https://www.mozilla.org/firefox/beta/notes/"),
+            // Developer Edition tracks the Beta train (its version is a `bN`),
+            // which the channel detector classifies as `.beta`.
+            channel: .beta),
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.nightly",
+            url: URL(string: "https://product-details.mozilla.org/1.0/firefox_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""FIREFOX_NIGHTLY"\s*:\s*"([0-9]+\.[0-9]+a[0-9]+)""#,
+            downloadURL: URL(string: "https://www.mozilla.org/firefox/channel/desktop/"),
+            changelogURL: URL(string: "https://www.mozilla.org/firefox/nightly/notes/"),
+            channel: .nightly),
+
+        // Thunderbird — same Mozilla `product-details` mechanism. Release, Beta
+        // and ESR share `org.mozilla.thunderbird`, separated by the version
+        // suffix. Detection only — Thunderbird self-updates.
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.thunderbird",
+            url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""LATEST_THUNDERBIRD_VERSION"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
+            downloadURL: URL(string: "https://www.thunderbird.net/"),
+            changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/")),
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.thunderbird",
+            url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""LATEST_THUNDERBIRD_DEVEL_VERSION"\s*:\s*"([0-9]+\.[0-9]+b[0-9]+)""#,
+            downloadURL: URL(string: "https://www.thunderbird.net/channel/desktop/"),
+            changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/"),
+            channel: .beta),
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.thunderbird",
+            url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""THUNDERBIRD_ESR"\s*:\s*"([0-9]+(?:\.[0-9]+)+esr)""#,
+            downloadURL: URL(string: "https://www.thunderbird.net/enterprise/"),
+            changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/"),
+            channel: .esr),
+
+        // Warp — Preview / Beta / Dev / Canary. One JSON lists every channel's
+        // version, each tagged with the channel name in its suffix
+        // (`…preview_01`), so a per-channel pattern is unambiguous. Channels ship
+        // as separate bundle ids (`dev.warp.Warp-Preview`, …) — the Stable build
+        // is the existing `dev.warp.Warp-Stable` recipe above. We extract the bare
+        // date-version (dropping the `v` prefix and `.<channel>_NN` suffix) to
+        // match the form Stable already compares against. Detection only (Warp
+        // self-updates); the Stable recipe keeps its one-click install.
+        VendorProbeRecipe(
+            bundleID: "dev.warp.Warp-Preview",
+            url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.preview_[0-9]+""#,
+            downloadURL: URL(string: "https://www.warp.dev/download-preview"),
+            changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
+            channel: .preview),
+        VendorProbeRecipe(
+            bundleID: "dev.warp.Warp-Beta",
+            url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.beta_[0-9]+""#,
+            downloadURL: URL(string: "https://www.warp.dev/download"),
+            changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
+            channel: .beta),
+        VendorProbeRecipe(
+            bundleID: "dev.warp.Warp-Dev",
+            url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.dev_[0-9]+""#,
+            downloadURL: URL(string: "https://www.warp.dev/download"),
+            changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
+            channel: .dev),
+        VendorProbeRecipe(
+            bundleID: "dev.warp.Warp-Canary",
+            url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.canary_[0-9]+""#,
+            downloadURL: URL(string: "https://www.warp.dev/download"),
+            changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
+            channel: .canary),
+
+        // Signal — Stable + Beta. electron-builder feeds (one per channel). Stable
+        // ships `org.whispersystems.signal-desktop`; Beta is a separate
+        // "Signal Beta.app" (detected as `.beta` from its name). Detection only —
+        // Signal self-updates via electron-updater.
+        VendorProbeRecipe(
+            bundleID: "org.whispersystems.signal-desktop",
+            url: URL(string: "https://updates.signal.org/desktop/latest-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"version:\s*([0-9][^\s]*)"#,
+            downloadURL: URL(string: "https://signal.org/download/"),
+            changelogURL: URL(string: "https://github.com/signalapp/Signal-Desktop/releases")),
+        VendorProbeRecipe(
+            bundleID: "org.whispersystems.signal-desktop-beta",
+            url: URL(string: "https://updates.signal.org/desktop/beta-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"version:\s*([0-9][^\s]*)"#,
+            downloadURL: URL(string: "https://signal.org/download/"),
+            changelogURL: URL(string: "https://github.com/signalapp/Signal-Desktop/releases"),
+            channel: .beta),
+
+        // Element — Stable + Nightly, split bundle ids (`im.riot.app` vs
+        // `io.element.nightly`). `currentRelease` is the latest version (semver
+        // for Stable, a `YYYYMMDDNN` build stamp for Nightly). Detection only —
+        // Element self-updates via Squirrel.
+        VendorProbeRecipe(
+            bundleID: "im.riot.app",
+            url: URL(string: "https://packages.element.io/desktop/update/macos/releases.json")!,
+            mode: .responseBody,
+            versionPattern: #""currentRelease"\s*:\s*"([^"]+)""#,
+            downloadURL: URL(string: "https://element.io/download"),
+            changelogURL: URL(string: "https://github.com/element-hq/element-desktop/releases")),
+        VendorProbeRecipe(
+            bundleID: "io.element.nightly",
+            url: URL(string: "https://packages.element.io/nightly/update/macos/releases.json")!,
+            mode: .responseBody,
+            versionPattern: #""currentRelease"\s*:\s*"([^"]+)""#,
+            downloadURL: URL(string: "https://element.io/download"),
+            changelogURL: URL(string: "https://github.com/element-hq/element-desktop/releases"),
+            channel: .nightly),
+
+        // Cursor — official update API; the first `version` field is the latest
+        // build. Single channel (its "stable"/"latest" tracks resolve to the same
+        // build). Detection only — Cursor self-updates via ToDesktop.
+        VendorProbeRecipe(
+            bundleID: "com.todesktop.230313mzl4w4u92",
+            url: URL(string: "https://api2.cursor.sh/updates/api/download/latest/darwin-arm64/cursor")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://www.cursor.com/downloads"),
+            changelogURL: URL(string: "https://www.cursor.com/changelog")),
+
+        // Raycast — official "latest release" endpoint; `version` is first. Single
+        // channel. Detection only — Raycast self-updates.
+        VendorProbeRecipe(
+            bundleID: "com.raycast.macos",
+            url: URL(string: "https://releases.raycast.com/releases/latest?build=universal")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://www.raycast.com/"),
+            changelogURL: URL(string: "https://www.raycast.com/changelog")),
+
+        // Docker Desktop — Sparkle appcast. Titles read "<ver> (<build>)" (and
+        // "Version <ver> (<build>)"); take the highest since the feed isn't
+        // strictly ordered. The channel title "Docker for Mac" carries no
+        // version-paren and is skipped. Build number ignored in comparison.
+        VendorProbeRecipe(
+            bundleID: "com.docker.docker",
+            url: URL(string: "https://desktop.docker.com/mac/main/arm64/appcast.xml")!,
+            mode: .responseBody,
+            versionPattern: #"<title>(?:Version\s*)?([0-9]+\.[0-9]+\.[0-9]+)\s*\("#,
+            downloadURL: URL(string: "https://www.docker.com/products/docker-desktop/"),
+            changelogURL: URL(string: "https://docs.docker.com/desktop/release-notes/"),
+            selectHighest: true),
+
+        // LibreWolf — release tags on its GitLab repo, newest first. Tags are
+        // "<firefox-version>-<packaging>" (e.g. "147.0.4-1"); we capture only the
+        // upstream Firefox version so it compares equal to the installed app's
+        // `CFBundleShortVersionString` (keeping "-1" would read as a perpetual
+        // update). No auto-updater — this is genuinely useful for LibreWolf.
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.librewolf",
+            url: URL(string: "https://gitlab.com/api/v4/projects/44042130/repository/tags?per_page=5")!,
+            mode: .responseBody,
+            versionPattern: #""name"\s*:\s*"([0-9]+(?:\.[0-9]+)+)"#,
+            downloadURL: URL(string: "https://librewolf.net/installation/macos/"),
+            changelogURL: URL(string: "https://gitlab.com/librewolf-community/browser/bsys6/-/releases")),
 
         // Claude desktop — public "latest" download redirect. Deliberately NOT
         // the Squirrel endpoint: that one takes a `device_id` and is cohort-gated,

@@ -89,10 +89,17 @@ public actor VendorInstaller {
         onStage(.extracting)
         let newApp = try ArchiveExtractor.extractApp(from: archive, workDir: workDir)
 
-        // 4. Gate 2 + 3 — code signature valid AND same Team ID as installed.
+        // 4. Gate 2 + 3 + 4 — code signature valid, same Team ID, AND same signed
+        // bundle identifier as the installed app. The bundle-id pin stops a
+        // same-vendor but different app (or a different channel sharing the Team)
+        // from being swapped in over this exact install.
         onStage(.verifyingCodeSignature)
         try SignatureVerifier.verifyCodeSignature(appAt: newApp)
         try SignatureVerifier.verifyTeamIdentifierMatch(
+            installedApp: result.app.path,
+            downloadedApp: newApp
+        )
+        try SignatureVerifier.verifyBundleIdentifierMatch(
             installedApp: result.app.path,
             downloadedApp: newApp
         )

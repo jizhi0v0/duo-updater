@@ -175,6 +175,15 @@ private struct AppRow: View {
                 fromVersion(latest: latest)
                 Image(systemName: "arrow.right").font(.caption2)
                 toVersion(latest: latest)
+                // When an earlier update was installed but never restarted, the
+                // "from" above is the *staged* on-disk version — the live process
+                // is still older. Surface what's actually running so the row isn't
+                // misread as "you're on the staged build".
+                if let running = model.runningVersion(result.id) {
+                    Text("· current \(running)")
+                        .foregroundStyle(.tertiary)
+                        .help("Still running \(running) — restart pending from an earlier update")
+                }
             }
             .font(.caption)
             // Long date-style versions (Warp) would otherwise wrap mid-number;
@@ -230,6 +239,13 @@ private struct AppRow: View {
     private var trailing: some View {
         if let stage {
             installProgress(stage)
+        } else if model.needsRestart.contains(result.id) && !result.hasUpdate {
+            // Restart is derived from disk-vs-running version, not the remote
+            // check — so surface it directly off `needsRestart` rather than from
+            // inside the status switch. That keeps the button steady across a
+            // refresh's transient `.unknown`/`.checking` statuses, instead of
+            // briefly flashing the source hint ("—") until the check finishes.
+            restartButton
         } else {
             switch result.status {
             case .updateAvailable:
@@ -256,9 +272,8 @@ private struct AppRow: View {
             case .toolboxManaged:
                 toolboxButton
             case .upToDate:
-                if model.needsRestart.contains(result.id) {
-                    restartButton
-                } else if result.app.isMASApp {
+                // needsRestart is handled above, before the status switch.
+                if result.app.isMASApp {
                     // We checked it against the store and it's current — but keep
                     // the "App Store" signal so a managed app never looks like an
                     // app we can update ourselves (a bare ✅ reads the same as
@@ -302,7 +317,6 @@ private struct AppRow: View {
         case .verifyingSignature, .verifyingCodeSignature: return "Verifying"
         case .extracting: return "Extracting"
         case .installing: return "Installing"
-        case .relaunching: return "Relaunching"
         case .runningCommand: return "Installing"
         case .done: return "Done"
         }
@@ -516,10 +530,19 @@ private struct AppRow: View {
             .help("Managed by the App Store — it handles this app's updates")
     }
 
+    /// A source was tried and failed — most often a transient GitHub rate-limit.
+    /// Unlike `.unknown`'s dead "—", this state is retryable, so it's a button:
+    /// one click re-checks just this app. The tooltip carries the failure reason.
     private var errorBadge: some View {
-        Image(systemName: "exclamationmark.triangle.fill")
-            .foregroundStyle(.orange)
-            .help(errorText)
+        Button { Task { await model.retry(result) } } label: {
+            Image(systemName: "arrow.clockwise")
+        }
+        .controlSize(.small)
+        .buttonStyle(.bordered)
+        .tint(.orange)
+        .help(errorText.isEmpty
+            ? "Update check failed — click to retry"
+            : "\(errorText) — click to retry")
     }
 
     private var errorText: String {

@@ -62,6 +62,9 @@ public struct UpdateChecker: Sendable {
         // source for these — that would risk a cross-channel install. Instead we
         // read Toolbox's own local cache to show whether an update exists; the
         // action stays "open Toolbox". No data → just labelled managed.
+        let label = "\(app.name) [\(app.bundleID ?? "no-bundle-id")] v\(app.shortVersion ?? "?")"
+        Log.check.debug("check start: \(label, privacy: .public)")
+
         if app.isToolboxManaged {
             if let verdict = await toolbox?.verdict(for: app) {
                 let remote = RemoteVersion(
@@ -73,8 +76,10 @@ public struct UpdateChecker: Sendable {
                 let status: UpdateStatus = verdict.hasUpdate
                     ? .updateAvailable(latest: verdict.latestVersion)
                     : .upToDate
+                Log.check.info("\(label, privacy: .public): Toolbox → \(verdict.latestVersion, privacy: .public) (hasUpdate=\(verdict.hasUpdate, privacy: .public))")
                 return UpdateResult(app: app, remote: remote, status: status)
             }
+            Log.check.debug("\(label, privacy: .public): Toolbox-managed, no verdict")
             return UpdateResult(app: app, remote: nil, status: .toolboxManaged)
         }
 
@@ -83,20 +88,21 @@ public struct UpdateChecker: Sendable {
         for source in sources {
             do {
                 guard let remote = try await source.latestVersion(for: app) else {
+                    Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) miss")
                     continue  // source doesn't apply; try the next one
                 }
-                return UpdateResult(
-                    app: app,
-                    remote: remote,
-                    status: Self.evaluate(installed: app, remote: remote)
-                )
+                let status = Self.evaluate(installed: app, remote: remote)
+                Log.check.info("\(label, privacy: .public): \(source.name, privacy: .public) → \(remote.displayVersion ?? "?", privacy: .public) [\(String(describing: status), privacy: .public)]")
+                return UpdateResult(app: app, remote: remote, status: status)
             } catch {
                 lastError = error.localizedDescription
+                Log.check.error("\(label, privacy: .public): \(source.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 continue
             }
         }
 
         if let lastError {
+            Log.check.error("\(label, privacy: .public): all sources exhausted, last error → .error(\(lastError, privacy: .public))")
             return UpdateResult(app: app, remote: nil, status: .error(lastError))
         }
         // Apps whose updates a known channel already owns aren't "unknown" —
@@ -110,6 +116,7 @@ public struct UpdateChecker: Sendable {
         } else {
             status = .unknown
         }
+        Log.check.info("\(label, privacy: .public): no source applied → \(String(describing: status), privacy: .public)")
         return UpdateResult(app: app, remote: nil, status: status)
     }
 

@@ -41,10 +41,27 @@ public struct GitHubReleaseRule: Sendable {
 /// we surface the new version and link to the releases page; we never install a
 /// GitHub artifact over a differently-sourced build.
 ///
-/// Best-effort: any failure (network, rate limit, parse) degrades silently to
-/// "unknown" rather than surfacing an error or an unverified version.
+/// When no rule maps to an app, returns nil (not applicable). When a rule *does*
+/// exist but the fetch fails (network, rate limit, bad status), it throws — so
+/// the row surfaces a retryable `.error` instead of a dead "unknown" that reads
+/// the same as "no source at all". A parse miss (releases fetched, none match
+/// the pattern) still returns nil.
 public struct GitHubReleasesSource: UpdateSource {
     public let name = "GitHub"
+
+    /// A GitHub fetch that failed in a way worth retrying (vs. simply not
+    /// applying). 403/429 are almost always the unauthenticated 60/hour limit.
+    enum GitHubError: LocalizedError {
+        case badStatus(Int)
+        var errorDescription: String? {
+            switch self {
+            case .badStatus(403), .badStatus(429):
+                return "GitHub rate limit reached — retry shortly"
+            case .badStatus(let code):
+                return "GitHub returned HTTP \(code)"
+            }
+        }
+    }
 
     private let rules: [String: GitHubReleaseRule]
     private let session: URLSession
@@ -70,7 +87,10 @@ public struct GitHubReleasesSource: UpdateSource {
         guard let bundleID = app.bundleID, let rule = rules[bundleID] else {
             return nil  // no rule for this app — not applicable
         }
-        return (try? await resolve(rule)) ?? nil
+        // A rule exists: let a fetch failure throw, so the checker turns it into
+        // a retryable `.error` row rather than swallowing it into a nil that's
+        // indistinguishable from "no source for this app".
+        return try await resolve(rule)
     }
 
     private func resolve(_ rule: GitHubReleaseRule) async throws -> RemoteVersion? {
@@ -86,9 +106,14 @@ public struct GitHubReleasesSource: UpdateSource {
         // Authenticated requests get 5000/hour instead of 60/hour per IP.
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
 
+        Log.source.debug("GitHub GET \(endpoint, privacy: .public) (auth=\(self.token != nil, privacy: .public))")
         let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode) else { return nil }
+        guard let http = response as? HTTPURLResponse else { return nil }
+        guard (200..<300).contains(http.statusCode) else {
+            let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "?"
+            Log.source.error("GitHub \(rule.slug, privacy: .public): HTTP \(http.statusCode, privacy: .public) (ratelimit-remaining=\(remaining, privacy: .public))")
+            throw GitHubError.badStatus(http.statusCode)
+        }
 
         // Walk releases in document order (GitHub returns newest first) and take
         // the first whose tag the pattern matches — for prerelease channels this
@@ -113,6 +138,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 )
             }
         }
+        Log.source.error("GitHub \(rule.slug, privacy: .public): \(releases.count, privacy: .public) releases fetched, none matched /\(rule.versionPattern, privacy: .public)/")
         return nil
     }
 

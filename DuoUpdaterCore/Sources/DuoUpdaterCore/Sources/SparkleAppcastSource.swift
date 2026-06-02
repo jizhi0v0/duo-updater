@@ -29,8 +29,13 @@ public struct SparkleAppcastSource: UpdateSource {
         }
 
         let items = SparkleAppcastParser.parse(data)
-        guard let best = Self.bestItem(for: app, from: items, osVersion: Self.numericSystemVersion())
-        else { return nil }
+        let usable = Self.usableItems(for: app, from: items, osVersion: Self.numericSystemVersion())
+        guard let best = usable.first else { return nil }
+
+        // When the feed inlines Markdown notes (e.g. Surge's `<markdownDescription>`)
+        // rather than HTML, parse them into a native, multi-version changelog so the
+        // detail window renders entries instead of falling back to a web view.
+        let structured = Self.structuredChangelog(from: usable)
 
         return RemoteVersion(
             shortVersion: best.shortVersionString,
@@ -40,8 +45,26 @@ public struct SparkleAppcastSource: UpdateSource {
             minimumSystemVersion: best.minimumSystemVersion,
             sourceName: name,
             releaseNotesHTML: best.descriptionHTML,
+            structuredChangelog: structured,
             changelogURL: best.releaseNotesLink
         )
+    }
+
+    /// Build a native changelog from the in-channel items that ship inline
+    /// Markdown notes, newest first. Returns nil when no item carries Markdown
+    /// (the HTML `<description>` / web-view paths stay in charge for those feeds).
+    static func structuredChangelog(from usable: [SparkleAppcastItem]) -> Changelog? {
+        let entries: [Changelog.Entry] = usable.compactMap { item in
+            guard let md = item.markdownDescription else { return nil }
+            let notes = AppcastMarkdownParser.items(from: md)
+            guard !notes.isEmpty else { return nil }
+            let version = item.shortVersionString ?? item.version ?? ""
+            return Changelog.Entry(
+                version: version,
+                date: AppcastMarkdownParser.displayDate(from: item.pubDate),
+                items: notes)
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
     }
 
     /// Pick the best appcast item for an app: the highest-versioned, runnable,
@@ -64,7 +87,17 @@ public struct SparkleAppcastSource: UpdateSource {
         from items: [SparkleAppcastItem],
         osVersion: String
     ) -> SparkleAppcastItem? {
-        guard !items.isEmpty else { return nil }
+        usableItems(for: app, from: items, osVersion: osVersion).first
+    }
+
+    /// The runnable, in-channel items for an app, highest version first. The head
+    /// is the update we'd offer; the tail gives the changelog its version history.
+    static func usableItems(
+        for app: InstalledApp,
+        from items: [SparkleAppcastItem],
+        osVersion: String
+    ) -> [SparkleAppcastItem] {
+        guard !items.isEmpty else { return [] }
         let installedChannel = channel(ofInstalled: app, in: items)
         let usable = items.filter { item in
             // Skip delta updates — they patch a specific old build.
@@ -77,8 +110,8 @@ public struct SparkleAppcastSource: UpdateSource {
             }
             return true
         }
-        return usable.max { lhs, rhs in
-            VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) == .orderedAscending
+        return usable.sorted { lhs, rhs in
+            VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) == .orderedDescending
         }
     }
 
@@ -134,6 +167,15 @@ struct SparkleAppcastItem {
     var channel: String?
     /// Inline release notes — the `<description>` body, usually CDATA-wrapped HTML.
     var descriptionHTML: String?
+    /// Inline release notes shipped as Markdown via `<markdownDescription>` — some
+    /// feeds (e.g. Surge) publish only this and no HTML `<description>`. Parsed
+    /// into a structured changelog so the notes render natively instead of falling
+    /// back to a web view.
+    var markdownDescription: String?
+    /// `<pubDate>` — the item's publish date, verbatim. RSS spells this many ways
+    /// (RFC822, ISO8601, or a bare Unix epoch as Surge does); kept raw and
+    /// normalized only when we build a changelog entry.
+    var pubDate: String?
     /// `<sparkle:releaseNotesLink>` — an external notes page, when the feed links
     /// out instead of (or in addition to) inlining them.
     var releaseNotesLink: URL?
@@ -219,6 +261,12 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             // Only inside an <item>; the channel-level <description> has no
             // `current` to attach to, so it's harmlessly dropped.
             if !text.isEmpty { current?.descriptionHTML = text }
+        case "markdownDescription", "sparkle:markdownDescription":
+            if current?.markdownDescription == nil, !text.isEmpty {
+                current?.markdownDescription = text
+            }
+        case "pubDate":
+            if current?.pubDate == nil, !text.isEmpty { current?.pubDate = text }
         case "sparkle:releaseNotesLink":
             if current?.releaseNotesLink == nil, !text.isEmpty {
                 current?.releaseNotesLink = URL(string: text)

@@ -154,6 +154,11 @@ public enum UpdateStatus: Sendable, Equatable {
     /// endpoint would risk a cross-channel install, so we defer to Toolbox and
     /// label it as managed — informational, not actionable here.
     case toolboxManaged
+    /// TestFlight installed this beta and owns its updates. We read TestFlight's
+    /// local cache for the latest build but never install it ourselves — the
+    /// action is "open TestFlight". Used when no newer build is known (or the
+    /// cache is empty); a known newer build surfaces as `.updateAvailable`.
+    case testFlightManaged
     /// A source was tried but failed (network, parse, etc.).
     case error(String)
 }

@@ -13,14 +13,21 @@ public struct UpdateChecker: Sendable {
     /// When nil they're simply labelled managed without a version.
     public let toolbox: ToolboxSource?
 
+    /// When set, TestFlight-managed apps are version-checked against TestFlight's
+    /// local cache; the action stays "open TestFlight". When nil they're simply
+    /// labelled `.testFlightManaged` without a version.
+    public let testflight: TestFlightInventory?
+
     public init(
         sources: [any UpdateSource],
         maxConcurrency: Int = 12,
-        toolbox: ToolboxSource? = nil
+        toolbox: ToolboxSource? = nil,
+        testflight: TestFlightInventory? = nil
     ) {
         self.sources = sources
         self.maxConcurrency = max(1, maxConcurrency)
         self.toolbox = toolbox
+        self.testflight = testflight
     }
 
     /// Check every app, returning results in the same order as the input.
@@ -83,6 +90,35 @@ public struct UpdateChecker: Sendable {
             return UpdateResult(app: app, remote: nil, status: .toolboxManaged)
         }
 
+        // TestFlight owns its betas' updates the same way Toolbox does. Never probe
+        // another source (the App Store lookup would compare against the stable
+        // track); read TestFlight's cached latest build instead. The action stays
+        // "open TestFlight".
+        if app.isTestFlightApp {
+            if let latest = testflight?.latest(forBundleID: app.bundleID) {
+                let installedBuild = app.buildVersion ?? ""
+                let hasUpdate = VersionComparator.isNewer(latest.latestBuild, than: installedBuild)
+                // Beta builds often keep the same marketing version across builds,
+                // so disambiguate with the build number when the short string matches.
+                let display = (latest.latestShortVersion == app.shortVersion)
+                    ? "\(latest.latestShortVersion) (\(latest.latestBuild))"
+                    : latest.latestShortVersion
+                let remote = RemoteVersion(
+                    shortVersion: latest.latestShortVersion,
+                    version: latest.latestBuild,
+                    downloadURL: nil,
+                    sourceName: "TestFlight",
+                    requiresManualInstaller: true)
+                let status: UpdateStatus = hasUpdate
+                    ? .updateAvailable(latest: display)
+                    : .upToDate
+                Log.check.info("\(label, privacy: .public): TestFlight → \(latest.latestBuild, privacy: .public) (hasUpdate=\(hasUpdate, privacy: .public))")
+                return UpdateResult(app: app, remote: remote, status: status)
+            }
+            Log.check.debug("\(label, privacy: .public): TestFlight-managed, no cached build")
+            return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+        }
+
         var lastError: String?
 
         for source in sources {
@@ -111,6 +147,8 @@ public struct UpdateChecker: Sendable {
         let status: UpdateStatus
         if app.isToolboxManaged {
             status = .toolboxManaged
+        } else if app.isTestFlightApp {
+            status = .testFlightManaged
         } else if app.isMASApp {
             status = .appStoreManaged
         } else {

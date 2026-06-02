@@ -50,6 +50,14 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// vendor endpoint nor offer an install — we just label it as managed.
     public let isToolboxManaged: Bool
 
+    /// True when this build was installed via TestFlight (it appears as a macOS
+    /// build in TestFlight's local DB). Updates flow through TestFlight, so — like
+    /// MAS/Toolbox — we never probe another source or offer an install; we read
+    /// TestFlight's cached "latest build" to show whether a newer beta exists.
+    /// A TestFlight app also carries a `_MASReceipt`, so this is decided *before*
+    /// the MAS flag to keep it from being mislabeled as an App Store install.
+    public let isTestFlightApp: Bool
+
     /// `SUFeedURL` from Info.plist — present when the app ships the Sparkle
     /// auto-update framework. This is our highest-signal update source.
     public let sparkleFeedURL: URL?
@@ -81,6 +89,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         isMASApp: Bool,
         isiOSAppOnMac: Bool = false,
         isToolboxManaged: Bool = false,
+        isTestFlightApp: Bool = false,
         sparkleFeedURL: URL?,
         sparkleEdPublicKey: String? = nil,
         hasSelfUpdater: Bool = false,
@@ -94,6 +103,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.isMASApp = isMASApp
         self.isiOSAppOnMac = isiOSAppOnMac
         self.isToolboxManaged = isToolboxManaged
+        self.isTestFlightApp = isTestFlightApp
         self.sparkleFeedURL = sparkleFeedURL
         self.sparkleEdPublicKey = sparkleEdPublicKey
         self.hasSelfUpdater = hasSelfUpdater

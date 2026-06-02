@@ -41,6 +41,11 @@ import Foundation
     let size = (try? FileManager.default.attributesOfItem(atPath: archive.path)[.size] as? Int) ?? 0
     log("✓ downloaded \(archive.lastPathComponent) (\((size ?? 0) / 1024) KB)")
 
+    // Traffic accounting: the byte count we report for per-app stats must equal
+    // the exact size of the file we wrote — to the byte, over a real download.
+    #expect(downloader.bytesDownloaded == Int64(size ?? 0))
+    #expect(downloader.bytesDownloaded > 0)
+
     // 2. EdDSA
     let data = try Data(contentsOf: archive, options: .mappedIfSafe)
     try SignatureVerifier.verifyEdSignature(

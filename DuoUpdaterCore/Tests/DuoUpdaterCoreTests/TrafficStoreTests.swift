@@ -116,7 +116,23 @@ private func tempFileURL() -> URL {
 }
 
 @Test func formattedBytesIsHumanReadable() {
-    #expect(Int64(0).formattedBytes == "Zero KB" || Int64(0).formattedBytes == "0 bytes")
-    // A megabyte-scale value should not render as raw bytes.
-    #expect(Int64(5_000_000).formattedBytes.contains("MB"))
+    // A megabyte-scale value renders in MB, not raw bytes.
+    #expect(ByteFormat.string(5_000_000).contains("MB"))
+    // A small value stays small-unit (KB/bytes), never MB/GB.
+    let small = ByteFormat.string(512)
+    #expect(!small.contains("MB") && !small.contains("GB"))
+}
+
+@Test func lastUpdatedTracksNewestEvent() async {
+    let store = TrafficStore(fileURL: tempFileURL())
+    let id = "/Applications/Timed.app"
+    let t1 = Date(timeIntervalSince1970: 1_000_000)
+    let t2 = Date(timeIntervalSince1970: 2_000_000)
+    await store.record(appID: id, appName: "Timed", bundleID: nil,
+                       fromVersion: nil, toVersion: "1", sourceName: "Vendor", bytes: 10, date: t1)
+    await store.record(appID: id, appName: "Timed", bundleID: nil,
+                       fromVersion: nil, toVersion: "2", sourceName: "Vendor", bytes: 20, date: t2)
+    let stat = await store.stat(forAppID: id)
+    // Derived from the newest event, not stored separately.
+    #expect(stat?.lastUpdated == t2)
 }

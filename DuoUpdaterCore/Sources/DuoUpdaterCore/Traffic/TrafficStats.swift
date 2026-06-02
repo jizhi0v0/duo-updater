@@ -43,8 +43,6 @@ public struct AppTrafficStat: Codable, Sendable, Hashable, Identifiable {
     public var bundleID: String?
     /// Sum of all recorded download bytes for this app, to the byte.
     public var totalBytes: Int64
-    /// Most recent download timestamp.
-    public var lastUpdated: Date?
     /// Full history, newest last.
     public var events: [TrafficEvent]
 
@@ -53,28 +51,32 @@ public struct AppTrafficStat: Codable, Sendable, Hashable, Identifiable {
     /// Number of recorded downloads.
     public var updateCount: Int { events.count }
 
+    /// Most recent download timestamp — derived from the history (newest event)
+    /// rather than stored, so it can't drift out of sync with `events`.
+    public var lastUpdated: Date? { events.last?.date }
+
     public init(
         appID: String,
         appName: String,
         bundleID: String?,
         totalBytes: Int64 = 0,
-        lastUpdated: Date? = nil,
         events: [TrafficEvent] = []
     ) {
         self.appID = appID
         self.appName = appName
         self.bundleID = bundleID
         self.totalBytes = totalBytes
-        self.lastUpdated = lastUpdated
         self.events = events
     }
 }
 
-extension Int64 {
-    /// Human-readable byte count (e.g. "1.2 MB"), for surfacing a total in the UI.
-    /// Uses the binary (1024) base via `ByteCountFormatter`'s file style, which is
-    /// what users expect for download sizes on macOS.
-    public var formattedBytes: String {
-        ByteCountFormatter.string(fromByteCount: self, countStyle: .file)
+/// Formats byte counts for display. Scoped here rather than as an extension on
+/// `Int64` so the framework doesn't bolt a UI concern onto a fundamental type's
+/// public API.
+public enum ByteFormat {
+    /// Human-readable byte count (e.g. "1.2 MB"), via `ByteCountFormatter`'s file
+    /// style — the binary base macOS users expect for download sizes.
+    public static func string(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 }

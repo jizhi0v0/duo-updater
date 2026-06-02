@@ -62,7 +62,6 @@ public actor TrafficStore {
         stat.appName = appName
         stat.bundleID = bundleID
         stat.totalBytes += bytes
-        stat.lastUpdated = date
         stat.events.append(event)
         stats[appID] = stat
 

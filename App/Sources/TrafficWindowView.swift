@@ -63,7 +63,7 @@ struct TrafficWindowView: View {
             Text("Total downloaded")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(model.trafficTotalBytes.formattedBytes)
+            Text(ByteFormat.string(model.trafficTotalBytes))
                 .font(.title2.weight(.semibold))
                 .monospacedDigit()
             Text("\(stats.count) app\(stats.count == 1 ? "" : "s") · \(model.trafficTotalBytes) bytes")
@@ -93,7 +93,7 @@ private struct TrafficSidebarRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(stat.totalBytes.formattedBytes)
+            Text(ByteFormat.string(stat.totalBytes))
                 .font(.callout)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
@@ -128,7 +128,7 @@ private struct TrafficDetail: View {
                         .frame(width: 40, height: 40)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(stat.appName).font(.title3.weight(.semibold))
-                        Text("\(stat.totalBytes.formattedBytes) · \(stat.totalBytes) bytes")
+                        Text("\(ByteFormat.string(stat.totalBytes)) · \(stat.totalBytes) bytes")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
@@ -137,7 +137,7 @@ private struct TrafficDetail: View {
 
                 Divider()
 
-                ForEach(Array(events.enumerated()), id: \.offset) { _, event in
+                ForEach(events, id: \.self) { event in
                     eventRow(event)
                     Divider()
                 }

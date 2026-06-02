@@ -53,7 +53,9 @@ public struct SparkleAppcastSource: UpdateSource {
             downloadURL: best.enclosureURL,
             edSignature: best.edSignature,
             minimumSystemVersion: best.minimumSystemVersion,
-            sourceName: name
+            sourceName: name,
+            releaseNotesHTML: best.descriptionHTML,
+            changelogURL: best.releaseNotesLink
         )
     }
 
@@ -77,6 +79,11 @@ struct SparkleAppcastItem {
     var edSignature: String?
     var minimumSystemVersion: String?
     var deltaFrom: String?
+    /// Inline release notes — the `<description>` body, usually CDATA-wrapped HTML.
+    var descriptionHTML: String?
+    /// `<sparkle:releaseNotesLink>` — an external notes page, when the feed links
+    /// out instead of (or in addition to) inlining them.
+    var releaseNotesLink: URL?
 
     /// Prefer the build version (Sparkle's canonical key); fall back to short.
     var comparisonKey: String { version ?? shortVersionString ?? "0" }
@@ -131,6 +138,12 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
         textBuffer += string
     }
 
+    /// Release notes in `<description>` are almost always CDATA-wrapped HTML,
+    /// which arrives here rather than through `foundCharacters`.
+    func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+        textBuffer += String(decoding: CDATABlock, as: UTF8.self)
+    }
+
     func parser(
         _ parser: XMLParser,
         didEndElement elementName: String,
@@ -147,6 +160,14 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             }
         case "sparkle:minimumSystemVersion":
             current?.minimumSystemVersion = text
+        case "description":
+            // Only inside an <item>; the channel-level <description> has no
+            // `current` to attach to, so it's harmlessly dropped.
+            if !text.isEmpty { current?.descriptionHTML = text }
+        case "sparkle:releaseNotesLink":
+            if current?.releaseNotesLink == nil, !text.isEmpty {
+                current?.releaseNotesLink = URL(string: text)
+            }
         case "item":
             if let item = current { items.append(item) }
             current = nil

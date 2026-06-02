@@ -14,7 +14,9 @@ import Foundation
     let checker = UpdateChecker(sources: [
         MacAppStoreSource(),
         SparkleAppcastSource(),
-        HomebrewCaskSource()
+        HomebrewCaskSource(),
+        GitHubReleasesSource(token: GitHubToken.resolve()),
+        VendorProbeSource()
     ])
     let results = await checker.check(apps)
 
@@ -30,6 +32,8 @@ import Foundation
             log("⬆️  \(r.app.name): \(r.app.shortVersion ?? "?") → \(latest)  [\(r.remote?.sourceName ?? "?")]")
         case .upToDate: upToDate += 1
         case .unknown: unknown += 1
+        case .appStoreManaged: unknown += 1
+        case .toolboxManaged: unknown += 1
         case .error(let e): errors += 1; log("⚠️  \(r.app.name): \(e)")
         }
     }

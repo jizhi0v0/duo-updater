@@ -16,5 +16,13 @@ struct DuoUpdaterApp: App {
             }
         }
         .menuBarExtraStyle(.window)
+
+        // The roomy companion window — opened from the popover, lives on its own
+        // so it survives the popover dismissing. Shares the one model instance.
+        Window("Changelog", id: ChangelogWindowView.windowID) {
+            ChangelogWindowView(model: model)
+        }
+        .defaultSize(width: 860, height: 560)
+        .windowResizability(.contentMinSize)
     }
 }

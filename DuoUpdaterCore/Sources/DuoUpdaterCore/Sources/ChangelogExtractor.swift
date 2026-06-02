@@ -1,0 +1,205 @@
+import Foundation
+
+/// Runs a `ChangelogRecipe` against a fetched page body and produces a
+/// `Changelog`. Pure and side-effect-free (no network) so the fragile,
+/// format-specific bit is unit-testable against a fixture string without hitting
+/// the wire — exactly like `VendorProbeRecipe.extractVersion`.
+///
+/// Totally defensive: an invalid pattern, a no-match, or an entry with no items
+/// yields fewer entries (or nil), never a throw and never a crash. A nil/empty
+/// result is the caller's signal to fall back to the embedded web page.
+public enum ChangelogExtractor {
+
+    /// Parse `text` into a `Changelog` per `recipe`, or nil when nothing usable
+    /// comes out (caller then falls back to the web view).
+    public static func extract(from text: String, using recipe: ChangelogRecipe) -> Changelog? {
+        guard let entryRegex = compile(recipe.entryPattern) else { return nil }
+        let itemRegexes = recipe.itemPatterns.compactMap(compile)
+        guard !itemRegexes.isEmpty else { return nil }
+
+        let whole = NSRange(text.startIndex..., in: text)
+        var entries: [Changelog.Entry] = []
+
+        for match in entryRegex.matches(in: text, range: whole) {
+            let title = group(match, "title", in: text)
+                .map { clean($0, recipe) }
+                .flatMap { $0.isEmpty ? nil : $0 }
+            let version = group(match, "version", in: text)
+                .map { clean($0, recipe) } ?? ""
+            guard title != nil || !version.isEmpty else { continue }
+
+            let date = group(match, "date", in: text)
+                .map { clean($0, recipe) }
+                .flatMap { $0.isEmpty ? nil : $0 }
+
+            // Items come from the `body` group when present, else the whole entry.
+            let bodyText = group(match, "body", in: text)
+                ?? group(match, nil, in: text)
+                ?? ""
+
+            let items = firstNonEmptyItems(in: bodyText, regexes: itemRegexes, recipe: recipe)
+            guard !items.isEmpty else { continue }
+
+            entries.append(.init(title: title, version: version, date: date, items: items))
+            if let cap = recipe.maxEntries, entries.count >= cap { break }
+        }
+
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    // MARK: - Internals
+
+    private static func compile(_ pattern: String) -> NSRegularExpression? {
+        try? NSRegularExpression(
+            pattern: pattern,
+            options: [.dotMatchesLineSeparators, .caseInsensitive])
+    }
+
+    /// Try each item regex in order; return the cleaned matches of the first that
+    /// produces any. Each match contributes its `item` group, else group 1, else
+    /// the whole match.
+    private static func firstNonEmptyItems(
+        in body: String,
+        regexes: [NSRegularExpression],
+        recipe: ChangelogRecipe
+    ) -> [String] {
+        let range = NSRange(body.startIndex..., in: body)
+        for regex in regexes {
+            var items: [String] = []
+            for match in regex.matches(in: body, range: range) {
+                let raw = group(match, "item", in: body)
+                    ?? group(match, nil, in: body)
+                    ?? ""
+                let cleaned = clean(raw, recipe)
+                if cleaned.count >= recipe.minItemLength {
+                    items.append(cleaned)
+                }
+            }
+            if !items.isEmpty { return items }
+        }
+        return []
+    }
+
+    /// Extract a capture group's substring. `name` = a named group; nil = capture
+    /// group 1 if present, else the whole match. Returns nil if absent/unmatched.
+    private static func group(
+        _ match: NSTextCheckingResult, _ name: String?, in text: String
+    ) -> String? {
+        let nsRange: NSRange
+        if let name {
+            nsRange = match.range(withName: name)
+        } else {
+            nsRange = match.numberOfRanges > 1 ? match.range(at: 1) : match.range(at: 0)
+        }
+        guard nsRange.location != NSNotFound,
+              let r = Range(nsRange, in: text) else { return nil }
+        return String(text[r])
+    }
+
+    /// Strip tags (optional), decode entities (optional), collapse whitespace, trim.
+    private static func clean(_ raw: String, _ recipe: ChangelogRecipe) -> String {
+        var s = raw
+        if recipe.stripTags { s = stripTags(s) }
+        if recipe.decodeEntities { s = decodeEntities(s) }
+        return collapseWhitespace(s)
+    }
+
+    /// Turn line-breaking tags into spaces, then drop every remaining tag. Done in
+    /// that order so `<br>`/`</p>`/`</li>` don't glue adjacent words together.
+    private static func stripTags(_ s: String) -> String {
+        let breaks = try? NSRegularExpression(
+            pattern: #"<\s*/?\s*(br|p|li|div|ul|ol)\b[^>]*>"#,
+            options: [.caseInsensitive])
+        var out = s
+        if let breaks {
+            out = breaks.stringByReplacingMatches(
+                in: out, range: NSRange(out.startIndex..., in: out), withTemplate: " ")
+        }
+        let anyTag = try? NSRegularExpression(pattern: #"<[^>]+>"#)
+        if let anyTag {
+            out = anyTag.stringByReplacingMatches(
+                in: out, range: NSRange(out.startIndex..., in: out), withTemplate: "")
+        }
+        return out
+    }
+
+    /// Decode the handful of entities that actually show up in changelogs, plus
+    /// numeric (`&#39;`, `&#x2019;`) escapes. Deliberately small and pure — we
+    /// avoid `NSAttributedString` HTML decoding (heavy and main-thread-only).
+    private static func decodeEntities(_ s: String) -> String {
+        var out = s
+        let named: [String: String] = [
+            "&amp;": "&", "&lt;": "<", "&gt;": ">",
+            "&quot;": "\"", "&apos;": "'", "&#39;": "'",
+            "&nbsp;": " ", "&mdash;": "—", "&ndash;": "–",
+            "&hellip;": "…", "&rsquo;": "’", "&lsquo;": "‘",
+            "&ldquo;": "“", "&rdquo;": "”", "&times;": "×",
+        ]
+        for (entity, replacement) in named {
+            out = out.replacingOccurrences(of: entity, with: replacement)
+        }
+        // Numeric escapes: &#NNN; (decimal) and &#xHHH; (hex).
+        out = decodeNumericEntities(out)
+        // JSON Unicode escapes: \uXXXX — appear in JSON-mode feeds whose server
+        // encodes non-ASCII characters as escape sequences rather than UTF-8.
+        out = decodeJSONUnicodeEscapes(out)
+        return out
+    }
+
+    private static func decodeNumericEntities(_ s: String) -> String {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"&#(x?[0-9a-fA-F]+);"#, options: [.caseInsensitive]) else { return s }
+        let ns = s as NSString
+        var result = ""
+        var last = 0
+        for m in regex.matches(in: s, range: NSRange(location: 0, length: ns.length)) {
+            result += ns.substring(with: NSRange(location: last, length: m.range.location - last))
+            let token = ns.substring(with: m.range(at: 1))
+            let scalarValue: UInt32?
+            if token.lowercased().hasPrefix("x") {
+                scalarValue = UInt32(token.dropFirst(), radix: 16)
+            } else {
+                scalarValue = UInt32(token, radix: 10)
+            }
+            if let v = scalarValue, let scalar = Unicode.Scalar(v) {
+                result.append(Character(scalar))
+            } else {
+                result += ns.substring(with: m.range)  // leave it untouched
+            }
+            last = m.range.location + m.range.length
+        }
+        result += ns.substring(from: last)
+        return result
+    }
+
+    private static func decodeJSONUnicodeEscapes(_ s: String) -> String {
+        // JSON allows \/ as an escaped forward slash; normalise it first.
+        var out = s.replacingOccurrences(of: "\\/", with: "/")
+        guard out.contains("\\u") else { return out }
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\\u([0-9a-fA-F]{4})"#, options: [.caseInsensitive]) else { return out }
+        let ns = out as NSString
+        var result = ""
+        var last = 0
+        for m in regex.matches(in: out, range: NSRange(location: 0, length: ns.length)) {
+            result += ns.substring(with: NSRange(location: last, length: m.range.location - last))
+            let hexStr = ns.substring(with: m.range(at: 1))
+            if let codePoint = UInt32(hexStr, radix: 16),
+               let scalar = Unicode.Scalar(codePoint) {
+                result.append(Character(scalar))
+            } else {
+                result += ns.substring(with: m.range)
+            }
+            last = m.range.location + m.range.length
+        }
+        result += ns.substring(from: last)
+        out = result
+        return out
+    }
+
+    private static func collapseWhitespace(_ s: String) -> String {
+        let collapsed = s.replacingOccurrences(
+            of: #"\s+"#, with: " ", options: .regularExpression)
+        return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}

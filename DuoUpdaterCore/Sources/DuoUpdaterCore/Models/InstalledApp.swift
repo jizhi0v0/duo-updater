@@ -3,7 +3,19 @@ import Foundation
 /// A single application discovered on disk, with the metadata we need to
 /// figure out where it came from and how to check it for updates.
 public struct InstalledApp: Sendable, Identifiable, Hashable {
-    public var id: String { bundleID ?? path.path }
+    /// Identity is the on-disk path, which is unique per bundle. We deliberately
+    /// do NOT key on `bundleID`: two copies of the same app can share one — e.g.
+    /// the two JetBrains-Toolbox Android Studio installs (Otter + Koala) both
+    /// carry `com.google.android.studio`. Keying on bundleID collapsed them to a
+    /// single id, which made SwiftUI's `ForEach` render a blank ghost row for the
+    /// collision and silently dropped one copy in `refreshLocal`'s id-keyed dict.
+    public var id: String { path.path }
+
+    /// A filesystem-safe token for scratch directories. `id` is a full path (with
+    /// slashes), so installers can't use it directly in a path component.
+    public var scratchSlug: String {
+        (bundleID ?? path.lastPathComponent).replacingOccurrences(of: "/", with: "_")
+    }
 
     /// Display name, e.g. "Visual Studio Code".
     public let name: String
@@ -25,6 +37,18 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// True when the bundle contains `Contents/_MASReceipt/receipt`, meaning
     /// it was installed from the Mac App Store.
     public let isMASApp: Bool
+
+    /// True when this is an iPhone/iPad app running on Apple Silicon. These are
+    /// "wrapped": the real bundle lives at `<App>.app/Wrapper/<Inner>.app` (a
+    /// flat iOS layout with no `Contents/`), and they can only be installed from
+    /// the Mac App Store. The iTunes lookup's `version` is the correct remote
+    /// version for them — there is no separate Mac build to scrape.
+    public let isiOSAppOnMac: Bool
+
+    /// True when JetBrains Toolbox installed and manages this app (per Toolbox's
+    /// `state.json`). Its update channel is Toolbox, so we neither probe a
+    /// vendor endpoint nor offer an install — we just label it as managed.
+    public let isToolboxManaged: Bool
 
     /// `SUFeedURL` from Info.plist — present when the app ships the Sparkle
     /// auto-update framework. This is our highest-signal update source.
@@ -48,6 +72,8 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         buildVersion: String?,
         path: URL,
         isMASApp: Bool,
+        isiOSAppOnMac: Bool = false,
+        isToolboxManaged: Bool = false,
         sparkleFeedURL: URL?,
         sparkleEdPublicKey: String? = nil,
         hasSelfUpdater: Bool = false
@@ -58,6 +84,8 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.buildVersion = buildVersion
         self.path = path
         self.isMASApp = isMASApp
+        self.isiOSAppOnMac = isiOSAppOnMac
+        self.isToolboxManaged = isToolboxManaged
         self.sparkleFeedURL = sparkleFeedURL
         self.sparkleEdPublicKey = sparkleEdPublicKey
         self.hasSelfUpdater = hasSelfUpdater

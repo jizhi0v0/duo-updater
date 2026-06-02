@@ -8,10 +8,19 @@ public struct UpdateChecker: Sendable {
 
     public let sources: [any UpdateSource]
     public let maxConcurrency: Int
+    /// When set, Toolbox-managed apps are version-checked (live JetBrains API,
+    /// falling back to Toolbox's local cache); the action stays "open Toolbox".
+    /// When nil they're simply labelled managed without a version.
+    public let toolbox: ToolboxSource?
 
-    public init(sources: [any UpdateSource], maxConcurrency: Int = 12) {
+    public init(
+        sources: [any UpdateSource],
+        maxConcurrency: Int = 12,
+        toolbox: ToolboxSource? = nil
+    ) {
         self.sources = sources
         self.maxConcurrency = max(1, maxConcurrency)
+        self.toolbox = toolbox
     }
 
     /// Check every app, returning results in the same order as the input.
@@ -48,6 +57,27 @@ public struct UpdateChecker: Sendable {
 
     /// Check one app across all sources in priority order.
     public func check(_ app: InstalledApp) async -> UpdateResult {
+        // JetBrains Toolbox owns its apps' updates end to end (some even ship a
+        // Sparkle feed of their own, e.g. Air/Fleet). We never consult another
+        // source for these — that would risk a cross-channel install. Instead we
+        // read Toolbox's own local cache to show whether an update exists; the
+        // action stays "open Toolbox". No data → just labelled managed.
+        if app.isToolboxManaged {
+            if let verdict = await toolbox?.verdict(for: app) {
+                let remote = RemoteVersion(
+                    shortVersion: verdict.latestVersion,
+                    version: nil,
+                    downloadURL: nil,
+                    sourceName: "Toolbox",
+                    requiresManualInstaller: true)
+                let status: UpdateStatus = verdict.hasUpdate
+                    ? .updateAvailable(latest: verdict.latestVersion)
+                    : .upToDate
+                return UpdateResult(app: app, remote: remote, status: status)
+            }
+            return UpdateResult(app: app, remote: nil, status: .toolboxManaged)
+        }
+
         var lastError: String?
 
         for source in sources {
@@ -69,27 +99,61 @@ public struct UpdateChecker: Sendable {
         if let lastError {
             return UpdateResult(app: app, remote: nil, status: .error(lastError))
         }
-        return UpdateResult(app: app, remote: nil, status: .unknown)
+        // Apps whose updates a known channel already owns aren't "unknown" —
+        // they're managed elsewhere. Toolbox takes precedence over the store flag
+        // (a JetBrains IDE is never a MAS app, but be explicit about ordering).
+        let status: UpdateStatus
+        if app.isToolboxManaged {
+            status = .toolboxManaged
+        } else if app.isMASApp {
+            status = .appStoreManaged
+        } else {
+            status = .unknown
+        }
+        return UpdateResult(app: app, remote: nil, status: status)
     }
 
     /// Decide whether `remote` is newer than what's installed. Prefer comparing
     /// build versions (Sparkle's canonical key) when both sides have one; fall
     /// back to the marketing version otherwise.
-    static func evaluate(installed: InstalledApp, remote: RemoteVersion) -> UpdateStatus {
-        let pair: (installed: String, remote: String)?
+    ///
+    /// Public so a UI layer can cheaply RE-evaluate a freshly-rescanned app
+    /// against an already-fetched remote (no network) — e.g. to notice an app
+    /// updated itself in the background.
+    public static func evaluate(installed: InstalledApp, remote: RemoteVersion) -> UpdateStatus {
+        // Prefer comparing build versions (Sparkle's canonical key) when both
+        // sides have one.
         if let rv = remote.version, let iv = installed.buildVersion {
-            pair = (iv, rv)
-        } else if let rs = remote.shortVersion, let isv = installed.shortVersion {
-            pair = (isv, rs)
-        } else {
-            pair = nil
+            return VersionComparator.isNewer(rv, than: iv)
+                ? .updateAvailable(latest: remote.displayVersion ?? rv)
+                : .upToDate
         }
 
-        guard let pair else { return .unknown }
-
-        if VersionComparator.isNewer(pair.remote, than: pair.installed) {
-            return .updateAvailable(latest: remote.displayVersion ?? pair.remote)
+        // Otherwise fall back to the marketing (short) version.
+        guard let rs = remote.shortVersion, let isv = installed.shortVersion else {
+            return .unknown
         }
-        return .upToDate
+        if !VersionComparator.isNewer(rs, than: isv) {
+            return .upToDate
+        }
+
+        // The remote looks newer by marketing version alone — but some vendors
+        // fold the build INTO the version string: Oray reports "16.5.0.30757"
+        // while the installed bundle splits it into short "16.5.0" + build
+        // "30757". Re-check against the installed short+build; if that isn't older
+        // than the remote, the app is actually current — otherwise the row would
+        // show a perpetual "update" even right after a successful install. Guarded
+        // to a plain-numeric build tail not already part of the short version, so
+        // normal apps (whose build duplicates/dot-extends the short version) are
+        // unaffected — they never reach here unless genuinely behind.
+        if let build = installed.buildVersion,
+           !build.isEmpty, !build.contains("."), !isv.hasSuffix(build) {
+            let combined = "\(isv).\(build)"
+            if !VersionComparator.isNewer(rs, than: combined) {
+                return .upToDate
+            }
+        }
+
+        return .updateAvailable(latest: remote.displayVersion ?? rs)
     }
 }

@@ -9,11 +9,23 @@ public struct AppStoreAvailability: Sendable, Hashable {
     /// Region of the signed-in App Store account, e.g. "us" (nil if unknown).
     public let homeRegion: String?
 
-    public init(trackID: Int, availableRegion: String, homeRegion: String?) {
+    /// For an iPhone/iPad app run on Apple Silicon: whether the *latest* App Store
+    /// build still runs on Macs (Apple's `isIOSBinaryMacOSCompatible` flag).
+    /// Vendors can drop Mac support in a newer release, so the newest version may
+    /// be real but uninstallable here — the App Store shows "Not compatible with
+    /// this device". nil = native Mac app / not checked (assume compatible).
+    public let latestMacCompatible: Bool?
+
+    public init(trackID: Int, availableRegion: String, homeRegion: String?, latestMacCompatible: Bool? = nil) {
         self.trackID = trackID
         self.availableRegion = availableRegion
         self.homeRegion = homeRegion
+        self.latestMacCompatible = latestMacCompatible
     }
+
+    /// True when we know the newest build no longer supports this Mac, so even
+    /// though a newer version exists the user can't install it here.
+    public var isLatestMacIncompatible: Bool { latestMacCompatible == false }
 
     /// True when the app isn't listed in the signed-in account's storefront, so
     /// the App Store will refuse to open/update it ("App Not Available").
@@ -58,6 +70,36 @@ public struct RemoteVersion: Sendable, Hashable {
     /// installer, so we download the official package and open it.
     public let requiresManualInstaller: Bool
 
+    /// For a `Vendor` update we can install in place: the archive format of
+    /// `downloadURL`, so `VendorInstaller` unpacks it correctly. Nil for sources
+    /// that don't drive a vendor in-place install.
+    public let vendorInstallerKind: VendorInstallerKind?
+
+    /// Optional expected SHA-512 (base64) of the vendor download, verified before
+    /// unpacking. Nil when the feed doesn't publish one.
+    public let expectedSHA512: String?
+
+    /// Extra HTTP headers to send when downloading `downloadURL`. Empty for most
+    /// sources; set by vendor recipes whose CDN sits behind a WAF that only
+    /// serves the binary to browser-like requests (e.g. Oray's `dw.oray.com`
+    /// needs a `Referer`, else it returns an anti-bot challenge page).
+    public let downloadHeaders: [String: String]
+
+    /// Inline release notes when the source ships them as text/HTML — Sparkle's
+    /// `<description>`, a GitHub release `body`. Rendered directly in the detail
+    /// window. Nil for sources that publish no notes (most vendor probes).
+    public let releaseNotesHTML: String?
+
+    /// Structured changelog parsed from a GitHub release body. When present,
+    /// rendered natively via `ChangelogEntryView` instead of the flat markdown blob.
+    public let structuredChangelog: Changelog?
+
+    /// A web page with the app's changelog/release notes, for sources that don't
+    /// give us inline text (vendor sites, GitHub release page). Embedded in a web
+    /// view as the fallback when `releaseNotesHTML` is nil. May be set alongside
+    /// `releaseNotesHTML` as an "see full changelog" link.
+    public let changelogURL: URL?
+
     public init(
         shortVersion: String?,
         version: String?,
@@ -67,7 +109,13 @@ public struct RemoteVersion: Sendable, Hashable {
         sourceName: String,
         sourceIdentifier: String? = nil,
         appStore: AppStoreAvailability? = nil,
-        requiresManualInstaller: Bool = false
+        requiresManualInstaller: Bool = false,
+        vendorInstallerKind: VendorInstallerKind? = nil,
+        expectedSHA512: String? = nil,
+        downloadHeaders: [String: String] = [:],
+        releaseNotesHTML: String? = nil,
+        structuredChangelog: Changelog? = nil,
+        changelogURL: URL? = nil
     ) {
         self.shortVersion = shortVersion
         self.version = version
@@ -78,6 +126,12 @@ public struct RemoteVersion: Sendable, Hashable {
         self.sourceIdentifier = sourceIdentifier
         self.appStore = appStore
         self.requiresManualInstaller = requiresManualInstaller
+        self.vendorInstallerKind = vendorInstallerKind
+        self.expectedSHA512 = expectedSHA512
+        self.downloadHeaders = downloadHeaders
+        self.releaseNotesHTML = releaseNotesHTML
+        self.structuredChangelog = structuredChangelog
+        self.changelogURL = changelogURL
     }
 
     /// Best version string to show the user.
@@ -91,6 +145,15 @@ public enum UpdateStatus: Sendable, Equatable {
     case updateAvailable(latest: String)
     /// No source could answer for this app (no feed, not on MAS, no cask).
     case unknown
+    /// The app came from the Mac App Store, which manages its updates. We can't
+    /// read a trustworthy Mac version (the public lookup reports the iOS track
+    /// for these), so rather than show it as "unknown" we mark it as handled by
+    /// the App Store — informational, not actionable here.
+    case appStoreManaged
+    /// JetBrains Toolbox installed and updates this app. Probing a vendor
+    /// endpoint would risk a cross-channel install, so we defer to Toolbox and
+    /// label it as managed — informational, not actionable here.
+    case toolboxManaged
     /// A source was tried but failed (network, parse, etc.).
     case error(String)
 }

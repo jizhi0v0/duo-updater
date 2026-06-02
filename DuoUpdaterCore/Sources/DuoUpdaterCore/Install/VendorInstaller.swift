@@ -1,47 +1,44 @@
 import Foundation
 import AppKit
+import CryptoKit
 
-/// Stages emitted as an install proceeds, for driving UI.
-public enum InstallStage: Sendable, Equatable {
-    /// Re-verifying the app still needs updating before acting on it.
-    case checking
-    case downloading(fraction: Double)
-    case verifyingSignature
-    case extracting
-    case verifyingCodeSignature
-    case installing
-    case relaunching
-    /// A command-line installer (Homebrew) is running; payload is its latest
-    /// output line.
-    case runningCommand(String)
-    case done
-}
-
-/// Drives the full Sparkle update pipeline for a single app:
-/// download → EdDSA verify → extract → code-signature + Team ID verify →
-/// quit running instance → swap bundle → relaunch.
+/// Installs an in-place update for an *official-website* app that we detect via a
+/// `VendorProbeSource` recipe (VS Code, ChatWise, Codex, Conductor, …).
 ///
-/// Every gate must pass; a failure throws and leaves the installed app
-/// untouched (we only delete the old bundle once the new one is fully verified).
-public actor SparkleInstaller {
+/// A vendor download is the same channel the app was installed from, so this
+/// never mixes channels. There's no EdDSA feed signature to lean on, so the
+/// trust comes from two gates, both mandatory:
+///   1. (optional) SHA-512 match when the feed publishes one — transport integrity.
+///   2. **Code signature valid AND identical Team ID to the installed app** — the
+///      real guarantee that the download is the same vendor's notarized build,
+///      not a substituted bundle.
+///
+/// Pipeline: download → (checksum) → unpack → signature/Team gate → quit running
+/// instance → swap bundle → relaunch. Any gate failure throws and leaves the
+/// installed app untouched (the old bundle is removed only after the new one is
+/// fully verified).
+public actor VendorInstaller {
 
     public init() {}
 
     public enum InstallError: LocalizedError {
-        case notSparkleUpdate
-        case noPublicKey
+        case notVendorUpdate
         case noDownloadURL
+        case unknownKind
+        case checksumMismatch
         case targetNotReplaceable(String)
         case appWouldNotQuit(String)
 
         public var errorDescription: String? {
             switch self {
-            case .notSparkleUpdate:
-                return "This update did not come from a Sparkle feed."
-            case .noPublicKey:
-                return "The app has no SUPublicEDKey, so the download can't be verified. Update it manually."
+            case .notVendorUpdate:
+                return "This update did not come from a vendor probe."
             case .noDownloadURL:
-                return "The update has no download URL."
+                return "The update has no resolved download URL."
+            case .unknownKind:
+                return "This vendor update has no known installable archive format."
+            case .checksumMismatch:
+                return "The download's checksum didn't match — it may be corrupt or tampered. Nothing was changed."
             case .targetNotReplaceable(let msg):
                 return "Could not replace the installed app: \(msg)"
             case .appWouldNotQuit(let name):
@@ -54,19 +51,19 @@ public actor SparkleInstaller {
         _ result: UpdateResult,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
-        guard let remote = result.remote, remote.sourceName == "Sparkle" else {
-            throw InstallError.notSparkleUpdate
-        }
-        guard let publicKey = result.app.sparkleEdPublicKey, !publicKey.isEmpty else {
-            throw InstallError.noPublicKey
+        guard let remote = result.remote, remote.sourceName == "Vendor" else {
+            throw InstallError.notVendorUpdate
         }
         guard let downloadURL = remote.downloadURL else {
             throw InstallError.noDownloadURL
         }
+        guard let kind = remote.vendorInstallerKind, kind != .pkg else {
+            throw InstallError.unknownKind  // pkg goes through PackageInstaller
+        }
 
         // Scratch dir we own and clean up no matter what.
         let workDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("DuoUpdater-\(result.app.scratchSlug)-\(remote.displayVersion ?? "new")")
+            .appendingPathComponent("DuoUpdater-vendor-\(result.app.scratchSlug)-\(remote.displayVersion ?? "new")")
         try? FileManager.default.removeItem(at: workDir)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDir) }
@@ -75,22 +72,23 @@ public actor SparkleInstaller {
         let downloader = Downloader(destinationDir: workDir) { fraction in
             onStage(.downloading(fraction: fraction))
         }
-        let archive = try await downloader.download(downloadURL)
+        let downloaded = try await downloader.download(downloadURL, headers: remote.downloadHeaders)
 
-        // 2. Gate 1 — EdDSA signature over the exact bytes we downloaded
-        onStage(.verifyingSignature)
-        let fileData = try Data(contentsOf: archive, options: .mappedIfSafe)
-        try SignatureVerifier.verifyEdSignature(
-            fileData: fileData,
-            signatureBase64: remote.edSignature,
-            publicKeyBase64: publicKey
-        )
+        // Ensure the file carries an extension matching its kind, so the
+        // extractor dispatches correctly even for extensionless CDN-asset URLs.
+        let archive = try normalizedArchive(downloaded, kind: kind, workDir: workDir)
 
-        // 3. Extract the .app
+        // 2. Gate 1 (optional) — SHA-512 over the exact bytes we downloaded.
+        if let expected = remote.expectedSHA512 {
+            onStage(.verifyingSignature)
+            try verifyChecksum(archive, expectedBase64: expected)
+        }
+
+        // 3. Unpack the .app.
         onStage(.extracting)
         let newApp = try ArchiveExtractor.extractApp(from: archive, workDir: workDir)
 
-        // 4. Gate 2 + 3 — code signature valid AND same Team ID as installed
+        // 4. Gate 2 + 3 — code signature valid AND same Team ID as installed.
         onStage(.verifyingCodeSignature)
         try SignatureVerifier.verifyCodeSignature(appAt: newApp)
         try SignatureVerifier.verifyTeamIdentifierMatch(
@@ -98,17 +96,15 @@ public actor SparkleInstaller {
             downloadedApp: newApp
         )
 
-        // 5. Quit the running instance (if any) so we can swap the bundle.
-        // Aborts (before touching anything) if it won't quit gracefully — we
-        // never force-kill, to avoid destroying unsaved work.
-        let bundleID = result.app.bundleID
-        let wasRunning = try await quitRunningInstance(bundleID: bundleID)
+        // 5. Quit the running instance (if any). Aborts before touching anything
+        // if it won't quit gracefully — we never force-kill (unsaved work).
+        let wasRunning = try await quitRunningInstance(bundleID: result.app.bundleID)
 
-        // 6. Swap the bundle into place
+        // 6. Swap the bundle into place.
         onStage(.installing)
         try installApp(newApp, over: result.app.path)
 
-        // 7. Relaunch if it had been running
+        // 7. Relaunch if it had been running.
         if wasRunning {
             onStage(.relaunching)
             await relaunch(at: result.app.path)
@@ -117,12 +113,37 @@ public actor SparkleInstaller {
         onStage(.done)
     }
 
+    // MARK: - Checksum
+
+    private func verifyChecksum(_ file: URL, expectedBase64: String) throws {
+        let data = try Data(contentsOf: file, options: .mappedIfSafe)
+        let digest = SHA512.hash(data: data)
+        let actual = Data(digest).base64EncodedString()
+        // Vendors publish base64; compare exactly (trim incidental whitespace).
+        guard actual == expectedBase64.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            throw InstallError.checksumMismatch
+        }
+    }
+
+    /// Move/rename the download so its extension reflects `kind`. The Tauri/CDN
+    /// case has no extension in the URL, which would defeat extraction-by-suffix.
+    private func normalizedArchive(_ file: URL, kind: VendorInstallerKind, workDir: URL) throws -> URL {
+        let ext: String
+        switch kind {
+        case .zip: ext = "zip"
+        case .dmg: ext = "dmg"
+        case .tarGz: ext = "tar.gz"
+        case .pkg: ext = "pkg"
+        }
+        if file.lastPathComponent.lowercased().hasSuffix(ext) { return file }
+        let renamed = workDir.appendingPathComponent("download.\(ext)")
+        try? FileManager.default.removeItem(at: renamed)
+        try FileManager.default.moveItem(at: file, to: renamed)
+        return renamed
+    }
+
     // MARK: - Quit / relaunch
 
-    /// Ask a running instance to quit gracefully (like Cmd-Q, so the app can run
-    /// its own save prompts). Returns whether it had been running. Throws if it
-    /// won't quit within the grace period — we deliberately never force-kill,
-    /// because that would discard unsaved work. Pre-swap, so aborting is safe.
     @MainActor
     private func quitRunningInstance(bundleID: String?) async throws -> Bool {
         guard let bundleID else { return false }
@@ -132,14 +153,11 @@ public actor SparkleInstaller {
 
         for app in running { app.terminate() }
 
-        // Give it a few seconds to exit gracefully.
         for _ in 0..<30 {
             running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
             if running.isEmpty { return true }
             try? await Task.sleep(for: .milliseconds(200))
         }
-        // Still alive — most likely a blocking prompt (unsaved changes). Bail
-        // out rather than force-terminate.
         throw InstallError.appWouldNotQuit(name)
     }
 
@@ -152,14 +170,10 @@ public actor SparkleInstaller {
 
     // MARK: - Install
 
-    /// Replace the bundle at `target` with `newApp`. Tries a user-level swap
-    /// first; if the location requires admin rights, falls back to an
-    /// authenticated copy (one macOS password prompt).
     private func installApp(_ newApp: URL, over target: URL) throws {
         let fm = FileManager.default
 
         if fm.isWritableFile(atPath: target.deletingLastPathComponent().path) {
-            // Move the old bundle to the Trash, then move the new one in.
             try? fm.trashItem(at: target, resultingItemURL: nil)
             if fm.fileExists(atPath: target.path) {
                 try? fm.removeItem(at: target)
@@ -168,7 +182,6 @@ public actor SparkleInstaller {
             return
         }
 
-        // Privileged path: remove old + copy new via an authenticated shell.
         try privilegedReplace(newApp: newApp, target: target)
     }
 

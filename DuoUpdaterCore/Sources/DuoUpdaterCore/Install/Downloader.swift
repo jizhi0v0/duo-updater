@@ -18,11 +18,19 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     }
 
     /// Download `url`, returning the location of the downloaded file on disk.
-    func download(_ url: URL) async throws -> URL {
+    ///
+    /// `headers` lets a caller add request headers a vendor's CDN demands — some
+    /// sit behind a WAF that only serves the file to browser-like requests (e.g.
+    /// Oray's `dw.oray.com` requires a `Referer`; without it you get an anti-bot
+    /// JS challenge page instead of the dmg). They override the default UA.
+    func download(_ url: URL, headers: [String: String] = [:]) async throws -> URL {
         try await withCheckedThrowingContinuation { cont in
             self.continuation = cont
             var request = URLRequest(url: url)
             request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
+            for (field, value) in headers {
+                request.setValue(value, forHTTPHeaderField: field)
+            }
             request.timeoutInterval = 60
             session.downloadTask(with: request).resume()
         }
@@ -35,8 +43,22 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        guard totalBytesExpectedToWrite > 0 else { return }
-        onProgress(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+        let total = effectiveTotal(totalBytesExpectedToWrite, response: downloadTask.response)
+        guard total > 0 else { return }
+        onProgress(min(1.0, Double(totalBytesWritten) / Double(total)))
+    }
+
+    /// The expected byte count. URLSession reports -1 when the server streams
+    /// without a `Content-Length` — notably Google Cloud Storage (Warp's CDN),
+    /// which instead exposes the size in `x-goog-stored-content-length`. Fall back
+    /// to that (then to the response's own expected length) so the bar still moves.
+    private func effectiveTotal(_ reported: Int64, response: URLResponse?) -> Int64 {
+        if reported > 0 { return reported }
+        guard let http = response as? HTTPURLResponse else { return reported }
+        if let header = http.value(forHTTPHeaderField: "x-goog-stored-content-length"),
+           let n = Int64(header) { return n }
+        if http.expectedContentLength > 0 { return http.expectedContentLength }
+        return reported
     }
 
     func urlSession(

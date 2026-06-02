@@ -27,6 +27,7 @@ public actor PackageInstaller {
     /// install happens in macOS's installer, under the user's control.
     public func downloadAndOpen(
         url: URL?,
+        headers: [String: String] = [:],
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
         guard let url else { throw PackageError.noURL }
@@ -40,7 +41,7 @@ public actor PackageInstaller {
         let downloader = Downloader(destinationDir: workDir) { fraction in
             onStage(.downloading(fraction: fraction))
         }
-        let file = try await downloader.download(url)
+        let file = try await downloader.download(url, headers: headers)
 
         onStage(.installing)
         let toOpen = try resolveInstaller(from: file, workDir: workDir)

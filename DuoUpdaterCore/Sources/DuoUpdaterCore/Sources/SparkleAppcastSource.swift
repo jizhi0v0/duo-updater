@@ -99,12 +99,21 @@ public struct SparkleAppcastSource: UpdateSource {
         osVersion: String
     ) -> [SparkleAppcastItem] {
         guard !items.isEmpty else { return [] }
-        let installedChannel = channel(ofInstalled: app, in: items)
+        // Sparkle's real rule: the default (untagged) channel is allowed to
+        // everyone, plus the one channel the user opted into. We learn that
+        // channel authoritatively from the app's own preference when we can
+        // (this catches "opted into beta but still on a stable build", which the
+        // installed build alone can't reveal); otherwise we infer it from the
+        // build they're running.
+        let optedChannel = app.channelIsAuthoritative
+            ? sparkleChannelName(app.releaseChannel)
+            : channel(ofInstalled: app, in: items)
+        let allowed: Set<String?> = optedChannel == nil ? [nil] : [nil, optedChannel]
         let usable = items.filter { item in
             // Skip delta updates — they patch a specific old build.
             guard item.deltaFrom == nil else { return false }
-            // Only the channel the installed build is on (default channel == nil).
-            guard normalizeChannel(item.channel) == installedChannel else { return false }
+            // Default channel ∪ the user's channel — never a higher one.
+            guard allowed.contains(normalizeChannel(item.channel)) else { return false }
             // Honor minimum system version when declared.
             if let minOS = item.minimumSystemVersion, !minOS.isEmpty {
                 return VersionComparator.compare(osVersion, minOS) != .orderedAscending
@@ -141,6 +150,13 @@ public struct SparkleAppcastSource: UpdateSource {
             return nil
         }
         return c
+    }
+
+    /// The `<sparkle:channel>` name for a release channel — nil for stable (the
+    /// default, untagged channel), else the channel's raw name ("beta",
+    /// "canary", …), which is how feeds spell it.
+    static func sparkleChannelName(_ channel: ReleaseChannel) -> String? {
+        channel == .stable ? nil : channel.rawValue
     }
 
     /// e.g. "26.6.0" — used to evaluate `minimumSystemVersion`.

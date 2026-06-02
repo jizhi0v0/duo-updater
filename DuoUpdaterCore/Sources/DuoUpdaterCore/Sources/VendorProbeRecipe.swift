@@ -727,20 +727,17 @@ public enum VendorProbeRegistry {
                 kind: .pkg,
                 requestHeaders: ["Referer": "https://sunlogin.oray.com/"])),
 
-        // OrbStack — Sparkle appcast on its CDN. NOTE: staged (graylist) rollout
-        // means this can briefly trail the installed build — that only yields a
-        // benign "up to date", never a false update.
-        VendorProbeRecipe(
-            bundleID: "dev.kdrag0n.MacVirt",
-            url: URL(string: "https://cdn-updates.orbstack.dev/arm64/appcast.xml")!,
-            mode: .responseBody,
-            versionPattern: #"OrbStack_v([0-9.]+)_"#,
-            changelogURL: URL(string: "https://docs.orbstack.dev/release-notes"),
-            // Newest-first appcast → first enclosure is correct. Team HUAQ24HBR6.
-            install: VendorInstallSpec(
-                urlSource: .bodyPattern(
-                    #"<enclosure url="(https://cdn-updates\.orbstack\.dev/arm64/OrbStack_v[0-9.]+_[0-9]+_arm64\.dmg)""#),
-                kind: .dmg)),
+        // OrbStack — one Sparkle appcast (`appcast.new.xml`; the old `appcast.xml`
+        // froze at 2.1.2) carrying every channel as <sparkle:channel> elements.
+        // OrbStack has no Info.plist SUFeedURL, so it reaches us here, not via
+        // SparkleAppcastSource; `AppScanner` reads `updates_optinChannel` to set
+        // the install's channel (see `OrbStackChannel`) and we pick the matching
+        // recipe per `channel`. Each anchors its regex to its own channel tag, so
+        // a user is only ever offered their channel's build. Install stays on the
+        // codesign path (Team HUAQ24HBR6) — OrbStack ships no SUPublicEDKey.
+        orbStackRecipe(.stable, tag: "stable"),
+        orbStackRecipe(.beta, tag: "beta"),
+        orbStackRecipe(.canary, tag: "canary"),
 
         // Postman — CDN JSON that also powers the ChangelogRecipe. The "notes"
         // array is sorted newest-first, so the first "version" field is always
@@ -819,15 +816,25 @@ public enum VendorProbeRegistry {
             versionPattern: #"<!--BEGINVERSION-->([0-9.]+)<!--ENDVERSION-->"#,
             changelogURL: URL(string: "https://www.corecode.io/macupdater/history3.html")),
 
-        // Surge Mac — official Sparkle appcasts. The public "latest" URLs are
-        // the release and beta feeds used by the Surge changelog channel.
-        // Use the beta feed for the broader update signal; the version string is
-        // the short marketing version, which keeps comparison conservative.
-        VendorProbeRecipe(
-            bundleID: "com.nssurge.surge-mac",
-            url: URL(string: "https://nssurge.com/mac/latest/appcast-signed-beta.xml")!,
-            mode: .responseBody,
-            versionPattern: #"<sparkle:shortVersionString>([0-9]+(?:\.[0-9]+){1,2})</sparkle:shortVersionString>"#,
-            changelogURL: URL(string: "https://nssurge.com/support/mac/release-notes")),
+        // (Surge needs no recipe here: it declares a Sparkle SUFeedURL, so the
+        // higher-priority SparkleAppcastSource handles it, and `SurgeChannel`
+        // retargets that feed to the release/beta appcast per the user's choice.)
     ]
+
+    /// One OrbStack recipe for a given channel: same appcast, regex anchored to
+    /// that `<sparkle:channel>` tag (newest-first → first match is correct), and
+    /// the install enclosure pulled from the same channel block.
+    private static func orbStackRecipe(_ channel: ReleaseChannel, tag: String) -> VendorProbeRecipe {
+        VendorProbeRecipe(
+            bundleID: "dev.kdrag0n.MacVirt",
+            url: URL(string: "https://cdn-updates.orbstack.dev/arm64/appcast.new.xml")!,
+            mode: .responseBody,
+            versionPattern: #"(?s)<sparkle:channel>\#(tag)</sparkle:channel>.*?OrbStack_v([0-9.]+)_"#,
+            changelogURL: URL(string: "https://docs.orbstack.dev/release-notes"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"(?s)<sparkle:channel>\#(tag)</sparkle:channel>.*?<enclosure url="(https://cdn-updates\.orbstack\.dev/arm64/OrbStack_v[0-9.]+_[0-9]+_arm64\.dmg)""#),
+                kind: .dmg),
+            channel: channel)
+    }
 }

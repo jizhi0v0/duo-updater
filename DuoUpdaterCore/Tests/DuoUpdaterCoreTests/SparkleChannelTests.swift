@@ -87,4 +87,40 @@ struct SparkleChannelTests {
         #expect(SparkleAppcastSource.channel(ofInstalled: app(short: "x", build: "200"), in: items) == "beta")
         #expect(SparkleAppcastSource.channel(ofInstalled: app(short: "1.5", build: "x"), in: items) == nil)
     }
+
+    /// An app whose channel preference says "beta" but is still on a stable build
+    /// (no beta newer yet). Build-inference would call it stable and miss the
+    /// beta line; the authoritative channel from `ChannelBinding` catches it.
+    @Test func authoritativeBetaOnStableBuildSeesBeta() {
+        let betaOptedOnStable = InstalledApp(
+            name: "DuoPaste", bundleID: "io.duopaste.daemon",
+            shortVersion: "1.0", buildVersion: "100",
+            path: URL(fileURLWithPath: "/Applications/DuoPaste.app"),
+            isMASApp: false,
+            sparkleFeedURL: URL(string: "https://example.com/appcast.xml"),
+            sparkleEdPublicKey: "key",
+            releaseChannel: .beta, channelIsAuthoritative: true)
+        let best = SparkleAppcastSource.bestItem(for: betaOptedOnStable, from: items, osVersion: "26.0.0")
+        #expect(best?.version == "200")
+        #expect(best?.channel == "beta")
+    }
+
+    /// A beta user must still get a newer *stable* release (Sparkle allows the
+    /// default channel to everyone). Feed where stable 1.6/300 tops beta 2.0/200.
+    @Test func betaUserStillGetsNewerStable() {
+        let feed = """
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel>
+          <item><title>1.6</title><sparkle:version>300</sparkle:version><sparkle:shortVersionString>1.6</sparkle:shortVersionString>
+            <enclosure url="https://example.com/1.6.dmg" sparkle:edSignature="s" length="1" type="application/octet-stream" /></item>
+          <item><title>2.0 beta</title><sparkle:version>200</sparkle:version><sparkle:shortVersionString>2.0-beta</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <enclosure url="https://example.com/2.0-beta.dmg" sparkle:edSignature="s" length="1" type="application/octet-stream" /></item>
+        </channel></rss>
+        """
+        let parsed = SparkleAppcastParser.parse(Data(feed.utf8))
+        let best = SparkleAppcastSource.bestItem(
+            for: app(short: "2.0-beta", build: "200"), from: parsed, osVersion: "26.0.0")
+        #expect(best?.version == "300")
+        #expect(best?.channel == nil)
+    }
 }

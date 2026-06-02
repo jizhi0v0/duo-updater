@@ -80,6 +80,13 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// Defaults to `.stable`, the channel every current recipe targets.
     public let releaseChannel: ReleaseChannel
 
+    /// True when `releaseChannel` came from reading the app's own channel
+    /// preference (see `ChannelBinding`) rather than being inferred. When set,
+    /// `SparkleAppcastSource` trusts it to gate `<sparkle:channel>` items —
+    /// catching a user who opted into beta but is still on a stable build, which
+    /// build-inference alone can't see. Defaults to false (infer from the build).
+    public let channelIsAuthoritative: Bool
+
     public init(
         name: String,
         bundleID: String?,
@@ -93,7 +100,8 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         sparkleFeedURL: URL?,
         sparkleEdPublicKey: String? = nil,
         hasSelfUpdater: Bool = false,
-        releaseChannel: ReleaseChannel = .stable
+        releaseChannel: ReleaseChannel = .stable,
+        channelIsAuthoritative: Bool = false
     ) {
         self.name = name
         self.bundleID = bundleID
@@ -108,5 +116,6 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.sparkleEdPublicKey = sparkleEdPublicKey
         self.hasSelfUpdater = hasSelfUpdater
         self.releaseChannel = releaseChannel
+        self.channelIsAuthoritative = channelIsAuthoritative
     }
 }

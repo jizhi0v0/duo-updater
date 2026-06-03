@@ -13,14 +13,27 @@ struct SecureSchemeTests {
         try SecureScheme.requireSecureDownload(URL(string: "HTTPS://example.com/app.zip")!)
     }
 
-    @Test func plaintextHTTPIsRefused() {
+    @Test func plaintextHTTPToRemoteHostIsRefused() {
         #expect(throws: SecureScheme.SchemeError.self) {
             try SecureScheme.requireSecureDownload(URL(string: "http://example.com/app.zip")!)
         }
     }
 
+    @Test func loopbackHTTPIsAllowed() throws {
+        // Loopback can't be network-MITM'd, so plaintext there is safe — and local
+        // test servers rely on it.
+        for raw in ["http://127.0.0.1:8080/app.zip", "http://localhost/app.zip"] {
+            try SecureScheme.requireSecureDownload(URL(string: raw)!)
+        }
+    }
+
+    @Test func fileURLIsAllowed() throws {
+        // Local fixtures / on-box files carry no network risk.
+        try SecureScheme.requireSecureDownload(URL(string: "file:///tmp/a.zip")!)
+    }
+
     @Test func otherSchemesAreRefused() {
-        for raw in ["ftp://example.com/a.zip", "file:///tmp/a.zip", "data:text/plain,hi"] {
+        for raw in ["ftp://example.com/a.zip", "data:text/plain,hi"] {
             #expect(throws: SecureScheme.SchemeError.self) {
                 try SecureScheme.requireSecureDownload(URL(string: raw)!)
             }

@@ -28,16 +28,37 @@ enum SecureScheme {
         }
     }
 
-    /// Throw unless `url` is served over HTTPS. Everything we install is fetched
-    /// from a vendor CDN or GitHub, all of which serve TLS; the only plaintext
-    /// `http://` URL anywhere in the recipe set is a *version probe*, not a
-    /// download, so requiring HTTPS here costs us nothing and closes a real
-    /// downgrade vector.
+    /// Throw unless `url` is safe to download executable content from. Everything
+    /// we install from the recipe set is fetched from a vendor CDN or GitHub, all
+    /// of which serve TLS; the only plaintext `http://` URL anywhere is a *version
+    /// probe*, not a download, so requiring TLS for downloads costs us nothing and
+    /// closes a real downgrade vector.
+    ///
+    /// Allowed: `https://` (any host), `file://` (local, no network), and `http://`
+    /// to the **loopback** interface only. Loopback can't be network-MITM'd, so
+    /// plaintext there carries none of the downgrade risk — this mirrors App
+    /// Transport Security's own loopback exemption and keeps local test servers and
+    /// on-box endpoints usable. Plaintext `http://` to any other host is refused,
+    /// as is every other scheme.
     static func requireSecureDownload(_ url: URL) throws {
-        guard url.scheme?.lowercased() == "https" else {
+        switch url.scheme?.lowercased() {
+        case "https", "file":
+            return
+        case "http" where isLoopback(url.host):
+            return
+        default:
             throw SchemeError.insecureDownload(
                 scheme: url.scheme ?? "?",
                 host: url.host ?? url.absoluteString)
+        }
+    }
+
+    /// True for the loopback host names/addresses that can't be intercepted on the
+    /// network.
+    private static func isLoopback(_ host: String?) -> Bool {
+        switch host?.lowercased() {
+        case "localhost", "127.0.0.1", "::1": return true
+        default: return false
         }
     }
 }

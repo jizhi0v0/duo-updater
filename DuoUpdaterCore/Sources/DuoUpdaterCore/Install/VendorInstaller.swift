@@ -45,10 +45,13 @@ public actor VendorInstaller {
         }
     }
 
+    /// Returns the exact number of bytes downloaded for the update, for per-app
+    /// traffic accounting.
+    @discardableResult
     public func install(
         _ result: UpdateResult,
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) async throws {
+    ) async throws -> Int64 {
         // Accept any source whose RemoteVersion carries a resolved installer
         // archive we vet ourselves: the vendor-probe registry ("Vendor") and
         // GitHub release rules with an asset pattern ("GitHub"). Both download a
@@ -77,6 +80,7 @@ public actor VendorInstaller {
             onStage(.downloading(fraction: fraction))
         }
         let downloaded = try await downloader.download(downloadURL, headers: remote.downloadHeaders)
+        let bytesDownloaded = downloader.bytesDownloaded
 
         // Ensure the file carries an extension matching its kind, so the
         // extractor dispatches correctly even for extensionless CDN-asset URLs.
@@ -116,6 +120,7 @@ public actor VendorInstaller {
         try installApp(newApp, over: result.app.path)
 
         onStage(.done)
+        return bytesDownloaded
     }
 
     // MARK: - Checksum

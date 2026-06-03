@@ -55,11 +55,22 @@ final class AppListModel {
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
 
+    /// Per-app download traffic, tracked to the byte and persisted across runs.
+    private let trafficStore = TrafficStore()
+    /// Snapshot of per-app traffic for the UI, refreshed after each recorded
+    /// download. Sorted heaviest-app-first by the store.
+    private(set) var trafficStats: [AppTrafficStat] = []
+    /// Grand total bytes downloaded across every app.
+    private(set) var trafficTotalBytes: Int64 = 0
+
     init(prefs: Preferences = .shared) {
         self.prefs = prefs
-        // Ask once so finished-update notifications can fire later, and register
-        // the actionable categories the background-check notification uses.
+        // Register the notification delegate + actionable categories (this also
+        // requests notification permission once).
         NotificationController.shared.register(model: self)
+        // Load any previously recorded traffic so the stats view isn't empty on
+        // launch before the first install of this session.
+        Task { await refreshTrafficStats() }
     }
 
     /// The ordered source stack, rebuilt per check so it picks up a token change
@@ -77,6 +88,31 @@ final class AppListModel {
             // the earlier sources all miss and a recipe exists.
             VendorProbeSource()
         ]
+    }
+
+    /// Pull the latest per-app traffic snapshot out of the store onto the main
+    /// actor for the UI.
+    private func refreshTrafficStats() async {
+        let snapshot = await trafficStore.snapshot()
+        let total = await trafficStore.totalBytes()
+        trafficStats = snapshot
+        trafficTotalBytes = total
+    }
+
+    /// Record the bytes one install transferred, keyed to its app, then refresh
+    /// the UI snapshot. `bytes <= 0` (e.g. an install that did no measured
+    /// download) is ignored by the store.
+    private func recordTraffic(_ result: UpdateResult, bytes: Int64) async {
+        await trafficStore.record(
+            appID: result.app.id,
+            appName: result.app.name,
+            bundleID: result.app.bundleID,
+            fromVersion: result.app.shortVersion,
+            toVersion: result.remote?.displayVersion,
+            sourceName: result.remote?.sourceName,
+            bytes: bytes
+        )
+        await refreshTrafficStats()
     }
 
     /// Scan the disk, then check every app for updates.
@@ -269,12 +305,13 @@ final class AppListModel {
             // control, so we don't mark it up to date — a later rescan will.
             if requiresInstaller(result) {
                 installing[id] = .downloading(fraction: 0)
-                try await packageInstaller.downloadAndOpen(
+                let bytes = try await packageInstaller.downloadAndOpen(
                     url: result.remote?.downloadURL,
                     headers: result.remote?.downloadHeaders ?? [:]
                 ) { stage in
                     Task { @MainActor in self.setStage(id, stage) }
                 }
+                await recordTraffic(result, bytes: bytes)
                 installing[id] = nil
                 return true
             }
@@ -289,19 +326,23 @@ final class AppListModel {
                     return false
                 }
                 installing[id] = .runningCommand("starting brew…")
+                // brew performs its own download, so we never see those bytes —
+                // intentionally not recorded (we only count what we measured).
                 try await homebrewInstaller.upgrade(caskToken: token) { line in
                     Task { @MainActor in self.setStage(id, .runningCommand(line)) }
                 }
             case "Vendor", "GitHub":
                 installing[id] = .downloading(fraction: 0)
-                try await vendorInstaller.install(result) { stage in
+                let bytes = try await vendorInstaller.install(result) { stage in
                     Task { @MainActor in self.setStage(id, stage) }
                 }
+                await recordTraffic(result, bytes: bytes)
             default:
                 installing[id] = .downloading(fraction: 0)
-                try await sparkleInstaller.install(result) { stage in
+                let bytes = try await sparkleInstaller.install(result) { stage in
                     Task { @MainActor in self.setStage(id, stage) }
                 }
+                await recordTraffic(result, bytes: bytes)
             }
             // Re-read from disk to reflect the new version, then recompute the
             // Restart flag by comparing each running instance's launch version

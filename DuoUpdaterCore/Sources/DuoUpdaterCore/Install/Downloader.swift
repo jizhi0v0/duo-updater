@@ -23,6 +23,18 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     private let destinationDir: URL
     private var session: URLSession!
 
+    /// Exact number of bytes transferred to disk, for per-app traffic accounting.
+    /// Updated on every `didWriteData` (cumulative `totalBytesWritten`), so after
+    /// `download` returns it holds the full size of the downloaded file. Guarded
+    /// by a lock because the delegate fires on a background queue while a caller
+    /// reads this from the awaiting task.
+    private let bytesLock = NSLock()
+    private var _bytesDownloaded: Int64 = 0
+    var bytesDownloaded: Int64 {
+        bytesLock.lock(); defer { bytesLock.unlock() }
+        return _bytesDownloaded
+    }
+
     init(destinationDir: URL, onProgress: @escaping @Sendable (Double) -> Void) {
         self.destinationDir = destinationDir
         self.onProgress = onProgress
@@ -63,6 +75,10 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
+        bytesLock.lock()
+        _bytesDownloaded = totalBytesWritten
+        bytesLock.unlock()
+
         let total = effectiveTotal(totalBytesExpectedToWrite, response: downloadTask.response)
         guard total > 0 else { return }
         onProgress(min(1.0, Double(totalBytesWritten) / Double(total)))
@@ -100,6 +116,15 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         do {
             try? FileManager.default.removeItem(at: dest)
             try FileManager.default.moveItem(at: location, to: dest)
+            // Backstop the byte count from the file on disk in case no
+            // `didWriteData` fired (e.g. a tiny or cached response): the moved
+            // file's size is the exact number of bytes we received.
+            bytesLock.lock()
+            if _bytesDownloaded == 0,
+               let size = try? FileManager.default.attributesOfItem(atPath: dest.path)[.size] as? Int64 {
+                _bytesDownloaded = size
+            }
+            bytesLock.unlock()
             finish(.success(dest))
         } catch {
             finish(.failure(error))

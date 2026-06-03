@@ -5,6 +5,11 @@ import Foundation
 /// opens an app that has a recipe, so we only ever hit a vendor's changelog page
 /// on demand (never during the bulk update check).
 ///
+/// Results are cached in ``ChangelogCache/shared`` for ``ChangelogCache/ttl``
+/// seconds so re-opening the same app's detail window within a session skips the
+/// network entirely. Concurrent opens of the same app are coalesced onto a single
+/// in-flight fetch. The cache is cleared by ``AppListModel`` on every manual refresh.
+///
 /// Best-effort, mirroring the vendor-probe philosophy: any failure (network,
 /// non-2xx, parse miss) returns nil, and the UI falls back to embedding the page
 /// in a web view. It never throws to the caller.
@@ -20,13 +25,24 @@ public enum ChangelogService {
     /// any failure. When `recipe.indexLinkPattern` is set the source is a
     /// newest-first index: we fetch it, follow its first link to the latest
     /// version's detail page, and parse that (see `resolveDetailURL`).
+    ///
+    /// Results are cached in ``ChangelogCache/shared`` for 15 minutes (keyed on
+    /// `recipe.source`) so the detail window opens instantly on repeat visits.
+    /// Concurrent callers for the same recipe are coalesced onto one network
+    /// fetch. Cache is cleared on manual refresh — see ``AppListModel/refresh()``.
     public static func load(
-        _ recipe: ChangelogRecipe, session: URLSession = .shared
+        _ recipe: ChangelogRecipe, session: URLSession = .updates
     ) async -> Changelog? {
-        guard let pageURL = await resolveDetailURL(recipe, session: session),
-              let text = await fetchBody(pageURL, session: session)
-        else { return nil }
-        return ChangelogExtractor.extract(from: text, using: recipe)
+        // Delegate to the cache's fetch-through helper, which handles hit, miss,
+        // and concurrent-miss coalescing in one place.
+        await ChangelogCache.shared.load(for: recipe.source) {
+            Log.source.debug(
+                "changelog cache miss: \(recipe.source.host ?? "?", privacy: .public)")
+            guard let pageURL = await resolveDetailURL(recipe, session: session),
+                  let text = await fetchBody(pageURL, session: session)
+            else { return nil }
+            return ChangelogExtractor.extract(from: text, using: recipe)
+        }
     }
 
     /// The page the entry/item patterns run against. Without an `indexLinkPattern`
@@ -34,7 +50,7 @@ public enum ChangelogService {
     /// page (= the latest release), resolved to an absolute URL. Nil when the
     /// index can't be fetched or yields no link — the caller then falls back.
     static func resolveDetailURL(
-        _ recipe: ChangelogRecipe, session: URLSession = .shared
+        _ recipe: ChangelogRecipe, session: URLSession = .updates
     ) async -> URL? {
         guard let pattern = recipe.indexLinkPattern else { return recipe.source }
         guard let indexBody = await fetchBody(recipe.source, session: session) else { return nil }
@@ -76,7 +92,7 @@ public enum ChangelogService {
     /// Convenience: look up a recipe by bundle id and run it. Nil when there's no
     /// recipe for the app or the load fails.
     public static func load(
-        forBundleID bundleID: String?, session: URLSession = .shared
+        forBundleID bundleID: String?, session: URLSession = .updates
     ) async -> Changelog? {
         guard let recipe = ChangelogRecipeRegistry.recipe(forBundleID: bundleID) else {
             return nil

@@ -33,7 +33,7 @@ public actor HomebrewCaskCatalog {
     private var loadTask: Task<CaskIndex, Error>?
 
     private let session: URLSession
-    public init(session: URLSession = .shared) {
+    public init(session: URLSession = .updates) {
         self.session = session
     }
 
@@ -95,7 +95,7 @@ public actor HomebrewCaskCatalog {
             guard
                 let token = cask["token"] as? String,
                 let version = cask["version"] as? String,
-                version != "latest", version != ":latest"
+                version != "latest"
             else { continue }
 
             let entry = CaskEntry(

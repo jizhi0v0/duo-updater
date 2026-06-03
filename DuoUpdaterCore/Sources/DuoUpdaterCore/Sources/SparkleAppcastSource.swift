@@ -9,7 +9,7 @@ public struct SparkleAppcastSource: UpdateSource {
     private let session: URLSession
     private let currentSystemVersion: String
 
-    public init(session: URLSession = .shared, currentSystemVersion: String? = nil) {
+    public init(session: URLSession = .updates, currentSystemVersion: String? = nil) {
         self.session = session
         self.currentSystemVersion = currentSystemVersion
             ?? ProcessInfo.processInfo.operatingSystemVersionString
@@ -112,6 +112,10 @@ public struct SparkleAppcastSource: UpdateSource {
         let usable = items.filter { item in
             // Skip delta updates — they patch a specific old build.
             guard item.deltaFrom == nil else { return false }
+            // Skip items with no usable version: their comparisonKey falls back to
+            // "0", so a malformed feed entry would otherwise surface as a phantom
+            // (and produce a RemoteVersion with no version) instead of "no update".
+            guard item.version != nil || item.shortVersionString != nil else { return false }
             // Default channel ∪ the user's channel — never a higher one.
             guard allowed.contains(normalizeChannel(item.channel)) else { return false }
             // Honor minimum system version when declared.

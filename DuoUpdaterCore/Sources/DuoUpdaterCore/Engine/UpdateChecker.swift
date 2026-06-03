@@ -49,10 +49,16 @@ public struct UpdateChecker: Sendable {
             while next < apps.count && inFlight < maxConcurrency {
                 addTask(next); next += 1; inFlight += 1
             }
-            // Drain and refill.
+            // Drain and refill. Stop scheduling new work once the enclosing task
+            // is cancelled (e.g. a superseded refresh) so we don't run the whole
+            // remaining fan-out to completion for results no one will use.
             while let (index, result) = await group.next() {
                 results[index] = result
                 inFlight -= 1
+                if Task.isCancelled {
+                    group.cancelAll()
+                    continue  // keep draining in-flight tasks, schedule no more
+                }
                 if next < apps.count {
                     addTask(next); next += 1; inFlight += 1
                 }

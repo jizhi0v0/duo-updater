@@ -15,8 +15,8 @@ public enum VersionComparator {
         let count = max(a.count, b.count)
 
         for i in 0..<count {
-            let l = i < a.count ? a[i] : .number(0)
-            let r = i < b.count ? b[i] : .number(0)
+            let l = i < a.count ? a[i] : .number("0")
+            let r = i < b.count ? b[i] : .number("0")
             let result = l.compared(to: r)
             if result != .orderedSame { return result }
         }
@@ -32,7 +32,7 @@ public enum VersionComparator {
     /// "6.9.1" → 6, "v7.1" → 7, returns nil when there's no number.
     public static func majorComponent(_ version: String) -> Int? {
         for token in tokenize(version) {
-            if case let .number(n) = token { return n }
+            if case let .number(digits) = token { return Int(digits) }
         }
         return nil
     }
@@ -56,7 +56,8 @@ public enum VersionComparator {
     /// ordinary semver too readily to detect safely.
     public static func isCalendarVersion(_ version: String) -> Bool {
         for token in tokenize(version) {
-            if case let .number(n) = token {
+            if case let .number(digits) = token {
+                guard let n = Int(digits) else { return false }
                 return (2000...2099).contains(n)
             }
             // Leading non-numeric run (e.g. a "v" prefix): skip and keep looking.
@@ -67,13 +68,16 @@ public enum VersionComparator {
     // MARK: - Tokenizing
 
     private enum Token {
-        case number(Int)
+        /// A run of digits kept as its raw string so arbitrarily long build
+        /// numbers (epoch-ms, concatenated hashes) compare by magnitude rather
+        /// than overflowing `Int` and silently degrading to a text comparison.
+        case number(String)
         case text(String)
 
         func compared(to other: Token) -> ComparisonResult {
             switch (self, other) {
             case let (.number(a), .number(b)):
-                return a < b ? .orderedAscending : (a > b ? .orderedDescending : .orderedSame)
+                return Token.compareNumeric(a, b)
             case let (.text(a), .text(b)):
                 // A release ("") outranks a pre-release tag ("beta"): treat a
                 // numeric component as newer than an adjacent text one is
@@ -86,6 +90,19 @@ public enum VersionComparator {
                 return .orderedAscending
             }
         }
+
+        /// Compare two digit runs as non-negative integers of unbounded size:
+        /// strip leading zeros, then compare by length, then lexically. Equal
+        /// magnitude with differing zero-padding (e.g. "007" vs "7") is equal.
+        static func compareNumeric(_ a: String, _ b: String) -> ComparisonResult {
+            let x = Substring(a).drop { $0 == "0" }
+            let y = Substring(b).drop { $0 == "0" }
+            if x.count != y.count {
+                return x.count < y.count ? .orderedAscending : .orderedDescending
+            }
+            if x == y { return .orderedSame }
+            return x < y ? .orderedAscending : .orderedDescending
+        }
     }
 
     private static func tokenize(_ version: String) -> [Token] {
@@ -95,8 +112,8 @@ public enum VersionComparator {
 
         func flush() {
             guard !current.isEmpty else { return }
-            if currentIsDigit == true, let n = Int(current) {
-                tokens.append(.number(n))
+            if currentIsDigit == true {
+                tokens.append(.number(current))
             } else {
                 tokens.append(.text(current))
             }

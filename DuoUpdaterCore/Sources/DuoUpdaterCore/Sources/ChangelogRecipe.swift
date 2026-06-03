@@ -323,7 +323,16 @@ public enum ChangelogRecipeRegistry {
         // update.dcloud.net.cn/hbuilderx/changelog/<version>.html is a cumulative
         // page with every release. Each version block opens with an <h2>, no
         // explicit date (the version string encodes YYYYMMDD, e.g. 5.07.2026041006).
+        //
         // URL is version-pinned; update when the VendorProbeRecipe version is bumped.
+        //
+        // Cache-key note: ChangelogCache keys on `recipe.source`. When this URL is
+        // bumped (a new app build), the old URL's slot is orphaned in the cache.
+        // That is harmless — the old slot is never read again and is evicted on the
+        // next ChangelogCache.invalidateAll() (called by every manual refresh) or
+        // when its 15-minute TTL expires. Unlike VLC/Ghostty there is no stable
+        // index URL available on this vendor's server, so version-pinning is the
+        // only viable strategy until DCloud exposes an index page.
         ChangelogRecipe(
             bundleID: "io.dcloud.HBuilderX",
             source: URL(string: "https://update.dcloud.net.cn/hbuilderx/changelog/5.07.2026041006.html")!,

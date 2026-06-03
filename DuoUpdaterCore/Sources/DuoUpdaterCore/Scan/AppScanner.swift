@@ -111,12 +111,15 @@ public struct AppScanner: Sendable {
         // `_MASReceipt`, so decide TestFlight first (by matching the installed
         // build against TestFlight's DB) and exclude it from the MAS flag — else a
         // TestFlight app would be checked against the App Store's stable track.
-        let receiptURL = bundleURL
-            .appendingPathComponent("Contents/_MASReceipt/receipt")
+        // Wrapped iOS apps have no `Contents/` — their MAS provenance is implied by
+        // the wrapper itself, so we never look for a `Contents/_MASReceipt` there
+        // (that path can't exist and the check would always be false).
         let bundleID = plist["CFBundleIdentifier"] as? String
         let buildVersion = plist["CFBundleVersion"] as? String
         let isTestFlight = testflight.isManaged(bundleID: bundleID, installedBuild: buildVersion)
-        let isMAS = !isTestFlight && (isiOSAppOnMac || fm.fileExists(atPath: receiptURL.path))
+        let hasReceipt = !isiOSAppOnMac && fm.fileExists(
+            atPath: bundleURL.appendingPathComponent("Contents/_MASReceipt/receipt").path)
+        let isMAS = !isTestFlight && (isiOSAppOnMac || hasReceipt)
 
         var feedURL: URL?
         if let feed = plist["SUFeedURL"] as? String {
@@ -125,8 +128,9 @@ public struct AppScanner: Sendable {
 
         // Electron apps that ship Squirrel manage their own updates; flag them
         // so we defer to that channel instead of a (often staler) Homebrew cask.
+        // Wrapped iOS apps have no `Contents/` and never ship Squirrel.
         let squirrel = bundleURL.appendingPathComponent("Contents/Frameworks/Squirrel.framework")
-        let hasSelfUpdater = FileManager.default.fileExists(atPath: squirrel.path)
+        let hasSelfUpdater = !isiOSAppOnMac && fm.fileExists(atPath: squirrel.path)
 
         // For Toolbox-managed apps, show Toolbox's own `displayVersion`: the
         // on-disk `CFBundleShortVersionString` is either truncated (Android Studio

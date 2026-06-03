@@ -17,6 +17,7 @@ struct ChangelogWindowView: View {
 
     @Bindable var model: AppListModel
     @State private var selection: String?
+    @Environment(\.scenePhase) private var scenePhase
 
     /// While the window stays open, re-read on-disk versions every 15s so an app
     /// that self-updates in the background surfaces even if you never close/refocus
@@ -73,7 +74,11 @@ struct ChangelogWindowView: View {
             Task { await model.refreshLocal() }
         }
         // Stationary stay (never lose focus) → the 15s timer keeps versions fresh.
+        // Skip ticks while the window is hidden/minimized (scenePhase .background):
+        // refreshing on-disk versions for a window no one is looking at is wasted
+        // work and battery.
         .onReceive(refreshTimer) { _ in
+            guard scenePhase != .background else { return }
             Task { await model.refreshLocal() }
         }
         // This is a menu-bar (LSUIElement/.accessory) app, so its windows have no
@@ -177,12 +182,8 @@ private struct ChangelogDetail: View {
                 fallbackSource: result.remote?.sourceName)
                 .id(recipe.bundleID)
                 .onAppear {
-                    print(
-                        "[ChangelogDetail] app=\(result.app.name) bundle=\(result.app.bundleID ?? "nil") "
-                            + "source=\(result.remote?.sourceName ?? "nil") recipe=\(recipe.source.absoluteString) "
-                            + "fallbackURL=\(changelogURL?.absoluteString ?? "nil") "
-                            + "hasInlineHTML=\(result.remote?.releaseNotesHTML != nil)"
-                    )
+                    Log.changelog.debug(
+                        "detail app=\(result.app.name, privacy: .public) bundle=\(result.app.bundleID ?? "nil", privacy: .public) source=\(result.remote?.sourceName ?? "nil", privacy: .public) recipe=\(recipe.source.absoluteString, privacy: .public) fallbackURL=\(changelogURL?.absoluteString ?? "nil", privacy: .public) hasInlineHTML=\(result.remote?.releaseNotesHTML != nil, privacy: .public)")
                 }
         } else if let changelog = result.remote?.structuredChangelog {
             // GitHub release body parsed into native entries — renders the same way
@@ -325,17 +326,12 @@ private struct StructuredChangelogView: View {
         let changelog = await ChangelogService.load(recipe)
         if let changelog {
             let first = changelog.entries.first
-            print(
-                "[StructuredChangelogView] loaded bundle=\(recipe.bundleID) entries=\(changelog.entries.count) "
-                    + "firstTitle=\(first?.title ?? "nil") firstVersion=\(first?.version ?? "nil") "
-                    + "firstDate=\(first?.date ?? "nil")"
-            )
+            Log.changelog.debug(
+                "loaded bundle=\(recipe.bundleID, privacy: .public) entries=\(changelog.entries.count, privacy: .public) firstTitle=\(first?.title ?? "nil", privacy: .public) firstVersion=\(first?.version ?? "nil", privacy: .public) firstDate=\(first?.date ?? "nil", privacy: .public)")
             phase = .loaded(changelog)
         } else {
-            print(
-                "[StructuredChangelogView] failed bundle=\(recipe.bundleID) source=\(recipe.source.absoluteString) "
-                    + "fallbackURL=\(fallbackURL?.absoluteString ?? "nil") hasFallbackHTML=\(fallbackHTML != nil)"
-            )
+            Log.changelog.debug(
+                "failed bundle=\(recipe.bundleID, privacy: .public) source=\(recipe.source.absoluteString, privacy: .public) fallbackURL=\(fallbackURL?.absoluteString ?? "nil", privacy: .public) hasFallbackHTML=\(fallbackHTML != nil, privacy: .public)")
             phase = .failed
         }
     }
@@ -426,13 +422,23 @@ private struct ChangelogEntryView: View {
 private struct WebView: NSViewRepresentable {
     let url: URL
 
+    /// Tracks the URL we last *requested* (not `view.url`, which becomes the
+    /// post-redirect URL). Comparing against the requested URL stops a changelog
+    /// page that 301-redirects from reloading on every `updateNSView` — `view.url`
+    /// would never equal the original `url`, so it would loop indefinitely.
+    final class Coordinator { var requested: URL? }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> WKWebView {
         let view = WKWebView()
+        context.coordinator.requested = url
         view.load(URLRequest(url: url))
         return view
     }
 
     func updateNSView(_ view: WKWebView, context: Context) {
-        if view.url != url { view.load(URLRequest(url: url)) }
+        guard context.coordinator.requested != url else { return }
+        context.coordinator.requested = url
+        view.load(URLRequest(url: url))
     }
 }

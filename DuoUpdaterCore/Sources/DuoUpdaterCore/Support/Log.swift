@@ -38,4 +38,6 @@ public enum Log {
     public static let install = Logger(subsystem: subsystem, category: "install")
     /// App/UI lifecycle: refresh runs, retries, user-driven actions.
     public static let app = Logger(subsystem: subsystem, category: "app")
+    /// Changelog view: which recipe/source rendered, load successes and failures.
+    public static let changelog = Logger(subsystem: subsystem, category: "changelog")
 }

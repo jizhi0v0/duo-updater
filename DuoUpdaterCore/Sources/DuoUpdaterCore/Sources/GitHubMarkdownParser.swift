@@ -52,9 +52,10 @@ public enum GitHubMarkdownParser {
             if inSkippedSection { continue }
 
             // Bullet: `- text`, `* text`, `+ text`.
-            // Skip indented sub-bullets (two or more leading spaces) — they're
-            // usually PR-body detail that duplicates the top-level item.
-            guard !line.hasPrefix("  "), !line.hasPrefix("\t") else { continue }
+            // Skip any indented sub-bullet — a leading space or tab marks PR-body
+            // detail that usually duplicates the top-level item. (Checked on the
+            // raw line; `trimmed` below has the indentation stripped.)
+            guard let first = line.first, first != " ", first != "\t" else { continue }
 
             if let raw = bulletContent(from: trimmed) {
                 let cleaned = cleanItem(raw)

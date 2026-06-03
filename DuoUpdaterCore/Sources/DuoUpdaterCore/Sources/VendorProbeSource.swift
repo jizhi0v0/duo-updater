@@ -22,12 +22,12 @@ public struct VendorProbeSource: UpdateSource {
     /// by the installed app's detected channel.
     private let recipes: [String: [VendorProbeRecipe]]
     private let session: URLSession
-    /// A session that does NOT follow redirects, for recipes whose endpoint 302s
-    /// to a large binary (we want the redirect's `Location`/body, not the file).
-    private let noRedirectSession: URLSession
 
-    /// Cancels every redirect so the 3xx response is returned as-is.
-    private final class RedirectBlocker: NSObject, URLSessionTaskDelegate {
+    /// Cancels every redirect so the 3xx response is returned as-is. No stored
+    /// state, so `@unchecked Sendable` is safe and required for the static below.
+    private final class RedirectBlocker: NSObject, URLSessionTaskDelegate,
+        @unchecked Sendable
+    {
         func urlSession(
             _ session: URLSession, task: URLSessionTask,
             willPerformHTTPRedirection response: HTTPURLResponse,
@@ -38,6 +38,22 @@ public struct VendorProbeSource: UpdateSource {
         }
     }
 
+    /// Session that does NOT follow redirects, shared across all
+    /// ``VendorProbeSource`` instances and refreshes. Allocated once — creating
+    /// a new `URLSession` per `init` (which happens on every ``AppListModel``
+    /// `recheck`) discarded the connection pool and forced cold TCP handshakes
+    /// on every retry.
+    ///
+    /// Cookie acceptance is disabled: the session is process-lifetime static, so
+    /// any `Set-Cookie` headers from a 3xx vendor endpoint would otherwise
+    /// accumulate for the entire run.
+    private static let noRedirectSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieAcceptPolicy = .never
+        config.httpShouldSetCookies = false
+        return URLSession(configuration: config, delegate: RedirectBlocker(), delegateQueue: nil)
+    }()
+
     /// A browser-like UA — several vendor sites reject unfamiliar agents.
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
@@ -45,15 +61,11 @@ public struct VendorProbeSource: UpdateSource {
 
     public init(
         recipes: [VendorProbeRecipe] = VendorProbeRegistry.recipes,
-        session: URLSession = .shared
+        session: URLSession = .updates
     ) {
         // Group by bundle id; each group holds that id's per-channel recipes.
         self.recipes = Dictionary(grouping: recipes, by: { $0.bundleID })
         self.session = session
-        self.noRedirectSession = URLSession(
-            configuration: .ephemeral,
-            delegate: RedirectBlocker(),
-            delegateQueue: nil)
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -78,7 +90,18 @@ public struct VendorProbeSource: UpdateSource {
         }
         // Swallow every failure: a probe that can't answer must look like "this
         // source doesn't apply", not like an error or a confident result.
-        return (try? await probe(recipe)) ?? nil
+        let resolved = (try? await probe(recipe)) ?? nil
+        // Record recipe health so a vendor changing their page surfaces in
+        // diagnostics rather than silently degrading the app to "unknown". A
+        // transient miss is cleared by the next successful check (success/miss are
+        // compared by recency), so this only flags consistently-broken recipes.
+        if resolved != nil {
+            await RecipeHealth.shared.recordSuccess(id: bundleID, source: name)
+        } else {
+            await RecipeHealth.shared.recordMiss(
+                id: bundleID, source: name, detail: "probe resolved no version")
+        }
+        return resolved
     }
 
     /// Run one recipe. Returns nil (→ "unknown") on any non-confident outcome.
@@ -111,7 +134,7 @@ public struct VendorProbeSource: UpdateSource {
                 // GET, reject HEAD with 405, and expose the version nowhere but
                 // the Location path, so `text` is the full redirect target.
                 request.httpMethod = "GET"
-                let (_, response) = try await noRedirectSession.data(for: request)
+                let (_, response) = try await Self.noRedirectSession.data(for: request)
                 guard
                     let http = response as? HTTPURLResponse,
                     (300..<400).contains(http.statusCode),
@@ -129,7 +152,7 @@ public struct VendorProbeSource: UpdateSource {
 
             // When not following redirects we want the 3xx itself (its small body
             // / Location), so widen the accepted range and use the blocking session.
-            let activeSession = recipe.followRedirects ? session : noRedirectSession
+            let activeSession = recipe.followRedirects ? session : Self.noRedirectSession
             let okRange = recipe.followRedirects ? (200..<300) : (200..<400)
             let (data, response) = try await activeSession.data(for: request)
             guard

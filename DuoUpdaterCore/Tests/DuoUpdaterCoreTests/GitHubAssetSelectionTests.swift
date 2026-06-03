@@ -51,7 +51,25 @@ struct GitHubAssetSelectionTests {
 
     @Test func rustDeskRuleIsConfiguredForInstall() {
         let rule = GitHubReleaseRegistry.rules.first { $0.bundleID == "com.carriez.rustdesk" }
-        #expect(rule?.installAssetPattern == #"aarch64\.dmg$"#)
+        #expect(rule?.installAssetPattern == #"^rustdesk-[0-9.]+-aarch64\.dmg$"#)
         #expect(rule?.installerKind == .dmg)
+    }
+
+    /// The fully-anchored RustDesk pattern picks the canonical arm64 dmg even when
+    /// a flavored arm64 dmg (e.g. a future `-sciter` build) is listed first — the
+    /// old suffix-only `aarch64\.dmg$` would have let `…-aarch64-sciter.dmg`
+    /// through by position. (`-sciter.dmg` ends in `sciter.dmg`, not `aarch64.dmg`,
+    /// so even the suffix pattern is safe today — but anchoring removes the doubt.)
+    @Test func anchoredRustDeskPatternPicksCanonicalArm64Dmg() {
+        let pattern = #"^rustdesk-[0-9.]+-aarch64\.dmg$"#
+        let withFlavor: [(name: String, url: URL)] = [
+            "rustdesk-1.4.6-aarch64-sciter.dmg",
+            "rustdesk-1.4.6-aarch64.dmg",
+        ].map { ($0, URL(string: "https://example.com/\($0)")!) }
+        let url = GitHubReleaseRule.installableAsset(from: withFlavor, matching: pattern)
+        #expect(url?.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
+        // And it still picks the real asset out of the full release set.
+        #expect(GitHubReleaseRule.installableAsset(from: assets, matching: pattern)?
+            .lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
     }
 }

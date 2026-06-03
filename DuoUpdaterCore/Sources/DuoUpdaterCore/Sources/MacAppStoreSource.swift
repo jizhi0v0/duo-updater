@@ -14,7 +14,7 @@ public struct MacAppStoreSource: UpdateSource {
     /// Extra storefronts to probe only when the app isn't in the home store.
     private let fallbackRegions: [String]
 
-    public init(session: URLSession = .shared, region: String? = nil) {
+    public init(session: URLSession = .updates, region: String? = nil) {
         self.session = session
         let home = region
             ?? AppStoreStorefront.currentCountry()

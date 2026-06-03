@@ -51,9 +51,7 @@ enum ArchiveExtractor {
         guard attach.code == 0 else {
             throw ExtractError.toolFailed("hdiutil attach", attach.code, attach.err)
         }
-        defer {
-            _ = try? run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"])
-        }
+        defer { detach(mountPoint) }
 
         guard let appInMount = firstApp(in: mountPoint) else {
             throw ExtractError.noAppFound
@@ -98,23 +96,55 @@ enum ArchiveExtractor {
 
     /// First `.app` at the top level of a directory (recurse one level for the
     /// occasional archive that nests the app in a subfolder).
+    ///
+    /// Selection is deterministic (entries sorted by name, not the unspecified
+    /// `contentsOfDirectory` order) and rejects symlinks — a member named
+    /// `Foo.app` that is actually a symlink could otherwise point the gates, and
+    /// then a privileged swap, at an arbitrary location. We also confirm the
+    /// chosen bundle resolves to a path *inside* `dir`, so a `..`/symlink member
+    /// that escaped extraction can't be returned as "the app".
     private static func firstApp(in dir: URL) -> URL? {
         let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(
-            at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return nil }
+        let dirBase = dir.resolvingSymlinksInPath().standardizedFileURL.path
 
-        if let top = entries.first(where: { $0.pathExtension == "app" }) {
-            return top
+        func isUsableApp(_ url: URL) -> Bool {
+            guard url.pathExtension == "app" else { return false }
+            // Reject symlinks (a real .app bundle is a directory, not a link).
+            let vals = try? url.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey])
+            if vals?.isSymbolicLink == true { return false }
+            if vals?.isDirectory != true { return false }
+            // Must resolve to within the extraction dir.
+            let resolved = url.resolvingSymlinksInPath().standardizedFileURL.path
+            return resolved == dirBase || resolved.hasPrefix(dirBase + "/")
         }
-        for sub in entries where (try? sub.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
-            if let nested = try? fm.contentsOfDirectory(
-                at: sub, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-            ).first(where: { $0.pathExtension == "app" }) {
+
+        func sortedEntries(of url: URL) -> [URL] {
+            (try? fm.contentsOfDirectory(
+                at: url, includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ))?.sorted { $0.lastPathComponent < $1.lastPathComponent } ?? []
+        }
+
+        let entries = sortedEntries(of: dir)
+        if let top = entries.first(where: isUsableApp) { return top }
+        for sub in entries where (try? sub.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            && (try? sub.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink != true {
+            if let nested = sortedEntries(of: sub).first(where: isUsableApp) {
                 return nested
             }
         }
         return nil
+    }
+
+    /// Detach a mounted image, retrying once after a short pause: a `ditto` that
+    /// just finished copying can leave the volume momentarily busy, and a single
+    /// `-force` detach then fails, leaking the mount and blocking workDir cleanup.
+    private static func detach(_ mountPoint: URL) {
+        if (try? run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]))?.code == 0 {
+            return
+        }
+        Thread.sleep(forTimeInterval: 0.5)
+        _ = try? run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"])
     }
 
     @discardableResult

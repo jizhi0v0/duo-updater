@@ -50,7 +50,47 @@ public struct GitHubReleaseRule: Sendable {
     static func installableAsset(
         from assets: [(name: String, url: URL)], matching pattern: String
     ) -> URL? {
-        assets.first { $0.name.range(of: pattern, options: .regularExpression) != nil }?.url
+        installableAsset(from: assets, matching: pattern, preferring: .current)
+    }
+
+    /// Arch-aware asset selection. Among the assets matching `pattern`, prefer one
+    /// built for `arch`, then an arch-neutral one, and only fall back to a
+    /// foreign-arch asset when nothing better matched — so a loose pattern that
+    /// matches both an `…-aarch64.dmg` and an `…-x86_64.dmg` still lands the right
+    /// build on the right Mac instead of picking whichever GitHub listed first.
+    ///
+    /// Recipes whose pattern already pins the arch (the current registry anchors
+    /// `aarch64`) are unaffected — there's only one match, so it's returned as
+    /// before. This just makes a future broad pattern safe.
+    static func installableAsset(
+        from assets: [(name: String, url: URL)],
+        matching pattern: String,
+        preferring arch: HostArch
+    ) -> URL? {
+        let matches = assets.filter {
+            $0.name.range(of: pattern, options: .regularExpression) != nil
+        }
+        guard !matches.isEmpty else { return nil }
+
+        func has(_ tokens: [String], _ name: String) -> Bool {
+            let lower = name.lowercased()
+            return tokens.contains { lower.contains($0) }
+        }
+
+        // 1. An asset explicitly built for this Mac's architecture.
+        if let native = matches.first(where: {
+            has(arch.assetTokens, $0.name) && !has(arch.foreignTokens, $0.name)
+        }) { return native.url }
+
+        // 2. An arch-neutral asset (a universal build, or a name with no arch
+        //    marker at all) — safe for either machine.
+        if let neutral = matches.first(where: {
+            !has(arch.assetTokens, $0.name) && !has(arch.foreignTokens, $0.name)
+        }) { return neutral.url }
+
+        // 3. Nothing native or neutral matched — fall back to the first match
+        //    (best effort; the pattern author constrained the set deliberately).
+        return matches.first?.url
     }
 
     var slug: String { "\(owner)/\(repo)" }
@@ -93,7 +133,7 @@ public struct GitHubReleasesSource: UpdateSource {
     public init(
         rules: [GitHubReleaseRule] = GitHubReleaseRegistry.rules,
         token: String? = nil,
-        session: URLSession = .shared
+        session: URLSession = .updates
     ) {
         self.rules = Dictionary(
             rules.map { ($0.bundleID, $0) },
@@ -159,6 +199,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 }
                 let installable = installURL != nil && rule.installerKind != nil
 
+                await RecipeHealth.shared.recordSuccess(id: rule.slug, source: name)
                 return RemoteVersion(
                     shortVersion: version,
                     version: nil,
@@ -174,6 +215,11 @@ public struct GitHubReleasesSource: UpdateSource {
             }
         }
         Log.source.error("GitHub \(rule.slug, privacy: .public): \(releases.count, privacy: .public) releases fetched, none matched /\(rule.versionPattern, privacy: .public)/")
+        // Fetched fine but nothing matched the version pattern — the breakage
+        // shape a tag-format change produces. Surface it in diagnostics.
+        await RecipeHealth.shared.recordMiss(
+            id: rule.slug, source: name,
+            detail: "\(releases.count) releases fetched, none matched the version pattern")
         return nil
     }
 
@@ -241,7 +287,10 @@ public enum GitHubReleaseRegistry {
         GitHubReleaseRule(
             bundleID: "com.carriez.rustdesk",
             owner: "rustdesk", repo: "rustdesk",
-            installAssetPattern: #"aarch64\.dmg$"#,
+            // Anchor the whole filename (`rustdesk-<ver>-aarch64.dmg`) rather than
+            // just the suffix, so a future flavored arm64 dmg (e.g. a `-sciter`
+            // build) can't be picked by position instead of the canonical asset.
+            installAssetPattern: #"^rustdesk-[0-9.]+-aarch64\.dmg$"#,
             installerKind: .dmg),
 
         // Alcove — dedicated releases repo, no `v` prefix.

@@ -7,23 +7,38 @@ import DuoUpdaterCore
 /// lookup per row per tick, a real source of stutter while downloads run.
 @MainActor
 enum AppIconCache {
-    private static var cache: [String: NSImage] = [:]
+    // NSCache (vs a plain dict): it evicts under memory pressure on its own, so a
+    // large library's worth of cached icons can't grow unbounded.
+    private static let cache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 512
+        return cache
+    }()
+
     static func icon(for path: String) -> NSImage {
-        if let cached = cache[path] { return cached }
+        if let cached = cache.object(forKey: path as NSString) { return cached }
         let image = NSWorkspace.shared.icon(forFile: path)
-        cache[path] = image
+        cache.setObject(image, forKey: path as NSString)
         return image
     }
+
+    /// Drop the cached icon for a path so the next lookup re-reads from disk.
+    /// Called after an in-place install: the bundle is replaced but its path is
+    /// unchanged, so the stale icon would otherwise persist until app restart.
+    static func invalidate(_ path: String) { cache.removeObject(forKey: path as NSString) }
 }
 
 struct MenuContentView: View {
     @Bindable var model: AppListModel
     @State private var showAll = false
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     private var visible: [UpdateResult] {
         showAll ? model.results
-            : model.results.filter { $0.hasUpdate || model.needsRestart.contains($0.id) }
+            : model.results.filter {
+                model.isActionableUpdate($0) || model.needsRestart.contains($0.id)
+            }
     }
 
     var body: some View {
@@ -36,6 +51,12 @@ struct MenuContentView: View {
         }
         .frame(width: 360)
         .task {
+            // One-time wiring: arm the background-check loop and teach the
+            // notification's "View" action how to open the window.
+            model.start(showUpdates: {
+                openWindow(id: ChangelogWindowView.windowID)
+                NSApp.activate(ignoringOtherApps: true)
+            })
             // First open: full (networked) check. Every later open: a cheap
             // local rescan to catch background self-updates and surface Restart.
             if model.results.isEmpty {
@@ -78,7 +99,7 @@ struct MenuContentView: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Duo Updater").font(.headline)
                 Text(statusLine)
@@ -86,6 +107,12 @@ struct MenuContentView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if model.canUpdateAll && !model.isChecking && !model.isScanning {
+                Button("Update All") { Task { await model.installAll() } }
+                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
+                    .help("Install every pending update that can be applied automatically")
+            }
             Button {
                 Task { await model.refresh() }
             } label: {
@@ -98,6 +125,11 @@ struct MenuContentView: View {
             .buttonStyle(.borderless)
             .disabled(model.isScanning || model.isChecking)
             .help("Rescan and check for updates")
+            Button { openSettings() } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.borderless)
+            .help("Settings")
         }
         .padding(12)
     }
@@ -105,10 +137,20 @@ struct MenuContentView: View {
     private var statusLine: String {
         if model.isChecking { return "Checking \(model.results.count) apps…" }
         let updates = model.updateCount
-        return updates == 0
+        let base = updates == 0
             ? "\(model.results.count) apps · up to date"
             : "\(updates) update\(updates == 1 ? "" : "s") available"
+        if let last = model.lastCheck {
+            return base + " · checked \(Self.relative.localizedString(for: last, relativeTo: .now))"
+        }
+        return base
     }
+
+    private static let relative: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
 
     private var footer: some View {
         HStack {
@@ -165,6 +207,30 @@ private struct AppRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .contentShape(Rectangle())
+        .contextMenu { rowMenu }
+    }
+
+    /// Right-click actions: skip the offered version, ignore the app, and (when a
+    /// backup exists) roll back to the previous version.
+    @ViewBuilder
+    private var rowMenu: some View {
+        if result.hasUpdate {
+            let offered = result.remote?.displayVersion ?? "this version"
+            if model.prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) {
+                Button("Don’t skip \(offered)") { model.prefs.clearSkip(result.app) }
+            } else {
+                Button("Skip \(offered)") { model.skipThisVersion(result) }
+            }
+        }
+        Button(model.prefs.isIgnored(result.app)
+            ? "Stop ignoring \(result.app.name)"
+            : "Ignore \(result.app.name)") {
+            model.toggleIgnore(result)
+        }
+        if let version = model.backupVersion(result.id) {
+            Divider()
+            Button("Roll back to \(version)") { Task { await model.rollback(result) } }
+        }
     }
 
     @ViewBuilder
@@ -239,6 +305,13 @@ private struct AppRow: View {
     private var trailing: some View {
         if let stage {
             installProgress(stage)
+        } else if model.prefs.isIgnored(result.app) {
+            // Surfaced only under "Show all" — a muted tag with manage actions in
+            // the context menu, so an ignored app never offers an Update button.
+            ignoredTag
+        } else if result.hasUpdate
+            && model.prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) {
+            skippedTag
         } else if model.needsRestart.contains(result.id) && !result.hasUpdate {
             // Restart is derived from disk-vs-running version, not the remote
             // check — so surface it directly off `needsRestart` rather than from
@@ -335,6 +408,18 @@ private struct AppRow: View {
         Button("Update") { Task { await model.install(result) } }
             .controlSize(.small)
             .buttonStyle(.borderedProminent)
+    }
+
+    /// Muted tag for an app the user has chosen to ignore — right-click to manage.
+    private var ignoredTag: some View {
+        Text("Ignored").font(.caption2).foregroundStyle(.tertiary)
+            .help("Hidden from update checks — right-click to stop ignoring")
+    }
+
+    /// Muted tag for an update whose offered version the user skipped.
+    private var skippedTag: some View {
+        Text("Skipped").font(.caption2).foregroundStyle(.tertiary)
+            .help("You skipped this version — right-click to un-skip")
     }
 
     /// On disk it's current, but the running instance is older — offer a

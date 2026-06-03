@@ -5,7 +5,20 @@ import Foundation
 /// being held in memory.
 final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
 
+    enum DownloadError: LocalizedError {
+        case httpStatus(Int)
+        var errorDescription: String? {
+            switch self {
+            case .httpStatus(let code):
+                return "The server returned HTTP \(code) instead of the file."
+            }
+        }
+    }
+
     private var continuation: CheckedContinuation<URL, Error>?
+    /// Guards `continuation` so the two delegate callbacks (which can fire on a
+    /// concurrent delegate queue) can't double-resume or race a leaked resume.
+    private let lock = NSLock()
     private let onProgress: @Sendable (Double) -> Void
     private let destinationDir: URL
     private var session: URLSession!
@@ -24,8 +37,15 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     /// Oray's `dw.oray.com` requires a `Referer`; without it you get an anti-bot
     /// JS challenge page instead of the dmg). They override the default UA.
     func download(_ url: URL, headers: [String: String] = [:]) async throws -> URL {
-        try await withCheckedThrowingContinuation { cont in
+        // Enforce TLS before a single byte moves: every installer routes through
+        // here, so this one gate covers Sparkle, Vendor, GitHub, and pkg
+        // downloads. A plaintext http:// payload is a downgrade vector even with
+        // the later signature gates, so we refuse it outright.
+        try SecureScheme.requireSecureDownload(url)
+        return try await withCheckedThrowingContinuation { cont in
+            lock.lock()
             self.continuation = cont
+            lock.unlock()
             var request = URLRequest(url: url)
             request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
             for (field, value) in headers {
@@ -66,17 +86,24 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
+        // Reject error responses: a 403/404/anti-bot challenge page is "downloaded"
+        // successfully to disk and would otherwise be handed to the extractor as if
+        // it were a valid archive (failing later with a confusing error, or worse).
+        if let http = downloadTask.response as? HTTPURLResponse,
+           !(200...299).contains(http.statusCode) {
+            finish(.failure(DownloadError.httpStatus(http.statusCode)))
+            return
+        }
         // The temp file is deleted when this delegate returns, so move it now.
         let suggested = downloadTask.response?.suggestedFilename ?? location.lastPathComponent
         let dest = destinationDir.appendingPathComponent(suggested)
         do {
             try? FileManager.default.removeItem(at: dest)
             try FileManager.default.moveItem(at: location, to: dest)
-            continuation?.resume(returning: dest)
+            finish(.success(dest))
         } catch {
-            continuation?.resume(throwing: error)
+            finish(.failure(error))
         }
-        continuation = nil
     }
 
     func urlSession(
@@ -84,9 +111,16 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
-        if let error {
-            continuation?.resume(throwing: error)
-            continuation = nil
-        }
+        if let error { finish(.failure(error)) }
+    }
+
+    /// Resume the continuation exactly once, under the lock — whichever delegate
+    /// callback fires first wins; later ones become no-ops.
+    private func finish(_ result: Result<URL, Error>) {
+        lock.lock()
+        let cont = continuation
+        continuation = nil
+        lock.unlock()
+        cont?.resume(with: result)
     }
 }

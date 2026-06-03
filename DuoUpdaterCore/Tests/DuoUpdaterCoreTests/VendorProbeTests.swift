@@ -100,6 +100,50 @@ import Foundation
     #expect(v == "5.1.2")
 }
 
+// MARK: - OrbStack multi-channel appcast (cross-channel containment)
+
+/// One appcast carries every channel as separate `<item>`s. Each OrbStack recipe
+/// is anchored to its own `<sparkle:channel>` tag and tempered so it can't reach
+/// past `</item>` into a neighbouring item — so a user is only ever offered their
+/// channel's build, even if the feed reorders or a channel's item lacks a version.
+private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
+    VendorProbeRegistry.recipes.first {
+        $0.bundleID == "dev.kdrag0n.MacVirt" && $0.channel == channel
+    }!.versionPattern
+}
+
+@Test func orbStackChannelsResolveToTheirOwnItem() {
+    let feed = """
+    <item>
+      <sparkle:channel>stable</sparkle:channel>
+      <enclosure url="https://cdn-updates.orbstack.dev/arm64/OrbStack_v2.1.3_20115_arm64.dmg" />
+    </item>
+    <item>
+      <sparkle:channel>beta</sparkle:channel>
+      <enclosure url="https://cdn-updates.orbstack.dev/arm64/OrbStack_v2.2.0_20200_arm64.dmg" />
+    </item>
+    """
+    #expect(VendorProbeRecipe.extractVersion(from: feed, pattern: orbStackVersionPattern(.stable)) == "2.1.3")
+    #expect(VendorProbeRecipe.extractVersion(from: feed, pattern: orbStackVersionPattern(.beta)) == "2.2.0")
+}
+
+/// The whole point of the tempering: a channel whose own item carries no version
+/// must resolve to nil — NOT bleed into the next item's (different-channel) build.
+@Test func orbStackDoesNotLeakAcrossItems() {
+    let feed = """
+    <item>
+      <sparkle:channel>stable</sparkle:channel>
+    </item>
+    <item>
+      <sparkle:channel>beta</sparkle:channel>
+      <enclosure url="https://cdn-updates.orbstack.dev/arm64/OrbStack_v9.9.9_99999_arm64.dmg" />
+    </item>
+    """
+    // Stable has no OrbStack_v before </item> → must be nil, not the beta 9.9.9.
+    #expect(VendorProbeRecipe.extractVersion(from: feed, pattern: orbStackVersionPattern(.stable)) == nil)
+    #expect(VendorProbeRecipe.extractVersion(from: feed, pattern: orbStackVersionPattern(.beta)) == "9.9.9")
+}
+
 // MARK: - Source behaviour
 
 @Test func sourceReturnsNilWhenNoRecipeForApp() async throws {

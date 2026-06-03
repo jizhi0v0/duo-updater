@@ -829,11 +829,11 @@ public enum VendorProbeRegistry {
             bundleID: "dev.kdrag0n.MacVirt",
             url: URL(string: "https://cdn-updates.orbstack.dev/arm64/appcast.new.xml")!,
             mode: .responseBody,
-            versionPattern: #"(?s)<sparkle:channel>\#(tag)</sparkle:channel>.*?OrbStack_v([0-9.]+)_"#,
+            versionPattern: #"(?s)<sparkle:channel>\#(tag)</sparkle:channel>(?:(?!</item>).)*?OrbStack_v([0-9.]+)_"#,
             changelogURL: URL(string: "https://docs.orbstack.dev/release-notes"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
-                    #"(?s)<sparkle:channel>\#(tag)</sparkle:channel>.*?<enclosure url="(https://cdn-updates\.orbstack\.dev/arm64/OrbStack_v[0-9.]+_[0-9]+_arm64\.dmg)""#),
+                    #"(?s)<sparkle:channel>\#(tag)</sparkle:channel>(?:(?!</item>).)*?<enclosure url="(https://cdn-updates\.orbstack\.dev/arm64/OrbStack_v[0-9.]+_[0-9]+_arm64\.dmg)""#),
                 kind: .dmg),
             channel: channel)
     }

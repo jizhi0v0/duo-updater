@@ -13,11 +13,14 @@ public actor PackageInstaller {
     public enum PackageError: LocalizedError {
         case noURL
         case downloadFailed(String)
+        case unsignedPackage
 
         public var errorDescription: String? {
             switch self {
             case .noURL: return "This update has no download URL."
             case .downloadFailed(let m): return "Could not prepare the installer: \(m)"
+            case .unsignedPackage:
+                return "The downloaded installer package isn't signed by a valid Developer ID — it may be corrupt or tampered. Nothing was installed."
             }
         }
     }
@@ -45,6 +48,17 @@ public actor PackageInstaller {
 
         onStage(.installing)
         let toOpen = try resolveInstaller(from: file, workDir: workDir)
+        // Gate: a `.pkg`/`.mpkg` runs install scripts (often with admin rights) the
+        // moment the user confirms in the system installer. A hijacked download URL
+        // could otherwise serve an arbitrary package. Refuse to open one that isn't
+        // signed by a valid Developer ID / notarized. (A bare `.dmg` fallback can't
+        // be pkg-checked — the user still drives that one manually.)
+        let ext = toOpen.pathExtension.lowercased()
+        if ext == "pkg" || ext == "mpkg" {
+            guard packageHasValidSignature(toOpen) else {
+                throw PackageError.unsignedPackage
+            }
+        }
         await open(toOpen)
         onStage(.done)
     }
@@ -70,6 +84,12 @@ public actor PackageInstaller {
         try? FileManager.default.removeItem(at: dest)
         guard run("/usr/bin/ditto", [pkg.path, dest.path]) == 0 else { return file }
         return dest
+    }
+
+    /// True when `pkgutil --check-signature` reports a valid signing chain (exit
+    /// 0). Unsigned or tampered packages return non-zero.
+    private func packageHasValidSignature(_ pkg: URL) -> Bool {
+        run("/usr/sbin/pkgutil", ["--check-signature", pkg.path]) == 0
     }
 
     private func firstPackage(in dir: URL) -> URL? {

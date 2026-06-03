@@ -22,29 +22,68 @@ final class AppListModel {
     private(set) var needsRestart: Set<String> = []
     /// id → the build version the running instance launched with, for display.
     private var runningVersionByID: [String: String] = [:]
+    /// When the last full networked check finished — shown in the header so the
+    /// user can judge how fresh the results are.
+    private(set) var lastCheck: Date?
+    /// result.id → the version we have a rollback backup for, refreshed from the
+    /// on-disk backup store whenever the list changes.
+    private(set) var backupVersions: [String: String] = [:]
 
     func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
+    func backupVersion(_ id: String) -> String? { backupVersions[id] }
 
-    var updateCount: Int { results.filter(\.hasUpdate).count }
+    /// A pending update the user hasn't ignored or skipped — what the badge counts
+    /// and what "Update All" acts on.
+    func isActionableUpdate(_ result: UpdateResult) -> Bool {
+        guard result.hasUpdate else { return false }
+        if prefs.isIgnored(result.app) { return false }
+        if prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) { return false }
+        return true
+    }
+
+    var updateCount: Int { results.filter(isActionableUpdate).count }
 
     private let sparkleInstaller = SparkleInstaller()
     private let homebrewInstaller = HomebrewInstaller()
     private let packageInstaller = PackageInstaller()
     private let vendorInstaller = VendorInstaller()
 
-    /// GitHub API token, resolved once (env / `gh` CLI / a user-set value) to
-    /// lift the 60/hour anonymous rate limit. nil → unauthenticated requests.
-    private let githubToken: String? = GitHubToken.resolve(
-        explicit: UserDefaults.standard.string(forKey: "GitHubToken")
-    )
+    /// User settings (token, concurrency, ignore list, backups…). Read live on
+    /// each refresh so a change made in the Settings window takes effect next check.
+    let prefs: Preferences
 
-    init() {
-        // Ask once so finished-update notifications can fire later.
-        UpdateNotifier.requestAuthorization()
+    /// Background auto-check loop; nil when the frequency is "manual".
+    private var scheduler: Task<Void, Never>?
+
+    init(prefs: Preferences = .shared) {
+        self.prefs = prefs
+        // Ask once so finished-update notifications can fire later, and register
+        // the actionable categories the background-check notification uses.
+        NotificationController.shared.register(model: self)
+    }
+
+    /// The ordered source stack, rebuilt per check so it picks up a token change
+    /// and the App Store source re-reads the signed-in storefront region.
+    private func makeSources() -> [any UpdateSource] {
+        let token = GitHubToken.resolve(explicit: prefs.githubToken.isEmpty ? nil : prefs.githubToken)
+        return [
+            MacAppStoreSource(),
+            SparkleAppcastSource(),
+            HomebrewCaskSource(),
+            // GitHub Releases for apps distributed that way (detection only unless
+            // a rule names an installable asset).
+            GitHubReleasesSource(token: token),
+            // Last resort: bespoke per-vendor version endpoints. Only fires when
+            // the earlier sources all miss and a recipe exists.
+            VendorProbeSource()
+        ]
     }
 
     /// Scan the disk, then check every app for updates.
     func refresh() async {
+        // Expire all cached changelog pages so the detail window re-fetches
+        // after a manual refresh — the user expects fresh release notes.
+        await ChangelogCache.shared.invalidateAll()
         isScanning = true
         // One Toolbox snapshot shared by the scan (to tag managed apps) and the
         // checker (to read latest-build info) — a single read of its local cache.
@@ -60,23 +99,18 @@ final class AppListModel {
         isScanning = false
 
         isChecking = true
-        // Rebuilt each refresh so the App Store source re-reads the signed-in
-        // storefront — picking up an Apple ID region switch without a restart.
-        let checker = UpdateChecker(sources: [
-            MacAppStoreSource(),
-            SparkleAppcastSource(),
-            HomebrewCaskSource(),
-            // GitHub Releases for apps distributed that way (detection only).
-            GitHubReleasesSource(token: githubToken),
-            // Last resort: bespoke per-vendor version endpoints. Only fires when
-            // the earlier sources all miss and a recipe exists.
-            VendorProbeSource()
-        ], toolbox: ToolboxSource(inventory: toolbox), testflight: testflight)
+        let checker = UpdateChecker(
+            sources: makeSources(),
+            maxConcurrency: prefs.maxConcurrency,
+            toolbox: ToolboxSource(inventory: toolbox),
+            testflight: testflight)
         Log.app.info("refresh: checking \(found.count, privacy: .public) apps")
         let checked = await checker.check(found)
         results = sorted(checked)
         await computeRestartInfo()
+        await refreshBackupIndex()
         isChecking = false
+        lastCheck = .now
         Log.app.info("refresh done: \(self.updateCount, privacy: .public) updates, \(self.needsRestart.count, privacy: .public) need restart")
     }
 
@@ -137,7 +171,11 @@ final class AppListModel {
     /// `computeRestartInfo` surface a Restart badge. No network: the full update
     /// check still runs on first open and on the manual refresh.
     func refreshLocal() async {
-        guard !results.isEmpty, !isChecking else { return }
+        // Don't churn the list while an install is in flight: this rebuilds and
+        // re-sorts `results` wholesale, which would reorder/replace the row under
+        // an active spinner. Installs key by id and finish fine, but the visible
+        // row shouldn't shuffle mid-install.
+        guard !results.isEmpty, !isChecking, installing.isEmpty else { return }
         let found = await Task.detached(priority: .userInitiated) {
             AppScanner().scan()
         }.value
@@ -163,6 +201,7 @@ final class AppListModel {
         }
         results = sorted(updated)
         await computeRestartInfo()
+        await refreshBackupIndex()
     }
 
     /// Update one app's install stage, coalescing download progress to whole
@@ -180,9 +219,24 @@ final class AppListModel {
         installing[id] = stage
     }
 
-    /// Install an update, routing to the right installer for its source.
-    func install(_ result: UpdateResult) async {
+    /// Install an update, routing to the right installer for its source. `notify`
+    /// is false for the batch path so "Update All" posts one summary banner
+    /// instead of one per app. Returns true only when a bundle was actually
+    /// installed (not when the app turned out already-current, or an early-out/
+    /// error path was taken) so the batch summary count is exact.
+    ///
+    /// The per-app "updated"/"ready to restart" banners are NOT gated on
+    /// `prefs.notifyOnUpdates`: that setting governs unsolicited *background*
+    /// discovery alerts, whereas these are direct feedback for an install the user
+    /// just clicked. The batch path opts out via `notify: false` instead.
+    @discardableResult
+    func install(_ result: UpdateResult, notify: Bool = true) async -> Bool {
         let id = result.id
+        // Re-entrancy guard (matches `retry`): the popover "Update anyway" button
+        // and the major-upgrade badge aren't disabled while an install is in
+        // flight, so a double-click could otherwise launch two concurrent installs
+        // for the same app — two downloads, two in-place swaps, two notifications.
+        guard installing[id] == nil else { return false }
         installErrors[id] = nil
         Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
 
@@ -199,7 +253,14 @@ final class AppListModel {
             Log.install.info("install skipped: \(result.app.name, privacy: .public) already current on disk")
             await computeRestartInfo()
             installing[id] = nil
-            return
+            return false
+        }
+
+        // Back up the current bundle first (when enabled) so this update can be
+        // rolled back. Only for in-place swaps we perform ourselves — Homebrew and
+        // pkg installs go through their own tools and manage their own state.
+        if prefs.keepBackups, canAutoInstall(result), !requiresInstaller(result) {
+            await backupCurrent(result)
         }
 
         do {
@@ -215,12 +276,18 @@ final class AppListModel {
                     Task { @MainActor in self.setStage(id, stage) }
                 }
                 installing[id] = nil
-                return
+                return true
             }
 
             switch result.remote?.sourceName {
             case "Homebrew":
-                guard let token = result.remote?.sourceIdentifier else { return }
+                // Reset the spinner on this early-out too: with the re-entrancy
+                // guard above, a stuck `installing[id]` would otherwise block every
+                // future install/retry for this app permanently.
+                guard let token = result.remote?.sourceIdentifier else {
+                    installing[id] = nil
+                    return false
+                }
                 installing[id] = .runningCommand("starting brew…")
                 try await homebrewInstaller.upgrade(caskToken: token) { line in
                     Task { @MainActor in self.setStage(id, .runningCommand(line)) }
@@ -241,8 +308,12 @@ final class AppListModel {
             // to what's now on disk. In-place installs (Homebrew) leave the old
             // process running stale code; Sparkle relaunches, so it won't show.
             let updated = await recheck(result)
+            // The bundle was replaced in place (same path); drop its cached icon so
+            // the row re-reads the new one instead of showing the old until restart.
+            AppIconCache.invalidate(updated.app.path.path)
             replaceRow(updated)
             await computeRestartInfo()
+            await refreshBackupIndex()
 
             // Tell the user it landed. If the app was running, its live process
             // is still on the old code (so it's in needsRestart) — point them at
@@ -251,16 +322,18 @@ final class AppListModel {
             let version = updated.app.shortVersion
             if needsRestart.contains(updated.id) {
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
-                UpdateNotifier.readyToRestart(app: updated.app.name, version: version)
+                if notify { UpdateNotifier.readyToRestart(app: updated.app.name, version: version) }
             } else {
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
-                UpdateNotifier.updated(app: updated.app.name, version: version)
+                if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
             }
         } catch {
             Log.install.error("install failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             installErrors[id] = error.localizedDescription
         }
         installing[id] = nil
+        // True only if we reached the install path without throwing.
+        return installErrors[id] == nil
     }
 
     /// Flag apps whose running instance launched with an older build than
@@ -313,12 +386,20 @@ final class AppListModel {
             do { try process.run() } catch { return [:] }
 
             // Timeout backstop so a wedged lsappinfo can't hang us indefinitely.
-            let timeout = DispatchWorkItem { process.terminate() }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 5, execute: timeout)
+            // SIGTERM first; if it's ignored (a wedged process can hold stdout's
+            // write end open, so the blocking read below would never return),
+            // escalate to SIGKILL, which the kernel can't refuse — that closes the
+            // pipe and unblocks the read for sure.
+            let pid = process.processIdentifier
+            let term = DispatchWorkItem { process.terminate() }
+            let kill = DispatchWorkItem { Foundation.kill(pid, SIGKILL) }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5, execute: term)
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8, execute: kill)
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
-            timeout.cancel()
+            term.cancel()
+            kill.cancel()
             guard let text = String(data: data, encoding: .utf8) else { return [:] }
 
             var map: [String: String] = [:]
@@ -369,6 +450,179 @@ final class AppListModel {
         }
     }
 
+    // MARK: - Backups & rollback
+
+    /// Copy the app's current bundle into the backup store before we replace it,
+    /// so the update can be undone. Best-effort: a failed backup logs and proceeds
+    /// (the user opted into the update; a missing safety net mustn't block it).
+    private func backupCurrent(_ result: UpdateResult) async {
+        let path = result.app.path
+        let bundleID = result.app.bundleID
+        let key = BackupStore.key(bundleID: bundleID, path: path)
+        let version = result.app.shortVersion ?? result.app.buildVersion
+        let ok = await Task.detached(priority: .userInitiated) { () -> Bool in
+            do {
+                try BackupStore.save(appPath: path, key: key, version: version, bundleID: bundleID)
+                return true
+            } catch { return false }
+        }.value
+        if !ok {
+            Log.install.error("backup failed: \(result.app.name, privacy: .public) — proceeding without a rollback point")
+        }
+    }
+
+    /// Re-read which apps have a rollback backup on disk (one directory scan),
+    /// mapping it onto the current rows.
+    private func refreshBackupIndex() async {
+        let map = await Task.detached(priority: .utility) { BackupStore.allBackups() }.value
+        var byID: [String: String] = [:]
+        for result in results {
+            let key = BackupStore.key(bundleID: result.app.bundleID, path: result.app.path)
+            if let backup = map[key] { byID[result.id] = backup.version ?? "previous" }
+        }
+        backupVersions = byID
+    }
+
+    /// Restore the previous version from its backup, swapping it back over the
+    /// installed bundle. Mirrors `install`'s shape: a per-row spinner, an error
+    /// surfaced on the row, and a restart prompt if the running process is now
+    /// ahead of what's on disk.
+    func rollback(_ result: UpdateResult) async {
+        let id = result.id
+        guard installing[id] == nil else { return }
+        let target = result.app.path
+        let key = BackupStore.key(bundleID: result.app.bundleID, path: target)
+        installErrors[id] = nil
+        installing[id] = .installing
+        Log.install.info("rollback start: \(result.app.name, privacy: .public)")
+        do {
+            let restored = try await Task.detached(priority: .userInitiated) { () -> String? in
+                try BackupStore.restore(forKey: key, over: target)
+            }.value
+            AppIconCache.invalidate(target.path)
+            let updated = await recheck(result)
+            replaceRow(updated)
+            await computeRestartInfo()
+            await refreshBackupIndex()
+            installing[id] = nil
+            Log.install.info("rollback done: \(updated.app.name, privacy: .public) → \(restored ?? "?", privacy: .public)")
+            if needsRestart.contains(updated.id) {
+                UpdateNotifier.readyToRestart(app: updated.app.name, version: restored)
+            }
+        } catch {
+            Log.install.error("rollback failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            installErrors[id] = error.localizedDescription
+            installing[id] = nil
+        }
+    }
+
+    // MARK: - Batch update
+
+    /// Install every pending update we can apply in place without a confirmation
+    /// gate — skipping major upgrades (license-boundary warning), pkg/installer
+    /// updates (need the system installer), App Store / Toolbox / TestFlight
+    /// (managed elsewhere), and anything ignored or version-skipped. Sequential on
+    /// purpose: parallel installs would contend on the network, the privileged
+    /// swap, and the restart bookkeeping. Snapshots the target set up front so the
+    /// re-sorting each install triggers can't reshuffle what we iterate.
+    func installAll() async {
+        let targets = results.filter { result in
+            isActionableUpdate(result)
+                && canAutoInstall(result)
+                && !result.isMajorUpgrade
+                && installing[result.id] == nil
+        }
+        guard !targets.isEmpty else { return }
+        Log.app.info("update all: \(targets.count, privacy: .public) apps")
+        // Count only the installs that actually happened (install returns false for
+        // already-current/early-out/error), so the summary banner is exact.
+        var installed = 0
+        for target in targets {
+            if await install(target, notify: false) { installed += 1 }
+        }
+        if prefs.notifyOnUpdates && installed > 0 {
+            UpdateNotifier.batchUpdated(count: installed)
+        }
+    }
+
+    /// True when there's more than one app "Update All" would act on — used to
+    /// decide whether to show the batch button.
+    var canUpdateAll: Bool {
+        results.filter {
+            isActionableUpdate($0) && canAutoInstall($0) && !$0.isMajorUpgrade
+        }.count > 1
+    }
+
+    // MARK: - Ignore / skip
+
+    /// Toggle whether this app is hidden from update checks entirely.
+    func toggleIgnore(_ result: UpdateResult) {
+        let nowIgnored = !prefs.isIgnored(result.app)
+        prefs.setIgnored(nowIgnored, result.app)
+        Log.app.info("\(nowIgnored ? "ignore" : "unignore", privacy: .public): \(result.app.name, privacy: .public)")
+    }
+
+    /// Decline the currently-offered version for this app; a newer one still shows.
+    func skipThisVersion(_ result: UpdateResult) {
+        guard let version = result.remote?.displayVersion else { return }
+        prefs.skipVersion(version, result.app)
+        Log.app.info("skip \(version, privacy: .public): \(result.app.name, privacy: .public)")
+    }
+
+    // MARK: - Background scheduler
+
+    /// One-time startup wiring, run when the UI first appears: hand the "show
+    /// updates" action to the notification controller and arm the background loop.
+    /// Idempotent — safe to call on every menu open.
+    private var started = false
+    func start(showUpdates: @escaping @Sendable @MainActor () -> Void) {
+        guard !started else { return }
+        started = true
+        NotificationController.shared.setOnShowUpdates(showUpdates)
+        reschedule()
+    }
+
+    /// (Re)arm the background auto-check loop from the current frequency setting.
+    /// Called at launch and whenever the user changes the frequency. A "manual"
+    /// frequency tears the loop down entirely.
+    func reschedule() {
+        scheduler?.cancel()
+        guard let interval = prefs.checkFrequency.interval else {
+            scheduler = nil
+            Log.app.info("scheduler: manual — no background checks")
+            return
+        }
+        Log.app.info("scheduler: every \(Int(interval), privacy: .public)s")
+        scheduler = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(interval))
+                guard !Task.isCancelled, let self else { return }
+                // Don't stomp on a manual check or an install in flight.
+                if !self.isChecking && !self.isScanning && self.installing.isEmpty {
+                    await self.backgroundRefresh()
+                }
+            }
+        }
+    }
+
+    /// A scheduled check that, unlike the manual one, notifies the user about any
+    /// updates that newly appeared (so a background check is actually useful).
+    private func backgroundRefresh() async {
+        // Key the "before" set on raw hasUpdate (not the ignore-filtered set) so a
+        // preference toggle between checks — e.g. un-ignoring an app — can't make a
+        // pre-existing update look newly-arrived and fire a surprise banner.
+        let before = Set(results.filter(\.hasUpdate).map(\.id))
+        await refresh()
+        guard prefs.notifyOnUpdates else { return }
+        let now = results.filter(isActionableUpdate)
+        let newly = now.filter { !before.contains($0.id) }
+        guard !newly.isEmpty else { return }
+        Log.app.info("background check: \(newly.count, privacy: .public) new updates")
+        UpdateNotifier.updatesAvailable(total: now.count, newApps: newly.map(\.app.name))
+    }
+
+    // MARK: - Recheck
+
     /// Re-read one app from disk and re-check it across all sources. Cheap
     /// enough to run right before installing, as a guard against acting on a
     /// stale row.
@@ -379,16 +633,11 @@ final class AppListModel {
             AppScanner(testflight: testflight).scan()
         }.value
         guard let fresh = apps.first(where: { $0.id == id }) else { return result }
-        let checker = UpdateChecker(sources: [
-            MacAppStoreSource(),
-            SparkleAppcastSource(),
-            HomebrewCaskSource(),
-            // GitHub Releases for apps distributed that way (detection only).
-            GitHubReleasesSource(token: githubToken),
-            // Last resort: bespoke per-vendor version endpoints. Only fires when
-            // the earlier sources all miss and a recipe exists.
-            VendorProbeSource()
-        ], toolbox: ToolboxSource(), testflight: testflight)
+        let checker = UpdateChecker(
+            sources: makeSources(),
+            maxConcurrency: prefs.maxConcurrency,
+            toolbox: ToolboxSource(),
+            testflight: testflight)
         return await checker.check(fresh)
     }
 

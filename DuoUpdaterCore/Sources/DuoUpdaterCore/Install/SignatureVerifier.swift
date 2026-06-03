@@ -61,10 +61,16 @@ public enum SignatureVerifier {
 
     // MARK: Gate 2 — code signature validity of the extracted app
 
-    /// Run the equivalent of `codesign --verify --deep` against the app bundle.
+    /// Run the equivalent of `codesign --verify --deep --strict` against the app
+    /// bundle. `kSecCSCheckNestedCode` is essential: without it only the top-level
+    /// seal is checked, so a tampered framework/helper/XPC service embedded in the
+    /// bundle would pass. `kSecCSStrictValidate` rejects bundles with extra
+    /// unsigned files or resource-rule tricks. This is the central code-trust gate
+    /// for the Vendor/GitHub paths (no EdDSA there), so it must be deep.
     public static func verifyCodeSignature(appAt url: URL) throws {
         let code = try staticCode(at: url)
-        let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures)
+        let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures
+            | kSecCSCheckNestedCode | kSecCSStrictValidate)
         let status = SecStaticCodeCheckValidity(code, flags, nil)
         guard status == errSecSuccess else {
             throw VerifyError.codeSignatureInvalid(status)

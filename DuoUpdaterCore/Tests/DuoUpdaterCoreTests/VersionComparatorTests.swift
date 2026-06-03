@@ -25,6 +25,28 @@ import Testing
     #expect(VersionComparator.isNewer("2.0-beta2", than: "2.0-beta1"))
 }
 
+/// Numeric runs longer than `Int.max` (20+ digits) must still compare by
+/// magnitude. Previously these overflowed `Int`, degraded to a text comparison,
+/// and could rank a genuinely newer build as older (a missed update).
+@Test func hugeBuildNumbers() {
+    let big = "99999999999999999999"      // 20 nines, > Int64.max
+    let bigger = "100000000000000000000"  // 21 digits
+    #expect(VersionComparator.isNewer(bigger, than: big))
+    #expect(!VersionComparator.isNewer(big, than: bigger))
+    // A huge build is newer than a small one (regression: text<number flipped this).
+    #expect(VersionComparator.isNewer(big, than: "5"))
+    // Epoch-ms style timestamps.
+    #expect(VersionComparator.isNewer("1.0.1717200000000", than: "1.0.1717100000000"))
+}
+
+/// Leading zeros are magnitude-equal, not distinct, and don't invert ordering.
+@Test func leadingZeros() {
+    #expect(VersionComparator.compare("1.007", "1.7") == .orderedSame)
+    #expect(VersionComparator.compare("1.08", "1.8") == .orderedSame)
+    #expect(VersionComparator.isNewer("1.10", than: "1.09"))
+    #expect(VersionComparator.isNewer("1.10", than: "1.9"))
+}
+
 @Test func evaluatePrefersBuildVersion() {
     let app = InstalledApp(
         name: "X", bundleID: "x", shortVersion: "1.0", buildVersion: "100",

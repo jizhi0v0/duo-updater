@@ -30,7 +30,6 @@ public actor VendorInstaller {
         case noDownloadURL
         case unknownKind
         case checksumMismatch
-        case targetNotReplaceable(String)
 
         public var errorDescription: String? {
             switch self {
@@ -42,8 +41,6 @@ public actor VendorInstaller {
                 return "This vendor update has no known installable archive format."
             case .checksumMismatch:
                 return "The download's checksum didn't match — it may be corrupt or tampered. Nothing was changed."
-            case .targetNotReplaceable(let msg):
-                return "Could not replace the installed app: \(msg)"
             }
         }
     }
@@ -152,45 +149,9 @@ public actor VendorInstaller {
 
     // MARK: - Install
 
+    /// Validation, quarantine removal, atomic same-volume swap, and the privileged
+    /// fallback all live in `InPlaceSwap`, shared with `SparkleInstaller`.
     private func installApp(_ newApp: URL, over target: URL) throws {
-        let fm = FileManager.default
-
-        if fm.isWritableFile(atPath: target.deletingLastPathComponent().path) {
-            try? fm.trashItem(at: target, resultingItemURL: nil)
-            if fm.fileExists(atPath: target.path) {
-                try? fm.removeItem(at: target)
-            }
-            try fm.moveItem(at: newApp, to: target)
-            return
-        }
-
-        try privilegedReplace(newApp: newApp, target: target)
-    }
-
-    private func privilegedReplace(newApp: URL, target: URL) throws {
-        let shell = """
-        /bin/rm -rf \(shellQuote(target.path)) && \
-        /usr/bin/ditto \(shellQuote(newApp.path)) \(shellQuote(target.path))
-        """
-        let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", appleScript]
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        try process.run()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let msg = String(data: errData, encoding: .utf8) ?? "unknown error"
-            throw InstallError.targetNotReplaceable(msg)
-        }
-    }
-
-    private func shellQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
-    private func escapeForAppleScript(_ s: String) -> String {
-        s.replacingOccurrences(of: "\\", with: "\\\\")
-         .replacingOccurrences(of: "\"", with: "\\\"")
+        try InPlaceSwap.replace(newApp: newApp, over: target)
     }
 }

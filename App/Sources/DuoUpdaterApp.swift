@@ -24,5 +24,11 @@ struct DuoUpdaterApp: App {
         }
         .defaultSize(width: 860, height: 560)
         .windowResizability(.contentMinSize)
+
+        // Standard macOS Settings window (⌘,). Binds to the same Preferences the
+        // model reads on every check.
+        Settings {
+            SettingsView(prefs: model.prefs, model: model)
+        }
     }
 }

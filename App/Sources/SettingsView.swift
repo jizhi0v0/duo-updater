@@ -157,6 +157,16 @@ private struct DiagnosticsSettings: View {
     var body: some View {
         Form {
             Section {
+                Button("Grant App Management…") {
+                    model.presentAppManagementPermissionFlow()
+                }
+            } header: {
+                Text("Permissions")
+            } footer: {
+                Text("Replacing an installed app needs macOS App Management permission. It can't be requested programmatically — this opens System Settings and floats a panel you drag DuoUpdater into to grant it. Do this early so the first update isn't blocked.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
                 if let last = model.lastCheck {
                     LabeledContent("Last checked", value: last.formatted(date: .abbreviated, time: .shortened))
                 } else {

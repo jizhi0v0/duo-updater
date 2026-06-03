@@ -1,5 +1,19 @@
 import Foundation
 
+/// Thrown when the in-place swap is blocked by the **App Management** privacy
+/// gate (`kTCCServiceSystemPolicyAppBundles`): replacing another installed app's
+/// bundle fails with `EPERM` until the user grants the permission. This is a
+/// distinct, recoverable condition — the UI layer catches it to drive the user
+/// to System Settings rather than surfacing a raw "Operation not permitted".
+public struct AppManagementRequiredError: LocalizedError {
+    /// The app bundle we were trying to replace, for messaging.
+    public let targetPath: String
+
+    public var errorDescription: String? {
+        "macOS blocked the update: DuoUpdater needs App Management permission to replace an installed app."
+    }
+}
+
 /// The final, destructive step shared by `SparkleInstaller` and `VendorInstaller`:
 /// replace the verified `newApp` bundle over the installed `target` bundle.
 ///
@@ -50,6 +64,13 @@ enum InPlaceSwap {
                 _ = try fm.replaceItemAt(target, withItemAt: staged, backupItemName: nil, options: [])
             } catch {
                 try? fm.removeItem(at: staged)
+                // `/Applications` is group-writable for admins, so we took the
+                // user-level path — but replacing *another app's* bundle is gated
+                // by App Management on macOS 13+. That denial surfaces as EPERM;
+                // hand it to the UI as a recoverable, typed error.
+                if isAppManagementDenial(error) {
+                    throw AppManagementRequiredError(targetPath: target.path)
+                }
                 throw SwapError.notReplaceable(error.localizedDescription)
             }
             return
@@ -105,6 +126,19 @@ enum InPlaceSwap {
             let msg = String(data: errData, encoding: .utf8) ?? "unknown error"
             throw SwapError.notReplaceable(msg)
         }
+    }
+
+    /// Whether an error (or anything in its underlying-error chain) is the
+    /// `EPERM`/`NSFileWriteNoPermission` denial that the App Management gate
+    /// raises when we try to overwrite another app's bundle.
+    static func isAppManagementDenial(_ error: Error) -> Bool {
+        var current: NSError? = error as NSError
+        while let e = current {
+            if e.domain == NSPOSIXErrorDomain, e.code == Int(EPERM) { return true }
+            if e.domain == NSCocoaErrorDomain, e.code == NSFileWriteNoPermissionError { return true }
+            current = e.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return false
     }
 
     private static func shellQuote(_ s: String) -> String {

@@ -48,6 +48,11 @@ final class AppListModel {
     private let packageInstaller = PackageInstaller()
     private let vendorInstaller = VendorInstaller()
 
+    /// Drives the App Management drag-to-authorize panel (vendored PermissionFlow)
+    /// when an install is blocked by the privacy gate. Lazy so we only spin up the
+    /// panel/window-tracking machinery the first time we actually hit a denial.
+    @ObservationIgnored private lazy var permissionFlow = PermissionFlow.makeController()
+
     /// User settings (token, concurrency, ignore list, backups…). Read live on
     /// each refresh so a change made in the Settings window takes effect next check.
     let prefs: Preferences
@@ -368,6 +373,13 @@ final class AppListModel {
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
             }
+        } catch let error as AppManagementRequiredError {
+            // The swap was blocked by the App Management privacy gate. There's no
+            // API to request it, so guide the user to the right Settings pane with
+            // the drag-to-authorize panel; the install can be retried once granted.
+            Log.install.error("install blocked by App Management: \(result.app.name, privacy: .public)")
+            installErrors[id] = error.errorDescription
+            presentAppManagementPermissionFlow()
         } catch {
             Log.install.error("install failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             installErrors[id] = error.localizedDescription
@@ -489,6 +501,17 @@ final class AppListModel {
         if relaunched {
             UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion)
         }
+    }
+
+    /// Open System Settings → Privacy & Security → App Management and float the
+    /// drag-to-authorize panel, prompting the user to drag **DuoUpdater itself**
+    /// into the list (the permission is granted to the app doing the replacing,
+    /// not the target). App Management exposes neither a request nor a status API,
+    /// so this is the only way to surface it — and we can't tell afterward whether
+    /// it was granted; the user simply retries the update. Also callable directly
+    /// (e.g. from a menu item) so the prompt isn't strictly gated on a failure.
+    func presentAppManagementPermissionFlow() {
+        permissionFlow.authorize(pane: .appManagement, suggestedAppURLs: [Bundle.main.bundleURL])
     }
 
     // MARK: - Backups & rollback

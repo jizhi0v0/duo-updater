@@ -85,6 +85,16 @@ public actor ChangelogCache {
         store.removeAll()
     }
 
+    /// Drop the cached entry (and cancel any in-flight fetch) for a single recipe
+    /// source URL. Called after an app updates to a new version on disk, so the
+    /// next detail-window open re-fetches that one app's notes instead of waiting
+    /// out the TTL — without throwing away every other app's still-fresh cache.
+    public func invalidate(_ url: URL) {
+        inflight[url]?.cancel()
+        inflight[url] = nil
+        store[url] = nil
+    }
+
     // MARK: - Low-level access (also used by tests)
 
     /// Return the cached ``Changelog`` for `url` if still fresh; nil otherwise.

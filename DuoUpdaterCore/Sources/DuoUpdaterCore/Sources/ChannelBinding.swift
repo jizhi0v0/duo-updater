@@ -1,7 +1,8 @@
 import Foundation
 
 /// The update channel a user actually *chose*, plus (for feed-swap apps) the
-/// feed that serves it.
+/// feed that serves it and (for header-keyed apps) the request headers that
+/// unlock it.
 public struct ResolvedChannel: Sendable, Equatable {
     public let channel: ReleaseChannel
     /// The feed to use instead of the app's Info.plist `SUFeedURL`. Non-nil only
@@ -9,10 +10,21 @@ public struct ResolvedChannel: Sendable, Equatable {
     /// nil for channel-tag apps (DuoPaste, OrbStack) — the channel narrows which
     /// `<sparkle:channel>` we accept, the feed doesn't change.
     public let feedOverride: URL?
+    /// Extra HTTP headers to send when fetching the appcast. Non-empty only for
+    /// "header-keyed" apps (TablePlus) where stable and beta share ONE feed URL
+    /// and the server decides which builds to return from a request header
+    /// (`X-Tiny-Beta-Update: true`) — neither a feed swap nor a `<sparkle:channel>`
+    /// tag. Empty for every other app.
+    public let feedHTTPHeaders: [String: String]
 
-    public init(channel: ReleaseChannel, feedOverride: URL? = nil) {
+    public init(
+        channel: ReleaseChannel,
+        feedOverride: URL? = nil,
+        feedHTTPHeaders: [String: String] = [:]
+    ) {
         self.channel = channel
         self.feedOverride = feedOverride
+        self.feedHTTPHeaders = feedHTTPHeaders
     }
 }
 
@@ -26,6 +38,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///   * Fork     → `UserDefaults[applicationUpdateChannel]`            (Int: 2→stable)
 ///   * Surge    → `…/Application Support/<id>/KDDefaults.plist`        (`IncludeBetaBuilds` Bool)
 ///   * OrbStack → `UserDefaults[updates_optinChannel]`               (String: the channel name)
+///   * TablePlus→ `UserDefaults[ViewSetting][IsReceiveBetaBuild]`     (Bool: true→beta, via header)
+///   * CleanShot→ `UserDefaults[activationKey]`                       (String: license key → personalized feed)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -39,12 +53,20 @@ enum ChannelBinding {
 
     /// The user-chosen channel (and feed, for feed-swap apps) for `bundleID`, or
     /// nil when no bespoke resolver exists.
+    ///
+    /// Matched case-insensitively: a `CFBundleIdentifier` is case-insensitive
+    /// (TablePlus ships `com.tinyapp.TablePlus` but its prefs live under the
+    /// lower-cased domain), so a case-sensitive `switch` silently failed to bind
+    /// — same convention `ChangelogRecipe.recipe(forBundleID:)` already uses.
     static func resolve(bundleID: String?) -> ResolvedChannel? {
-        switch bundleID {
-        case DuoPasteChannel.bundleID: return DuoPasteChannel.resolveCurrent()
-        case ForkChannel.bundleID:     return ForkChannel.resolveCurrent()
-        case SurgeChannel.bundleID:    return SurgeChannel.resolveCurrent()
-        case OrbStackChannel.bundleID: return OrbStackChannel.resolveCurrent()
+        guard let id = bundleID?.lowercased() else { return nil }
+        switch id {
+        case DuoPasteChannel.bundleID.lowercased(): return DuoPasteChannel.resolveCurrent()
+        case ForkChannel.bundleID.lowercased():     return ForkChannel.resolveCurrent()
+        case SurgeChannel.bundleID.lowercased():    return SurgeChannel.resolveCurrent()
+        case OrbStackChannel.bundleID.lowercased(): return OrbStackChannel.resolveCurrent()
+        case TablePlusChannel.bundleID.lowercased(): return TablePlusChannel.resolveCurrent()
+        case CleanShotChannel.bundleID.lowercased(): return CleanShotChannel.resolveCurrent()
         default:                       return nil
         }
     }

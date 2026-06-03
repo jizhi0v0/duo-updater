@@ -964,3 +964,58 @@ private let ghosttyIndexFixture = """
         in: "<a href=\"/about.html\">About</a>", pattern: pattern, base: recipe.source)
     #expect(url == nil)
 }
+
+// Trimmed slice of air.dev's real Vite/React JS bundle (the data array `h9=[…]`).
+// Four entries cover all three content shapes plus the description fallback:
+//   - 261.681.18: feature release, each feature an <h4> heading (h4 pattern)
+//   - 261.311.41: small fix, plain <p> prose + the "Share your feedback" footer
+//     that must be skipped (prose pattern, footer filtered)
+//   - 261.232.26: <p> whose children open with an AIR issue link, real note in
+//     the text after it (after-link pattern)
+//   - 261.232.22: content is only the footer; the note lives in `description`
+// The array closes with `}],m9=` to exercise the entry terminator's array-end arm.
+private let airFixture = """
+;h9=[{version:"261.681.18",date:"June 2, 2026",title:"Air on Linux, Claude subagents via /, and per-agent permission modes",description:"",content:i.jsxs(i.Fragment,{children:[i.jsx("h4",{className:"mb-[10px] uppercase",style:{color:"var(--header-white, #FFF)"},children:"Air on Linux in Toolbox App"}),i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:["Air now runs on Linux."]}),i.jsx("h4",{className:"mb-[10px] mt-[24px] uppercase",style:{color:"#FFF"},children:"Built-in and custom Claude subagents"})]})},{version:"261.311.41",date:"March 14, 2026",title:"Fixes for Junie and Terminal",description:"",content:i.jsxs(i.Fragment,{children:[i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:["This update fixes the 403 error when working with Junie (",i.jsx("a",{href:"https://youtrack.jetbrains.com/issue/AIR-4175",children:"AIR-4175"}),")."]}),i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:["Share your feedback with us via the"," ",i.jsx("a",{href:"x",children:"issue tracker"}),"."]})]})},{version:"261.232.26",date:"February 13, 2026",title:"Fix for Claude Agent",description:"",content:i.jsx(i.Fragment,{children:i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:[i.jsx("a",{href:"https://youtrack.jetbrains.com/issue/AIR-3781",children:"AIR-3781"})," ","Fixed an issue with handling events from the Claude Agent"]})})},{version:"261.232.22",date:"February 12, 2026",title:"Claude Agent with Opus 4.6",description:"This update of the Claude Agent to version 2.1.38 and adds support for Opus 4.6.",content:i.jsx(i.Fragment,{children:i.jsxs("p",{className:"text-foreground/80 text-[15px]",children:["Share your feedback with us via the"," ",i.jsx("a",{href:"x",children:"issue tracker"}),"."]})})}],m9=()=>i.jsx
+"""
+
+@Test func extractsAirEntriesAcrossContentShapes() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.air"))
+    let changelog = try #require(ChangelogExtractor.extract(from: airFixture, using: recipe))
+
+    #expect(changelog.entries.count == 4)
+
+    // Feature release → <h4> headings.
+    #expect(changelog.entries[0].version == "261.681.18")
+    #expect(changelog.entries[0].date == "June 2, 2026")
+    #expect(changelog.entries[0].title == "Air on Linux, Claude subagents via /, and per-agent permission modes")
+    #expect(changelog.entries[0].items == [
+        "Air on Linux in Toolbox App",
+        "Built-in and custom Claude subagents",
+    ])
+
+    // Small fix → lead <p> prose, "Share your feedback" footer skipped.
+    #expect(changelog.entries[1].version == "261.311.41")
+    #expect(changelog.entries[1].items.count == 1)
+    #expect(changelog.entries[1].items[0] == "This update fixes the 403 error when working with Junie (")
+
+    // <p> opening with an issue link → the note text after the link.
+    #expect(changelog.entries[2].version == "261.232.26")
+    #expect(changelog.entries[2].items == ["Fixed an issue with handling events from the Claude Agent"])
+
+    // Footer-only content → the note from the `description` field.
+    #expect(changelog.entries[3].version == "261.232.22")
+    #expect(changelog.entries[3].items == [
+        "This update of the Claude Agent to version 2.1.38 and adds support for Opus 4.6.",
+    ])
+}
+
+@Test func followsAirHashedBundleLink() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.air"))
+    let pattern = try #require(recipe.indexLinkPattern)
+    let shell = """
+    <link rel="stylesheet" crossorigin href="/assets/index-ChMVGmWt.css">
+    <script type="module" crossorigin src="/assets/index-CtPepV0y.js"></script>
+    """
+    let url = ChangelogService.firstLink(in: shell, pattern: pattern, base: recipe.source)
+    #expect(url?.absoluteString == "https://air.dev/assets/index-CtPepV0y.js")
+}

@@ -62,6 +62,12 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// auto-update framework. This is our highest-signal update source.
     public let sparkleFeedURL: URL?
 
+    /// Extra HTTP headers to send when fetching `sparkleFeedURL`. Non-empty only
+    /// for "header-keyed" apps (TablePlus) where the appcast URL is shared across
+    /// channels and a request header selects which builds the server returns. Set
+    /// from the app's channel preference at scan time (see `ChannelBinding`).
+    public let sparkleFeedHeaders: [String: String]
+
     /// `SUPublicEDKey` — the app's base64 Ed25519 public key. Used to verify
     /// the EdDSA signature on a downloaded Sparkle update.
     public let sparkleEdPublicKey: String?
@@ -98,6 +104,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         isToolboxManaged: Bool = false,
         isTestFlightApp: Bool = false,
         sparkleFeedURL: URL?,
+        sparkleFeedHeaders: [String: String] = [:],
         sparkleEdPublicKey: String? = nil,
         hasSelfUpdater: Bool = false,
         releaseChannel: ReleaseChannel = .stable,
@@ -113,6 +120,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.isToolboxManaged = isToolboxManaged
         self.isTestFlightApp = isTestFlightApp
         self.sparkleFeedURL = sparkleFeedURL
+        self.sparkleFeedHeaders = sparkleFeedHeaders
         self.sparkleEdPublicKey = sparkleEdPublicKey
         self.hasSelfUpdater = hasSelfUpdater
         self.releaseChannel = releaseChannel

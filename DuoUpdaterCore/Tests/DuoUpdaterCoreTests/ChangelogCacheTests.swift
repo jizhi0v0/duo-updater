@@ -97,4 +97,23 @@ struct ChangelogCacheTests {
         await cache.set(fresh, for: Self.url1)
         #expect(await cache.get(for: Self.url1) == fresh)
     }
+
+    // MARK: - invalidate(_:) — single key (used after an app updates on disk)
+
+    @Test func invalidateDropsOnlyTheGivenKey() async {
+        let cache = ChangelogCache(ttl: 3600)
+        await cache.set(Self.makeChangelog(version: "1.0"), for: Self.url1)
+        await cache.set(Self.makeChangelog(version: "2.0"), for: Self.url2)
+        await cache.invalidate(Self.url1)
+        // The updated app's slot is gone; every other app's stays fresh.
+        #expect(await cache.get(for: Self.url1) == nil)
+        #expect(await cache.get(for: Self.url2) != nil)
+    }
+
+    @Test func invalidateUnknownKeyIsNoOp() async {
+        let cache = ChangelogCache(ttl: 3600)
+        await cache.set(Self.makeChangelog(version: "1.0"), for: Self.url1)
+        await cache.invalidate(Self.url2)  // never cached
+        #expect(await cache.get(for: Self.url1) != nil)
+    }
 }

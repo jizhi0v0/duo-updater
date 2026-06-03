@@ -762,11 +762,12 @@ public enum VendorProbeRegistry {
                 kind: .zip)),
 
         // HBuilderX (DCloud) — internal update manifest pulled from the app
-        // binary. NOTE: undocumented endpoint (and http) — may break or be
-        // blocked by ATS; degrades silently to unknown if so.
+        // binary. NOTE: undocumented endpoint; degrades silently to unknown if
+        // it moves. The host also serves the manifest over https, so we hit
+        // that — a plain-http url would be blocked by ATS at load time.
         VendorProbeRecipe(
             bundleID: "io.dcloud.HBuilderX",
-            url: URL(string: "http://update.liuyingyong.cn/hbuilderx/alpha/macosx-arm64/update/index.json")!,
+            url: URL(string: "https://update.liuyingyong.cn/hbuilderx/alpha/macosx-arm64/update/index.json")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
             changelogURL: URL(string: "https://hx.dcloud.net.cn/Tutorial/HistoryVersion")),

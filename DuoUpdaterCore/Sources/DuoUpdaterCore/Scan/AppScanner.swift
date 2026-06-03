@@ -161,10 +161,12 @@ public struct AppScanner: Sendable {
         // Fork Stable user would be checked against the Developer feed and offered
         // a beta build. See `ChannelBinding`.
         var channelIsAuthoritative = false
+        var feedHeaders: [String: String] = [:]
         if let bound = ChannelBinding.resolve(bundleID: bundleID) {
             releaseChannel = bound.channel
             channelIsAuthoritative = true
             if let feed = bound.feedOverride { feedURL = feed }
+            feedHeaders = bound.feedHTTPHeaders
         }
 
         return InstalledApp(
@@ -178,6 +180,7 @@ public struct AppScanner: Sendable {
             isToolboxManaged: toolbox.isManaged(appPath: bundleURL),
             isTestFlightApp: isTestFlight,
             sparkleFeedURL: feedURL,
+            sparkleFeedHeaders: feedHeaders,
             sparkleEdPublicKey: (plist["SUPublicEDKey"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
             hasSelfUpdater: hasSelfUpdater,

@@ -3,6 +3,14 @@ import Observation
 import AppKit
 import DuoUpdaterCore
 
+/// Load state for a recipe-backed changelog, driven by the model (not a view) so
+/// it survives the user switching apps mid-fetch.
+enum ChangelogLoadState {
+    case loading
+    case loaded(Changelog)
+    case failed
+}
+
 /// Owns the scanned app list, their update status, and in-flight installs.
 @MainActor
 @Observable
@@ -20,6 +28,17 @@ final class AppListModel {
     /// process launched with — i.e. updated (by us, the app's own updater, or
     /// brew) but not yet relaunched, so still executing old code.
     private(set) var needsRestart: Set<String> = []
+    /// App ids whose own Squirrel updater has already downloaded and staged a
+    /// newer build (in the ShipIt cache) but not yet swapped it in — the app's
+    /// "Relaunch to update" state. We surface a Relaunch action for these instead
+    /// of offering our own Update, which would re-download and collide with the
+    /// pending swap. Keyed by id → the staged update's details.
+    private(set) var pendingSelfUpdate: [String: StagedSelfUpdate] = [:]
+    /// App ids whose staged self-update is mid-relaunch (we've quit the app and are
+    /// waiting for its ShipIt to swap & relaunch). Drives a per-row spinner and,
+    /// crucially, blocks re-entry: the swap can take tens of seconds, during which
+    /// the Relaunch button must not fire a second quit.
+    private(set) var relaunching: Set<String> = []
     /// id → the build version the running instance launched with, for display.
     private var runningVersionByID: [String: String] = [:]
     /// When the last full networked check finished — shown in the header so the
@@ -31,6 +50,50 @@ final class AppListModel {
 
     func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
     func backupVersion(_ id: String) -> String? { backupVersions[id] }
+
+    /// The raw staged self-update for a row, if its own updater has downloaded a
+    /// newer build than what's on disk (regardless of whether it's the latest).
+    func stagedSelfUpdate(_ id: String) -> StagedSelfUpdate? { pendingSelfUpdate[id] }
+
+    /// The staged self-update to surface as **Relaunch** — but only when the staged
+    /// build is actually the version the app's channel now offers. Apps download
+    /// releases one at a time, so a staged build can already trail a newer release;
+    /// relaunching to it would still leave the user a download behind. In that case
+    /// we return nil so the row falls back to the normal **Update** (a direct jump
+    /// to the latest) instead of a Relaunch that doesn't get you current. "Relaunch"
+    /// thus means exactly: the latest is already downloaded, just restart — zero
+    /// extra download.
+    func actionableStaged(_ result: UpdateResult) -> StagedSelfUpdate? {
+        guard let staged = pendingSelfUpdate[result.id] else { return nil }
+        if let latest = result.remote?.displayVersion,
+           VersionComparator.isNewer(latest, than: staged.version) {
+            return nil  // staged trails the latest — show Update, not Relaunch
+        }
+        return staged
+    }
+
+    /// The vendor's advertised version when it's strictly *older* than what's
+    /// installed — surfaced (only under "Show all") as a muted, action-less note.
+    /// This is usually benign: you're ahead via a beta channel, a pulled release,
+    /// or a lagging probe — never a prompt to downgrade. Returns that older version
+    /// to display, or nil.
+    ///
+    /// Gated to **stable** installs: a beta/canary build is *expected* to lead the
+    /// stable feed, so flagging it would cry wolf on every beta user. We also stay
+    /// silent when there's a real update (that path wins) or the version is equal.
+    func downgradeNote(_ result: UpdateResult) -> String? {
+        guard result.app.releaseChannel == .stable, !result.hasUpdate else { return nil }
+        // Managed sources advertise versions through laggy/regional lookups (App
+        // Store iTunes lookup, TestFlight/Toolbox caches), where "installed > remote"
+        // is routinely just staleness — too noisy to flag. Only trust real version
+        // feeds (Sparkle / Vendor / GitHub).
+        guard !result.app.isMASApp, !result.app.isTestFlightApp, !result.app.isToolboxManaged
+        else { return nil }
+        guard let installed = result.app.shortVersion,
+              let remoteShort = result.remote?.shortVersion,
+              VersionComparator.isNewer(installed, than: remoteShort) else { return nil }
+        return result.remote?.displayVersion ?? remoteShort
+    }
 
     /// A pending update the user hasn't ignored or skipped — what the badge counts
     /// and what "Update All" acts on.
@@ -55,6 +118,7 @@ final class AppListModel {
     private let homebrewInstaller = HomebrewInstaller()
     private let packageInstaller = PackageInstaller()
     private let vendorInstaller = VendorInstaller()
+    private let masInstaller = MASInstaller()
 
     /// Drives the App Management drag-to-authorize panel (vendored PermissionFlow)
     /// when an install is blocked by the privacy gate. Lazy so we only spin up the
@@ -68,6 +132,14 @@ final class AppListModel {
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
 
+    /// Periodic "your app downloaded an update on its own — relaunch to apply it"
+    /// reminder. Decoupled from the (possibly hours-long) update-check interval:
+    /// once we detect a self-staged build, we nudge right away and then keep
+    /// re-nudging on this cadence until the user relaunches and it's applied. Nil
+    /// when nothing is staged.
+    @ObservationIgnored private var selfUpdateReminder: Task<Void, Never>?
+    private let selfUpdateReminderInterval: Duration = .seconds(300)  // 5 min
+
     /// Per-app download traffic, tracked to the byte and persisted across runs.
     private let trafficStore = TrafficStore()
     /// Snapshot of per-app traffic for the UI, refreshed after each recorded
@@ -75,6 +147,43 @@ final class AppListModel {
     private(set) var trafficStats: [AppTrafficStat] = []
     /// Grand total bytes downloaded across every app.
     private(set) var trafficTotalBytes: Int64 = 0
+
+    /// Parsed changelogs the workbench detail has loaded this session, keyed by
+    /// bundle id. The workbench reads this *synchronously* before deciding to show
+    /// a spinner: a hit renders instantly, so flipping between apps in the sidebar
+    /// no longer re-fetches or flashes a progress wheel. Cleared on every manual
+    /// refresh (alongside the network-level `ChangelogCache`) so the notes stay
+    /// fresh after the user asks for a re-check.
+    private(set) var changelogByBundleID: [String: Changelog] = [:]
+
+    /// How many of our top-level windows (workbench, Settings) are currently open.
+    /// A menu-bar (.accessory) app has no Dock presence; we promote it to .regular
+    /// while any window is open so it gets a Dock icon, app menu, and ⌘-Tab, then
+    /// drop back to .accessory when the last closes. Ref-counted so the two window
+    /// types don't fight over the policy.
+    @ObservationIgnored private var openWindowCount = 0
+
+    /// Call from a window's `.onAppear`: bump the count, ensure .regular, focus.
+    func windowAppeared() {
+        openWindowCount += 1
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Call from a window's `.onDisappear`: drop the count, return to .accessory
+    /// once no window remains.
+    func windowDisappeared() {
+        openWindowCount = max(0, openWindowCount - 1)
+        if openWindowCount == 0 { NSApp.setActivationPolicy(.accessory) }
+    }
+
+    /// Whether a *user-present* refresh has read the TestFlight container yet this
+    /// launch. The silent background scheduler never reads it (so a cold launch
+    /// can't trigger the "access data from other apps" prompt out of nowhere); the
+    /// first time the user actually opens the menu/workbench we read it once — a
+    /// natural, user-initiated moment for the TCC prompt. A Developer ID signature
+    /// makes that grant persist across launches, so it's a one-time ask.
+    private(set) var testFlightReadThisSession = false
 
     init(prefs: Preferences = .shared) {
         self.prefs = prefs
@@ -134,6 +243,68 @@ final class AppListModel {
         await refreshTrafficStats()
     }
 
+    /// Per-app load state for a recipe-backed changelog, keyed by bundle id. The
+    /// workbench reads this to render reactively; it never drives the fetch from a
+    /// view's `.task`, so switching apps can't cancel an in-flight load.
+    private(set) var changelogState: [String: ChangelogLoadState] = [:]
+    /// The live load task per bundle id, owned by the model (NOT the view). Because
+    /// it lives here, navigating away from an app mid-fetch doesn't cancel it — the
+    /// fetch finishes in the background and caches, so coming back is instant
+    /// instead of restarting from scratch (the "it refetches every time" bug).
+    @ObservationIgnored private var changelogTasks: [String: Task<Void, Never>] = [:]
+
+    /// The current state of an app's changelog, if it's recipe-backed. `nil` means
+    /// the app has no recipe (the workbench then renders inline/structured/web
+    /// notes directly, with no fetch involved).
+    func changelogState(for result: UpdateResult) -> ChangelogLoadState? {
+        guard let bundleID = result.app.bundleID,
+              ChangelogRecipeRegistry.recipe(forBundleID: bundleID) != nil else { return nil }
+        return changelogState[bundleID] ?? .loading
+    }
+
+    /// Kick off a background load for an app's recipe-backed changelog if one isn't
+    /// already loaded or in flight. Idempotent and non-blocking: the task runs off
+    /// the main actor's critical path (it only `await`s the network) and survives
+    /// the user navigating to another app, so the result is ready on return.
+    /// Re-tries a previous `.failed`.
+    func ensureChangelogLoading(for result: UpdateResult) {
+        guard let bundleID = result.app.bundleID,
+              let recipe = ChangelogRecipeRegistry.recipe(forBundleID: bundleID) else { return }
+        switch changelogState[bundleID] {
+        case .loaded, .loading: return          // already done / in flight
+        case .failed, .none: break              // (re)start
+        }
+        changelogState[bundleID] = .loading
+        changelogTasks[bundleID] = Task { [weak self] in
+            let changelog = await ChangelogService.load(recipe)
+            guard let self else { return }
+            self.changelogTasks[bundleID] = nil
+            if let changelog {
+                self.changelogByBundleID[bundleID] = changelog
+                self.changelogState[bundleID] = .loaded(changelog)
+            } else {
+                self.changelogState[bundleID] = .failed
+            }
+        }
+    }
+
+    /// Drop one app's cached changelog across both layers — the session-wide
+    /// parsed cache here *and* the network-level `ChangelogCache` — and cancel any
+    /// in-flight load. Called after an app updates to a new version on disk: the
+    /// notes the user saw were for the old release, and the model cache has no TTL
+    /// of its own, so without this they'd persist until the next manual refresh.
+    /// The next `ensureChangelogLoading` re-fetches fresh notes for the new build.
+    func invalidateChangelog(forBundleID bundleID: String?) {
+        guard let bundleID else { return }
+        changelogTasks[bundleID]?.cancel()
+        changelogTasks[bundleID] = nil
+        changelogByBundleID[bundleID] = nil
+        changelogState[bundleID] = nil
+        if let recipe = ChangelogRecipeRegistry.recipe(forBundleID: bundleID) {
+            Task { await ChangelogCache.shared.invalidate(recipe.source) }
+        }
+    }
+
     /// Scan the disk, then check every app for updates.
     /// The one in-flight full refresh, if any. For the whole app lifecycle there
     /// is **at most one concurrent refresh**: overlapping callers (first menu
@@ -146,7 +317,12 @@ final class AppListModel {
 
     /// Single-flight entry point. If a refresh is already running, await it and
     /// return instead of starting a second one.
-    func refresh() async {
+    ///
+    /// `allowTestFlight` gates the one read that triggers the "access data from
+    /// other apps" TCC prompt: user-present callers (menu/window open, the manual
+    /// button) pass `true`; the silent background scheduler passes `false` so a
+    /// cold launch never prompts unprompted.
+    func refresh(allowTestFlight: Bool = true) async {
         if let existing = refreshTask {
             Log.app.info("refresh: already in flight — coalescing onto it")
             await existing.value
@@ -154,7 +330,7 @@ final class AppListModel {
         }
         // Only this path ever assigns `refreshTask`; coalescing callers above just
         // await it. So once our task finishes we can clear it unconditionally.
-        let task = Task { await self.performRefresh() }
+        let task = Task { await self.performRefresh(allowTestFlight: allowTestFlight) }
         refreshTask = task
         await task.value
         refreshTask = nil
@@ -226,26 +402,53 @@ final class AppListModel {
         }
     }
 
-    private func performRefresh() async {
-        Log.app.info("refresh: start (scan + network check)")
+    private func performRefresh(allowTestFlight: Bool = true) async {
+        Log.app.info("refresh: start (scan + network check, testflight=\(allowTestFlight, privacy: .public))")
         // Snapshot the current count before we blank the rows below, so the menu-bar
         // badge holds it steady through the scan/check instead of flickering to 0.
         heldBadgeCount = updateCount
         // Expire all cached changelog pages so the detail window re-fetches
-        // after a manual refresh — the user expects fresh release notes.
+        // after a manual refresh — the user expects fresh release notes. Drop the
+        // parsed-changelog cache too, so the workbench re-loads fresh notes.
         await ChangelogCache.shared.invalidateAll()
+        changelogByBundleID = [:]
+        changelogState = [:]
+        changelogTasks.values.forEach { $0.cancel() }
+        changelogTasks = [:]
         isScanning = true
         // Build both inventories OFF the main thread. Each reads a local store in
         // its initializer; TestFlight's is TCC-gated and can block (see
         // `beginTestFlightLoad`). One Toolbox + one TestFlight snapshot, shared by
         // the scan (to tag managed apps) and the checker (latest-build info).
-        let (testflight, pendingTestFlight) = await Self.beginTestFlightLoad()
-        if let pendingTestFlight { reapplyTestFlightWhenGranted(pendingTestFlight) }
+        //
+        // The TestFlight read is skipped entirely on a background (non-user-present)
+        // refresh: reading another app's container triggers the "access data from
+        // other apps" prompt, which mustn't fire from a silent scheduled check. We
+        // pass a `.accessible == false` sentinel instead, so managed-app tagging
+        // simply carries over from the last user-present check.
+        let testflight: TestFlightInventory
+        if allowTestFlight {
+            let (loaded, pendingTestFlight) = await Self.beginTestFlightLoad()
+            if let pendingTestFlight { reapplyTestFlightWhenGranted(pendingTestFlight) }
+            testflight = loaded
+            testFlightReadThisSession = true
+        } else {
+            testflight = TestFlightInventory(macRows: [], accessible: false)
+        }
         let toolbox = await Task.detached(priority: .userInitiated) { ToolboxInventory() }.value
         let found = await Task.detached(priority: .userInitiated) {
             AppScanner(toolbox: toolbox, testflight: testflight).scan()
         }.value
-        results = found.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
+        // Cold start (no rows yet): show plain `.unknown` rows while the check runs.
+        // But when we already have results — e.g. the menu bar populated them and
+        // the user just opened the workbench — DON'T blank them to `.unknown`, which
+        // would make every update arrow vanish from the sidebar until the network
+        // check lands a few seconds later. Carry the prior status/remote forward
+        // (re-evaluated against the fresh on-disk version) so the list stays put and
+        // the menu bar's data shows immediately; the check then overwrites it.
+        results = results.isEmpty
+            ? found.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
+            : sorted(mergeScanned(found))
         lastScan = .now
         isScanning = false
 
@@ -259,6 +462,7 @@ final class AppListModel {
         let checked = await checker.check(found)
         results = sorted(checked)
         await computeRestartInfo()
+        await computeSelfUpdateStaging()
         await refreshBackupIndex()
         isChecking = false
         lastCheck = .now
@@ -275,6 +479,11 @@ final class AppListModel {
     /// `brew install --cask --force` here updates through the app's real
     /// channel — no cross-channel mixing.
     func canAutoInstall(_ result: UpdateResult) -> Bool {
+        // The app's own updater already staged *the latest* for relaunch — installing
+        // it ourselves would re-download the same bytes and collide with the pending
+        // ShipIt swap. Defer to Relaunch. (A staged build that *trails* the latest
+        // isn't actionable as Relaunch, so we still offer Update — a direct jump.)
+        if actionableStaged(result) != nil { return false }
         switch result.remote?.sourceName {
         case "Sparkle":
             return result.app.sparkleEdPublicKey?.isEmpty == false
@@ -290,6 +499,14 @@ final class AppListModel {
             // detection-only (vendorInstallerKind nil), so they fall through here.
             return result.remote?.vendorInstallerKind != nil
                 && result.remote?.requiresManualInstaller == false
+        case "App Store":
+            // One-click via the mas CLI (only when it's actually installed —
+            // otherwise we fall through to the App Store deep link). Requires the
+            // adamID, and that the app is installable here: not region-locked and
+            // not a newer build that dropped Mac support. mas replays the store's
+            // own purchase, so it's the app's real update channel — no mixing.
+            guard MASInstaller.isAvailable, let info = result.remote?.appStore else { return false }
+            return !info.isRegionMismatch && !info.isLatestMacIncompatible
         default:
             return false
         }
@@ -305,6 +522,9 @@ final class AppListModel {
     /// made detection-only apps (LM Studio, Chrome, …) wrongly show an installer
     /// button pointed at their version-check endpoint.
     func requiresInstaller(_ result: UpdateResult) -> Bool {
+        // Same as `canAutoInstall`: only a staged build that *is* the latest is
+        // relaunch-only; one that trails the latest still gets a normal installer.
+        if actionableStaged(result) != nil { return false }
         switch result.remote?.sourceName {
         case "Homebrew":
             return result.remote?.requiresManualInstaller == true
@@ -331,8 +551,21 @@ final class AppListModel {
         let found = await Task.detached(priority: .userInitiated) {
             AppScanner().scan()
         }.value
+        results = sorted(mergeScanned(found))
+        await computeRestartInfo()
+        await computeSelfUpdateStaging()
+        await refreshBackupIndex()
+    }
+
+    /// Merge a fresh disk scan onto the current rows, carrying each app's prior
+    /// status/remote forward (re-evaluated against the new on-disk version) so a
+    /// rescan doesn't blank out what we already knew. Shared by `refreshLocal` (the
+    /// network-free rescan) and the in-flight `performRefresh` (so the sidebar holds
+    /// the menu bar's data instead of flashing `.unknown` rows during a re-check).
+    /// Apps new since the last scan come in as `.unknown`.
+    private func mergeScanned(_ found: [InstalledApp]) -> [UpdateResult] {
         let prior = Dictionary(results.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        let updated = found.map { app -> UpdateResult in
+        return found.map { app -> UpdateResult in
             guard let was = prior[app.id] else {
                 return UpdateResult(app: app, remote: nil, status: .unknown)
             }
@@ -351,9 +584,6 @@ final class AppListModel {
                 app: app, remote: remote,
                 status: UpdateChecker.evaluate(installed: app, remote: remote))
         }
-        results = sorted(updated)
-        await computeRestartInfo()
-        await refreshBackupIndex()
     }
 
     /// Update one app's install stage, coalescing download progress to whole
@@ -411,7 +641,10 @@ final class AppListModel {
         // Back up the current bundle first (when enabled) so this update can be
         // rolled back. Only for in-place swaps we perform ourselves — Homebrew and
         // pkg installs go through their own tools and manage their own state.
-        if prefs.keepBackups, canAutoInstall(result), !requiresInstaller(result) {
+        // App Store apps are excluded: mas re-downloads through the store, which
+        // can always re-fetch the prior build, so a local backup is dead weight.
+        if prefs.keepBackups, canAutoInstall(result), !requiresInstaller(result),
+           result.remote?.sourceName != "App Store" {
             await backupCurrent(result)
         }
 
@@ -447,6 +680,19 @@ final class AppListModel {
                 try await homebrewInstaller.upgrade(caskToken: token) { line in
                     Task { @MainActor in self.setStage(id, .runningCommand(line)) }
                 }
+            case "App Store":
+                // Reset the spinner on this early-out too (see Homebrew above) so a
+                // missing adamID can't wedge every future install for this app.
+                guard let adamID = result.remote?.appStore?.trackID else {
+                    installing[id] = nil
+                    return false
+                }
+                installing[id] = .downloading(fraction: 0)
+                // mas downloads through the App Store daemon, so we never see those
+                // bytes — intentionally not recorded (we only count what we measured).
+                try await masInstaller.install(adamID: adamID) { stage in
+                    Task { @MainActor in self.setStage(id, stage) }
+                }
             case "Vendor", "GitHub":
                 installing[id] = .downloading(fraction: 0)
                 let bytes = try await vendorInstaller.install(result) { stage in
@@ -468,8 +714,13 @@ final class AppListModel {
             // The bundle was replaced in place (same path); drop its cached icon so
             // the row re-reads the new one instead of showing the old until restart.
             AppIconCache.invalidate(updated.app.path.path)
+            // The version on disk just changed, so the changelog the workbench has
+            // cached describes the *old* release — expire it (both layers) so the
+            // next detail-window open re-fetches notes for the build we just landed.
+            invalidateChangelog(forBundleID: updated.app.bundleID)
             replaceRow(updated)
             await computeRestartInfo()
+            await computeSelfUpdateStaging()
             await refreshBackupIndex()
 
             // Tell the user it landed. If the app was running, its live process
@@ -527,6 +778,105 @@ final class AppListModel {
         // Re-sort: a row that just flipped to needs-restart should move up into
         // the actionable tier rather than stay wherever it last sorted.
         results = sorted(results)
+    }
+
+    /// Flag apps whose own Squirrel updater has downloaded and staged a newer
+    /// build (the ShipIt "Relaunch to update" state) that hasn't been swapped in
+    /// yet. Reads each candidate's ShipIt cache off-main — pure filesystem work,
+    /// but enough of it (plist parse per Squirrel app) to keep off the main actor.
+    private func computeSelfUpdateStaging() async {
+        // Track which apps were surfacing a *Relaunch* (actionable staged = the
+        // staged build is the latest) so we can clear their banner if they stop —
+        // applied, staging gone, OR a newer release now makes the staged build trail.
+        let previouslyActionable = Set(results.compactMap { actionableStaged($0) != nil ? $0.id : nil })
+        let apps = results.map(\.app).filter(\.hasSelfUpdater)
+        let staged = await Task.detached(priority: .utility) {
+            var map: [String: StagedSelfUpdate] = [:]
+            for app in apps {
+                if let s = SelfUpdaterStaging.staged(for: app) { map[app.id] = s }
+            }
+            return map
+        }.value
+        pendingSelfUpdate = staged
+        // Dismiss delivered "Relaunch to apply it" banners for apps that are no
+        // longer actionable-staged, so a stale one doesn't linger.
+        let nowActionable = Set(results.compactMap { actionableStaged($0) != nil ? $0.id : nil })
+        for id in previouslyActionable.subtracting(nowActionable) {
+            UpdateNotifier.clearSelfDownloaded(appID: id)
+        }
+        if !nowActionable.isEmpty {
+            let names = results.filter { nowActionable.contains($0.id) }
+                .map { "\($0.app.name)→\(pendingSelfUpdate[$0.id]!.version)" }.joined(separator: ", ")
+            Log.app.info("self-update staged (relaunch pending): \(names, privacy: .public)")
+        }
+        // Move any actionable-staged row into the actionable tier (rank 0).
+        results = sorted(results)
+        // Start (or stop) the periodic relaunch reminder to match what's actionable.
+        updateSelfUpdateReminder()
+    }
+
+    /// True when any row is surfacing a Relaunch (its staged build is the latest).
+    private var hasActionableStaged: Bool {
+        results.contains { actionableStaged($0) != nil }
+    }
+
+    /// Keep the periodic self-update reminder in sync with `pendingSelfUpdate`:
+    /// run a loop while anything is staged, tear it down when nothing is. The loop
+    /// nudges immediately on first detection, then re-nudges every
+    /// `selfUpdateReminderInterval` so a staged build the user glanced at but didn't
+    /// act on resurfaces instead of being forgotten. Each app's banner uses a stable
+    /// identifier, so a re-nudge replaces the prior one rather than piling up.
+    private func updateSelfUpdateReminder() {
+        guard hasActionableStaged else {
+            selfUpdateReminder?.cancel()
+            selfUpdateReminder = nil
+            return
+        }
+        guard selfUpdateReminder == nil else { return }  // already nudging
+        selfUpdateReminder = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                guard self.prefs.notifyOnUpdates else { self.selfUpdateReminder = nil; return }
+                for result in self.results {
+                    // Only nudge "relaunch to apply X" when X is actually the latest —
+                    // a staged build that trails a newer release goes through the
+                    // normal updates-available path instead.
+                    guard let staged = self.actionableStaged(result) else { continue }
+                    UpdateNotifier.selfDownloaded(
+                        app: result.app.name, version: staged.version, appID: result.id)
+                }
+                try? await Task.sleep(for: self.selfUpdateReminderInterval)
+                if !self.hasActionableStaged { self.selfUpdateReminder = nil; return }
+            }
+        }
+    }
+
+    /// Relaunch the app named by a notification's Relaunch action.
+    ///
+    /// A delivered banner can outlive the condition that posted it: between the
+    /// nudge and the tap the user may have applied the update another way (the
+    /// app's own "Relaunch to update", a manual quit/reopen) or updated it
+    /// manually. Acting on that stale banner would needlessly quit a now-current
+    /// app. So we re-read disk first (`refreshLocal` recomputes `pendingSelfUpdate`
+    /// and `needsRestart` from the fresh on-disk version, and clears the banner if
+    /// it's been applied), then only restart if it's *still* pending.
+    func restart(byID id: String) async {
+        await refreshLocal()
+        guard let result = results.first(where: { $0.id == id }) else {
+            UpdateNotifier.clearSelfDownloaded(appID: id)  // gone from the scan — drop the banner
+            return
+        }
+        if actionableStaged(result) != nil {
+            await relaunchStagedUpdate(result)   // staged IS latest: let ShipIt apply it
+        } else if needsRestart.contains(id) {
+            await restart(result)                // our/brew install: we reopen
+        } else {
+            // No longer actionable — applied since the banner was posted, or a newer
+            // release now makes the staged build trail (handled via the Update path).
+            // Either way clear the stale banner and don't relaunch to an old build.
+            UpdateNotifier.clearSelfDownloaded(appID: id)
+            Log.app.info("restart(byID): \(result.app.name, privacy: .public) no longer actionable-staged — stale banner cleared")
+        }
     }
 
     /// Map of bundle id → the build version each running app launched with,
@@ -614,6 +964,84 @@ final class AppListModel {
         }
     }
 
+    /// Apply a self-updater-staged build (the ShipIt "Relaunch to update" state).
+    ///
+    /// Crucially different from `restart`: we must **not** reopen the app
+    /// ourselves. The app's own ShipIt swaps the bundle *only while every instance
+    /// is quit*, then relaunches it. `restart`'s immediate `NSWorkspace.open`
+    /// raced that — ShipIt saw the app already back up and aborted with "App Still
+    /// Running Error" every time (the bug behind "Relaunch did nothing, then the
+    /// row flipped to Update"). So here we just quit and let ShipIt take over,
+    /// polling disk to confirm the swap landed. We never optimistically clear the
+    /// staged flag: the trailing `refreshLocal` re-derives it from the real on-disk
+    /// version, so a swap that didn't land stays "Relaunch" instead of falling back
+    /// to our (colliding) Update.
+    func relaunchStagedUpdate(_ result: UpdateResult) async {
+        guard let bundleID = result.app.bundleID else { return }
+        // Block re-entry: a slow swap must not be re-triggered by repeated clicks.
+        guard !relaunching.contains(result.id) else {
+            Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) already in flight — ignoring repeat")
+            return
+        }
+        relaunching.insert(result.id)
+        defer { relaunching.remove(result.id) }
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        guard !running.isEmpty else {
+            // Not running: the staged swap applies on the app's own next quit, not
+            // on demand from us. Leave the badge; a later check clears it once the
+            // app itself applies the update.
+            Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) not running — ShipIt applies on its own next quit")
+            return
+        }
+        let old = result.app.shortVersion ?? result.app.buildVersion
+        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old ?? "?", privacy: .public)) — letting ShipIt swap & relaunch (no reopen)")
+        for app in running { app.terminate() }
+
+        // Wait for ShipIt: with all instances quit it swaps the (large Electron)
+        // bundle, then relaunches. Success = on-disk version advances past `old`.
+        // We deliberately do NOT reopen while waiting — that's what made ShipIt
+        // abort. If the app never quits (a save prompt keeps it up), bail early so
+        // we don't block ~40s on a swap that can't start.
+        var applied = false
+        for tick in 0..<200 {  // up to ~40s
+            try? await Task.sleep(for: .milliseconds(200))
+            if let disk = Self.readShortVersion(result.app.path),
+               let old, VersionComparator.isNewer(disk, than: old) {
+                applied = true
+                break
+            }
+            let stillUp = !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
+            if stillUp && tick >= 15 {  // ~3s and never quit → refused (likely a save prompt)
+                Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
+                break
+            }
+        }
+        // Fallback: if ShipIt swapped but didn't relaunch (or never ran), bring the
+        // app back so the user isn't left without it.
+        if NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty {
+            NSWorkspace.shared.open(result.app.path)
+        }
+        Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public)")
+        // Re-read disk: clears the staged flag + reminder banner if the swap landed
+        // (via `computeSelfUpdateStaging`'s departed-id sweep), keeps "Relaunch" if
+        // it didn't. Never optimistic, never an Update fallback.
+        await refreshLocal()
+        if applied {
+            UpdateNotifier.restarted(app: result.app.name, version: Self.readShortVersion(result.app.path))
+        }
+    }
+
+    /// Read a bundle's `CFBundleShortVersionString` straight off disk — used to
+    /// poll for a ShipIt swap landing while the app is quit.
+    nonisolated private static func readShortVersion(_ bundle: URL) -> String? {
+        let info = bundle.appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: info),
+              let dict = (try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil)) as? [String: Any]
+        else { return nil }
+        return dict["CFBundleShortVersionString"] as? String
+    }
+
     /// Open System Settings → Privacy & Security → App Management and float the
     /// drag-to-authorize panel, prompting the user to drag **DuoUpdater itself**
     /// into the list (the permission is granted to the app doing the replacing,
@@ -621,8 +1049,26 @@ final class AppListModel {
     /// so this is the only way to surface it — and we can't tell afterward whether
     /// it was granted; the user simply retries the update. Also callable directly
     /// (e.g. from a menu item) so the prompt isn't strictly gated on a failure.
-    func presentAppManagementPermissionFlow() {
-        permissionFlow.authorize(pane: .appManagement, suggestedAppURLs: [Bundle.main.bundleURL])
+    func presentAppManagementPermissionFlow(sourceFrameInScreen: CGRect? = nil) {
+        permissionFlow.authorize(
+            pane: .appManagement,
+            suggestedAppURLs: [Bundle.main.bundleURL],
+            sourceFrameInScreen: sourceFrameInScreen ?? Self.permissionFlowLaunchFrame()
+        )
+    }
+
+    /// A small launch rect at the center of the window the user is currently
+    /// looking at, used as the origin for the drag panel's fly-to-Settings
+    /// animation. Returns `nil` when no app window is available (e.g. the call
+    /// came from a background failure path with nothing frontmost), in which
+    /// case the panel simply snaps under System Settings without the fly-in.
+    /// Kept deliberately small and non-empty: `FloatingDropPanel` skips the
+    /// animation for an empty source rect and scales the launch size up from the
+    /// card's minimum, so the card flies in compact rather than window-sized.
+    private static func permissionFlowLaunchFrame() -> CGRect? {
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return nil }
+        let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
+        return CGRect(x: center.x - 1, y: center.y - 1, width: 2, height: 2)
     }
 
     // MARK: - Backups & rollback
@@ -678,6 +1124,7 @@ final class AppListModel {
             let updated = await recheck(result)
             replaceRow(updated)
             await computeRestartInfo()
+            await computeSelfUpdateStaging()
             await refreshBackupIndex()
             installing[id] = nil
             Log.install.info("rollback done: \(updated.app.name, privacy: .public) → \(restored ?? "?", privacy: .public)")
@@ -803,8 +1250,14 @@ final class AppListModel {
         // preference toggle between checks — e.g. un-ignoring an app — can't make a
         // pre-existing update look newly-arrived and fire a surprise banner.
         let before = Set(results.filter(\.hasUpdate).map(\.id))
-        await refresh()
+        // Background, no user present: skip the TestFlight container read so a
+        // scheduled check (notably the one a cold launch fires immediately) can't
+        // surface the "access data from other apps" prompt unprompted.
+        await refresh(allowTestFlight: false)
         guard prefs.notifyOnUpdates else { return }
+        // Self-staged builds (the app downloaded its own update) are announced by
+        // the periodic relaunch reminder that `computeSelfUpdateStaging` arms — not
+        // here — so they keep nudging until applied, on their own cadence.
         let now = results.filter(isActionableUpdate)
         let newly = now.filter { !before.contains($0.id) }
         guard !newly.isEmpty else { return }
@@ -867,6 +1320,10 @@ final class AppListModel {
     private func sorted(_ list: [UpdateResult]) -> [UpdateResult] {
         func rank(_ r: UpdateResult) -> Int {
             if needsRestart.contains(r.id) { return 0 }
+            // A staged build that IS the latest is one relaunch from live, just like
+            // needs-restart — top tier. One that trails the latest ranks as a normal
+            // pending update (it'll show Update).
+            if actionableStaged(r) != nil { return 0 }
             if r.hasUpdate { return 1 }
             return 2
         }

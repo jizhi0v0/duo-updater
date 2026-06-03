@@ -22,6 +22,13 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
         static let updatesCategory = "UPDATES_AVAILABLE"
         static let installAll = "INSTALL_ALL"
         static let view = "VIEW"
+        /// A "the app downloaded an update on its own" banner, carrying a Relaunch
+        /// action that swaps in the staged build straight from the notification.
+        static let selfUpdateCategory = "SELF_UPDATE_STAGED"
+        static let relaunch = "RELAUNCH"
+        /// userInfo key carrying the target row's id (its on-disk path) so the
+        /// Relaunch action knows which app to restart.
+        static let appIDKey = "appID"
     }
 
     private let lock = NSLock()
@@ -52,7 +59,18 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
             actions: [installAll, view],
             intentIdentifiers: [],
             options: [])
-        center.setNotificationCategories([category])
+
+        // "Relaunch" quits and reopens the app to apply the build it staged itself.
+        // No `.foreground`: the restart runs headless via NSWorkspace; we don't pull
+        // DuoUpdater forward for it.
+        let relaunch = UNNotificationAction(
+            identifier: ID.relaunch, title: "Relaunch", options: [])
+        let selfUpdate = UNNotificationCategory(
+            identifier: ID.selfUpdateCategory,
+            actions: [relaunch],
+            intentIdentifiers: [],
+            options: [])
+        center.setNotificationCategories([category, selfUpdate])
 
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
@@ -78,6 +96,11 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
         switch response.actionIdentifier {
         case ID.installAll:
             Task { @MainActor in await model?.installAll() }
+        case ID.relaunch:
+            // Restart the specific app named in the notification's userInfo.
+            if let id = response.notification.request.content.userInfo[ID.appIDKey] as? String {
+                Task { @MainActor in await model?.restart(byID: id) }
+            }
         case ID.view, UNNotificationDefaultActionIdentifier:
             Task { @MainActor in
                 NSApp.activate(ignoringOtherApps: true)

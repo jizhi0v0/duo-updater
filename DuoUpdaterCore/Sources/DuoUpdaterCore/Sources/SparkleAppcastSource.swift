@@ -22,6 +22,11 @@ public struct SparkleAppcastSource: UpdateSource {
         var request = URLRequest(url: feedURL)
         request.timeoutInterval = 15
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
+        // Header-keyed apps (TablePlus) share one appcast across channels and let
+        // a request header pick which builds the server returns. See `ChannelBinding`.
+        for (field, value) in app.sparkleFeedHeaders {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
 
         let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {

@@ -21,15 +21,20 @@ final class FloatingDropPanel: NSPanel {
 
     /// Launch animation constants tuned to feel responsive without making the
     /// panel overshoot or jitter while the target window is still settling.
-    private let animationDuration: TimeInterval = 0.72
-    private let animationResponse: Double = 0.72
+    private let animationDuration: TimeInterval = 0.86
+    private let animationResponse: Double = 0.86
     private let initialAlpha: CGFloat = 0.9
     private let minimumLaunchScale: CGFloat = 0.58
     private var launchTimer: Timer?
+    private var displayLink: AnyObject?
     private var launchStartTime: CFTimeInterval = 0
-    private var launchFromFrame = NSRect.zero
-    private var launchToFrame = NSRect.zero
+    private var launchSourceCenter = CGPoint.zero
+    private var launchTargetFrame = NSRect.zero
     private var isAnimatingLaunch = false
+    /// Once the window is within a pixel of home we stop moving it and let the
+    /// GPU scale finish in place, since window-origin moves quantize to whole
+    /// pixels and stutter through the slow tail of the easing curve.
+    private var launchPositionSettled = false
     private var localeIdentifier: String?
 
     init(controller: PermissionFlowController) {
@@ -74,6 +79,9 @@ final class FloatingDropPanel: NSPanel {
         if #available(macOS 13.3, *) {
             hostingView.sizingOptions = []
         }
+        // Layer-backed so the launch animation can scale the content via a layer
+        // transform instead of resizing the window (which would relayout SwiftUI).
+        hostingView.wantsLayer = true
         contentView = hostingView
         setContentSize(CGSize(width: initialPanelWidth, height: measuredPanelHeight(for: initialPanelWidth)))
     }
@@ -118,52 +126,106 @@ final class FloatingDropPanel: NSPanel {
         super.sendEvent(event)
     }
 
-    /// Shows the panel at its current frame without any positioning changes.
-    func show() {
-        orderFrontRegardless()
+    /// `displayLink(target:)` retains its target, so stop the ticker on close to
+    /// avoid a retain cycle keeping a dismissed panel (and its flight) alive.
+    override func close() {
+        stopLaunchAnimation()
+        super.close()
     }
 
-    /// Displays the panel at the source frame used to start the launch motion.
-    /// This is used before the target System Settings frame is known.
-    func show(at sourceFrameInScreen: CGRect) {
+    /// Shows the panel at its current frame without any positioning changes.
+    /// Clears any residual flight state so a centered fallback renders at full
+    /// size with its shadow intact.
+    func show() {
         stopLaunchAnimation()
         isAnimatingLaunch = false
         alphaValue = 1
-        setContentSize(CGSize(width: frame.width, height: measuredPanelHeight(for: frame.width)))
-        setFrame(launchSourceFrame(for: sourceFrameInScreen), display: false)
+        hasShadow = true
+        applyContentScale(1)
         orderFrontRegardless()
     }
 
     /// Animates the panel from the triggering UI element toward the current
     /// System Settings window frame once the destination becomes available.
+    ///
+    /// The window holds its **final size** for the whole flight: only its origin
+    /// moves along the curve and the content layer scales up from
+    /// `minimumLaunchScale`. Resizing the window each frame would force the
+    /// SwiftUI host (wrapped markdown text + an app icon) to re-layout 60×/sec,
+    /// which is what made the motion drop frames. A `CADisplayLink` paces the
+    /// steps to the display refresh instead of a free-running `Timer`.
     func present(from sourceFrameInScreen: CGRect, to settingsFrame: CGRect) {
         stopLaunchAnimation()
         let targetFrame = targetFrame(for: settingsFrame)
 
         guard sourceFrameInScreen.isEmpty == false else {
-            isAnimatingLaunch = false
-            alphaValue = 1
-            setFrame(targetFrame, display: false)
-            orderFrontRegardless()
+            finishLaunch(at: targetFrame)
             return
         }
 
         isAnimatingLaunch = true
-        launchFromFrame = launchSourceFrame(for: sourceFrameInScreen)
-        launchToFrame = targetFrame
+        launchPositionSettled = false
+        launchTargetFrame = targetFrame
+        launchSourceCenter = CGPoint(x: sourceFrameInScreen.midX, y: sourceFrameInScreen.midY)
         launchStartTime = CACurrentMediaTime()
-        alphaValue = initialAlpha
-        setFrame(launchFromFrame, display: false)
-        orderFrontRegardless()
-        stepLaunchAnimation()
 
-        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.stepLaunchAnimation()
+        // The transparent margins around the scaled-down card would otherwise
+        // cast a full-size shadow box at the source, so suppress it in flight.
+        hasShadow = false
+        alphaValue = initialAlpha
+        setFrame(frame(ofSize: targetFrame.size, centeredOn: launchSourceCenter), display: false)
+        applyContentScale(minimumLaunchScale)
+        orderFrontRegardless()
+
+        startLaunchTicker()
+        stepLaunchAnimation()
+    }
+
+    /// Scales the hosted content about its center without disturbing the window
+    /// size. Wrapped in a non-animating transaction so the implicit Core
+    /// Animation action doesn't fight the per-step updates.
+    private func applyContentScale(_ scale: CGFloat) {
+        guard let layer = contentView?.layer else { return }
+        let bounds = layer.bounds
+        let transform = CGAffineTransform(translationX: bounds.midX, y: bounds.midY)
+            .scaledBy(x: scale, y: scale)
+            .translatedBy(x: -bounds.midX, y: -bounds.midY)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.setAffineTransform(transform)
+        CATransaction.commit()
+    }
+
+    /// Returns a window frame of `size` whose center sits at `center`.
+    private func frame(ofSize size: CGSize, centeredOn center: CGPoint) -> CGRect {
+        CGRect(
+            x: center.x - (size.width * 0.5),
+            y: center.y - (size.height * 0.5),
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    /// Starts the display-synced ticker, falling back to a timer pre-macOS 14.
+    private func startLaunchTicker() {
+        if #available(macOS 14.0, *), let view = contentView {
+            let link = view.displayLink(target: self, selector: #selector(handleDisplayLink(_:)))
+            link.add(to: .main, forMode: .common)
+            displayLink = link
+        } else {
+            let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.stepLaunchAnimation()
+                }
             }
+            RunLoop.main.add(timer, forMode: .common)
+            launchTimer = timer
         }
-        RunLoop.main.add(timer, forMode: .common)
-        launchTimer = timer
+    }
+
+    @available(macOS 14.0, *)
+    @objc private func handleDisplayLink(_ sender: CADisplayLink) {
+        stepLaunchAnimation()
     }
 
     /// Switches the panel into a drag-friendly mode where mouse events pass
@@ -186,13 +248,12 @@ final class FloatingDropPanel: NSPanel {
         if isAnimatingLaunch {
             // Tracking updates can arrive during the launch. Updating the final
             // destination preserves the motion instead of abruptly snapping.
-            launchToFrame = target
+            launchTargetFrame = target
             return
         }
 
         stopLaunchAnimation()
-        setFrame(target, display: false)
-        orderFrontRegardless()
+        finishLaunch(at: target)
     }
 
     /// Calculates the final panel frame relative to the System Settings window.
@@ -241,22 +302,6 @@ final class FloatingDropPanel: NSPanel {
         return CGRect(origin: origin, size: CGSize(width: width, height: height))
     }
 
-    /// Builds the starting frame for the launch animation around the source UI
-    /// element that initiated the permission flow.
-    private func launchSourceFrame(for sourceFrameInScreen: CGRect) -> CGRect {
-        let launchSize = CGSize(
-            width: max(sourceFrameInScreen.width, frame.width * minimumLaunchScale),
-            height: max(sourceFrameInScreen.height, frame.height * minimumLaunchScale)
-        )
-        let center = CGPoint(x: sourceFrameInScreen.midX, y: sourceFrameInScreen.midY)
-        return CGRect(
-            x: center.x - (launchSize.width * 0.5),
-            y: center.y - (launchSize.height * 0.5),
-            width: launchSize.width,
-            height: launchSize.height
-        )
-    }
-
     /// Measures the SwiftUI content at a specific width so the panel height can
     /// fit its dynamic contents before being positioned or animated.
     private func measuredPanelHeight(for width: CGFloat) -> CGFloat {
@@ -265,27 +310,69 @@ final class FloatingDropPanel: NSPanel {
         return max(minimumPanelHeight, sizingView.fittingSize.height)
     }
 
-    /// Advances the current launch animation frame-by-frame until the panel
-    /// reaches its destination under the System Settings window.
+    /// Advances the launch motion. Only the window origin moves and the content
+    /// layer scales — the window keeps its final size, so there is no SwiftUI
+    /// relayout per step.
     private func stepLaunchAnimation() {
+        guard isAnimatingLaunch else { return }
+
         let elapsed = max(0, CACurrentMediaTime() - launchStartTime)
         if elapsed >= animationDuration {
-            isAnimatingLaunch = false
-            stopLaunchAnimation()
-            alphaValue = 1
-            setFrame(launchToFrame, display: true)
+            finishLaunch(at: launchTargetFrame)
             return
         }
 
         let progress = springProgress(at: elapsed)
         alphaValue = initialAlpha + ((1 - initialAlpha) * progress)
-        setFrame(curvedFrame(from: launchFromFrame, to: launchToFrame, progress: progress), display: true)
+        // Scale always finishes smoothly on the GPU, even after the window stops.
+        applyContentScale(minimumLaunchScale + ((1 - minimumLaunchScale) * progress))
+
+        guard launchPositionSettled == false else { return }
+
+        let targetCenter = CGPoint(x: launchTargetFrame.midX, y: launchTargetFrame.midY)
+        let center = curvedCenter(from: launchSourceCenter, to: targetCenter, progress: progress)
+        let origin = CGPoint(
+            x: center.x - (launchTargetFrame.width * 0.5),
+            y: center.y - (launchTargetFrame.height * 0.5)
+        )
+
+        // Past the halfway point, once we're within a pixel or two of home, pin
+        // the window to its final origin so the quantized tail doesn't stutter —
+        // the layer scale carries the last bit of motion in place. This is also
+        // where the shadow comes back, masked by the still-growing card rather
+        // than recomputing on the final, stationary frame.
+        let dx = launchTargetFrame.minX - origin.x
+        let dy = launchTargetFrame.minY - origin.y
+        if progress > 0.5, (dx * dx) + (dy * dy) <= 4 {
+            setFrameOrigin(launchTargetFrame.origin)
+            launchPositionSettled = true
+            hasShadow = true
+            return
+        }
+
+        setFrameOrigin(CGPoint(x: origin.x.rounded(), y: origin.y.rounded()))
     }
 
-    /// Stops and clears the timer that drives the launch animation.
+    /// Lands the panel at its destination: full size, identity scale, shadow and
+    /// opacity restored. Also used as the no-animation fast path.
+    private func finishLaunch(at target: CGRect) {
+        stopLaunchAnimation()
+        isAnimatingLaunch = false
+        setFrame(target, display: false)
+        applyContentScale(1)
+        alphaValue = 1
+        hasShadow = true
+        orderFrontRegardless()
+    }
+
+    /// Stops and clears whichever ticker drives the launch animation.
     private func stopLaunchAnimation() {
         launchTimer?.invalidate()
         launchTimer = nil
+        if #available(macOS 14.0, *) {
+            (displayLink as? CADisplayLink)?.invalidate()
+        }
+        displayLink = nil
     }
 
     /// Produces a smooth eased progress value for the launch motion so the
@@ -296,18 +383,9 @@ final class FloatingDropPanel: NSPanel {
         return min(max(progress, 0), 1)
     }
 
-    /// Interpolates the animated frame along a quadratic Bezier path between
-    /// the source and destination rectangles for a softer "fly in" effect.
-    private func curvedFrame(from: CGRect, to: CGRect, progress: CGFloat) -> CGRect {
-        // A quadratic Bezier curve gives the panel a softer "fly to target"
-        // motion than a straight linear interpolation.
-        let size = CGSize(
-            width: from.width + ((to.width - from.width) * progress),
-            height: from.height + ((to.height - from.height) * progress)
-        )
-
-        let startCenter = CGPoint(x: from.midX, y: from.midY)
-        let endCenter = CGPoint(x: to.midX, y: to.midY)
+    /// Interpolates the panel center along a quadratic Bezier path for a softer
+    /// "fly to target" arc than a straight linear interpolation.
+    private func curvedCenter(from startCenter: CGPoint, to endCenter: CGPoint, progress: CGFloat) -> CGPoint {
         let midpoint = CGPoint(
             x: (startCenter.x + endCenter.x) * 0.5,
             y: max(startCenter.y, endCenter.y)
@@ -316,16 +394,9 @@ final class FloatingDropPanel: NSPanel {
         let lift = min(140, max(44, distance * 0.18))
         let controlPoint = CGPoint(x: midpoint.x, y: midpoint.y + lift)
         let inverse = 1 - progress
-        let center = CGPoint(
+        return CGPoint(
             x: (inverse * inverse * startCenter.x) + (2 * inverse * progress * controlPoint.x) + (progress * progress * endCenter.x),
             y: (inverse * inverse * startCenter.y) + (2 * inverse * progress * controlPoint.y) + (progress * progress * endCenter.y)
-        )
-
-        return CGRect(
-            x: center.x - (size.width * 0.5),
-            y: center.y - (size.height * 0.5),
-            width: size.width,
-            height: size.height
         )
     }
 

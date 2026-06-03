@@ -32,6 +32,10 @@ public final class PermissionFlowController: ObservableObject {
     private let tracker = SettingsWindowTracker()
 
     private var panel: FloatingDropPanel?
+    private var panelPresentationFallback: Timer?
+    private var settleTimer: Timer?
+    private var latestTrackedFrame: CGRect?
+    private var hasPresentedTrackedFrame = false
     private var pendingLaunchSourceFrame: CGRect?
     private var previousFrontmostApplicationPID: pid_t?
     private var previousFrontmostApplicationBundleIdentifier: String?
@@ -67,6 +71,13 @@ public final class PermissionFlowController: ObservableObject {
     ) {
         closeOtherActivePanelIfNeeded()
 
+        // Reset per-flow presentation state — this controller is long-lived and
+        // can be re-authorized without an intervening closePanel().
+        settleTimer?.invalidate()
+        settleTimer = nil
+        latestTrackedFrame = nil
+        hasPresentedTrackedFrame = false
+
         rememberPreviousFrontmostApplication()
         currentPane = pane
         pendingLaunchSourceFrame = sourceFrameInScreen
@@ -80,8 +91,11 @@ public final class PermissionFlowController: ObservableObject {
         tracker.startTracking(promptIfNeeded: configuration.promptForAccessibilityTrust)
     }
 
-    /// Shows the panel immediately. If the target System Settings frame is
-    /// already known, the panel is positioned or animated into place at once.
+    /// Prepares the panel and presents it once the System Settings window is
+    /// located. If the frame is already known the panel is positioned or
+    /// animated into place at once; otherwise it stays hidden until the tracker
+    /// reports the first frame, so the drag card never floats over an empty
+    /// screen before System Settings has opened and navigated to the pane.
     public func showPanel() {
         if panel == nil {
             panel = FloatingDropPanel(controller: self)
@@ -90,20 +104,90 @@ public final class PermissionFlowController: ObservableObject {
         guard let panel else { return }
 
         if let settingsFrame = tracker.currentFrame {
+            // Settings is already open and settled — present at once.
+            hasPresentedTrackedFrame = true
             presentPanel(panel, for: settingsFrame)
             return
         }
 
-        if let sourceFrame = pendingLaunchSourceFrame {
-            panel.show(at: sourceFrame)
-        } else {
-            panel.center()
-            panel.show()
+        // The Settings window isn't on screen yet. Wait for the tracker's first
+        // frame (the common case) rather than showing the card immediately, and
+        // arm a fallback so the flow still surfaces if the window can never be
+        // tracked.
+        armPanelPresentationFallback()
+    }
+
+    /// Surfaces the panel without a tracked Settings frame after a grace period,
+    /// so a failure to locate the window doesn't leave the user with no drag
+    /// target at all. Cancelled the moment a real frame arrives.
+    private func armPanelPresentationFallback() {
+        panelPresentationFallback?.invalidate()
+        panelPresentationFallback = Timer.scheduledTimer(
+            withTimeInterval: 2.0,
+            repeats: false
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.presentPanelWithoutTrackedFrame()
+            }
         }
+    }
+
+    private func presentPanelWithoutTrackedFrame() {
+        panelPresentationFallback = nil
+        guard let panel, tracker.currentFrame == nil else { return }
+
+        // Give up waiting for a tracked frame; any later real frame just snaps.
+        hasPresentedTrackedFrame = true
+        settleTimer?.invalidate()
+        settleTimer = nil
+
+        // No destination to fly to — just surface the card centered at full size.
+        panel.center()
+        panel.show()
+    }
+
+    /// Routes tracker frame updates. The very first appearance is debounced so
+    /// the fly-in waits for System Settings to stop resizing onto the pane
+    /// rather than chasing a window that's still settling; once presented,
+    /// later updates follow the window live.
+    private func handleTrackedFrame(_ frame: CGRect) {
+        latestTrackedFrame = frame
+        guard let panel else { return }
+
+        if hasPresentedTrackedFrame {
+            presentPanel(panel, for: frame)
+            return
+        }
+
+        // A real frame arrived — the empty-screen fallback is no longer needed.
+        panelPresentationFallback?.invalidate()
+        panelPresentationFallback = nil
+
+        // Restart the settle window on every change; the tracker only emits when
+        // the frame actually moves, so this fires once the window goes quiet.
+        settleTimer?.invalidate()
+        settleTimer = Timer.scheduledTimer(withTimeInterval: 0.11, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.commitInitialTrackedFrame()
+            }
+        }
+    }
+
+    private func commitInitialTrackedFrame() {
+        settleTimer = nil
+        guard let panel, let frame = latestTrackedFrame, hasPresentedTrackedFrame == false else { return }
+        hasPresentedTrackedFrame = true
+        presentPanel(panel, for: frame)
     }
 
     public func closePanel(returnToPreviousApp: Bool = false) {
         tracker.stopTracking()
+        panelPresentationFallback?.invalidate()
+        panelPresentationFallback = nil
+        settleTimer?.invalidate()
+        settleTimer = nil
+        latestTrackedFrame = nil
+        hasPresentedTrackedFrame = false
         panel?.close()
         panel = nil
         pendingLaunchSourceFrame = nil
@@ -177,8 +261,7 @@ public final class PermissionFlowController: ObservableObject {
     private func bindTrackerCallbacks() {
         tracker.onFrameChange = { [weak self] frame in
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.presentPanel(self.panel, for: frame)
+                self?.handleTrackedFrame(frame)
             }
         }
         tracker.onTrackingEnded = { [weak self] in
@@ -231,6 +314,10 @@ public final class PermissionFlowController: ObservableObject {
 
     private func presentPanel(_ panel: FloatingDropPanel?, for settingsFrame: CGRect) {
         guard let panel else { return }
+
+        // A real Settings frame arrived — the deferred-show fallback is moot.
+        panelPresentationFallback?.invalidate()
+        panelPresentationFallback = nil
 
         if let sourceFrame = pendingLaunchSourceFrame {
             panel.present(from: sourceFrame, to: settingsFrame)

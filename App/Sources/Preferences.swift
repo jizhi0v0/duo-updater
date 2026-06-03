@@ -46,6 +46,7 @@ final class Preferences {
 
     private enum Key {
         static let githubToken = "GitHubToken"   // pre-existing key; keep it
+        static let githubTokenAccount = "GitHubTokenAccount"   // login the token verified as
         static let checkFrequency = "CheckFrequency"
         static let launchAtLogin = "LaunchAtLogin"
         static let maxConcurrency = "MaxConcurrency"
@@ -64,6 +65,13 @@ final class Preferences {
     /// `gh` CLI" — `GitHubToken.resolve` treats empty as no explicit value.
     var githubToken: String {
         didSet { defaults.set(githubToken, forKey: Key.githubToken) }
+    }
+
+    /// The GitHub login the saved token last verified as, for display in
+    /// Settings. Empty when the token wasn't pasted-and-verified here (e.g. it
+    /// came from env / `gh` CLI, or predates verification).
+    var githubTokenAccount: String {
+        didSet { defaults.set(githubTokenAccount, forKey: Key.githubTokenAccount) }
     }
 
     var checkFrequency: CheckFrequency {
@@ -119,6 +127,7 @@ final class Preferences {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.githubToken = defaults.string(forKey: Key.githubToken) ?? ""
+        self.githubTokenAccount = defaults.string(forKey: Key.githubTokenAccount) ?? ""
         self.checkFrequency = CheckFrequency(
             rawValue: defaults.string(forKey: Key.checkFrequency) ?? "") ?? .every6Hours
         self.launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)

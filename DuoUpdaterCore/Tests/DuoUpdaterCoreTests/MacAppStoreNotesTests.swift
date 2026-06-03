@@ -38,6 +38,72 @@ import Foundation
     #expect(src.extractMacCompatible(from: missing) == nil)  // unknown ⇒ assume compatible
 }
 
+/// The product-page scrape for an iOS-on-Mac app reads the latest Mac build's
+/// version AND its "What's New" notes from the same `mostRecentVersion` shelf
+/// item, so we can render the App Store changelog inline instead of a web view.
+@Test func extractsMacVersionAndNotesFromShelf() {
+    let src = MacAppStoreSource()
+    let html = """
+    <html><script type="application/json" id="shoebox">
+    {"data":[{"data":{"shelfMapping":{"mostRecentVersion":{"items":[
+      {"$kind":"TitledParagraph",
+       "primarySubtitle":"Version 24.3.81",
+       "secondarySubtitle":"Wed Mar 25 2026 15:05:17 GMT+0000",
+       "text":"• Fixed a crash.\\n• Faster launch."}
+    ]}}}}]}
+    </script></html>
+    """
+
+    let info = src.extractMacVersionInfo(from: html)
+    #expect(info?.version == "24.3.81")
+    #expect(info?.notes == "• Fixed a crash.\n• Faster launch.")
+}
+
+/// The version is still extracted when the shelf carries no notes `text`, leaving
+/// `notes` nil so the UI falls back gracefully.
+@Test func extractsMacVersionWithoutNotes() {
+    let src = MacAppStoreSource()
+    let html = """
+    <html><script type="application/json">
+    {"data":[{"data":{"shelfMapping":{"mostRecentVersion":{"items":[
+      {"primarySubtitle":"Version 1.0.0"}
+    ]}}}}]}
+    </script></html>
+    """
+
+    let info = src.extractMacVersionInfo(from: html)
+    #expect(info?.version == "1.0.0")
+    #expect(info?.notes == nil)
+}
+
+/// The "Version" label in the shelf is localized — a Chinese (or any non-English)
+/// storefront returns "版本 16.109.3", which the old English-prefix strip left
+/// unparsed (and so silently un-comparable). The numeric version must come out
+/// regardless of the surrounding language.
+@Test func extractsLocalizedVersionLabel() {
+    let src = MacAppStoreSource()
+    let html = """
+    <html><script type="application/json" id="shoebox">
+    {"data":[{"data":{"shelfMapping":{"mostRecentVersion":{"items":[
+      {"primarySubtitle":"版本 16.109.3","text":"• 修复了若干问题。"}
+    ]}}}}]}
+    </script></html>
+    """
+
+    let info = src.extractMacVersionInfo(from: html)
+    #expect(info?.version == "16.109.3")
+    #expect(info?.notes == "• 修复了若干问题。")
+}
+
+/// `versionNumber(in:)` pulls a dotted-numeric run out of assorted localized
+/// labels, and falls back to a bare integer for single-component versions.
+@Test func parsesVersionNumberFromAssortedLabels() {
+    #expect(MacAppStoreSource.versionNumber(in: "Version 26.21.73") == "26.21.73")
+    #expect(MacAppStoreSource.versionNumber(in: "버전 1.2") == "1.2")
+    #expect(MacAppStoreSource.versionNumber(in: "Versione 3") == "3")
+    #expect(MacAppStoreSource.versionNumber(in: "no digits here") == nil)
+}
+
 /// A listing with no `releaseNotes` key decodes fine, leaving the field nil so the
 /// UI falls back to "no changelog".
 @Test func releaseNotesAbsentDecodesToNil() throws {

@@ -17,7 +17,14 @@ enum AppIconCache {
 
     static func icon(for path: String) -> NSImage {
         if let cached = cache.object(forKey: path as NSString) { return cached }
+        // Cache miss = a synchronous disk hit on the main actor. Time it: if app
+        // switches stutter, a slow icon read here is one suspect.
+        let start = Date()
         let image = NSWorkspace.shared.icon(forFile: path)
+        let ms = Date().timeIntervalSince(start) * 1000
+        if ms > 2 {
+            Log.app.info("perf icon miss: \(ms, format: .fixed(precision: 1), privacy: .public)ms for \((path as NSString).lastPathComponent, privacy: .public)")
+        }
         cache.setObject(image, forKey: path as NSString)
         return image
     }
@@ -32,12 +39,12 @@ struct MenuContentView: View {
     @Bindable var model: AppListModel
     @State private var showAll = false
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
 
     private var visible: [UpdateResult] {
         showAll ? model.results
             : model.results.filter {
                 model.isActionableUpdate($0) || model.needsRestart.contains($0.id)
+                    || model.actionableStaged($0) != nil
             }
     }
 
@@ -54,7 +61,7 @@ struct MenuContentView: View {
             // One-time wiring: arm the background-check loop and teach the
             // notification's "View" action how to open the window.
             model.start(showUpdates: {
-                openWindow(id: ChangelogWindowView.windowID)
+                openWindow(id: WorkbenchWindowView.windowID)
                 NSApp.activate(ignoringOtherApps: true)
             })
             // First open: full (networked) check. Every later open: a cheap
@@ -127,7 +134,10 @@ struct MenuContentView: View {
             .buttonStyle(.borderless)
             .disabled(model.isScanning || model.isChecking)
             .help("Rescan and check for updates")
-            Button { openSettings() } label: {
+            Button {
+                openWindow(id: SettingsView.windowID)
+                NSApp.activate(ignoringOtherApps: true)
+            } label: {
                 Image(systemName: "gearshape")
             }
             .buttonStyle(.borderless)
@@ -160,18 +170,13 @@ struct MenuContentView: View {
                 .toggleStyle(.checkbox)
                 .font(.caption)
             Spacer()
-            Button("Changelog…") {
-                openWindow(id: ChangelogWindowView.windowID)
+            Button("Open Window") {
+                openWindow(id: WorkbenchWindowView.windowID)
                 NSApp.activate(ignoringOtherApps: true)
             }
             .buttonStyle(.borderless)
             .font(.caption)
-            Button("Traffic…") {
-                openWindow(id: TrafficWindowView.windowID)
-                NSApp.activate(ignoringOtherApps: true)
-            }
-            .buttonStyle(.borderless)
-            .font(.caption)
+            .help("Release notes, traffic, and settings")
             Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.borderless)
                 .font(.caption)
@@ -199,7 +204,10 @@ private struct AppRow: View {
                     .frame(width: 30, height: 30)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(result.app.name).font(.body)
+                    HStack(spacing: 6) {
+                        Text(result.app.name).font(.body)
+                        ChannelTag(channel: result.app.releaseChannel)
+                    }
                     versionLine
                 }
                 Spacer()
@@ -243,8 +251,19 @@ private struct AppRow: View {
 
     @ViewBuilder
     private var versionLine: some View {
-        switch result.status {
-        case .updateAvailable(let latest):
+        if let staged = model.actionableStaged(result) {
+            // Relaunch applies this staged build, which `actionableStaged` guarantees
+            // is the latest — so the line is a plain installed → staged. (A staged
+            // build that trails the latest isn't shown as Relaunch; it goes through
+            // the normal updateAvailable line/Update button below.)
+            stagedVersionLine(staged)
+        } else if let older = model.downgradeNote(result) {
+            // Vendor's latest is *older* than what's installed — show it muted with a
+            // down-arrow (only reachable under "Show all", since the row is upToDate).
+            downgradeVersionLine(older)
+        } else {
+            switch result.status {
+            case .updateAvailable(let latest):
             HStack(spacing: 4) {
                 fromVersion(latest: latest)
                 Image(systemName: "arrow.right").font(.caption2)
@@ -264,11 +283,44 @@ private struct AppRow: View {
             // keep it one line and shrink slightly instead.
             .lineLimit(1)
             .minimumScaleFactor(0.75)
-        default:
-            Text("v\(result.app.shortVersion ?? "?")")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            default:
+                Text("v\(result.app.shortVersion ?? "?")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
+    }
+
+    /// installed ↓ older — the vendor's latest trails what's installed. Muted (no
+    /// alarm) and action-less: you're ahead, nothing to do. The tooltip names the
+    /// benign reasons so it doesn't read as "something's wrong".
+    @ViewBuilder
+    private func downgradeVersionLine(_ older: String) -> some View {
+        let installed = result.app.shortVersion ?? "?"
+        HStack(spacing: 4) {
+            Text(installed)
+            Image(systemName: "arrow.down").font(.caption2)
+            Text(older)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
+        .help("The vendor's latest is \(older) — older than your \(installed). You're ahead, so there's nothing to do. Usually a beta channel, a pulled release, or a lagging check.")
+    }
+
+    /// The staged-relaunch version line: installed → staged. `actionableStaged`
+    /// guarantees the staged build is the latest, so there's nothing newer to note.
+    @ViewBuilder
+    private func stagedVersionLine(_ staged: StagedSelfUpdate) -> some View {
+        HStack(spacing: 4) {
+            Text(result.app.shortVersion ?? "?")
+            Image(systemName: "arrow.right").font(.caption2)
+            Text(staged.version).fontWeight(.semibold).foregroundStyle(.tint)
+        }
+        .font(.caption)
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
     }
 
     /// True when this update keeps the same marketing version but bumps the
@@ -311,7 +363,12 @@ private struct AppRow: View {
 
     @ViewBuilder
     private var trailing: some View {
-        if let stage {
+        if model.relaunching.contains(result.id) {
+            // Mid-relaunch: the app is quit and we're waiting for its ShipIt to swap
+            // & relaunch. A spinner here both signals progress and (because it
+            // replaces the button) prevents a second click firing another quit.
+            relaunchingIndicator
+        } else if let stage {
             installProgress(stage)
         } else if model.prefs.isIgnored(result.app) {
             // Surfaced only under "Show all" — a muted tag with manage actions in
@@ -320,6 +377,14 @@ private struct AppRow: View {
         } else if result.hasUpdate
             && model.prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) {
             skippedTag
+        } else if let staged = model.actionableStaged(result) {
+            // The app's own updater already downloaded *the latest* and is waiting to
+            // swap it in on the next quit ("Relaunch to update"). Offer the relaunch
+            // — never our own Update — so we don't re-download the same bytes or
+            // collide with the pending swap. Only when the staged build IS the latest:
+            // a staged build that trails a newer release falls through to Update (a
+            // direct jump), since relaunching to it wouldn't get you current.
+            relaunchToUpdateButton(staged)
         } else if model.needsRestart.contains(result.id) && !result.hasUpdate {
             // Restart is derived from disk-vs-running version, not the remote
             // check — so surface it directly off `needsRestart` rather than from
@@ -438,6 +503,31 @@ private struct AppRow: View {
             .buttonStyle(.bordered)
             .tint(.orange)
             .help(restartHelp)
+    }
+
+    /// The app self-downloaded a newer build (Squirrel/ShipIt staged it); a
+    /// relaunch swaps it in. Unlike `restartButton` this routes to
+    /// `relaunchStagedUpdate`, which quits the app and lets *its own* ShipIt do the
+    /// swap+relaunch (reopening it ourselves makes ShipIt abort). No extra download
+    /// — the bytes are already staged on disk.
+    private func relaunchToUpdateButton(_ staged: StagedSelfUpdate) -> some View {
+        Button("Relaunch") { Task { await model.relaunchStagedUpdate(result) } }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .tint(.orange)
+            .help("\(result.app.name) already downloaded \(staged.version) — relaunch to apply it (no extra download)")
+    }
+
+    /// Shown while a staged relaunch is in flight: the app is quit and its own
+    /// ShipIt is swapping the bundle. Matches the install spinner's footprint.
+    private var relaunchingIndicator: some View {
+        HStack(spacing: 6) {
+            ProgressView().controlSize(.small)
+            Text("Relaunching…")
+                .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .frame(width: 96, alignment: .trailing)
+        .help("Quit \(result.app.name) — waiting for it to swap in the new version and reopen")
     }
 
     private var restartHelp: String {

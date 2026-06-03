@@ -8,9 +8,11 @@ struct DuoUpdaterApp: App {
         MenuBarExtra {
             MenuContentView(model: model)
         } label: {
-            // Badge the menu bar icon with the number of pending updates.
-            if model.updateCount > 0 {
-                Image(systemName: "\(min(model.updateCount, 50)).circle.fill")
+            // Badge the menu bar icon with the number of pending updates. Uses
+            // `badgeCount` (not `updateCount`) so a refresh's mid-flight `.unknown`
+            // rows don't flicker the badge to zero and back.
+            if model.badgeCount > 0 {
+                Image(systemName: "\(min(model.badgeCount, 50)).circle.fill")
             } else {
                 Image(systemName: "arrow.triangle.2.circlepath")
             }

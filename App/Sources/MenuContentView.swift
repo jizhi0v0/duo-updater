@@ -60,8 +60,10 @@ struct MenuContentView: View {
             // First open: full (networked) check. Every later open: a cheap
             // local rescan to catch background self-updates and surface Restart.
             if model.results.isEmpty {
+                Log.app.info("menu .task: results empty → full refresh()")
                 await model.refresh()
             } else {
+                Log.app.info("menu .task: results present → refreshLocal()")
                 await model.refreshLocal()
             }
         }

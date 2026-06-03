@@ -43,6 +43,14 @@ final class AppListModel {
 
     var updateCount: Int { results.filter(isActionableUpdate).count }
 
+    /// The count shown on the menu-bar badge. A full refresh briefly blanks every
+    /// row to `.unknown` (so `updateCount` dips to 0) before the check repopulates
+    /// it — which made the badge flicker to the "no updates" icon and back. While a
+    /// scan/check is in flight we hold the last settled count instead; otherwise we
+    /// track `updateCount` live (so ignoring/skipping an app updates it at once).
+    var badgeCount: Int { (isScanning || isChecking) ? heldBadgeCount : updateCount }
+    @ObservationIgnored private var heldBadgeCount = 0
+
     private let sparkleInstaller = SparkleInstaller()
     private let homebrewInstaller = HomebrewInstaller()
     private let packageInstaller = PackageInstaller()
@@ -127,17 +135,113 @@ final class AppListModel {
     }
 
     /// Scan the disk, then check every app for updates.
+    /// The one in-flight full refresh, if any. For the whole app lifecycle there
+    /// is **at most one concurrent refresh**: overlapping callers (first menu
+    /// open, the manual button, a background tick) coalesce onto this task rather
+    /// than racing. Two interleaved refreshes used to stomp each other on the
+    /// main actor — one resets `results` to `.unknown` while the other is mid
+    /// network check — which is exactly how an "up to date" snapshot could clobber
+    /// a check that had found updates.
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+
+    /// Single-flight entry point. If a refresh is already running, await it and
+    /// return instead of starting a second one.
     func refresh() async {
+        if let existing = refreshTask {
+            Log.app.info("refresh: already in flight — coalescing onto it")
+            await existing.value
+            return
+        }
+        // Only this path ever assigns `refreshTask`; coalescing callers above just
+        // await it. So once our task finishes we can clear it unconditionally.
+        let task = Task { await self.performRefresh() }
+        refreshTask = task
+        await task.value
+        refreshTask = nil
+    }
+
+    /// Race a detached task against a timeout. Returns the task's value if it
+    /// finishes within `timeout`, otherwise `nil` — and crucially the task keeps
+    /// running, so the caller can still await it later.
+    ///
+    /// We deliberately do NOT use `withTaskGroup`: it won't return until *every*
+    /// child finishes, and the child that does `await task.value` can't be
+    /// cancelled out of a blocked `open()`, so the group would join on it and
+    /// defeat the timeout entirely (the bug this replaces). Instead we resume a
+    /// continuation from whichever of {loader, timeout} fires first, with a
+    /// once-only guard, and simply abandon the loser.
+    private static func firstResult<T: Sendable>(
+        of task: Task<T, Never>, within timeout: Duration
+    ) async -> T? {
+        let gate = RaceGate()
+        return await withCheckedContinuation { (cont: CheckedContinuation<T?, Never>) in
+            Task {
+                let value = await task.value
+                if await gate.claim() { cont.resume(returning: value) }
+            }
+            Task {
+                try? await Task.sleep(for: timeout)
+                if await gate.claim() { cont.resume(returning: nil) }
+            }
+        }
+    }
+
+    /// Start loading TestFlight's inventory (off-main) and wait only briefly. Its DB
+    /// is in another app's sandbox container, so `open()` is gated by the "access
+    /// data from other apps" TCC prompt and blocks until the user answers — local
+    /// reads are otherwise milliseconds, so a timeout here means "the prompt is up".
+    /// On timeout we return an empty, `accessible == false` inventory so the check
+    /// proceeds unfrozen, and hand back the still-running loader so the caller can
+    /// re-apply once the user clicks Allow.
+    private static func beginTestFlightLoad(
+        timeout: Duration = .seconds(2)
+    ) async -> (inventory: TestFlightInventory, pendingLoader: Task<TestFlightInventory, Never>?) {
+        let loader = Task.detached(priority: .utility) { TestFlightInventory() }
+        if let loaded = await firstResult(of: loader, within: timeout) {
+            return (loaded, nil)
+        }
+        Log.scan.info("TestFlight: read pending (TCC prompt unanswered) — proceeding without it")
+        return (TestFlightInventory(macRows: [], accessible: false), loader)
+    }
+
+    /// When the TestFlight read was blocked by the TCC prompt, keep awaiting the
+    /// detached loader — the blocked `open()` returns the instant the user answers.
+    /// If they granted access, re-run the check so TestFlight tagging appears with
+    /// no manual refresh. Denial (or a missing DB) leaves `accessible == false`, so
+    /// we don't loop. `refresh()` is single-flight, so overlapping re-applies fold
+    /// into one.
+    @ObservationIgnored private var testFlightReapplyPending = false
+    private func reapplyTestFlightWhenGranted(_ loader: Task<TestFlightInventory, Never>) {
+        // One waiter at a time: repeated menu-opens while the prompt is up shouldn't
+        // stack N re-checks that all fire when the user finally clicks Allow.
+        guard !testFlightReapplyPending else { return }
+        testFlightReapplyPending = true
+        Task { [weak self] in
+            let late = await loader.value
+            guard let self else { return }
+            self.testFlightReapplyPending = false
+            guard late.accessible else { return }  // Don't Allow / missing DB → don't loop
+            Log.scan.info("TestFlight: access granted after prompt — re-checking")
+            await self.refresh()
+        }
+    }
+
+    private func performRefresh() async {
+        Log.app.info("refresh: start (scan + network check)")
+        // Snapshot the current count before we blank the rows below, so the menu-bar
+        // badge holds it steady through the scan/check instead of flickering to 0.
+        heldBadgeCount = updateCount
         // Expire all cached changelog pages so the detail window re-fetches
         // after a manual refresh — the user expects fresh release notes.
         await ChangelogCache.shared.invalidateAll()
         isScanning = true
-        // One Toolbox snapshot shared by the scan (to tag managed apps) and the
-        // checker (to read latest-build info) — a single read of its local cache.
-        let toolbox = ToolboxInventory()
-        // One TestFlight snapshot shared by the scan (to tag managed apps) and the
-        // checker (to read latest-build info) — a single read of its local cache.
-        let testflight = TestFlightInventory()
+        // Build both inventories OFF the main thread. Each reads a local store in
+        // its initializer; TestFlight's is TCC-gated and can block (see
+        // `beginTestFlightLoad`). One Toolbox + one TestFlight snapshot, shared by
+        // the scan (to tag managed apps) and the checker (latest-build info).
+        let (testflight, pendingTestFlight) = await Self.beginTestFlightLoad()
+        if let pendingTestFlight { reapplyTestFlightWhenGranted(pendingTestFlight) }
+        let toolbox = await Task.detached(priority: .userInitiated) { ToolboxInventory() }.value
         let found = await Task.detached(priority: .userInitiated) {
             AppScanner(toolbox: toolbox, testflight: testflight).scan()
         }.value
@@ -715,7 +819,11 @@ final class AppListModel {
     /// stale row.
     private func recheck(_ result: UpdateResult) async -> UpdateResult {
         let id = result.id
-        let testflight = TestFlightInventory()
+        // Off-main + time-boxed: the post-install recheck must never block the UI
+        // on the TestFlight container's TCC gate (see `beginTestFlightLoad`). The
+        // next full refresh re-applies TestFlight tagging, so a single-app recheck
+        // doesn't need the grant-callback — just take whatever's ready in time.
+        let (testflight, _) = await Self.beginTestFlightLoad()
         let apps = await Task.detached(priority: .userInitiated) {
             AppScanner(testflight: testflight).scan()
         }.value
@@ -767,5 +875,17 @@ final class AppListModel {
             if ra != rb { return ra < rb }
             return a.app.name.localizedCaseInsensitiveCompare(b.app.name) == .orderedAscending
         }
+    }
+}
+
+/// Once-only winner gate for `firstResult`: the first racer to `claim()` wins and
+/// may resume the continuation; everyone after gets `false` and must do nothing.
+/// Guarantees the checked continuation is resumed exactly once.
+private actor RaceGate {
+    private var claimed = false
+    func claim() -> Bool {
+        if claimed { return false }
+        claimed = true
+        return true
     }
 }

@@ -40,6 +40,13 @@ public struct TestFlightInventory: Sendable {
     /// app really is the TestFlight install (its build appears here).
     private let buildsByBundleID: [String: Set<String>]
 
+    /// Whether we actually opened the TestFlight database. `false` means the file
+    /// was missing or the read was blocked/denied — notably the "access data from
+    /// other apps" TCC gate. The UI uses this to tell "we read it and there was
+    /// nothing" apart from "we never got in", so it can re-apply once the user
+    /// grants access (an empty inventory alone can't distinguish the two).
+    public let accessible: Bool
+
     /// Default path to TestFlight's sandboxed Core Data store.
     public static var defaultDatabaseURL: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
@@ -48,7 +55,8 @@ public struct TestFlightInventory: Sendable {
 
     public init(databaseURL: URL? = nil) {
         let url = databaseURL ?? Self.defaultDatabaseURL
-        let rows = Self.readMacRows(at: url)
+        let (rows, opened) = Self.readMacRows(at: url)
+        self.accessible = opened
 
         var latest: [String: App] = [:]
         var builds: [String: Set<String>] = [:]
@@ -70,8 +78,12 @@ public struct TestFlightInventory: Sendable {
         self.buildsByBundleID = builds
     }
 
-    /// Test seam: inject the parsed rows directly, skipping the DB read.
-    public init(macRows: [(bundleID: String, shortVersion: String, build: String)]) {
+    /// Test seam / explicit construction: inject the parsed rows directly, skipping
+    /// the DB read. `accessible` defaults to `true` (the caller supplied data); pass
+    /// `false` to build the "couldn't read TestFlight" sentinel used when the TCC
+    /// gate blocks the real read.
+    public init(macRows: [(bundleID: String, shortVersion: String, build: String)], accessible: Bool = true) {
+        self.accessible = accessible
         var latest: [String: App] = [:]
         var builds: [String: Set<String>] = [:]
         for row in macRows {
@@ -106,9 +118,12 @@ public struct TestFlightInventory: Sendable {
 
     // MARK: - SQLite
 
+    /// Returns the macOS rows plus whether the DB was actually opened. `opened`
+    /// is `false` for a missing file or a failed/denied open (the TCC gate), so
+    /// the caller can tell "read it, nothing there" from "never got in".
     private static func readMacRows(at url: URL)
-        -> [(bundleID: String, shortVersion: String, build: String)] {
-        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        -> (rows: [(bundleID: String, shortVersion: String, build: String)], opened: Bool) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return ([], false) }
 
         var db: OpaquePointer?
         // Read-only; SQLITE_OPEN_READONLY still applies the -wal on open so we see
@@ -116,7 +131,7 @@ public struct TestFlightInventory: Sendable {
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             sqlite3_close(db)
             Log.scan.error("TestFlight DB open failed at \(url.path, privacy: .public)")
-            return []
+            return ([], false)
         }
         defer { sqlite3_close(db) }
 
@@ -128,7 +143,7 @@ public struct TestFlightInventory: Sendable {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             Log.scan.error("TestFlight DB prepare failed")
-            return []
+            return ([], true)  // we opened it; the schema just didn't match
         }
         defer { sqlite3_finalize(stmt) }
 
@@ -141,6 +156,6 @@ public struct TestFlightInventory: Sendable {
             let build = String(cString: buildC)
             rows.append((bundleID, short, build))
         }
-        return rows
+        return (rows, true)
     }
 }

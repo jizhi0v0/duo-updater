@@ -70,12 +70,18 @@ final class AppListModel {
 
     init(prefs: Preferences = .shared) {
         self.prefs = prefs
+        // Restore when we last checked so the scheduler can pick up where it left
+        // off across relaunches instead of restarting the interval from zero.
+        self.lastCheck = prefs.lastCheckDate
         // Register the notification delegate + actionable categories (this also
         // requests notification permission once).
         NotificationController.shared.register(model: self)
         // Load any previously recorded traffic so the stats view isn't empty on
         // launch before the first install of this session.
         Task { await refreshTrafficStats() }
+        // Arm the background auto-check loop at launch — not on first menu open —
+        // so a menu-bar app that's never clicked still checks on schedule.
+        reschedule()
     }
 
     /// The ordered source stack, rebuilt per check so it picks up a token change
@@ -152,6 +158,7 @@ final class AppListModel {
         await refreshBackupIndex()
         isChecking = false
         lastCheck = .now
+        prefs.lastCheckDate = lastCheck  // persist so the scheduler survives relaunches
         Log.app.info("refresh done: \(self.updateCount, privacy: .public) updates, \(self.needsRestart.count, privacy: .public) need restart")
     }
 
@@ -635,20 +642,24 @@ final class AppListModel {
 
     // MARK: - Background scheduler
 
-    /// One-time startup wiring, run when the UI first appears: hand the "show
-    /// updates" action to the notification controller and arm the background loop.
-    /// Idempotent — safe to call on every menu open.
+    /// One-time UI wiring, run when the menu first appears: hand the "show updates"
+    /// action to the notification controller. The background loop itself is armed at
+    /// launch (in `init`), not here, so the app checks on schedule even if its menu
+    /// is never opened. Idempotent.
     private var started = false
     func start(showUpdates: @escaping @Sendable @MainActor () -> Void) {
         guard !started else { return }
         started = true
         NotificationController.shared.setOnShowUpdates(showUpdates)
-        reschedule()
     }
 
     /// (Re)arm the background auto-check loop from the current frequency setting.
     /// Called at launch and whenever the user changes the frequency. A "manual"
     /// frequency tears the loop down entirely.
+    ///
+    /// The loop schedules each check *relative to `lastCheck`* (persisted across
+    /// launches) and checks **before** sleeping, so a cold start whose last check is
+    /// already overdue runs one right away instead of waiting a full interval.
     func reschedule() {
         scheduler?.cancel()
         guard let interval = prefs.checkFrequency.interval else {
@@ -656,14 +667,26 @@ final class AppListModel {
             Log.app.info("scheduler: manual — no background checks")
             return
         }
-        Log.app.info("scheduler: every \(Int(interval), privacy: .public)s")
+        Log.app.info("scheduler: every \(Int(interval), privacy: .public)s (last check \(self.lastCheck.map { "\(Int(-$0.timeIntervalSinceNow))s ago" } ?? "never", privacy: .public))")
         scheduler = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(interval))
-                guard !Task.isCancelled, let self else { return }
-                // Don't stomp on a manual check or an install in flight.
+                guard let self else { return }
+                // Sleep only until the next check is *due* relative to the last one
+                // — zero (run now) when we're already overdue, e.g. a cold launch.
+                let due = (self.lastCheck ?? .distantPast).addingTimeInterval(interval)
+                let wait = max(0, due.timeIntervalSinceNow)
+                if wait > 0 {
+                    try? await Task.sleep(for: .seconds(wait))
+                    guard !Task.isCancelled else { return }
+                }
+                // Don't stomp on a manual check or an install in flight; back off a
+                // little and re-evaluate rather than busy-looping while overdue.
                 if !self.isChecking && !self.isScanning && self.installing.isEmpty {
+                    Log.app.info("scheduler: tick — running background check")
                     await self.backgroundRefresh()
+                } else {
+                    Log.app.info("scheduler: tick deferred (busy) — retrying in 60s")
+                    try? await Task.sleep(for: .seconds(60))
                 }
             }
         }

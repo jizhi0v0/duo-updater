@@ -53,6 +53,7 @@ final class Preferences {
         static let notifyOnUpdates = "NotifyOnUpdates"
         static let ignoredKeys = "IgnoredApps"
         static let skippedVersions = "SkippedVersions"
+        static let lastCheckDate = "LastCheckDate"
     }
 
     private let defaults: UserDefaults
@@ -108,6 +109,13 @@ final class Preferences {
         didSet { defaults.set(skippedVersions, forKey: Key.skippedVersions) }
     }
 
+    /// When the last full networked check completed. Persisted so the background
+    /// scheduler survives relaunches — it schedules the next check relative to this
+    /// rather than restarting the interval from zero on every launch.
+    var lastCheckDate: Date? {
+        didSet { defaults.set(lastCheckDate, forKey: Key.lastCheckDate) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.githubToken = defaults.string(forKey: Key.githubToken) ?? ""
@@ -121,6 +129,7 @@ final class Preferences {
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
+        self.lastCheckDate = defaults.object(forKey: Key.lastCheckDate) as? Date
     }
 
     // MARK: - Per-app keys

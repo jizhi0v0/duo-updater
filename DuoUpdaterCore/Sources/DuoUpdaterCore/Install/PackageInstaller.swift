@@ -25,11 +25,14 @@ public actor PackageInstaller {
     /// Download `url` and open the resulting installer (or the disk image that
     /// contains it). Returns once the installer has been launched — the actual
     /// install happens in macOS's installer, under the user's control.
+    /// Returns the exact number of bytes downloaded for the installer package,
+    /// for per-app traffic accounting.
+    @discardableResult
     public func downloadAndOpen(
         url: URL?,
         headers: [String: String] = [:],
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) async throws {
+    ) async throws -> Int64 {
         guard let url else { throw PackageError.noURL }
 
         // Keep the download where the system installer can read it for the whole
@@ -42,11 +45,13 @@ public actor PackageInstaller {
             onStage(.downloading(fraction: fraction))
         }
         let file = try await downloader.download(url, headers: headers)
+        let bytesDownloaded = downloader.bytesDownloaded
 
         onStage(.installing)
         let toOpen = try resolveInstaller(from: file, workDir: workDir)
         await open(toOpen)
         onStage(.done)
+        return bytesDownloaded
     }
 
     /// Given a downloaded file, return the thing to hand to the system installer.

@@ -26,7 +26,19 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         # Menu-bar-only app: no Dock icon, no main window.
         INFOPLIST_KEY_LSUIElement: YES
+        # `restart` quits and relaunches the target app via an Apple event
+        # (NSRunningApplication.terminate); without this string the send is
+        # denied/crashes under the Automation TCC gate.
+        INFOPLIST_KEY_NSAppleEventsUsageDescription: "DuoUpdater quits and relaunches an app after updating it, so the new version takes effect."
         SWIFT_VERSION: "6.0"
-        CODE_SIGN_STYLE: Automatic
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGN_IDENTITY: "-"
+        # Sign with a STABLE identity, not ad-hoc ("-"). macOS keys TCC grants
+        # (App Management, Automation…) to the app's code identity; an ad-hoc
+        # signature changes its CDHash on every rebuild, so a granted permission
+        # is invalidated each build and "Quit & Reopen" can relaunch a different
+        # identity. A Developer ID gives a stable, team-based designated
+        # requirement, so grants persist across rebuilds — no provisioning
+        # profile needed for a local tool.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: RS59HDH7Y3

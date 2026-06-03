@@ -751,15 +751,15 @@ final class AppListModel {
         }
     }
 
-    /// Actionable rows first: pending updates, then apps updated-on-disk that
-    /// still need a restart, then everything else — each tier alphabetical. A
-    /// restart row is just as actionable as an update, so it stays grouped with
-    /// them up top instead of sinking into the up-to-date list at the bottom
-    /// (which read as the row "disappearing" right after you clicked Update).
+    /// Actionable rows first: apps updated-on-disk that still need a restart,
+    /// then pending updates, then everything else — each tier alphabetical.
+    /// Needs-restart is the most urgent action (the update already landed and
+    /// only a restart stands between the user and the new version), so it sorts
+    /// ahead of pending updates rather than sinking below them.
     private func sorted(_ list: [UpdateResult]) -> [UpdateResult] {
         func rank(_ r: UpdateResult) -> Int {
-            if r.hasUpdate { return 0 }
-            if needsRestart.contains(r.id) { return 1 }
+            if needsRestart.contains(r.id) { return 0 }
+            if r.hasUpdate { return 1 }
             return 2
         }
         return list.sorted { a, b in

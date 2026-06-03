@@ -21,8 +21,8 @@ final class FloatingDropPanel: NSPanel {
 
     /// Launch animation constants tuned to feel responsive without making the
     /// panel overshoot or jitter while the target window is still settling.
-    private let animationDuration: TimeInterval = 0.86
-    private let animationResponse: Double = 0.86
+    private let animationDuration: TimeInterval = 0.72
+    private let animationResponse: Double = 0.72
     private let initialAlpha: CGFloat = 0.9
     private let minimumLaunchScale: CGFloat = 0.58
     private var launchTimer: Timer?
@@ -31,10 +31,6 @@ final class FloatingDropPanel: NSPanel {
     private var launchSourceCenter = CGPoint.zero
     private var launchTargetFrame = NSRect.zero
     private var isAnimatingLaunch = false
-    /// Once the window is within a pixel of home we stop moving it and let the
-    /// GPU scale finish in place, since window-origin moves quantize to whole
-    /// pixels and stutter through the slow tail of the easing curve.
-    private var launchPositionSettled = false
     private var localeIdentifier: String?
 
     init(controller: PermissionFlowController) {
@@ -164,7 +160,6 @@ final class FloatingDropPanel: NSPanel {
         }
 
         isAnimatingLaunch = true
-        launchPositionSettled = false
         launchTargetFrame = targetFrame
         launchSourceCenter = CGPoint(x: sourceFrameInScreen.midX, y: sourceFrameInScreen.midY)
         launchStartTime = CACurrentMediaTime()
@@ -324,33 +319,14 @@ final class FloatingDropPanel: NSPanel {
 
         let progress = springProgress(at: elapsed)
         alphaValue = initialAlpha + ((1 - initialAlpha) * progress)
-        // Scale always finishes smoothly on the GPU, even after the window stops.
         applyContentScale(minimumLaunchScale + ((1 - minimumLaunchScale) * progress))
-
-        guard launchPositionSettled == false else { return }
 
         let targetCenter = CGPoint(x: launchTargetFrame.midX, y: launchTargetFrame.midY)
         let center = curvedCenter(from: launchSourceCenter, to: targetCenter, progress: progress)
-        let origin = CGPoint(
+        setFrameOrigin(CGPoint(
             x: center.x - (launchTargetFrame.width * 0.5),
             y: center.y - (launchTargetFrame.height * 0.5)
-        )
-
-        // Past the halfway point, once we're within a pixel or two of home, pin
-        // the window to its final origin so the quantized tail doesn't stutter —
-        // the layer scale carries the last bit of motion in place. This is also
-        // where the shadow comes back, masked by the still-growing card rather
-        // than recomputing on the final, stationary frame.
-        let dx = launchTargetFrame.minX - origin.x
-        let dy = launchTargetFrame.minY - origin.y
-        if progress > 0.5, (dx * dx) + (dy * dy) <= 4 {
-            setFrameOrigin(launchTargetFrame.origin)
-            launchPositionSettled = true
-            hasShadow = true
-            return
-        }
-
-        setFrameOrigin(CGPoint(x: origin.x.rounded(), y: origin.y.rounded()))
+        ))
     }
 
     /// Lands the panel at its destination: full size, identity scale, shadow and

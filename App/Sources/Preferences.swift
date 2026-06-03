@@ -44,6 +44,30 @@ final class Preferences {
         }
     }
 
+    /// How Mac App Store updates are applied.
+    ///
+    /// Both routes drive the store's own `storedownloadd`, so neither mixes
+    /// channels — they differ in dependency and bandwidth, hence a user choice:
+    ///   • `.full` — the `mas` CLI replays the store purchase and redownloads the
+    ///     whole app. No extra permission, but needs `mas` (brew) and more traffic.
+    ///   • `.incremental` — drives App Store.app's own Update button via the
+    ///     Accessibility API, so the store fetches a delta. No `mas` needed and less
+    ///     traffic, but requires an Accessibility grant (guided via PermissionFlow).
+    /// Default is `.full`: it asks for no sensitive permission up front.
+    enum AppStoreUpdateStrategy: String, CaseIterable, Identifiable, Sendable {
+        case full
+        case incremental
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .full:        return "Full download (no extra permission)"
+            case .incremental: return "Incremental (needs Accessibility)"
+            }
+        }
+    }
+
     private enum Key {
         static let githubToken = "GitHubToken"   // pre-existing key; keep it
         static let githubTokenAccount = "GitHubTokenAccount"   // login the token verified as
@@ -52,9 +76,12 @@ final class Preferences {
         static let maxConcurrency = "MaxConcurrency"
         static let keepBackups = "KeepBackups"
         static let notifyOnUpdates = "NotifyOnUpdates"
+        static let appStoreUpdateStrategy = "AppStoreUpdateStrategy"
         static let ignoredKeys = "IgnoredApps"
         static let skippedVersions = "SkippedVersions"
         static let lastCheckDate = "LastCheckDate"
+        static let notifiedVersions = "NotifiedVersions"
+        static let notificationBaselineSeeded = "NotificationBaselineSeeded"
     }
 
     private let defaults: UserDefaults
@@ -105,6 +132,11 @@ final class Preferences {
         didSet { defaults.set(notifyOnUpdates, forKey: Key.notifyOnUpdates) }
     }
 
+    /// Which route to use for Mac App Store updates. See `AppStoreUpdateStrategy`.
+    var appStoreUpdateStrategy: AppStoreUpdateStrategy {
+        didSet { defaults.set(appStoreUpdateStrategy.rawValue, forKey: Key.appStoreUpdateStrategy) }
+    }
+
     /// Apps the user has chosen to hide from update checks entirely, keyed by
     /// `key(for:)`.
     private(set) var ignoredKeys: Set<String> {
@@ -124,6 +156,29 @@ final class Preferences {
         didSet { defaults.set(lastCheckDate, forKey: Key.lastCheckDate) }
     }
 
+    /// Per-app version we've already posted a "new update available" notification
+    /// for (key → the offered version). Persisted so the banner fires regardless
+    /// of *which* refresh path first surfaces the update — manual menu-open or
+    /// scheduled background — instead of the in-memory list silently becoming the
+    /// baseline; and so the same version isn't re-announced across relaunches.
+    private(set) var notifiedVersions: [String: String] {
+        didSet { defaults.set(notifiedVersions, forKey: Key.notifiedVersions) }
+    }
+
+    /// Whether we've recorded an initial notification baseline yet. The first run
+    /// adopts whatever's already pending *silently* — notifications are for updates
+    /// that appear *after* the user first sees today's list, not a launch-time dump
+    /// of everything already outstanding.
+    var notificationBaselineSeeded: Bool {
+        didSet { defaults.set(notificationBaselineSeeded, forKey: Key.notificationBaselineSeeded) }
+    }
+
+    /// Overwrite the notified-version baseline (the model recomputes the whole map
+    /// each check, keyed by `key(for:)`).
+    func setNotifiedVersions(_ versions: [String: String]) {
+        notifiedVersions = versions
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.githubToken = defaults.string(forKey: Key.githubToken) ?? ""
@@ -136,9 +191,13 @@ final class Preferences {
         // Default ON for these two — both are opt-out conveniences.
         self.keepBackups = defaults.object(forKey: Key.keepBackups) as? Bool ?? true
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
+        self.appStoreUpdateStrategy = AppStoreUpdateStrategy(
+            rawValue: defaults.string(forKey: Key.appStoreUpdateStrategy) ?? "") ?? .full
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
         self.lastCheckDate = defaults.object(forKey: Key.lastCheckDate) as? Date
+        self.notifiedVersions = defaults.dictionary(forKey: Key.notifiedVersions) as? [String: String] ?? [:]
+        self.notificationBaselineSeeded = defaults.bool(forKey: Key.notificationBaselineSeeded)
     }
 
     // MARK: - Per-app keys

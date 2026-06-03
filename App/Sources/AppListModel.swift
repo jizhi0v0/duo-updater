@@ -39,6 +39,19 @@ final class AppListModel {
     /// crucially, blocks re-entry: the swap can take tens of seconds, during which
     /// the Relaunch button must not fire a second quit.
     private(set) var relaunching: Set<String> = []
+    /// App ids for which an incremental (AX) App Store update has downloaded but the
+    /// app is still running, so App Store is asking to quit it to finish installing.
+    /// id → the app's display name (for the prompt). Drives a "Relaunch to finish
+    /// update" affordance; tapping it resumes the matching `quitContinuations` entry,
+    /// which presses the App Store sheet's Continue button.
+    private(set) var awaitingQuitConfirm: [String: String] = [:]
+    /// Suspended `confirmQuit` calls from the AX installer, keyed by app id, resumed
+    /// by `confirmQuit(_:proceed:)` when the user accepts or dismisses the prompt.
+    @ObservationIgnored private var quitContinuations: [String: CheckedContinuation<Bool, Never>] = [:]
+    /// App ids the user agreed to quit (via the confirm affordance) for an
+    /// incremental App Store update — App Store's Continue quits but doesn't reopen,
+    /// so we relaunch them ourselves once the new build is in place.
+    @ObservationIgnored private var reopenAfterQuit: Set<String> = []
     /// id → the build version the running instance launched with, for display.
     private var runningVersionByID: [String: String] = [:]
     /// When the last full networked check finished — shown in the header so the
@@ -119,6 +132,7 @@ final class AppListModel {
     private let packageInstaller = PackageInstaller()
     private let vendorInstaller = VendorInstaller()
     private let masInstaller = MASInstaller()
+    private let appStoreAXInstaller = AppStoreAXInstaller()
 
     /// Drives the App Management drag-to-authorize panel (vendored PermissionFlow)
     /// when an install is blocked by the privacy gate. Lazy so we only spin up the
@@ -467,6 +481,9 @@ final class AppListModel {
         isChecking = false
         lastCheck = .now
         prefs.lastCheckDate = lastCheck  // persist so the scheduler survives relaunches
+        // Announce anything newly pending — keyed off a persisted baseline, so it
+        // fires no matter which refresh path got here first (background or manual).
+        notifyNewUpdates()
         Log.app.info("refresh done: \(self.updateCount, privacy: .public) updates, \(self.needsRestart.count, privacy: .public) need restart")
     }
 
@@ -500,13 +517,21 @@ final class AppListModel {
             return result.remote?.vendorInstallerKind != nil
                 && result.remote?.requiresManualInstaller == false
         case "App Store":
-            // One-click via the mas CLI (only when it's actually installed —
-            // otherwise we fall through to the App Store deep link). Requires the
-            // adamID, and that the app is installable here: not region-locked and
-            // not a newer build that dropped Mac support. mas replays the store's
-            // own purchase, so it's the app's real update channel — no mixing.
-            guard MASInstaller.isAvailable, let info = result.remote?.appStore else { return false }
-            return !info.isRegionMismatch && !info.isLatestMacIncompatible
+            // Requires the adamID, and that the app is installable here: not
+            // region-locked and not a newer build that dropped Mac support. Both
+            // routes replay the store's own download, so it's the app's real update
+            // channel — no mixing. Which route depends on the user's preference:
+            //   • full        → mas CLI; offered only when mas is actually installed
+            //     (else we fall through to the App Store deep link).
+            //   • incremental → AX-driven; needs no mas. Accessibility is requested
+            //     on demand at install time (mirroring App Management), so we don't
+            //     gate the offer on it here.
+            guard let info = result.remote?.appStore,
+                  !info.isRegionMismatch, !info.isLatestMacIncompatible else { return false }
+            switch prefs.appStoreUpdateStrategy {
+            case .full:        return MASInstaller.isAvailable
+            case .incremental: return true
+            }
         default:
             return false
         }
@@ -688,10 +713,47 @@ final class AppListModel {
                     return false
                 }
                 installing[id] = .downloading(fraction: 0)
-                // mas downloads through the App Store daemon, so we never see those
-                // bytes — intentionally not recorded (we only count what we measured).
-                try await masInstaller.install(adamID: adamID) { stage in
-                    Task { @MainActor in self.setStage(id, stage) }
+                // Both routes download through the App Store daemon, so we never see
+                // those bytes — intentionally not recorded (we only count measured).
+                switch prefs.appStoreUpdateStrategy {
+                case .full:
+                    try await masInstaller.install(adamID: adamID) { stage in
+                        Task { @MainActor in self.setStage(id, stage) }
+                    }
+                case .incremental where AppStoreAXInstaller.isTrusted:
+                    try await appStoreAXInstaller.update(
+                        trackID: adamID,
+                        appPath: result.app.path,
+                        bundleID: result.app.bundleID,
+                        appName: result.app.name,
+                        currentShortVersion: result.app.shortVersion
+                    ) { stage in
+                        Task { @MainActor in self.setStage(id, stage) }
+                    } confirmQuit: { [weak self] appName in
+                        await self?.requestQuitConfirmation(id: id, appName: appName) ?? false
+                    }
+                case .incremental where MASInstaller.isAvailable:
+                    // Incremental is selected but Accessibility isn't granted (the
+                    // user declined the opt-in prompt, or revoked it later). There's
+                    // no "denied" callback from the TCC flow, so we resolve it here,
+                    // at use time: don't fail the update — fall back to the full (mas)
+                    // route this once, and guide the user to grant Accessibility (once
+                    // per session, so we don't nag) so the next update can go
+                    // incremental. We deliberately leave the *setting* on incremental:
+                    // it self-heals to the delta route as soon as access is granted.
+                    Log.install.notice("App Store incremental without Accessibility — using mas this time: \(result.app.name, privacy: .public)")
+                    guideAccessibilityOncePerSession()
+                    try await masInstaller.install(adamID: adamID) { stage in
+                        Task { @MainActor in self.setStage(id, stage) }
+                    }
+                case .incremental:
+                    // Incremental, no Accessibility, and no mas to fall back to — we
+                    // can't update at all. Surface the need and guide to the grant;
+                    // the row's retry picks up once access is granted.
+                    installing[id] = nil
+                    installErrors[id] = AppStoreAXInstaller.AXError.notTrusted.errorDescription
+                    presentAccessibilityPermissionFlow()
+                    return false
                 }
             case "Vendor", "GitHub":
                 installing[id] = .downloading(fraction: 0)
@@ -706,6 +768,19 @@ final class AppListModel {
                 }
                 await recordTraffic(result, bytes: bytes)
             }
+            // An incremental App Store update the user OK'd quitting for: the app
+            // was open before we quit it to update, so bring it back — and to the
+            // front (the user clicked Relaunch; they expect to see it return, not a
+            // silent background relaunch). Apps that weren't running never enter
+            // `reopenAfterQuit`, so this only reopens what we closed. Done before the
+            // recheck so the running-version probe sees the relaunched process.
+            if reopenAfterQuit.remove(id) != nil {
+                let config = NSWorkspace.OpenConfiguration()
+                config.activates = true
+                NSWorkspace.shared.openApplication(
+                    at: result.app.path, configuration: config, completionHandler: { _, _ in })
+            }
+
             // Re-read from disk to reflect the new version, then recompute the
             // Restart flag by comparing each running instance's launch version
             // to what's now on disk. In-place installs (Homebrew) leave the old
@@ -1057,6 +1132,64 @@ final class AppListModel {
         )
     }
 
+    /// Open System Settings → Privacy & Security → Accessibility and float the same
+    /// drag-to-authorize panel, prompting the user to drag **DuoUpdater itself** into
+    /// the list. Needed only for the incremental (AX-driven) App Store update route,
+    /// which presses App Store.app's Update button via the Accessibility API. Like
+    /// App Management, there's no after-the-fact status we trust, so the user simply
+    /// retries the update once granted.
+    func presentAccessibilityPermissionFlow(sourceFrameInScreen: CGRect? = nil) {
+        permissionFlow.authorize(
+            pane: .accessibility,
+            suggestedAppURLs: [Bundle.main.bundleURL],
+            sourceFrameInScreen: sourceFrameInScreen ?? Self.permissionFlowLaunchFrame()
+        )
+    }
+
+    /// Called when the user opts into incremental App Store updates: if Accessibility
+    /// isn't granted yet, guide them to grant it right away (the drag-to-authorize
+    /// panel) rather than letting the first update fail. No-op when already trusted.
+    func guideAccessibilityForIncrementalIfNeeded() {
+        guard !AppStoreAXInstaller.isTrusted else { return }
+        presentAccessibilityPermissionFlow()
+    }
+
+    /// Set once we've floated the Accessibility panel during a mas-fallback this run,
+    /// so a user who's content with the full route isn't nagged on every update.
+    @ObservationIgnored private var didGuideAccessibilityThisSession = false
+
+    /// Float the Accessibility panel at most once per launch — used on the mas
+    /// fallback path, where the update still succeeds and the prompt is only a nudge
+    /// toward the cheaper incremental route.
+    private func guideAccessibilityOncePerSession() {
+        guard !didGuideAccessibilityThisSession else { return }
+        didGuideAccessibilityThisSession = true
+        presentAccessibilityPermissionFlow()
+    }
+
+    /// Awaited by the AX installer when App Store asks to quit a running app to
+    /// finish installing. Records the prompt state and suspends until the user acts
+    /// via `confirmQuit(_:proceed:)`.
+    private func requestQuitConfirmation(id: String, appName: String) async -> Bool {
+        await withCheckedContinuation { cont in
+            // A second sheet for the same app shouldn't strand the first continuation.
+            quitContinuations.removeValue(forKey: id)?.resume(returning: false)
+            awaitingQuitConfirm[id] = appName
+            quitContinuations[id] = cont
+        }
+    }
+
+    /// Resolve a pending quit-to-install prompt: `proceed` true presses the App Store
+    /// sheet's Continue (the app quits and the update lands), false presses Cancel.
+    /// Wired to the per-row "Relaunch to finish update" affordance.
+    func confirmQuit(_ id: String, proceed: Bool) {
+        awaitingQuitConfirm[id] = nil
+        // App Store's Continue quits the app without reopening it; remember to
+        // relaunch it ourselves once the install lands.
+        if proceed { reopenAfterQuit.insert(id) }
+        quitContinuations.removeValue(forKey: id)?.resume(returning: proceed)
+    }
+
     /// A small launch rect at the center of the window the user is currently
     /// looking at, used as the origin for the drag panel's fly-to-Settings
     /// animation. Returns `nil` when no app window is available (e.g. the call
@@ -1243,26 +1376,62 @@ final class AppListModel {
         }
     }
 
-    /// A scheduled check that, unlike the manual one, notifies the user about any
-    /// updates that newly appeared (so a background check is actually useful).
+    /// A scheduled check. Notifications are emitted by `notifyNewUpdates` at the
+    /// end of every refresh (manual or background), so this just runs the check —
+    /// skipping the TestFlight container read so a silent scheduled check (notably
+    /// the one a cold launch fires immediately) can't surface the "access data from
+    /// other apps" prompt unprompted.
     private func backgroundRefresh() async {
-        // Key the "before" set on raw hasUpdate (not the ignore-filtered set) so a
-        // preference toggle between checks — e.g. un-ignoring an app — can't make a
-        // pre-existing update look newly-arrived and fire a surprise banner.
-        let before = Set(results.filter(\.hasUpdate).map(\.id))
-        // Background, no user present: skip the TestFlight container read so a
-        // scheduled check (notably the one a cold launch fires immediately) can't
-        // surface the "access data from other apps" prompt unprompted.
         await refresh(allowTestFlight: false)
+    }
+
+    /// Post a "new updates available" banner for actionable updates the user hasn't
+    /// been told about yet, diffed against a *persisted* (app key → notified
+    /// version) baseline rather than the live in-memory list.
+    ///
+    /// Run at the end of every full refresh, so an update gets announced no matter
+    /// which path discovers it first — the scheduled background check, or the manual
+    /// `refresh()` that fires the first time the user opens the menu/workbench.
+    /// Diffing against the in-memory `results` instead made that first manual refresh
+    /// silently become the baseline, so any update it surfaced was seen but never
+    /// notified (by the time the background check ran, it already had it in hand).
+    private func notifyNewUpdates() {
         guard prefs.notifyOnUpdates else { return }
-        // Self-staged builds (the app downloaded its own update) are announced by
-        // the periodic relaunch reminder that `computeSelfUpdateStaging` arms — not
-        // here — so they keep nudging until applied, on their own cadence.
-        let now = results.filter(isActionableUpdate)
-        let newly = now.filter { !before.contains($0.id) }
+        // Self-staged builds (the app downloaded its own update) are announced by the
+        // periodic relaunch reminder `computeSelfUpdateStaging` arms — on their own
+        // cadence — so they ride along here only as much as they always did via
+        // `isActionableUpdate`.
+        let actionable = results.filter(isActionableUpdate)
+        // The version we'd announce for each app; key by `key(for:)` to match how
+        // ignore/skip identify an app (survives the app moving on disk).
+        func version(_ r: UpdateResult) -> String {
+            r.remote?.displayVersion ?? r.remote?.shortVersion ?? ""
+        }
+        var baseline = prefs.notifiedVersions
+
+        // First run ever: adopt today's pending list as the baseline *silently*. The
+        // user can already see it in the app; banners are for what shows up next.
+        guard prefs.notificationBaselineSeeded else {
+            for r in actionable { baseline[prefs.key(for: r.app)] = version(r) }
+            prefs.setNotifiedVersions(baseline)
+            prefs.notificationBaselineSeeded = true
+            Log.app.info("notify: seeded baseline with \(actionable.count, privacy: .public) pending (no banner)")
+            return
+        }
+
+        let newly = actionable.filter { baseline[prefs.key(for: $0.app)] != version($0) }
+
+        // Record the current target version for every actionable app (so a later
+        // refresh won't re-announce the same version), and drop entries for apps no
+        // longer present in the scan to keep the map from growing without bound.
+        let liveKeys = Set(results.map { prefs.key(for: $0.app) })
+        baseline = baseline.filter { liveKeys.contains($0.key) }
+        for r in actionable { baseline[prefs.key(for: r.app)] = version(r) }
+        prefs.setNotifiedVersions(baseline)
+
         guard !newly.isEmpty else { return }
-        Log.app.info("background check: \(newly.count, privacy: .public) new updates")
-        UpdateNotifier.updatesAvailable(total: now.count, newApps: newly.map(\.app.name))
+        Log.app.info("notify: \(newly.count, privacy: .public) new updates")
+        UpdateNotifier.updatesAvailable(total: actionable.count, newApps: newly.map(\.app.name))
     }
 
     // MARK: - Recheck

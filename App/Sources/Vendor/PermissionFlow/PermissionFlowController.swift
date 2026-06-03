@@ -166,7 +166,7 @@ public final class PermissionFlowController: ObservableObject {
         // Restart the settle window on every change; the tracker only emits when
         // the frame actually moves, so this fires once the window goes quiet.
         settleTimer?.invalidate()
-        settleTimer = Timer.scheduledTimer(withTimeInterval: 0.11, repeats: false) { [weak self] _ in
+        settleTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.commitInitialTrackedFrame()
             }

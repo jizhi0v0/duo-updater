@@ -363,7 +363,13 @@ private struct AppRow: View {
 
     @ViewBuilder
     private var trailing: some View {
-        if model.relaunching.contains(result.id) {
+        if let appName = model.awaitingQuitConfirm[result.id] {
+            // An incremental App Store update finished downloading but the app is
+            // running, so App Store is asking to quit it. We paused rather than
+            // quitting the user's app mid-work — tapping this presses Continue (and
+            // we reopen the app once the new build lands).
+            quitToFinishButton(appName)
+        } else if model.relaunching.contains(result.id) {
             // Mid-relaunch: the app is quit and we're waiting for its ShipIt to swap
             // & relaunch. A spinner here both signals progress and (because it
             // replaces the button) prevents a second click firing another quit.
@@ -516,6 +522,18 @@ private struct AppRow: View {
             .buttonStyle(.bordered)
             .tint(.orange)
             .help("\(result.app.name) already downloaded \(staged.version) — relaunch to apply it (no extra download)")
+    }
+
+    /// An incremental App Store update is downloaded but the app is running, so the
+    /// store wants to quit it to install. Tapping presses the store's Continue (via
+    /// the AX installer's awaited `confirmQuit`); the app quits, the update lands,
+    /// and we reopen it. Labelled "Relaunch" to match the other quit-to-apply action.
+    private func quitToFinishButton(_ appName: String) -> some View {
+        Button("Relaunch") { model.confirmQuit(result.id, proceed: true) }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .tint(.orange)
+            .help("\(appName.isEmpty ? result.app.name : appName) must quit to finish updating — click to quit it, install, and reopen")
     }
 
     /// Shown while a staged relaunch is in flight: the app is quit and its own

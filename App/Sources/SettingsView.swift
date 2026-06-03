@@ -108,6 +108,21 @@ private struct GeneralSettings: View {
                 Text("Lower this on a slow connection; raise it to check a large library faster.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section {
+                Picker("App Store updates", selection: $prefs.appStoreUpdateStrategy) {
+                    ForEach(Preferences.AppStoreUpdateStrategy.allCases) { strategy in
+                        Text(strategy.label).tag(strategy)
+                    }
+                }
+                .onChange(of: prefs.appStoreUpdateStrategy) { _, new in
+                    // Opting into the AX route needs Accessibility — guide the user
+                    // there now instead of failing the first update silently.
+                    if new == .incremental { model.guideAccessibilityForIncrementalIfNeeded() }
+                }
+            } footer: {
+                Text("Full uses the mas tool to redownload the whole app — no extra permission. Incremental drives the App Store’s own Update button for a smaller delta download, but needs Accessibility access (you’ll be guided to grant it).")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }

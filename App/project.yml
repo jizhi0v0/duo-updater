@@ -42,3 +42,10 @@ targets:
         CODE_SIGNING_REQUIRED: YES
         CODE_SIGN_IDENTITY: "Developer ID Application"
         DEVELOPMENT_TEAM: RS59HDH7Y3
+        # Build a single real binary, not the Xcode 16 "debug dylib" (a tiny stub
+        # launcher + DuoUpdater.debug.dylib). With the stub, `AXIsProcessTrusted()`
+        # evaluates the launcher's identity and returns false even when the app IS
+        # in the Accessibility list — so the AX-driven incremental App Store update
+        # can never see its grant. (App Management is unaffected: it trips on a
+        # filesystem EPERM, not an AX trust check.) Off → Accessibility works.
+        ENABLE_DEBUG_DYLIB: NO

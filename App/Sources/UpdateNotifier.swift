@@ -80,6 +80,13 @@ enum UpdateNotifier {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
+        // Without an explicit sound the banner pops silently — and with the
+        // system "Temporary" alert style it auto-dismisses in seconds, so a
+        // menu-bar app you aren't watching is trivially missed. Request the
+        // default sound (the system "Play sound" toggle still gates it) and the
+        // .active interruption level so it presents immediately.
+        content.sound = .default
+        content.interruptionLevel = .active
         // A category id attaches the actionable buttons registered for it.
         if let categoryID { content.categoryIdentifier = categoryID }
         if !userInfo.isEmpty { content.userInfo = userInfo }

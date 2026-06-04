@@ -87,6 +87,70 @@ if argv[1] == "--scan" {
     exit(code)
 }
 
+// --check mode: run the FULL production source chain (the same source list the
+// menu-bar app wires in `AppListModel.makeSources()` + ToolboxSource) via
+// `UpdateChecker.check(app)` against an installed app found by the real
+// `AppScanner.scan()`. Unlike `--scan` (which only consults VendorProbe), this
+// reports which source actually WON in priority order — the authoritative
+// answer for single-channel apps that resolve through MAS / Sparkle / Homebrew /
+// GitHub / Toolbox, not just VendorProbe.
+if argv[1] == "--check" {
+    guard argv.count >= 3 else { die("usage: channel-verify --check <bundleID> [--expect <channel>]", code: 2) }
+    let wantBundle = argv[2]
+    var want: String? = nil
+    if let i = argv.firstIndex(of: "--expect"), i + 1 < argv.count { want = argv[i + 1].lowercased() }
+
+    let scanner = AppScanner()
+    let installed = scanner.scan()
+    guard let app = installed.first(where: { $0.bundleID == wantBundle }) else {
+        die("AppScanner.scan() did not find an installed app with bundle id \(wantBundle)", code: 1)
+    }
+
+    let checker = UpdateChecker(
+        sources: [
+            MacAppStoreSource(),
+            SparkleAppcastSource(),
+            HomebrewCaskSource(),
+            GitHubReleasesSource(token: GitHubToken.resolve()),
+            VendorProbeSource()
+        ],
+        toolbox: ToolboxSource())
+    let result = await checker.check(app)
+
+    let statusText: String
+    switch result.status {
+    case .upToDate: statusText = "up to date"
+    case .updateAvailable(let v): statusText = "UPDATE → \(v)"
+    case .unknown: statusText = "unknown (no source answered)"
+    case .appStoreManaged: statusText = "App Store managed"
+    case .toolboxManaged: statusText = "Toolbox managed"
+    case .testFlightManaged: statusText = "TestFlight managed"
+    case .error(let e): statusText = "error: \(e)"
+    }
+    print("""
+
+  UpdateChecker.check() — full production source chain
+    app             \(app.name)
+    bundle id       \(app.bundleID ?? "<none>")
+    short version   \(app.shortVersion ?? "<none>")
+    build version   \(app.buildVersion ?? "<none>")
+    ─────────────────────────────────────────────
+    detected channel → \(app.releaseChannel.rawValue)
+    winning source    → \(result.remote?.sourceName ?? "<none>")
+    latest            → \(result.remote?.displayVersion ?? "<none>")
+    status            → \(statusText)
+""")
+    var code: Int32 = 0
+    if let want, want != app.releaseChannel.rawValue {
+        print("    ✗ MISMATCH: expected channel \(want)"); code = 1
+    } else if want != nil {
+        print("    ✓ channel matches --expect \(want!)")
+    }
+    if case .unknown = result.status { code = 1 }
+    if case .error = result.status { code = 1 }
+    exit(code)
+}
+
 let inputPath = argv[1]
 var expected: String? = nil
 if let i = argv.firstIndex(of: "--expect"), i + 1 < argv.count {

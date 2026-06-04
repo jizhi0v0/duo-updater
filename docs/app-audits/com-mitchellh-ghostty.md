@@ -27,7 +27,7 @@
 ## 更新检测
 - 源: 当前无可靠检测源；local bundle has no `SUFeedURL`.
 - 端点: 未接入。
-- 注意事项: `CHANNEL_COVERAGE_TODO.md` 已记录 Tip/nightly 与 stable 同 bundle id、同名安装且无本机检测信号，不能安全区分 channel。
+- 注意事项: Tip/nightly 与 stable 同 bundle id、同名安装且无本机检测信号，不能安全区分 channel。
 
 ## Changelog
 - 来源: `ChangelogRecipe` + `ChangelogCatalog`
@@ -44,4 +44,4 @@
 
 ## 建议下一步
 1. stable 检测如需接入，走 `/fragile-recipe Ghostty`（VendorProbe 或 GitHub path），必须先确认版本端点/标签与 `CFBundleShortVersionString` 完全同构。
-2. tip channel 保持 BLOCKED，继续记录在 `CHANNEL_COVERAGE_TODO.md` § C。
+2. tip channel 保持 BLOCKED，除非未来真实 bundle 暴露可靠 channel marker。

@@ -1,0 +1,56 @@
+# Microsoft Edge
+
+> 审计日期 2026-06-04 · 模式 REPORT（已接入）· 结论：**stable/beta/dev 三 channel 已接入；canary 未覆盖（企业 API 不含）**
+
+## 基本信息
+- Bundle ID: `com.microsoft.edgemac`（beta/dev 各自独立：`com.microsoft.edgemac.Beta` / `.Dev`）
+- 自更新机制: **Microsoft AutoUpdate (MAU)**（后台静默升级）
+- 版本方案: 4 段（`137.0.3296.52`），`ProductVersion` = `CFBundleShortVersionString` 一致
+
+## 覆盖矩阵
+
+> ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
+
+|              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
+|--------------|---------|----------|-----|--------|-------------|
+| **stable**   | —       | ✗(auto)  | —   | —      | ✓           |
+| **beta**     | —       | ✗(auto)  | —   | —      | ✓           |
+| **dev**      | —       | ✗(auto)  | —   | —      | ✓           |
+| **canary**   | —       | ✗(auto)  | —   | —      | ✗(无企业API)|
+
+当前生效源: **VendorProbe**（三 channel 统一命中企业端点）
+
+## Channel 详情（Pattern A — 独立安装，各自 bundle id）
+
+| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
+|---------|-----------|----------|---------|---------|------|
+| stable  | `com.microsoft.edgemac`       | 独立 | bundle id 无后缀 → stable | 独立 pattern | ✓ |
+| beta    | `com.microsoft.edgemac.Beta`  | 独立 | bundle id `.Beta` 后缀    | 独立 pattern | ✓ |
+| dev     | `com.microsoft.edgemac.Dev`   | 独立 | bundle id `.Dev` 后缀     | 独立 pattern | ✓ |
+| canary  | `com.microsoft.edgemac.Canary`| 独立 | bundle id `.Canary` 后缀  | ✗无端点      | ✗ |
+
+`.Beta` / `.Dev` 后缀大写；`ReleaseChannel.detect` 做小写化比对，可正确识别。Edge Canary 不在 Microsoft 企业 API 返回列表中，无法用同一端点覆盖，留白。
+
+## 更新检测
+- 源: VendorProbe（`mode: .responseBody`）
+- 端点: `https://edgeupdates.microsoft.com/api/products?view=enterprise`（三 channel 共用同一 JSON）
+- 每 channel 用各自锚定的 regex 限定到 `"Product":"Stable|Beta|Dev"` + `"Platform":"MacOS"` 块
+- versionPattern（stable）: `(?s)"Product"\s*:\s*"Stable".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})"`
+- 版本方案: 4 段 `ProductVersion` = 安装包 `CFBundleShortVersionString`，无 `versionIsBuild` 风险
+
+## Changelog
+- stable: changelogURL `https://learn.microsoft.com/deployedge/microsoft-edge-relnotes` (WebView)
+- beta: `https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-beta-channel`
+- dev: `https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-dev-channel`
+- 无 ChangelogRecipe（均为 WebView 内嵌官网页）
+
+## 一键安装
+- stable: ✓ `fwlink/?linkid=2093504` → `MicrosoftEdge-<ver>.pkg`，走系统 pkg 安装
+- beta/dev: 仅检测（无经验证的 per-channel pkg link）
+
+## 建议下一步
+1. Edge Canary (`com.microsoft.edgemac.Canary`) 无可靠公开端点 → 暂不支持，保留在本 audit 记录里
+
+## channel-verify 状态
+- ✓ **stable/beta/dev 全部已验证 2026-06-04**（官方 `.pkg` 经 `pkgutil --expand-full` 取出 payload `.app` 后跑 channel-verify、未安装）。三者 bundle id `com.microsoft.edgemac[.Beta/.Dev]` detect ✓，VendorProbe 各自应答；**版本方案核对通过**——recipe 版本与 `CFBundleShortVersionString` 同为 4 段营销号，无幽灵 build 风险。verdict 显示 UPDATE 是因为企业版 pkg 落后于 recipe 读的消费版渠道，属正常。
+- Canary 无 recipe（范围外、企业 API 也不列），未验证。证据：`application-test/records/com-microsoft-edgemac.md`

@@ -12,6 +12,18 @@ import Foundation
     #expect(v == "4.7.6.0")
 }
 
+// HBuilderX Alpha — alpha.json carries a short "displayVersion" before the real
+// "version" pre-release string. The recipe pattern must skip displayVersion and
+// capture the full "-alpha" build (which matches the installed CFBundleShortVersionString).
+@Test func extractsHBuilderXAlphaVersionFromConfigJSON() {
+    let recipe = try! #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "io.dcloud.HBuilderXAlpha" })
+    #expect(recipe.channel == .alpha)  // linchpin: must match the app's detected channel
+    let body = #"{"displayVersion":"5.11","version":"5.11.2026052520-alpha","release":"https://x"}"#
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern)
+        == "5.11.2026052520-alpha")
+}
+
 @Test func extractsClaudeVersionFromRedirectLocationPath() {
     // Claude's `dmg/latest/redirect` 307s here; the version is a path segment,
     // not the filename (the filename is a content hash). The pattern must read
@@ -208,7 +220,8 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
             name: recipe.bundleID, bundleID: recipe.bundleID,
             shortVersion: "0", buildVersion: nil,
             path: URL(fileURLWithPath: "/Applications/\(recipe.bundleID).app"),
-            isMASApp: false, sparkleFeedURL: nil
+            isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: recipe.channel
         )
         let remote = (try? await source.latestVersion(for: app)) ?? nil
         log("[probe] \(recipe.bundleID) (\(recipe.url.absoluteString))")
@@ -235,6 +248,25 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     #expect(VendorProbeRecipe.extractVersion(
         from: fixture,
         pattern: #"stable\.dl2\.discordapp\.net/distro/app/stable/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#) == "0.0.393")
+}
+
+@Test func discordPTBAndCanaryProbesExtractTheirOwnChannelVersion() {
+    // PTB / Canary mirror Stable: same manifest shape, the version lives in the
+    // per-channel distro url path. Each recipe's pattern is anchored to its OWN
+    // channel literal so it can't grab a neighbour's number, and its `channel`
+    // is the linchpin the source's gate matches against the installed app.
+    let ptbBody = #"{"full":{"host_version":[0,0,237],"url":"https://ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/0.0.237/full.distro"},"deltas":[{"url":"https://ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/0.0.237/from/0.0.236"}]}"#
+    let ptb = registryRecipe("com.hnc.DiscordPTB")
+    #expect(ptb.channel == .ptb)
+    #expect(VendorProbeRecipe.extractVersion(from: ptbBody, pattern: ptb.versionPattern) == "0.0.237")
+
+    let canaryBody = #"{"full":{"host_version":[0,0,1136],"url":"https://canary.dl2.discordapp.net/distro/app/canary/osx/universal/0.0.1136/full.distro"},"deltas":[{"url":"https://canary.dl2.discordapp.net/distro/app/canary/osx/universal/0.0.1136/from/0.0.1135"}]}"#
+    let canary = registryRecipe("com.hnc.DiscordCanary")
+    #expect(canary.channel == .canary)
+    #expect(VendorProbeRecipe.extractVersion(from: canaryBody, pattern: canary.versionPattern) == "0.0.1136")
+
+    // Cross-channel containment: the PTB pattern must NOT match a canary body.
+    #expect(VendorProbeRecipe.extractVersion(from: canaryBody, pattern: ptb.versionPattern) == nil)
 }
 
 @Test func notionProbeExtractsVersionFromRedirectLocation() {

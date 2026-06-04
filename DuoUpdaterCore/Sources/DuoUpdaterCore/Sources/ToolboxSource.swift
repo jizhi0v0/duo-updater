@@ -26,6 +26,19 @@ public struct ToolboxSource: Sendable {
         public let hasUpdate: Bool
         /// Display version of the latest, e.g. "2026.1.3".
         public let latestVersion: String
+        /// The latest build's release-notes page, when the source exposes one.
+        /// JetBrains' releases API carries a per-build `notesLink` (a YouTrack
+        /// article); we surface it so a Toolbox-managed IDE without a structured
+        /// `ChangelogRecipe` still shows real notes in a web view instead of the
+        /// "no changelog" placeholder. nil for sources that publish none (Google's
+        /// Android Studio feed, Air/Fleet Sparkle).
+        public let changelogURL: URL?
+
+        public init(hasUpdate: Bool, latestVersion: String, changelogURL: URL? = nil) {
+            self.hasUpdate = hasUpdate
+            self.latestVersion = latestVersion
+            self.changelogURL = changelogURL
+        }
     }
 
     private let inventory: ToolboxInventory
@@ -74,7 +87,8 @@ public struct ToolboxSource: Sendable {
 
         // JetBrains IDEs: live releases API, falling back to Toolbox's local cache.
         if let latest = try? await apiLatest(code: code, type: tool.channelType) {
-            return Self.verdict(latestBuild: latest.build, display: latest.version, tool: tool)
+            return Self.verdict(latestBuild: latest.build, display: latest.version,
+                                tool: tool, changelogURL: latest.notesLink)
         }
         return localVerdict(tool)
     }
@@ -111,7 +125,10 @@ public struct ToolboxSource: Sendable {
         return Self.verdict(latestBuild: build, display: version, tool: tool)
     }
 
-    private static func verdict(latestBuild: String, display: String, tool: ToolboxInventory.Tool) -> Verdict {
+    private static func verdict(
+        latestBuild: String, display: String, tool: ToolboxInventory.Tool,
+        changelogURL: URL? = nil
+    ) -> Verdict {
         // "Keep version" pin: the user told Toolbox to stay on a version line, so
         // never nag about a build that leaves it. JetBrains/Google build numbers
         // encode the line in their leading branch component (252 == 2025.2,
@@ -122,10 +139,10 @@ public struct ToolboxSource: Sendable {
         if tool.pinnedLine != nil,
            Self.branch(of: latestBuild) != Self.branch(of: tool.installedBuild) {
             let installedDisplay = tool.displayVersion.isEmpty ? display : tool.displayVersion
-            return Verdict(hasUpdate: false, latestVersion: installedDisplay)
+            return Verdict(hasUpdate: false, latestVersion: installedDisplay, changelogURL: changelogURL)
         }
         return Verdict(hasUpdate: VersionComparator.isNewer(latestBuild, than: tool.installedBuild),
-                       latestVersion: display)
+                       latestVersion: display, changelogURL: changelogURL)
     }
 
     /// The leading (branch) component of a build number — "252" of
@@ -165,10 +182,12 @@ public struct ToolboxSource: Sendable {
         VendorProbeRecipe.extractVersion(from: text, pattern: pattern)
     }
 
-    /// Latest (version, build) for a JetBrains product code in a channel. Returns
-    /// nil for unknown codes (e.g. Android Studio's "AI" → empty `{}`) so the
-    /// caller falls back to the local cache.
-    private func apiLatest(code: String, type: String) async throws -> (version: String, build: String)? {
+    /// Latest (version, build, notesLink) for a JetBrains product code in a
+    /// channel. `notesLink` is the build's YouTrack release-notes article when the
+    /// API carries one (nil otherwise). Returns nil for unknown codes (e.g.
+    /// Android Studio's "AI" → empty `{}`) so the caller falls back to the cache.
+    private func apiLatest(code: String, type: String) async throws
+        -> (version: String, build: String, notesLink: URL?)? {
         let endpoint = "https://data.services.jetbrains.com/products/releases?code=\(code)&latest=true&type=\(type)"
         guard let url = URL(string: endpoint) else { return nil }
         var request = URLRequest(url: url)
@@ -181,13 +200,15 @@ public struct ToolboxSource: Sendable {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }
 
-        // Shape: { "<APICODE>": [ { "version": "2026.1.2", "build": "261.…", … } ] }
+        // Shape: { "<APICODE>": [ { "version": "2026.1.2", "build": "261.…",
+        //          "notesLink": "https://youtrack.jetbrains.com/articles/…", … } ] }
         for (_, value) in json {
             if let releases = value as? [[String: Any]],
                let first = releases.first,
                let version = first["version"] as? String,
                let build = first["build"] as? String {
-                return (version, build)
+                let notes = (first["notesLink"] as? String).flatMap(URL.init(string:))
+                return (version, build, notes)
             }
         }
         return nil

@@ -25,9 +25,9 @@ VendorProbe. Pick the lever per app:
 
 **ChangelogRecipe** (native release notes) — `ChangelogRecipe.swift`:
 Slack, Notion, Obsidian, Figma, 1Password, Sublime Text, Calibre, Audacity,
-Blender. (Plus the pre-existing set: VS Code, Zed, Ghostty, VLC, Postman,
-RustDesk, Warp, LM Studio, OrbStack, Tailscale, CleanShot, TablePlus, JetBrains
-Air, Ollama, AppCleaner, …)
+Blender, OpenCode. (Plus the pre-existing set: VS Code, Zed, Ghostty, VLC,
+Postman, RustDesk, Warp, LM Studio, OrbStack, Tailscale, CleanShot, TablePlus,
+JetBrains Air, Ollama, AppCleaner, …)
 
 **VendorProbe** (detection-only, self-updaters) — `VendorProbeRecipe.swift`:
 Discord, Figma, Obsidian, Notion, Slack, 1Password, Sublime Text, Sublime Merge,
@@ -71,14 +71,21 @@ list: Spotify, Paste, ToDesk, WeLink, etc.)
 - **Blender ChangelogRecipe is version-PINNED** to
   `developer.blender.org/docs/release_notes/5.1/`. Bump the URL each Blender minor
   release (Blender exposes no released-only index to auto-follow).
+- **Single-channel on-machine verification done (2026-06-04)** — 44 single-channel
+  apps verified on real bundles (20 pre-installed + 24 install/verify/uninstall via
+  the new `channel-verify --check` full-chain mode); found+fixed a LibreWolf recipe
+  bug (wrong bundle id `org.mozilla`→`net.librewolf.librewolf` + stale GitLab endpoint
+  → Codeberg). Full suite green: **270 tests in 11 suites**. Evidence:
+  `application-test/records/_single-channel-sweep.md`. Skipped: Office pkg apps +
+  Docker (need sudo).
 - **App/ target not build-verified** — the recipe work is in `DuoUpdaterCore`
-  (240 tests green). The bundled `App/Sources/*` UI + `Install/*` WIP committed
+  (270 tests green). The bundled `App/Sources/*` UI + `Install/*` WIP committed
   in 599e8dd was not separately built. Run `cd App && xcodegen generate &&
   xcodebuild … build` (or `make install`) to confirm.
 - **Long-tail apps not attempted** (no clean source found yet or lower priority):
   Karabiner-Elements / Google Drive / OneDrive / Microsoft Teams (pkg installers,
   need sudo), and Audacity/Blender/Calibre changelog is done but their detection
   rides Homebrew cask (auto_updates:false) — no probe needed.
-- **OpenCode** — audit backlog listed it as `C`, but no `ChangelogRecipe` or
-  `ChangelogCatalog` entry exists for `ai.opencode.desktop`; cask
-  `opencode-desktop` is `auto_updates:true`, so Homebrew will not detect it.
+- **OpenCode detection** — `ChangelogRecipe` exists, but downloaded cask
+  verification found no `SUFeedURL`; cask `opencode-desktop` is
+  `auto_updates:true`, so Homebrew will not detect it.

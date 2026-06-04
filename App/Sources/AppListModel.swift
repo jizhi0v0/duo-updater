@@ -180,6 +180,14 @@ final class AppListModel {
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
 
+    /// Held while the auto-check loop is armed so macOS App Nap can't suspend it.
+    /// Without this, a menu-bar (accessory) app with no open window gets napped when
+    /// idle and its `Task.sleep` ticks are throttled/stalled — so the periodic check
+    /// never fires and the icon sits on its zero-badge state until you click the
+    /// menu (which wakes the app and forces a refresh). `…AllowingIdleSystemSleep`
+    /// defeats App Nap but still lets the Mac sleep normally when idle.
+    @ObservationIgnored private var napAssertion: (any NSObjectProtocol)?
+
     /// Watches the app install dirs so a *background* self-update (Chrome's
     /// Keystone, a Sparkle/Squirrel app, brew) flips the Restart badge promptly,
     /// without waiting for a menu open or the next networked check. Both this and
@@ -1653,6 +1661,15 @@ final class AppListModel {
     /// of dev relaunches inside this window is still throttled to one check.
     private static let launchCheckFloor: TimeInterval = 5 * 60
 
+    /// Drop the App Nap opt-out (if held). Called when switching to manual, where
+    /// there's no loop to keep alive.
+    private func releaseNapAssertion() {
+        if let napAssertion {
+            ProcessInfo.processInfo.endActivity(napAssertion)
+            self.napAssertion = nil
+        }
+    }
+
     /// (Re)arm the background auto-check loop from the current frequency setting.
     /// Called at launch and whenever the user changes the frequency. A "manual"
     /// frequency tears the loop down entirely.
@@ -1664,8 +1681,16 @@ final class AppListModel {
         scheduler?.cancel()
         guard let interval = prefs.checkFrequency.interval else {
             scheduler = nil
+            releaseNapAssertion()  // manual mode → let the app nap freely
             Log.app.info("scheduler: manual — no background checks")
             return
+        }
+        // Keep the app out of App Nap while a periodic check is armed, so the loop's
+        // sleeps actually fire when no window is open (see `napAssertion`).
+        if napAssertion == nil {
+            napAssertion = ProcessInfo.processInfo.beginActivity(
+                options: .userInitiatedAllowingIdleSystemSleep,
+                reason: "Periodic update checks")
         }
         Log.app.info("scheduler: every \(Int(interval), privacy: .public)s (last check \(self.lastCheck.map { "\(Int(-$0.timeIntervalSinceNow))s ago" } ?? "never", privacy: .public))")
         scheduler = Task { [weak self] in
@@ -1683,7 +1708,13 @@ final class AppListModel {
                 // Sleep only until the next check is *due* relative to the last one
                 // — zero (run now) when we're already overdue, e.g. a cold launch.
                 let due = (self.lastCheck ?? .distantPast).addingTimeInterval(effectiveInterval)
-                let wait = max(0, due.timeIntervalSinceNow)
+                // A cold launch with nothing in memory yet shows the empty zero-badge
+                // icon until something populates `results`. Check immediately in that
+                // case rather than waiting out the floor, so the menu-bar icon
+                // reflects real state right after (re)launch without a click.
+                let wait = (isFirstCheck && self.results.isEmpty)
+                    ? 0
+                    : max(0, due.timeIntervalSinceNow)
                 if wait > 0 {
                     try? await Task.sleep(for: .seconds(wait))
                     guard !Task.isCancelled else { return }

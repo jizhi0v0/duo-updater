@@ -14,7 +14,7 @@
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | ✗        | —   | ○      | ○           |
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **unknown**。README 中曾列为 `C`，但生产 registry 未找到 `ChangelogRecipe` 或 `ChangelogCatalog` 条目。
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: **unknown**。`ChangelogRecipe` 已接入，但检测源仍未接入。
 
 ## Channel 详情
 
@@ -28,9 +28,9 @@
 - 注意事项: downloaded cask bundle has no `SUFeedURL`; Homebrew cask token 为 `opencode-desktop`，`auto_updates: true`，所以 Homebrew 不会提供检测。
 
 ## Changelog
-- 来源: 未接入
-- 跟随 channel: 未调查
-- Recipe 状态: **缺失**。`rg "ai.opencode|opencode"` 只命中 audit backlog 和 Ollama fixture 文本。
+- 来源: `ChangelogRecipe`
+- 跟随 channel: 否
+- Recipe 状态: 已有，GitHub releases page (`https://github.com/anomalyco/opencode/releases`)
 
 ## 一键安装
 - 状态: 未接入
@@ -38,8 +38,7 @@
 - 阻塞: 需要先确认版本检测或 changelog source。
 
 ## 已知问题
-- 当前 bucket 标记与代码不一致：它不是实际的 changelog-covered app。
+- Changelog coverage is present, but update detection remains unknown.
 
 ## 建议下一步
-1. 先走 `/fragile-recipe OpenCode`（Changelog path）确认 release notes URL 和页面结构。
-2. 如还要检测，继续走 `/fragile-recipe OpenCode`（VendorProbe path）并验证版本方案。
+1. 如要检测，走 `/fragile-recipe OpenCode`（VendorProbe path）并验证版本方案。

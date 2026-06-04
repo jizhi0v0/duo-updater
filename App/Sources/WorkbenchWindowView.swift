@@ -190,7 +190,7 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private func detail(for result: UpdateResult) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            DetailHeader(result: result, mode: mode)
+            DetailHeader(result: result, mode: mode, model: model)
             Divider()
             switch mode {
             case .releaseNotes: ReleaseNotesPane(result: result, model: model)
@@ -198,6 +198,106 @@ struct WorkbenchWindowView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+// MARK: - Workbench action
+
+/// The selected app's primary action, surfaced in the workbench detail header so a
+/// user reading an update's release notes can act on it right there — instead of
+/// having to reopen the menu-bar popover. A deliberately focused mirror of the
+/// popover's `trailing`: it covers the common, safe one-click states (install
+/// progress, Update, Restart, Relaunch) and otherwise stays out of the way, leaving
+/// the gated cases (major upgrades, region locks) to the popover's richer affordances.
+private struct WorkbenchActionView: View {
+    let result: UpdateResult
+    @Bindable var model: AppListModel
+
+    private var stage: InstallStage? { model.installing[result.id] }
+
+    var body: some View {
+        if let stage {
+            installProgress(stage)
+        } else if model.relaunching.contains(result.id) {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Relaunching…").font(.callout).foregroundStyle(.secondary)
+            }
+        } else if model.awaitingQuitConfirm[result.id] != nil {
+            Button("Relaunch") { model.confirmQuit(result.id, proceed: true) }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .help("Quit the app to finish installing the update, then reopen it")
+        } else if let staged = model.actionableStaged(result) {
+            Button("Relaunch") { Task { await model.relaunchStagedUpdate(result) } }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .help("\(result.app.name) already downloaded \(staged.version) — relaunch to apply it")
+        } else if model.needsRestart.contains(result.id) && !result.hasUpdate {
+            Button("Restart") { Task { await model.restart(result) } }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .help("Running an older build — restart to apply the installed update")
+        } else if model.isActionableUpdate(result) {
+            updateAction
+        }
+    }
+
+    /// The install action for an actionable update, mirroring the popover's routing
+    /// for the one-click-safe cases. Major upgrades and region/compat-gated App Store
+    /// apps are intentionally NOT one-click here — they keep their explanatory
+    /// popover affordances in the menu bar — so we show a hint that points there.
+    @ViewBuilder
+    private var updateAction: some View {
+        if result.isMajorUpgrade {
+            // License-boundary warning lives in the popover; don't one-click it here.
+            Label("Major update", systemImage: "exclamationmark.triangle.fill")
+                .font(.callout).foregroundStyle(.orange)
+                .help("Major version upgrade — review and install it from the menu-bar popover")
+        } else if model.canAutoInstall(result) {
+            Button("Update \(result.remote?.displayVersion ?? "")") { Task { await model.install(result) } }
+                .buttonStyle(.borderedProminent)
+                .help("Download and install \(result.app.name) \(result.remote?.displayVersion ?? "")")
+        } else if model.requiresInstaller(result) {
+            Button("Update") { Task { await model.install(result) } }
+                .buttonStyle(.bordered)
+                .help("Downloads the official installer and opens it (asks for admin)")
+        } else if let info = result.remote?.appStore, !info.isRegionMismatch, !info.isLatestMacIncompatible {
+            Button("Get") { if let url = info.deepLink ?? result.remote?.downloadURL { NSWorkspace.shared.open(url) } }
+                .buttonStyle(.bordered)
+                .help("Open in the App Store")
+        } else if let url = result.remote?.downloadURL {
+            Button("Open page") { NSWorkspace.shared.open(url) }
+                .buttonStyle(.bordered)
+                .help("Open the official download page")
+        }
+    }
+
+    @ViewBuilder
+    private func installProgress(_ stage: InstallStage) -> some View {
+        HStack(spacing: 8) {
+            if case .downloading(let f) = stage {
+                ProgressView(value: f).frame(width: 80).controlSize(.small)
+                Text("\(Int(f * 100))%")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .monospacedDigit().frame(width: 40, alignment: .trailing)
+            } else {
+                ProgressView().controlSize(.small)
+                Text(stageLabel(stage)).font(.callout).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func stageLabel(_ stage: InstallStage) -> String {
+        switch stage {
+        case .checking: return "Checking"
+        case .downloading(let f): return "\(Int(f * 100))%"
+        case .verifyingSignature, .verifyingCodeSignature: return "Verifying"
+        case .extracting: return "Extracting"
+        case .installing: return "Installing"
+        case .runningCommand: return "Installing"
+        case .done: return "Done"
+        }
     }
 }
 
@@ -289,6 +389,7 @@ private struct WorkbenchSidebarRow: View {
 private struct DetailHeader: View {
     let result: UpdateResult
     let mode: WorkbenchWindowView.DetailMode
+    @Bindable var model: AppListModel
 
     /// The vendor page to link out to in Release Notes mode.
     private var changelogURL: URL? {
@@ -296,22 +397,35 @@ private struct DetailHeader: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(nsImage: AppIconCache.icon(for: result.app.path.path))
-                .resizable().frame(width: 44, height: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Text(result.app.name).font(.title2).bold()
-                    ChannelTag(channel: result.app.releaseChannel)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                Image(nsImage: AppIconCache.icon(for: result.app.path.path))
+                    .resizable().frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(result.app.name).font(.title2).bold()
+                        ChannelTag(channel: result.app.releaseChannel)
+                    }
+                    versionLine
                 }
-                versionLine
+                Spacer()
+                // The contextual primary action (Update / Restart / Relaunch / Get),
+                // so an update can be acted on right here while its notes are open —
+                // no trip back to the menu-bar popover.
+                WorkbenchActionView(result: result, model: model)
+                if mode == .releaseNotes, let url = changelogURL {
+                    Link(destination: url) {
+                        Label("Open page", systemImage: "safari")
+                    }
+                    .font(.callout)
+                }
             }
-            Spacer()
-            if mode == .releaseNotes, let url = changelogURL {
-                Link(destination: url) {
-                    Label("Open page", systemImage: "safari")
-                }
-                .font(.callout)
+            // Surface an install error inline, same as the popover row does.
+            if let error = model.installErrors[result.id] {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(16)

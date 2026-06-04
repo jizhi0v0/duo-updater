@@ -807,6 +807,249 @@ public enum VendorProbeRegistry {
                     #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*mac_arm\.dmg)"#),
                 kind: .dmg)),
 
+        // Slack (desktop, mac) — the website's own "latest" download link. A
+        // single 302 from slack.com/ssb/download-osx-universal lands on the
+        // versioned package downloads.slack-edge.com/.../mac/universal/<ver>/
+        // Slack-<ver>-macOS.dmg, so the version rides in the resolved filename
+        // (HEAD+follow → lastPathComponent). Use the -universal link, NOT -osx
+        // (that resolves to the x64/Intel build). Detection only — Slack
+        // self-updates via Squirrel; ChangelogRecipe(com.tinyspeck.slackmacgap)
+        // renders the notes natively.
+        VendorProbeRecipe(
+            bundleID: "com.tinyspeck.slackmacgap",
+            url: URL(string: "https://slack.com/ssb/download-osx-universal")!,
+            mode: .redirectFilename,
+            versionPattern: #"^Slack-([0-9]+\.[0-9]+\.[0-9]+)-macOS\.dmg$"#,
+            downloadURL: URL(string: "https://slack.com/downloads/mac"),
+            changelogURL: URL(string: "https://slack.com/release-notes/mac")),
+
+        // Discord — official update manifest (channel=stable, platform=osx). The
+        // version lives ONLY as the JSON array `host_version:[0,0,393]` and as a
+        // path segment in each distro `url` (…/osx/universal/0.0.393/…). The array
+        // is unusable — extractVersion takes capture group 1 only and can't join
+        // three groups (it'd read "0") — so we anchor to the distro url path,
+        // which carries the whole X.Y.Z in one group. Every url in the body (full
+        // + deltas + per-module) targets the same destination version, so first
+        // match is correct; the delta SOURCE (0.0.392) never appears as a
+        // /universal/<v>/ segment. Detection only — Discord self-updates via its
+        // own host updater. ptb/canary ship as separate bundle ids with their own
+        // channel=ptb|canary endpoints — add dedicated recipes if needed.
+        VendorProbeRecipe(
+            bundleID: "com.hnc.Discord",
+            url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=osx&arch=x64")!,
+            mode: .responseBody,
+            versionPattern: #"stable\.dl2\.discordapp\.net/distro/app/stable/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            downloadURL: URL(string: "https://discord.com/download"),
+            changelogURL: URL(string: "https://discord.com/blog")),
+
+        // Notion desktop — public "latest" download redirect. www.notion.so/
+        // desktop/mac/download 307s straight to the versioned installer
+        // (…/Notion-<ver>-universal.dmg); the version is in that `Location`
+        // filename. It redirects on BOTH HEAD and GET, but the target is a
+        // ~203 MB dmg, so don't follow — read the small 307 Location. Use the
+        // `.so` host: it's a single hop, whereas `.com/desktop/mac/download`
+        // bounces through app.notion.com first. Detection only — Notion ships a
+        // universal dmg and self-updates; ChangelogRecipe(notion.id) renders notes.
+        VendorProbeRecipe(
+            bundleID: "notion.id",
+            url: URL(string: "https://www.notion.so/desktop/mac/download")!,
+            mode: .redirectFilename,
+            versionPattern: #"Notion-([0-9]+\.[0-9]+\.[0-9]+)-"#,
+            downloadURL: URL(string: "https://www.notion.com/desktop")!,
+            changelogURL: URL(string: "https://www.notion.com/releases")!,
+            followRedirects: false),
+
+        // Obsidian — official desktop-releases manifest (the same file Obsidian's
+        // own updater reads). Two "latestVersion" keys live here: the TOP-LEVEL
+        // one is STABLE, then a nested "beta" object carries the (currently HIGHER)
+        // insider build. We anchor to the FIRST match so we read STABLE only;
+        // selectHighest stays false (true would grab the bigger beta value and
+        // invent a phantom update for a stable install). Detection only — Obsidian
+        // self-updates; ChangelogRecipe(md.obsidian) renders the notes natively.
+        VendorProbeRecipe(
+            bundleID: "md.obsidian",
+            url: URL(string: "https://raw.githubusercontent.com/obsidianmd/obsidian-releases/master/desktop-releases.json")!,
+            mode: .responseBody,
+            versionPattern: #""latestVersion"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://obsidian.md/download"),
+            changelogURL: URL(string: "https://obsidian.md/changelog/")),
+
+        // Figma desktop — official per-arch "latest" manifest (the same
+        // RELEASE.json the Homebrew cask livecheck reads). `version` is first and
+        // matches the app's CFBundleShortVersionString (e.g. 126.4.11). mac-arm is
+        // the Apple-silicon flavor; an Intel build would use the `mac` path.
+        // Detection only — a Figma-<ver>.zip exists in the same body but was NOT
+        // confirmed same-Team-ID, so no in-place install; Figma also self-updates
+        // via Squirrel. ChangelogRecipe(com.figma.Desktop) renders the notes.
+        VendorProbeRecipe(
+            bundleID: "com.figma.Desktop",
+            url: URL(string: "https://desktop.figma.com/mac-arm/RELEASE.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://www.figma.com/downloads/"),
+            changelogURL: URL(string: "https://www.figma.com/release-notes/")),
+
+        // 1Password 8 — self-updates via its own EdDSA updater, so no standard
+        // source resolves it. The vendor's app-updates.agilebits.com/check JSON
+        // API only serves the NIGHTLY channel for product OPM8 (no stable param
+        // exists), so it can't be used for a stable install. Instead scrape the
+        // stable releases page, whose "1Password for Mac <ver>" titles are
+        // server-rendered and listed newest-first — the FIRST match is the current
+        // stable build (the bare <h1> "1Password for Mac" has no version and is
+        // skipped by the required \s+[0-9]). NOTE: HTML scrape — more brittle than
+        // an API; refresh if it stops matching. Detection only; the same page is
+        // also the ChangelogRecipe(com.1password.1password) source.
+        VendorProbeRecipe(
+            bundleID: "com.1password.1password",
+            url: URL(string: "https://releases.1password.com/mac/stable/")!,
+            mode: .responseBody,
+            versionPattern: #"1Password for Mac\s+([0-9]+\.[0-9]+\.[0-9]+)"#,
+            downloadURL: URL(string: "https://1password.com/downloads/mac/"),
+            changelogURL: URL(string: "https://releases.1password.com/mac/stable/")),
+
+        // Sublime Text 4 — self-updates, so it reaches us here. NOTE: HTML scrape
+        // (no usable API: the /updates/.../updatecheck endpoint 404s and the cask
+        // has no livecheck). The /download page is server-rendered: its latest
+        // marker `<p class="latest"><i>Version:</i> Build 4200</p>` precedes the
+        // descending history, so the FIRST "Build NNNN" is newest. CRITICAL:
+        // capture the FULL "Build NNNN" string, not the bare 4-digit build — the
+        // installed CFBundleShortVersionString is literally "Build 4200" (with the
+        // space), and VersionComparator ranks a number above adjacent text, so a
+        // bare "4200" vs "Build 4200" reads as a perpetual phantom update. Keeping
+        // the "Build " prefix makes it compare like-for-like. Detection only.
+        VendorProbeRecipe(
+            bundleID: "com.sublimetext.4",
+            url: URL(string: "https://www.sublimetext.com/download")!,
+            mode: .responseBody,
+            versionPattern: #"class="latest"><i>Version:</i>\s*(Build\s+4[0-9]{3})"#,
+            downloadURL: URL(string: "https://www.sublimetext.com/download"),
+            changelogURL: URL(string: "https://www.sublimetext.com/download")),
+
+        // Sublime Merge — self-updates, so it reaches us here. NOTE: HTML scrape
+        // (no usable API; mirrors the Sublime Text 4 recipe above — same vendor,
+        // same page shape). The /download page's latest marker
+        // `<p class="latest"><i>Version:</i> Build 2125</p>` precedes the descending
+        // history, so the anchored "Build NNNN" is newest. CRITICAL: capture the
+        // FULL "Build NNNN" string — installed CFBundleShortVersionString is
+        // literally "Build 2125", and a bare "2125" would read as a perpetual
+        // phantom update (VersionComparator ranks a number above adjacent text).
+        // Builds are 2xxx (not 4xxx like Sublime Text); the class="latest" anchor
+        // already makes it single-match. Detection only.
+        VendorProbeRecipe(
+            bundleID: "com.sublimemerge",
+            url: URL(string: "https://www.sublimemerge.com/download")!,
+            mode: .responseBody,
+            versionPattern: #"class="latest"><i>Version:</i>\s*(Build\s+[0-9]{4})"#,
+            downloadURL: URL(string: "https://www.sublimemerge.com/download"),
+            changelogURL: URL(string: "https://www.sublimemerge.com/download")),
+
+        // Plex (desktop, mac) — Plex's own downloads feed (plex.tv/api/downloads/
+        // 6.json is the desktop product; 7.json is the separate PlexHTPC, and the
+        // `plex` cask has no livecheck, so this is the clean source). Anchor to the
+        // `MacOS` block and capture only the 3-component marketing version
+        // (1.112.0), dropping the feed's full `1.112.0.359-0d79a49f`: the app's
+        // CFBundleShortVersionString is the bare 1.112.0, and keeping the trailing
+        // .359 would compare as +359 over a current install (VersionComparator
+        // treats the missing 4th component as 0) — a permanent phantom update. The
+        // MacOS block's top-level `version` precedes its `releases` array, so the
+        // `[^}]*?` reaches it without crossing a `}` and never grabs the (earlier)
+        // Windows block. Detection only — Plex desktop self-updates via Squirrel.
+        VendorProbeRecipe(
+            bundleID: "tv.plex.desktop",
+            url: URL(string: "https://plex.tv/api/downloads/6.json")!,
+            mode: .responseBody,
+            versionPattern: #""MacOS"\s*:\s*\{[^}]*?"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"#,
+            downloadURL: URL(string: "https://www.plex.tv/media-server-downloads/?cat=plex+desktop"),
+            changelogURL: URL(string: "https://www.plex.tv/media-server-downloads/?cat=plex+desktop")),
+
+        // Alfred 5 — Sparkle PLIST appcast (not RSS). Alfred has no Info.plist
+        // SUFeedURL (the feed is configured in Alfred's own Preferences), so it
+        // reaches us here rather than via SparkleAppcastSource — same situation as
+        // the Codex/OrbStack neighbors. The manifest is a single-release plist: the
+        // top-level <key>version</key><string> is the latest build (5.7.3),
+        // unambiguous vs the descending "## Alfred X.Y.Z" history inside
+        // changelogdata. One release listed → first match is correct. Detection
+        // only — Alfred self-updates via Sparkle.
+        VendorProbeRecipe(
+            bundleID: "com.runningwithcrayons.Alfred",
+            url: URL(string: "https://www.alfredapp.com/app/update5/general.xml")!,
+            mode: .responseBody,
+            versionPattern: #"<key>version</key>\s*<string>([0-9][0-9.]*)</string>"#,
+            downloadURL: URL(string: "https://www.alfredapp.com/"),
+            changelogURL: URL(string: "https://www.alfredapp.com/changelog/")),
+
+        // Shottr — its own JSON version check (the same endpoint baked into the app
+        // binary: shottr.cc/api/version.json). NOT a Sparkle appcast — Shottr ships
+        // none (no Info.plist SUFeedURL, /appcast.xml 404s), so it reaches us here.
+        // `latestVersion` is the STABLE marketing version (1.9.1), equal to the
+        // app's CFBundleShortVersionString. A `betaLatestVersion` also lives in the
+        // body — the `"latestVersion"` anchor can't match the `"betaLatestVersion"`
+        // key (different literal prefix), so a stable install is never offered the
+        // beta build. Detection only — Shottr self-updates via its own .pkg updater.
+        VendorProbeRecipe(
+            bundleID: "cc.ffitch.shottr",
+            url: URL(string: "https://shottr.cc/api/version.json")!,
+            mode: .responseBody,
+            versionPattern: #""latestVersion"\s*:\s*"([0-9]+\.[0-9]+(?:\.[0-9]+)?)""#,
+            downloadURL: URL(string: "https://shottr.cc/"),
+            changelogURL: URL(string: "https://shottr.cc/newversion.html")),
+
+        // The Unarchiver (MacPaw) — DevMate Sparkle appcast. Like the Codex/Alfred
+        // neighbors it carries no Info.plist SUFeedURL (DevMate configures the feed
+        // internally), so it reaches us here. The version is the
+        // `sparkle:shortVersionString` ATTRIBUTE on each <enclosure> (NOT an
+        // element); the feed is descending (newest item first), so first match is
+        // the latest. Detection only — self-updates via DevMate's Sparkle.
+        // changelogURL is DevMate's release-notes page (pinned to a build number,
+        // so it lags a release behind — cosmetic; theunarchiver.com has no stable
+        // changelog path).
+        VendorProbeRecipe(
+            bundleID: "com.macpaw.site.theunarchiver",
+            url: URL(string: "https://updates.devmate.com/com.macpaw.site.theunarchiver.xml")!,
+            mode: .responseBody,
+            versionPattern: #"sparkle:shortVersionString="([0-9.]+)""#,
+            downloadURL: URL(string: "https://theunarchiver.com/"),
+            changelogURL: URL(string: "https://updates.devmate.com/releasenotes/147/com.macpaw.site.theunarchiver.html")),
+
+        // Orion (Kagi) — official Sparkle appcast under the macOS-major flavor dir
+        // (`26_0`, the same path the Homebrew cask download uses; the bare
+        // /updates/appcast.xml is a STALE stub frozen at 1.0.0 — don't use it). The
+        // feed lists releases ASCENDING, so selectHighest (not first match, which is
+        // the oldest 0.99) picks the current build. We extract
+        // `sparkle:shortVersionString` (MARKETING version, e.g. 1.0.8) — NOT
+        // `sparkle:version` (the build, e.g. 147/147.1). A vendor probe can only
+        // populate `shortVersion`, so UpdateChecker compares against the installed
+        // CFBundleShortVersionString (1.0.8); feeding the build "147.1" would compare
+        // 147 > 1 and invent a permanent phantom update. Trade-off: blind to a
+        // build-only rebuild at an unchanged marketing version — the conservative,
+        // never-lie choice. Detection only — Orion self-updates via Sparkle.
+        VendorProbeRecipe(
+            bundleID: "com.kagi.kagimacOS",
+            url: URL(string: "https://cdn.kagi.com/updates/26_0/appcast.xml")!,
+            mode: .responseBody,
+            versionPattern: #"<sparkle:shortVersionString>([0-9]+(?:\.[0-9]+)+)</sparkle:shortVersionString>"#,
+            downloadURL: URL(string: "https://browser.kagi.com/"),
+            changelogURL: URL(string: "https://browser.kagi.com/updates/orion-release-notes.html"),
+            selectHighest: true),
+
+        // Dropbox (desktop, mac) — the website's "latest" download link. A single
+        // 302 from www.dropbox.com/download?plat=mac&full=1 lands on the versioned
+        // package edge.dropboxstatic.com/dbx-releng/client/Dropbox%20<ver>.dmg, so
+        // the version rides in the %20-encoded Location filename. The target is a
+        // ~200 MB dmg, so don't follow — read the small 302 Location
+        // (followRedirects:false). NOTE the scheme is 3-component (254.4.2518 =
+        // 254/4/2518, not four) — the pattern is three numeric groups. Detection
+        // only — Dropbox self-updates. (Homebrew cask has no livecheck; its
+        // url/version confirm this host + build.)
+        VendorProbeRecipe(
+            bundleID: "com.getdropbox.dropbox",
+            url: URL(string: "https://www.dropbox.com/download?plat=mac&full=1")!,
+            mode: .redirectFilename,
+            versionPattern: #"Dropbox(?:%20| )([0-9]+\.[0-9]+\.[0-9]+)\.dmg"#,
+            downloadURL: URL(string: "https://www.dropbox.com/install")!,
+            changelogURL: URL(string: "https://www.dropbox.com/release_notes")!,
+            followRedirects: false),
+
         // MacUpdater — version is in an HTML comment marker on the product page.
         // NOTE: HTML scrape — more brittle than an API; refresh if it stops
         // matching.

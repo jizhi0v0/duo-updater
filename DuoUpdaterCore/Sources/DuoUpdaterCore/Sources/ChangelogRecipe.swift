@@ -550,6 +550,210 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
             maxEntries: 1,
             indexLinkPattern: #"href="(?<link>/vlc/releases/\d[^"]*\.html)""#),
+
+        // Slack (desktop, mac) — slack.com/release-notes/mac is a fully
+        // server-rendered page listing every mac release newest-first. Each
+        // release is one <article>:
+        //   <article><a name="11727"></a>
+        //     <h2 class="u-flex u-align--center">Slack 4.50.128</h2>
+        //     <p>May 26, 2026</p>
+        //     <h3>Bug Fixes</h3><ul><li>…</li></ul></article>
+        // The <a name> anchor and the section <h3> vary (Bug Fixes / What's New /
+        // Security Guidance, sometimes several per entry), so the body captures
+        // everything up to </article> and the <li> pattern sweeps all sections.
+        // The date <p> is wrapped optional for safety though every entry has one.
+        ChangelogRecipe(
+            bundleID: "com.tinyspeck.slackmacgap",
+            source: URL(string: "https://slack.com/release-notes/mac")!,
+            entryPattern:
+                #"<article>\s*(?:<a name="[^"]*"></a>\s*)?"#
+                + #"<h2[^>]*>Slack\s+(?<version>[\d.]+)</h2>\s*"#
+                + #"(?:<p[^>]*>(?<date>[^<]*)</p>\s*)?"#
+                + #"(?<body>.*?)</article>"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            maxEntries: 30),
+
+        // Notion — www.notion.com/releases is Notion's *product* changelog: a
+        // server-rendered Next.js page of dated feature posts, NOT the desktop
+        // app's build version. There is no build number on the page, so the post
+        // title is used as the `version` string (e.g. "Plan Mode"). Acceptable
+        // because this is the low-stakes changelog tier — a miss just falls back
+        // to embedding the page. (notion.so/releases 301s here; /help/whats-new
+        // 404s.) Each post is:
+        //   <article class="release_release__…">
+        //     <time class="release_date__…">May 26, 2026</time>
+        //     <a class="release_titleLink__…"><h2 class="… release_title__…">Title</h2></a>
+        //     <article class="contentfulRichText_richText__…">
+        //       <p class="contentfulRichText_paragraph__…">…note…</p> …</article>
+        //   </article>
+        // Items target <p class="contentfulRichText_paragraph__…"> — a class the
+        // decorative <p class="videoPlayer_errorLine__…"> ad-blocker notices do
+        // NOT share, so they're skipped. The inner contentfulRichText article also
+        // closes with </article>, so the body bounds on the next release article.
+        ChangelogRecipe(
+            bundleID: "notion.id",
+            source: URL(string: "https://www.notion.com/releases")!,
+            entryPattern:
+                #"<article class="release_release__[^"]*">.*?"#
+                + #"<time class="release_date__[^"]*">(?<date>[^<]+)</time>.*?"#
+                + #"<h2 class="[^"]*release_title__[^"]*">(?<version>.*?)</h2>"#
+                + #"(?<body>.*?)(?=<article class="release_release__|</main>|<footer)"#,
+            itemPatterns: [
+                #"<p class="contentfulRichText_paragraph__[^"]*">(?<item>.*?)</p>"#,
+            ],
+            maxEntries: 20,
+            minItemLength: 4),
+
+        // Obsidian — obsidian.md/changelog is one server-rendered page listing
+        // every release newest-first, with BOTH Mobile and Desktop posts. Each
+        // block is a sticky header anchor + a notes column. We key on the header
+        // anchor's `-desktop-v` slug, which (a) drops the interleaved Mobile posts
+        // and (b) yields the version directly from the href — more reliable than
+        // the visible <span class="text-sm"> label, which for some releases prints
+        // a truncated "1.12" while the slug stays full ("…-desktop-v1.12.4"). The
+        // date link must be anchored on its `class="font-semibold…"` — a bare href
+        // match also hits in-body links like "<a …>Obsidian Desktop v1.12.7</a>"
+        // and would steal the date. The typeset body closes with three nested
+        // </div> (notes col → basis-3/4 → flex row); the lookahead stops there so
+        // it can't bleed into the next entry. Only <li> become items.
+        ChangelogRecipe(
+            bundleID: "md.obsidian",
+            source: URL(string: "https://obsidian.md/changelog/")!,
+            entryPattern:
+                #"<a href="/changelog/[^"]*-desktop-v(?<version>[\d.]+)/?"\s+class="font-semibold[^"]*"[^>]*>\s*(?<date>[^<]+?)\s*</a>"#
+                + #".*?<div class="typeset break-words"[^>]*>(?<body>.*?)</div>\s*</div>\s*</div>"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            maxEntries: 20),
+
+        // Figma (desktop) — figma.com/release-notes is Figma's *product*
+        // release-notes feed (Figma Design / Make / FigJam announcements), NOT
+        // desktop-app build notes: there is no per-entry app version. The desktop
+        // build version lives only at desktop.figma.com/mac/RELEASE.json with no
+        // human notes, so this product feed is the best changelog surface; a parse
+        // miss just falls back to embedding the page (low stakes). The page is
+        // fully server-rendered. Each post is an <article> with
+        //   <time dateTime="Jun 3, 2026">…</time><h2>Title</h2>…<p>…</p>…
+        // We surface the post title as the entry "version" and the post date as
+        // `date`. Figma's CSS class names are hashed per deploy (fig-XXXX), so we
+        // anchor ONLY on generic tags. The item pattern requires <p + whitespace/`>`
+        // so it cannot match the SVG <path> elements inside the "Copy link" button.
+        ChangelogRecipe(
+            bundleID: "com.figma.Desktop",
+            source: URL(string: "https://www.figma.com/release-notes/")!,
+            entryPattern:
+                #"<article[^>]*>.*?"#
+                + #"<time[^>]*dateTime="(?<date>[^"]+)"[^>]*>[^<]*</time>\s*"#
+                + #"<h2[^>]*>(?<version>.*?)</h2>"#
+                + #"(?<body>.*?)</article>"#,
+            itemPatterns: [#"<p(?:\s[^>]*)?>(?<item>.*?)</p>"#],
+            maxEntries: 20),
+
+        // 1Password 8 (Mac) — releases.1password.com/mac/stable/ is the STABLE
+        // channel notes page (the bare /mac/ landing page is only a two-card hub —
+        // latest beta + latest stable — with no change items; the beta channel
+        // lives at the sibling /mac/beta/). Fully server-rendered, all recent
+        // 8.12.x releases inline, newest-first. Each release is:
+        //   <article class="c-updates__release …">…<time …class="…c-updates__date …">
+        //     June 2 2026</time><h6 class="…c-updates__title">1Password for Mac 8.12.22</h6>
+        //   …<div class="…c-updates__content …"><ul><li>…</li>…</ul></div></article>
+        // We capture the *visible* date text from <time> rather than the datetime
+        // attr, whose value is a space-separated timestamp ("… 00:00:00 +0000 UTC")
+        // that would display ugly. Items keep their trailing GitLab issue refs
+        // (!37801 / #DESK-541) inline as the vendor writes them — the page's
+        // "Show issue numbers" toggle only hides them via CSS.
+        ChangelogRecipe(
+            bundleID: "com.1password.1password",
+            source: URL(string: "https://releases.1password.com/mac/stable/")!,
+            entryPattern:
+                #"<article class="c-updates__release[^"]*"[^>]*>.*?"#
+                + #"<time[^>]*class="[^"]*c-updates__date[^"]*"[^>]*>(?<date>[^<]+)</time>\s*"#
+                + #"<h6[^>]*c-updates__title[^>]*>1Password for Mac\s*(?<version>[\d.]+)\s*</h6>.*?"#
+                + #"<div[^>]*c-updates__content[^>]*>(?<body>.*?)</div>\s*</article>"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+
+        // Sublime Text 4 — the /download page is fully server-rendered and carries
+        // the <h2>Changelog</h2> inline (no hydration). Each release is an <article>
+        // (the newest is <article class="current">) shaped as:
+        //   <h3>Build 4200</h3><div class="release-date">21 May 2025</div>
+        //   <h3>New Features and Improvements</h3>     ← section sub-headings, ignored
+        //   <ul class="topic"><li>…</li>…</ul>          ← one or more lists per build
+        // Versions are 4-digit BUILD numbers. The version h3 is usually "Build 4200",
+        // but the original v4 release reads "4 (Build 4107)", so the h3 capture
+        // tolerates a leading "<digit> (Build " and trailing ")" and grabs only the
+        // 4xxx digits. `body` runs to the next </article>, spanning every section's
+        // <li> in a build; the sub-heading <h3>s between are harmless because
+        // itemPatterns only consume <li>. The page mixes stable + dev builds
+        // newest-first; we take whatever it presents.
+        ChangelogRecipe(
+            bundleID: "com.sublimetext.4",
+            source: URL(string: "https://www.sublimetext.com/download")!,
+            entryPattern:
+                #"<article[^>]*>\s*"#
+                + #"<h3>(?:[^<]*?\(Build\s+)?(?:Build\s+)?(?<version>4\d{3})\)?</h3>\s*"#
+                + #"<div class="release-date">(?<date>[^<]*)</div>"#
+                + #"(?<body>.*?)</article>"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+
+        // Calibre — calibre-ebook.com/whats-new is one server-rendered page listing
+        // every release newest-first (no hydration). Each release is a
+        //   <h2 class="release-title">Release: 9.9 [28 May, 2026]</h2>
+        //   <h3 class="category">New features</h3><ul class="entries">
+        //     <li class="minor"><span class="title">…text…</span>…</li> …
+        // Version and date are both in the <h2> title ("Release: <ver> [<date>]").
+        // The body spans the whole release (several category sections), bounded by
+        // the next release <h2> or the panes-closing triple </div>. itemPatterns
+        // target ONLY <span class="title"> — the real changelog (New features + Bug
+        // fixes); the bare <li> "news sources" lists carry no span and are dropped
+        // as noise. Item text can contain entities (Preferences-&gt;Searching).
+        ChangelogRecipe(
+            bundleID: "net.kovidgoyal.calibre",
+            source: URL(string: "https://calibre-ebook.com/whats-new")!,
+            entryPattern:
+                #"<h2 class="release-title">Release:\s*(?<version>[\d.]+)\s*\[(?<date>[^\]]*)\]</h2>"#
+                + #"(?<body>.*?)(?=<h2 class="release-title">|</div>\s*</div>\s*</div>)"#,
+            itemPatterns: [#"<span class="title">(?<item>.*?)</span>"#]),
+
+        // Audacity — GitHub releases page (same shape as Ollama/RustDesk). Each
+        // release is a <section aria-labelledby="hd-…"> with an sr-only <h2> (e.g.
+        // "Audacity 3.7.7"), a <relative-time datetime="…"> (ISO date), and a
+        // <div class="markdown-body …"> body. The h2 carries an "Audacity " prefix,
+        // so the version group anchors on that literal + a \d.\d.\d triple — which
+        // also skips interleaved "Audacity-4.0.0.alpha-2" pre-release rows (hyphen,
+        // not space). NOTE: Audacity is detected via Homebrew cask, not GitHub —
+        // this recipe supplies NOTES only; a parse miss falls back to the page.
+        ChangelogRecipe(
+            bundleID: "org.audacityteam.audacity",
+            source: URL(string: "https://github.com/audacity/audacity/releases")!,
+            entryPattern:
+                #"<section[^>]*aria-labelledby="hd-[^"]*"[^>]*>\s*"#
+                + #"<h2 class="sr-only"[^>]*>Audacity (?<version>\d+\.\d+\.\d+)</h2>.*?"#
+                + #"<relative-time[^>]*datetime="(?<date>[^T]+)T[^"]*"[^>]*>.*?"#
+                + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
+            itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
+
+        // Blender — developer.blender.org/docs/release_notes/<major.minor>/ is the
+        // clean per-version notes page (the blender.org/download marketing pages are
+        // sprawling splash pages with no parseable block). Each page is an <h1>
+        // "Blender 5.1 Release Notes", a <p>"Blender 5.1 was released on DATE."</p>,
+        // then module-section <ul>s and Compatibility/Bugfixes lists up to the
+        // "Corrective Releases" heading. We surface a COARSE summary (changed-module
+        // list + compat/bugfix bullets). Requiring the literal "was released on" is a
+        // GUARD: the dev-docs nav lists in-development versions first (5.3 Alpha,
+        // 5.2 Beta) whose intros read "is currently in Alpha/Beta" and so DON'T
+        // match — yielding zero entries (safe embed fallback) rather than a partial
+        // changelog. URL is version-pinned to the latest RELEASED minor; bump it when
+        // a new Blender ships (same as the old Warp/Ghostty version-pins) — Blender
+        // exposes no released-only index to follow.
+        ChangelogRecipe(
+            bundleID: "org.blenderfoundation.blender",
+            source: URL(string: "https://developer.blender.org/docs/release_notes/5.1/")!,
+            entryPattern:
+                #"<h1[^>]*>Blender\s+(?<version>\d+\.\d+(?:\.\d+)?)\s+Release Notes.*?</h1>\s*"#
+                + #"<p>Blender\s+[\d.]+\s+was released on\s+(?<date>[^.<]+)\.</p>"#
+                + #"(?<body>.*?)"#
+                + #"(?=<h2[^>]*id="corrective-releases")"#,
+            itemPatterns: [#"<li>\s*(?<item>.*?)\s*</li>"#],
+            maxEntries: 1),
     ]
 
     /// Index lazily; first recipe wins on a duplicate bundle id.

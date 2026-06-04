@@ -45,6 +45,9 @@ struct MenuContentView: View {
             : model.results.filter {
                 model.isActionableUpdate($0) || model.needsRestart.contains($0.id)
                     || model.actionableStaged($0) != nil
+                    // Hold a just-completed row for its brief "Updated ✓" beat, even
+                    // though it's no longer an actionable update, before it drops out.
+                    || model.justUpdated.contains($0.id)
             }
     }
 
@@ -52,12 +55,17 @@ struct MenuContentView: View {
         VStack(spacing: 0) {
             header
             Divider()
+            if model.needsAccessibilitySetup {
+                setupBanner
+                Divider()
+            }
             content
             Divider()
             footer
         }
         .frame(width: 360)
         .task {
+            model.refreshPermissionStatus()
             // One-time wiring: arm the background-check loop and teach the
             // notification's "View" action how to open the window.
             model.start(showUpdates: {
@@ -103,8 +111,39 @@ struct MenuContentView: View {
                     }
                 }
             }
-            .frame(height: 380)
+            // Size to the rows, capped at 380. A fixed 380 left a big empty void
+            // under a single update (the common case) — the popover now hugs its
+            // content for short lists and only starts scrolling once it would
+            // exceed the cap. ~54pt per row is the measured row height.
+            .frame(height: min(380, max(54, CGFloat(visible.count) * 54)))
         }
+    }
+
+    /// Shown when the incremental App Store route is selected but Accessibility isn't
+    /// granted and an App Store update is actually waiting on it — a contextual nudge
+    /// for users who skipped onboarding, routing back to the setup window.
+    private var setupBanner: some View {
+        Button {
+            openWindow(id: WelcomeView.windowID)
+            NSApp.activate(ignoringOtherApps: true)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Accessibility needed").font(.caption).fontWeight(.medium)
+                    Text("App Store updates need it — finish setup")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(Color.orange.opacity(0.08))
     }
 
     private var header: some View {
@@ -153,9 +192,19 @@ struct MenuContentView: View {
             ? "\(model.results.count) apps · up to date"
             : "\(updates) update\(updates == 1 ? "" : "s") available"
         if let last = model.lastCheck {
-            return base + " · checked \(Self.relative.localizedString(for: last, relativeTo: .now))"
+            return base + " · checked \(Self.checkedAgo(last))"
         }
         return base
+    }
+
+    /// "checked just now" / "checked 2m ago". Guards the just-finished case: the
+    /// relative formatter rounds a sub-second (or microscopically future, from
+    /// clock jitter) interval to "in 0 seconds", which read as a wrong-tense
+    /// "checked in 0s" right after a refresh. Anything within a few seconds is
+    /// "just now"; older falls back to the relative formatter.
+    private static func checkedAgo(_ date: Date) -> String {
+        if date.timeIntervalSinceNow > -5 { return "just now" }
+        return relative.localizedString(for: date, relativeTo: .now)
     }
 
     private static let relative: RelativeDateTimeFormatter = {
@@ -370,10 +419,16 @@ private struct AppRow: View {
             // we reopen the app once the new build lands).
             quitToFinishButton(appName)
         } else if model.relaunching.contains(result.id) {
-            // Mid-relaunch: the app is quit and we're waiting for its ShipIt to swap
-            // & relaunch. A spinner here both signals progress and (because it
-            // replaces the button) prevents a second click firing another quit.
+            // Mid-relaunch: the app is quit and we're waiting for the swap to land —
+            // either its own ShipIt (staged self-update) or storedownloadd after we
+            // pressed App Store's Continue. A spinner here both signals progress and
+            // (because it replaces the button) prevents a second click firing again.
             relaunchingIndicator
+        } else if model.justUpdated.contains(result.id) {
+            // Just landed and fully in effect — a brief confirmation so the row reads
+            // as "done", not as a progress bar that vanished. It clears itself after a
+            // couple of seconds, then the up-to-date row filters out.
+            updatedIndicator
         } else if let stage {
             installProgress(stage)
         } else if model.prefs.isIgnored(result.app) {
@@ -546,6 +601,17 @@ private struct AppRow: View {
         }
         .frame(width: 96, alignment: .trailing)
         .help("Quit \(result.app.name) — waiting for it to swap in the new version and reopen")
+    }
+
+    private var updatedIndicator: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            Text("Updated")
+                .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .frame(width: 96, alignment: .trailing)
+        .help("\(result.app.name) updated to \(result.app.shortVersion ?? "the latest version")")
     }
 
     private var restartHelp: String {

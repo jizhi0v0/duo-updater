@@ -147,6 +147,12 @@ enum ArchiveExtractor {
         _ = try? run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"])
     }
 
+    /// Reference holder so a background pipe-drain can publish its result back to
+    /// the caller without Swift 6 flagging a captured-`var` mutation. Single writer
+    /// (the drain closure), read only after a `DispatchGroup` barrier, so the
+    /// `@unchecked` is sound.
+    private final class DataBox: @unchecked Sendable { var data = Data() }
+
     @discardableResult
     private static func run(_ launchPath: String, _ args: [String]) throws
         -> (code: Int32, out: String, err: String)
@@ -158,9 +164,41 @@ enum ArchiveExtractor {
         process.standardOutput = outPipe
         process.standardError = errPipe
         try process.run()
+        // Watchdog: a wedged `hdiutil attach` on a malformed/maliciously-crafted dmg
+        // (or a pathological `ditto`/`tar`) can block indefinitely, freezing the
+        // install actor with no way out. SIGTERM at the cap, then SIGKILL shortly
+        // after if it ignores that (a stuck process can hold its stdout write end
+        // open, so the drain below would never return) — SIGKILL closes the pipe and
+        // unblocks the read for sure. Same pattern as the lsappinfo guard.
+        let pid = process.processIdentifier
+        let term = DispatchWorkItem { process.terminate() }
+        let kill = DispatchWorkItem { Foundation.kill(pid, SIGKILL) }
+        // 5-min ceiling: generous enough that a large Electron-bundle extraction on
+        // a slow disk finishes well within it, short enough that a true hang doesn't
+        // wedge the install indefinitely.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 300, execute: term)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 305, execute: kill)
+        // Drain both pipes CONCURRENTLY. Reading stdout to EOF first and only then
+        // stderr deadlocks when the child fills stderr's ~64KB buffer while stdout
+        // is still open (tar/hdiutil/ditto on a corrupt or pathological archive can
+        // emit large stderr): the child blocks on its stderr write(), stdout never
+        // reaches EOF, and we block forever. Read stderr on a background queue so
+        // both buffers drain in parallel.
+        let errBox = DataBox()
+        let errQueue = DispatchQueue(label: "com.duoupdater.archiveextractor.stderr")
+        let errDone = DispatchGroup()
+        errDone.enter()
+        let errHandle = errPipe.fileHandleForReading
+        errQueue.async {
+            errBox.data = errHandle.readDataToEndOfFile()
+            errDone.leave()
+        }
         let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        errDone.wait()
+        let errData = errBox.data
         process.waitUntilExit()
+        term.cancel()
+        kill.cancel()
         return (
             process.terminationStatus,
             String(data: outData, encoding: .utf8) ?? "",

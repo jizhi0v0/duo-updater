@@ -51,8 +51,24 @@ It **respects each app's own update channel**:
 # Core package
 cd DuoUpdaterCore && swift build && swift test   # some tests hit the network
 
-# App
+# App (open in Xcode to iterate)
 cd App && xcodegen generate && open DuoUpdater.xcodeproj
 ```
 
 Requires macOS 14+, Swift 6, and `xcodegen` (`brew install xcodegen`).
+
+### Install
+
+```sh
+make install   # build + sign (Developer ID) + deploy to /Applications
+```
+
+`make install` builds a Release with a **stable Developer ID signature** and
+deploys the single canonical copy to `/Applications/DuoUpdater.app`. This matters
+for permissions: macOS keys TCC grants (Full Disk Access — the gate behind the
+"access data from other apps" prompt — plus Accessibility, App Management) to the
+app's code identity. An ad-hoc signature changes its CDHash every rebuild and
+invalidates the grant; the Developer ID identity is stable, so a grant given once
+survives all future rebuilds. The script refuses to deploy an ad-hoc binary. After
+the first install, add the app to **Full Disk Access** once (System Settings →
+Privacy & Security) — the script prints the reminder.

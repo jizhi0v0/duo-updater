@@ -115,8 +115,11 @@ public actor PackageInstaller {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: launchPath)
         p.arguments = args
-        p.standardOutput = Pipe()
-        p.standardError = Pipe()
+        // We use only the exit status, so discard output to /dev/null rather than to
+        // undrained `Pipe()`s — an unread pipe deadlocks once the child fills its
+        // ~64KB buffer (the child blocks on write(), we block in waitUntilExit()).
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
         do { try p.run() } catch { return -1 }
         p.waitUntilExit()
         return p.terminationStatus

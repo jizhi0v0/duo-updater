@@ -47,6 +47,21 @@ import Testing
     #expect(VersionComparator.isNewer("1.10", than: "1.9"))
 }
 
+/// A leading "v"/"V" tag must not invert ordering against a bare numeric string.
+/// Before the fix "v2.0" tokenized as `.text("v")` first, and since text sorts
+/// below numbers, "v2.0" compared as OLDER than "2.0" (and "2.0" as NEWER than
+/// "v2.0") — a spurious update in one direction, a missed update in the other.
+@Test func vPrefixDoesNotInvertOrdering() {
+    #expect(VersionComparator.compare("v2.0", "2.0") == .orderedSame)
+    #expect(VersionComparator.compare("2.0", "v2.0") == .orderedSame)
+    #expect(VersionComparator.compare("V1.4.3", "1.4.3") == .orderedSame)
+    #expect(VersionComparator.isNewer("v2.1", than: "2.0"))
+    #expect(VersionComparator.isNewer("2.1", than: "v2.0"))
+    #expect(!VersionComparator.isNewer("v2.0", than: "2.1"))
+    // A bare "v" with no trailing digit is left alone (still a text token).
+    #expect(VersionComparator.compare("v", "v") == .orderedSame)
+}
+
 @Test func evaluatePrefersBuildVersion() {
     let app = InstalledApp(
         name: "X", bundleID: "x", shortVersion: "1.0", buildVersion: "100",

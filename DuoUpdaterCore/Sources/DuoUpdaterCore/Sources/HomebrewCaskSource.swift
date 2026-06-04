@@ -58,9 +58,12 @@ public struct HomebrewCaskSource: UpdateSource {
         guard !entry.autoUpdates else { return nil }
 
         // Cask versions are sometimes "version,revision" or "version:build";
-        // use the leading marketing portion for comparison/display.
+        // use the leading marketing portion for comparison/display. Split on BOTH
+        // separators — keying only on "," left the ":build" form (e.g. "1.2.3:456")
+        // intact, which then mis-compares against the bare installed "1.2.3" and can
+        // surface a spurious update.
         let marketing = entry.version
-            .split(separator: ",").first
+            .split(whereSeparator: { $0 == "," || $0 == ":" }).first
             .map(String.init) ?? entry.version
 
         return RemoteVersion(

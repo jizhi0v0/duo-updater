@@ -302,5 +302,69 @@ public enum GitHubReleaseRegistry {
         GitHubReleaseRule(
             bundleID: "com.crystalidea.macsfancontrol",
             owner: "crystalidea", repo: "macs-fan-control"),
+
+        // Stats — macOS menu-bar system monitor. Tags carry a `v` prefix
+        // (stripped by the default pattern). Stable channel, no prereleases.
+        // Detection-only: a single `Stats.dmg` asset ships, but its Team ID isn't
+        // confirmed against the installed copy, so no installAssetPattern.
+        GitHubReleaseRule(
+            bundleID: "eu.exelban.Stats",
+            owner: "exelban", repo: "stats"),
+
+        // DBeaver Community — tags are bare dotted versions (no `v` prefix), e.g.
+        // `26.1.0`; the `dbeaver/dbeaver` repo tracks the Community version scheme,
+        // so /releases/latest matches the installed CE version directly.
+        // Detection-only.
+        GitHubReleaseRule(
+            bundleID: "org.jkiss.dbeaver.core.product",
+            owner: "dbeaver", repo: "dbeaver"),
+
+        // Beekeeper Studio (Community) — tags carry a `v` prefix (v5.8.1),
+        // stripped by the default pattern. Betas ship as `vX.Y.Z-beta.N` flagged
+        // prerelease, so usePrereleases=false / `/releases/latest` correctly skips
+        // them. Detection-only.
+        GitHubReleaseRule(
+            bundleID: "io.beekeeperstudio.desktop",
+            owner: "beekeeper-studio", repo: "beekeeper-studio"),
+
+        // Insomnia — Kong/insomnia is a monorepo whose Releases are tagged per
+        // package (`core@X.Y.Z` is the Insomnia desktop app; `lib@…`/`inso@…` are
+        // sibling packages). `/releases/latest` could resolve to a non-core
+        // release, so scan the list (usePrereleases) and take the first tag the
+        // pattern matches. The `core@`-anchored pattern matches ONLY the app's
+        // tags — lib@/inso@ yield no capture and are skipped — and since GitHub
+        // returns newest-first, the first `core@` hit is the latest; interleaved
+        // `core@…-beta.N` sort after the stable release of the same line.
+        // Detection-only.
+        GitHubReleaseRule(
+            bundleID: "com.insomnia.app",
+            owner: "Kong", repo: "insomnia",
+            usePrereleases: true,
+            versionPattern: #"core@([0-9]+\.[0-9]+\.[0-9]+)"#),
+
+        // Zen Browser — stable tags carry a trailing letter suffix (e.g.
+        // "1.20.1b"). That suffix is PART of the CFBundleShortVersionString, so
+        // the pattern MUST keep the trailing [a-z] — stripping it would read as a
+        // perpetual update/downgrade. Zen also publishes a rolling "twilight"
+        // prerelease; /releases/latest (usePrereleases: false) excludes it.
+        // Detection-only.
+        GitHubReleaseRule(
+            bundleID: "app.zen-browser.zen",
+            owner: "zen-browser", repo: "desktop",
+            usePrereleases: false,
+            versionPattern: #"([0-9]+\.[0-9]+(?:\.[0-9]+)?[a-z]?)"#),
+
+        // GitHub Desktop — both production and beta/test builds publish here, and
+        // beta/test tags are interleaved AHEAD of production in the releases list
+        // (e.g. `release-3.5.12-beta2` sits above `release-3.5.12`). Betas are
+        // prerelease=true and `/releases/latest` resolves to the production tag,
+        // so usePrereleases=false. The `$`-anchored pattern is belt-and-suspenders:
+        // it captures only the bare X.Y.Z from a plain `release-X.Y.Z` tag and
+        // refuses any `-beta`/`-test` suffix. Detection-only.
+        GitHubReleaseRule(
+            bundleID: "com.github.GitHubClient",
+            owner: "desktop", repo: "desktop",
+            usePrereleases: false,
+            versionPattern: #"release-([0-9]+\.[0-9]+\.[0-9]+)$"#),
     ]
 }

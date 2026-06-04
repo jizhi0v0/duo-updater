@@ -1019,3 +1019,292 @@ private let airFixture = """
     let url = ChangelogService.firstLink(in: shell, pattern: pattern, base: recipe.source)
     #expect(url?.absoluteString == "https://air.dev/assets/index-CtPepV0y.js")
 }
+
+// Slack — two trimmed release <article>s from slack.com/release-notes/mac; the
+// second carries `&lt;`/`&gt;` and `&#8217;` to prove entity decoding.
+private let slackFixture = """
+<article><a name="11727"></a><h2 class="u-flex u-align--center">Slack 4.50.128</h2>\
+<p>May 26, 2026</p><h3>Bug Fixes</h3><ul><li>Thanks for updating the app! Here&#8217;s to incremental gains!</li></ul></article>\
+<article><a name="1959"></a><h2 class="u-flex u-align--center">Slack 4.27.154</h2><p>June 14, 2022</p>\
+<h3>What&#8217;s New</h3><ul><li>Going forward, you&#8217;ll see numbers in a &lt;MAJOR.MINOR.BUILD&gt; sequence.</li></ul></article>
+"""
+
+@Test func extractsSlackEntries() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.tinyspeck.slackmacgap"))
+    let cl = try #require(ChangelogExtractor.extract(from: slackFixture, using: recipe))
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries.first?.version == "4.50.128")
+    #expect(cl.entries.first?.date == "May 26, 2026")
+    #expect(cl.entries.first?.items.count == 1)
+    #expect(cl.entries.first?.items.first == "Thanks for updating the app! Here\u{2019}s to incremental gains!")
+    #expect(cl.entries.last?.items.first == "Going forward, you\u{2019}ll see numbers in a <MAJOR.MINOR.BUILD> sequence.")
+}
+
+// Notion — two product-changelog posts from notion.com/releases. The first has a
+// `videoPlayer_errorLine` decoy <p> (must be excluded), a `&amp;` entity, and an
+// inner <code> tag to prove stripping; the title stands in for the version.
+private let notionFixture = #"""
+<article class="release_release__p2Jug"><div class="release_releaseMeta__bvuES"><div class="release_dateRow__ew79j"><time class="release_date__P0TR_">May 26, 2026</time></div></div><div class="release_content__gxmgt"><a class="release_titleLink__zEwHf" href="/releases/2026-05-26"><h2 class="semanticTypography_semanticTypography__mWJkv release_title__o1nuh">Merge cells in simple tables</h2></a><article class="contentfulRichText_richText__rW7Oq"><p class="videoPlayer_errorLine__pR8bX">Uh-oh! Your ad blocker is preventing the video from playing.</p><p class="contentfulRichText_paragraph___hjRE">Finally! Merge cells in simple tables &amp; databases.</p><p class="contentfulRichText_paragraph___hjRE">Select multiple cells → open the cell menu → select <code class="contentfulRichText_code__RWBxk">Merge</code>.</p></article></div></article><article class="release_release__p2Jug"><div class="release_releaseMeta__bvuES"><div class="release_dateRow__ew79j"><time class="release_date__P0TR_">May 7, 2026</time></div></div><div class="release_content__gxmgt"><a class="release_titleLink__zEwHf" href="/releases/2026-05-07"><h2 class="semanticTypography_semanticTypography__mWJkv release_title__o1nuh">Plan Mode</h2></a><article class="contentfulRichText_richText__rW7Oq"><p class="contentfulRichText_paragraph___hjRE">Your agent now drafts a plan before making significant changes.</p></article></div></article></main>
+"""#
+
+@Test func extractsNotionEntries() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "notion.id"))
+    let cl = try #require(ChangelogExtractor.extract(from: notionFixture, using: recipe))
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries.first?.version == "Merge cells in simple tables")
+    #expect(cl.entries.first?.date == "May 26, 2026")
+    #expect(cl.entries.first?.items.count == 2)   // videoPlayer decoy <p> excluded
+    #expect(cl.entries.first?.items.first == "Finally! Merge cells in simple tables & databases.")
+    #expect(cl.entries.last?.version == "Plan Mode")
+    #expect(cl.entries.last?.items.count == 1)
+}
+
+// Obsidian — a trimmed desktop block (1.12.3) from obsidian.md/changelog with a
+// `&quot;` entity and an inline <code> tag.
+private let obsidianFixture = #"""
+<div class="flex py-16 flex-col md:flex-row">
+	<div class="grow">
+		<div class="md:sticky md:top-[var(--header-height)]">
+			<a href="/changelog/2026-02-23-desktop-v1.12.3/" class="font-semibold text-3xl sm:text-xl">
+				February 23, 2026
+			</a>
+			<div class="font-mono mt-2 text-muted">
+				<a href="/changelog/2026-02-23-desktop-v1.12.3/" class="flex items-center gap-4">
+					<span class="text-sm">1.12.3
+						<span span class=""> Desktop</span>
+					</span>
+				</a>
+			</div>
+		</div>
+	</div>
+	<div class="md:basis-3/4">
+		<div class="typeset break-words" dir="ltr">
+			<h2>No longer broken</h2>
+<ul>
+<li>Fixed copy-paste converting links and callouts into standard Markdown.</li>
+<li>File explorer: Fixed &quot;Duplicate&quot; menu item generating an incomplete folder name.</li>
+</ul>
+<h2>Developers</h2>
+<ul>
+<li>Added <code>appendBinary</code> method to the vault and adapter API.</li>
+</ul>
+		</div>
+	</div>
+</div>
+"""#
+
+@Test func extractsObsidianEntries() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "md.obsidian"))
+    let cl = try #require(ChangelogExtractor.extract(from: obsidianFixture, using: recipe))
+    #expect(cl.entries.count == 1)
+    #expect(cl.entries.first?.version == "1.12.3")
+    #expect(cl.entries.first?.date == "February 23, 2026")
+    #expect(cl.entries.first?.items.count == 3)
+    #expect(cl.entries.first?.items[1] == "File explorer: Fixed \"Duplicate\" menu item generating an incomplete folder name.")
+    #expect(cl.entries.first?.items[2] == "Added appendBinary method to the vault and adapter API.")
+}
+
+// Figma — two product release-notes <article>s from figma.com/release-notes; the
+// first has a <strong> to strip and a `&#x27;` entity to decode. Title = version.
+private let figmaFixture = """
+<article aria-label="Plan smarter" class="fig-1ud82tx">\
+<div class="fig-1u7wo0i">\
+<time dateTime="Jun 3, 2026" class="fig-4tc1ef">Jun 3, 2026</time>\
+<h2 class="fig-1u8vp4l">Plan smarter with more context in Make</h2>\
+</div>\
+<div class="fig-k1i24q">\
+<p class="fig-jco665"><strong>Plan mode</strong></p>\
+<p class="fig-jco665">It&#x27;s most useful for complex work.</p>\
+</div></article>\
+<article aria-label="Sharper controls" class="fig-1ud82tx">\
+<div class="fig-1u7wo0i">\
+<time dateTime="Jun 1, 2026" class="fig-4tc1ef">Jun 1, 2026</time>\
+<h2 class="fig-1u8vp4l">Sharper controls for every slot</h2>\
+</div>\
+<div class="fig-k1i24q">\
+<p class="fig-jco665">New slot settings let you set guardrails.</p>\
+</div></article>
+"""
+
+@Test func extractsFigmaEntries() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.figma.Desktop"))
+    let cl = try #require(ChangelogExtractor.extract(from: figmaFixture, using: recipe))
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries.first?.version == "Plan smarter with more context in Make")
+    #expect(cl.entries.first?.date == "Jun 3, 2026")
+    #expect(cl.entries.first?.items.count == 2)
+    #expect(cl.entries.first?.items.first == "Plan mode")              // <strong> stripped
+    #expect(cl.entries.first?.items.last == "It's most useful for complex work.")  // &#x27; decoded
+    #expect(cl.entries.last?.version == "Sharper controls for every slot")
+    #expect(cl.entries.last?.items.count == 1)
+}
+
+// 1Password — two stable release <article>s from releases.1password.com/mac/stable/;
+// items keep their GitLab issue refs inline, and the first carries `&rsquo;`.
+private let onePasswordFixture = """
+<article class="c-updates__release u-mb-6"><header class="c-updates__header">\
+<a href=#1password-for-mac-8.12.22 class="c-updates__anchor">\
+<time datetime="2026-06-02 00:00:00 +0000 UTC" class="c-heading c-updates__date u-mb-2 u-is-displayblock">June 2 2026</time>\
+<h6 class="c-heading c-updates__title">1Password for Mac 8.12.22</h6></a></header>\
+<div class="c-updates__content u-py-8"><ul>\
+<li>We&rsquo;ve improved the scrolling experience. <span class='c-icon c-icon--gitlab'>!37801</span></li></ul></div></article>\
+<article class="c-updates__release u-mb-6"><header class="c-updates__header">\
+<a href=#1password-for-mac-8.12.21 class="c-updates__anchor">\
+<time datetime="2026-05-20 00:00:00 +0000 UTC" class="c-heading c-updates__date u-mb-2 u-is-displayblock">May 20 2026</time>\
+<h6 class="c-heading c-updates__title">1Password for Mac 8.12.21</h6></a></header>\
+<div class="c-updates__content u-py-8"><ul>\
+<li>You can now use Codex to interact directly with 1Password Environments. <span class='c-icon c-icon--gitlab'>!37261</span></li>\
+<li>Fixed an issue with autofill. <span class='c-icon c-icon--gitlab'>#DESK-541</span></li></ul></div></article>
+"""
+
+@Test func extractsOnePasswordEntries() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.1password.1password"))
+    let cl = try #require(ChangelogExtractor.extract(from: onePasswordFixture, using: recipe))
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries.first?.version == "8.12.22")
+    #expect(cl.entries.first?.date == "June 2 2026")
+    #expect(cl.entries.first?.items.count == 1)
+    #expect(cl.entries.first?.items.first == "We\u{2019}ve improved the scrolling experience. !37801")
+    #expect(cl.entries.last?.version == "8.12.21")
+    #expect(cl.entries.last?.items.count == 2)
+}
+
+// Sublime Text — two /download build blocks; the 4200 block keeps an `&amp;`
+// entity and an inline <tt> tag. Versions are 4-digit build numbers.
+private let sublimeFixture = """
+<h2>Changelog</h2>
+<article class="current">
+<h3>Build 4200</h3>
+<div class="release-date">21 May 2025</div>
+<p>We're planning on making some changes to the supported plugin Python versions.</p>
+<h3>New Features and Improvements</h3>
+<ul class="topic">
+    <li>Sidebar can now be moved to the right side using the <tt>"sidebar_on_right"</tt> setting</li>
+    <li>Mac: Added security entitlements allowing plugins &amp; build systems to request the camera and microphone</li>
+</ul>
+</article>
+
+<article>
+<h3>Build 4192</h3>
+<div class="release-date">20 Jan 2025</div>
+<ul class="topic">
+    <li>Fixed tab not working when tab completion is disabled</li>
+</ul>
+</article>
+"""
+
+@Test func extractsSublimeTextEntries() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.sublimetext.4"))
+    let cl = try #require(ChangelogExtractor.extract(from: sublimeFixture, using: recipe))
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries.first?.version == "4200")
+    #expect(cl.entries.first?.date == "21 May 2025")
+    #expect(cl.entries.first?.items.count == 2)
+    #expect(cl.entries.first?.items[1] == "Mac: Added security entitlements allowing plugins & build systems to request the camera and microphone")
+    #expect(cl.entries.last?.version == "4192")
+}
+
+// Calibre — calibre-ebook.com/whats-new: version+date in the <h2> title; items
+// are <span class="title"> only (bare news-source <li> dropped); &gt; entity.
+private let calibreFixture = """
+<div class="panes">
+<div class="pane" id="release-pane">
+<div class="release">
+    <h2 class="release-title">Release: 9.9 [28 May, 2026]</h2>
+<h3 class="category">New features</h3><ul class="entries">
+<li class="minor"><span class="title">A new option to keep the current search when switching Virtual libraries under Preferences-&gt;Searching</span>
+<p class="tickets">Closes tickets: <a href="https://bugs.launchpad.net/calibre/+bug/2151262">2151262</a></p>
+</li>
+</ul>
+<h3 class="category">Bug fixes</h3><ul class="entries">
+<li class="minor"><span class="title">Linux: Fix SSL certificate loading not working on Fedora 44</span>
+</li>
+</ul>
+<h3 class="category">New news sources</h3>
+<ul class="entries">
+<li>SuperInteressante by Pedro Henrique Souza</li>
+</ul>
+    </div>
+    </div>
+    </div>
+"""
+
+@Test func extractsCalibreEntries() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "net.kovidgoyal.calibre"))
+    let cl = try #require(ChangelogExtractor.extract(from: calibreFixture, using: recipe))
+    #expect(cl.entries.count == 1)
+    #expect(cl.entries.first?.version == "9.9")
+    #expect(cl.entries.first?.date == "28 May, 2026")
+    #expect(cl.entries.first?.items.count == 2)   // news-source <li> excluded
+    #expect(cl.entries.first?.items.first == "A new option to keep the current search when switching Virtual libraries under Preferences->Searching")
+}
+
+// Audacity — GitHub releases page; the "Audacity " + x.y.z anchor skips the
+// "Audacity-4.0.0.alpha-2" prerelease (hyphen, not space). &amp; + nested <a>.
+private let audacityFixture = """
+<section aria-labelledby="hd-3-7-7" data-hpc>
+  <h2 class="sr-only" id="hd-3-7-7">Audacity 3.7.7</h2>
+  <relative-time datetime="2025-12-11T19:48:17Z" class="no-wrap">Dec 11, 2025</relative-time>
+  <div data-test-selector="body-content" class="markdown-body tmp-my-3">
+    <p>This is a hotfix release.</p>
+    <ul>
+      <li><a class="issue-link" href="#9940">#9940</a> Added checksum to WavPack export &amp; metadata (thanks @ajsand)</li>
+      <li>Fixed Export &amp; Import crash on macOS</li>
+    </ul>
+  </div>
+</div>
+<section aria-labelledby="hd-4-0-0-alpha" data-hpc>
+  <h2 class="sr-only" id="hd-4-0-0-alpha">Audacity-4.0.0.alpha-2</h2>
+  <relative-time datetime="2025-11-03T10:00:00Z" class="no-wrap">Nov 3, 2025</relative-time>
+  <div data-test-selector="body-content" class="markdown-body tmp-my-3"><ul><li>Alpha preview</li></ul></div>
+</div>
+<section aria-labelledby="hd-3-7-6" data-hpc>
+  <h2 class="sr-only" id="hd-3-7-6">Audacity 3.7.6</h2>
+  <relative-time datetime="2025-12-04T12:00:00Z" class="no-wrap">Dec 4, 2025</relative-time>
+  <div data-test-selector="body-content" class="markdown-body tmp-my-3"><ul><li>#9742 Added FFmpeg 8 support</li></ul></div>
+</div>
+"""
+
+@Test func extractsAudacityEntriesSkippingAlpha() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "org.audacityteam.audacity"))
+    let cl = try #require(ChangelogExtractor.extract(from: audacityFixture, using: recipe))
+    #expect(cl.entries.count == 2)   // alpha-2 block skipped
+    #expect(cl.entries.first?.version == "3.7.7")
+    #expect(cl.entries.first?.date == "2025-12-11")
+    #expect(cl.entries.first?.items.count == 2)
+    #expect(cl.entries.first?.items.first == "#9940 Added checksum to WavPack export & metadata (thanks @ajsand)")
+    #expect(cl.entries[1].version == "3.7.6")
+}
+
+// Blender — dev-docs per-version page; "was released on" guard. &amp; entity.
+private let blenderFixture = """
+<h1 id="blender-51-release-notes">Blender 5.1 Release Notes<a class="headerlink" href="#blender-51-release-notes">&para;</a></h1>
+<p>Blender 5.1 was released on March 17, 2026.</p>
+<p>Check out the final <a href="https://www.blender.org/download/releases/5-1/">release notes on blender.org</a>.</p>
+<ul>
+<li><a href="animation_rigging/">Animation &amp; Rigging</a></li>
+<li><a href="eevee/">EEVEE &amp; Viewport</a></li>
+<li><a href="geometry_nodes/">Geometry Nodes</a></li>
+</ul>
+<h2 id="compatibility">Compatibility<a class="headerlink" href="#compatibility">&para;</a></h2>
+<ul>
+<li>Node Tools now have a global unique idname requirement.</li>
+</ul>
+<h2 id="bugfixes">Bugfixes<a class="headerlink" href="#bugfixes">&para;</a></h2>
+<ul>
+<li><a href="bugfixes/">Fixes for issues present in previous versions</a></li>
+</ul>
+<h2 id="corrective-releases"><a href="corrective_releases/">Corrective Releases</a></h2>
+"""
+
+@Test func extractsBlenderEntryWithReleasedGuard() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "org.blenderfoundation.blender"))
+    let cl = try #require(ChangelogExtractor.extract(from: blenderFixture, using: recipe))
+    #expect(cl.entries.count == 1)
+    #expect(cl.entries.first?.version == "5.1")
+    #expect(cl.entries.first?.date == "March 17, 2026")
+    #expect(cl.entries.first?.items.first == "Animation & Rigging")   // &amp; decoded
+    // An in-development page ("is currently in Beta") must NOT match → no entries.
+    let beta = "<h1 id=\"x\">Blender 5.2 Release Notes</h1>\n<p>Blender 5.2 is currently in Beta until June 2026.</p>\n<h2 id=\"corrective-releases\">x</h2>"
+    #expect(ChangelogExtractor.extract(from: beta, using: recipe) == nil)
+}

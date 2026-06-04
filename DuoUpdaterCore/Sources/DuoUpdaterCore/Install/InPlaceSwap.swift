@@ -108,9 +108,29 @@ enum InPlaceSwap {
     }
 
     private static func privilegedReplace(newApp: URL, target: URL) throws {
+        // Materialize the replacement *fully* before the original is touched, then
+        // swap via two same-directory renames. Never `rm` the original before its
+        // replacement exists on disk: a `rm -rf target && ditto` would, if the
+        // process were killed (or power lost) in the gap, leave the user with a
+        // destroyed app and no recovery — contradicting this module's atomicity
+        // guarantee. With this ordering:
+        //   • killed after ditto, before the renames → original intact, `.duo-new`
+        //     leftover (swept by the leading `rm -rf` on the next attempt);
+        //   • killed between the two renames → original is at `.duo-old`,
+        //     recoverable, and the trailing `||` restores it in-band.
+        // Each `mv` of a directory on the same volume is an atomic rename, so the
+        // only missing-app window is the microscopic gap between two renames, and
+        // even that is recoverable via `.duo-old`.
+        let new = shellQuote(target.path + ".duoupdater-new")
+        let old = shellQuote(target.path + ".duoupdater-old")
+        let tgt = shellQuote(target.path)
+        let src = shellQuote(newApp.path)
         let shell = """
-        /bin/rm -rf \(shellQuote(target.path)) && \
-        /usr/bin/ditto \(shellQuote(newApp.path)) \(shellQuote(target.path))
+        /bin/rm -rf \(new) \(old); \
+        /usr/bin/ditto \(src) \(new) && \
+        /bin/mv \(tgt) \(old) && \
+        { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt); false; }; } && \
+        /bin/rm -rf \(old)
         """
         let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
 

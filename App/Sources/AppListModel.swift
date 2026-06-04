@@ -45,6 +45,21 @@ final class AppListModel {
     /// update" affordance; tapping it resumes the matching `quitContinuations` entry,
     /// which presses the App Store sheet's Continue button.
     private(set) var awaitingQuitConfirm: [String: String] = [:]
+    /// App ids that just finished updating and whose new build is already fully in
+    /// effect (in-place swap, or an incremental App Store update that already quit +
+    /// reopened the app). Without this the row would vanish the instant the on-disk
+    /// version swaps — which reads as "did it fail?" mid-progress. We hold the row a
+    /// couple of seconds showing an "Updated ✓" confirmation, then let it drop out.
+    private(set) var justUpdated: Set<String> = []
+    /// Live Accessibility (AX) trust, mirrored from `AXIsProcessTrusted()`. Unlike
+    /// App Management, AX *does* expose a status, so onboarding/Settings can show it
+    /// flip to "Granted" the moment the user toggles it — we poll it while a relevant
+    /// window is open (`begin/endTrustPolling`).
+    private(set) var accessibilityTrusted = AppStoreAXInstaller.isTrusted
+    /// Live App Management (`kTCCServiceSystemPolicyAppBundles`) status, read via the
+    /// private `TCCAccessPreflight` SPI. `.unknown` when the SPI is unavailable — the UI
+    /// falls back to its honest "can't verify, grant to be safe" presentation then.
+    private(set) var appManagementStatus = TCCPreflight.appManagementStatus()
     /// Suspended `confirmQuit` calls from the AX installer, keyed by app id, resumed
     /// by `confirmQuit(_:proceed:)` when the user accepts or dismisses the prompt.
     @ObservationIgnored private var quitContinuations: [String: CheckedContinuation<Bool, Never>] = [:]
@@ -146,6 +161,20 @@ final class AppListModel {
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
 
+    /// Watches the app install dirs so a *background* self-update (Chrome's
+    /// Keystone, a Sparkle/Squirrel app, brew) flips the Restart badge promptly,
+    /// without waiting for a menu open or the next networked check. Both this and
+    /// the periodic backstop below are network-free — they just trigger
+    /// `refreshLocal` (disk rescan + restart/staging recompute).
+    @ObservationIgnored private var appDirWatcher: AppDirectoryWatcher?
+    /// Slow backstop in case an FS event is missed (a dir we don't watch, a
+    /// coalesced burst we never saw). Re-derives restart state on a lazy cadence.
+    @ObservationIgnored private var localRescanTimer: Task<Void, Never>?
+    private let localRescanInterval: Duration = .seconds(180)  // 3 min
+    /// Coalesce background-triggered rescans: a flurry of FS events plus a timer
+    /// tick shouldn't stack up redundant scans on top of each other.
+    @ObservationIgnored private var localRescanRunning = false
+
     /// Periodic "your app downloaded an update on its own — relaunch to apply it"
     /// reminder. Decoupled from the (possibly hours-long) update-check interval:
     /// once we detect a self-staged build, we nudge right away and then keep
@@ -191,6 +220,93 @@ final class AppListModel {
         if openWindowCount == 0 { NSApp.setActivationPolicy(.accessory) }
     }
 
+    // MARK: - Accessibility trust polling
+
+    @ObservationIgnored private var trustPollTask: Task<Void, Never>?
+    @ObservationIgnored private var trustPollers = 0
+    @ObservationIgnored private var trustObserver: NSObjectProtocol?
+    /// Set while a drag-panel is up, so the moment we detect the corresponding grant we
+    /// can dismiss that now-pointless panel. Both are now detectable — Accessibility via
+    /// `AXIsProcessTrusted()`, App Management via the `TCCAccessPreflight` SPI.
+    @ObservationIgnored private var awaitingAccessibilityGrant = false
+    @ObservationIgnored private var awaitingAppManagementGrant = false
+
+    /// Refresh both mirrored permission states once, and auto-dismiss a drag-panel whose
+    /// grant just landed. Cheap: `AXIsProcessTrusted()` + one `TCCAccessPreflight` call.
+    ///
+    /// Caveat we can't engineer around for *Accessibility*: TCC reflects a *grant* to a
+    /// running process live, but a *revocation* is cached — `AXIsProcessTrusted()` keeps
+    /// returning true for a process that has already used Accessibility until it
+    /// relaunches. So that flips false→true on its own but true→false only after a
+    /// restart. (App Management goes through `tccd` each call, so it tracks both ways
+    /// better.) The distributed-notification hook below catches changes promptly.
+    func refreshPermissionStatus() {
+        let trusted = AppStoreAXInstaller.isTrusted
+        accessibilityTrusted = trusted
+        if trusted, awaitingAccessibilityGrant {
+            awaitingAccessibilityGrant = false
+            permissionFlow.closePanel(returnToPreviousApp: true)
+        }
+
+        let appMgmt = TCCPreflight.appManagementStatus()
+        appManagementStatus = appMgmt
+        if appMgmt == .granted, awaitingAppManagementGrant {
+            awaitingAppManagementGrant = false
+            permissionFlow.closePanel(returnToPreviousApp: true)
+        }
+
+        logPermissionsOnce()
+    }
+
+    /// Track AX trust while a permission-aware window (Welcome, Settings) is open, so a
+    /// freshly-granted toggle reflects without a relaunch. Two signals: macOS's TCC
+    /// change notification (`com.apple.accessibility.api`, fires the instant the user
+    /// flips the switch) plus a slow poll as a backstop. Ref-counted; pair with `end`.
+    func beginTrustPolling() {
+        trustPollers += 1
+        refreshPermissionStatus()
+        if trustObserver == nil {
+            trustObserver = DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("com.apple.accessibility.api"),
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                // TCC can lag the notification slightly — re-check now and once more shortly.
+                Task { @MainActor in
+                    self?.refreshPermissionStatus()
+                    try? await Task.sleep(for: .milliseconds(500))
+                    self?.refreshPermissionStatus()
+                }
+            }
+        }
+        guard trustPollTask == nil else { return }
+        trustPollTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.5))
+                self?.refreshPermissionStatus()
+            }
+        }
+    }
+
+    func endTrustPolling() {
+        trustPollers = max(0, trustPollers - 1)
+        if trustPollers == 0 {
+            trustPollTask?.cancel()
+            trustPollTask = nil
+            if let trustObserver {
+                DistributedNotificationCenter.default().removeObserver(trustObserver)
+                self.trustObserver = nil
+            }
+        }
+    }
+
+    /// True when the user is on the incremental App Store route, AX isn't granted, and
+    /// at least one actionable App Store update is waiting on it — i.e. a setup nudge
+    /// is genuinely warranted (vs. nagging users who don't use that route).
+    var needsAccessibilitySetup: Bool {
+        guard prefs.appStoreUpdateStrategy == .incremental, !accessibilityTrusted else { return false }
+        return results.contains { isActionableUpdate($0) && $0.remote?.appStore?.trackID != nil }
+    }
+
     /// Whether a *user-present* refresh has read the TestFlight container yet this
     /// launch. The silent background scheduler never reads it (so a cold launch
     /// can't trigger the "access data from other apps" prompt out of nowhere); the
@@ -213,6 +329,10 @@ final class AppListModel {
         // Arm the background auto-check loop at launch — not on first menu open —
         // so a menu-bar app that's never clicked still checks on schedule.
         reschedule()
+        // Watch the app dirs (+ a slow backstop) so a background self-update —
+        // Chrome's Keystone staging a new build, a Sparkle app swapping itself —
+        // flips the Restart badge without waiting for a menu open or networked check.
+        armLocalRescan()
     }
 
     /// The ordered source stack, rebuilt per check so it picks up a token change
@@ -376,13 +496,14 @@ final class AppListModel {
         }
     }
 
-    /// Start loading TestFlight's inventory (off-main) and wait only briefly. Its DB
-    /// is in another app's sandbox container, so `open()` is gated by the "access
-    /// data from other apps" TCC prompt and blocks until the user answers — local
-    /// reads are otherwise milliseconds, so a timeout here means "the prompt is up".
-    /// On timeout we return an empty, `accessible == false` inventory so the check
-    /// proceeds unfrozen, and hand back the still-running loader so the caller can
-    /// re-apply once the user clicks Allow.
+    /// Start loading TestFlight's inventory (off-main) and wait only briefly, then
+    /// take whatever's ready. Its DB is in another app's sandbox container, so
+    /// `open()` is gated by the "access data from other apps" TCC prompt and blocks
+    /// until the user answers — local reads are otherwise milliseconds, so a timeout
+    /// here means "the prompt is up". On timeout we return an empty, `accessible ==
+    /// false` inventory so the caller proceeds unfrozen, and hand back the still-
+    /// running loader so it can re-apply once the user clicks Allow (callers that
+    /// don't need that, e.g. a single-app recheck, just ignore the loader).
     private static func beginTestFlightLoad(
         timeout: Duration = .seconds(2)
     ) async -> (inventory: TestFlightInventory, pendingLoader: Task<TestFlightInventory, Never>?) {
@@ -430,28 +551,27 @@ final class AppListModel {
         changelogTasks.values.forEach { $0.cancel() }
         changelogTasks = [:]
         isScanning = true
-        // Build both inventories OFF the main thread. Each reads a local store in
-        // its initializer; TestFlight's is TCC-gated and can block (see
-        // `beginTestFlightLoad`). One Toolbox + one TestFlight snapshot, shared by
-        // the scan (to tag managed apps) and the checker (latest-build info).
-        //
-        // The TestFlight read is skipped entirely on a background (non-user-present)
-        // refresh: reading another app's container triggers the "access data from
-        // other apps" prompt, which mustn't fire from a silent scheduled check. We
-        // pass a `.accessible == false` sentinel instead, so managed-app tagging
-        // simply carries over from the last user-present check.
-        let testflight: TestFlightInventory
-        if allowTestFlight {
-            let (loaded, pendingTestFlight) = await Self.beginTestFlightLoad()
-            if let pendingTestFlight { reapplyTestFlightWhenGranted(pendingTestFlight) }
-            testflight = loaded
-            testFlightReadThisSession = true
-        } else {
-            testflight = TestFlightInventory(macRows: [], accessible: false)
-        }
+        // The Toolbox inventory and the on-disk scan are local and fast. The
+        // TestFlight inventory is the one TCC-gated read — another app's sandbox
+        // container — that can sit on the "access data from other apps" prompt. So
+        // we DON'T let it gate the visible list: scan and show apps immediately with
+        // no TestFlight data, then fold its tags in once the read lands (or hand it
+        // to the re-apply path if the prompt is still up). A TestFlight install may
+        // briefly show as a MAS app until then; the re-tag below corrects it.
         let toolbox = await Task.detached(priority: .userInitiated) { ToolboxInventory() }.value
-        let found = await Task.detached(priority: .userInitiated) {
-            AppScanner(toolbox: toolbox, testflight: testflight).scan()
+
+        // Start the TCC-gated TestFlight read OFF the critical path. Skipped on a
+        // silent background refresh, which must never surface the prompt unprompted;
+        // managed-app tagging then carries over from the last user-present check.
+        let tfLoader: Task<TestFlightInventory, Never>? =
+            allowTestFlight ? Task.detached(priority: .utility) { TestFlightInventory() } : nil
+        if allowTestFlight { testFlightReadThisSession = true }
+
+        // First scan with no TestFlight data → the list appears instantly, with no
+        // wait on the prompt.
+        let initialTF = TestFlightInventory(macRows: [], accessible: false)
+        var found = await Task.detached(priority: .userInitiated) {
+            AppScanner(toolbox: toolbox, testflight: initialTF).scan()
         }.value
         // Cold start (no rows yet): show plain `.unknown` rows while the check runs.
         // But when we already have results — e.g. the menu bar populated them and
@@ -465,6 +585,26 @@ final class AppListModel {
             : sorted(mergeScanned(found))
         lastScan = .now
         isScanning = false
+
+        // Resolve TestFlight without blocking the list just shown. If it lands in
+        // time, re-tag so TestFlight installs route correctly in this same pass; if
+        // the prompt is still up, hand the still-running read to the re-apply path,
+        // which re-checks the instant the user clicks Allow. Local reads are
+        // milliseconds, so a timeout here means "the prompt is up".
+        var testflight = initialTF
+        if let tfLoader {
+            if let loaded = await Self.firstResult(of: tfLoader, within: .seconds(2)), loaded.accessible {
+                testflight = loaded
+                let retagged = testflight
+                found = await Task.detached(priority: .userInitiated) {
+                    AppScanner(toolbox: toolbox, testflight: retagged).scan()
+                }.value
+                results = sorted(mergeScanned(found))
+            } else {
+                Log.scan.info("TestFlight: read pending (TCC prompt unanswered) — proceeding without it")
+                reapplyTestFlightWhenGranted(tfLoader)
+            }
+        }
 
         isChecking = true
         let checker = UpdateChecker(
@@ -626,6 +766,18 @@ final class AppListModel {
         installing[id] = stage
     }
 
+    /// Flash an "Updated ✓" confirmation on a just-completed row, then let it go.
+    /// The row keeps showing in `visible` while its id is here; after a short beat we
+    /// drop it, at which point the (now up-to-date) app filters out of the list
+    /// normally. Idempotent re-entry just restarts the window.
+    private func markJustUpdated(_ id: String) {
+        justUpdated.insert(id)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            self?.justUpdated.remove(id)
+        }
+    }
+
     /// Install an update, routing to the right installer for its source. `notify`
     /// is false for the batch path so "Update All" posts one summary banner
     /// instead of one per app. Returns true only when a bundle was actually
@@ -774,12 +926,7 @@ final class AppListModel {
             // silent background relaunch). Apps that weren't running never enter
             // `reopenAfterQuit`, so this only reopens what we closed. Done before the
             // recheck so the running-version probe sees the relaunched process.
-            if reopenAfterQuit.remove(id) != nil {
-                let config = NSWorkspace.OpenConfiguration()
-                config.activates = true
-                NSWorkspace.shared.openApplication(
-                    at: result.app.path, configuration: config, completionHandler: { _, _ in })
-            }
+            reopenIfQuitForUpdate(id: id, path: result.app.path)
 
             // Re-read from disk to reflect the new version, then recompute the
             // Restart flag by comparing each running instance's launch version
@@ -809,6 +956,11 @@ final class AppListModel {
             } else {
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
+                // The swap is fully in effect and nothing is left to do, so this row is
+                // about to filter out of the list. Hold it briefly with an "Updated ✓"
+                // confirmation (see `visible`/`trailing`) so completion is legible
+                // instead of the row just disappearing mid-progress.
+                markJustUpdated(id)
             }
         } catch let error as AppManagementRequiredError {
             // The swap was blocked by the App Management privacy gate. There's no
@@ -821,7 +973,16 @@ final class AppListModel {
             Log.install.error("install failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             installErrors[id] = error.localizedDescription
         }
+        // If an AX App Store update quit the app but then threw before the swap
+        // landed (e.g. timed out, or App Store raised an unexpected sheet), Continue
+        // already closed it and won't reopen it — so reopen it ourselves here too,
+        // not only on the success path above. Idempotent: the success path removed
+        // it from `reopenAfterQuit`, so this no-ops there.
+        reopenIfQuitForUpdate(id: id, path: result.app.path)
         installing[id] = nil
+        // Drop the "Relaunching…" indicator a confirmed App Store quit raised, on
+        // every exit (success or error) so a failed/cancelled install can't strand it.
+        relaunching.remove(id)
         // True only if we reached the install path without throwing.
         return installErrors[id] == nil
     }
@@ -1018,6 +1179,13 @@ final class AppListModel {
     /// keep the Restart prompt for the user to retry.
     func restart(_ result: UpdateResult) async {
         guard let bundleID = result.app.bundleID else { return }
+        // Block re-entry and show the in-flight spinner (the `relaunching`
+        // indicator replaces the button): the quit→wait→reopen takes a beat, and
+        // without feedback the click reads as "nothing happened" even though it
+        // worked. A second click would otherwise fire a second quit.
+        guard !relaunching.contains(result.id) else { return }
+        relaunching.insert(result.id)
+        defer { relaunching.remove(result.id) }
         Log.app.info("restart: \(result.app.name, privacy: .public) [\(bundleID, privacy: .public)]")
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         guard !running.isEmpty else { needsRestart.remove(result.id); return }
@@ -1120,11 +1288,14 @@ final class AppListModel {
     /// Open System Settings → Privacy & Security → App Management and float the
     /// drag-to-authorize panel, prompting the user to drag **DuoUpdater itself**
     /// into the list (the permission is granted to the app doing the replacing,
-    /// not the target). App Management exposes neither a request nor a status API,
-    /// so this is the only way to surface it — and we can't tell afterward whether
-    /// it was granted; the user simply retries the update. Also callable directly
-    /// (e.g. from a menu item) so the prompt isn't strictly gated on a failure.
+    /// not the target). App Management exposes no *public* status API, but the private
+    /// `TCCAccessPreflight` SPI lets us read it (see `appManagementStatus`), so we can
+    /// now auto-dismiss this panel the moment the grant lands — same as Accessibility.
+    /// Also callable directly (e.g. from a menu item) so it isn't gated on a failure.
     func presentAppManagementPermissionFlow(sourceFrameInScreen: CGRect? = nil) {
+        // This pane takes over the panel; swap which grant we're watching to auto-close.
+        awaitingAccessibilityGrant = false
+        awaitingAppManagementGrant = true
         permissionFlow.authorize(
             pane: .appManagement,
             suggestedAppURLs: [Bundle.main.bundleURL],
@@ -1139,6 +1310,11 @@ final class AppListModel {
     /// App Management, there's no after-the-fact status we trust, so the user simply
     /// retries the update once granted.
     func presentAccessibilityPermissionFlow(sourceFrameInScreen: CGRect? = nil) {
+        // Watch for the grant so `refreshPermissionStatus()` can auto-dismiss the panel.
+        // The Welcome/Settings window that floated this is still open, so its trust
+        // polling + TCC-change observer are live to detect the grant and trigger the close.
+        awaitingAccessibilityGrant = true
+        awaitingAppManagementGrant = false
         permissionFlow.authorize(
             pane: .accessibility,
             suggestedAppURLs: [Bundle.main.bundleURL],
@@ -1185,9 +1361,27 @@ final class AppListModel {
     func confirmQuit(_ id: String, proceed: Bool) {
         awaitingQuitConfirm[id] = nil
         // App Store's Continue quits the app without reopening it; remember to
-        // relaunch it ourselves once the install lands.
-        if proceed { reopenAfterQuit.insert(id) }
+        // relaunch it ourselves once the install lands. Show the "Relaunching…"
+        // indicator meanwhile (cleared when the install settles in `installApp`).
+        if proceed {
+            reopenAfterQuit.insert(id)
+            relaunching.insert(id)
+        }
         quitContinuations.removeValue(forKey: id)?.resume(returning: proceed)
+    }
+
+    /// Reopen an app we quit for an incremental App Store update (App Store's
+    /// Continue closes it without reopening). Idempotent — the set membership
+    /// guards against a double reopen — so it's safe to call on both the success
+    /// and the error/timeout exit of `install`, ensuring a quit-but-failed update
+    /// never strands the user's app closed. Apps that weren't running were never
+    /// inserted into `reopenAfterQuit`, so this only reopens what we closed.
+    private func reopenIfQuitForUpdate(id: String, path: URL) {
+        guard reopenAfterQuit.remove(id) != nil else { return }
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.openApplication(
+            at: path, configuration: config, completionHandler: { _, _ in })
     }
 
     /// A small launch rect at the center of the window the user is currently
@@ -1337,6 +1531,22 @@ final class AppListModel {
         NotificationController.shared.setOnShowUpdates(showUpdates)
     }
 
+    /// Logged once, the first time we read permission state, so a "why didn't it
+    /// install" can be traced to a missing grant. App Management comes from the private
+    /// TCCAccessPreflight SPI (`.unknown` if that SPI ever goes away).
+    @ObservationIgnored private var didLogPermissions = false
+    private func logPermissionsOnce() {
+        guard !didLogPermissions else { return }
+        didLogPermissions = true
+        Log.app.info("permissions: accessibility=\(self.accessibilityTrusted, privacy: .public) appManagement=\(String(describing: self.appManagementStatus), privacy: .public)")
+    }
+
+    /// Upper bound on how long after launch the first auto-check may wait. Caps the
+    /// persisted-`lastCheck` interval for the first tick only, so a relaunch refreshes
+    /// within minutes instead of sleeping a full (up to 6h) interval — while a flurry
+    /// of dev relaunches inside this window is still throttled to one check.
+    private static let launchCheckFloor: TimeInterval = 5 * 60
+
     /// (Re)arm the background auto-check loop from the current frequency setting.
     /// Called at launch and whenever the user changes the frequency. A "manual"
     /// frequency tears the loop down entirely.
@@ -1353,11 +1563,20 @@ final class AppListModel {
         }
         Log.app.info("scheduler: every \(Int(interval), privacy: .public)s (last check \(self.lastCheck.map { "\(Int(-$0.timeIntervalSinceNow))s ago" } ?? "never", privacy: .public))")
         scheduler = Task { [weak self] in
+            var isFirstCheck = true
             while !Task.isCancelled {
                 guard let self else { return }
+                // The FIRST check after launch uses a small floor instead of the
+                // full interval. `lastCheck` is persisted across relaunches (so we
+                // don't re-check on *every* launch), but a fresh process starts with
+                // an empty in-memory list — without this floor a relaunch that
+                // inherited a recent `lastCheck` would sleep a whole interval (up to
+                // 6h) showing nothing. The floor refreshes promptly after launch
+                // while still throttling rapid dev relaunches within a few minutes.
+                let effectiveInterval = isFirstCheck ? min(interval, Self.launchCheckFloor) : interval
                 // Sleep only until the next check is *due* relative to the last one
                 // — zero (run now) when we're already overdue, e.g. a cold launch.
-                let due = (self.lastCheck ?? .distantPast).addingTimeInterval(interval)
+                let due = (self.lastCheck ?? .distantPast).addingTimeInterval(effectiveInterval)
                 let wait = max(0, due.timeIntervalSinceNow)
                 if wait > 0 {
                     try? await Task.sleep(for: .seconds(wait))
@@ -1368,6 +1587,7 @@ final class AppListModel {
                 if !self.isChecking && !self.isScanning && self.installing.isEmpty {
                     Log.app.info("scheduler: tick — running background check")
                     await self.backgroundRefresh()
+                    isFirstCheck = false
                 } else {
                     Log.app.info("scheduler: tick deferred (busy) — retrying in 60s")
                     try? await Task.sleep(for: .seconds(60))
@@ -1383,6 +1603,41 @@ final class AppListModel {
     /// other apps" prompt unprompted.
     private func backgroundRefresh() async {
         await refresh(allowTestFlight: false)
+    }
+
+    /// Arm the filesystem watcher and the slow periodic backstop that keep the
+    /// Restart badge current when an app updates itself in the background (e.g.
+    /// Chrome's Keystone). Called once at launch. Both paths are network-free.
+    private func armLocalRescan() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications").path
+        var paths = ["/Applications"]  // covers /Applications/Utilities (subtree)
+        if FileManager.default.fileExists(atPath: home) { paths.append(home) }
+        let watcher = AppDirectoryWatcher(paths: paths) { [weak self] in
+            Task { @MainActor in await self?.backgroundLocalRescan() }
+        }
+        appDirWatcher = watcher
+        watcher.start()
+        Log.app.info("local rescan: watching \(paths.joined(separator: ", "), privacy: .public) + \(Int(self.localRescanInterval.components.seconds), privacy: .public)s backstop")
+
+        localRescanTimer = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: self?.localRescanInterval ?? .seconds(180))
+                guard !Task.isCancelled, let self else { return }
+                await self.backgroundLocalRescan()
+            }
+        }
+    }
+
+    /// A background-triggered local rescan (FS watcher or backstop timer). Coalesces
+    /// so overlapping triggers don't stack, and leans on `refreshLocal`'s own guards
+    /// (skips while empty / checking / installing) to stay out of the way.
+    private func backgroundLocalRescan() async {
+        guard !localRescanRunning else { return }
+        localRescanRunning = true
+        defer { localRescanRunning = false }
+        Log.app.debug("local rescan: triggered (watcher or backstop)")
+        await refreshLocal()
     }
 
     /// Post a "new updates available" banner for actionable updates the user hasn't
@@ -1441,11 +1696,10 @@ final class AppListModel {
     /// stale row.
     private func recheck(_ result: UpdateResult) async -> UpdateResult {
         let id = result.id
-        // Off-main + time-boxed: the post-install recheck must never block the UI
-        // on the TestFlight container's TCC gate (see `beginTestFlightLoad`). The
-        // next full refresh re-applies TestFlight tagging, so a single-app recheck
-        // doesn't need the grant-callback — just take whatever's ready in time.
-        let (testflight, _) = await Self.beginTestFlightLoad()
+        // Off-main and TestFlight-free: the post-install recheck must never block the
+        // UI on the TestFlight container's TCC gate. The next full refresh re-applies
+        // TestFlight tagging, so a single-app recheck just scans without it.
+        let testflight = TestFlightInventory(macRows: [], accessible: false)
         let apps = await Task.detached(priority: .userInitiated) {
             AppScanner(testflight: testflight).scan()
         }.value

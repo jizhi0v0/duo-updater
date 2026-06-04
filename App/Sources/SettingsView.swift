@@ -58,8 +58,8 @@ struct SettingsView: View {
         // .accessory by default, so the window could open behind / without focus;
         // ref-count it through the model (same as the workbench) to promote the app
         // to .regular while it's open and pull it to the front.
-        .onAppear { model.windowAppeared() }
-        .onDisappear { model.windowDisappeared() }
+        .onAppear { model.windowAppeared(); model.beginTrustPolling() }
+        .onDisappear { model.endTrustPolling(); model.windowDisappeared() }
     }
 
     @ViewBuilder
@@ -452,6 +452,7 @@ private struct IgnoredSettings: View {
 
 private struct DiagnosticsSettings: View {
     let model: AppListModel
+    @Environment(\.openWindow) private var openWindow
     @State private var entries: [RecipeHealth.Entry] = []
     @State private var loaded = false
 
@@ -469,14 +470,32 @@ private struct DiagnosticsSettings: View {
     var body: some View {
         Form {
             Section {
-                Button("Grant App Management…") {
-                    model.presentAppManagementPermissionFlow()
+                // Accessibility has a live status, so show it rather than a bare
+                // button — it flips to "Granted" the moment the user toggles it.
+                LabeledContent("Accessibility") {
+                    if model.accessibilityTrusted {
+                        Label("Granted", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green).labelStyle(.titleAndIcon)
+                    } else {
+                        Button("Grant…") { model.presentAccessibilityPermissionFlow() }
+                    }
                 }
+                // App Management has no *public* status API, but the private
+                // TCCAccessPreflight SPI lets us read it — show a real check when granted.
+                LabeledContent("App Management") {
+                    if model.appManagementStatus == .granted {
+                        Label("Granted", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green).labelStyle(.titleAndIcon)
+                    } else {
+                        Button("Grant…") { model.presentAppManagementPermissionFlow() }
+                    }
+                }
+                Button("Run Setup Again…") { openWindow(id: WelcomeView.windowID) }
                 Button("Relaunch DuoUpdater") { Self.relaunch() }
             } header: {
                 Text("Permissions")
             } footer: {
-                Text("Replacing an installed app needs macOS App Management permission. It can't be requested programmatically — this opens System Settings and floats a panel you drag DuoUpdater into to grant it. Do this early so the first update isn't blocked.\n\nGranting it through that panel doesn't trigger the system's usual “Quit & Reopen” prompt, so a freshly granted permission may not take effect until DuoUpdater restarts. Use Relaunch above after granting.")
+                Text("Accessibility drives incremental App Store updates (pressing Update for you). App Management lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). Neither can be requested programmatically — each opens System Settings with a panel you drag DuoUpdater into.\n\nGranting through that panel doesn't trigger the system's usual “Quit & Reopen”, so a fresh grant may not take effect until DuoUpdater restarts. Use Relaunch above after granting.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {

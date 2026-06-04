@@ -105,7 +105,18 @@ public enum VersionComparator {
         }
     }
 
-    private static func tokenize(_ version: String) -> [Token] {
+    private static func tokenize(_ rawVersion: String) -> [Token] {
+        // Strip a leading "v"/"V" tag when it immediately precedes a digit (e.g.
+        // "v2.0", "V1.4.3"). Otherwise it tokenizes as a leading `.text("v")` run,
+        // and since text sorts below numbers, comparing a v-prefixed string against
+        // a bare numeric one ("v2.0" vs "2.0") would invert — reporting a spurious
+        // update or missing a real one when only one side carries the tag.
+        var version = rawVersion
+        if let first = version.first, first == "v" || first == "V",
+           version.dropFirst().first?.isNumber == true {
+            version.removeFirst()
+        }
+
         var tokens: [Token] = []
         var current = ""
         var currentIsDigit: Bool?

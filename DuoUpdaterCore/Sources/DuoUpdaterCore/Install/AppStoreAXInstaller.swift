@@ -15,21 +15,28 @@ import ApplicationServices
 /// The cost is an **Accessibility** TCC grant (the caller guides the user through
 /// it with the same PermissionFlow panel used for App Management).
 ///
-/// How it works (all of this was verified to need neither cursor movement nor
-/// focus stealing):
-///   1. `open -g macappstore://apps.apple.com/app/id<trackID>` — opens/navigates
-///      the product page *in the background* (`-g` = don't activate). App Store
-///      processes the deep link and renders the page without coming to the front.
+/// How it works:
+///   1. Make sure App Store is running (launching it in the background first if
+///      needed, so the deep link doesn't race a cold launch onto the home page),
+///      then `open -g macappstore://apps.apple.com/app/id<trackID>` to navigate to
+///      the product page. App Store renders the page without yet coming to the front.
 ///   2. Find the product page's offer button — a stable `AXIdentifier` of
 ///      `AppStore.offerButton` (the visible title is localized: Update / Open /
 ///      Get / …, so we never match on it; we already know an update is due).
-///   3. `AXPress` it. The button's title then reports live progress as
-///      "`N% loaded`", which we parse into `InstallStage.downloading`.
-///   4. If the app is running, App Store raises an `AXSheet` ("Close This App to
-///      Update" / Continue · Cancel). We do **not** press Continue ourselves —
-///      we await `confirmQuit`, so the UI can gate it behind a Relaunch tap.
-///      Continue is found via the sheet's `AXDefaultButton` (language-independent;
-///      the buttons' own identifiers are unstable `_NS:` values).
+///   3. Briefly bring App Store to the front and `AXPress` the button *with the app
+///      still running*, then hand focus straight back to whoever had it. The
+///      momentary activation is required: a backgrounded App Store renders the page
+///      but silently swallows the press, so the download never starts (verified).
+///      The delta then downloads in the background while the user keeps working; the
+///      button's title reports live progress as "`N% loaded`", parsed into
+///      `InstallStage.downloading`.
+///   4. Only once the download finishes does App Store raise an `AXSheet` ("Close
+///      This App to Update" / Continue · Cancel) — and only because the app is open.
+///      We gate that sheet behind the UI's Relaunch tap (`confirmQuit`), then press
+///      its Continue ourselves (the sheet's `AXDefaultButton`, language-independent;
+///      the buttons' own identifiers are unstable `_NS:` values). A sheet that
+///      appears *without* a download behind it is a subscription / purchase / terms
+///      confirmation, which we never press — we surface it for manual handling.
 public actor AppStoreAXInstaller {
 
     public init() {}
@@ -97,74 +104,131 @@ public actor AppStoreAXInstaller {
         guard Self.isTrusted else { throw AXError.notTrusted }
 
         onStage(.checking)
+
+        // Bring App Store up *before* the deep link so the navigation doesn't race a
+        // cold launch (a freshly-launched App Store drops the deep link on the home
+        // page). When we launch it ourselves, give it a moment to finish coming up.
+        let (store, didLaunch) = try await ensureAppStoreRunning()
+        if didLaunch { try await Task.sleep(for: .seconds(1)) }
         try navigateToProductPage(trackID: trackID)
 
-        // Wait for App Store to be running and the product page's offer button to
-        // populate. The page loads asynchronously after the deep link.
-        let store = try await waitForAppStore()
         let axApp = AXUIElementCreateApplication(store.processIdentifier)
-        guard try await waitForOfferButton(in: axApp) != nil else {
-            throw AXError.offerButtonNotFound
-        }
 
-        // If the app is running, updating it via App Store would otherwise pop a
-        // "Close this app to update" sheet whose Continue we'd have to press. We do
-        // NOT play that game: App Store sheets also include subscription / purchase
-        // confirmations (Termius, Microsoft 365…), and we must never auto-press a
-        // financial confirmation. Instead we *quit the app ourselves* first (the user
-        // already consented via the Relaunch affordance), then update it while it's
-        // not running — which installs directly, with no sheet at all (verified).
-        if let bundleID, isRunning(bundleID) {
-            guard await confirmQuit(appName) else { throw AXError.cancelled }
-            onStage(.installing)  // "preparing" — the app is quitting
-            await terminateAndWait(bundleID: bundleID)
-            // The page re-renders while the app quits, so let it settle.
-            try? await Task.sleep(for: .milliseconds(800))
+        // The AXPress only registers when App Store is the *active* app: a backgrounded
+        // App Store renders the page but silently swallows the press, so the download
+        // never starts (verified — every `open -g`/never-activated attempt failed,
+        // while a foreground press drove the whole flow). Activate just long enough to
+        // press, remembering who was frontmost so we can hand focus straight back.
+        let priorPID = await currentFrontmostPID()
+        await activate(store)
+        try await Task.sleep(for: .milliseconds(250))  // let activation settle
+
+        guard try await waitForOfferButton(in: axApp) != nil else {
+            await restoreFocus(priorPID)
+            throw AXError.offerButtonNotFound
         }
 
         // Baseline the on-disk version *before* pressing, so completion is gated on
         // the bundle actually changing (see driveToCompletion) rather than on the
         // localized button title — which, for a fast download, flips back to a
-        // non-progress state before storedownloadd has swapped the bundle in.
-        let baseline = currentShortVersion ?? installedShortVersion(appPath)
+        // non-progress state before storedownloadd has swapped the bundle in. We
+        // baseline BOTH the marketing (short) and build versions: an App Store
+        // update usually bumps the short version, but a build-only re-release bumps
+        // only CFBundleVersion — keying completion on the short version alone would
+        // miss that and falsely "time out" on a successful install.
+        let baseline = installedVersions(appPath, fallbackShort: currentShortVersion)
 
-        // Re-find the offer button *now*, right before pressing: the element captured
-        // above goes stale across navigation + the app quitting, and an AXPress on a
-        // dead reference silently no-ops (the symptom: progress sits at 0%, nothing
-        // downloads). We already know (from detection) an update is due, so press
-        // regardless of the localized title — pressing an up-to-date button no-ops.
-        guard let offer = mainOfferButton(in: axApp) else { throw AXError.offerButtonNotFound }
+        // Press Update *with the app still running*. App Store downloads the delta in
+        // the background while the user keeps working — it only raises the "Close this
+        // app to update" sheet once the download has finished (verified). We do NOT
+        // quit the app up front (that closed it for the whole download); instead we let
+        // the download run and gate that end-of-download sheet behind the user's
+        // Relaunch tap, pressing Continue ourselves only then (see driveToCompletion).
+        // We already know (from detection) an update is due, so press regardless of the
+        // localized title — pressing an up-to-date button no-ops.
+        guard let offer = mainOfferButton(in: axApp) else {
+            await restoreFocus(priorPID)
+            throw AXError.offerButtonNotFound
+        }
         AXUIElementPerformAction(offer, kAXPressAction as CFString)
         onStage(.downloading(fraction: 0))
 
-        try await driveToCompletion(axApp: axApp, appPath: appPath, baseline: baseline, onStage: onStage)
+        // Download runs in the background now — hand focus back to the user.
+        await restoreFocus(priorPID)
+
+        try await driveToCompletion(
+            axApp: axApp,
+            store: store,
+            bundleID: bundleID,
+            appName: appName,
+            appPath: appPath,
+            baseline: baseline,
+            onStage: onStage,
+            confirmQuit: confirmQuit
+        )
     }
 
     private func isRunning(_ bundleID: String) -> Bool {
         !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
     }
 
-    /// Ask every running instance to quit (graceful `terminate()`, so the app can run
-    /// its own save/quit prompt — which the user then handles), and wait up to ~12s
-    /// for them to actually exit. If one refuses (e.g. the user cancels its prompt),
-    /// we proceed anyway: pressing Update with it still up surfaces a sheet, which
-    /// `driveToCompletion` reports as needing manual confirmation rather than forcing.
-    private func terminateAndWait(bundleID: String) async {
-        for app in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) {
-            app.terminate()
+    // MARK: - Activation
+
+    /// App Store, launched in the background if it isn't already running. Returns
+    /// whether we launched it (the caller lets a fresh launch settle before navigating).
+    private func ensureAppStoreRunning() async throws -> (NSRunningApplication, didLaunch: Bool) {
+        if let app = NSRunningApplication
+            .runningApplications(withBundleIdentifier: "com.apple.AppStore").first {
+            return (app, false)
         }
-        for _ in 0..<60 {  // ~12s
-            if !isRunning(bundleID) { return }
-            try? await Task.sleep(for: .milliseconds(200))
-        }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        p.arguments = ["-g", "-b", "com.apple.AppStore"]  // -g background, -b by bundle id
+        try p.run()
+        p.waitUntilExit()
+        return (try await waitForAppStore(), true)
     }
 
-    /// The bundle's `CFBundleShortVersionString` read straight from disk, used to
-    /// detect when storedownloadd has finished swapping the new build in.
-    private func installedShortVersion(_ appPath: URL) -> String? {
+    /// Bring App Store to the front so an AXPress on its buttons registers. Resolve the
+    /// app fresh from its pid inside the MainActor hop to avoid sending the non-Sendable
+    /// `NSRunningApplication` across the actor boundary.
+    private func activate(_ store: NSRunningApplication) async {
+        let pid = store.processIdentifier
+        await MainActor.run { _ = NSRunningApplication(processIdentifier: pid)?.activate() }
+    }
+
+    /// The pid of whatever app is frontmost right now, so we can restore it after a press.
+    private func currentFrontmostPID() async -> pid_t? {
+        await MainActor.run { NSWorkspace.shared.frontmostApplication?.processIdentifier }
+    }
+
+    /// Hand focus back to the app that was frontmost before we activated App Store.
+    private func restoreFocus(_ pid: pid_t?) async {
+        guard let pid else { return }
+        await MainActor.run { _ = NSRunningApplication(processIdentifier: pid)?.activate() }
+    }
+
+    /// The bundle's marketing (short) and build versions read straight from disk,
+    /// used to detect when storedownloadd has finished swapping the new build in.
+    /// `fallbackShort` (the caller's known current version) is used only if the
+    /// Info.plist can't be read at that instant.
+    private func installedVersions(_ appPath: URL, fallbackShort: String? = nil) -> (short: String?, build: String?) {
         let plist = appPath.appendingPathComponent("Contents/Info.plist")
-        guard let dict = NSDictionary(contentsOf: plist) else { return nil }
-        return dict["CFBundleShortVersionString"] as? String
+        let dict = NSDictionary(contentsOf: plist)
+        let short = (dict?["CFBundleShortVersionString"] as? String) ?? fallbackShort
+        let build = dict?["CFBundleVersion"] as? String
+        return (short, build)
+    }
+
+    /// Completion = a readable on-disk version that differs from `baseline` for
+    /// EITHER the short or build key. A `nil` baseline value can't trigger
+    /// completion, so a transiently unreadable Info.plist at baseline time can't be
+    /// misread as "updated" the instant it becomes readable again.
+    private func versionChanged(from baseline: (short: String?, build: String?), appPath: URL) -> Bool {
+        let now = installedVersions(appPath)
+        if let b = baseline.short, let n = now.short, n != b { return true }
+        if let b = baseline.build, let n = now.build, n != b { return true }
+        return false
     }
 
     // MARK: - Navigation
@@ -202,49 +266,138 @@ public actor AppStoreAXInstaller {
 
     // MARK: - Progress / completion
 
-    /// After pressing Update (with the app already quit), poll until the install
+    /// After pressing Update (with the app still running), poll until the install
     /// lands — detected by the on-disk bundle version changing from `baseline`, the
-    /// authoritative, language-independent signal. We never press any sheet button:
-    /// if a sheet appears it's a subscription / purchase / terms confirmation (the
-    /// app isn't running, so the "close to update" sheet can't), which we surface as
-    /// `.needsManualConfirmation` rather than ever auto-confirming a charge.
+    /// authoritative, language-independent signal.
+    ///
+    /// Sheet handling is the delicate part. App Store raises the "Close this app to
+    /// update" sheet only *after* the download finishes and only because the app is
+    /// open; a subscription / purchase / terms sheet, by contrast, appears *before*
+    /// any download (you can't download a paid update without confirming the charge
+    /// first). We use that ordering to tell them apart: a sheet that appears once we've
+    /// seen download progress, with the app still running, is the close-to-update one —
+    /// we gate it behind the user's Relaunch tap (`confirmQuit`), then press its
+    /// Continue. Any other sheet (no download behind it, or the app already gone) is a
+    /// confirmation we must never auto-press, surfaced as `.needsManualConfirmation`.
     private func driveToCompletion(
         axApp: AXUIElement,
+        store: NSRunningApplication,
+        bundleID: String?,
+        appName: String,
         appPath: URL,
-        baseline: String?,
-        onStage: @Sendable @escaping (InstallStage) -> Void
+        baseline: (short: String?, build: String?),
+        onStage: @Sendable @escaping (InstallStage) -> Void,
+        confirmQuit: @Sendable @escaping (String) async -> Bool
     ) async throws {
         var sheetTicks = 0
+        var sawProgress = false   // the download actually started (vs. an immediate sheet)
+        var continued = false     // we pressed Continue; the app is quitting + swapping
+        var idleTicks = 0         // consecutive polls with no progress and no sheet
+        var repressed = false     // we re-pressed Update once after an idle stretch
 
-        for _ in 0..<900 {  // ~6 min hard cap
+        // ~6 min hard cap of *polling* — the suspension on `confirmQuit` below doesn't
+        // burn iterations, so waiting on the user's Relaunch tap never times us out.
+        for _ in 0..<900 {
             // 1. Completion: the bundle on disk has been swapped for the new build.
-            if let now = installedShortVersion(appPath), now != baseline {
+            // Covers both the app-not-running case (installs directly, no sheet) and
+            // the post-Continue swap. Keyed on short OR build version changing.
+            if versionChanged(from: baseline, appPath: appPath) {
                 onStage(.done)
                 return
             }
 
-            // 2. A sheet means App Store wants a confirmation we won't auto-give
-            // (subscription / purchase / terms). Allow a couple of ticks in case it's
-            // transient, then bail and point the user at the App Store — never press it.
-            if quitSheet(in: axApp) != nil {
-                sheetTicks += 1
-                if sheetTicks >= 3 { throw AXError.needsManualConfirmation }
+            // 2. Sheet handling.
+            let sheetPresent = quitSheet(in: axApp) != nil
+            if sheetPresent {
+                if continued {
+                    // Already pressed Continue — the app is quitting and the swap is in
+                    // flight. Ignore any lingering sheet and just wait for the version.
+                } else if sawProgress, let bundleID, isRunning(bundleID) {
+                    // Download finished, app still open → App Store's "Close this app to
+                    // update" sheet. Gate it behind the user's Relaunch tap, then press
+                    // Continue ourselves — we never quit the user's app behind their
+                    // back. The press needs App Store frontmost (same as the offer
+                    // press), so activate, press, then hand focus back. Re-find the
+                    // sheet right before pressing: it can re-render across the await, and
+                    // an AXPress on a stale ref silently no-ops.
+                    guard await confirmQuit(appName) else {
+                        let prior = await currentFrontmostPID()
+                        await activate(store)
+                        try await Task.sleep(for: .milliseconds(200))
+                        if let fresh = quitSheet(in: axApp) {
+                            pressSheetButton(fresh, "AXCancelButton")
+                        }
+                        await restoreFocus(prior)
+                        throw AXError.cancelled
+                    }
+                    onStage(.installing)  // "Relaunching" — Continue quits + swaps in
+                    let prior = await currentFrontmostPID()
+                    await activate(store)
+                    try await Task.sleep(for: .milliseconds(200))
+                    if let fresh = quitSheet(in: axApp) {
+                        pressSheetButton(fresh, "AXDefaultButton")  // Continue
+                    }
+                    await restoreFocus(prior)
+                    continued = true
+                    sheetTicks = 0
+                } else {
+                    // A sheet with no download behind it (or the app already gone) is a
+                    // subscription / purchase / terms confirmation. Allow a couple of
+                    // ticks in case it's transient, then bail and point the user at the
+                    // App Store — never press a charge.
+                    sheetTicks += 1
+                    if sheetTicks >= 3 { throw AXError.needsManualConfirmation }
+                }
             } else {
                 sheetTicks = 0
             }
 
             // 3. Surface download progress from the offer button title (display only).
-            if let offer = mainOfferButton(in: axApp), let title = title(offer) {
+            // Once we've pressed Continue the title is meaningless, so stop reading it.
+            if !continued, let offer = mainOfferButton(in: axApp), let title = title(offer) {
                 if let fraction = Self.progressFraction(title) {
+                    sawProgress = true
                     onStage(.downloading(fraction: fraction))
                 } else if Self.isLoadingTitle(title) {
+                    sawProgress = true
                     onStage(.downloading(fraction: 0))
+                }
+            }
+
+            // 4. Fail-fast: if the press never took (no progress, no sheet), don't spin
+            // the full 6-min cap holding the shared actor. After ~12s idle re-activate
+            // and press once more; if still nothing ~12s later, give up so the next
+            // update isn't blocked behind a dead one.
+            if continued || sawProgress || sheetPresent {
+                idleTicks = 0
+            } else {
+                idleTicks += 1
+                if idleTicks == 30 && !repressed {
+                    let prior = await currentFrontmostPID()
+                    await activate(store)
+                    try await Task.sleep(for: .milliseconds(250))
+                    if let offer = mainOfferButton(in: axApp) {
+                        AXUIElementPerformAction(offer, kAXPressAction as CFString)
+                    }
+                    await restoreFocus(prior)
+                    repressed = true
+                } else if idleTicks >= 60 {
+                    throw AXError.timedOut
                 }
             }
 
             try await Task.sleep(for: .milliseconds(400))
         }
         throw AXError.timedOut
+    }
+
+    /// Press a named button attribute on a sheet — `AXDefaultButton` (Continue) or
+    /// `AXCancelButton` (Cancel). We reach the buttons through these role attributes
+    /// because they're language-independent; the buttons' own identifiers are unstable
+    /// `_NS:` values and their titles are localized.
+    private func pressSheetButton(_ sheet: AXUIElement, _ attr: String) {
+        guard let button = attribute(sheet, attr) else { return }
+        AXUIElementPerformAction(button, kAXPressAction as CFString)
     }
 
     /// Parse a fraction (0…1) out of an offer-button title like "80% loaded" or

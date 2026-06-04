@@ -215,3 +215,165 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
         log("        -> version: \(remote?.shortVersion ?? "nil")  download: \(remote?.downloadURL?.absoluteString ?? "nil")")
     }
 }
+
+// MARK: - Wave-1 self-updater detection probes (fixtures from real responses)
+
+@Test func slackProbeExtractsVersionFromRedirectFilename() {
+    // The 302 from slack.com/ssb/download-osx-universal resolves to this filename.
+    let filename = "Slack-4.50.128-macOS.dmg"
+    #expect(VendorProbeRecipe.extractVersion(
+        from: filename, pattern: #"^Slack-([0-9]+\.[0-9]+\.[0-9]+)-macOS\.dmg$"#) == "4.50.128")
+}
+
+@Test func discordProbeExtractsVersionFromDistroURL() {
+    // Trimmed slice of the real stable manifest JSON. host_version is an array
+    // (unusable — single capture group), so the version comes from the distro url
+    // path; the 0.0.392 delta SOURCE must not be captured.
+    let fixture = #"""
+    {"full":{"host_version":[0,0,393],"url":"https://stable.dl2.discordapp.net/distro/app/stable/osx/universal/0.0.393/full.distro"},"deltas":[{"host_version":[0,0,392],"url":"https://stable.dl2.discordapp.net/distro/app/stable/osx/universal/0.0.393/from/0.0.392"}],"required_update":true}
+    """#
+    #expect(VendorProbeRecipe.extractVersion(
+        from: fixture,
+        pattern: #"stable\.dl2\.discordapp\.net/distro/app/stable/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#) == "0.0.393")
+}
+
+@Test func notionProbeExtractsVersionFromRedirectLocation() {
+    // Real 307 Location from https://www.notion.so/desktop/mac/download
+    let location = "https://desktop-release.notion-static.com/Notion-7.20.0-universal.dmg"
+    #expect(VendorProbeRecipe.extractVersion(
+        from: location, pattern: #"Notion-([0-9]+\.[0-9]+\.[0-9]+)-"#) == "7.20.0")
+}
+
+@Test func obsidianProbeReadsStableNotBeta() {
+    // Real desktop-releases.json shape: stable latestVersion first, then a HIGHER
+    // beta.latestVersion. First match (extractVersion) must return the stable one.
+    let fixture = #"""
+    {
+        "minimumVersion": "0.14.5",
+        "latestVersion": "1.12.7",
+        "downloadUrl": "https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/obsidian-1.12.7.asar.gz",
+        "beta": {
+            "minimumVersion": "0.14.5",
+            "latestVersion": "1.13.0",
+            "downloadUrl": "https://releases.obsidian.md/release/obsidian-1.13.0.asar.gz"
+        }
+    }
+    """#
+    #expect(VendorProbeRecipe.extractVersion(
+        from: fixture, pattern: #""latestVersion"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#) == "1.12.7")
+}
+
+@Test func figmaProbeExtractsVersion() {
+    // Trimmed real body from https://desktop.figma.com/mac-arm/RELEASE.json
+    let fixture = #"{"version":"126.4.11","name":"126.4.11","rollback":true,"url":"https://desktop.figma.com/mac-arm/Figma-126.4.11.zip"}"#
+    #expect(VendorProbeRecipe.extractVersion(
+        from: fixture, pattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#) == "126.4.11")
+}
+
+@Test func onePasswordProbeTakesNewestTitleSkippingBareHeading() {
+    // Trimmed slice of releases.1password.com/mac/stable/: the <h1> has no version
+    // (must be skipped); the first versioned title is the newest stable build.
+    let fixture = #"""
+    <h1 class="c-heading c-heading--1">1Password for Mac</h1>
+    <h6 class="c-heading c-updates__title">1Password for Mac 8.12.22</h6>
+    <h6 class="c-heading c-updates__title">1Password for Mac 8.12.21</h6>
+    """#
+    #expect(VendorProbeRecipe.extractVersion(
+        from: fixture, pattern: #"1Password for Mac\s+([0-9]+\.[0-9]+\.[0-9]+)"#) == "8.12.22")
+}
+
+@Test func sublimeTextProbeKeepsBuildPrefixForComparison() {
+    // Trimmed real slice of sublimetext.com/download. The captured form MUST keep
+    // the "Build " prefix so it compares like-for-like against the installed
+    // CFBundleShortVersionString "Build 4200" (a bare "4200" would read as newer).
+    let fixture = """
+    <p class="latest"><i>Version:</i> Build 4200</p>
+        <h3>Build 4192</h3>
+        <h3>Build 4189</h3>
+    """
+    let pattern = #"class="latest"><i>Version:</i>\s*(Build\s+4[0-9]{3})"#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "Build 4200")
+    #expect(VersionComparator.isNewer("Build 4200", than: "Build 4200") == false)
+}
+
+@Test func sublimeMergeProbeKeepsBuildPrefix() {
+    // sublimemerge.com/download — same shape as Sublime Text; builds are 2xxx.
+    let fixture = """
+    <p class="latest"><i>Version:</i> Build 2125</p>
+        <h3>Build 2123</h3>
+    """
+    let pattern = #"class="latest"><i>Version:</i>\s*(Build\s+[0-9]{4})"#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "Build 2125")
+    #expect(VersionComparator.isNewer("Build 2125", than: "Build 2125") == false)
+}
+
+@Test func plexProbeScopesToMacOSAndDropsBuildSuffix() {
+    // plex.tv/api/downloads/6.json — Windows block FIRST (proves MacOS scoping);
+    // the 3-component capture drops the feed's .359 build (avoids phantom update).
+    let fixture = #"""
+    {"computer":{"Windows":{"version":"1.112.0.359-0d79a49f","releases":[{"url":"https://downloads.plex.tv/plex-desktop/1.112.0.359-0d79a49f/windows/Plex.exe"}]},"MacOS":{"version":"1.112.0.359-0d79a49f","releases":[{"url":"https://downloads.plex.tv/plex-desktop/1.112.0.359-0d79a49f/macos/Plex-universal.zip"}]}}}
+    """#
+    let pattern = #""MacOS"\s*:\s*\{[^}]*?"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "1.112.0")
+}
+
+@Test func alfredProbeReadsVersionKeyFromPlistAppcast() {
+    // alfredapp.com/app/update5/general.xml — plist; the version <key> is the
+    // latest, distinct from the descending "## Alfred X.Y.Z" changelog markdown.
+    let fixture = """
+    <key>build</key>
+    <integer>2320</integer>
+    <key>changelogdata</key>
+    <string># Change Log
+
+    ## Alfred 5.7.3
+    ## Alfred 5.7.2
+    </string>
+    <key>version</key>
+    <string>5.7.3</string>
+    """
+    let pattern = #"<key>version</key>\s*<string>([0-9][0-9.]*)</string>"#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "5.7.3")
+}
+
+@Test func shottrProbeReadsStableNotBeta() {
+    // shottr.cc/api/version.json — the "latestVersion" anchor must skip the
+    // sibling "betaLatestVersion" listed just above it.
+    let fixture = #"""
+    {"betaBuild":"120","betaLatestVersion":"1.9.0","build":"128","latestVersion":"1.9.1","link":"https://shottr.cc/newversion.html","releaseDate":"2025-12-17"}
+    """#
+    let pattern = #""latestVersion"\s*:\s*"([0-9]+\.[0-9]+(?:\.[0-9]+)?)""#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "1.9.1")
+}
+
+@Test func theUnarchiverProbeReadsShortVersionAttribute() {
+    // DevMate appcast — version is the sparkle:shortVersionString ATTRIBUTE on the
+    // enclosure (descending feed → first match newest).
+    let fixture = """
+    <item><title>147</title>\
+    <enclosure url="https://dl.devmate.com/com.macpaw.site.theunarchiver/147/TheUnarchiver-147.zip" sparkle:version="147" sparkle:shortVersionString="4.3.9"/></item>\
+    <item><title>146</title>\
+    <enclosure url="https://dl.devmate.com/com.macpaw.site.theunarchiver/146/TheUnarchiver-146.zip" sparkle:version="146" sparkle:shortVersionString="4.3.8"/></item>
+    """
+    let pattern = #"sparkle:shortVersionString="([0-9.]+)""#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "4.3.9")
+}
+
+@Test func orionProbeTakesHighestMarketingVersionNotBuild() {
+    // cdn.kagi.com/updates/26_0/appcast.xml — ASCENDING; must take HIGHEST
+    // shortVersionString (marketing 1.0.8), never the build (147.1).
+    let fixture = """
+    <item><sparkle:version>146</sparkle:version><sparkle:shortVersionString>1.0.7</sparkle:shortVersionString></item>
+    <item><sparkle:version>147</sparkle:version><sparkle:shortVersionString>1.0.8</sparkle:shortVersionString></item>
+    <item><sparkle:version>147.1</sparkle:version><sparkle:shortVersionString>1.0.8</sparkle:shortVersionString></item>
+    """
+    let pattern = #"<sparkle:shortVersionString>([0-9]+(?:\.[0-9]+)+)</sparkle:shortVersionString>"#
+    #expect(VendorProbeRecipe.highestVersion(from: fixture, pattern: pattern) == "1.0.8")
+}
+
+@Test func dropboxProbeExtractsThreeComponentVersionFromLocation() {
+    // 302 Location with %20-encoded filename; version is 3-component (254/4/2518).
+    let location = "https://edge.dropboxstatic.com/dbx-releng/client/Dropbox%20254.4.2518.dmg"
+    let pattern = #"Dropbox(?:%20| )([0-9]+\.[0-9]+\.[0-9]+)\.dmg"#
+    #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == "254.4.2518")
+}

@@ -754,6 +754,51 @@ public enum ChangelogRecipeRegistry {
                 + #"(?=<h2[^>]*id="corrective-releases")"#,
             itemPatterns: [#"<li>\s*(?<item>.*?)\s*</li>"#],
             maxEntries: 1),
+
+        // Google Chrome — Chrome has no single consumer changelog page; the
+        // canonical "what changed" surface is the Chrome Releases blog (Blogger).
+        // We fetch the *Stable updates* label page, which is server-rendered and
+        // carries each post's full body inline inside a
+        // `<script type='text/template'>` block (Blogger hydrates it client-side,
+        // but the raw markup is complete). The label page mixes platforms
+        // (Android / iOS / ChromeOS / Desktop), so the entryPattern requires the
+        // exact post title `Stable Channel Update for Desktop` — that one literal
+        // both selects the desktop posts AND excludes the Beta/Dev/Early/Extended
+        // channels (whose titles differ: "Chrome Beta for Desktop Update",
+        // "Early Stable Update for Desktop", etc.). Structure per post:
+        //   <a ... title='Stable Channel Update for Desktop'>…</a>
+        //   <span class='publishdate' itemprop='datePublished'>Wednesday, May 27, 2026</span>
+        //   <script type='text/template'>…post HTML…</script>
+        // No version lives in the title or URL, so `version` is the first 4-part
+        // build number in the body prose (e.g. 148.0.7778.216) — display-only and
+        // low-stakes, so grabbing the first listed build is fine even though a post
+        // lists Windows/Mac/Linux variants.
+        //
+        // Two item shapes, tried in order:
+        //   1. CVE — security updates list each fix as inline spans (NOT <li>):
+        //      "[$reward][issue] Severity CVE-2026-9872: Out of bounds write in GPU."
+        //      The CVE id + description sit together in one span's text, so anchor on
+        //      the `CVE-YYYY-N:` literal and capture to the next tag.
+        //   2. lead — promotion posts (no CVEs yet, "Security update coming shortly")
+        //      have only prose; capture the announcement sentence ("…promotion of
+        //      Chrome N to the stable channel" / "…has been updated to …"), using a
+        //      tempered dot so it can't span past its own </p> into the boilerplate
+        //      ("Interested in switching release channels?…") or the signature.
+        // Security posts match CVE first (≥1 item) so the lead pattern never fires on
+        // them; promotion posts fall through to lead. A parse miss just embeds the page.
+        ChangelogRecipe(
+            bundleID: "com.google.Chrome",
+            source: URL(string: "https://chromereleases.googleblog.com/search/label/Stable%20updates")!,
+            entryPattern:
+                #"title='Stable Channel Update for Desktop'>.*?"#
+                + #"<span class='publishdate'[^>]*>\s*(?<date>[^<]+?)\s*</span>.*?"#
+                + #"<script type='text/template'>\s*"#
+                + #"(?<body>.*?(?<version>\d+\.\d+\.\d+\.\d+).*?)</script>"#,
+            itemPatterns: [
+                #"(?<item>CVE-\d{4}-\d+:[^<]*)"#,
+                #"<p[^>]*>(?<item>(?:(?!</p>).)*?(?:promotion of Chrome|been updated to)(?:(?!</p>).)*?)</p>"#,
+            ],
+            minItemLength: 8),
     ]
 
     /// Index lazily; first recipe wins on a duplicate bundle id.

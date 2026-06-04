@@ -390,13 +390,15 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "26120.3106.4725.800")
 }
 
-@Test func oneDriveProbeExtractsVersionFromLocationPath() {
+@Test func oneDriveProbeExtractsMarketingVersionFromLocationPath() {
     // The 302 from go.microsoft.com/fwlink/?linkid=823060 lands on a versioned
-    // .pkg URL whose filename is just "OneDrive.pkg" — the 4-component version
-    // lives in the path, so followRedirects:false reads the Location.
+    // .pkg URL whose filename is just "OneDrive.pkg" — the version lives in the
+    // path. Capture only the first THREE components: that equals the installed
+    // CFBundleShortVersionString (26.078.0426); the trailing .0002 is a build
+    // revision the marketing version omits, and reading it would phantom-update.
     let location = "https://oneclient.sfx.ms/Mac/Installers/26.078.0426.0002/universal/OneDrive.pkg"
-    let pattern = #"/Installers/([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/"#
-    #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == "26.078.0426.0002")
+    let pattern = #"/Installers/([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+/"#
+    #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == "26.078.0426")
 }
 
 // MARK: - Office suite probes (unified version via fwlink / XML)
@@ -519,20 +521,31 @@ private func verdict(
 }
 
 @Test func nonBuildRecipesStillCompareAgainstMarketingVersion() {
-    // Teams and OneDrive report their full 4-component version as the marketing
-    // string, so they stay non-build: an installed copy at the same version is
-    // up to date, and a newer one surfaces.
-    for (bundleID, current, newer) in [
-        ("com.microsoft.teams2", "26120.3106.4725.800", "26121.0.0.0"),
-        ("com.microsoft.OneDrive", "26.078.0426.0002", "26.079.0.0"),
+    // Teams and OneDrive stay non-build. `extracted` is what each recipe's pattern
+    // captures (OneDrive: first 3 path components, NOT the 4-component path); short
+    // / build are the real installed Info.plist fields read from the vendor pkg.
+    // An installed copy at the current version is up to date; a newer one surfaces.
+    struct Case { let bundleID, short, build, current, newer: String }
+    for c in [
+        // Teams: short == build == the detected version.
+        Case(bundleID: "com.microsoft.teams2", short: "26120.3106.4725.800",
+             build: "26120.3106.4725.800", current: "26120.3106.4725.800",
+             newer: "26121.0.0.0"),
+        // OneDrive: short is 3-component, build merges the first two — neither equals
+        // the 4-component path. The pattern captures the first 3 (== short).
+        Case(bundleID: "com.microsoft.OneDrive", short: "26.078.0426",
+             build: "26078.0426.0002", current: "26.078.0426", newer: "26.079.0501"),
     ] {
-        let recipe = registryRecipe(bundleID)
+        let recipe = registryRecipe(c.bundleID)
         #expect(!recipe.versionIsBuild)
-        let installed = installedApp(bundleID: bundleID, short: current, build: current)
-        #expect(verdict(recipe: recipe, extracted: current, installed: installed) == .upToDate)
+        let installed = installedApp(bundleID: c.bundleID, short: c.short, build: c.build)
         #expect(
-            verdict(recipe: recipe, extracted: newer, installed: installed)
-                == .updateAvailable(latest: newer))
+            verdict(recipe: recipe, extracted: c.current, installed: installed) == .upToDate,
+            "\(c.bundleID) phantom-updated against its own installed version")
+        #expect(
+            verdict(recipe: recipe, extracted: c.newer, installed: installed)
+                == .updateAvailable(latest: c.newer),
+            "\(c.bundleID) missed a real update")
     }
 }
 

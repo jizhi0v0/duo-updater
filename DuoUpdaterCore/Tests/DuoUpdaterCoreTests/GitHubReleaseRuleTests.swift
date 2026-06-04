@@ -40,6 +40,23 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(first == "12.6.0")
 }
 
+@Test func zedStableRuleExtractsVPrefixedTag() {
+    // Stable ships non-prerelease `vX.Y.Z`; `/releases/latest` never returns a
+    // `-pre`, so the default pattern just strips the `v`.
+    #expect(extract("v1.5.3", "dev.zed.Zed") == "1.5.3")
+    // Stable rule reads `/releases/latest` (not the prerelease list)…
+    #expect(rule("dev.zed.Zed").usePrereleases == false)
+    // …is gated to the stable channel, and stays detection-only.
+    #expect(rule("dev.zed.Zed").channel == .stable)
+    #expect(rule("dev.zed.Zed").installAssetPattern == nil)
+    // Preview stays a distinct bundle id on the prerelease list — no collision.
+    #expect(rule("dev.zed.Zed-Preview").usePrereleases == true)
+    // Preview MUST be channel-gated to `.preview`, else the source's channel gate
+    // skips it and a real Preview install resolves to no source (the regression
+    // the live `--check` caught when the gate defaulted the rule to `.stable`).
+    #expect(rule("dev.zed.Zed-Preview").channel == .preview)
+}
+
 @Test func zenRuleKeepsLetterSuffix() {
     // The trailing 'b' is part of the installed version string, so it must survive.
     #expect(extract("1.20.1b", "app.zen-browser.zen") == "1.20.1b")

@@ -284,12 +284,34 @@ public struct GitHubReleasesSource: UpdateSource {
 /// the live Releases API to yield the app's current version.
 public enum GitHubReleaseRegistry {
     public static let rules: [GitHubReleaseRule] = [
+        // Zed Stable — same repo, but stable ships as non-prerelease tags
+        // (`vX.Y.Z`, no `-pre`). `usePrereleases: false` (default) reads
+        // `/releases/latest`, which GitHub computes excluding prereleases, so it
+        // returns the newest stable (`v1.5.3`) and never a `-pre` build; the
+        // default pattern strips the `v` → `1.5.3`, matching the installed
+        // `dev.zed.Zed`'s `CFBundleShortVersionString`. Channel-gated to `.stable`
+        // (default) so it can't be served to the Preview install that ships under
+        // a different bundle id anyway. Detection-only: a `Zed-aarch64.dmg` asset
+        // ships, but its Team ID isn't confirmed against the install and Zed has
+        // its own updater, so no `installAssetPattern` — same stance as Preview.
+        // Closes the stable-channel version gap the 2026-06-04 audit surfaced
+        // (Homebrew `auto_updates` falls through, no `SUFeedURL`).
+        GitHubReleaseRule(
+            bundleID: "dev.zed.Zed",
+            owner: "zed-industries", repo: "zed"),
+
         // Zed Preview — the Preview channel ships as prereleases (`vX.Y.Z-pre`).
+        // MUST declare `channel: .preview`: the Preview install detects as
+        // `.preview`, and the source's channel gate refuses any rule whose channel
+        // doesn't match the install. Without this the rule defaults to `.stable`
+        // and the gate skips it, leaving a real Preview install with no source
+        // (regressed when the channel gate landed; caught by the live `--check`).
         GitHubReleaseRule(
             bundleID: "dev.zed.Zed-Preview",
             owner: "zed-industries", repo: "zed",
             usePrereleases: true,
-            versionPattern: #"v([0-9]+\.[0-9]+\.[0-9]+)-pre"#),
+            versionPattern: #"v([0-9]+\.[0-9]+\.[0-9]+)-pre"#,
+            channel: .preview),
 
         // Pearcleaner — tags have no `v` prefix.
         GitHubReleaseRule(

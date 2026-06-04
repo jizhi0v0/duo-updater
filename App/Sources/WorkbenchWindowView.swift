@@ -159,7 +159,8 @@ struct WorkbenchWindowView: View {
                     result: result,
                     mode: mode,
                     bytes: bytes(for: result),
-                    isSelected: result.id == selection)
+                    isSelected: result.id == selection,
+                    isRunning: model.isRunning(result))
                     .tag(result.id)
             }
             Divider()
@@ -348,6 +349,8 @@ private struct WorkbenchSidebarRow: View {
     /// When selected we render the version line in the emphasized foreground (white
     /// over the highlight) instead of the tint; the arrow still conveys "update".
     let isSelected: Bool
+    /// Whether the app currently has a running process — shows the green live dot.
+    let isRunning: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -356,6 +359,7 @@ private struct WorkbenchSidebarRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(result.app.name).font(.body).lineLimit(1)
+                    if isRunning { RunningIndicator(size: 5) }
                     ChannelTag(channel: result.app.releaseChannel)
                 }
                 subtitle
@@ -404,6 +408,7 @@ private struct DetailHeader: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
                         Text(result.app.name).font(.title2).bold()
+                        if model.isRunning(result) { RunningIndicator(size: 7) }
                         ChannelTag(channel: result.app.releaseChannel)
                     }
                     versionLine

@@ -75,6 +75,21 @@ final class AppListModel {
     /// result.id → the version we have a rollback backup for, refreshed from the
     /// on-disk backup store whenever the list changes.
     private(set) var backupVersions: [String: String] = [:]
+    /// Bundle *paths* of apps with at least one live process right now. Kept current
+    /// by `NSWorkspace`'s launch/terminate notifications, so a row's running dot
+    /// lights up/clears the moment the user opens or quits the app — no refresh
+    /// needed. Keyed by path, NOT bundle id: the same app can be installed twice
+    /// (e.g. two Android Studio versions side by side) sharing one bundle id, and
+    /// only the install whose bundle is actually executing should light up.
+    private(set) var runningAppPaths: Set<String> = []
+
+    /// Whether *this exact install* currently has a running process — drives the
+    /// green "live" dot in the menu and workbench. Matched on the bundle path so a
+    /// second copy of the same app (same bundle id, different path) doesn't falsely
+    /// light up when only the other copy is open.
+    func isRunning(_ result: UpdateResult) -> Bool {
+        runningAppPaths.contains(result.app.path.resolvingSymlinksInPath().path)
+    }
 
     func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
     func backupVersion(_ id: String) -> String? { backupVersions[id] }
@@ -174,6 +189,11 @@ final class AppListModel {
     /// Coalesce background-triggered rescans: a flurry of FS events plus a timer
     /// tick shouldn't stack up redundant scans on top of each other.
     @ObservationIgnored private var localRescanRunning = false
+
+    /// `NSWorkspace` launch/terminate observers that keep `runningBundleIDs` live.
+    /// Retained for the app's lifetime (the single model never deallocates), so they
+    /// stay registered without explicit teardown.
+    @ObservationIgnored private var runningAppObservers: [NSObjectProtocol] = []
 
     /// Periodic "your app downloaded an update on its own — relaunch to apply it"
     /// reminder. Decoupled from the (possibly hours-long) update-check interval:
@@ -333,6 +353,9 @@ final class AppListModel {
         // Chrome's Keystone staging a new build, a Sparkle app swapping itself —
         // flips the Restart badge without waiting for a menu open or networked check.
         armLocalRescan()
+        // Track which apps are running so each row can show a live "running" dot,
+        // kept current by NSWorkspace launch/terminate notifications.
+        armRunningAppsMonitor()
     }
 
     /// The ordered source stack, rebuilt per check so it picks up a token change
@@ -1638,6 +1661,35 @@ final class AppListModel {
         defer { localRescanRunning = false }
         Log.app.debug("local rescan: triggered (watcher or backstop)")
         await refreshLocal()
+    }
+
+    /// Seed `runningAppPaths` from the current process list and keep it live via
+    /// NSWorkspace's launch/terminate notifications. These fire on the main thread
+    /// the instant an app opens or quits, so a row's running dot updates without
+    /// waiting for the next scan. We recompute the whole set on each event (cheap —
+    /// it's a single in-memory array walk) rather than diffing, so a missed/coalesced
+    /// notification can't leave the set wrong.
+    private func armRunningAppsMonitor() {
+        refreshRunningApps()
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didLaunchApplicationNotification,
+                     NSWorkspace.didTerminateApplicationNotification] {
+            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.refreshRunningApps() }
+            }
+            runningAppObservers.append(observer)
+        }
+    }
+
+    /// Recompute the set of running bundle paths from the live process list. We use
+    /// each process's `bundleURL` (the .app it launched from), symlink-resolved to
+    /// match how `AppScanner` records `InstalledApp.path` (it resolves symlinks too),
+    /// so the comparison in `isRunning` lines up.
+    private func refreshRunningApps() {
+        runningAppPaths = Set(
+            NSWorkspace.shared.runningApplications.compactMap {
+                $0.bundleURL?.resolvingSymlinksInPath().path
+            })
     }
 
     /// Post a "new updates available" banner for actionable updates the user hasn't

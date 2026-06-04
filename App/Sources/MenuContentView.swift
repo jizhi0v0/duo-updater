@@ -255,6 +255,7 @@ private struct AppRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 6) {
                         Text(result.app.name).font(.body)
+                        if model.isRunning(result) { RunningIndicator(size: 6) }
                         ChannelTag(channel: result.app.releaseChannel)
                     }
                     versionLine

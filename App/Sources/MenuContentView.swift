@@ -785,14 +785,28 @@ private struct AppRow: View {
                 .font(.headline)
             Text("\(result.app.name) isn’t in your App Store region (\(here)). It’s listed in \(there)\(result.remote?.displayVersion.map { " — latest \($0)" } ?? "").")
                 .font(.callout)
-            Text("Updating it requires signing the App Store into an Apple ID for \(there). No tool can install it under a \(here) account — it’s an Apple licensing restriction, not a refresh problem.")
+            // The region lock blocks a *fresh install* (the product page is "App Not
+            // Available" under a \(here) account), but it does NOT block updating an
+            // app you already have: an installed region-locked app still shows up in
+            // App Store's own Updates list, and DuoUpdater can drive that update
+            // entirely in the background. The catch is timing — the store surfaces
+            // these into its Updates list on its own schedule.
+            Text("You already have it installed, so it can still be updated — DuoUpdater drives the App Store’s Updates list in the background (a fresh install would need a \(there) account). It only works once the App Store has listed this update; if it hasn’t yet, try again later.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button("Open App Store anyway") { openInAppStore(info) }
+            HStack {
+                Button("Update in background") {
+                    showRegionHint = false
+                    Task { await model.install(result) }
+                }
                 .controlSize(.small)
+                .buttonStyle(.borderedProminent)
+                Button("Open App Store") { openInAppStore(info) }
+                    .controlSize(.small)
+            }
         }
         .padding(12)
-        .frame(width: 290)
+        .frame(width: 300)
     }
 
     private func macCompatHintPopover(_ info: AppStoreAvailability) -> some View {

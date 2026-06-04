@@ -867,45 +867,74 @@ final class AppListModel {
                 installing[id] = .downloading(fraction: 0)
                 // Both routes download through the App Store daemon, so we never see
                 // those bytes — intentionally not recorded (we only count measured).
-                switch prefs.appStoreUpdateStrategy {
-                case .full:
-                    try await masInstaller.install(adamID: adamID) { stage in
-                        Task { @MainActor in self.setStage(id, stage) }
+                if result.remote?.appStore?.isRegionMismatch == true {
+                    // Region-locked app (listed in a storefront other than the signed-in
+                    // account's). mas can't fetch it (wrong storefront) and its product
+                    // page is "App Not Available" — but an *already-installed* one still
+                    // appears in App Store's Updates list and updates fine from there.
+                    // So this is AX-only (via `showUpdatesPage`), regardless of the
+                    // full/incremental preference, and there's no mas fallback. If the
+                    // store hasn't surfaced the update into the list yet, the installer
+                    // throws `.notInUpdatesList`, shown as a "try again later" hint.
+                    guard AppStoreAXInstaller.isTrusted else {
+                        installing[id] = nil
+                        installErrors[id] = AppStoreAXInstaller.AXError.notTrusted.errorDescription
+                        presentAccessibilityPermissionFlow()
+                        return false
                     }
-                case .incremental where AppStoreAXInstaller.isTrusted:
                     try await appStoreAXInstaller.update(
                         trackID: adamID,
                         appPath: result.app.path,
                         bundleID: result.app.bundleID,
                         appName: result.app.name,
-                        currentShortVersion: result.app.shortVersion
+                        currentShortVersion: result.app.shortVersion,
+                        viaUpdatesList: true
                     ) { stage in
                         Task { @MainActor in self.setStage(id, stage) }
                     } confirmQuit: { [weak self] appName in
                         await self?.requestQuitConfirmation(id: id, appName: appName) ?? false
                     }
-                case .incremental where MASInstaller.isAvailable:
-                    // Incremental is selected but Accessibility isn't granted (the
-                    // user declined the opt-in prompt, or revoked it later). There's
-                    // no "denied" callback from the TCC flow, so we resolve it here,
-                    // at use time: don't fail the update — fall back to the full (mas)
-                    // route this once, and guide the user to grant Accessibility (once
-                    // per session, so we don't nag) so the next update can go
-                    // incremental. We deliberately leave the *setting* on incremental:
-                    // it self-heals to the delta route as soon as access is granted.
-                    Log.install.notice("App Store incremental without Accessibility — using mas this time: \(result.app.name, privacy: .public)")
-                    guideAccessibilityOncePerSession()
-                    try await masInstaller.install(adamID: adamID) { stage in
-                        Task { @MainActor in self.setStage(id, stage) }
+                } else {
+                    switch prefs.appStoreUpdateStrategy {
+                    case .full:
+                        try await masInstaller.install(adamID: adamID) { stage in
+                            Task { @MainActor in self.setStage(id, stage) }
+                        }
+                    case .incremental where AppStoreAXInstaller.isTrusted:
+                        try await appStoreAXInstaller.update(
+                            trackID: adamID,
+                            appPath: result.app.path,
+                            bundleID: result.app.bundleID,
+                            appName: result.app.name,
+                            currentShortVersion: result.app.shortVersion
+                        ) { stage in
+                            Task { @MainActor in self.setStage(id, stage) }
+                        } confirmQuit: { [weak self] appName in
+                            await self?.requestQuitConfirmation(id: id, appName: appName) ?? false
+                        }
+                    case .incremental where MASInstaller.isAvailable:
+                        // Incremental is selected but Accessibility isn't granted (the
+                        // user declined the opt-in prompt, or revoked it later). There's
+                        // no "denied" callback from the TCC flow, so we resolve it here,
+                        // at use time: don't fail the update — fall back to the full (mas)
+                        // route this once, and guide the user to grant Accessibility (once
+                        // per session, so we don't nag) so the next update can go
+                        // incremental. We deliberately leave the *setting* on incremental:
+                        // it self-heals to the delta route as soon as access is granted.
+                        Log.install.notice("App Store incremental without Accessibility — using mas this time: \(result.app.name, privacy: .public)")
+                        guideAccessibilityOncePerSession()
+                        try await masInstaller.install(adamID: adamID) { stage in
+                            Task { @MainActor in self.setStage(id, stage) }
+                        }
+                    case .incremental:
+                        // Incremental, no Accessibility, and no mas to fall back to — we
+                        // can't update at all. Surface the need and guide to the grant;
+                        // the row's retry picks up once access is granted.
+                        installing[id] = nil
+                        installErrors[id] = AppStoreAXInstaller.AXError.notTrusted.errorDescription
+                        presentAccessibilityPermissionFlow()
+                        return false
                     }
-                case .incremental:
-                    // Incremental, no Accessibility, and no mas to fall back to — we
-                    // can't update at all. Surface the need and guide to the grant;
-                    // the row's retry picks up once access is granted.
-                    installing[id] = nil
-                    installErrors[id] = AppStoreAXInstaller.AXError.notTrusted.errorDescription
-                    presentAccessibilityPermissionFlow()
-                    return false
                 }
             case "Vendor", "GitHub":
                 installing[id] = .downloading(fraction: 0)

@@ -45,6 +45,7 @@ public actor AppStoreAXInstaller {
         case notTrusted
         case appStoreUnavailable
         case offerButtonNotFound
+        case notInUpdatesList
         case cancelled
         case needsManualConfirmation
         case timedOut
@@ -57,6 +58,12 @@ public actor AppStoreAXInstaller {
                 return "Couldn’t open the App Store."
             case .offerButtonNotFound:
                 return "Couldn’t find the update button on the App Store page."
+            case .notInUpdatesList:
+                // Region-locked apps have no usable product page (it shows "App Not
+                // Available"), so we drive App Store's Updates list instead — which
+                // only carries the app once the store has surfaced its update, on its
+                // own schedule. Until then there's nothing to press.
+                return "The App Store hasn’t listed this update yet. It surfaces region-locked updates on its own schedule — try again once it appears in the App Store’s Updates list."
             case .cancelled:
                 return "Update cancelled."
             case .needsManualConfirmation:
@@ -92,12 +99,22 @@ public actor AppStoreAXInstaller {
     ///     quit it to finish installing. Return `true` to press Continue (the app
     ///     quits and the update lands), `false` to press Cancel (throws `.cancelled`).
     ///     Not called when the app isn't running — then the update installs directly.
+    ///   - viaUpdatesList: drive App Store's **Updates list** (`showUpdatesPage`) and
+    ///     locate the app's row by name, instead of opening its product page. Required
+    ///     for **region-locked** apps: their product page is unreachable under a
+    ///     different storefront ("App Not Available"), but an already-installed
+    ///     region-locked app still appears in the Updates list and updates normally
+    ///     from there. On this path the press registers **without activating** App
+    ///     Store (verified on macOS 26), so the whole update runs fully in the
+    ///     background. Throws `.notInUpdatesList` when the app isn't in the list yet
+    ///     (the store surfaces such updates on its own schedule).
     public func update(
         trackID: Int,
         appPath: URL,
         bundleID: String?,
         appName: String,
         currentShortVersion: String?,
+        viaUpdatesList: Bool = false,
         onStage: @Sendable @escaping (InstallStage) -> Void,
         confirmQuit: @Sendable @escaping (String) async -> Bool
     ) async throws {
@@ -110,22 +127,33 @@ public actor AppStoreAXInstaller {
         // page). When we launch it ourselves, give it a moment to finish coming up.
         let (store, didLaunch) = try await ensureAppStoreRunning()
         if didLaunch { try await Task.sleep(for: .seconds(1)) }
-        try navigateToProductPage(trackID: trackID)
+        if viaUpdatesList {
+            // The product page is "App Not Available" for region-locked apps; the
+            // Updates list (`showUpdatesPage` — NOT `updates`, which lands on Discover)
+            // carries the row and lets it update. Reliable even on a cold launch.
+            try navigate("macappstore://showUpdatesPage")
+        } else {
+            try navigateToProductPage(trackID: trackID)
+        }
 
         let axApp = AXUIElementCreateApplication(store.processIdentifier)
 
-        // The AXPress only registers when App Store is the *active* app: a backgrounded
-        // App Store renders the page but silently swallows the press, so the download
-        // never starts (verified — every `open -g`/never-activated attempt failed,
-        // while a foreground press drove the whole flow). Activate just long enough to
-        // press, remembering who was frontmost so we can hand focus straight back.
-        let priorPID = await currentFrontmostPID()
-        await activate(store)
-        try await Task.sleep(for: .milliseconds(250))  // let activation settle
+        // On the product-page path the AXPress only registers when App Store is the
+        // *active* app (a backgrounded App Store renders the page but swallows the
+        // press), so we briefly activate. The Updates-list path needs no activation —
+        // its offer button honors a background press (verified macOS 26), which is what
+        // keeps a region-locked update fully silent. So only the product-page path
+        // touches focus; remember who was frontmost so we can hand it straight back.
+        let needsActivation = !viaUpdatesList
+        let priorPID = needsActivation ? await currentFrontmostPID() : nil
+        if needsActivation {
+            await activate(store)
+            try await Task.sleep(for: .milliseconds(250))  // let activation settle
+        }
 
-        guard try await waitForOfferButton(in: axApp) != nil else {
-            await restoreFocus(priorPID)
-            throw AXError.offerButtonNotFound
+        guard try await waitForOfferButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) != nil else {
+            if needsActivation { await restoreFocus(priorPID) }
+            throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
 
         // Baseline the on-disk version *before* pressing, so completion is gated on
@@ -146,15 +174,15 @@ public actor AppStoreAXInstaller {
         // Relaunch tap, pressing Continue ourselves only then (see driveToCompletion).
         // We already know (from detection) an update is due, so press regardless of the
         // localized title — pressing an up-to-date button no-ops.
-        guard let offer = mainOfferButton(in: axApp) else {
-            await restoreFocus(priorPID)
-            throw AXError.offerButtonNotFound
+        guard let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) else {
+            if needsActivation { await restoreFocus(priorPID) }
+            throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
         AXUIElementPerformAction(offer, kAXPressAction as CFString)
         onStage(.downloading(fraction: 0))
 
         // Download runs in the background now — hand focus back to the user.
-        await restoreFocus(priorPID)
+        if needsActivation { await restoreFocus(priorPID) }
 
         try await driveToCompletion(
             axApp: axApp,
@@ -163,6 +191,7 @@ public actor AppStoreAXInstaller {
             appName: appName,
             appPath: appPath,
             baseline: baseline,
+            viaUpdatesList: viaUpdatesList,
             onStage: onStage,
             confirmQuit: confirmQuit
         )
@@ -234,10 +263,14 @@ public actor AppStoreAXInstaller {
     // MARK: - Navigation
 
     private func navigateToProductPage(trackID: Int) throws {
+        try navigate("macappstore://apps.apple.com/app/id\(trackID)")
+    }
+
+    /// `open -g <url>` — navigate App Store in the background, never stealing focus.
+    private func navigate(_ urlString: String) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        // -g: open/raise in the background, never steal focus from the user.
-        process.arguments = ["-g", "macappstore://apps.apple.com/app/id\(trackID)"]
+        process.arguments = ["-g", urlString]
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { throw AXError.appStoreUnavailable }
@@ -254,11 +287,12 @@ public actor AppStoreAXInstaller {
         throw AXError.appStoreUnavailable
     }
 
-    /// The product page may take a moment to render after navigation; poll until
-    /// the offer button appears (or give up).
-    private func waitForOfferButton(in axApp: AXUIElement) async throws -> AXUIElement? {
+    /// The page (product page, or the Updates list) may take a moment to render after
+    /// navigation; poll until the app's offer button appears (or give up). On the
+    /// Updates-list path the row is also subject to the store's update check finishing.
+    private func waitForOfferButton(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool) async throws -> AXUIElement? {
         for _ in 0..<60 {  // ~12s
-            if let offer = mainOfferButton(in: axApp) { return offer }
+            if let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) { return offer }
             try await Task.sleep(for: .milliseconds(200))
         }
         return nil
@@ -286,9 +320,13 @@ public actor AppStoreAXInstaller {
         appName: String,
         appPath: URL,
         baseline: (short: String?, build: String?),
+        viaUpdatesList: Bool,
         onStage: @Sendable @escaping (InstallStage) -> Void,
         confirmQuit: @Sendable @escaping (String) async -> Bool
     ) async throws {
+        // The Updates-list path presses in the background (no activation needed —
+        // verified macOS 26); only the product-page path must briefly activate.
+        let needsActivation = !viaUpdatesList
         var sheetTicks = 0
         var sawProgress = false   // the download actually started (vs. an immediate sheet)
         var continued = false     // we pressed Continue; the app is quitting + swapping
@@ -321,23 +359,27 @@ public actor AppStoreAXInstaller {
                     // sheet right before pressing: it can re-render across the await, and
                     // an AXPress on a stale ref silently no-ops.
                     guard await confirmQuit(appName) else {
-                        let prior = await currentFrontmostPID()
-                        await activate(store)
-                        try await Task.sleep(for: .milliseconds(200))
+                        let prior = needsActivation ? await currentFrontmostPID() : nil
+                        if needsActivation {
+                            await activate(store)
+                            try await Task.sleep(for: .milliseconds(200))
+                        }
                         if let fresh = quitSheet(in: axApp) {
                             pressSheetButton(fresh, "AXCancelButton")
                         }
-                        await restoreFocus(prior)
+                        if needsActivation { await restoreFocus(prior) }
                         throw AXError.cancelled
                     }
                     onStage(.installing)  // "Relaunching" — Continue quits + swaps in
-                    let prior = await currentFrontmostPID()
-                    await activate(store)
-                    try await Task.sleep(for: .milliseconds(200))
+                    let prior = needsActivation ? await currentFrontmostPID() : nil
+                    if needsActivation {
+                        await activate(store)
+                        try await Task.sleep(for: .milliseconds(200))
+                    }
                     if let fresh = quitSheet(in: axApp) {
                         pressSheetButton(fresh, "AXDefaultButton")  // Continue
                     }
-                    await restoreFocus(prior)
+                    if needsActivation { await restoreFocus(prior) }
                     continued = true
                     sheetTicks = 0
                 } else {
@@ -354,7 +396,7 @@ public actor AppStoreAXInstaller {
 
             // 3. Surface download progress from the offer button title (display only).
             // Once we've pressed Continue the title is meaningless, so stop reading it.
-            if !continued, let offer = mainOfferButton(in: axApp), let title = title(offer) {
+            if !continued, let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList), let title = title(offer) {
                 if let fraction = Self.progressFraction(title) {
                     sawProgress = true
                     onStage(.downloading(fraction: fraction))
@@ -373,13 +415,15 @@ public actor AppStoreAXInstaller {
             } else {
                 idleTicks += 1
                 if idleTicks == 30 && !repressed {
-                    let prior = await currentFrontmostPID()
-                    await activate(store)
-                    try await Task.sleep(for: .milliseconds(250))
-                    if let offer = mainOfferButton(in: axApp) {
+                    let prior = needsActivation ? await currentFrontmostPID() : nil
+                    if needsActivation {
+                        await activate(store)
+                        try await Task.sleep(for: .milliseconds(250))
+                    }
+                    if let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) {
                         AXUIElementPerformAction(offer, kAXPressAction as CFString)
                     }
-                    await restoreFocus(prior)
+                    if needsActivation { await restoreFocus(prior) }
                     repressed = true
                 } else if idleTicks >= 60 {
                     throw AXError.timedOut
@@ -421,14 +465,49 @@ public actor AppStoreAXInstaller {
 
     // MARK: - AX lookups
 
-    /// The product page's primary offer button. There can be several
-    /// `AppStore.offerButton`s on a page (related apps, "more by this developer"),
-    /// so we take the topmost (smallest y) — the page header's own button.
-    private func mainOfferButton(in axApp: AXUIElement) -> AXUIElement? {
+    /// The offer button to press, by path:
+    ///   • **Product page** (default): several `AppStore.offerButton`s can exist
+    ///     (related apps, "more by this developer"), so we take the topmost (smallest
+    ///     y) — the page header's own button.
+    ///   • **Updates list** (`viaUpdatesList`): one row per app, each with its own
+    ///     offer button. We pick the row whose nearby text carries `appName`, matching
+    ///     by name rather than position or the localized button title (which reads
+    ///     "Update"/"更新"/… and is unreliable). Returns nil when no row matches — the
+    ///     app isn't in the list yet.
+    private func offerButton(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool) -> AXUIElement? {
         var found: [AXUIElement] = []
         collect(axApp, id: "AppStore.offerButton", into: &found)
-        return found.min { (frame($0)?.minY ?? .greatestFiniteMagnitude)
-                         < (frame($1)?.minY ?? .greatestFiniteMagnitude) }
+        guard viaUpdatesList else {
+            return found.min { (frame($0)?.minY ?? .greatestFiniteMagnitude)
+                             < (frame($1)?.minY ?? .greatestFiniteMagnitude) }
+        }
+        let rows = found.compactMap { btn -> (AXUIElement, [String])? in
+            guard let y = frame(btn)?.midY else { return nil }
+            return (btn, rowTexts(in: axApp, nearY: y))
+        }
+        // Prefer an exact app-name match (the row's title text); fall back to a
+        // contains-match for apps whose Updates-list label carries extra decoration.
+        if let exact = rows.first(where: { $0.1.contains(appName) })?.0 { return exact }
+        return rows.first(where: { row in
+            row.1.contains { $0.localizedCaseInsensitiveContains(appName) }
+        })?.0
+    }
+
+    /// Static-text strings sharing a row with a given y (±tolerance) — used to tell
+    /// which app an Updates-list offer button belongs to (the app name renders as a
+    /// sibling `AXStaticText`, not on the button itself).
+    private func rowTexts(in axApp: AXUIElement, nearY y: CGFloat, tolerance: CGFloat = 45) -> [String] {
+        var acc: [String] = []
+        collectRowTexts(axApp, lo: y - tolerance, hi: y + tolerance, into: &acc)
+        return acc
+    }
+
+    private func collectRowTexts(_ el: AXUIElement, lo: CGFloat, hi: CGFloat, into acc: inout [String], depth: Int = 0) {
+        if depth > 60 { return }
+        if role(el) == "AXStaticText", let f = frame(el), f.midY >= lo, f.midY <= hi, let t = title(el) {
+            acc.append(t)
+        }
+        for c in children(el) { collectRowTexts(c, lo: lo, hi: hi, into: &acc, depth: depth + 1) }
     }
 
     /// The "Close This App to Update" alert, if present: it surfaces as an `AXSheet`

@@ -377,3 +377,82 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     let pattern = #"Dropbox(?:%20| )([0-9]+\.[0-9]+\.[0-9]+)\.dmg"#
     #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == "254.4.2518")
 }
+
+@Test func microsoftTeamsProbeAnchorsToWebView2CanaryNotWebView2() {
+    // The config/v1/MicrosoftTeams JSON carries two macOS tracks: WebView2
+    // (lower version) and WebView2Canary (production/Public R4, higher version).
+    // The pattern MUST anchor to "WebView2Canary"; a loose "macOS":{"latestVersion"
+    // would grab the lower WebView2 track first.
+    let fixture = #"""
+    {"BuildSettings":{"WebView2":{"macOS":{"latestVersion":"25290.302.4044.3989","buildLink":"https://installer.teams.static.microsoft/production-osx/25290.302.4044.3989/MicrosoftTeams.pkg"}},"WebView2Canary":{"macOS":{"latestVersion":"26120.3106.4725.800","buildLink":"https://teamsinstaller.public.onecdn.static.microsoft/production-osx/26120.3106.4725.800/MicrosoftTeams.pkg"}}}}
+    """#
+    let pattern = #""WebView2Canary":\{"macOS":\{"latestVersion":"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "26120.3106.4725.800")
+}
+
+@Test func oneDriveProbeExtractsVersionFromLocationPath() {
+    // The 302 from go.microsoft.com/fwlink/?linkid=823060 lands on a versioned
+    // .pkg URL whose filename is just "OneDrive.pkg" — the 4-component version
+    // lives in the path, so followRedirects:false reads the Location.
+    let location = "https://oneclient.sfx.ms/Mac/Installers/26.078.0426.0002/universal/OneDrive.pkg"
+    let pattern = #"/Installers/([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/"#
+    #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == "26.078.0426.0002")
+}
+
+// MARK: - Office suite probes (unified version via fwlink / XML)
+
+@Test func microsoftOfficeFwlinkExtractsVersionFromLocation() {
+    // All Office fwlinks 301 to versioned .pkg URLs on the Office CDN. The version
+    // is a 3-component segment (16.109.26053122) embedded in the filename.
+    // followRedirects:false reads the Location header.
+    let location = "https://res.public.onecdn.static.microsoft/mro1cdnstorage/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_PowerPoint_16.109.26053122_Installer.pkg"
+    let pattern = #"_(\d+\.\d+\.\d+)_Installer\.pkg"#
+    #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == "16.109.26053122")
+}
+
+@Test func microsoftOutlookProbeExtractsVersionFromXML() {
+    // Outlook uses the Office AutoUpdate XML manifest which carries the version
+    // in <key>Update Version</key><string>...</string>.
+    let fixture = #"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+      <key>Payload</key>
+      <dict>
+        <key>Update Version</key>
+        <string>16.109.26053122</string>
+        <key>Update Version Location</key>
+        <string>https://officecdn.microsoft.com/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Outlook_16.109.26053122_Installer.pkg</string>
+      </dict>
+    </dict>
+    </plist>
+    """#
+    let pattern = #"<key>Update Version</key>\s*<string>([0-9]+\.[0-9]+\.[0-9]+)</string>"#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "16.109.26053122")
+}
+
+// MARK: - Self-updaters with public Sparkle appcasts (safety-net probes)
+
+@Test func bartenderProbeTakesHighestFromAscendingAppcast() {
+    // Bartender's Sparkle appcast is ascending (oldest first); selectHighest picks
+    // the newest version (6.5.2), not the first item (6.0.0).
+    let fixture = """
+    <item><sparkle:shortVersionString>6.0.0</sparkle:shortVersionString></item>
+    <item><sparkle:shortVersionString>6.0.1</sparkle:shortVersionString></item>
+    <item><sparkle:shortVersionString>6.5.2</sparkle:shortVersionString></item>
+    """
+    let pattern = #"<sparkle:shortVersionString>([0-9]+\.[0-9]+\.[0-9]+)</sparkle:shortVersionString>"#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "6.0.0")
+    #expect(VendorProbeRecipe.highestVersion(from: fixture, pattern: pattern) == "6.5.2")
+}
+
+@Test func imageOptimProbeReadsVersionFromSparkleAppcast() {
+    // ImageOptim's Sparkle appcast carries only the latest release on the
+    // enclosure's sparkle:shortVersionString ATTRIBUTE. First match is current.
+    let fixture = #"""
+    <enclosure url="https://imageoptim.com/ImageOptim1.9.3.tar.xz" sparkle:version="1.9.3" sparkle:shortVersionString="1.9.3" />
+    """#
+    let pattern = #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+)""#
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "1.9.3")
+}

@@ -569,13 +569,18 @@ public enum VendorProbeRegistry {
 
         // Firefox — Mozilla's `product-details` endpoint carries every channel's
         // current version in one JSON. Release, Beta and ESR all ship as
-        // `org.mozilla.firefox` (only the version string's `b`/`esr` suffix tells
-        // them apart — see `ReleaseChannel`), so three recipes share that bundle
-        // id and are picked by the install's detected channel. Developer Edition
-        // and Nightly have their own bundle ids. The captured version KEEPS the
-        // `bN`/`esr` suffix so it compares equal to the installed app's
-        // `CFBundleShortVersionString` (stripping it would read as a downgrade and
-        // never offer an update). Detection only — Firefox self-updates.
+        // `org.mozilla.firefox`; the channel is told apart by `application.ini`
+        // RemotingName (`firefox`/`firefox-beta`/`firefox-esr` — see
+        // `ReleaseChannel`), NOT the version suffix, because the installed
+        // `CFBundleShortVersionString` DROPS the `b`/`esr` (verified on real
+        // bundles 2026-06-04: Beta reports `152.0`, ESR `140.11.0`). So three
+        // recipes share that bundle id and are picked by the install's detected
+        // channel. Developer Edition (`org.mozilla.firefoxdeveloperedition`,
+        // RemotingName `firefox-dev`) and Nightly (`org.mozilla.nightly`) have
+        // their own ids. The captured version KEEPS the feed's `bN`/`esr` form: it
+        // sorts as a pre-release (never phantoms against the suffix-less install)
+        // while a real bump still compares newer. Detection only — Firefox
+        // self-updates.
         VendorProbeRecipe(
             bundleID: "org.mozilla.firefox",
             url: URL(string: "https://product-details.mozilla.org/1.0/firefox_versions.json")!,
@@ -606,9 +611,10 @@ public enum VendorProbeRegistry {
             versionPattern: #""FIREFOX_DEVEDITION"\s*:\s*"([0-9]+\.[0-9]+b[0-9]+)""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/developer/"),
             changelogURL: URL(string: "https://www.mozilla.org/firefox/beta/notes/"),
-            // Developer Edition tracks the Beta train (its version is a `bN`),
-            // which the channel detector classifies as `.beta`.
-            channel: .beta),
+            // Developer Edition tracks the Beta train (version is a `bN`) but has
+            // its own bundle id and RemotingName `firefox-dev`, so the detector
+            // classifies it `.dev` — the channel its recipe must target.
+            channel: .dev),
         VendorProbeRecipe(
             bundleID: "org.mozilla.nightly",
             url: URL(string: "https://product-details.mozilla.org/1.0/firefox_versions.json")!,
@@ -618,9 +624,16 @@ public enum VendorProbeRegistry {
             changelogURL: URL(string: "https://www.mozilla.org/firefox/nightly/notes/"),
             channel: .nightly),
 
-        // Thunderbird — same Mozilla `product-details` mechanism. Release, Beta
-        // and ESR share `org.mozilla.thunderbird`, separated by the version
-        // suffix. Detection only — Thunderbird self-updates.
+        // Thunderbird — same Mozilla `product-details` mechanism. Channel routing
+        // is by `application.ini` RemotingName (see `ReleaseChannel`), NOT the
+        // version suffix: the installed `CFBundleShortVersionString` DROPS the
+        // `b`/`esr` suffix (verified on real bundles 2026-06-04). Bundle ids differ
+        // per channel — Release & ESR share `org.mozilla.thunderbird`, Beta is
+        // `org.mozilla.thunderbirdbeta`, Daily is `org.mozilla.thunderbird-daily`.
+        // The probe still captures the feed's full `bN`/`esr` form: it sorts as a
+        // pre-release (< the suffix-less installed version) so it never phantoms;
+        // a real version bump (140.11.1→140.12.0esr) still compares newer.
+        // Detection only — Thunderbird self-updates.
         VendorProbeRecipe(
             bundleID: "org.mozilla.thunderbird",
             url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
@@ -629,7 +642,7 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://www.thunderbird.net/"),
             changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/")),
         VendorProbeRecipe(
-            bundleID: "org.mozilla.thunderbird",
+            bundleID: "org.mozilla.thunderbirdbeta",
             url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
             mode: .responseBody,
             versionPattern: #""LATEST_THUNDERBIRD_DEVEL_VERSION"\s*:\s*"([0-9]+\.[0-9]+b[0-9]+)""#,
@@ -644,15 +657,30 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://www.thunderbird.net/enterprise/"),
             changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/"),
             channel: .esr),
+        VendorProbeRecipe(
+            bundleID: "org.mozilla.thunderbird-daily",
+            url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
+            mode: .responseBody,
+            versionPattern: #""LATEST_THUNDERBIRD_NIGHTLY_VERSION"\s*:\s*"([0-9]+\.[0-9]+a[0-9]+)""#,
+            downloadURL: URL(string: "https://www.thunderbird.net/channel/desktop/"),
+            changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/"),
+            channel: .nightly),
 
-        // Warp — Preview / Beta / Dev / Canary. One JSON lists every channel's
-        // version, each tagged with the channel name in its suffix
-        // (`…preview_01`), so a per-channel pattern is unambiguous. Channels ship
-        // as separate bundle ids (`dev.warp.Warp-Preview`, …) — the Stable build
-        // is the existing `dev.warp.Warp-Stable` recipe above. We extract the bare
-        // date-version (dropping the `v` prefix and `.<channel>_NN` suffix) to
-        // match the form Stable already compares against. Detection only (Warp
-        // self-updates); the Stable recipe keeps its one-click install.
+        // Warp — Preview / Dev. One JSON lists every channel's version, each tagged
+        // with the channel name in its suffix (`…preview_01`), so a per-channel
+        // pattern is unambiguous. Channels ship as separate bundle ids
+        // (`dev.warp.Warp-Preview`, …) — the Stable build is the existing
+        // `dev.warp.Warp-Stable` recipe above. We extract the bare date-version
+        // (dropping the `v` prefix and `.<channel>_NN` suffix) to match the form
+        // Stable already compares against. Detection only (Warp self-updates); the
+        // Stable recipe keeps its one-click install.
+        //
+        // The JSON still lists `beta` and `canary`, but Warp abandoned both tracks
+        // (beta froze at 2024-12, canary at 2022-09 — see 2026-06-04 audit), so we
+        // carry NO recipe for them: probing would only ever surface a years-stale
+        // "latest", worse than the clean "unknown" an installed Warp-Beta/Canary
+        // now gets. Bundle-id-suffix detection still tags such an install for the
+        // UI; it just has no version source.
         VendorProbeRecipe(
             bundleID: "dev.warp.Warp-Preview",
             url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
@@ -662,14 +690,6 @@ public enum VendorProbeRegistry {
             changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
             channel: .preview),
         VendorProbeRecipe(
-            bundleID: "dev.warp.Warp-Beta",
-            url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
-            mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.beta_[0-9]+""#,
-            downloadURL: URL(string: "https://www.warp.dev/download"),
-            changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
-            channel: .beta),
-        VendorProbeRecipe(
             bundleID: "dev.warp.Warp-Dev",
             url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
             mode: .responseBody,
@@ -677,14 +697,6 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://www.warp.dev/download"),
             changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
             channel: .dev),
-        VendorProbeRecipe(
-            bundleID: "dev.warp.Warp-Canary",
-            url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
-            mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.canary_[0-9]+""#,
-            downloadURL: URL(string: "https://www.warp.dev/download"),
-            changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
-            channel: .canary),
 
         // Signal — Stable + Beta. electron-builder feeds (one per channel). Stable
         // ships `org.whispersystems.signal-desktop`; Beta is a separate
@@ -951,12 +963,46 @@ public enum VendorProbeRegistry {
         // binary. NOTE: undocumented endpoint; degrades silently to unknown if
         // it moves. The host also serves the manifest over https, so we hit
         // that — a plain-http url would be blocked by ATS at load time.
+        //
+        // The `alpha` in the path is MISLEADING and does NOT mean we track a
+        // pre-release channel: for macOS arm64 this is the only working manifest
+        // (stable/beta/release/official/... all 404), and it serves the OFFICIAL
+        // line — it returns 5.07.2026041006, exactly the latest official build,
+        // matching what the app's own check-for-updates calls "latest". The real
+        // alpha (e.g. 5.11.2026052520-alpha) is a SEPARATE manual download from
+        // dcloud.io and never appears in this manifest, so we don't auto-offer it.
+        //
+        // The trailing `"` in versionPattern is load-bearing: it requires the
+        // captured X.Y.Z to be immediately closed by a quote, so a hypothetical
+        // "…-alpha"/"…-beta" suffixed string would fail to match and degrade to
+        // unknown rather than be offered as if it were stable. Don't drop it.
         VendorProbeRecipe(
             bundleID: "io.dcloud.HBuilderX",
             url: URL(string: "https://update.liuyingyong.cn/hbuilderx/alpha/macosx-arm64/update/index.json")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
             changelogURL: URL(string: "https://hx.dcloud.net.cn/Tutorial/HistoryVersion")),
+
+        // HBuilderX Alpha (DCloud) — the alpha track is a SEPARATE app: bundle id
+        // io.dcloud.HBuilderXAlpha, installed as HBuilderX-Alpha.app, notarized
+        // under the SAME Team ID (YQM5H857L5) as the stable build. Its detected
+        // channel is .alpha (the "HBuilderX-Alpha" bundle name carries a standalone
+        // "alpha" token), so this recipe MUST declare channel: .alpha — otherwise
+        // VendorProbeSource's channel gate refuses it and the app stays "unknown".
+        // Version comes from the download page's alpha config JSON, whose `version`
+        // is the full pre-release string ("5.11.2026052520-alpha") and matches the
+        // installed CFBundleShortVersionString exactly (VersionComparator tokenizes
+        // the "-alpha" as a trailing text run, so equal strings compare equal and a
+        // newer numeric build still wins). The trailing `"` after the capture keeps
+        // it off the shorter `displayVersion` ("5.11") field. Detection only — like
+        // the stable recipe, the alpha self-updates.
+        VendorProbeRecipe(
+            bundleID: "io.dcloud.HBuilderXAlpha",
+            url: URL(string: "https://download1.dcloud.net.cn/hbuilderx/alpha.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+-alpha)""#,
+            changelogURL: URL(string: "https://hx.dcloud.net.cn/Tutorial/HistoryVersion"),
+            channel: .alpha),
 
         // Warp — GitHub releases carry NO binary asset; the real dmg lives on
         // Warp's CDN. `app.warp.dev/download?package=dmg` returns a tiny HTML page
@@ -1019,7 +1065,7 @@ public enum VendorProbeRegistry {
         // match is correct; the delta SOURCE (0.0.392) never appears as a
         // /universal/<v>/ segment. Detection only — Discord self-updates via its
         // own host updater. ptb/canary ship as separate bundle ids with their own
-        // channel=ptb|canary endpoints — add dedicated recipes if needed.
+        // channel=ptb|canary endpoints — their dedicated recipes follow below.
         VendorProbeRecipe(
             bundleID: "com.hnc.Discord",
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=osx&arch=x64")!,
@@ -1027,6 +1073,30 @@ public enum VendorProbeRegistry {
             versionPattern: #"stable\.dl2\.discordapp\.net/distro/app/stable/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
             downloadURL: URL(string: "https://discord.com/download"),
             changelogURL: URL(string: "https://discord.com/blog")),
+
+        // Discord PTB / Canary — same manifest endpoint as Stable, just a different
+        // `channel=` query, and each ships under its own bundle id with its own
+        // `<chan>.dl2.discordapp.net/distro/app/<chan>/…` url path (so the version
+        // pattern only swaps the channel literal). Detection only — Discord
+        // self-updates via its own host updater. Canary's "Discord Canary" name
+        // detects as .canary via the standalone word; PTB needs the dedicated
+        // `.ptb` channel (no word/suffix otherwise carries "Public Test Build").
+        VendorProbeRecipe(
+            bundleID: "com.hnc.DiscordPTB",
+            url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=ptb&platform=osx&arch=x64")!,
+            mode: .responseBody,
+            versionPattern: #"ptb\.dl2\.discordapp\.net/distro/app/ptb/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            downloadURL: URL(string: "https://discord.com/download"),
+            changelogURL: URL(string: "https://discord.com/blog"),
+            channel: .ptb),
+        VendorProbeRecipe(
+            bundleID: "com.hnc.DiscordCanary",
+            url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=canary&platform=osx&arch=x64")!,
+            mode: .responseBody,
+            versionPattern: #"canary\.dl2\.discordapp\.net/distro/app/canary/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            downloadURL: URL(string: "https://discord.com/download"),
+            changelogURL: URL(string: "https://discord.com/blog"),
+            channel: .canary),
 
         // Notion desktop — public "latest" download redirect. www.notion.so/
         // desktop/mac/download 307s straight to the versioned installer

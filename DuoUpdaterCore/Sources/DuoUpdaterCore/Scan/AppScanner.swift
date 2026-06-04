@@ -142,6 +142,16 @@ public struct AppScanner: Sendable {
         let displayShortVersion = toolboxTool
             .map(\.displayVersion).flatMap { $0.isEmpty ? nil : $0 } ?? shortVersion
 
+        // Mozilla apps (Firefox/Thunderbird/forks) bake their channel into
+        // `Contents/Resources/application.ini` as `RemotingName` (`firefox-esr`,
+        // `thunderbird-beta`, …). It's the ONLY reliable channel signal for them —
+        // their installed `CFBundleShortVersionString` drops the `b`/`esr` suffix
+        // and Beta/ESR can share `org.mozilla.firefox` with Stable. Read it only for
+        // Mozilla bundle ids to avoid an extra file probe on every other app.
+        let mozillaRemotingName: String? =
+            (bundleID?.hasPrefix("org.mozilla") == true)
+            ? Self.mozillaRemotingName(in: bundleURL) : nil
+
         // Release channel (Stable/Beta/Canary/…). Chrome & other Keystone apps
         // declare it explicitly via `KSChannelID`; otherwise we infer it from the
         // bundle id suffix or a channel word in the display name. This gates
@@ -151,8 +161,9 @@ public struct AppScanner: Sendable {
             bundleID: bundleID,
             keystoneChannel: plist["KSChannelID"] as? String,
             // Use the RAW marketing version (not the Toolbox-aligned display one)
-            // so Mozilla's "152.0b6"/"…esr" suffix can be read for channel.
-            version: shortVersion
+            // so Mozilla's "153.0a1" nightly suffix can be read for channel.
+            version: shortVersion,
+            mozillaRemotingName: mozillaRemotingName
         )
 
         // Some apps hide the user's channel choice in a private preference (no
@@ -187,5 +198,23 @@ public struct AppScanner: Sendable {
             releaseChannel: releaseChannel,
             channelIsAuthoritative: channelIsAuthoritative
         )
+    }
+
+    /// The `RemotingName` from a Mozilla app's `Contents/Resources/application.ini`
+    /// (`firefox-esr`, `thunderbird-beta`, `firefox`, …) — the authoritative
+    /// channel marker. `application.ini` is a small INI file; we scan it for the
+    /// `RemotingName=` line rather than pulling in a parser. Nil when absent.
+    public static func mozillaRemotingName(in bundleURL: URL) -> String? {
+        let iniURL = bundleURL.appendingPathComponent("Contents/Resources/application.ini")
+        guard let text = try? String(contentsOf: iniURL, encoding: .utf8) else { return nil }
+        for line in text.split(whereSeparator: \.isNewline) {
+            guard let eq = line.firstIndex(of: "=") else { continue }
+            if line[..<eq].trimmingCharacters(in: .whitespaces).caseInsensitiveCompare("RemotingName")
+                == .orderedSame {
+                let value = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+                return value.isEmpty ? nil : value
+            }
+        }
+        return nil
     }
 }

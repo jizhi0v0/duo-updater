@@ -15,6 +15,11 @@ import Foundation
 public enum ReleaseChannel: String, Sendable, Hashable, CaseIterable {
     case stable
     case beta
+    /// Discord's "Public Test Build" — a distinct public pre-release track that
+    /// ships as its own bundle id (`com.hnc.DiscordPTB`). No `<sparkle:channel>`
+    /// tag or version suffix carries it, so it's detected from the standalone
+    /// "PTB" word in the app's display name ("Discord PTB").
+    case ptb
     case dev
     case canary
     case nightly
@@ -28,22 +33,37 @@ public enum ReleaseChannel: String, Sendable, Hashable, CaseIterable {
 
     /// Detect the channel of an installed app from the strongest signals
     /// available, in priority order:
+    ///   0. Mozilla's per-channel `RemotingName` from `application.ini`
+    ///      (`firefox-esr`, `thunderbird-beta`, …) — authoritative for
+    ///      Firefox/Thunderbird, and the ONLY reliable signal for them: the
+    ///      installed `CFBundleShortVersionString` DROPS the `b`/`esr` suffix
+    ///      (`152.0b7`→`152.0`, `140.11.0esr`→`140.11.0`), and Beta/ESR can share
+    ///      `org.mozilla.firefox` with Stable. Verified against real bundles
+    ///      2026-06-04; the version-suffix heuristic below silently misclassified
+    ///      them (an ESR install read as `.stable`, then offered the stable build).
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
     ///   2. A channel suffix on the bundle id (`com.google.Chrome.canary`).
     ///   3. A standalone channel word in the display name ("Google Chrome Dev").
-    ///   4. A Mozilla-style pre-release/esr suffix in the version string
-    ///      ("152.0b6" → beta, "153.0a1" → nightly, "140.11.0esr" → esr) — the
-    ///      ONLY signal that separates Firefox Release/Beta/ESR, which all share
-    ///      `org.mozilla.firefox`.
+    ///   4. A Mozilla-style pre-release suffix in the version string
+    ///      ("153.0a1" → nightly) — survives only for Nightly; Beta/ESR strip it.
     /// Nothing matched → `.stable`.
     public static func detect(
         name: String,
         bundleID: String?,
         keystoneChannel: String?,
-        version: String? = nil
+        version: String? = nil,
+        mozillaRemotingName: String? = nil
     ) -> ReleaseChannel {
+        // 0. Mozilla `RemotingName` — authoritative for Firefox/Thunderbird.
+        if let remoting = mozillaRemotingName?
+            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+           !remoting.isEmpty,
+           let channel = mozillaChannel(fromRemoting: remoting) {
+            return channel
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {
@@ -89,6 +109,21 @@ public enum ReleaseChannel: String, Sendable, Hashable, CaseIterable {
         return .stable
     }
 
+    /// Map a Mozilla `RemotingName` (from `application.ini`) to its channel.
+    /// Real values seen 2026-06-04: `firefox` / `thunderbird` (stable),
+    /// `firefox-esr`, `firefox-beta`, `firefox-dev` (Developer Edition),
+    /// `firefox-nightly`, and the `thunderbird-*` equivalents. A present name with
+    /// no recognized channel suffix is the release build → `.stable`. Returns nil
+    /// only for an empty/garbage value so the caller falls through to other signals.
+    private static func mozillaChannel(fromRemoting name: String) -> ReleaseChannel? {
+        if name.hasSuffix("-esr") { return .esr }
+        if name.hasSuffix("-beta") { return .beta }
+        if name.hasSuffix("-nightly") { return .nightly }
+        if name.hasSuffix("-dev") { return .dev }
+        // A bare product name ("firefox"/"thunderbird"/"librewolf"/…) is stable.
+        return name.allSatisfy { $0.isLetter || $0 == "." } ? .stable : nil
+    }
+
     /// True if `text` matches `pattern` in its entirety (anchored both ends).
     private static func fullyMatches(_ pattern: String, _ text: String) -> Bool {
         guard let regex = try? NSRegularExpression(pattern: "^" + pattern + "$") else {
@@ -99,7 +134,7 @@ public enum ReleaseChannel: String, Sendable, Hashable, CaseIterable {
     }
 
     private static let nonStable: [ReleaseChannel] =
-        [.canary, .nightly, .preview, .beta, .alpha, .dev]
+        [.canary, .nightly, .preview, .beta, .alpha, .dev, .ptb]
 
     /// Map a recognized standalone word in `text` to its channel, or nil.
     private static func channelWord(in text: String) -> ReleaseChannel? {
@@ -109,6 +144,7 @@ public enum ReleaseChannel: String, Sendable, Hashable, CaseIterable {
             ("nightly", .nightly),
             ("insiders", .preview),
             ("preview", .preview),
+            ("ptb", .ptb),
             ("beta", .beta),
             ("alpha", .alpha),
             ("dev", .dev),

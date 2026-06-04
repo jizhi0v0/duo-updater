@@ -38,15 +38,48 @@ import Foundation
         name: "Google Chrome Dev", bundleID: nil, keystoneChannel: nil) == .dev)
 }
 
+// HBuilderX Alpha ships as "HBuilderX-Alpha.app" with no CFBundleName, so the
+// scanner's display name is the bundle file name "HBuilderX-Alpha" — whose
+// standalone "alpha" token must resolve to .alpha. This is the linchpin that lets
+// VendorProbeSource's channel gate route the io.dcloud.HBuilderXAlpha recipe; the
+// glued bundle id ("…HBuilderXAlpha", no separator) can't signal it on its own.
+@Test func hbuilderXAlphaBundleNameSignalsAlpha() {
+    #expect(ReleaseChannel.detect(
+        name: "HBuilderX-Alpha", bundleID: "io.dcloud.HBuilderXAlpha", keystoneChannel: nil) == .alpha)
+    // The glued bundle id alone (no separator before "alpha") does NOT signal it.
+    #expect(ReleaseChannel.detect(
+        name: "HBuilderX", bundleID: "io.dcloud.HBuilderXAlpha", keystoneChannel: nil) == .stable)
+}
+
+// Discord PTB / Canary ship as glued bundle ids (`com.hnc.DiscordPTB`,
+// `…DiscordCanary`, no separator before the channel word) so — like HBuilderX
+// Alpha — only the standalone word in the display name carries the channel.
+// This detection is the linchpin VendorProbeSource's gate matches against the
+// dedicated `.ptb`/`.canary` recipes.
+@Test func discordPTBAndCanaryDisplayNamesSignalChannel() {
+    #expect(ReleaseChannel.detect(
+        name: "Discord PTB", bundleID: "com.hnc.DiscordPTB", keystoneChannel: nil) == .ptb)
+    #expect(ReleaseChannel.detect(
+        name: "Discord Canary", bundleID: "com.hnc.DiscordCanary", keystoneChannel: nil) == .canary)
+    // The glued bundle id alone (no separator) does NOT signal it — bare "Discord"
+    // stays stable, which is exactly why each ships under its own recipe bundle id.
+    #expect(ReleaseChannel.detect(
+        name: "Discord", bundleID: "com.hnc.DiscordPTB", keystoneChannel: nil) == .stable)
+}
+
 @Test func mozillaVersionSuffixSignalsChannel() {
-    // Firefox Release/Beta/ESR all carry `org.mozilla.firefox`; only the version
-    // string separates them.
+    // FALLBACK path only. A REAL installed Firefox/Thunderbird strips the `b`/`esr`
+    // suffix from `CFBundleShortVersionString` (Beta reports "152.0", ESR
+    // "140.11.0"), so these suffixed strings never actually occur for Beta/ESR —
+    // `RemotingName` is the real signal (see below). This keeps the version-suffix
+    // net as a harmless backstop, and asserts a plain stable version never trips it.
     #expect(ReleaseChannel.detect(
         name: "Firefox", bundleID: "org.mozilla.firefox",
         keystoneChannel: nil, version: "152.0b6") == .beta)
     #expect(ReleaseChannel.detect(
         name: "Firefox", bundleID: "org.mozilla.firefox",
         keystoneChannel: nil, version: "140.11.0esr") == .esr)
+    // Nightly is the one channel whose `aN` suffix DOES survive into the install.
     #expect(ReleaseChannel.detect(
         name: "Firefox Nightly", bundleID: "org.mozilla.nightly",
         keystoneChannel: nil, version: "153.0a1") == .nightly)
@@ -54,11 +87,36 @@ import Foundation
     #expect(ReleaseChannel.detect(
         name: "Firefox", bundleID: "org.mozilla.firefox",
         keystoneChannel: nil, version: "151.0.3") == .stable)
-    // Developer Edition has its own bundle id but a beta-shaped version.
-    #expect(ReleaseChannel.detect(
-        name: "Firefox Developer Edition",
-        bundleID: "org.mozilla.firefoxdeveloperedition",
-        keystoneChannel: nil, version: "152.0b6") == .beta)
+}
+
+@Test func mozillaRemotingNameIsAuthoritative() {
+    // Real values read from official bundles 2026-06-04. RemotingName is checked
+    // FIRST and overrides the (misleading) name/version signals: an ESR install
+    // reports a plain "140.11.0" and shares `org.mozilla.firefox`, so without this
+    // it read as `.stable` and got cross-channel pushed onto the stable build.
+    func detect(_ name: String, _ bundle: String, _ short: String, _ remoting: String)
+        -> ReleaseChannel {
+        ReleaseChannel.detect(
+            name: name, bundleID: bundle, keystoneChannel: nil,
+            version: short, mozillaRemotingName: remoting)
+    }
+    // Firefox — Beta/ESR share the stable bundle id and a suffix-less version.
+    #expect(detect("Firefox", "org.mozilla.firefox", "151.0.3", "firefox") == .stable)
+    #expect(detect("Firefox", "org.mozilla.firefox", "152.0", "firefox-beta") == .beta)
+    #expect(detect("Firefox", "org.mozilla.firefox", "140.11.0", "firefox-esr") == .esr)
+    #expect(detect("Firefox Developer Edition",
+        "org.mozilla.firefoxdeveloperedition", "152.0", "firefox-dev") == .dev)
+    #expect(detect("Firefox Nightly", "org.mozilla.nightly", "153.0a1", "firefox-nightly")
+        == .nightly)
+    // Thunderbird — same scheme; Beta has its own bundle id, ESR shares stable's.
+    #expect(detect("Thunderbird", "org.mozilla.thunderbird", "151.0.1", "thunderbird")
+        == .stable)
+    #expect(detect("Thunderbird Beta", "org.mozilla.thunderbirdbeta", "152.0",
+        "thunderbird-beta") == .beta)
+    #expect(detect("Thunderbird", "org.mozilla.thunderbird", "140.11.1", "thunderbird-esr")
+        == .esr)
+    #expect(detect("Thunderbird Daily", "org.mozilla.thunderbird-daily", "153.0a1",
+        "thunderbird-nightly") == .nightly)
 }
 
 @Test func plainStableAppsStayStable() {
@@ -109,6 +167,43 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     #expect(stable.releaseChannel == .stable)
 }
 
+@Test func scannerTagsMozillaChannelViaRemotingName() throws {
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("chan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    // Writes a bundle whose Info.plist looks exactly like a real ESR install — same
+    // bundle id as stable, version with NO `esr` suffix, plain "Thunderbird" name —
+    // plus the application.ini RemotingName that's the only thing telling them apart.
+    func makeMozillaApp(_ name: String, bundleID: String, short: String, remoting: String)
+        throws {
+        let bundle = tmp.appendingPathComponent("\(name).app")
+        let resources = bundle.appendingPathComponent("Contents/Resources")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        let info: [String: Any] = [
+            "CFBundleIdentifier": bundleID, "CFBundleShortVersionString": short,
+        ]
+        let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+        try data.write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+        try "[App]\nRemotingName=\(remoting)\nVendor=Mozilla\n"
+            .write(to: resources.appendingPathComponent("application.ini"),
+                   atomically: true, encoding: .utf8)
+    }
+
+    try makeMozillaApp("Thunderbird", bundleID: "org.mozilla.thunderbird",
+        short: "140.11.1", remoting: "thunderbird-esr")
+    try makeMozillaApp("Firefox", bundleID: "org.mozilla.firefox",
+        short: "152.0", remoting: "firefox-beta")
+    try makeMozillaApp("Stable TB", bundleID: "org.mozilla.thunderbird",
+        short: "151.0.1", remoting: "thunderbird")
+
+    let apps = AppScanner(locations: [tmp]).scan()
+    #expect(try #require(apps.first { $0.name == "Thunderbird" }).releaseChannel == .esr)
+    #expect(try #require(apps.first { $0.name == "Firefox" }).releaseChannel == .beta)
+    #expect(try #require(apps.first { $0.name == "Stable TB" }).releaseChannel == .stable)
+}
+
 // MARK: - VendorProbeSource refuses to cross channels (gate B)
 
 @Test func vendorProbeSkipsChannelMismatch() async throws {
@@ -130,6 +225,58 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
 
     let result = try await source.latestVersion(for: canary)
     #expect(result == nil)  // refused on channel mismatch, no cross-channel package
+}
+
+// MARK: - GitHubReleasesSource refuses to cross channels (gate B, GitHub side)
+
+@Test func githubSourceSkipsChannelMismatch() async throws {
+    let stableRule = GitHubReleaseRule(
+        bundleID: "com.example.ghapp",
+        owner: "example", repo: "ghapp",
+        channel: .stable)
+    let source = GitHubReleasesSource(rules: [stableRule])
+
+    let nightly = InstalledApp(
+        name: "GHApp Nightly", bundleID: "com.example.ghapp",
+        shortVersion: "1.0.0", buildVersion: nil,
+        path: URL(fileURLWithPath: "/Applications/GHApp Nightly.app"),
+        isMASApp: false, sparkleFeedURL: nil, releaseChannel: .nightly)
+
+    let result = try await source.latestVersion(for: nightly)
+    #expect(result == nil)
+}
+
+@Test func githubSourceMatchesCorrectChannel() async throws {
+    let stableRule = GitHubReleaseRule(
+        bundleID: "com.example.ghapp",
+        owner: "example", repo: "ghapp",
+        channel: .stable)
+    let nightlyRule = GitHubReleaseRule(
+        bundleID: "com.example.ghapp",
+        owner: "example", repo: "ghapp",
+        usePrereleases: true,
+        versionPattern: #"nightly-([0-9.]+)"#,
+        channel: .nightly)
+    let source = GitHubReleasesSource(rules: [stableRule, nightlyRule])
+
+    let stableApp = InstalledApp(
+        name: "GHApp", bundleID: "com.example.ghapp",
+        shortVersion: "1.0.0", buildVersion: nil,
+        path: URL(fileURLWithPath: "/Applications/GHApp.app"),
+        isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
+
+    // Stable app should pick the stable rule — which targets example/ghapp, a
+    // non-existent repo. The source will try to fetch and fail (no real
+    // endpoint), confirming it DID select a rule rather than returning nil
+    // at the channel gate. Any error means the gate passed.
+    let threw: Bool
+    do {
+        _ = try await source.latestVersion(for: stableApp)
+        threw = false
+    } catch {
+        threw = true
+    }
+    #expect(threw, "Expected a fetch error (rule selected), not a nil (gate refused)")
 }
 
 // MARK: - Chrome per-channel recipes route through the gate (live)

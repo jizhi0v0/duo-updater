@@ -256,7 +256,12 @@ public struct VendorProbeRecipe: Sendable {
 /// Known-unfeasible (left out, would only mislead): Spotify (version API needs
 /// an account token), Paste (no public version API; direct build outruns MAS),
 /// ToDesk (appcast behind a JS bot-challenge), WeLink (Zoom-SDK private
-/// updater), RunnerNotify / STCM Editor (ad-hoc internal builds). The Android
+/// updater), RunnerNotify / STCM Editor (ad-hoc internal builds), Brave and
+/// Feishu/Lark (their `CFBundleShortVersionString` is Chromium-major-prefixed —
+/// e.g. Brave `148.1.90.128`, Feishu `131.0.6778.268` — but every vendor feed
+/// only exposes the bare app version `1.90.128` / `7.69.9`, which can't be made
+/// to compare in the same scheme, so any probe would phantom-update or
+/// phantom-downgrade; don't re-attempt without a Chromium-major source). The Android
 /// Studio recipe below targets the Stable channel only; a Canary/Preview install
 /// (which shares `com.google.android.studio`) is detected as a non-stable
 /// `ReleaseChannel` and skipped by `VendorProbeSource`'s channel gate, so it's

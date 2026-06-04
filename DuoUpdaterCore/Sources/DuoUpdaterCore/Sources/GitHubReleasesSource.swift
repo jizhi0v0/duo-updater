@@ -16,6 +16,12 @@ public struct GitHubReleaseRule: Sendable {
     /// (e.g. strip a leading `v`, or a `.stable_00` suffix).
     public let versionPattern: String
 
+    /// The release channel this rule's endpoint serves. The source refuses to
+    /// apply the rule unless the installed app is on the SAME channel, so a
+    /// stable rule can never be served to a nightly install that shares the
+    /// bundle id. Defaults to `.stable`.
+    public let channel: ReleaseChannel
+
     /// Regex matched against each release asset's *filename* to pick the macOS
     /// installer to one-click install in place. nil keeps the rule detection-only
     /// (the default and safe stance): we surface the version and link to the
@@ -34,9 +40,11 @@ public struct GitHubReleaseRule: Sendable {
         usePrereleases: Bool = false,
         versionPattern: String = #"v?([0-9]+(?:\.[0-9]+)+)"#,
         installAssetPattern: String? = nil,
-        installerKind: VendorInstallerKind? = nil
+        installerKind: VendorInstallerKind? = nil,
+        channel: ReleaseChannel = .stable
     ) {
         self.bundleID = bundleID
+        self.channel = channel
         self.owner = owner
         self.repo = repo
         self.usePrereleases = usePrereleases
@@ -126,7 +134,10 @@ public struct GitHubReleasesSource: UpdateSource {
         }
     }
 
-    private let rules: [String: GitHubReleaseRule]
+    /// Keyed by bundle id → the rules for that id, one per release channel.
+    /// Most apps have a single (stable) rule; channels that share a bundle id
+    /// list several and are disambiguated by the installed app's detected channel.
+    private let rules: [String: [GitHubReleaseRule]]
     private let session: URLSession
     private let token: String?
 
@@ -135,10 +146,7 @@ public struct GitHubReleasesSource: UpdateSource {
         token: String? = nil,
         session: URLSession = .updates
     ) {
-        self.rules = Dictionary(
-            rules.map { ($0.bundleID, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        self.rules = Dictionary(grouping: rules, by: { $0.bundleID })
         self.token = token
         self.session = session
     }
@@ -147,8 +155,18 @@ public struct GitHubReleasesSource: UpdateSource {
         // Toolbox-managed apps update through Toolbox — never offer a GitHub
         // artifact over a Toolbox install (no cross-channel mixing).
         guard !app.isToolboxManaged else { return nil }
-        guard let bundleID = app.bundleID, let rule = rules[bundleID] else {
+        guard let bundleID = app.bundleID, let candidates = rules[bundleID] else {
             return nil  // no rule for this app — not applicable
+        }
+        // Channel gate: pick the rule whose channel matches the installed app's,
+        // and refuse if none does. When channels share a bundle id, this selects
+        // the right endpoint; when only a stable rule exists, a detected
+        // nightly/beta install finds no match and is skipped rather than offered
+        // a cross-channel build.
+        guard let rule = candidates.first(where: { $0.channel == app.releaseChannel }) else {
+            Log.source.info(
+                "GitHub skip \(bundleID, privacy: .public): no rule for app channel \(app.releaseChannel.rawValue, privacy: .public)")
+            return nil
         }
         // A rule exists: let a fetch failure throw, so the checker turns it into
         // a retryable `.error` row rather than swallowing it into a nil that's

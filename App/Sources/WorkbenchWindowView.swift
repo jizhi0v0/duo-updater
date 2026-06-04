@@ -41,6 +41,9 @@ struct WorkbenchWindowView: View {
     /// The pending debounce, cancelled and restarted on each selection change.
     @State private var detailSettleTask: Task<Void, Never>?
     @State private var mode: DetailMode = .releaseNotes
+    /// Sidebar filter text. Empty shows every app; otherwise the list narrows to
+    /// apps whose name (or bundle id) contains the query, case/diacritic-insensitively.
+    @State private var searchText = ""
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
 
@@ -57,6 +60,20 @@ struct WorkbenchWindowView: View {
         model.results.sorted { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
             return lhs.app.name.localizedCaseInsensitiveCompare(rhs.app.name) == .orderedAscending
+        }
+    }
+
+    /// `apps` narrowed by the search field. A blank query passes everything through;
+    /// otherwise we match the query against the app name and bundle id (so
+    /// "com.google" finds Chrome too), ignoring case and diacritics.
+    private var filteredApps: [UpdateResult] {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return apps }
+        return apps.filter { result in
+            if result.app.name.localizedCaseInsensitiveContains(query) { return true }
+            if let bundleID = result.app.bundleID,
+               bundleID.localizedCaseInsensitiveContains(query) { return true }
+            return false
         }
     }
 
@@ -154,7 +171,10 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private var sidebar: some View {
         VStack(spacing: 0) {
-            List(apps, selection: $selection) { result in
+            AppSearchField(text: $searchText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            List(filteredApps, selection: $selection) { result in
                 WorkbenchSidebarRow(
                     result: result,
                     mode: mode,
@@ -162,6 +182,12 @@ struct WorkbenchWindowView: View {
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result))
                     .tag(result.id)
+            }
+            .overlay {
+                // No match for the current filter — say so rather than show a blank list.
+                if filteredApps.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                }
             }
             Divider()
             totalFooter
@@ -539,18 +565,125 @@ private struct ReleaseNotesPane: View {
     }
 }
 
-/// Lays out a parsed `Changelog` as version headers + bulleted item lists. Shared
-/// by the recipe and GitHub-release paths.
+/// Which way to lay out a multi-version changelog. Persisted so the choice sticks
+/// across apps and launches.
+private enum ChangelogLayout: String, CaseIterable {
+    case columns  // master/detail: version list on the left, selected notes right
+    case list     // one long top-down scroll of every version
+
+    var symbol: String {
+        switch self {
+        case .columns: return "sidebar.squares.left"
+        case .list:    return "list.bullet"
+        }
+    }
+}
+
+/// Lays out a parsed `Changelog`. Shared by the recipe and GitHub-release paths.
+/// A single-entry changelog (VS Code, VLC) renders full width. A multi-version one
+/// (HBuilderX, Slack, …) offers two layouts the user toggles between (remembered):
+/// `columns` — a master/detail with a version list on the left and the selected
+/// version's notes on the right, best for content-heavy changelogs; or `list` — one
+/// long top-down scroll, better when each version is only a line or two.
 private struct ChangelogEntriesView: View {
     let changelog: Changelog
+    @AppStorage("changelogLayout") private var layout: ChangelogLayout = .columns
+    @State private var selection = 0
+
+    /// Content-driven rail width. For each row take the wider of its two lines — the
+    /// title/version (callout) and the date subtitle (caption2) — since a short
+    /// version like "3.6.8" can still carry a longer date ("4 July, 2023"). Sort
+    /// those, then take a HIGH percentile, not the median: a title-based changelog
+    /// (Codex) has many long titles and the median would clip the upper half. The
+    /// 85th percentile fits the great majority; the upper clamp caps a lone runaway
+    /// title (and the lower clamp keeps a terse changelog from getting cramped).
+    /// Measured with AppKit since the labels are known up front — no GeometryReader.
+    private var railWidth: CGFloat {
+        let labelFont = NSFont.preferredFont(forTextStyle: .callout)
+        let dateFont = NSFont.preferredFont(forTextStyle: .caption2)
+        let rowWidths = changelog.entries
+            .map { entry -> CGFloat in
+                let labelW = (ChangelogVersionList.label(for: entry) as NSString)
+                    .size(withAttributes: [.font: labelFont]).width
+                let dateW = (entry.date?.isEmpty == false)
+                    ? (entry.date! as NSString).size(withAttributes: [.font: dateFont]).width
+                    : 0
+                return max(labelW, dateW)
+            }
+            .sorted()
+        guard !rowWidths.isEmpty else { return 200 }
+        let pick = rowWidths[Int((Double(rowWidths.count - 1) * 0.85).rounded())]
+        // Row chrome: line .horizontal(10)×2 + rail .padding(8)×2.
+        let chrome: CGFloat = 20 + 16
+        return min(max(pick + chrome, 140), 360)
+    }
 
     var body: some View {
+        if changelog.entries.count <= 1 {
+            // Nothing to navigate — render the single entry full width, no toggle.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    ForEach(Array(changelog.entries.enumerated()), id: \.offset) { _, entry in
+                        ChangelogEntryView(entry: entry)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        } else {
+            VStack(spacing: 0) {
+                // Slim header carrying the layout toggle, right-aligned.
+                HStack(spacing: 0) {
+                    Spacer()
+                    Picker("Layout", selection: $layout) {
+                        ForEach(ChangelogLayout.allCases, id: \.self) { option in
+                            Image(systemName: option.symbol).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    .help("Switch between side-by-side and long-scroll layouts")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+
+                Divider()
+
+                switch layout {
+                case .columns: columnsBody
+                case .list:    listBody
+                }
+            }
+            // New changelog (app switch) → select the newest entry again.
+            .onChange(of: changelog) { selection = 0 }
+        }
+    }
+
+    /// Master/detail: a content-sized version rail + the selected version's notes.
+    private var columnsBody: some View {
+        // Clamp: the same view can be reused when the user switches apps, so a stale
+        // selection from a longer changelog must not index past a shorter one.
+        let index = min(max(selection, 0), changelog.entries.count - 1)
+        return HStack(spacing: 0) {
+            ChangelogVersionList(entries: changelog.entries, selection: $selection)
+                .frame(width: railWidth)
+            Divider()
+            ScrollView {
+                ChangelogEntryView(entry: changelog.entries[index])
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            // Re-id on switch so the right pane scrolls back to the top instead of
+            // keeping the previous version's scroll offset.
+            .id(index)
+        }
+    }
+
+    /// One long top-down scroll of every version. LazyVStack so a long changelog
+    /// doesn't lay out every selectable, `fixedSize` bullet synchronously on appear.
+    private var listBody: some View {
         ScrollView {
-            // Lazy, not a plain VStack: a long changelog (e.g. Conductor) otherwise
-            // lays out every entry — each a stack of selectable, `fixedSize` `Text`
-            // bullets — synchronously on appear, freezing the main thread for a
-            // few hundred ms on each app switch. LazyVStack builds only the rows in
-            // (or near) the viewport, so switching apps stays snappy.
             LazyVStack(alignment: .leading, spacing: 20) {
                 ForEach(Array(changelog.entries.enumerated()), id: \.offset) { _, entry in
                     ChangelogEntryView(entry: entry)
@@ -559,6 +692,50 @@ private struct ChangelogEntriesView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+    }
+}
+
+/// The left rail of the master/detail changelog: one selectable row per version,
+/// newest first. The selected row is tinted; clicking it drives the detail pane.
+private struct ChangelogVersionList: View {
+    let entries: [Changelog.Entry]
+    @Binding var selection: Int
+
+    var body: some View {
+        let selected = min(max(selection, 0), entries.count - 1)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                    Button { selection = index } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(Self.label(for: entry))
+                                .font(.callout)
+                                .fontWeight(index == selected ? .semibold : .regular)
+                                .lineLimit(1)
+                            if let date = entry.date, !date.isEmpty {
+                                Text(date).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            index == selected ? Color.accentColor.opacity(0.15) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(8)
+        }
+    }
+
+    /// Prefer the human title (post-style entries), else the version string.
+    /// Static so the parent can measure label widths to size the rail.
+    static func label(for entry: Changelog.Entry) -> String {
+        if let title = entry.title, !title.isEmpty { return title }
+        return entry.version.isEmpty ? "—" : entry.version
     }
 }
 

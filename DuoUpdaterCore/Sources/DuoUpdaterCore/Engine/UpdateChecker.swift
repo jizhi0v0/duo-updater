@@ -85,7 +85,8 @@ public struct UpdateChecker: Sendable {
                     version: nil,
                     downloadURL: nil,
                     sourceName: "Toolbox",
-                    requiresManualInstaller: true)
+                    requiresManualInstaller: true,
+                    changelogURL: verdict.changelogURL)
                 let status: UpdateStatus = verdict.hasUpdate
                     ? .updateAvailable(latest: verdict.latestVersion)
                     : .upToDate

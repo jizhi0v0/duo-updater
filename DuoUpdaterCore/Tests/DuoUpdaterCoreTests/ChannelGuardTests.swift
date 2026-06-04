@@ -377,7 +377,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         ("Signal", "org.whispersystems.signal-desktop", .stable, { $0.first?.isNumber == true }),
         ("Signal Beta", "org.whispersystems.signal-desktop-beta", .beta, { $0.contains("beta") }),
         ("Element", "im.riot.app", .stable, { $0.contains(".") }),
-        ("Element Nightly", "io.element.nightly", .nightly, { $0.count >= 8 && $0.allSatisfy(\.isNumber) }),
+        ("Element Nightly", "im.riot.nightly", .nightly, { $0.count >= 8 && $0.allSatisfy(\.isNumber) }),
     ]
     for c in cases {
         let app = InstalledApp(
@@ -410,7 +410,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         ("Cursor", "com.todesktop.230313mzl4w4u92"),
         ("Raycast", "com.raycast.macos"),
         ("Docker Desktop", "com.docker.docker"),
-        ("LibreWolf", "org.mozilla.librewolf"),
+        ("LibreWolf", "net.librewolf.librewolf"),
     ]
     for c in cases {
         let app = InstalledApp(
@@ -440,10 +440,12 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
 }
 
 @Test func librewolfStripsPackagingSuffix() {
-    let body = #"[{"name":"147.0.4-1"},{"name":"147.0.3-2"}]"#
+    // Mirrors the Codeberg `releases/latest` shape the recipe now reads (a single
+    // object with `tag_name`), NOT the abandoned GitLab tags array.
+    let body = #"{"tag_name":"151.0.3-1","name":"151.0.3-1"}"#
     let v = VendorProbeRecipe.extractVersion(
-        from: body, pattern: #""name"\s*:\s*"([0-9]+(?:\.[0-9]+)+)"#)
-    #expect(v == "147.0.4")  // upstream version only, "-1" dropped
+        from: body, pattern: #""tag_name"\s*:\s*"([0-9]+(?:\.[0-9]+)+)"#)
+    #expect(v == "151.0.3")  // upstream version only, "-1" packaging suffix dropped
 }
 
 // MARK: - Signed bundle-identifier gate (gate A)

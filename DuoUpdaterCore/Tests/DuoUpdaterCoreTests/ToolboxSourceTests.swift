@@ -85,6 +85,29 @@ private func source(tool: ToolboxInventory.Tool, at path: String) -> ToolboxSour
     #expect(verdict == nil)
 }
 
+@Test func jetbrainsVerdictCarriesReleaseNotesLink() async throws {
+    // Live: a Toolbox-managed IntelliJ EAP must come back with the build's
+    // YouTrack release-notes link from the JetBrains releases API, so the UI can
+    // show real notes for an IDE that has no structured ChangelogRecipe. Network
+    // gates this like the other live API tests; a transient failure → nil verdict,
+    // which we skip rather than fail.
+    let path = "/Users/x/Applications/IntelliJ IDEA 2026.2 EAP.app"
+    let tool = ToolboxInventory.Tool(
+        productCode: "IU", channelType: "eap", installedBuild: "262.1.1",
+        localLatestVersion: nil, localLatestBuild: nil,
+        displayVersion: "2026.2", pinnedLine: nil)
+    let eap = InstalledApp(
+        name: "IntelliJ IDEA-EAP", bundleID: "com.jetbrains.intellij-EAP",
+        shortVersion: "EAP IU-262.1.1", buildVersion: "IU-262.1.1",
+        path: URL(fileURLWithPath: path),
+        isMASApp: false, isToolboxManaged: true, sparkleFeedURL: nil)
+    guard let verdict = await source(tool: tool, at: path).verdict(for: eap) else {
+        return  // offline / API hiccup — don't fail the suite
+    }
+    let url = try #require(verdict.changelogURL)
+    #expect(url.host == "youtrack.jetbrains.com")
+}
+
 @Test func displayVersionReducesToNumericCore() {
     #expect(ToolboxInventory.numericVersion(from: "Otter 3 Feature Drop 2025.2.3") == "2025.2.3")
     #expect(ToolboxInventory.numericVersion(from: "Koala Feature Drop 2024.1.2 Patch 1") == "2024.1.2")

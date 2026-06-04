@@ -719,8 +719,10 @@ public enum VendorProbeRegistry {
             channel: .beta),
 
         // Element — Stable + Nightly, split bundle ids (`im.riot.app` vs
-        // `io.element.nightly`). `currentRelease` is the latest version (semver
-        // for Stable, a `YYYYMMDDNN` build stamp for Nightly). Detection only —
+        // `im.riot.nightly` — verified 2026-06-04 against a real Nightly bundle;
+        // the earlier `io.element.nightly` guess never matched and the probe
+        // silently missed). `currentRelease` is the latest version (semver for
+        // Stable, a `YYYYMMDDNN` build stamp for Nightly). Detection only —
         // Element self-updates via Squirrel.
         VendorProbeRecipe(
             bundleID: "im.riot.app",
@@ -730,7 +732,7 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://element.io/download"),
             changelogURL: URL(string: "https://github.com/element-hq/element-desktop/releases")),
         VendorProbeRecipe(
-            bundleID: "io.element.nightly",
+            bundleID: "im.riot.nightly",
             url: URL(string: "https://packages.element.io/nightly/update/macos/releases.json")!,
             mode: .responseBody,
             versionPattern: #""currentRelease"\s*:\s*"([^"]+)""#,
@@ -772,18 +774,24 @@ public enum VendorProbeRegistry {
             changelogURL: URL(string: "https://docs.docker.com/desktop/release-notes/"),
             selectHighest: true),
 
-        // LibreWolf — release tags on its GitLab repo, newest first. Tags are
-        // "<firefox-version>-<packaging>" (e.g. "147.0.4-1"); we capture only the
-        // upstream Firefox version so it compares equal to the installed app's
-        // `CFBundleShortVersionString` (keeping "-1" would read as a perpetual
-        // update). No auto-updater — this is genuinely useful for LibreWolf.
+        // LibreWolf — release tags, newest first; tag is "<firefox-version>-<packaging>"
+        // (e.g. "151.0.3-1") and we capture only the upstream Firefox version so it
+        // compares equal to the installed app's `CFBundleShortVersionString` (keeping
+        // "-1" would read as a perpetual update). No auto-updater — genuinely useful.
+        // Real installed bundle id is `net.librewolf.librewolf` (NOT
+        // `org.mozilla.librewolf` — LibreWolf re-brands the Mozilla source). Version
+        // source is **Codeberg**, not GitLab: LibreWolf migrated, and the old GitLab
+        // repos are abandoned (project 44042130/bsys6 caps at 147.0.4 while current
+        // is 151.x → a stale probe). The brew cask's own livecheck reads this same
+        // Codeberg `releases/latest`. Verified 2026-06-04 against an installed cask:
+        // app reports `151.0.3-1`; `tag_name` is `151.0.3-1` → captures `151.0.3`.
         VendorProbeRecipe(
-            bundleID: "org.mozilla.librewolf",
-            url: URL(string: "https://gitlab.com/api/v4/projects/44042130/repository/tags?per_page=5")!,
+            bundleID: "net.librewolf.librewolf",
+            url: URL(string: "https://codeberg.org/api/v1/repos/librewolf/bsys6/releases/latest")!,
             mode: .responseBody,
-            versionPattern: #""name"\s*:\s*"([0-9]+(?:\.[0-9]+)+)"#,
+            versionPattern: #""tag_name"\s*:\s*"([0-9]+(?:\.[0-9]+)+)"#,
             downloadURL: URL(string: "https://librewolf.net/installation/macos/"),
-            changelogURL: URL(string: "https://gitlab.com/librewolf-community/browser/bsys6/-/releases")),
+            changelogURL: URL(string: "https://codeberg.org/librewolf/bsys6/releases")),
 
         // Claude desktop — public "latest" download redirect. Deliberately NOT
         // the Squirrel endpoint: that one takes a `device_id` and is cohort-gated,

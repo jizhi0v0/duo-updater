@@ -145,29 +145,25 @@ private let chatWiseFixture = """
 ]
 """
 
-// Trimmed real markup from the latest VS Code updates page: one release header
-// and its highlight bullets.
+// Trimmed real markup from the latest VS Code updates page (v1_123): one release
+// header and its highlight bullets. Includes the trailing <blockquote> aside
+// that 1.123 introduced between the highlights <ul> and "Happy Coding!" — the
+// addition that regressed the old close anchor into a webview fallback.
 private let vscodeFixture = """
-<h1>Visual Studio Code 1.122</h1>
+<h1>Visual Studio Code 1.123</h1>
 <p>Follow us on <a href="https://www.linkedin.com/showcase/vs-code">LinkedIn</a></p>
 <hr>
-<p><em>Release date: May 28, 2026</em></p>
-<p><strong>Update 1.122.1</strong>: The update addresses these <a href="https://github.com/microsoft/vscode/issues?q=is%3Aissue+is%3Aclosed+milestone%3A1.122.1">issues</a>.</p>
-<p>Downloads: Windows: <a href="https://update.code.visualstudio.com/1.122.1/win32-x64-user/stable">x64</a></p>
+<p><em>Release date: June 3, 2026</em></p>
+<p>Downloads: Windows: <a href="https://update.code.visualstudio.com/1.123.0/win32-x64-user/stable">x64</a></p>
 <hr>
-<p>Welcome to the 1.122 release of Visual Studio Code.</p>
+<p>Welcome to the 1.123 release of Visual Studio Code.</p>
 <ul>
-<li>
-<p><a href="#_1m-context-window-for-anthropic-and-openai-models">Larger context windows</a>: Support for 1M context windows for Anthropic and OpenAI models.</p>
-</li>
-<li>
-<p><a href="#_use-byok-without-a-github-sign-in">Air-gapped BYOK</a>: Use your own language models, even when you're not connected.</p>
-</li>
-<li>
-<p><a href="#_emulate-devices">Browser device emulation</a>: Test your website's responsiveness across different devices directly in the integrated browser.</p>
-</li>
+<li><a href="#_session-sync-and-chronicle">Session sync</a>: Automatically sync your chat sessions across machines and search your coding history.</li>
+<li><a href="#_agents-window-preview">Agents window</a>: Open multiple agent sessions side-by-side to compare or review work in parallel.</li>
+<li><a href="#_research-agent-preview">Research agent</a>: Run deep research on a topic and get a thorough, well-cited Markdown report.</li>
 </ul>
-<p>Happy Coding!</p>
+<blockquote><p>Make sure to join <a href="https://aka.ms/VSCode/Livestage" class="external-link" target="_blank">VS Code Live at Build 2026</a> on June 3!</p>
+</blockquote><p>Happy Coding!</p>
 """
 
 // Trimmed real markup from developers.openai.com/codex/changelog. Includes one
@@ -284,11 +280,11 @@ private let aweSunFixture = #"""
     let changelog = try #require(ChangelogExtractor.extract(from: vscodeFixture, using: recipe))
 
     #expect(changelog.entries.count == 1)
-    #expect(changelog.entries[0].version == "1.122")
-    #expect(changelog.entries[0].date == "May 28, 2026")
+    #expect(changelog.entries[0].version == "1.123")
+    #expect(changelog.entries[0].date == "June 3, 2026")
     #expect(changelog.entries[0].items.count == 3)
-    #expect(changelog.entries[0].items[0] == "Larger context windows: Support for 1M context windows for Anthropic and OpenAI models.")
-    #expect(changelog.entries[0].items[2] == "Browser device emulation: Test your website's responsiveness across different devices directly in the integrated browser.")
+    #expect(changelog.entries[0].items[0] == "Session sync: Automatically sync your chat sessions across machines and search your coding history.")
+    #expect(changelog.entries[0].items[2] == "Research agent: Run deep research on a topic and get a thorough, well-cited Markdown report.")
 }
 
 @Test func extractsCodexAppEntriesAndSkipsGeneralAndCLIReleases() throws {
@@ -571,6 +567,39 @@ private let hbuilderxFixture = """
     #expect(changelog.entries[1].version == "5.06.2026033105")
     #expect(changelog.entries[1].items.count == 1)
     #expect(changelog.entries[1].items[0].contains("iOS 安心打包功能中资源拷贝路径不正确"))
+}
+
+// Trimmed real markup from the HBuilderX *Alpha* changelog page (followed from
+// alpha.json's `release` field). Same shape as the stable page, but every version
+// <h2> carries an "-alpha" suffix — which the alpha recipe's version group requires.
+private let hbuilderxAlphaFixture = """
+<h1 id="hbuilder-x---release-notes">HBuilder X - Release Notes</h1>
+<h2 id="5112026052520-alpha">5.11.2026052520-alpha</h2>
+<h3 id="hbuilder">HBuilder</h3>
+<ul>
+<li>调整 内置node版本由v18.20.0升级到v22.22.2</li>
+</ul>
+<h3 id="uni-app-x">uni-app x</h3>
+<ul>
+<li>Android平台 修复 某些情况下编译报错的问题 <a href="https://issues.dcloud.net.cn/x">详情</a></li>
+</ul>
+<h2 id="5082026050815-alpha">5.08.2026050815-alpha</h2>
+<h3 id="hbuilder-1">HBuilder</h3>
+<ul>
+<li>修复 alpha 渠道某个崩溃问题</li>
+</ul>
+"""
+
+@Test func extractsHBuilderXAlphaEntriesWithSuffix() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "io.dcloud.HBuilderXAlpha"))
+    let changelog = try #require(ChangelogExtractor.extract(from: hbuilderxAlphaFixture, using: recipe))
+
+    #expect(changelog.entries.count == 2)
+    #expect(changelog.entries[0].version == "5.11.2026052520-alpha")
+    #expect(changelog.entries[0].items.count == 2)
+    #expect(changelog.entries[0].items[0].contains("内置node版本"))
+    #expect(changelog.entries[1].version == "5.08.2026050815-alpha")
+    #expect(changelog.entries[1].items.count == 1)
 }
 
 // Trimmed real markup from github.com/ollama/ollama/releases. Two sections:
@@ -1391,4 +1420,145 @@ Wednesday, May 27, 2026
     #expect(cl.entries[1].items.count == 2)
     #expect(cl.entries[1].items[0] == "CVE-2026-9872: Out of bounds write in GPU.")
     #expect(cl.entries[1].items[1] == "CVE-2026-9873: Heap buffer overflow in Media & Audio.")
+}
+
+// Trimmed real markup from docs.tablepro.app/changelog (Mintlify): two labeled
+// release blocks with the date/version/content parts the recipe anchors on.
+private let tableproFixture = """
+<div data-component-part="update-label">June 2, 2026</div>
+<div data-component-part="update-description">v0.48.0</div>
+<div data-component-part="update-content"><h3 id="new-features"><span>New Features</span></h3>
+<ul>
+<li><strong>JSON Import</strong>: Import a JSON file into a table.</li>
+<li><strong>Export Query Results</strong>: Export any SQL query result to CSV, JSON, SQL, XLSX, or MQL.</li>
+</ul></div>
+<div data-component-part="update-label">June 1, 2026</div>
+<div data-component-part="update-description">v0.47.0</div>
+<div data-component-part="update-content"><h3 id="new-features"><span>New Features</span></h3>
+<ul>
+<li><strong>Favorite Tables</strong>: Star a table in the sidebar to pin it to the top.</li>
+</ul></div>
+"""
+
+@Test func extractsTableProMintlifyReleases() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.TablePro"))
+    let cl = try #require(ChangelogExtractor.extract(from: tableproFixture, using: recipe))
+
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries[0].version == "0.48.0")
+    #expect(cl.entries[0].date == "June 2, 2026")
+    #expect(cl.entries[0].items.count == 2)
+    #expect(cl.entries[0].items[0] == "JSON Import: Import a JSON file into a table.")
+    #expect(cl.entries[1].version == "0.47.0")
+    #expect(cl.entries[1].items[0] == "Favorite Tables: Star a table in the sidebar to pin it to the top.")
+}
+
+// Trimmed real markup from corecode.io/macupdater/history3.html: two version
+// blocks, each a <p><b>ver</b> (date):</p> header followed by bullet paragraphs.
+private let macupdaterFixture = """
+<p class="header"><a href="/macupdater/"><b>MacUpdater</b></a><b> History:</b></p>
+<p><b>3.5.0</b> (Jan 2026):</p>
+<p>• This is the last and final update to MacUpdater 3</p>
+<p>• This version is free-to-use for everyone including "Pro" features</p>
+<p><b>3.4.7</b> (Dec 2025):</p>
+<p>• For its last 3 weeks in operation, MacUpdater is now free-to-use!</p>
+"""
+
+@Test func extractsMacUpdaterHistoryBullets() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.corecode.MacUpdater"))
+    let cl = try #require(ChangelogExtractor.extract(from: macupdaterFixture, using: recipe))
+
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries[0].version == "3.5.0")
+    #expect(cl.entries[0].date == "Jan 2026")
+    #expect(cl.entries[0].items.count == 2)
+    #expect(cl.entries[0].items[0] == "This is the last and final update to MacUpdater 3")
+    #expect(cl.entries[1].version == "3.4.7")
+    #expect(cl.entries[1].items.count == 1)
+}
+
+// Trimmed real bytes from the JetBrains TBA releases JSON. Raw string so the
+// JSON escapes (\\n between tags, \\" in attrs) stay literal as on the wire. The
+// whatsnew mixes a feature <p>, a <ul><li> bullet list, and the "See the full
+// list…" footer the item pattern must skip.
+private let jbToolboxFixture = #"""
+{"TBA":[{"date":"2026-06-02","type":"release","downloads":{"mac":{"link":"https://x"}},"notesLink":"https://y","version":"3.5","majorVersion":"3.5","build":"3.5.0.84344","whatsnew":"<h3>What's New in Toolbox App 3.5</h3>\n<h4>Zoom controls</h4>\n<p>You can now zoom in and out with Cmd/Ctrl +. <a href=\"https://youtrack.jetbrains.com/issue/TBX-17170/\">TBX-17170</a></p>\n<h4>Bug fixes</h4>\n<ul>\n <li>IDEs no longer randomly disappear from the home view. <a href=\"https://x/TBX-10600/\">TBX-10600</a></li>\n</ul>\n<p>See the full list of release notes <a href=\"https://x\">here</a>.</p>"},{"date":"2026-04-15","type":"release","version":"3.4.3","majorVersion":"3.4","build":"3.4.3.81140","whatsnew":"<h3>Toolbox App 3.4.3</h3>\n<ul>\n <li>Fixed an internal error.</li>\n</ul>"}]}
+"""#
+
+@Test func extractsJetBrainsToolboxReleasesFromJSON() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.toolbox"))
+    let cl = try #require(ChangelogExtractor.extract(from: jbToolboxFixture, using: recipe))
+
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries[0].version == "3.5")
+    #expect(cl.entries[0].date == "2026-06-02")
+    // One feature <p> + one <li>, footer <p> dropped by the negative lookahead.
+    #expect(cl.entries[0].items.count == 2)
+    #expect(cl.entries[0].items[0].hasPrefix("You can now zoom in and out with Cmd/Ctrl +."))
+    #expect(cl.entries[0].items[1].hasPrefix("IDEs no longer randomly disappear"))
+    #expect(!cl.entries[0].items.contains { $0.contains("See the full list") })
+    #expect(cl.entries[1].version == "3.4.3")
+    #expect(cl.entries[1].items == ["Fixed an internal error."])
+}
+
+// Trimmed real markup from github.com/anomalyco/opencode/releases (GitHub
+// releases, Ollama/RustDesk shape): two <section> blocks with an sr-only version
+// h2, a <relative-time>, and a markdown-body list.
+private let opencodeFixture = """
+<section aria-labelledby="hd-1">
+<h2 class="sr-only" id="hd-1">v1.15.13</h2>
+<relative-time datetime="2026-05-30T12:00:00Z">May 30, 2026</relative-time>
+<div class="markdown-body my-3">
+<ul>
+<li>Gateway Anthropic Opus 4.7+ adaptive reasoning now keeps summarized thinking.</li>
+<li>Fixed a crash on startup.</li>
+</ul>
+</div>
+</div>
+</section>
+<section aria-labelledby="hd-2">
+<h2 class="sr-only" id="hd-2">v1.15.12</h2>
+<relative-time datetime="2026-05-28T09:00:00Z">May 28, 2026</relative-time>
+<div class="markdown-body my-3">
+<ul>
+<li>ACP integrations can now send prompts through acp-next.</li>
+</ul>
+</div>
+</div>
+</section>
+"""
+
+@Test func extractsOpenCodeGitHubReleases() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "ai.opencode.desktop"))
+    let cl = try #require(ChangelogExtractor.extract(from: opencodeFixture, using: recipe))
+
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries[0].version == "1.15.13")
+    #expect(cl.entries[0].date == "2026-05-30")
+    #expect(cl.entries[0].items.count == 2)
+    #expect(cl.entries[0].items[0] == "Gateway Anthropic Opus 4.7+ adaptive reasoning now keeps summarized thinking.")
+    #expect(cl.entries[1].version == "1.15.12")
+    #expect(cl.entries[1].items == ["ACP integrations can now send prompts through acp-next."])
+}
+
+// Trimmed real JSON from data.services.jetbrains.com/products/releases?code=IIU&type=release:
+// two stable releases — 2026.1.2 (bug-fix with <li> list) and 2026.1 (major with section headings).
+private let intellijFixture = #"""
+{"IIU":[{"date":"2026-05-15","type":"release","notesLink":"https://youtrack.jetbrains.com/articles/IDEA-A-2100662679","version":"2026.1.2","majorVersion":"2026.1","build":"261.24374.151","whatsnew":"<p>IntelliJ IDEA 2026.1.2 is out with the following improvements:\n <br></p>\n<ul>\n <li>Projects can now be opened correctly via <code>.ipr</code> files. [<a href=\"https://youtrack.jetbrains.com/issue/IJPL-242321\">IJPL-242321</a>]</li>\n <li>The indentation for Java ternary expressions has been fixed. [<a href=\"https://youtrack.jetbrains.com/issue/IDEA-387867\">IDEA-387867</a>]</li>\n</ul>"},{"date":"2026-03-25","type":"release","version":"2026.1","majorVersion":"2026.1","build":"261.23610.47","whatsnew":"<p>IntelliJ IDEA 2026.1 is now out! The highlights include:</p>\n<ul>\n <li>ACP Registry: Browse and install AI agents in one click.</li>\n <li>Git worktrees: Work in parallel branches.</li>\n</ul>"}]}
+"""#
+
+@Test func extractsIntelliJIDEAReleasesFromJSON() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.intellij"))
+    let cl = try #require(ChangelogExtractor.extract(from: intellijFixture, using: recipe))
+
+    #expect(cl.entries.count == 2)
+    #expect(cl.entries[0].version == "2026.1.2")
+    #expect(cl.entries[0].date == "2026-05-15")
+    #expect(cl.entries[0].items.count == 2)
+    #expect(cl.entries[0].items[0].contains("Projects can now be opened correctly"))
+    #expect(cl.entries[0].items[1].contains("ternary expressions"))
+    #expect(cl.entries[1].version == "2026.1")
+    #expect(cl.entries[1].date == "2026-03-25")
+    #expect(cl.entries[1].items.count == 2)
+    #expect(cl.entries[1].items[0].contains("ACP Registry"))
 }

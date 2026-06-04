@@ -38,10 +38,25 @@ enum AppIconCache {
 struct MenuContentView: View {
     @Bindable var model: AppListModel
     @State private var showAll = false
+    /// Popover filter text. When non-empty it overrides the pending/Show-all split
+    /// and searches across *every* app, so an up-to-date app is still findable.
+    @State private var searchText = ""
     @Environment(\.openWindow) private var openWindow
 
+    /// Whether the user is actively filtering — drives the search-across-all
+    /// behavior and the "no matches" empty state.
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
     private var visible: [UpdateResult] {
-        showAll ? model.results
+        // While searching, look across every app (not just pending ones): typing a
+        // name should find an up-to-date app too, not come back empty.
+        if isSearching {
+            let query = searchText.trimmingCharacters(in: .whitespaces)
+            return model.results.filter { matches($0, query) }
+        }
+        return showAll ? model.results
             : model.results.filter {
                 model.isActionableUpdate($0) || model.needsRestart.contains($0.id)
                     || model.actionableStaged($0) != nil
@@ -51,6 +66,15 @@ struct MenuContentView: View {
             }
     }
 
+    /// Match the query against an app's name and bundle id (so "com.google" finds
+    /// Chrome), case- and diacritic-insensitively.
+    private func matches(_ result: UpdateResult, _ query: String) -> Bool {
+        if result.app.name.localizedCaseInsensitiveContains(query) { return true }
+        if let bundleID = result.app.bundleID,
+           bundleID.localizedCaseInsensitiveContains(query) { return true }
+        return false
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -58,6 +82,13 @@ struct MenuContentView: View {
             if model.needsAccessibilitySetup {
                 setupBanner
                 Divider()
+            }
+            // Only worth showing once the list is long enough to be hard to scan;
+            // stays put while a query is active even if it filters down to a few.
+            if model.results.count > 8 || isSearching {
+                AppSearchField(text: $searchText)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
             }
             content
             Divider()
@@ -93,12 +124,17 @@ struct MenuContentView: View {
             )
             .frame(height: 200)
         } else if visible.isEmpty {
-            ContentUnavailableView(
-                "Everything is up to date",
-                systemImage: "checkmark.seal.fill",
-                description: Text("Toggle “Show all” to see every app.")
-            )
-            .frame(height: 200)
+            if isSearching {
+                ContentUnavailableView.search(text: searchText)
+                    .frame(height: 200)
+            } else {
+                ContentUnavailableView(
+                    "Everything is up to date",
+                    systemImage: "checkmark.seal.fill",
+                    description: Text("Toggle “Show all” to see every app.")
+                )
+                .frame(height: 200)
+            }
         } else {
             ScrollView {
                 LazyVStack(spacing: 0) {

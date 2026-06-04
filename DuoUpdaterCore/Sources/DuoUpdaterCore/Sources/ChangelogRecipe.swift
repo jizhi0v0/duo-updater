@@ -192,13 +192,19 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 20),
 
         // VS Code — the official `/updates` page redirects to the latest stable
-        // release page. The top summary is:
-        //   <h1>Visual Studio Code 1.122</h1>
-        //   <p><em>Release date: May 28, 2026</em></p>
-        //   ...
-        //   <ul><li><p>...</p></li>...</ul>
-        // We intentionally parse the latest release only; the page itself is the
-        // vendor's stable "what changed in the current update" surface.
+        // release page (e.g. /updates/v1_123). The top summary is:
+        //   <h1>Visual Studio Code 1.123</h1>
+        //   ...<hr><p><em>Release date: June 3, 2026</em></p>
+        //   ...<ul><li><a …>…</a>: …</li>...</ul>
+        //   [<blockquote><p>…event plug…</p></blockquote>]   ← optional, varies
+        //   <p>Happy Coding!</p>
+        // The highlights <ul> is the only list before "Happy Coding!", so the
+        // body anchor is unambiguous; the trailing <blockquote> (an occasional
+        // event/announcement aside, e.g. "VS Code Live at Build") is matched
+        // optionally so its presence/absence doesn't break the close anchor — the
+        // 1.122→1.123 page added it, which is what regressed the old pattern to a
+        // webview fallback. We intentionally parse the latest release only; the
+        // page itself is the vendor's stable "what changed now" surface.
         ChangelogRecipe(
             bundleID: "com.microsoft.VSCode",
             source: URL(string: "https://code.visualstudio.com/updates")!,
@@ -206,6 +212,7 @@ public enum ChangelogRecipeRegistry {
                 #"<h1>Visual Studio Code (?<version>[0-9.]+)</h1>\s*"#
                 + #".*?<p><em>Release date:\s*(?<date>[^<]+)</em></p>\s*"#
                 + #".*?<ul>(?<body>.*?)</ul>\s*"#
+                + #"(?:<blockquote>.*?</blockquote>\s*)?"#
                 + #"<p>Happy Coding!</p>"#,
             itemPatterns: [#"<li>\s*(?:<p>)?(?<item>.*?)(?:</p>)?\s*</li>"#],
             maxEntries: 1),
@@ -363,29 +370,56 @@ public enum ChangelogRecipeRegistry {
             decodeEntities: false,
             maxEntries: 30),
 
-        // HBuilderX (DCloud) — the versioned changelog HTML at
-        // update.dcloud.net.cn/hbuilderx/changelog/<version>.html is a cumulative
-        // page with every release. Each version block opens with an <h2>, no
-        // explicit date (the version string encodes YYYYMMDD, e.g. 5.07.2026041006).
+        // HBuilderX (DCloud) — two-stage, and deliberately NOT pointed at
+        // update.dcloud.net.cn: that host 302s the changelog HTML to a per-request
+        // tokenized CDN node on a non-standard port (…qrstuvwxyzab.com:22443),
+        // which under many networks crawls past the 15s fetch timeout — the app
+        // then spins and degrades to the embedded web page. The download-site host
+        // download1.dcloud.net.cn serves the very same HTML directly (200, no
+        // redirect, ~0.3s), so we go there instead.
         //
-        // URL is version-pinned; update when the VendorProbeRecipe version is bumped.
-        //
-        // Cache-key note: ChangelogCache keys on `recipe.source`. When this URL is
-        // bumped (a new app build), the old URL's slot is orphaned in the cache.
-        // That is harmless — the old slot is never read again and is evicted on the
-        // next ChangelogCache.invalidateAll() (called by every manual refresh) or
-        // when its 15-minute TTL expires. Unlike VLC/Ghostty there is no stable
-        // index URL available on this vendor's server, so version-pinning is the
-        // only viable strategy until DCloud exposes an index page.
+        // `source` is the download page's `release.json` config; `indexLinkPattern`
+        // follows its `release` field to the current changelog page on download1.
+        // That field always names the latest build, so this also retires the old
+        // version-pinned URL — a new HBuilderX release is picked up with no rebuild
+        // (same win as VLC/Ghostty). The detail page is a cumulative list: each
+        // release is an <h2>X.Y.Z</h2> (the build encodes YYYYMMDD, no separate
+        // date), then module-section <h3>s and <li> change items.
         ChangelogRecipe(
             bundleID: "io.dcloud.HBuilderX",
-            source: URL(string: "https://update.dcloud.net.cn/hbuilderx/changelog/5.07.2026041006.html")!,
+            source: URL(string: "https://download1.dcloud.net.cn/hbuilderx/release.json")!,
             entryPattern:
                 #"<h2[^>]*>(?<version>[0-9]+\.[0-9]+\.[0-9]+)</h2>"#
                 + #"(?<body>.*?)"#
                 + #"(?=<h2[^>]*>[0-9]|$)"#,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
-            minItemLength: 4),
+            // The page is a years-long cumulative list (~28 builds, each with many
+            // module-section items); cap to the recent handful — the detail view
+            // only needs "what changed lately", and this also halts the parse early.
+            maxEntries: 10,
+            minItemLength: 4,
+            indexLinkPattern: #""release"\s*:\s*"(?<link>https://[^"]+)""#),
+
+        // HBuilderX Alpha (DCloud) — the alpha is a SEPARATE app (bundle id
+        // io.dcloud.HBuilderXAlpha, ships as HBuilderX-Alpha.app), so it needs its
+        // own recipe; the stable io.dcloud.HBuilderX one never matches it. Same
+        // two-stage shape as stable but reading `alpha.json`, whose `release` field
+        // points at the alpha changelog page on download1. The page is structured
+        // exactly like the stable one except every version <h2> carries an "-alpha"
+        // suffix (5.11.2026052520-alpha), so the version group requires it — which
+        // also means a stray stable <h2> could never be mis-captured here.
+        ChangelogRecipe(
+            bundleID: "io.dcloud.HBuilderXAlpha",
+            source: URL(string: "https://download1.dcloud.net.cn/hbuilderx/alpha.json")!,
+            entryPattern:
+                #"<h2[^>]*>(?<version>[0-9]+\.[0-9]+\.[0-9]+-alpha)</h2>"#
+                + #"(?<body>.*?)"#
+                + #"(?=<h2[^>]*>[0-9]|$)"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            // Alpha lists 60+ builds; same cap as stable — recent handful only.
+            maxEntries: 10,
+            minItemLength: 4,
+            indexLinkPattern: #""release"\s*:\s*"(?<link>https://[^"]+)""#),
 
         // Ollama — GitHub releases page. Each release is a <section> with an
         // sr-only h2 (version tag, e.g. "v0.30.0"), a <relative-time> element
@@ -799,6 +833,108 @@ public enum ChangelogRecipeRegistry {
                 #"<p[^>]*>(?<item>(?:(?!</p>).)*?(?:promotion of Chrome|been updated to)(?:(?!</p>).)*?)</p>"#,
             ],
             minItemLength: 8),
+
+        // TablePro — docs.tablepro.app/changelog is a Mintlify changelog page,
+        // fully server-rendered with every release inline (newest-first). Each
+        // release is a labeled block:
+        //   <div … data-component-part="update-label">June 2, 2026</div>
+        //   <div … data-component-part="update-description">v0.48.0</div>
+        //   <div … data-component-part="update-content"><h3>New Features</h3>
+        //     <ul><li><strong>JSON Import</strong>: …</li>…</ul>…</div>
+        // The label div is the date, the description div the version (leading "v"
+        // dropped), the content div the body. The <h3> section headings are
+        // ignored; only <li> items surface. Body bounds on the next update-label.
+        ChangelogRecipe(
+            bundleID: "com.TablePro",
+            source: URL(string: "https://docs.tablepro.app/changelog")!,
+            entryPattern:
+                #"data-component-part="update-label"[^>]*>(?<date>[^<]+)</div>"#
+                + #".*?data-component-part="update-description"[^>]*>v?(?<version>[\d.]+)</div>"#
+                + #".*?data-component-part="update-content"[^>]*>(?<body>.*?)"#
+                + #"(?=<div[^>]*data-component-part="update-label"|$)"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            maxEntries: 20),
+
+        // MacUpdater — corecode.io/macupdater/history3.html is a single static
+        // page of every release newest-first (no hydration). 3.5.0 is the final
+        // release (the product is discontinued), so the page is effectively
+        // frozen. Each version block is:
+        //   <p><b>3.5.0</b> (Jan 2026):</p>
+        //   <p>• item…</p>
+        //   <p>• item…</p>
+        // Version and date are in the <p><b>…</b> (…)</p> header; each change is a
+        // bullet <p>• …</p> until the next version header. The bullet is a literal
+        // U+2022, so the item pattern anchors on it to skip non-bullet paragraphs.
+        ChangelogRecipe(
+            bundleID: "com.corecode.MacUpdater",
+            source: URL(string: "https://www.corecode.io/macupdater/history3.html")!,
+            entryPattern:
+                #"<p><b>(?<version>[0-9][0-9.]*)</b>\s*\((?<date>[^)]*)\):</p>"#
+                + #"(?<body>.*?)"#
+                + #"(?=<p><b>[0-9][0-9.]*</b>\s*\(|$)"#,
+            itemPatterns: [#"<p>\s*•\s*(?<item>.*?)</p>"#],
+            maxEntries: 20),
+
+        // IntelliJ IDEA — same JetBrains data-services API as Toolbox (`IIU`
+        // product code, stable releases only via `type=release`). Each entry's
+        // `whatsnew` is well-structured HTML: a lead `<p>` summary then `<ul><li>`
+        // bug/feature bullets with YouTrack links. The item pattern sweeps `<li>`
+        // only — the lead `<p>` ("IntelliJ IDEA X is out with…") is a boilerplate
+        // intro, not a discrete change line, so skipping it is cleaner. Major
+        // releases (2026.1) carry a richer `whatsnew` with `<strong>` section
+        // headings inside `<p>` tags; those section labels are short enough to
+        // read as items, so the `<li>` pattern suffices for both shapes.
+        ChangelogRecipe(
+            bundleID: "com.jetbrains.intellij",
+            source: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&type=release")!,
+            entryPattern:
+                #""date"\s*:\s*"(?<date>\d{4}-\d{2}-\d{2})".*?"#
+                + #""version"\s*:\s*"(?<version>[^"]+)".*?"#
+                + #""whatsnew"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
+            itemPatterns: [#"<li>(?<item>.*?)</li>"#],
+            mode: .json,
+            maxEntries: 20),
+
+        // JetBrains Toolbox App — JetBrains publishes no public changelog page
+        // (long-requested: YouTrack TBX-2807), but the official product-releases
+        // API the download site itself uses returns the full history as JSON. The
+        // `TBA` product code is the Toolbox App; each element of the TBA array is
+        // one release with `version` ("3.5"), `build` ("3.5.0.84344"), `date`, and
+        // a `whatsnew` HTML string. Fields run date … version … build … whatsnew,
+        // so the entry anchors date→version→whatsnew. The whatsnew HTML mixes <h4>
+        // section headings with <p> feature paragraphs and <ul><li> bullet lists,
+        // so the single item pattern sweeps BOTH <p> and <li> (the <h4> labels are
+        // skipped) and a negative lookahead drops the trailing "See the full list…"
+        // footer <p>. Older releases omit whatsnew and are silently skipped; the
+        // top entries we keep all carry it and stay correctly attributed.
+        ChangelogRecipe(
+            bundleID: "com.jetbrains.toolbox",
+            source: URL(string: "https://data.services.jetbrains.com/products/releases?code=TBA")!,
+            entryPattern:
+                #""date"\s*:\s*"(?<date>\d{4}-\d{2}-\d{2})".*?"#
+                + #""version"\s*:\s*"(?<version>[^"]+)".*?"#
+                + #""whatsnew"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
+            itemPatterns: [#"<(?:li|p)>\s*(?!See the full list)(?<item>.*?)</(?:li|p)>"#],
+            mode: .json,
+            maxEntries: 20),
+
+        // OpenCode (desktop) — github.com/anomalyco/opencode/releases (the repo
+        // moved from sst/opencode via GitHub's org-rename redirect; we pin the
+        // canonical anomalyco path). Same GitHub-releases shape as Ollama/RustDesk:
+        // each release is a <section aria-labelledby="hd-…"> with an sr-only <h2>
+        // carrying the version ("v1.15.13"), a <relative-time datetime="…"> (ISO
+        // date), and a <div class="markdown-body …"> body. The leading "v" is
+        // dropped. The desktop app and CLI share one version line, so the releases
+        // versions match the installed app build.
+        ChangelogRecipe(
+            bundleID: "ai.opencode.desktop",
+            source: URL(string: "https://github.com/anomalyco/opencode/releases")!,
+            entryPattern:
+                #"<section[^>]*aria-labelledby="hd-[^"]*"[^>]*>\s*"#
+                + #"<h2 class="sr-only"[^>]*>v(?<version>[\d.]+)</h2>.*?"#
+                + #"<relative-time[^>]*datetime="(?<date>[^T]+)T[^"]*"[^>]*>.*?"#
+                + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
+            itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
     ]
 
     /// Index lazily; first recipe wins on a duplicate bundle id.

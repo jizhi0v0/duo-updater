@@ -20,13 +20,19 @@ public enum ChangelogExtractor {
         let whole = NSRange(text.startIndex..., in: text)
         var entries: [Changelog.Entry] = []
 
-        for match in entryRegex.matches(in: text, range: whole) {
+        // `enumerateMatches` lets us stop scanning the moment we've collected
+        // `maxEntries`, rather than `matches(in:)` eagerly finding every block in
+        // a long cumulative page (HBuilderX lists 60+ versions) only to discard
+        // the tail. Entries that yield no items don't count toward the cap, so a
+        // gap doesn't end the scan early — same selection as before, less work.
+        entryRegex.enumerateMatches(in: text, range: whole) { match, _, stop in
+            guard let match else { return }
             let title = group(match, "title", in: text)
                 .map { clean($0, recipe) }
                 .flatMap { $0.isEmpty ? nil : $0 }
             let version = group(match, "version", in: text)
                 .map { clean($0, recipe) } ?? ""
-            guard title != nil || !version.isEmpty else { continue }
+            guard title != nil || !version.isEmpty else { return }
 
             let date = group(match, "date", in: text)
                 .map { clean($0, recipe) }
@@ -38,10 +44,10 @@ public enum ChangelogExtractor {
                 ?? ""
 
             let items = firstNonEmptyItems(in: bodyText, regexes: itemRegexes, recipe: recipe)
-            guard !items.isEmpty else { continue }
+            guard !items.isEmpty else { return }
 
             entries.append(.init(title: title, version: version, date: date, items: items))
-            if let cap = recipe.maxEntries, entries.count >= cap { break }
+            if let cap = recipe.maxEntries, entries.count >= cap { stop.pointee = true }
         }
 
         return entries.isEmpty ? nil : Changelog(entries: entries)

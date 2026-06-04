@@ -26,7 +26,8 @@ VendorProbe. Pick the lever per app:
 **ChangelogRecipe** (native release notes) — `ChangelogRecipe.swift`:
 Slack, Notion, Obsidian, Figma, 1Password, Sublime Text, Calibre, Audacity,
 Blender. (Plus the pre-existing set: VS Code, Zed, Ghostty, VLC, Postman,
-RustDesk, Warp, LM Studio, OrbStack, Tailscale, CleanShot, TablePlus, …)
+RustDesk, Warp, LM Studio, OrbStack, Tailscale, CleanShot, TablePlus, JetBrains
+Air, Ollama, AppCleaner, …)
 
 **VendorProbe** (detection-only, self-updaters) — `VendorProbeRecipe.swift`:
 Discord, Figma, Obsidian, Notion, Slack, 1Password, Sublime Text, Sublime Merge,
@@ -36,7 +37,9 @@ Plex, Alfred, Shottr, The Unarchiver, Orion, Dropbox.
 GitHub Desktop, Stats, DBeaver, Beekeeper Studio, Insomnia, Zen.
 
 **Sparkle-covered, no recipe needed** (have `SUFeedURL`): iTerm2, Arc, Rectangle,
-IINA, Proxyman, MonitorControl, Maccy, Keka, Vivaldi, OBS, HandBrake.
+IINA, Proxyman, MonitorControl, Maccy, Vivaldi, HandBrake. Keka and OBS are
+expected Sparkle apps from cask metadata, but still need downloaded-bundle
+verification in this audit set.
 
 All new recipes are validated against the live endpoint and covered by an offline
 fixture test; `DuoUpdaterCore` = 240 tests passing.
@@ -76,3 +79,6 @@ list: Spotify, Paste, ToDesk, WeLink, etc.)
   Karabiner-Elements / Google Drive / OneDrive / Microsoft Teams (pkg installers,
   need sudo), and Audacity/Blender/Calibre changelog is done but their detection
   rides Homebrew cask (auto_updates:false) — no probe needed.
+- **OpenCode** — audit backlog listed it as `C`, but no `ChangelogRecipe` or
+  `ChangelogCatalog` entry exists for `ai.opencode.desktop`; cask
+  `opencode-desktop` is `auto_updates:true`, so Homebrew will not detect it.

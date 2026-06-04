@@ -124,5 +124,9 @@
 Chrome(4)、Firefox(5)、Thunderbird(4)、LibreWolf、Zed(Stable/Preview)、TablePlus(Stable/Beta)、
 Signal(Stable/Beta)、Element(Stable/Nightly)、OrbStack(Stable/Canary)、Tailscale(Stable/RC/Unstable)、
 HBuilderX(Stable/Alpha)、Warp(活跃 3 轨)，以及一众单轨 app（Claude/Codex/ChatWise/Ollama/Conductor/
-opencode/Alfred/CleanShot/Shottr/AppCleaner/Unarchiver/ImageOptim/Pearcleaner/Stats/MacsFanControl/
+Alfred/CleanShot/Shottr/AppCleaner/Unarchiver/ImageOptim/Pearcleaner/Stats/MacsFanControl/
 Calibre/Notion/JetBrains Air）。
+
+OpenCode 复核结果（2026-06-04）：audit backlog 曾列为 `C`，但代码中没有
+`ai.opencode.desktop` 的 ChangelogRecipe / ChangelogCatalog；cask `opencode-desktop`
+是 `auto_updates:true`，检测也不会由 Homebrew 覆盖。

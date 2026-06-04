@@ -47,10 +47,9 @@ the installed app's actual update channel and adding the right coverage:
 
 ## Medium priority
 
-- [ ] AppCleaner — rank 1.
-      `ChangelogRecipe` exists, but detection coverage still needs verification.
-      Confirm whether Sparkle/direct endpoint/Homebrew handles it; otherwise add
-      `VendorProbe`.
+- [x] AppCleaner — rank 1.
+      `ChangelogRecipe` exists; downloaded cask verification confirmed
+      `SUFeedURL` and Team ID, so Sparkle covers detection.
 - [ ] CheatSheet — rank 33.
       Verify Sparkle/direct endpoint; otherwise document as stale/unworkable.
 - [ ] Hidden Bar — rank 24.

@@ -85,25 +85,25 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 
-- [ ] **Ghostty** · `com.mitchellh.ghostty` — C (two-stage)
-- [ ] **Ollama** · `com.electron.ollama` — C
-- [ ] **OpenCode** · `ai.opencode.desktop` — C
-- [ ] **AppCleaner** · `net.freemacsoft.AppCleaner` — C
-- [ ] **Calibre** · `net.kovidgoyal.calibre` — C
-- [ ] **Audacity** · `org.audacityteam.audacity` — C
-- [ ] **Blender** · `org.blenderfoundation.blender` — C (version-pinned)
-- [ ] **JetBrains Air** · `com.jetbrains.air` — C
+- [x] [**Ghostty**](com-mitchellh-ghostty.md) · `com.mitchellh.ghostty` — C (two-stage), detection still unknown
+- [x] [**Ollama**](com-electron-ollama.md) · `com.electron.ollama` — C, detection still unknown
+- [x] [**OpenCode**](ai-opencode-desktop.md) · `ai.opencode.desktop` — listed as C, but recipe/catalog missing
+- [x] [**AppCleaner**](net-freemacsoft-AppCleaner.md) · `net.freemacsoft.AppCleaner` — C + Sparkle verified
+- [x] [**Calibre**](net-kovidgoyal-calibre.md) · `net.kovidgoyal.calibre` — C + Homebrew
+- [x] [**Audacity**](org-audacityteam-audacity.md) · `org.audacityteam.audacity` — C + Homebrew
+- [x] [**Blender**](org-blenderfoundation-blender.md) · `org.blenderfoundation.blender` — C (version-pinned) + Homebrew
+- [x] [**JetBrains Air**](com-jetbrains-air.md) · `com.jetbrains.air` — C + Toolbox/Sparkle
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 
-- [ ] **iTerm2** — S
-- [ ] **Arc** — S
-- [ ] **Rectangle** — S
-- [ ] **IINA** — S
-- [ ] **Proxyman** — S
-- [ ] **MonitorControl** — S
-- [ ] **Maccy** — S
-- [ ] **Keka** — S
-- [ ] **Vivaldi** — S
-- [ ] **OBS** — S
-- [ ] **HandBrake** — S
+- [x] [**iTerm2**](com-googlecode-iterm2.md) · `com.googlecode.iterm2` — S
+- [x] [**Arc**](company-thebrowser-Browser.md) · `company.thebrowser.Browser` — S
+- [x] [**Rectangle**](com-knollsoft-Rectangle.md) · `com.knollsoft.Rectangle` — S
+- [x] [**IINA**](com-colliderli-iina.md) · `com.colliderli.iina` — S
+- [x] [**Proxyman**](com-proxyman-NSProxy.md) · `com.proxyman.NSProxy` — S
+- [x] [**MonitorControl**](app-monitorcontrol-MonitorControl.md) · `app.monitorcontrol.MonitorControl` — S
+- [x] [**Maccy**](org-p0deje-Maccy.md) · `org.p0deje.Maccy` — S
+- [ ] [**Keka**](com-aone-keka.md) · `com.aone.keka` — S, needs download verification
+- [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S
+- [ ] [**OBS**](com-obsproject-obs-studio.md) · `com.obsproject.obs-studio` — S, needs download verification
+- [x] [**HandBrake**](fr-handbrake-HandBrake.md) · `fr.handbrake.HandBrake` — S

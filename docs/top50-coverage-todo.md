@@ -17,32 +17,33 @@ the installed app's actual update channel and adding the right coverage:
 
 ## High priority
 
-- [ ] Microsoft Teams — top 50 rank 14.
+- [x] Microsoft Teams — top 50 rank 14.
       Verify direct install / pkg updater behavior; add `VendorProbe` only if a
       stable public version endpoint exists. Document if it is MAU-managed.
-- [ ] OneDrive — rank 28.
+- [x] OneDrive — rank 28.
       Verify direct install / Microsoft AutoUpdate behavior; add coverage or
       document as managed/unworkable.
-- [ ] Microsoft PowerPoint — rank 18.
-      MAS installs are covered. Verify direct Microsoft AutoUpdate installs and
-      decide whether Office apps need a shared MAU-managed path.
-- [ ] Microsoft Word — rank 19.
-      Same Office/MAU verification as PowerPoint.
-- [ ] Microsoft Excel — rank 20.
-      Same Office/MAU verification as PowerPoint.
-- [ ] Microsoft OneNote — rank 32.
-      Same Office/MAU verification as PowerPoint.
-- [ ] Microsoft Outlook — rank 38.
-      Same Office/MAU verification as PowerPoint.
-- [ ] Bartender — rank 27.
-      Verify Sparkle first. If no `SUFeedURL`, add `VendorProbe`; add
-      `ChangelogRecipe` only if notes are clean and versioned.
-- [ ] ImageOptim — rank 22.
-      Verify Sparkle/GitHub. Add detection coverage for direct installs if
-      Homebrew auto-update behavior is not enough.
-- [ ] Transmission — rank 15.
-      Verify Sparkle/GitHub. Add detection coverage for direct installs if
-      needed.
+- [x] Microsoft PowerPoint — rank 18.
+      MAS installs are covered. Verified direct MAU installs — fwlink 302 detection
+      added (all Office apps share unified 16.x.y versioning).
+- [x] Microsoft Word — rank 19.
+      Same fwlink detection as PowerPoint.
+- [x] Microsoft Excel — rank 20.
+      Same fwlink detection as PowerPoint.
+- [x] Microsoft OneNote — rank 32.
+      Uses Office suite fwlink (linkid=525133); all Office apps share the same
+      unified 16.x version.
+- [x] Microsoft Outlook — rank 38.
+      Uses Office AutoUpdate XML manifest endpoint. MAU-managed, detection-only.
+- [x] Bartender — rank 27.
+      Sparkle appcast confirmed at AppcastB6.xml. Uses ascending feed
+      (selectHighest). Detection-only — SparkleAppcastSource takes priority if
+      SUFeedURL is in Info.plist.
+- [x] ImageOptim — rank 22.
+      Sparkle appcast confirmed at imageoptim.com/appcast.xml. Detection-only.
+- [x] Transmission — rank 15.
+      Verified Transmission has SUFeedURL in Info.plist → SparkleAppcastSource
+      handles it automatically. No recipe needed.
 
 ## Medium priority
 

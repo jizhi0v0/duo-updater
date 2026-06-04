@@ -68,6 +68,34 @@ final class Preferences {
         }
     }
 
+    /// How to apply an update for a self-updating "vendor" app — the official-
+    /// website / self-baked-updater apps surfaced by `VendorProbeSource` (Office,
+    /// Teams, OneDrive, Edge, Chrome, VS Code, Tailscale, …). These all ship their
+    /// own updater (MAU, Keystone, a daemon, Sparkle), so we're only ever a
+    /// fallback — and how aggressively we step in is a user choice:
+    ///   • `.deferWhenRunning` — respect the app's own updater. If it isn't running
+    ///     we download and install over it in place (no live process to disturb);
+    ///     if it IS running we don't swap the bundle under it — we open its own
+    ///     update path instead (a deep link like Chrome's `chrome://settings/help`
+    ///     when the recipe has one, otherwise just bring the app forward so its
+    ///     built-in updater takes over).
+    ///   • `.alwaysOverwrite` — always download and replace in place regardless of
+    ///     whether it's running, then surface a Restart/Relaunch prompt.
+    /// Default `.deferWhenRunning`: never fight a running app's own updater.
+    enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
+        case deferWhenRunning
+        case alwaysOverwrite
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .deferWhenRunning: return "Defer to the app’s own updater while it’s running"
+            case .alwaysOverwrite:  return "Always download & replace, then restart"
+            }
+        }
+    }
+
     private enum Key {
         static let githubToken = "GitHubToken"   // pre-existing key; keep it
         static let githubTokenAccount = "GitHubTokenAccount"   // login the token verified as
@@ -77,6 +105,7 @@ final class Preferences {
         static let keepBackups = "KeepBackups"
         static let notifyOnUpdates = "NotifyOnUpdates"
         static let appStoreUpdateStrategy = "AppStoreUpdateStrategy"
+        static let vendorInstallPolicy = "VendorInstallPolicy"
         static let ignoredKeys = "IgnoredApps"
         static let skippedVersions = "SkippedVersions"
         static let lastCheckDate = "LastCheckDate"
@@ -137,6 +166,11 @@ final class Preferences {
         didSet { defaults.set(appStoreUpdateStrategy.rawValue, forKey: Key.appStoreUpdateStrategy) }
     }
 
+    /// How to apply self-updating vendor-app updates. See `VendorInstallPolicy`.
+    var vendorInstallPolicy: VendorInstallPolicy {
+        didSet { defaults.set(vendorInstallPolicy.rawValue, forKey: Key.vendorInstallPolicy) }
+    }
+
     /// Apps the user has chosen to hide from update checks entirely, keyed by
     /// `key(for:)`.
     private(set) var ignoredKeys: Set<String> {
@@ -193,6 +227,8 @@ final class Preferences {
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
         self.appStoreUpdateStrategy = AppStoreUpdateStrategy(
             rawValue: defaults.string(forKey: Key.appStoreUpdateStrategy) ?? "") ?? .full
+        self.vendorInstallPolicy = VendorInstallPolicy(
+            rawValue: defaults.string(forKey: Key.vendorInstallPolicy) ?? "") ?? .deferWhenRunning
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
         self.lastCheckDate = defaults.object(forKey: Key.lastCheckDate) as? Date

@@ -24,6 +24,10 @@ final class AppListModel {
     private(set) var installing: [String: InstallStage] = [:]
     /// Per-app install error message, keyed by app id.
     private(set) var installErrors: [String: String] = [:]
+    /// Per-app informational note (not an error), keyed by app id — e.g. "opened
+    /// the running app so its own updater applies the update" under the
+    /// defer-to-self-updater install policy. Cleared when a new action starts.
+    private(set) var installNotes: [String: String] = [:]
     /// App ids whose on-disk bundle is newer than the version their running
     /// process launched with — i.e. updated (by us, the app's own updater, or
     /// brew) but not yet relaunched, so still executing old code.
@@ -75,6 +79,21 @@ final class AppListModel {
     /// result.id → the version we have a rollback backup for, refreshed from the
     /// on-disk backup store whenever the list changes.
     private(set) var backupVersions: [String: String] = [:]
+    /// Bundle *paths* of apps with at least one live process right now. Kept current
+    /// by `NSWorkspace`'s launch/terminate notifications, so a row's running dot
+    /// lights up/clears the moment the user opens or quits the app — no refresh
+    /// needed. Keyed by path, NOT bundle id: the same app can be installed twice
+    /// (e.g. two Android Studio versions side by side) sharing one bundle id, and
+    /// only the install whose bundle is actually executing should light up.
+    private(set) var runningAppPaths: Set<String> = []
+
+    /// Whether *this exact install* currently has a running process — drives the
+    /// green "live" dot in the menu and workbench. Matched on the bundle path so a
+    /// second copy of the same app (same bundle id, different path) doesn't falsely
+    /// light up when only the other copy is open.
+    func isRunning(_ result: UpdateResult) -> Bool {
+        runningAppPaths.contains(result.app.path.resolvingSymlinksInPath().path)
+    }
 
     func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
     func backupVersion(_ id: String) -> String? { backupVersions[id] }
@@ -174,6 +193,11 @@ final class AppListModel {
     /// Coalesce background-triggered rescans: a flurry of FS events plus a timer
     /// tick shouldn't stack up redundant scans on top of each other.
     @ObservationIgnored private var localRescanRunning = false
+
+    /// `NSWorkspace` launch/terminate observers that keep `runningBundleIDs` live.
+    /// Retained for the app's lifetime (the single model never deallocates), so they
+    /// stay registered without explicit teardown.
+    @ObservationIgnored private var runningAppObservers: [NSObjectProtocol] = []
 
     /// Periodic "your app downloaded an update on its own — relaunch to apply it"
     /// reminder. Decoupled from the (possibly hours-long) update-check interval:
@@ -333,6 +357,9 @@ final class AppListModel {
         // Chrome's Keystone staging a new build, a Sparkle app swapping itself —
         // flips the Restart badge without waiting for a menu open or networked check.
         armLocalRescan()
+        // Track which apps are running so each row can show a live "running" dot,
+        // kept current by NSWorkspace launch/terminate notifications.
+        armRunningAppsMonitor()
     }
 
     /// The ordered source stack, rebuilt per check so it picks up a token change
@@ -700,6 +727,44 @@ final class AppListModel {
         }
     }
 
+    /// Whether, per the user's `vendorInstallPolicy`, this update should be handed
+    /// to the app's OWN updater rather than installed over by us right now. True
+    /// only for a self-updating vendor app (a `VendorProbeSource` result) that is
+    /// currently running, when the policy is `.deferWhenRunning`. A not-running app
+    /// (nothing to disturb) or the `.alwaysOverwrite` policy installs in place as
+    /// usual. Detection-only vendor apps (no installable spec) already just "Open"
+    /// their update path, so they're excluded here.
+    func vendorDefersToSelfUpdater(_ result: UpdateResult) -> Bool {
+        guard result.remote?.sourceName == "Vendor",
+              prefs.vendorInstallPolicy == .deferWhenRunning,
+              isRunning(result),
+              canAutoInstall(result) || requiresInstaller(result)
+        else { return false }
+        return true
+    }
+
+    /// Hand a running self-updating app off to its own update path instead of
+    /// swapping the bundle under it: open an app-scheme deep link (Chrome's
+    /// `chrome://settings/help` makes Keystone check+download) when the recipe
+    /// carries one, otherwise just bring the app forward so its built-in updater
+    /// (MAU, a daemon, Sparkle) applies the update on its own schedule.
+    func openSelfUpdater(_ result: UpdateResult) {
+        installErrors[result.id] = nil
+        if let url = result.remote?.downloadURL, let scheme = url.scheme,
+           scheme != "http", scheme != "https" {
+            NSWorkspace.shared.open(
+                [url], withApplicationAt: result.app.path,
+                configuration: NSWorkspace.OpenConfiguration())
+            installNotes[result.id] =
+                "Opened \(result.app.name) — its own updater is applying the update."
+        } else {
+            NSWorkspace.shared.open(result.app.path)
+            installNotes[result.id] =
+                "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly."
+        }
+        Log.app.info("vendor defer-to-self-updater: \(result.app.name, privacy: .public)")
+    }
+
     /// A cheap, network-free rescan to run whenever the menu opens. Re-reads each
     /// app from disk and re-evaluates it against the remote we already fetched, so
     /// we notice an app that updated itself in the background (its own Sparkle/
@@ -797,6 +862,7 @@ final class AppListModel {
         // for the same app — two downloads, two in-place swaps, two notifications.
         guard installing[id] == nil else { return false }
         installErrors[id] = nil
+        installNotes[id] = nil
         Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
 
         // Defensive re-check: the app may already be current — e.g. a manual
@@ -811,6 +877,16 @@ final class AppListModel {
             // that update, so recompute whether a restart is needed.
             Log.install.info("install skipped: \(result.app.name, privacy: .public) already current on disk")
             await computeRestartInfo()
+            installing[id] = nil
+            return false
+        }
+
+        // Install policy: a running self-updating vendor app is handed to its own
+        // updater rather than swapped under it — unless the user chose to always
+        // overwrite. (Re-checked here, not just in the UI, so any caller honors it.)
+        if vendorDefersToSelfUpdater(result) {
+            Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
+            openSelfUpdater(result)
             installing[id] = nil
             return false
         }
@@ -1667,6 +1743,35 @@ final class AppListModel {
         defer { localRescanRunning = false }
         Log.app.debug("local rescan: triggered (watcher or backstop)")
         await refreshLocal()
+    }
+
+    /// Seed `runningAppPaths` from the current process list and keep it live via
+    /// NSWorkspace's launch/terminate notifications. These fire on the main thread
+    /// the instant an app opens or quits, so a row's running dot updates without
+    /// waiting for the next scan. We recompute the whole set on each event (cheap —
+    /// it's a single in-memory array walk) rather than diffing, so a missed/coalesced
+    /// notification can't leave the set wrong.
+    private func armRunningAppsMonitor() {
+        refreshRunningApps()
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didLaunchApplicationNotification,
+                     NSWorkspace.didTerminateApplicationNotification] {
+            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.refreshRunningApps() }
+            }
+            runningAppObservers.append(observer)
+        }
+    }
+
+    /// Recompute the set of running bundle paths from the live process list. We use
+    /// each process's `bundleURL` (the .app it launched from), symlink-resolved to
+    /// match how `AppScanner` records `InstalledApp.path` (it resolves symlinks too),
+    /// so the comparison in `isRunning` lines up.
+    private func refreshRunningApps() {
+        runningAppPaths = Set(
+            NSWorkspace.shared.runningApplications.compactMap {
+                $0.bundleURL?.resolvingSymlinksInPath().path
+            })
     }
 
     /// Post a "new updates available" banner for actionable updates the user hasn't

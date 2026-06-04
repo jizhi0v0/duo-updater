@@ -123,6 +123,16 @@ private struct GeneralSettings: View {
                 Text("Full uses the mas tool to redownload the whole app — no extra permission. Incremental drives the App Store’s own Update button for a smaller delta download, but needs Accessibility access (you’ll be guided to grant it).")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section {
+                Picker("Self-updating apps", selection: $prefs.vendorInstallPolicy) {
+                    ForEach(Preferences.VendorInstallPolicy.allCases) { policy in
+                        Text(policy.label).tag(policy)
+                    }
+                }
+            } footer: {
+                Text("For apps that ship their own updater (Office, Teams, OneDrive, Edge, Chrome, VS Code, …). “Defer while running” installs over them only when they’re closed; while running it opens the app so its own updater applies the update. “Always replace” downloads and swaps in place either way, then prompts a restart.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }

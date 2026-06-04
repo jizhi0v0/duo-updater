@@ -159,7 +159,8 @@ struct WorkbenchWindowView: View {
                     result: result,
                     mode: mode,
                     bytes: bytes(for: result),
-                    isSelected: result.id == selection)
+                    isSelected: result.id == selection,
+                    isRunning: model.isRunning(result))
                     .tag(result.id)
             }
             Divider()
@@ -249,7 +250,13 @@ private struct WorkbenchActionView: View {
     /// popover affordances in the menu bar — so we show a hint that points there.
     @ViewBuilder
     private var updateAction: some View {
-        if result.isMajorUpgrade {
+        if model.vendorDefersToSelfUpdater(result) {
+            // Running self-updating vendor app + "defer while running" policy: open
+            // its own update path rather than swapping the bundle under it.
+            Button("Open") { model.openSelfUpdater(result) }
+                .buttonStyle(.bordered)
+                .help("\(result.app.name) is running — open it so its own updater applies the update. Quit it, or pick “Always replace” in Settings, to install directly.")
+        } else if result.isMajorUpgrade {
             // License-boundary warning lives in the popover; don't one-click it here.
             Label("Major update", systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.orange)
@@ -348,6 +355,8 @@ private struct WorkbenchSidebarRow: View {
     /// When selected we render the version line in the emphasized foreground (white
     /// over the highlight) instead of the tint; the arrow still conveys "update".
     let isSelected: Bool
+    /// Whether the app currently has a running process — shows the green live dot.
+    let isRunning: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -356,6 +365,7 @@ private struct WorkbenchSidebarRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(result.app.name).font(.body).lineLimit(1)
+                    if isRunning { RunningIndicator(size: 5) }
                     ChannelTag(channel: result.app.releaseChannel)
                 }
                 subtitle
@@ -404,6 +414,7 @@ private struct DetailHeader: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
                         Text(result.app.name).font(.title2).bold()
+                        if model.isRunning(result) { RunningIndicator(size: 7) }
                         ChannelTag(channel: result.app.releaseChannel)
                     }
                     versionLine
@@ -425,6 +436,11 @@ private struct DetailHeader: View {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let note = model.installNotes[result.id] {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

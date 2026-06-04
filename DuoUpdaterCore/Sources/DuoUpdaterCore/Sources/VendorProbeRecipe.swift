@@ -150,6 +150,22 @@ public struct VendorProbeRecipe: Sendable {
     /// "highest" would wrongly grab a bigger unrelated number.
     public let selectHighest: Bool
 
+    /// When true, the version this recipe extracts is the vendor's *build* number
+    /// (the app's `CFBundleVersion`), NOT its marketing `CFBundleShortVersionString`.
+    /// The source then routes it into `RemoteVersion.version` so the engine compares
+    /// it against the installed app's `buildVersion` — the only field that matches.
+    ///
+    /// Needed for vendors whose download URL / manifest carries the build but whose
+    /// app reports a *shorter* marketing version: Microsoft Office ships
+    /// `Microsoft_Word_16.109.26053122_Installer.pkg` (build `16.109.26053122`)
+    /// while the installed bundle's `CFBundleShortVersionString` is `16.109.3`.
+    /// Comparing the build against the marketing version would report `26053122 > 3`
+    /// — a permanent phantom "update available" that never clears. Leave false
+    /// whenever the extracted version is the same scheme the app advertises
+    /// (the common case: Teams, OneDrive, Sparkle appcasts all report the full
+    /// version as their marketing string).
+    public let versionIsBuild: Bool
+
     /// When present, the app can be updated in place through its own channel: the
     /// source resolves the installer URL (and optional checksum) and hands it to
     /// `VendorInstaller`. Absent → detection only (the user is sent to download
@@ -172,6 +188,7 @@ public struct VendorProbeRecipe: Sendable {
         downloadURL: URL? = nil,
         changelogURL: URL? = nil,
         selectHighest: Bool = false,
+        versionIsBuild: Bool = false,
         install: VendorInstallSpec? = nil,
         followRedirects: Bool = true,
         channel: ReleaseChannel = .stable
@@ -184,6 +201,7 @@ public struct VendorProbeRecipe: Sendable {
         self.downloadURL = downloadURL
         self.changelogURL = changelogURL
         self.selectHighest = selectHighest
+        self.versionIsBuild = versionIsBuild
         self.install = install
         self.followRedirects = followRedirects
     }
@@ -359,16 +377,24 @@ public enum VendorProbeRegistry {
         // Microsoft Edge — Stable / Beta / Dev. One enterprise endpoint lists all
         // products; each per-channel pattern scopes to that Product's first
         // (newest) MacOS release. Distinct bundle ids (`…edgemac[.Beta/.Dev]`) so
-        // the channel gate routes each install to its own version. Detection only
-        // — Edge self-updates via Microsoft AutoUpdate. (Edge Canary isn't carried
-        // by this enterprise API, so it stays "unknown" rather than mis-served.)
+        // the channel gate routes each install to its own version. Edge self-updates
+        // via Microsoft AutoUpdate; like Office there's no rollout-jump risk (the
+        // CDN serves the GA build), so Stable gets a one-click pkg from the official
+        // "latest" fwlink (linkid=2093504 → MicrosoftEdge-<ver>.pkg, same 4-component
+        // ProductVersion scheme as detection). Beta/Dev stay detection-only — no
+        // verified per-channel pkg link, and the channel gate keeps Stable's pkg off
+        // them. (Edge Canary isn't carried by this enterprise API, so it stays
+        // "unknown" rather than mis-served.)
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
             mode: .responseBody,
             versionPattern: #"(?s)"Product"\s*:\s*"Stable".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
             downloadURL: URL(string: "https://www.microsoft.com/edge/download"),
-            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes")),
+            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/?linkid=2093504")!),
+                kind: .pkg)),
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac.Beta",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
@@ -385,6 +411,161 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
             changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-dev-channel"),
             channel: .dev),
+
+        // Microsoft Teams — Microsoft's config/v1 version API (same family as
+        // VS Code & Edge). The "WebView2Canary" track is the production/Public R4
+        // build despite the confusing name (Homebrew's `microsoft-teams` cask
+        // tracks this same 4-component version). Teams self-updates via Microsoft
+        // AutoUpdate (com.microsoft.autoupdate2). The full version is the app's
+        // marketing string, so this is a normal (non-build) recipe. The install
+        // buildLink MUST be anchored to the WebView2Canary block: the JSON lists a
+        // separate "WebView2" track first whose (lower) buildLink a bare
+        // "buildLink" pattern would grab — installing a different track than the
+        // one we detected.
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.teams2",
+            url: URL(string: "https://config.teams.microsoft.com/config/v1/MicrosoftTeams/1?environment=prod&audienceGroup=general&teamsRing=general&agent=TeamsBuilds")!,
+            mode: .responseBody,
+            versionPattern: #""WebView2Canary":\{"macOS":\{"latestVersion":"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-teams/download-app")!,
+            changelogURL: URL(string: "https://support.microsoft.com/en-us/office/what-s-new-in-microsoft-teams-d7092a6d-c896-424c-b362-a472d5f105de")!,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""WebView2Canary":\{"macOS":\{"latestVersion":"[^"]*","buildLink":"([^"]+MicrosoftTeams\.pkg)""#),
+                kind: .pkg)),
+
+        // Microsoft OneDrive — Microsoft's "latest" download fwlink. A single 302
+        // lands on a versioned .pkg URL on oneclient.sfx.ms. The version is a
+        // 4-component path segment (e.g. `26.078.0426.0002`), not a filename, so
+        // followRedirects:false reads the Location header instead of lastPathComponent.
+        //
+        // Capture only the FIRST THREE components: the installed bundle's
+        // CFBundleShortVersionString is exactly those (`26.078.0426`), while the
+        // 4th path component is a build revision that the marketing version omits —
+        // and CFBundleVersion uses a *different* scheme (`26078.0426.0002`, first
+        // two merged), so neither installed field matches the full 4-component path.
+        // Comparing the full path version would read the trailing `.0002` as newer
+        // than `26.078.0426` and phantom-update forever. (Verified against a real
+        // install: short `26.078.0426`, build `26078.0426.0002`.) A genuine release
+        // bumps one of the first three, so first-3 detection stays correct; the only
+        // blind spot is a pure 4th-component re-spin under an unchanged marketing
+        // version — the safe direction (a missed check, never a phantom), and
+        // OneDrive self-updates via OneDriveStandaloneUpdaterDaemon anyway.
+        // Install follows the same fwlink.
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.OneDrive",
+            url: URL(string: "https://go.microsoft.com/fwlink/?linkid=823060")!,
+            mode: .redirectFilename,
+            versionPattern: #"/Installers/([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+/"#,
+            downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/onedrive/download")!,
+            changelogURL: URL(string: "https://support.microsoft.com/en-us/office/onedrive-release-notes-845dcf18-f921-435e-bf28-4e24b95e5fc0")!,
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/?linkid=823060")!),
+                kind: .pkg),
+            followRedirects: false),
+
+        // Microsoft PowerPoint — Office suite, unified version. The fwlink 302s to
+        // a versioned .pkg on the Office CDN. MAU-managed. The pkg filename carries
+        // the BUILD (`16.109.26053122`, = the app's CFBundleVersion), not the
+        // shorter marketing CFBundleShortVersionString (`16.109.3`), so
+        // versionIsBuild routes it to the build-vs-build comparison — otherwise the
+        // build would read as "newer" than the marketing version forever.
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.Powerpoint",
+            url: URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525136")!,
+            mode: .redirectFilename,
+            versionPattern: #"_(\d+\.\d+\.\d+)_Installer\.pkg"#,
+            downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/powerpoint")!,
+            changelogURL: URL(string: "https://learn.microsoft.com/en-us/officeupdates/release-notes-office-for-mac")!,
+            versionIsBuild: true,
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525136")!),
+                kind: .pkg),
+            followRedirects: false),
+
+        // Microsoft Word — Office suite, unified version. Same CDN/fwlink pattern
+        // as PowerPoint. MAU-managed.
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.Word",
+            url: URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525134")!,
+            mode: .redirectFilename,
+            versionPattern: #"_(\d+\.\d+\.\d+)_Installer\.pkg"#,
+            downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/word")!,
+            changelogURL: URL(string: "https://learn.microsoft.com/en-us/officeupdates/release-notes-office-for-mac")!,
+            versionIsBuild: true,
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525134")!),
+                kind: .pkg),
+            followRedirects: false),
+
+        // Microsoft Excel — Office suite, unified version. Same CDN/fwlink pattern
+        // as PowerPoint. MAU-managed.
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.Excel",
+            url: URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525135")!,
+            mode: .redirectFilename,
+            versionPattern: #"_(\d+\.\d+\.\d+)_Installer\.pkg"#,
+            downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/excel")!,
+            changelogURL: URL(string: "https://learn.microsoft.com/en-us/officeupdates/release-notes-office-for-mac")!,
+            versionIsBuild: true,
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525135")!),
+                kind: .pkg),
+            followRedirects: false),
+
+        // Microsoft OneNote — Office suite, unified version. No dedicated OneNote
+        // fwlink; uses the Office suite fwlink (linkid=525133) that redirects to
+        // the Microsoft_365_and_Office installer — same version. MAU-managed.
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.onenote.mac",
+            url: URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525133")!,
+            mode: .redirectFilename,
+            versionPattern: #"_(\d+\.\d+\.\d+)_Installer\.pkg"#,
+            downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/onenote/digital-note-taking-app")!,
+            changelogURL: URL(string: "https://learn.microsoft.com/en-us/officeupdates/release-notes-office-for-mac")!,
+            versionIsBuild: true,
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525133")!),
+                kind: .pkg),
+            followRedirects: false),
+
+        // Microsoft Outlook — Office suite, unified version. Uses the Office
+        // AutoUpdate XML manifest (same CDN product tree as the fwlinks) which
+        // carries per-product Update Version Location entries. MAU-managed.
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.Outlook",
+            url: URL(string: "https://officecdn.microsoft.com/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/0409OPIM2019.xml")!,
+            mode: .responseBody,
+            versionPattern: #"<key>Update Version</key>\s*<string>([0-9]+\.[0-9]+\.[0-9]+)</string>"#,
+            downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/outlook/outlook-for-business")!,
+            changelogURL: URL(string: "https://learn.microsoft.com/en-us/officeupdates/release-notes-office-for-mac")!,
+            versionIsBuild: true,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#"<key>Update Version Location</key>\s*<string>([^<]+\.pkg)</string>"#),
+                kind: .pkg)),
+
+        // Bartender — Sparkle appcast (ascending, oldest-first). Version lives in
+        // sparkle:shortVersionString on each <item>. Detection-only; if the
+        // installed app has SUFeedURL in Info.plist SparkleAppcastSource takes
+        // priority. selectHighest because the feed lists items oldest-first.
+        VendorProbeRecipe(
+            bundleID: "com.surteesstudios.Bartender",
+            url: URL(string: "https://www.macbartender.com/B2/updates/AppcastB6.xml")!,
+            mode: .responseBody,
+            versionPattern: #"<sparkle:shortVersionString>([0-9]+\.[0-9]+\.[0-9]+)</sparkle:shortVersionString>"#,
+            downloadURL: URL(string: "https://www.macbartender.com/")!,
+            changelogURL: URL(string: "https://www.macbartender.com/B2/updates/AppcastB6.xml")!,
+            selectHighest: true),
+
+        // ImageOptim — Sparkle appcast carrying only the latest release
+        // (descending, single item). Version in sparkle:shortVersionString.
+        // Detection-only; SparkleAppcastSource takes priority if SUFeedURL present.
+        VendorProbeRecipe(
+            bundleID: "net.pornel.ImageOptim",
+            url: URL(string: "https://imageoptim.com/appcast.xml")!,
+            mode: .responseBody,
+            versionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://imageoptim.com/mac")!,
+            changelogURL: URL(string: "https://imageoptim.com/changelog.html")!),
 
         // Firefox — Mozilla's `product-details` endpoint carries every channel's
         // current version in one JSON. Release, Beta and ESR all ship as

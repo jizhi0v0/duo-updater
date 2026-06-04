@@ -1308,3 +1308,87 @@ private let blenderFixture = """
     let beta = "<h1 id=\"x\">Blender 5.2 Release Notes</h1>\n<p>Blender 5.2 is currently in Beta until June 2026.</p>\n<h2 id=\"corrective-releases\">x</h2>"
     #expect(ChangelogExtractor.extract(from: beta, using: recipe) == nil)
 }
+
+// Trimmed real markup from chromereleases.googleblog.com/search/label/Stable%20updates.
+// The label page mixes platforms/channels, so the recipe selects desktop *stable*
+// posts via the exact title literal. Three posts here: a promotion post (no CVEs →
+// lead-sentence fallback), a non-stable decoy (Android — must be skipped by the
+// title filter even though it carries a 4-part version), and a security post whose
+// fixes are inline spans (not <li>). One CVE description carries `&amp;` to prove
+// entity decoding; each post body wraps its content in a `<script type='text/template'>`.
+private let chromeFixture = """
+<div class='post' itemscope='' itemtype='http://schema.org/BlogPosting'>
+<h2 class='title' itemprop='name'>
+<a href='https://chromereleases.googleblog.com/2026/06/stable-channel-update-for-desktop.html' itemprop='url' title='Stable Channel Update for Desktop'>
+Stable Channel Update for Desktop
+</a>
+</h2>
+<div class='post-header'><div class='published'>
+<span class='publishdate' itemprop='datePublished'>
+Tuesday, June 2, 2026
+</span>
+</div></div>
+<div class='post-body'><div class='post-content' itemprop='articleBody'>
+<script type='text/template'>
+<p><span style="color: #666666;">The Chrome team is delighted to announce the promotion of Chrome 149 to the stable channel for Windows, Mac and Linux. This will roll out over the coming days/weeks.</span></p><div style="color: #666666;"><span>Chrome 149.0.7827.53 (Linux)&nbsp;149.0.7827.53/.54&nbsp;Windows/Mac</span></div><p><span>Interested in switching release channels? Find out how here. If you find a new issue, please let us know by filing a bug.</span></p><p>Srinivas Sista</p><p>Google Chrome</p>
+</script>
+</div></div>
+</div>
+<div class='post' itemscope='' itemtype='http://schema.org/BlogPosting'>
+<h2 class='title' itemprop='name'>
+<a href='https://chromereleases.googleblog.com/2026/06/chrome-for-android-update.html' itemprop='url' title='Chrome for Android Update'>
+Chrome for Android Update
+</a>
+</h2>
+<div class='post-header'><div class='published'>
+<span class='publishdate' itemprop='datePublished'>
+Monday, June 1, 2026
+</span>
+</div></div>
+<div class='post-body'><div class='post-content' itemprop='articleBody'>
+<script type='text/template'>
+<p>Hi everyone! We've just released Chrome 149 (149.0.7827.46) for Android.</p>
+</script>
+</div></div>
+</div>
+<div class='post' itemscope='' itemtype='http://schema.org/BlogPosting'>
+<h2 class='title' itemprop='name'>
+<a href='https://chromereleases.googleblog.com/2026/05/stable-channel-update-for-desktop_27.html' itemprop='url' title='Stable Channel Update for Desktop'>
+Stable Channel Update for Desktop
+</a>
+</h2>
+<div class='post-header'><div class='published'>
+<span class='publishdate' itemprop='datePublished'>
+Wednesday, May 27, 2026
+</span>
+</div></div>
+<div class='post-body'><div class='post-content' itemprop='articleBody'>
+<script type='text/template'>
+<p><span>The Stable channel has been updated to 148.0.7778.216/217 for Windows and 148.0.7778.215/216 Mac and 148.0.7778.215 for Linux.</span></p><p>This update includes 2 security fixes.</p><span style="font-weight: 700;"> Critical </span><span> CVE-2026-9872: Out of bounds write in GPU. </span><span style="font-weight: 700;"> High </span><span> CVE-2026-9873: Heap buffer overflow in Media &amp; Audio. </span>
+</script>
+</div></div>
+</div>
+"""
+
+@Test func extractsChromeStableDesktopPostsAndSkipsOtherChannels() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.google.Chrome"))
+    let cl = try #require(ChangelogExtractor.extract(from: chromeFixture, using: recipe))
+
+    // The Android decoy is dropped by the title filter → only the two desktop posts.
+    #expect(cl.entries.count == 2)
+
+    // Promotion post: no CVEs, so the lead-sentence fallback yields exactly one
+    // item — the announcement, never the boilerplate or signature paragraphs.
+    #expect(cl.entries[0].version == "149.0.7827.53")
+    #expect(cl.entries[0].date == "Tuesday, June 2, 2026")
+    #expect(cl.entries[0].items.count == 1)
+    #expect(cl.entries[0].items[0].contains("promotion of Chrome 149 to the stable channel"))
+
+    // Security post: version is the first listed build; fixes come from the inline
+    // CVE spans, and `&amp;` decodes to `&`.
+    #expect(cl.entries[1].version == "148.0.7778.216")
+    #expect(cl.entries[1].date == "Wednesday, May 27, 2026")
+    #expect(cl.entries[1].items.count == 2)
+    #expect(cl.entries[1].items[0] == "CVE-2026-9872: Out of bounds write in GPU.")
+    #expect(cl.entries[1].items[1] == "CVE-2026-9873: Heap buffer overflow in Media & Audio.")
+}

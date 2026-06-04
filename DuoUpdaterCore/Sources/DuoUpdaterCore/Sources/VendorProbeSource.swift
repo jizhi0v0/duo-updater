@@ -14,7 +14,8 @@ import Foundation
 /// version it isn't confident about, so it can't produce a false "update
 /// available" or a spurious error.
 public struct VendorProbeSource: UpdateSource {
-    public let name = "Vendor"
+    static let sourceName = "Vendor"
+    public let name = VendorProbeSource.sourceName
 
     /// Keyed by bundle id → the recipes for that id, one per release channel.
     /// Most apps have a single (stable) recipe; channels that share a bundle id
@@ -176,11 +177,40 @@ public struct VendorProbeSource: UpdateSource {
         // here just falls back to detection-only; it never blocks the version.
         if let spec = recipe.install,
            let plan = try? await resolveInstall(spec, body: text) {
+            return Self.makeRemoteVersion(
+                recipe: recipe, version: version, install: spec, plan: plan,
+                resolvedDownload: resolvedDownload)
+        }
+
+        return Self.makeRemoteVersion(
+            recipe: recipe, version: version, install: nil, plan: nil,
+            resolvedDownload: resolvedDownload)
+    }
+
+    /// Assemble the `RemoteVersion` a recipe yields from an already-extracted
+    /// version (and, when installing, a resolved download plan). Pure and offline
+    /// so the version-routing contract — in particular `versionIsBuild`, which
+    /// decides whether the engine compares against the installed marketing or
+    /// build version — is unit-testable without hitting the network.
+    static func makeRemoteVersion(
+        recipe: VendorProbeRecipe,
+        version: String,
+        install spec: VendorInstallSpec?,
+        plan: (url: URL, checksum: String?)?,
+        resolvedDownload: URL?
+    ) -> RemoteVersion {
+        // A build-number recipe routes the value into `version` (compared against
+        // the installed `CFBundleVersion`); `shortVersion` stays nil so a build
+        // string can never be mismatched against a shorter marketing version.
+        let shortVersion = recipe.versionIsBuild ? nil : version
+        let buildVersion = recipe.versionIsBuild ? version : nil
+
+        if let spec, let plan {
             return RemoteVersion(
-                shortVersion: version,
-                version: nil,
+                shortVersion: shortVersion,
+                version: buildVersion,
                 downloadURL: plan.url,
-                sourceName: name,
+                sourceName: sourceName,
                 // pkg → hand to the system installer; archives → in-place swap.
                 requiresManualInstaller: spec.kind == .pkg,
                 vendorInstallerKind: spec.kind,
@@ -191,10 +221,10 @@ public struct VendorProbeSource: UpdateSource {
         }
 
         return RemoteVersion(
-            shortVersion: version,
-            version: nil,
+            shortVersion: shortVersion,
+            version: buildVersion,
             downloadURL: recipe.downloadURL ?? resolvedDownload,
-            sourceName: name,
+            sourceName: sourceName,
             // No install spec: detection only — the user downloads by hand.
             requiresManualInstaller: true,
             changelogURL: recipe.changelogURL

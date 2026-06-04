@@ -255,6 +255,7 @@ private struct AppRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 6) {
                         Text(result.app.name).font(.body)
+                        if model.isRunning(result) { RunningIndicator(size: 6) }
                         ChannelTag(channel: result.app.releaseChannel)
                     }
                     versionLine
@@ -266,6 +267,11 @@ private struct AppRow: View {
                 Text(installError)
                     .font(.caption2)
                     .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let note = model.installNotes[result.id] {
+                Text(note)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -462,6 +468,10 @@ private struct AppRow: View {
                 } else if result.remote?.sourceName == "TestFlight" {
                     // Detected via TestFlight's cache — it installs, we just route.
                     testFlightButton
+                } else if model.vendorDefersToSelfUpdater(result) {
+                    // Running self-updating vendor app + "defer while running" policy:
+                    // open its own update path instead of swapping under it.
+                    openSelfUpdaterButton
                 } else if result.isMajorUpgrade && (model.canAutoInstall(result) || model.requiresInstaller(result)) {
                     majorUpgradeBadge
                 } else if model.canAutoInstall(result) {
@@ -674,6 +684,15 @@ private struct AppRow: View {
             .controlSize(.small)
             .buttonStyle(.bordered)
             .help(openHelp)
+    }
+
+    /// Shown for a running self-updating vendor app under the "defer while running"
+    /// policy: open the app's own update path rather than installing over it.
+    private var openSelfUpdaterButton: some View {
+        Button("Open") { model.openSelfUpdater(result) }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .help("\(result.app.name) is running — open it and let its own updater apply \(result.remote?.displayVersion ?? "the update"). Quit it, or pick “Always replace” in Settings, to install directly.")
     }
 
     private func openAction() {

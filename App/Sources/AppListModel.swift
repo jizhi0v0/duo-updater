@@ -909,6 +909,7 @@ final class AppListModel {
                 installing[id] = .downloading(fraction: 0)
                 let bytes = try await packageInstaller.downloadAndOpen(
                     url: result.remote?.downloadURL,
+                    installedApp: result.app.path,
                     headers: result.remote?.downloadHeaders ?? [:]
                 ) { stage in
                     Task { @MainActor in self.setStage(id, stage) }

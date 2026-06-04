@@ -27,29 +27,38 @@ struct DownloaderTrafficTests {
     private final class OneShotHTTPServer: @unchecked Sendable {
         private let listener: NWListener
         private let body: Data
+        private let status: String
+        private let headers: [String: String]
         private let queue = DispatchQueue(label: "OneShotHTTPServer")
         let port: UInt16
 
-        init(body: Data) throws {
+        init(
+            body: Data,
+            status: String = "200 OK",
+            headers: [String: String] = [:]
+        ) throws {
             self.body = body
+            self.status = status
+            self.headers = headers
             let params = NWParameters.tcp
             let listener = try NWListener(using: params, on: .any)
             self.listener = listener
             let queue = self.queue
 
             // Handler must be set BEFORE start so the very first connection is served.
-            listener.newConnectionHandler = { [body] conn in
+            listener.newConnectionHandler = { [body, status, headers] conn in
                 conn.start(queue: queue)
                 // Read the request (we don't parse it — any request gets the body).
                 conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { _, _, _, _ in
-                    let header = """
-                    HTTP/1.1 200 OK\r
-                    Content-Type: application/octet-stream\r
-                    Content-Length: \(body.count)\r
-                    Connection: close\r
-                    \r
-
-                    """
+                    var header = "HTTP/1.1 \(status)\r\n"
+                    var responseHeaders = headers
+                    responseHeaders["Content-Type"] = responseHeaders["Content-Type"] ?? "application/octet-stream"
+                    responseHeaders["Content-Length"] = responseHeaders["Content-Length"] ?? "\(body.count)"
+                    responseHeaders["Connection"] = responseHeaders["Connection"] ?? "close"
+                    for (field, value) in responseHeaders.sorted(by: { $0.key < $1.key }) {
+                        header += "\(field): \(value)\r\n"
+                    }
+                    header += "\r\n"
                     var response = Data(header.utf8)
                     response.append(body)
                     conn.send(content: response, completion: .contentProcessed { _ in
@@ -91,6 +100,61 @@ struct DownloaderTrafficTests {
         #expect(onDisk == body.count)
         // The reported traffic equals the body size exactly.
         #expect(downloader.bytesDownloaded == Int64(body.count))
+    }
+
+    @Test func downloaderRefusesInsecureRemoteRedirect() async throws {
+        let server = try OneShotHTTPServer(
+            body: Data(),
+            status: "302 Found",
+            headers: ["Location": "http://example.com/payload.zip"]
+        )
+        defer { server.stop() }
+
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dl-redirect-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+
+        let url = URL(string: "http://127.0.0.1:\(server.port)/redirect")!
+        let downloader = Downloader(destinationDir: workDir) { _ in }
+        do {
+            _ = try await downloader.download(url)
+            Issue.record("expected insecure redirect to be refused")
+        } catch is SecureScheme.SchemeError {
+            // Expected.
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+    }
+
+    @Test func downloaderConfinesSuggestedFilenameToDestinationDirectory() async throws {
+        #expect(Downloader.safeSuggestedFilename("../outside.bin") == "outside.bin")
+        #expect(Downloader.safeSuggestedFilename("/tmp/outside.bin") == "outside.bin")
+        #expect(Downloader.safeSuggestedFilename("..") == "download")
+
+        let body = Data("payload".utf8)
+        let server = try OneShotHTTPServer(
+            body: body,
+            headers: ["Content-Disposition": #"attachment; filename="../outside.bin""#]
+        )
+        defer { server.stop() }
+
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dl-filename-\(UUID().uuidString)", isDirectory: true)
+        let workDir = root.appendingPathComponent("downloads", isDirectory: true)
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let outside = root.appendingPathComponent("outside.bin")
+        try Data("sentinel".utf8).write(to: outside)
+
+        let url = URL(string: "http://127.0.0.1:\(server.port)/blob")!
+        let downloader = Downloader(destinationDir: workDir) { _ in }
+        let file = try await downloader.download(url)
+
+        #expect(file.deletingLastPathComponent().standardizedFileURL.path == workDir.standardizedFileURL.path)
+        #expect((try? Data(contentsOf: outside)) == Data("sentinel".utf8))
+        #expect((try? Data(contentsOf: file)) == body)
     }
 
     @Test func downloaderBackstopsByteCountFromFileSize() async throws {

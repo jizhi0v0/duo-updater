@@ -290,14 +290,21 @@ public struct VendorProbeSource: UpdateSource {
         }
     }
 
-    /// Upgrade an `http://` download URL to `https://`. Our vendor hosts all
-    /// support TLS, and App Transport Security blocks plain-http loads anyway;
-    /// if a host somehow lacked https the download would just fail and degrade to
-    /// detection-only — never wrong data. (VLC's appcast lists http mirrors.)
+    /// Upgrade/normalize download URLs to HTTPS. Our vendor hosts all support TLS,
+    /// and App Transport Security blocks plain-http loads anyway; if a host
+    /// somehow lacked https the download would just fail and degrade to
+    /// detection-only — never wrong data. VLC's appcast points at the
+    /// `get.videolan.org` mirror gateway, which may redirect to plaintext mirrors;
+    /// the same archive is available directly from VideoLAN's HTTPS archive host.
     private static func preferHTTPS(_ url: URL) -> URL {
-        guard url.scheme == "http",
-              var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
         else { return url }
+        if comps.host?.lowercased() == "get.videolan.org",
+           comps.path.hasPrefix("/vlc/") {
+            comps.host = "downloads.videolan.org"
+            comps.path = "/pub/videolan" + comps.path
+        }
+        guard comps.scheme == "http" else { return comps.url ?? url }
         comps.scheme = "https"
         return comps.url ?? url
     }

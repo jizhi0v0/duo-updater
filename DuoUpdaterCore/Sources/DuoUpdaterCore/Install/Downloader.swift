@@ -7,10 +7,13 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
 
     enum DownloadError: LocalizedError {
         case httpStatus(Int)
+        case unsafeFilename(String)
         var errorDescription: String? {
             switch self {
             case .httpStatus(let code):
                 return "The server returned HTTP \(code) instead of the file."
+            case .unsafeFilename(let name):
+                return "The server suggested an unsafe download filename: \(name)"
             }
         }
     }
@@ -35,11 +38,15 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         return _bytesDownloaded
     }
 
-    init(destinationDir: URL, onProgress: @escaping @Sendable (Double) -> Void) {
+    init(
+        destinationDir: URL,
+        configuration: URLSessionConfiguration = .default,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) {
         self.destinationDir = destinationDir
         self.onProgress = onProgress
         super.init()
-        self.session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        self.session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
     }
 
     /// Download `url`, returning the location of the downloaded file on disk.
@@ -54,6 +61,9 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         // downloads. A plaintext http:// payload is a downgrade vector even with
         // the later signature gates, so we refuse it outright.
         try SecureScheme.requireSecureDownload(url)
+        bytesLock.withLock {
+            _bytesDownloaded = 0
+        }
         return try await withCheckedThrowingContinuation { cont in
             lock.lock()
             self.continuation = cont
@@ -65,6 +75,27 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
             }
             request.timeoutInterval = 60
             session.downloadTask(with: request).resume()
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let url = request.url else {
+            finish(.failure(URLError(.badURL)))
+            completionHandler(nil)
+            return
+        }
+        do {
+            try SecureScheme.requireSecureDownload(url)
+            completionHandler(request)
+        } catch {
+            finish(.failure(error))
+            completionHandler(nil)
         }
     }
 
@@ -112,9 +143,8 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         }
         // The temp file is deleted when this delegate returns, so move it now.
         let suggested = downloadTask.response?.suggestedFilename ?? location.lastPathComponent
-        let dest = destinationDir.appendingPathComponent(suggested)
         do {
-            try? FileManager.default.removeItem(at: dest)
+            let dest = try destinationURL(forSuggestedFilename: suggested)
             try FileManager.default.moveItem(at: location, to: dest)
             // Backstop the byte count from the file on disk in case no
             // `didWriteData` fired (e.g. a tiny or cached response): the moved
@@ -147,5 +177,41 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         continuation = nil
         lock.unlock()
         cont?.resume(with: result)
+    }
+
+    private func destinationURL(forSuggestedFilename suggested: String) throws -> URL {
+        let filename = Self.safeSuggestedFilename(suggested)
+        let dest = uniqueDestination(named: filename)
+        let base = destinationDir.resolvingSymlinksInPath().standardizedFileURL.path
+        let parent = dest.deletingLastPathComponent()
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        guard parent == base else {
+            throw DownloadError.unsafeFilename(suggested)
+        }
+        return dest
+    }
+
+    private func uniqueDestination(named filename: String) -> URL {
+        let fm = FileManager.default
+        let first = destinationDir.appendingPathComponent(filename, isDirectory: false)
+        guard fm.fileExists(atPath: first.path) else { return first }
+
+        let ns = filename as NSString
+        let ext = ns.pathExtension
+        let stem = ns.deletingPathExtension.isEmpty ? "download" : ns.deletingPathExtension
+        let uniqued = ext.isEmpty
+            ? "\(stem)-\(UUID().uuidString)"
+            : "\(stem)-\(UUID().uuidString).\(ext)"
+        return destinationDir.appendingPathComponent(uniqued, isDirectory: false)
+    }
+
+    static func safeSuggestedFilename(_ suggested: String) -> String {
+        let trimmed = suggested.trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = (trimmed as NSString).lastPathComponent
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if last.isEmpty || last == "." || last == ".." {
+            return "download"
+        }
+        return last
     }
 }

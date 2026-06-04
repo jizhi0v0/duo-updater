@@ -14,6 +14,9 @@ public actor PackageInstaller {
         case noURL
         case downloadFailed(String)
         case unsignedPackage
+        case noInstallablePackage
+        case packageTeamIdentifierMissing
+        case packageTeamIdentifierMismatch(installed: String, package: String)
 
         public var errorDescription: String? {
             switch self {
@@ -21,6 +24,12 @@ public actor PackageInstaller {
             case .downloadFailed(let m): return "Could not prepare the installer: \(m)"
             case .unsignedPackage:
                 return "The downloaded installer package isn't signed by a valid Developer ID — it may be corrupt or tampered. Nothing was installed."
+            case .noInstallablePackage:
+                return "The downloaded disk image did not contain an installer package DuoUpdater could verify. Nothing was opened."
+            case .packageTeamIdentifierMissing:
+                return "Could not read the installer package's Developer ID team. Nothing was opened."
+            case .packageTeamIdentifierMismatch(let installed, let package):
+                return "Installer Team Identifier mismatch: installed “\(installed)” vs package “\(package)”. Refusing to open it."
             }
         }
     }
@@ -33,6 +42,7 @@ public actor PackageInstaller {
     @discardableResult
     public func downloadAndOpen(
         url: URL?,
+        installedApp: URL,
         headers: [String: String] = [:],
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws -> Int64 {
@@ -59,8 +69,20 @@ public actor PackageInstaller {
         // be pkg-checked — the user still drives that one manually.)
         let ext = toOpen.pathExtension.lowercased()
         if ext == "pkg" || ext == "mpkg" {
-            guard packageHasValidSignature(toOpen) else {
+            guard let installedTeam = try SignatureVerifier.teamIdentifier(at: installedApp) else {
+                throw SignatureVerifier.VerifyError.noTeamIdentifier(which: "installed")
+            }
+            let packageSignature = packageSignature(toOpen)
+            guard packageSignature.isValid else {
                 throw PackageError.unsignedPackage
+            }
+            guard let packageTeam = packageSignature.teamIdentifier else {
+                throw PackageError.packageTeamIdentifierMissing
+            }
+            guard packageTeam == installedTeam else {
+                throw PackageError.packageTeamIdentifierMismatch(
+                    installed: installedTeam,
+                    package: packageTeam)
             }
         }
         await open(toOpen)
@@ -81,28 +103,49 @@ public actor PackageInstaller {
             "attach", file.path, "-nobrowse", "-readonly", "-noverify",
             "-mountpoint", mountPoint.path
         ])
-        guard attach == 0 else { return file }  // fall back to opening the dmg
+        guard attach == 0 else { throw PackageError.noInstallablePackage }
         defer { _ = run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]) }
 
-        guard let pkg = firstPackage(in: mountPoint) else { return file }
+        guard let pkg = firstPackage(in: mountPoint) else {
+            throw PackageError.noInstallablePackage
+        }
         let dest = workDir.appendingPathComponent(pkg.lastPathComponent)
         try? FileManager.default.removeItem(at: dest)
-        guard run("/usr/bin/ditto", [pkg.path, dest.path]) == 0 else { return file }
+        guard run("/usr/bin/ditto", [pkg.path, dest.path]) == 0 else {
+            throw PackageError.downloadFailed("Could not copy the installer package out of the disk image.")
+        }
         return dest
     }
 
-    /// True when `pkgutil --check-signature` reports a valid signing chain (exit
-    /// 0). Unsigned or tampered packages return non-zero.
-    private func packageHasValidSignature(_ pkg: URL) -> Bool {
-        run("/usr/sbin/pkgutil", ["--check-signature", pkg.path]) == 0
+    /// `pkgutil --check-signature` validates the package chain and prints the
+    /// Developer ID Installer certificate, whose parenthesized OU is the Team ID.
+    private func packageSignature(_ pkg: URL) -> (isValid: Bool, teamIdentifier: String?) {
+        let result = runCapturingOutput("/usr/sbin/pkgutil", ["--check-signature", pkg.path])
+        guard result.code == 0 else { return (false, nil) }
+        return (true, Self.packageTeamIdentifier(fromPkgutilOutput: result.output))
     }
 
     private func firstPackage(in dir: URL) -> URL? {
         let fm = FileManager.default
+        let dirBase = dir.resolvingSymlinksInPath().standardizedFileURL.path
         guard let entries = try? fm.contentsOfDirectory(
-            at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            at: dir,
+            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
         ) else { return nil }
-        return entries.first { ["pkg", "mpkg"].contains($0.pathExtension.lowercased()) }
+        return entries.sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .first { Self.isPackageEntry($0, insideResolvedPath: dirBase) }
+    }
+
+    static func isPackageEntry(_ url: URL, insideResolvedPath dirBase: String) -> Bool {
+        guard ["pkg", "mpkg"].contains(url.pathExtension.lowercased()) else {
+            return false
+        }
+        let vals = try? url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey])
+        if vals?.isSymbolicLink == true { return false }
+        guard vals?.isDirectory == true || vals?.isRegularFile == true else { return false }
+        let resolved = url.resolvingSymlinksInPath().standardizedFileURL.path
+        return resolved == dirBase || resolved.hasPrefix(dirBase + "/")
     }
 
     @MainActor
@@ -123,5 +166,35 @@ public actor PackageInstaller {
         do { try p.run() } catch { return -1 }
         p.waitUntilExit()
         return p.terminationStatus
+    }
+
+    @discardableResult
+    private func runCapturingOutput(_ launchPath: String, _ args: [String]) -> (code: Int32, output: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: launchPath)
+        p.arguments = args
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        do { try p.run() } catch { return (-1, "") }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return (p.terminationStatus, String(decoding: data, as: UTF8.self))
+    }
+
+    static func packageTeamIdentifier(fromPkgutilOutput output: String) -> String? {
+        for line in output.split(separator: "\n") {
+            guard line.range(of: "Developer ID Installer:", options: .caseInsensitive) != nil,
+                  let open = line.lastIndex(of: "("),
+                  let close = line[open...].firstIndex(of: ")") else {
+                continue
+            }
+            let team = line[line.index(after: open)..<close]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if team.range(of: #"^[A-Z0-9]{10}$"#, options: .regularExpression) != nil {
+                return team
+            }
+        }
+        return nil
     }
 }

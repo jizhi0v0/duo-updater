@@ -456,3 +456,98 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     let pattern = #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+)""#
     #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "1.9.3")
 }
+
+// MARK: - End-to-end version-routing (the verdict, not just extraction)
+//
+// The extraction tests above prove a recipe pulls *a string*; they don't prove
+// that string is COMPARABLE to what the installed app reports. These run the
+// real registry recipe through the source's RemoteVersion-assembly seam and the
+// engine's `evaluate`, so a scheme mismatch (e.g. a build version compared
+// against a marketing version) surfaces as a phantom update here.
+
+private func registryRecipe(_ bundleID: String) -> VendorProbeRecipe {
+    let match = VendorProbeRegistry.recipes.first { $0.bundleID == bundleID }
+    #expect(match != nil, "no registry recipe for \(bundleID)")
+    return match!
+}
+
+private func installedApp(
+    bundleID: String, short: String, build: String?
+) -> InstalledApp {
+    InstalledApp(
+        name: bundleID, bundleID: bundleID, shortVersion: short, buildVersion: build,
+        path: URL(fileURLWithPath: "/Applications/\(bundleID).app"),
+        isMASApp: false, sparkleFeedURL: nil)
+}
+
+/// Run a registry recipe's extracted version through the real source seam +
+/// engine, exactly as a live probe would.
+private func verdict(
+    recipe: VendorProbeRecipe, extracted: String, installed: InstalledApp
+) -> UpdateStatus {
+    let plan: (url: URL, checksum: String?)? =
+        recipe.install != nil ? (url: recipe.url, checksum: nil) : nil
+    let remote = VendorProbeSource.makeRemoteVersion(
+        recipe: recipe, version: extracted, install: recipe.install, plan: plan,
+        resolvedDownload: recipe.downloadURL ?? recipe.url)
+    return UpdateChecker.evaluate(installed: installed, remote: remote)
+}
+
+@Test func officeBuildVersionRecipesDoNotPhantomUpdateWhenCurrent() {
+    // The Office fwlink/XML recipes extract the BUILD (16.109.26053122) — the
+    // installed app's CFBundleVersion — while its CFBundleShortVersionString is
+    // the shorter 16.109.3. Without versionIsBuild the engine compares the build
+    // against the marketing version (26053122 > 3 → perpetual phantom). With it,
+    // an installed copy at the same build reads as up to date.
+    let build = "16.109.26053122"
+    for bundleID in [
+        "com.microsoft.Word", "com.microsoft.Excel", "com.microsoft.Powerpoint",
+        "com.microsoft.onenote.mac", "com.microsoft.Outlook",
+    ] {
+        let recipe = registryRecipe(bundleID)
+        #expect(recipe.versionIsBuild, "\(bundleID) must route its build version")
+        let installed = installedApp(bundleID: bundleID, short: "16.109.3", build: build)
+        #expect(
+            verdict(recipe: recipe, extracted: build, installed: installed) == .upToDate,
+            "\(bundleID) phantom-updated against its own installed build")
+        // A genuinely newer build still surfaces as an update.
+        #expect(
+            verdict(recipe: recipe, extracted: "16.110.26060000", installed: installed)
+                == .updateAvailable(latest: "16.110.26060000"),
+            "\(bundleID) missed a real update")
+    }
+}
+
+@Test func nonBuildRecipesStillCompareAgainstMarketingVersion() {
+    // Teams and OneDrive report their full 4-component version as the marketing
+    // string, so they stay non-build: an installed copy at the same version is
+    // up to date, and a newer one surfaces.
+    for (bundleID, current, newer) in [
+        ("com.microsoft.teams2", "26120.3106.4725.800", "26121.0.0.0"),
+        ("com.microsoft.OneDrive", "26.078.0426.0002", "26.079.0.0"),
+    ] {
+        let recipe = registryRecipe(bundleID)
+        #expect(!recipe.versionIsBuild)
+        let installed = installedApp(bundleID: bundleID, short: current, build: current)
+        #expect(verdict(recipe: recipe, extracted: current, installed: installed) == .upToDate)
+        #expect(
+            verdict(recipe: recipe, extracted: newer, installed: installed)
+                == .updateAvailable(latest: newer))
+    }
+}
+
+@Test func microsoftTeamsInstallBuildLinkAnchorsToCanaryTrack() {
+    // The install pattern must pull the buildLink from the WebView2Canary block,
+    // not the WebView2 block listed first — otherwise detection (Canary) and
+    // install (WebView2) point at different version tracks.
+    let fixture = #"""
+    {"BuildSettings":{"WebView2":{"macOS":{"latestVersion":"25290.302.4044.3989","buildLink":"https://installer.teams.static.microsoft/production-osx/25290.302.4044.3989/MicrosoftTeams.pkg"}},"WebView2Canary":{"macOS":{"latestVersion":"26120.3106.4725.800","buildLink":"https://teamsinstaller.public.onecdn.static.microsoft/production-osx/26120.3106.4725.800/MicrosoftTeams.pkg"}}}}
+    """#
+    let recipe = registryRecipe("com.microsoft.teams2")
+    guard case let .bodyPattern(pattern)? = recipe.install?.urlSource else {
+        Issue.record("Teams recipe lost its bodyPattern install spec")
+        return
+    }
+    let link = VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern)
+    #expect(link == "https://teamsinstaller.public.onecdn.static.microsoft/production-osx/26120.3106.4725.800/MicrosoftTeams.pkg")
+}

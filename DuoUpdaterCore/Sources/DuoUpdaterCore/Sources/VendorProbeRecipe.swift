@@ -377,16 +377,24 @@ public enum VendorProbeRegistry {
         // Microsoft Edge — Stable / Beta / Dev. One enterprise endpoint lists all
         // products; each per-channel pattern scopes to that Product's first
         // (newest) MacOS release. Distinct bundle ids (`…edgemac[.Beta/.Dev]`) so
-        // the channel gate routes each install to its own version. Detection only
-        // — Edge self-updates via Microsoft AutoUpdate. (Edge Canary isn't carried
-        // by this enterprise API, so it stays "unknown" rather than mis-served.)
+        // the channel gate routes each install to its own version. Edge self-updates
+        // via Microsoft AutoUpdate; like Office there's no rollout-jump risk (the
+        // CDN serves the GA build), so Stable gets a one-click pkg from the official
+        // "latest" fwlink (linkid=2093504 → MicrosoftEdge-<ver>.pkg, same 4-component
+        // ProductVersion scheme as detection). Beta/Dev stay detection-only — no
+        // verified per-channel pkg link, and the channel gate keeps Stable's pkg off
+        // them. (Edge Canary isn't carried by this enterprise API, so it stays
+        // "unknown" rather than mis-served.)
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
             mode: .responseBody,
             versionPattern: #"(?s)"Product"\s*:\s*"Stable".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
             downloadURL: URL(string: "https://www.microsoft.com/edge/download"),
-            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes")),
+            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/?linkid=2093504")!),
+                kind: .pkg)),
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac.Beta",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,

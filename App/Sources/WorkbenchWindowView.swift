@@ -250,7 +250,13 @@ private struct WorkbenchActionView: View {
     /// popover affordances in the menu bar — so we show a hint that points there.
     @ViewBuilder
     private var updateAction: some View {
-        if result.isMajorUpgrade {
+        if model.vendorDefersToSelfUpdater(result) {
+            // Running self-updating vendor app + "defer while running" policy: open
+            // its own update path rather than swapping the bundle under it.
+            Button("Open") { model.openSelfUpdater(result) }
+                .buttonStyle(.bordered)
+                .help("\(result.app.name) is running — open it so its own updater applies the update. Quit it, or pick “Always replace” in Settings, to install directly.")
+        } else if result.isMajorUpgrade {
             // License-boundary warning lives in the popover; don't one-click it here.
             Label("Major update", systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.orange)
@@ -430,6 +436,11 @@ private struct DetailHeader: View {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let note = model.installNotes[result.id] {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

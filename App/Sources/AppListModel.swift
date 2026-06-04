@@ -24,6 +24,10 @@ final class AppListModel {
     private(set) var installing: [String: InstallStage] = [:]
     /// Per-app install error message, keyed by app id.
     private(set) var installErrors: [String: String] = [:]
+    /// Per-app informational note (not an error), keyed by app id — e.g. "opened
+    /// the running app so its own updater applies the update" under the
+    /// defer-to-self-updater install policy. Cleared when a new action starts.
+    private(set) var installNotes: [String: String] = [:]
     /// App ids whose on-disk bundle is newer than the version their running
     /// process launched with — i.e. updated (by us, the app's own updater, or
     /// brew) but not yet relaunched, so still executing old code.
@@ -723,6 +727,44 @@ final class AppListModel {
         }
     }
 
+    /// Whether, per the user's `vendorInstallPolicy`, this update should be handed
+    /// to the app's OWN updater rather than installed over by us right now. True
+    /// only for a self-updating vendor app (a `VendorProbeSource` result) that is
+    /// currently running, when the policy is `.deferWhenRunning`. A not-running app
+    /// (nothing to disturb) or the `.alwaysOverwrite` policy installs in place as
+    /// usual. Detection-only vendor apps (no installable spec) already just "Open"
+    /// their update path, so they're excluded here.
+    func vendorDefersToSelfUpdater(_ result: UpdateResult) -> Bool {
+        guard result.remote?.sourceName == "Vendor",
+              prefs.vendorInstallPolicy == .deferWhenRunning,
+              isRunning(result),
+              canAutoInstall(result) || requiresInstaller(result)
+        else { return false }
+        return true
+    }
+
+    /// Hand a running self-updating app off to its own update path instead of
+    /// swapping the bundle under it: open an app-scheme deep link (Chrome's
+    /// `chrome://settings/help` makes Keystone check+download) when the recipe
+    /// carries one, otherwise just bring the app forward so its built-in updater
+    /// (MAU, a daemon, Sparkle) applies the update on its own schedule.
+    func openSelfUpdater(_ result: UpdateResult) {
+        installErrors[result.id] = nil
+        if let url = result.remote?.downloadURL, let scheme = url.scheme,
+           scheme != "http", scheme != "https" {
+            NSWorkspace.shared.open(
+                [url], withApplicationAt: result.app.path,
+                configuration: NSWorkspace.OpenConfiguration())
+            installNotes[result.id] =
+                "Opened \(result.app.name) — its own updater is applying the update."
+        } else {
+            NSWorkspace.shared.open(result.app.path)
+            installNotes[result.id] =
+                "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly."
+        }
+        Log.app.info("vendor defer-to-self-updater: \(result.app.name, privacy: .public)")
+    }
+
     /// A cheap, network-free rescan to run whenever the menu opens. Re-reads each
     /// app from disk and re-evaluates it against the remote we already fetched, so
     /// we notice an app that updated itself in the background (its own Sparkle/
@@ -820,6 +862,7 @@ final class AppListModel {
         // for the same app — two downloads, two in-place swaps, two notifications.
         guard installing[id] == nil else { return false }
         installErrors[id] = nil
+        installNotes[id] = nil
         Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
 
         // Defensive re-check: the app may already be current — e.g. a manual
@@ -834,6 +877,16 @@ final class AppListModel {
             // that update, so recompute whether a restart is needed.
             Log.install.info("install skipped: \(result.app.name, privacy: .public) already current on disk")
             await computeRestartInfo()
+            installing[id] = nil
+            return false
+        }
+
+        // Install policy: a running self-updating vendor app is handed to its own
+        // updater rather than swapped under it — unless the user chose to always
+        // overwrite. (Re-checked here, not just in the UI, so any caller honors it.)
+        if vendorDefersToSelfUpdater(result) {
+            Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
+            openSelfUpdater(result)
             installing[id] = nil
             return false
         }

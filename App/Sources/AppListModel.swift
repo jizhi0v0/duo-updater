@@ -1751,14 +1751,22 @@ final class AppListModel {
                     try? await Task.sleep(for: .seconds(wait))
                     guard !Task.isCancelled else { return }
                 }
-                // Don't stomp on a manual check or an install in flight; back off a
-                // little and re-evaluate rather than busy-looping while overdue.
-                if !self.isChecking && !self.isScanning && self.installing.isEmpty {
+                // Skip this tick — without running it — when offline (lid closed,
+                // no Wi-Fi) or busy (manual check / install in flight). Offline is
+                // the important case: a check would fail every networked source,
+                // litter the list with retry rows, and still reset `lastCheck` so
+                // the next tick sleeps a full interval into a missed check. By
+                // deferring we leave `lastCheck` untouched, stay overdue, and
+                // re-evaluate on a short backoff — so the moment connectivity
+                // returns the next tick (≤60s away) runs the check immediately.
+                let offline = !NetworkMonitor.shared.isOnline
+                if !offline && !self.isChecking && !self.isScanning && self.installing.isEmpty {
                     Log.app.info("scheduler: tick — running background check")
                     await self.backgroundRefresh()
                     isFirstCheck = false
                 } else {
-                    Log.app.info("scheduler: tick deferred (busy) — retrying in 60s")
+                    let why = offline ? "offline" : "busy"
+                    Log.app.info("scheduler: tick deferred (\(why, privacy: .public)) — retrying in 60s")
                     try? await Task.sleep(for: .seconds(60))
                 }
             }

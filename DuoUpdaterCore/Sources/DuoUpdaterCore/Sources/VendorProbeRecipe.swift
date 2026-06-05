@@ -1002,14 +1002,26 @@ public enum VendorProbeRegistry {
         // installed CFBundleShortVersionString exactly (VersionComparator tokenizes
         // the "-alpha" as a trailing text run, so equal strings compare equal and a
         // newer numeric build still wins). The trailing `"` after the capture keeps
-        // it off the shorter `displayVersion` ("5.11") field. Detection only — like
-        // the stable recipe, the alpha self-updates.
+        // it off the shorter `displayVersion` ("5.11") field.
+        //
+        // One-click: the SAME alpha.json that yields the version also lists the
+        // installer under `files[]`. We grab the arm64 dmg explicitly — its
+        // `mac_simple_arm64` entry appears AFTER the x64 `mac_simple` `.dmg`, so a
+        // naive `\.dmg` `.bodyPattern` (first match) would pull the Intel build;
+        // the `\.arm64\.dmg` anchor pins the right one regardless of order. The dmg
+        // is notarized under the same Team ID YQM5H857L5 as the installed alpha, so
+        // it clears VendorInstaller's signature gate. (Apple-silicon only; an Intel
+        // Mac would need the plain `…-alpha.dmg`, but this repo is arm64-first.)
         VendorProbeRecipe(
             bundleID: "io.dcloud.HBuilderXAlpha",
             url: URL(string: "https://download1.dcloud.net.cn/hbuilderx/alpha.json")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+-alpha)""#,
             changelogURL: URL(string: "https://hx.dcloud.net.cn/Tutorial/HistoryVersion"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"(https://download1\.dcloud\.net\.cn/download/HBuilderX\.[0-9.]+-alpha\.arm64\.dmg)"#),
+                kind: .dmg),
             channel: .alpha),
 
         // Warp — GitHub releases carry NO binary asset; the real dmg lives on

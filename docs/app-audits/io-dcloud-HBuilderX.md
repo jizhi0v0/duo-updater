@@ -14,7 +14,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | ✗(auto)  | —   | —      | ✓           |
-| **alpha**    | —       | —        | —   | —      | ✓           |
+| **alpha**    | —       | —        | —   | —      | ✓ +一键      |
 
 当前生效源: **VendorProbe**
 
@@ -37,7 +37,11 @@
 - alpha: ChangelogRecipe ✓（相同 changelogURL，单独 bundleID `io.dcloud.HBuilderXAlpha`）
 
 ## 一键安装
-- 仅检测（两 channel 均无 install 字段）
+- stable: 仅检测（无 install 字段；端点 manifest 不带可用安装包链接）
+- alpha: **一键 ✓**（2026-06-05 加）。同一个 `alpha.json` 的 `files[]` 里就带安装包；
+  `.bodyPattern` 锁 `…-alpha.arm64.dmg`（x64 的 `mac_simple` `.dmg` 排在前面，必须用
+  `\.arm64\.dmg` 锚定，否则首个匹配会抓到 Intel 包）；dmg 与已装 alpha 同 Team
+  `YQM5H857L5`、已公证（`spctl` accepted），过 `VendorInstaller` 签名门。仅 arm64。
 
 ## 已知问题
 - stable 端点路径含 `/alpha/`（DCloud 命名混乱）；非 alpha 版本确认为官方 stable 构建（5.07.2026041006 = 最新正式版），非预发布

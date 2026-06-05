@@ -177,6 +177,11 @@ final class AppListModel {
     /// each refresh so a change made in the Settings window takes effect next check.
     let prefs: Preferences
 
+    /// A Settings section another window wants to deep-link to — set by onboarding's
+    /// "Set Up GitHub…" before it opens Settings. `SettingsView` consumes and clears
+    /// it on appear/change, so the window lands on that tab instead of General.
+    var requestedSettingsSection: SettingsView.Section?
+
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
 
@@ -427,7 +432,9 @@ final class AppListModel {
     /// notes directly, with no fetch involved).
     func changelogState(for result: UpdateResult) -> ChangelogLoadState? {
         guard let bundleID = result.app.bundleID,
-              ChangelogRecipeRegistry.recipe(forBundleID: bundleID) != nil else { return nil }
+              ChangelogRecipeRegistry.recipe(
+                forBundleID: bundleID, channel: result.app.releaseChannel) != nil
+        else { return nil }
         return changelogState[bundleID] ?? .loading
     }
 
@@ -438,14 +445,19 @@ final class AppListModel {
     /// Re-tries a previous `.failed`.
     func ensureChangelogLoading(for result: UpdateResult) {
         guard let bundleID = result.app.bundleID,
-              let recipe = ChangelogRecipeRegistry.recipe(forBundleID: bundleID) else { return }
+              let recipe = ChangelogRecipeRegistry.recipe(
+                forBundleID: bundleID, channel: result.app.releaseChannel) else { return }
         switch changelogState[bundleID] {
         case .loaded, .loading: return          // already done / in flight
         case .failed, .none: break              // (re)start
         }
         changelogState[bundleID] = .loading
+        // The version whose notes to show: the offered update if any, else the
+        // installed build. Templated recipes (Thunderbird) fetch exactly that
+        // version's page so the rendered notes match what the user sees.
+        let targetVersion = result.remote?.displayVersion ?? result.app.shortVersion
         changelogTasks[bundleID] = Task { [weak self] in
-            let changelog = await ChangelogService.load(recipe)
+            let changelog = await ChangelogService.load(recipe, version: targetVersion)
             guard let self else { return }
             self.changelogTasks[bundleID] = nil
             if let changelog {
@@ -469,8 +481,12 @@ final class AppListModel {
         changelogTasks[bundleID] = nil
         changelogByBundleID[bundleID] = nil
         changelogState[bundleID] = nil
-        if let recipe = ChangelogRecipeRegistry.recipe(forBundleID: bundleID) {
-            Task { await ChangelogCache.shared.invalidate(recipe.source) }
+        // Clear the network cache for every channel variant's page (Stable & ESR
+        // share this bundle id but have different sources), since we don't know
+        // here which channel's notes were cached.
+        let sources = ChangelogRecipeRegistry.recipes(forBundleID: bundleID).map(\.source)
+        if !sources.isEmpty {
+            Task { for source in sources { await ChangelogCache.shared.invalidate(source) } }
         }
     }
 
@@ -1082,7 +1098,7 @@ final class AppListModel {
             let version = updated.app.shortVersion
             if needsRestart.contains(updated.id) {
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
-                if notify { UpdateNotifier.readyToRestart(app: updated.app.name, version: version) }
+                if notify { UpdateNotifier.readyToRestart(app: updated.app.name, version: version, appID: updated.app.bundleID) }
             } else {
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
@@ -1333,7 +1349,7 @@ final class AppListModel {
         runningVersionByID[result.id] = nil
         Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
         if relaunched {
-            UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion)
+            UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion, appID: result.app.bundleID)
         }
     }
 
@@ -1400,7 +1416,7 @@ final class AppListModel {
         // it didn't. Never optimistic, never an Update fallback.
         await refreshLocal()
         if applied {
-            UpdateNotifier.restarted(app: result.app.name, version: Self.readShortVersion(result.app.path))
+            UpdateNotifier.restarted(app: result.app.name, version: Self.readShortVersion(result.app.path), appID: result.app.bundleID)
         }
     }
 
@@ -1586,7 +1602,7 @@ final class AppListModel {
             installing[id] = nil
             Log.install.info("rollback done: \(updated.app.name, privacy: .public) → \(restored ?? "?", privacy: .public)")
             if needsRestart.contains(updated.id) {
-                UpdateNotifier.readyToRestart(app: updated.app.name, version: restored)
+                UpdateNotifier.readyToRestart(app: updated.app.name, version: restored, appID: updated.app.bundleID)
             }
         } catch {
             Log.install.error("rollback failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")

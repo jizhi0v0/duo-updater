@@ -22,7 +22,14 @@ struct WelcomeView: View {
 
     @Bindable var model: AppListModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.controlActiveState) private var controlActiveState
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+
+    /// Whether a GitHub token resolves right now (saved token, env var, or `gh`
+    /// CLI sign-in). nil while the off-main-thread probe is in flight. Drives the
+    /// GitHub card between "Connected" and the optional "Set Up…" affordance.
+    @State private var githubConnected: Bool?
 
     var body: some View {
         ZStack {
@@ -44,7 +51,7 @@ struct WelcomeView: View {
                     .padding(.bottom, 26)
             }
         }
-        .frame(width: 560, height: 600)
+        .frame(width: 560, height: 700)
         .onAppear {
             model.windowAppeared()
             model.beginTrustPolling()
@@ -52,6 +59,16 @@ struct WelcomeView: View {
         .onDisappear {
             model.endTrustPolling()
             model.windowDisappeared()
+        }
+        // Re-probe the token whenever the window (re)gains focus — so the GitHub
+        // card flips to "Connected" the moment the user finishes setup in Settings
+        // and returns here. `.inactive` means the whole app lost focus: skip then.
+        .task(id: controlActiveState) {
+            guard controlActiveState != .inactive else { return }
+            let explicit = model.prefs.githubToken.isEmpty ? nil : model.prefs.githubToken
+            githubConnected = await Task.detached(priority: .utility) {
+                GitHubToken.resolve(explicit: explicit) != nil
+            }.value
         }
     }
 
@@ -99,7 +116,7 @@ struct WelcomeView: View {
                 Text("Welcome to Duo Updater")
                     .font(.largeTitle.weight(.bold))
                     .multilineTextAlignment(.center)
-                Text("Two macOS permissions let Duo Updater install updates without interrupting you. You only grant them once — they persist across launches.")
+                Text("A few quick steps let Duo Updater keep your apps updated without interrupting you. You set these once — they persist across launches.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -127,6 +144,15 @@ struct WelcomeView: View {
                 detail: appManagementDetail,
                 status: appManagementCardStatus,
                 action: { model.presentAppManagementPermissionFlow() }
+            )
+            PermissionCard(
+                systemImage: "key",
+                title: "GitHub access",
+                detail: githubDetail,
+                status: githubCardStatus,
+                actionLabel: "Set Up…",
+                grantedLabel: "Connected",
+                action: { openGitHubSetup() }
             )
         }
         if #available(macOS 26.0, *) {
@@ -200,6 +226,32 @@ struct WelcomeView: View {
         }
         return base
     }
+
+    // MARK: - GitHub access (optional)
+
+    /// Unlike the two permissions, a GitHub token is optional — so the card never
+    /// shows a prominent (required) action. It's "Connected ✓" when a token
+    /// resolves, otherwise a subdued "Set Up…" button. While probing (nil) we keep
+    /// the subdued affordance rather than flashing a spinner.
+    private var githubCardStatus: PermissionCard.Status {
+        githubConnected == true ? .granted : .optional
+    }
+
+    private var githubDetail: String {
+        let base = "Lifts GitHub’s anonymous 60-requests/hour limit to 5000/hour, so frequent checks of GitHub-hosted apps (RustDesk, Zed, Stats…) don’t hit rate-limit errors."
+        if githubConnected == true {
+            return base + " A token is already active — you’re all set."
+        }
+        return base + " Optional: sign in with the gh CLI, or paste a token."
+    }
+
+    /// Deep-link straight to Settings → GitHub so the user lands on the token UI
+    /// instead of hunting for the tab.
+    private func openGitHubSetup() {
+        model.requestedSettingsSection = .github
+        openWindow(id: SettingsView.windowID)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 }
 
 // MARK: - Permission card
@@ -208,8 +260,9 @@ struct WelcomeView: View {
 /// the right, on a floating glass tile.
 private struct PermissionCard: View {
     enum Status {
-        case granted        // verified on (Accessibility, or App Management via SPI)
-        case needed         // verified off — actionable
+        case granted        // satisfied (permission on, or GitHub connected)
+        case needed         // required & missing — prominent action
+        case optional       // nice-to-have & missing — subdued action
         case unverifiable   // App Management when the status SPI is unavailable
     }
 
@@ -217,6 +270,11 @@ private struct PermissionCard: View {
     let title: String
     let detail: String
     let status: Status
+    /// Label for the action button. Defaults to the permission wording; the
+    /// optional GitHub card overrides it ("Set Up…").
+    var actionLabel: String = "Grant…"
+    /// Label for the satisfied state. Defaults to "Granted"; GitHub uses "Connected".
+    var grantedLabel: String = "Granted"
     let action: () -> Void
 
     var body: some View {
@@ -247,20 +305,20 @@ private struct PermissionCard: View {
     private var trailing: some View {
         switch status {
         case .granted:
-            Label("Granted", systemImage: "checkmark.circle.fill")
+            Label(grantedLabel, systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
                 .labelStyle(.titleAndIcon)
                 .font(.callout.weight(.medium))
         case .needed:
             grantButton(prominent: true)
-        case .unverifiable:
+        case .optional, .unverifiable:
             grantButton(prominent: false)
         }
     }
 
     @ViewBuilder
     private func grantButton(prominent: Bool) -> some View {
-        let button = Button("Grant…", action: action)
+        let button = Button(actionLabel, action: action)
         if #available(macOS 26.0, *) {
             if prominent { button.buttonStyle(.glassProminent) } else { button.buttonStyle(.glass) }
         } else {

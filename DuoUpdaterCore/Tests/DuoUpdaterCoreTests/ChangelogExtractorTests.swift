@@ -1562,3 +1562,142 @@ private let intellijFixture = #"""
     #expect(cl.entries[1].items.count == 2)
     #expect(cl.entries[1].items[0].contains("ACP Registry"))
 }
+
+// MARK: - Thunderbird (Mozilla) — Stable / ESR / Beta share one page structure
+// but live on different channels (Stable & ESR even share one bundle id). Each
+// fixture is a trimmed slice of the real per-version notes page: an <h4> version
+// heading, section <h3>s (ignored), and note-container → note-text → <p> items.
+// `&amp;` proves entity decoding.
+
+// Stable: the major .0 page the two-stage recipe resolves to (rich What's New +
+// What's Fixed). Includes a non-note <div> after the items to prove the item
+// pattern only sweeps note-text, not the footer.
+private let thunderbirdStableFixture = """
+<h4>Version 151.0 | Released May 19, 2026</h4>
+<section><div class="container release-notes-container"><div class="section-text wide">
+<h3 id="new" class="header-section">What’s New</h3>
+<div id="note-0" class="note-container"><div class="note-flex">
+<h4 class="note-category"><div class="category-container"><span class="category-icon"><svg></svg></span>new</div></h4>
+<div class="note-text"><p>Enable Thundermail OAuth sign-in &amp; account auto-configuration</p></div>
+</div></div>
+<h3 id="fixes" class="header-section">What’s Fixed</h3>
+<div id="note-1" class="note-container"><div class="note-flex">
+<h4 class="note-category"><div class="category-container"><span class="category-icon"><svg></svg></span>fixed</div></h4>
+<div class="note-text"><p>Forwarding/Redirecting Exchange message fails (see bug for work-around)</p></div>
+</div></div>
+<div class="see-all-releases"><a href="/en-US/thunderbird/releases">See All Releases</a></div>
+</div></div></section>
+"""
+
+// ESR: the base major (140.0) notes page — same shape, different version literal.
+private let thunderbirdESRFixture = """
+<h4>Version 140.0 | Released July 2, 2025</h4>
+<h3 id="new" class="header-section">What’s New</h3>
+<div id="note-0" class="note-container"><div class="note-flex">
+<h4 class="note-category"><div class="category-container">new</div></h4>
+<div class="note-text"><p>Added ‘Mark as Spam’ and ‘Mark as Starred’ actions to mail notifications</p></div>
+</div></div>
+"""
+
+// Beta: the cumulative cycle page — one "152.0beta" heading with several
+// What's Fixed sections (b1/b2/b3); we sweep every note-text across them.
+private let thunderbirdBetaFixture = """
+<h4>Version 152.0beta | Released May 21, 2026</h4>
+<h3 class="header-section">What’s New</h3>
+<div id="note-0" class="note-container"><div class="note-text"><p>SecurityDevices enabled in enterprise policies</p></div></div>
+<h3 class="header-section">What’s Fixed</h3>
+<div id="note-1" class="note-container"><div class="note-text"><p>Calendar invitation parsing regression</p></div></div>
+<h3 class="header-section">What’s Fixed</h3>
+<div id="note-2" class="note-container"><div class="note-text"><p>Microsoft OAuth2 failed when HTTPS localhost redirect was not intercepted</p></div></div>
+"""
+
+@Test func extractsThunderbirdStableEntryAndDecodesEntities() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "org.mozilla.thunderbird", channel: .stable))
+    #expect(recipe.sourceTemplate != nil)   // stable is version-templated
+    let cl = try #require(ChangelogExtractor.extract(from: thunderbirdStableFixture, using: recipe))
+    #expect(cl.entries.count == 1)
+    #expect(cl.entries[0].version == "151.0")
+    #expect(cl.entries[0].date == "May 19, 2026")
+    #expect(cl.entries[0].items.count == 2)   // one New + one Fixed, footer ignored
+    #expect(cl.entries[0].items[0] == "Enable Thundermail OAuth sign-in & account auto-configuration")
+}
+
+@Test func extractsThunderbirdESREntryFromOwnChannelRecipe() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "org.mozilla.thunderbird", channel: .esr))
+    #expect(recipe.channel == .esr)
+    let cl = try #require(ChangelogExtractor.extract(from: thunderbirdESRFixture, using: recipe))
+    #expect(cl.entries.first?.version == "140.0")
+    #expect(cl.entries.first?.items.count == 1)
+}
+
+// The per-version template + channel normalization is what makes the rendered
+// version match the install: Stable uses the build as-is, ESR re-appends the
+// `esr` suffix the install drops, Beta strips bN and appends "beta".
+@Test func thunderbirdResolvedSourceMatchesExactVersionPerChannel() throws {
+    let stable = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "org.mozilla.thunderbird", channel: .stable))
+    #expect(stable.resolvedSource(forVersion: "151.0.1").absoluteString
+        == "https://www.thunderbird.net/en-US/thunderbird/151.0.1/releasenotes/")
+
+    let esr = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "org.mozilla.thunderbird", channel: .esr))
+    // installed short version (esr suffix stripped) → suffix re-appended
+    #expect(esr.resolvedSource(forVersion: "140.11.1").absoluteString
+        == "https://www.thunderbird.net/en-US/thunderbird/140.11.1esr/releasenotes/")
+    // probe version already carries the suffix → not doubled
+    #expect(esr.resolvedSource(forVersion: "140.11.1esr").absoluteString
+        == "https://www.thunderbird.net/en-US/thunderbird/140.11.1esr/releasenotes/")
+
+    let beta = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "org.mozilla.thunderbirdbeta", channel: .beta))
+    #expect(beta.resolvedSource(forVersion: "152.0").absoluteString
+        == "https://www.thunderbird.net/en-US/thunderbird/152.0beta/releasenotes/")
+    #expect(beta.resolvedSource(forVersion: "152.0b3").absoluteString
+        == "https://www.thunderbird.net/en-US/thunderbird/152.0beta/releasenotes/")
+
+    // No version supplied → falls back to the recipe's fixed source untouched.
+    #expect(stable.resolvedSource(forVersion: nil) == stable.source)
+}
+
+@Test func urlVersionTokenLeavesNonTemplatedChannelsUntouched() {
+    #expect(ChangelogRecipe.urlVersionToken(for: "1.2.3", channel: nil) == "1.2.3")
+    #expect(ChangelogRecipe.urlVersionToken(for: "1.2.3", channel: .stable) == "1.2.3")
+}
+
+@Test func extractsThunderbirdBetaCumulativeCycle() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "org.mozilla.thunderbirdbeta", channel: .beta))
+    let cl = try #require(ChangelogExtractor.extract(from: thunderbirdBetaFixture, using: recipe))
+    #expect(cl.entries.first?.version == "152.0beta")
+    #expect(cl.entries.first?.items.count == 3)   // swept across the three sections
+}
+
+@Test func thunderbirdStableAndESRSplitByChannelOnSharedBundleID() throws {
+    let stable = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "org.mozilla.thunderbird", channel: .stable))
+    let esr = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "org.mozilla.thunderbird", channel: .esr))
+    #expect(stable.source != esr.source)
+    #expect(stable.channel == .stable)
+    #expect(esr.channel == .esr)
+    // No channel given → falls back to the .stable recipe (not nil).
+    let fallback = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "org.mozilla.thunderbird"))
+    #expect(fallback.channel == .stable)
+    // A channel with no recipe for this bundle id (.beta lives under a different
+    // id) also degrades to the .stable recipe rather than returning nil.
+    let betaOnStableID = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "org.mozilla.thunderbird", channel: .beta))
+    #expect(betaOnStableID.channel == .stable)
+}
+
+@Test func channelAgnosticRecipeMatchesAnyChannel() throws {
+    // Existing single-recipe apps carry no channel; passing one must not change
+    // the result (backward compatibility for every non-Mozilla recipe).
+    let onBeta = ChangelogRecipeRegistry.recipe(
+        forBundleID: "pl.maketheweb.cleanshotx", channel: .beta)
+    #expect(onBeta != nil)
+    #expect(onBeta?.channel == nil)
+}
+

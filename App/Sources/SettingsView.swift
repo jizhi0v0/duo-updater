@@ -58,8 +58,19 @@ struct SettingsView: View {
         // .accessory by default, so the window could open behind / without focus;
         // ref-count it through the model (same as the workbench) to promote the app
         // to .regular while it's open and pull it to the front.
-        .onAppear { model.windowAppeared(); model.beginTrustPolling() }
+        .onAppear { model.windowAppeared(); model.beginTrustPolling(); applyRequestedSection() }
+        // Deep-link target set before the window opened (onAppear) or while it's
+        // already open (onChange) — e.g. onboarding asking for the GitHub tab.
+        .onChange(of: model.requestedSettingsSection) { applyRequestedSection() }
         .onDisappear { model.endTrustPolling(); model.windowDisappeared() }
+    }
+
+    /// Honor a pending deep-link to a specific section, then clear it so the
+    /// selection isn't forced again on the next open.
+    private func applyRequestedSection() {
+        guard let requested = model.requestedSettingsSection else { return }
+        section = requested
+        model.requestedSettingsSection = nil
     }
 
     @ViewBuilder
@@ -79,6 +90,11 @@ private struct GeneralSettings: View {
     @Bindable var prefs: Preferences
     let model: AppListModel
 
+    /// Whether a GitHub token resolves (explicit setting, env var, or `gh` login).
+    /// nil until the off-main-thread probe finishes. Only drives the sub-hourly
+    /// rate-limit caution — a developer with `gh` authenticated never sees it.
+    @State private var hasGitHubToken: Bool?
+
     var body: some View {
         Form {
             Section {
@@ -91,6 +107,14 @@ private struct GeneralSettings: View {
                 .onChange(of: prefs.checkFrequency) { _, _ in
                     // Re-arm the background loop with the new interval immediately.
                     model.reschedule()
+                }
+            } footer: {
+                if prefs.checkFrequency.isHighFrequency && hasGitHubToken == false {
+                    Label(
+                        "No GitHub token: checking this often can hit GitHub’s rate limit (60/hour) and show errors on GitHub-sourced apps. Add a token or sign in with the gh CLI under the GitHub tab.",
+                        systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             Section {
@@ -135,6 +159,14 @@ private struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
+        .task {
+            // Resolve token availability once. `GitHubToken.resolve` may shell out
+            // to `gh auth token`, so keep it off the main thread.
+            let explicit = prefs.githubToken.isEmpty ? nil : prefs.githubToken
+            hasGitHubToken = await Task.detached(priority: .utility) {
+                GitHubToken.resolve(explicit: explicit) != nil
+            }.value
+        }
     }
 }
 

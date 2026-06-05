@@ -31,30 +31,35 @@ public enum ChangelogService {
     /// Concurrent callers for the same recipe are coalesced onto one network
     /// fetch. Cache is cleared on manual refresh — see ``AppListModel/refresh()``.
     public static func load(
-        _ recipe: ChangelogRecipe, session: URLSession = .updates
+        _ recipe: ChangelogRecipe, version: String? = nil, session: URLSession = .updates
     ) async -> Changelog? {
+        // The page to fetch: the per-version URL when the recipe is templated and a
+        // version is supplied, otherwise the fixed `source`. Cache on THIS resolved
+        // URL so different versions never serve each other's notes.
+        let resolved = recipe.resolvedSource(forVersion: version)
         // Delegate to the cache's fetch-through helper, which handles hit, miss,
         // and concurrent-miss coalescing in one place.
-        await ChangelogCache.shared.load(for: recipe.source) {
+        return await ChangelogCache.shared.load(for: resolved) {
             Log.source.debug(
-                "changelog cache miss: \(recipe.source.host ?? "?", privacy: .public)")
-            guard let pageURL = await resolveDetailURL(recipe, session: session),
+                "changelog cache miss: \(resolved.host ?? "?", privacy: .public)")
+            guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session),
                   let text = await fetchBody(pageURL, session: session)
             else { return nil }
             return ChangelogExtractor.extract(from: text, using: recipe)
         }
     }
 
-    /// The page the entry/item patterns run against. Without an `indexLinkPattern`
-    /// that's just `recipe.source`; with one, it's the first link on the index
-    /// page (= the latest release), resolved to an absolute URL. Nil when the
-    /// index can't be fetched or yields no link — the caller then falls back.
+    /// The page the entry/item patterns run against, given the already-resolved
+    /// source. Without an `indexLinkPattern` that's just `source`; with one, it's
+    /// the first link on the index page (= the latest release), resolved to an
+    /// absolute URL. Nil when the index can't be fetched or yields no link — the
+    /// caller then falls back.
     static func resolveDetailURL(
-        _ recipe: ChangelogRecipe, session: URLSession = .updates
+        _ recipe: ChangelogRecipe, source: URL, session: URLSession = .updates
     ) async -> URL? {
-        guard let pattern = recipe.indexLinkPattern else { return recipe.source }
-        guard let indexBody = await fetchBody(recipe.source, session: session) else { return nil }
-        return firstLink(in: indexBody, pattern: pattern, base: recipe.source)
+        guard let pattern = recipe.indexLinkPattern else { return source }
+        guard let indexBody = await fetchBody(source, session: session) else { return nil }
+        return firstLink(in: indexBody, pattern: pattern, base: source)
     }
 
     /// Pure (no network): the first `link` named group (else capture group 1) of
@@ -89,14 +94,18 @@ public enum ChangelogService {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Convenience: look up a recipe by bundle id and run it. Nil when there's no
-    /// recipe for the app or the load fails.
+    /// Convenience: look up a recipe by bundle id (and channel, for apps whose
+    /// channels share a bundle id — Thunderbird Stable/ESR) and run it. Nil when
+    /// there's no recipe for the app or the load fails.
     public static func load(
-        forBundleID bundleID: String?, session: URLSession = .updates
+        forBundleID bundleID: String?,
+        channel: ReleaseChannel? = nil,
+        version: String? = nil,
+        session: URLSession = .updates
     ) async -> Changelog? {
-        guard let recipe = ChangelogRecipeRegistry.recipe(forBundleID: bundleID) else {
-            return nil
-        }
-        return await load(recipe, session: session)
+        guard let recipe = ChangelogRecipeRegistry.recipe(
+            forBundleID: bundleID, channel: channel)
+        else { return nil }
+        return await load(recipe, version: version, session: session)
     }
 }

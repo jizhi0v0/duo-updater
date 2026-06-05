@@ -18,6 +18,8 @@ final class Preferences {
     /// How often the app checks for updates on its own, in the background.
     enum CheckFrequency: String, CaseIterable, Identifiable, Sendable {
         case manual
+        case every5Min
+        case every30Min
         case hourly
         case every6Hours
         case daily
@@ -27,6 +29,8 @@ final class Preferences {
         var label: String {
             switch self {
             case .manual:      return "Only when I check"
+            case .every5Min:   return "Every 5 minutes"
+            case .every30Min:  return "Every 30 minutes"
             case .hourly:      return "Every hour"
             case .every6Hours: return "Every 6 hours"
             case .daily:       return "Once a day"
@@ -37,10 +41,22 @@ final class Preferences {
         var interval: TimeInterval? {
             switch self {
             case .manual:      return nil
+            case .every5Min:   return 5 * 60
+            case .every30Min:  return 30 * 60
             case .hourly:      return 3600
             case .every6Hours: return 6 * 3600
             case .daily:       return 24 * 3600
             }
+        }
+
+        /// True for sub-hourly cadences, where the unauthenticated GitHub rate
+        /// limit (60 req/hour/IP) can actually bite: each GitHub-mapped app costs
+        /// one request per cycle, so 12 cycles/hour (every 5 min) caps out at ~5
+        /// GitHub apps before 403s. Hourly and slower stay under the limit for any
+        /// realistic library, so only these warrant the "configure a token" nudge.
+        var isHighFrequency: Bool {
+            guard let interval else { return false }
+            return interval < 3600
         }
     }
 

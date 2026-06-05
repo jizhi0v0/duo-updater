@@ -20,8 +20,19 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// `CFBundleIdentifier` (lowercased by convention) of the app this targets.
     public let bundleID: String
 
-    /// The changelog page to fetch and parse.
+    /// The changelog page to fetch and parse. When `sourceTemplate` is set and a
+    /// version is supplied at load time, the resolved per-version URL is used
+    /// instead and `source` is only a fallback (see `resolvedSource(forVersion:)`).
     public let source: URL
+
+    /// A per-version source URL template containing the literal `{version}`, for
+    /// vendors who publish **one page per release** with no inline multi-version
+    /// page or "latest" alias (Thunderbird). At load time the app's target
+    /// version is substituted so the rendered notes always match the exact
+    /// installed/offered build — no version-pin to bump, no index-ordering guess.
+    /// nil for the common case (a single fixed `source`). See
+    /// `resolvedSource(forVersion:)` for the substitution + channel normalization.
+    public let sourceTemplate: String?
 
     /// Response shape. `.html` runs the regexes against the raw markup; `.json`
     /// is identical mechanically (regex over the body) but named separately so a
@@ -74,6 +85,17 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// changelog page directly (the common case).
     public let indexLinkPattern: String?
 
+    /// The release channel this recipe targets, or nil for a channel-agnostic
+    /// recipe (the common case — most apps have one changelog regardless of
+    /// channel). This matters only when **several channels share one bundle id**
+    /// and want *different* changelog pages: Thunderbird's Stable and ESR are both
+    /// `org.mozilla.thunderbird` but live on separate version trains, so each gets
+    /// its own recipe distinguished by `channel`. `recipe(forBundleID:channel:)`
+    /// prefers an exact channel match, then a channel-agnostic recipe, then a
+    /// `.stable` one — so existing single-recipe apps (channel nil) keep matching
+    /// every channel exactly as before.
+    public let channel: ReleaseChannel?
+
     public enum Mode: String, Codable, Sendable { case html, json }
 
     public init(
@@ -86,7 +108,9 @@ public struct ChangelogRecipe: Codable, Sendable {
         decodeEntities: Bool = true,
         maxEntries: Int? = 40,
         minItemLength: Int = 1,
-        indexLinkPattern: String? = nil
+        indexLinkPattern: String? = nil,
+        channel: ReleaseChannel? = nil,
+        sourceTemplate: String? = nil
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -98,6 +122,44 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.maxEntries = maxEntries
         self.minItemLength = minItemLength
         self.indexLinkPattern = indexLinkPattern
+        self.channel = channel
+        self.sourceTemplate = sourceTemplate
+    }
+
+    /// The actual page URL to fetch for a given target version. When
+    /// `sourceTemplate` is set and `version` is non-empty, `{version}` is replaced
+    /// by the URL token for that version and channel; otherwise `source` is
+    /// returned unchanged.
+    ///
+    /// Channel normalization handles Mozilla's URL version forms, since the
+    /// installed `CFBundleShortVersionString` is stripped of channel suffixes (see
+    /// ReleaseChannel): an ESR install reads "140.11.1" but its notes page is
+    /// `/140.11.1esr/…`, so the `esr` suffix is re-appended when missing. A bare
+    /// version (`.stable` and the nil default) is used verbatim.
+    public func resolvedSource(forVersion version: String?) -> URL {
+        guard let sourceTemplate, let version, !version.isEmpty else { return source }
+        let token = Self.urlVersionToken(for: version, channel: channel)
+        let urlString = sourceTemplate.replacingOccurrences(of: "{version}", with: token)
+        return URL(string: urlString) ?? source
+    }
+
+    /// Map a (possibly suffix-stripped) version string to the token a vendor uses
+    /// in its per-version URL path, given the channel. Only ESR needs fixing up
+    /// today; every other channel uses the version as-is.
+    static func urlVersionToken(for version: String, channel: ReleaseChannel?) -> String {
+        switch channel {
+        case .esr:
+            return version.hasSuffix("esr") ? version : version + "esr"
+        case .beta:
+            // Thunderbird beta notes live at "<major.minor>beta" (e.g. 152.0beta).
+            // The install strips the bN build suffix (152.0); the probe carries it
+            // (152.0b3). Drop any trailing bN, then append "beta".
+            let base = version.replacingOccurrences(
+                of: #"b\d+$"#, with: "", options: .regularExpression)
+            return base.hasSuffix("beta") ? base : base + "beta"
+        default:
+            return version
+        }
     }
 
     /// Forgiving decode: a remotely-authored recipe only needs `bundleID`,
@@ -115,6 +177,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         maxEntries = try c.decodeIfPresent(Int?.self, forKey: .maxEntries) ?? 40
         minItemLength = try c.decodeIfPresent(Int.self, forKey: .minItemLength) ?? 1
         indexLinkPattern = try c.decodeIfPresent(String.self, forKey: .indexLinkPattern)
+        channel = try c.decodeIfPresent(ReleaseChannel.self, forKey: .channel)
+        sourceTemplate = try c.decodeIfPresent(String.self, forKey: .sourceTemplate)
     }
 }
 
@@ -935,17 +999,127 @@ public enum ChangelogRecipeRegistry {
                 + #"<relative-time[^>]*datetime="(?<date>[^T]+)T[^"]*"[^>]*>.*?"#
                 + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
             itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
+
+        // ── Thunderbird (Mozilla) — one product, four channels, but only THREE
+        // bundle ids: Stable and ESR BOTH ship as `org.mozilla.thunderbird`
+        // (the install short-version drops the `esr` suffix, and the channel is
+        // only knowable from `application.ini` RemotingName — see ReleaseChannel /
+        // AppScanner). So Stable and ESR are distinguished here by the recipe
+        // `channel` field; `recipe(forBundleID:channel:)` is given the install's
+        // detected channel and picks the matching train. Nightly/Daily
+        // (`org.mozilla.thunderbird-daily`) publishes NO structured release-notes
+        // page (every /<ver>/releasenotes/ 404s — auto-builds have no curated
+        // notes), so it has no recipe and keeps the web-view fallback.
+        //
+        // Every channel's per-version notes page shares one structure:
+        //   <h4>Version 151.0 | Released May 19, 2026</h4>
+        //   <h3 class="header-section">What’s New</h3>          ← section labels (ignored)
+        //   <div id="note-0" class="note-container"><div class="note-flex">
+        //     <h4 class="note-category">…new/changed/fixed…</h4>
+        //     <div class="note-text"><p>change text…</p></div></div></div>
+        // Each page is ONE version, so maxEntries:1; body runs to end of doc and
+        // the item patterns only ever match `note-text`, so the footer is ignored.
+
+        // Thunderbird Stable — version-templated. Each release has its own page
+        // (`/<version>/releasenotes/`) and there is no inline multi-version page or
+        // "latest" alias, so we substitute the app's target version into
+        // `sourceTemplate` and fetch exactly that build's page — the rendered
+        // version then always matches what the user has/​is offered (151.0.1, not
+        // the 151.0 major), with no pin to bump. `source` is the releases index,
+        // used only as a fallback if no version is ever supplied. Each page is one
+        // version → maxEntries:1.
+        ChangelogRecipe(
+            bundleID: "org.mozilla.thunderbird",
+            source: URL(string: "https://www.thunderbird.net/en-US/thunderbird/releases/")!,
+            entryPattern:
+                #"<h[1-6][^>]*>\s*Version\s+(?<version>[^<|]+?)\s*\|\s*Released\s+(?<date>[^<]+?)\s*</h[1-6]>"#
+                + #"(?<body>.*)"#,
+            itemPatterns: [
+                #"<div class="note-text">\s*<p>(?<item>.*?)</p>"#,
+                #"<div class="note-text">\s*(?<item>.*?)\s*</div>"#,
+            ],
+            maxEntries: 1,
+            channel: .stable,
+            sourceTemplate: "https://www.thunderbird.net/en-US/thunderbird/{version}/releasenotes/"),
+
+        // Thunderbird ESR — SAME bundle id as Stable, matched by `channel: .esr`,
+        // same per-version template. The install's short version is stripped of the
+        // `esr` suffix (140.11.1), but the notes page is `/140.11.1esr/…`, so
+        // `resolvedSource` re-appends `esr` for this channel (see
+        // `urlVersionToken`). This keeps ESR's shown version consistent with the
+        // install on both the steady state (installed == latest) and when an ESR
+        // security update is offered.
+        ChangelogRecipe(
+            bundleID: "org.mozilla.thunderbird",
+            source: URL(string: "https://www.thunderbird.net/en-US/thunderbird/140.0/releasenotes/")!,
+            entryPattern:
+                #"<h[1-6][^>]*>\s*Version\s+(?<version>[^<|]+?)\s*\|\s*Released\s+(?<date>[^<]+?)\s*</h[1-6]>"#
+                + #"(?<body>.*)"#,
+            itemPatterns: [
+                #"<div class="note-text">\s*<p>(?<item>.*?)</p>"#,
+                #"<div class="note-text">\s*(?<item>.*?)\s*</div>"#,
+            ],
+            maxEntries: 1,
+            channel: .esr,
+            sourceTemplate: "https://www.thunderbird.net/en-US/thunderbird/{version}/releasenotes/"),
+
+        // Thunderbird Beta — its own bundle id (`org.mozilla.thunderbirdbeta`),
+        // version-templated like the others. The notes URL is keyed by MAJOR, not
+        // build: `/152.0beta/releasenotes/` is one cumulative page for the whole
+        // 152 beta cycle (b1→b2→…, several "What’s Fixed" sections under one
+        // "152.0beta" heading, ~41 items). `urlVersionToken` drops the bN build
+        // suffix and appends "beta" (152.0 / 152.0b3 → 152.0beta), so the template
+        // auto-tracks the current cycle with no pin to bump. `source` is the
+        // current cycle page as a fallback only.
+        ChangelogRecipe(
+            bundleID: "org.mozilla.thunderbirdbeta",
+            source: URL(string: "https://www.thunderbird.net/en-US/thunderbird/152.0beta/releasenotes/")!,
+            entryPattern:
+                #"<h[1-6][^>]*>\s*Version\s+(?<version>[^<|]+?)\s*\|\s*Released\s+(?<date>[^<]+?)\s*</h[1-6]>"#
+                + #"(?<body>.*)"#,
+            itemPatterns: [
+                #"<div class="note-text">\s*<p>(?<item>.*?)</p>"#,
+                #"<div class="note-text">\s*(?<item>.*?)\s*</div>"#,
+            ],
+            maxEntries: 1,
+            channel: .beta,
+            sourceTemplate: "https://www.thunderbird.net/en-US/thunderbird/{version}/releasenotes/"),
     ]
 
-    /// Index lazily; first recipe wins on a duplicate bundle id.
-    private static let byBundleID: [String: ChangelogRecipe] = Dictionary(
-        recipes.map { ($0.bundleID.lowercased(), $0) },
-        uniquingKeysWith: { first, _ in first })
+    /// Group recipes by lowercased bundle id. Most bundle ids map to a single
+    /// recipe; a few (Thunderbird Stable + ESR) map to several that differ by
+    /// `channel`. Order within a group preserves declaration order.
+    private static let byBundleID: [String: [ChangelogRecipe]] = Dictionary(
+        grouping: recipes, by: { $0.bundleID.lowercased() })
 
-    /// The recipe for an app, if we have one. Case-insensitive on bundle id, to
-    /// match `ChangelogCatalog`'s convention.
-    public static func recipe(forBundleID bundleID: String?) -> ChangelogRecipe? {
+    /// The recipe for an app on a given channel, if we have one. Case-insensitive
+    /// on bundle id, to match `ChangelogCatalog`'s convention.
+    ///
+    /// Selection within a bundle id's group, in order of preference:
+    ///   1. a recipe whose `channel` exactly matches the install's channel;
+    ///   2. a channel-agnostic recipe (`channel == nil`) — every existing
+    ///      single-recipe app, so passing a channel never changes their result;
+    ///   3. the `.stable` recipe as a last resort (an unknown/odd channel still
+    ///      gets *some* notes rather than none).
+    /// Passing `channel: nil` skips step 1 and lands on step 2/3 — the behavior the
+    /// old single-arg lookup had.
+    public static func recipe(
+        forBundleID bundleID: String?, channel: ReleaseChannel? = nil
+    ) -> ChangelogRecipe? {
         guard let bundleID else { return nil }
-        return byBundleID[bundleID.lowercased()]
+        let group = byBundleID[bundleID.lowercased()] ?? []
+        if let channel, let exact = group.first(where: { $0.channel == channel }) {
+            return exact
+        }
+        return group.first(where: { $0.channel == nil })
+            ?? group.first(where: { $0.channel == .stable })
+            ?? group.first
+    }
+
+    /// Every recipe registered for a bundle id (across channels). Used to clear all
+    /// channel variants' caches on update — see `AppListModel.invalidateChangelog`.
+    public static func recipes(forBundleID bundleID: String?) -> [ChangelogRecipe] {
+        guard let bundleID else { return [] }
+        return byBundleID[bundleID.lowercased()] ?? []
     }
 }

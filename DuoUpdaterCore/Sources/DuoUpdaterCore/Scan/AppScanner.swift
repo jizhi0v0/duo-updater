@@ -140,7 +140,8 @@ public struct AppScanner: Sendable {
         // Aligning the display with Toolbox keeps the "from → to" coherent.
         let toolboxTool = toolbox.tool(forApp: bundleURL)
         let displayShortVersion = toolboxTool
-            .map(\.displayVersion).flatMap { $0.isEmpty ? nil : $0 } ?? shortVersion
+            .map(\.displayVersion).flatMap { $0.isEmpty ? nil : $0 }
+            ?? Self.cleanedJetBrainsVersion(shortVersion, bundleID: bundleID)
 
         // Mozilla apps (Firefox/Thunderbird/forks) bake their channel into
         // `Contents/Resources/application.ini` as `RemotingName` (`firefox-esr`,
@@ -198,6 +199,24 @@ public struct AppScanner: Sendable {
             releaseChannel: releaseChannel,
             channelIsAuthoritative: channelIsAuthoritative
         )
+    }
+
+    /// JetBrains EAP bundles report a noisy `CFBundleShortVersionString` —
+    /// "EAP IU-262.6653.22" (literally "EAP " + the `CFBundleVersion`). While Toolbox
+    /// manages the app we show its clean "2026.2" instead; but with Toolbox absent
+    /// (a website install, or Toolbox uninstalled) that fallback is gone, so reduce
+    /// the raw string to the bare build ("262.6653.22") rather than surfacing the
+    /// noise. Only rewrites JetBrains strings of that exact shape — a clean stable
+    /// "2026.1.3" (no "EAP "/product-code prefix) passes through untouched.
+    static func cleanedJetBrainsVersion(_ raw: String, bundleID: String?) -> String {
+        guard bundleID?.hasPrefix("com.jetbrains.") == true else { return raw }
+        var s = raw
+        if s.hasPrefix("EAP ") { s.removeFirst(4) }
+        if let dash = s.firstIndex(of: "-"), dash != s.startIndex,
+           s[..<dash].allSatisfy(\.isLetter) {
+            s = String(s[s.index(after: dash)...])
+        }
+        return s
     }
 
     /// The `RemotingName` from a Mozilla app's `Contents/Resources/application.ini`

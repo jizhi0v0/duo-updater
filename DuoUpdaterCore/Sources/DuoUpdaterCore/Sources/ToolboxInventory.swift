@@ -154,11 +154,12 @@ public struct ToolboxInventory: Sendable {
         VendorProbeRecipe.extractVersion(from: raw, pattern: #"([0-9]+(?:\.[0-9]+)+)"#) ?? raw
     }
 
-    /// Channel cache: the highest `build.id` + its `version.name`, the configured
-    /// release channel ("release"/"eap" from the quality filter), and the pinned
-    /// version line ("keep version" — the `version_filter.name`, nil when absent).
+    /// Channel cache: the highest `build.id` + its `version.name` (both nil when
+    /// Toolbox hasn't cached this channel's builds yet), the configured release
+    /// channel ("release"/"eap" from the quality filter), and the pinned version
+    /// line ("keep version" — the `version_filter.name`, nil when absent).
     private static func channelInfo(channelsDir: URL, channelId: String)
-        -> (version: String, build: String, type: String, pinnedLine: String?)? {
+        -> (version: String?, build: String?, type: String, pinnedLine: String?)? {
         let file = channelsDir.appendingPathComponent("\(channelId).json")
         guard
             let data = try? Data(contentsOf: file),
@@ -178,22 +179,27 @@ public struct ToolboxInventory: Sendable {
             pinnedLine = (filter["version_filter"] as? [String: Any])?["name"] as? String
         }
 
-        guard let history = channel["history"] as? [String: Any],
-              let toolBuilds = history["toolBuilds"] as? [[String: Any]]
-        else { return nil }
-
+        // The cached "available builds" can be empty — Toolbox hasn't fetched this
+        // channel yet (common for a freshly-added EAP tool). That must NOT erase the
+        // channel TYPE we just read: `type` is what routes `ToolboxSource` to the
+        // right live API track (eap vs release). Returning nil here used to collapse
+        // the whole channel to the "release" default at the call site, which sent an
+        // EAP install to the stable feed and reported it as up to date (hiding it).
+        // So keep type + pin; leave version/build nil so the live query is used.
         var best: (version: String, build: String)?
-        for entry in toolBuilds {
-            guard let build = entry["build"] as? [String: Any],
-                  let id = build["id"] as? String,
-                  let version = entry["version"] as? [String: Any],
-                  let name = version["name"] as? String
-            else { continue }
-            if best == nil || VersionComparator.isNewer(id, than: best!.build) {
-                best = (name, id)
+        if let history = channel["history"] as? [String: Any],
+           let toolBuilds = history["toolBuilds"] as? [[String: Any]] {
+            for entry in toolBuilds {
+                guard let build = entry["build"] as? [String: Any],
+                      let id = build["id"] as? String,
+                      let version = entry["version"] as? [String: Any],
+                      let name = version["name"] as? String
+                else { continue }
+                if best == nil || VersionComparator.isNewer(id, than: best!.build) {
+                    best = (name, id)
+                }
             }
         }
-        guard let best else { return nil }
-        return (best.version, best.build, type, pinnedLine)
+        return (best?.version, best?.build, type, pinnedLine)
     }
 }

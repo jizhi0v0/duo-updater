@@ -12,7 +12,7 @@ import Foundation
 /// "unknown"), which is harmless; a false negative would let a cross-channel
 /// package through, which is exactly what we must never do — so when unsure we
 /// stay `.stable`, the channel every current recipe targets.
-public enum ReleaseChannel: String, Sendable, Hashable, CaseIterable {
+public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     case stable
     case beta
     /// Discord's "Public Test Build" — a distinct public pre-release track that
@@ -86,6 +86,14 @@ public enum ReleaseChannel: String, Sendable, Hashable, CaseIterable {
                 return channel
             }
             if bundleID.hasSuffix(".insiders") || bundleID.hasSuffix("-insiders") {
+                return .preview
+            }
+            // JetBrains ships Early Access Program builds under a `-EAP` bundle-id
+            // suffix (`com.jetbrains.intellij-EAP`) — its own pre-release track,
+            // which we model as `.preview` (alongside Insiders/Tech-Preview). The
+            // generic loop above misses it because the channel word is "preview",
+            // not "eap".
+            if bundleID.hasSuffix(".eap") || bundleID.hasSuffix("-eap") {
                 return .preview
             }
         }

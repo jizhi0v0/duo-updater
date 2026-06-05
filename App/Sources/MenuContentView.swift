@@ -414,23 +414,11 @@ private struct AppRow: View {
         .minimumScaleFactor(0.75)
     }
 
-    /// True when this update keeps the same marketing version but bumps the
-    /// build — e.g. Surge shipping "6.6.0 (11270)" over "6.6.0 (11260)". The
-    /// comparator catches it on the build key, but the marketing version alone
-    /// reads as "6.6.0 → 6.6.0", so we surface the build numbers instead.
-    private func buildBump(latest: String) -> (installed: String, remote: String)? {
-        guard latest == result.app.shortVersion,
-              let installedBuild = result.app.buildVersion,
-              let remoteBuild = result.remote?.version,
-              installedBuild != remoteBuild else { return nil }
-        return (installedBuild, remoteBuild)
-    }
-
     /// The installed-version side of the "from → to" line.
     @ViewBuilder
     private func fromVersion(latest: String) -> some View {
         let marketing = result.app.shortVersion ?? "?"
-        if let bump = buildBump(latest: latest) {
+        if let bump = result.buildBump(latest: latest) {
             // Marketing version is just context; the build is what changed.
             Text(marketing).foregroundStyle(.secondary)
             + Text(" (\(bump.installed))")
@@ -444,7 +432,7 @@ private struct AppRow: View {
     /// what's actually new.
     @ViewBuilder
     private func toVersion(latest: String) -> some View {
-        if let bump = buildBump(latest: latest) {
+        if let bump = result.buildBump(latest: latest) {
             Text("\(latest) ").foregroundStyle(.secondary)
             + Text("(\(bump.remote))").fontWeight(.semibold).foregroundStyle(.tint)
         } else {
@@ -924,5 +912,36 @@ private struct AppRow: View {
         if result.app.isMASApp { return "App Store" }
         if result.app.sparkleFeedURL != nil { return "Sparkle" }
         return "—"
+    }
+}
+
+// MARK: - Shared version-line formatting
+
+extension UpdateResult {
+
+    /// Drop a leading product-code run like "IU-"/"AI-" from a build number; plain
+    /// builds ("11270", "262.7132.23", "1.2.3-beta") pass through untouched — only a
+    /// pure-letter segment before the first hyphen is treated as a prefix. JetBrains
+    /// stamps CFBundleVersion as "IU-262.6653.22" while the Toolbox/API build id has
+    /// no prefix, so this aligns the two sides into one namespace.
+    static func strippingBuildPrefix(_ build: String) -> String {
+        guard let dash = build.firstIndex(of: "-"), dash != build.startIndex,
+              build[..<dash].allSatisfy(\.isLetter) else { return build }
+        return String(build[build.index(after: dash)...])
+    }
+
+    /// When an update keeps the same marketing version but bumps the build — Surge
+    /// "6.6.0 (11270)" over "6.6.0 (11260)", or a JetBrains EAP "2026.2 → 2026.2"
+    /// that's really 262.6653.22 → 262.7132.23 — return the cleaned (installed,
+    /// latest) build pair so the UI can surface what actually changed. nil when the
+    /// marketing version itself moved (the normal case) or there's no build to show.
+    func buildBump(latest: String) -> (installed: String, remote: String)? {
+        guard latest == app.shortVersion,
+              let installedBuild = app.buildVersion,
+              let remoteBuild = remote?.version else { return nil }
+        let installed = Self.strippingBuildPrefix(installedBuild)
+        let remoteClean = Self.strippingBuildPrefix(remoteBuild)
+        guard installed != remoteClean else { return nil }
+        return (installed, remoteClean)
     }
 }

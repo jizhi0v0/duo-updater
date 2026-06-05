@@ -44,6 +44,44 @@ import Foundation
     #expect(!inv.isManaged(appPath: URL(fileURLWithPath: "/Users/x/Applications/PyCharm.app")))
 }
 
+/// A freshly-added EAP tool whose channel cache has an EMPTY `toolBuilds` array
+/// (Toolbox hasn't fetched its builds yet) must still resolve to the "eap" channel
+/// type from the quality filter. Regression: the empty array used to collapse
+/// `channelInfo` to nil, defaulting `channelType` to "release" — which routed the
+/// EAP install to the stable API track, reported an older stable build as "latest",
+/// and hid the install as up to date.
+@Test func emptyBuildCacheStillReadsEAPChannelType() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("toolbox-empty-cache-\(UUID().uuidString)", isDirectory: true)
+    let channelsDir = dir.appendingPathComponent("channels", isDirectory: true)
+    try FileManager.default.createDirectory(at: channelsDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    let channelID = "IDEA-U-empty"
+    // EAP quality filter (order_value > 10000) but no cached builds yet.
+    let channelJSON = """
+    { "channel": { "updateFilter": { "quality_filter": { "order_value": 40000 } },
+                   "history": { "toolBuilds": [] } } }
+    """
+    try channelJSON.data(using: .utf8)!.write(to: channelsDir.appendingPathComponent("\(channelID).json"))
+
+    let stateJSON = """
+    { "tools": [
+        { "displayName": "IntelliJ IDEA", "productCode": "IU",
+          "buildNumber": "262.6653.22", "displayVersion": "2026.2 EAP",
+          "channelId": "\(channelID)",
+          "installLocation": "/Users/x/Applications/IntelliJ IDEA 2026.2 EAP.app" }
+    ] }
+    """
+    try stateJSON.data(using: .utf8)!.write(to: dir.appendingPathComponent("state.json"))
+
+    let inv = ToolboxInventory(stateURL: dir.appendingPathComponent("state.json"))
+    let tool = inv.tool(forApp: URL(fileURLWithPath: "/Users/x/Applications/IntelliJ IDEA 2026.2 EAP.app"))
+    #expect(tool?.channelType == "eap")
+    // No cached build to fall back on — the live API is the source of truth.
+    #expect(tool?.localLatestBuild == nil)
+}
+
 /// A Toolbox-managed app must not be probed by vendor/GitHub sources, even when
 /// a recipe/rule matches its bundle id — its update channel is Toolbox.
 @Test func toolboxManagedAppSkipsVendorProbe() async throws {

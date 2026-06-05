@@ -408,7 +408,13 @@ private struct WorkbenchSidebarRow: View {
     @ViewBuilder
     private var subtitle: some View {
         if case .updateAvailable(let latest) = result.status {
-            Text("\(result.app.shortVersion ?? "?") → \(latest)")
+            // Same-marketing build bump (JetBrains EAP, Surge): show the builds so it
+            // doesn't read as a no-op "2026.2 → 2026.2".
+            let bump = result.buildBump(latest: latest)
+            let from = bump.map { "\(result.app.shortVersion ?? "?") (\($0.installed))" }
+                ?? (result.app.shortVersion ?? "?")
+            let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
+            Text("\(from) → \(to)")
                 .font(.caption)
                 // White over the blue highlight when selected; blue tint otherwise.
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
@@ -476,7 +482,11 @@ private struct DetailHeader: View {
     @ViewBuilder
     private var versionLine: some View {
         if case .updateAvailable(let latest) = result.status {
-            Text("\(result.app.shortVersion ?? "?")  →  \(latest)")
+            let bump = result.buildBump(latest: latest)
+            let from = bump.map { "\(result.app.shortVersion ?? "?") (\($0.installed))" }
+                ?? (result.app.shortVersion ?? "?")
+            let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
+            Text("\(from)  →  \(to)")
                 .font(.callout).foregroundStyle(.tint)
         } else {
             Text("v\(result.app.shortVersion ?? "?") · up to date")

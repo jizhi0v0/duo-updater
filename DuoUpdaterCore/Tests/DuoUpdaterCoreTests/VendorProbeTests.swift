@@ -552,6 +552,32 @@ private func verdict(
     }
 }
 
+@Test func intelliJEAPBuildRecipeStripsPrefixAndDoesNotPhantomUpdate() {
+    // The EAP recipe extracts the bare build "262.7132.23" (versionIsBuild) while the
+    // installed bundle's CFBundleVersion carries the product-code prefix
+    // "IU-262.6653.22". The engine strips that prefix before comparing — so an install
+    // already AT the latest build reads up to date (no perpetual phantom), and an
+    // older build still surfaces the update.
+    let recipe = registryRecipe("com.jetbrains.intellij-EAP")
+    #expect(recipe.versionIsBuild, "EAP recipe must route its build version")
+    #expect(recipe.channel == .preview, "EAP recipe must target the preview channel")
+
+    // Already on the latest build (prefixed) → up to date, NOT a phantom update.
+    let current = installedApp(bundleID: "com.jetbrains.intellij-EAP",
+                               short: "EAP IU-262.7132.23", build: "IU-262.7132.23")
+    #expect(
+        verdict(recipe: recipe, extracted: "262.7132.23", installed: current) == .upToDate,
+        "EAP phantom-updated against its own installed build")
+
+    // An older installed build still surfaces the newer one.
+    let older = installedApp(bundleID: "com.jetbrains.intellij-EAP",
+                             short: "EAP IU-262.6653.22", build: "IU-262.6653.22")
+    #expect(
+        verdict(recipe: recipe, extracted: "262.7132.23", installed: older)
+            == .updateAvailable(latest: "262.7132.23"),
+        "EAP missed a real build bump")
+}
+
 @Test func nonBuildRecipesStillCompareAgainstMarketingVersion() {
     // Teams and OneDrive stay non-build. `extracted` is what each recipe's pattern
     // captures (OneDrive: first 3 path components, NOT the 4-component path); short
@@ -595,4 +621,14 @@ private func verdict(
     }
     let link = VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern)
     #expect(link == "https://teamsinstaller.public.onecdn.static.microsoft/production-osx/26120.3106.4725.800/MicrosoftTeams.pkg")
+}
+
+// Thunderbird Nightly/Daily must have NO changelogURL: thunderbird.net publishes
+// no nightly release notes and no recipe targets it, so a changelogURL would only
+// embed the unrelated stable releases page. nil → honest "No release notes" state.
+@Test func thunderbirdDailyHasNoChangelogURL() throws {
+    let daily = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "org.mozilla.thunderbird-daily" })
+    #expect(daily.channel == .nightly)
+    #expect(daily.changelogURL == nil)
 }

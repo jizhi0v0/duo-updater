@@ -303,13 +303,40 @@ public enum VendorProbeRegistry {
                 kind: .zip)),
 
         // IntelliJ IDEA — JetBrains data services. 3-component (YYYY.x.y) so the
-        // 2-component `majorVersion` field can't match.
+        // 2-component `majorVersion` field can't match. Only consulted when Toolbox
+        // isn't managing it (a website install); the same JSON carries the aarch64
+        // DMG direct link, so we install in place. No inline sha256 (the API gives
+        // only a checksum *link*), so we lean on the mandatory Team ID signature
+        // gate — same posture as VLC's DMG. Apple Silicon (macM1) only.
         VendorProbeRecipe(
             bundleID: "com.jetbrains.intellij",
             url: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&latest=true&type=release")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]{4}\.[0-9]+\.[0-9]+)""#,
-            changelogURL: URL(string: "https://www.jetbrains.com/idea/whatsnew/")),
+            changelogURL: URL(string: "https://www.jetbrains.com/idea/whatsnew/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""macM1"\s*:\s*\{[^}]*?"link"\s*:\s*"([^"]+\.dmg)""#),
+                kind: .dmg)),
+
+        // IntelliJ IDEA EAP — same data services API on the `eap` channel. The EAP
+        // marketing "version" stays "2026.2" across many builds, so comparing it
+        // would never detect a build bump; we compare on the `build` (262.x) via
+        // `versionIsBuild`. The installed bundle's CFBundleVersion is prefixed
+        // ("IU-262.6653.22") while the API build is bare ("262.7132.23") — the
+        // source strips the product-code prefix so they compare in one namespace.
+        // `channel: .preview` matches the `-EAP` bundle id (see ReleaseChannel). Like
+        // stable, only fires when Toolbox isn't installed.
+        VendorProbeRecipe(
+            bundleID: "com.jetbrains.intellij-EAP",
+            url: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&latest=true&type=eap")!,
+            mode: .responseBody,
+            versionPattern: #""build"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            changelogURL: URL(string: "https://www.jetbrains.com/idea/whatsnew/"),
+            versionIsBuild: true,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""macM1"\s*:\s*\{[^}]*?"link"\s*:\s*"([^"]+\.dmg)""#),
+                kind: .dmg),
+            channel: .preview),
 
         // JetBrains Toolbox — uses the 4-component `build`, which matches the
         // app's CFBundleShortVersionString (e.g. 3.4.3.81140).
@@ -657,13 +684,18 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://www.thunderbird.net/enterprise/"),
             changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/"),
             channel: .esr),
+        // Daily/Nightly has NO changelogURL on purpose: thunderbird.net publishes
+        // no nightly release notes (every /<ver>/releasenotes/ 404s) and no
+        // ChangelogRecipe can target it, so pointing changelogURL at the *stable*
+        // releases index would embed an unrelated stable page for a nightly user.
+        // Leaving it nil makes the detail pane show the honest "No release notes"
+        // empty state (with a download link) instead — better than a wrong page.
         VendorProbeRecipe(
             bundleID: "org.mozilla.thunderbird-daily",
             url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
             mode: .responseBody,
             versionPattern: #""LATEST_THUNDERBIRD_NIGHTLY_VERSION"\s*:\s*"([0-9]+\.[0-9]+a[0-9]+)""#,
             downloadURL: URL(string: "https://www.thunderbird.net/channel/desktop/"),
-            changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/"),
             channel: .nightly),
 
         // Warp — Preview / Dev. One JSON lists every channel's version, each tagged

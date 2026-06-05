@@ -484,6 +484,22 @@ final class AppListModel {
     /// a check that had found updates.
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
 
+    /// The Toolbox inventory to use for a scan: the real one (reads `state.json`)
+    /// when JetBrains Toolbox is actually installed, an EMPTY one when it isn't.
+    ///
+    /// Toolbox's `state.json` outlives an uninstall — uninstallers (AppCleaner et al.)
+    /// remove the `.app` and its Preferences but not the shared
+    /// `~/Library/Application Support/JetBrains` dir — so a stale `state.json` would
+    /// keep tagging the IDEs as Toolbox-managed, leaving a dead "Toolbox" button and
+    /// blocking our own update path. Anchoring management on the `.app` actually
+    /// resolving means: Toolbox gone → not managed → the JetBrains IDEs fall back to
+    /// the Vendor source (one-click DMG). Safe to call off the main actor.
+    nonisolated static func toolboxInventory() -> ToolboxInventory {
+        let installed = NSWorkspace.shared
+            .urlForApplication(withBundleIdentifier: "com.jetbrains.toolbox") != nil
+        return installed ? ToolboxInventory() : ToolboxInventory(managedPaths: [])
+    }
+
     /// Single-flight entry point. If a refresh is already running, await it and
     /// return instead of starting a second one.
     ///
@@ -593,7 +609,7 @@ final class AppListModel {
         // no TestFlight data, then fold its tags in once the read lands (or hand it
         // to the re-apply path if the prompt is still up). A TestFlight install may
         // briefly show as a MAS app until then; the re-tag below corrects it.
-        let toolbox = await Task.detached(priority: .userInitiated) { ToolboxInventory() }.value
+        let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
 
         // Start the TCC-gated TestFlight read OFF the critical path. Skipped on a
         // silent background refresh, which must never surface the prompt unprompted;
@@ -1866,14 +1882,15 @@ final class AppListModel {
         // UI on the TestFlight container's TCC gate. The next full refresh re-applies
         // TestFlight tagging, so a single-app recheck just scans without it.
         let testflight = TestFlightInventory(macRows: [], accessible: false)
+        let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
         let apps = await Task.detached(priority: .userInitiated) {
-            AppScanner(testflight: testflight).scan()
+            AppScanner(toolbox: toolbox, testflight: testflight).scan()
         }.value
         guard let fresh = apps.first(where: { $0.id == id }) else { return result }
         let checker = UpdateChecker(
             sources: makeSources(),
             maxConcurrency: prefs.maxConcurrency,
-            toolbox: ToolboxSource(),
+            toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)
         return await checker.check(fresh)
     }

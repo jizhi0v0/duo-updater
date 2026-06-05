@@ -26,6 +26,11 @@ public struct ToolboxSource: Sendable {
         public let hasUpdate: Bool
         /// Display version of the latest, e.g. "2026.1.3".
         public let latestVersion: String
+        /// Build number of the latest, e.g. "262.7132.23". Used to disambiguate an
+        /// EAP/nightly bump that keeps the same marketing version ("2026.2 → 2026.2"
+        /// really being 262.6653.22 → 262.7132.23) — the UI surfaces the build then.
+        /// nil when a source doesn't expose a distinct build id.
+        public let latestBuild: String?
         /// The latest build's release-notes page, when the source exposes one.
         /// JetBrains' releases API carries a per-build `notesLink` (a YouTrack
         /// article); we surface it so a Toolbox-managed IDE without a structured
@@ -34,9 +39,10 @@ public struct ToolboxSource: Sendable {
         /// Android Studio feed, Air/Fleet Sparkle).
         public let changelogURL: URL?
 
-        public init(hasUpdate: Bool, latestVersion: String, changelogURL: URL? = nil) {
+        public init(hasUpdate: Bool, latestVersion: String, latestBuild: String? = nil, changelogURL: URL? = nil) {
             self.hasUpdate = hasUpdate
             self.latestVersion = latestVersion
+            self.latestBuild = latestBuild
             self.changelogURL = changelogURL
         }
     }
@@ -80,7 +86,7 @@ public struct ToolboxSource: Sendable {
                let base = tool.localLatestBuild,
                let latest = try? await sparkleLatest(feed) {
                 return Verdict(hasUpdate: VersionComparator.isNewer(latest, than: base),
-                               latestVersion: latest)
+                               latestVersion: latest, latestBuild: latest)
             }
             return nil
         }
@@ -139,10 +145,13 @@ public struct ToolboxSource: Sendable {
         if tool.pinnedLine != nil,
            Self.branch(of: latestBuild) != Self.branch(of: tool.installedBuild) {
             let installedDisplay = tool.displayVersion.isEmpty ? display : tool.displayVersion
-            return Verdict(hasUpdate: false, latestVersion: installedDisplay, changelogURL: changelogURL)
+            // Report the installed build as "latest" too, so nothing downstream sees
+            // a phantom bump from the cross-line build we're suppressing.
+            return Verdict(hasUpdate: false, latestVersion: installedDisplay,
+                           latestBuild: tool.installedBuild, changelogURL: changelogURL)
         }
         return Verdict(hasUpdate: VersionComparator.isNewer(latestBuild, than: tool.installedBuild),
-                       latestVersion: display, changelogURL: changelogURL)
+                       latestVersion: display, latestBuild: latestBuild, changelogURL: changelogURL)
     }
 
     /// The leading (branch) component of a build number — "252" of

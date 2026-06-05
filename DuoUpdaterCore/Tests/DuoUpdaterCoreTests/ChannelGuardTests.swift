@@ -27,6 +27,11 @@ import Foundation
     #expect(ReleaseChannel.detect(
         name: "Visual Studio Code", bundleID: "com.microsoft.VSCode.insiders",
         keystoneChannel: nil) == .preview)
+    // JetBrains Early Access Program ships under a `-EAP` bundle-id suffix; treat it
+    // as the preview channel so its VendorProbe recipe isn't dropped by the gate.
+    #expect(ReleaseChannel.detect(
+        name: "IntelliJ IDEA", bundleID: "com.jetbrains.intellij-EAP",
+        keystoneChannel: nil) == .preview)
 }
 
 @Test func displayNameWordSignalsChannel() {

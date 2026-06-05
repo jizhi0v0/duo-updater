@@ -82,7 +82,9 @@ public struct UpdateChecker: Sendable {
             if let verdict = await toolbox?.verdict(for: app) {
                 let remote = RemoteVersion(
                     shortVersion: verdict.latestVersion,
-                    version: nil,
+                    // Carry the build id so the row can disambiguate a same-marketing
+                    // EAP/nightly bump (2026.2 → 2026.2) by its build number.
+                    version: verdict.latestBuild,
                     downloadURL: nil,
                     sourceName: "Toolbox",
                     requiresManualInstaller: true,
@@ -176,7 +178,13 @@ public struct UpdateChecker: Sendable {
         // Prefer comparing build versions (Sparkle's canonical key) when both
         // sides have one.
         if let rv = remote.version, let iv = installed.buildVersion {
-            return VersionComparator.isNewer(rv, than: iv)
+            // JetBrains stamps CFBundleVersion with a product-code prefix
+            // ("IU-262.6653.22") while a vendor build id is bare ("262.7132.23").
+            // Strip a leading "<LETTERS>-" run from both so they compare in one
+            // namespace — otherwise the tokenizer ranks the bare side above the
+            // prefixed one unconditionally (a text run sorts below a number), which
+            // would show a perpetual phantom update even right after installing.
+            return VersionComparator.isNewer(Self.normalizedBuild(rv), than: Self.normalizedBuild(iv))
                 ? .updateAvailable(latest: remote.displayVersion ?? rv)
                 : .upToDate
         }
@@ -207,5 +215,16 @@ public struct UpdateChecker: Sendable {
         }
 
         return .updateAvailable(latest: remote.displayVersion ?? rs)
+    }
+
+    /// Drop a leading product-code run like "IU-"/"AI-" from a build number so a
+    /// prefixed CFBundleVersion ("IU-262.6653.22") compares against a bare vendor
+    /// build ("262.7132.23"). Plain builds ("45830", "262.7132.23", "1.2.3-beta")
+    /// pass through untouched — only a pure-letter segment before the first hyphen
+    /// is treated as a prefix.
+    static func normalizedBuild(_ build: String) -> String {
+        guard let dash = build.firstIndex(of: "-"), dash != build.startIndex,
+              build[..<dash].allSatisfy(\.isLetter) else { return build }
+        return String(build[build.index(after: dash)...])
     }
 }

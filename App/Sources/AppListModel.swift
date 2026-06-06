@@ -161,6 +161,57 @@ final class AppListModel {
     var badgeCount: Int { (isScanning || isChecking) ? heldBadgeCount : updateCount }
     @ObservationIgnored private var heldBadgeCount = 0
 
+    // MARK: - Homebrew formulae (CLI tools)
+    //
+    // A standalone surface that mirrors a bare terminal `brew upgrade`, scoped to
+    // `--formula`. GUI casks stay per-app via `HomebrewCaskSource`; formulae aren't
+    // apps (no bundle, no channel, no changelog), so they live here and can never
+    // collide with — or double-count against — the app rows above.
+    private let brewFormulaService = BrewFormulaService()
+    /// Outdated CLI formulae from the last `brew outdated --formula` read.
+    private(set) var brewOutdatedFormulae: [BrewOutdatedFormula] = []
+    /// Whether Homebrew is installed at all (cached once — install state doesn't
+    /// change mid-session). Lets the menu reserve the brew row's space from the very
+    /// first paint for brew users, so the async `brew outdated` result lands in place
+    /// instead of inserting a row and shifting clicks.
+    let brewInstalled = BrewFormulaService.isAvailable
+    /// Flips true once the first `brew outdated` check returns. Until then the menu
+    /// shows a "checking" placeholder of the same height as the real row.
+    private(set) var brewChecked = false
+    /// True while `brew upgrade --formula` is running.
+    private(set) var brewUpgrading = false
+    /// Last brew-upgrade failure, surfaced under the row; cleared on the next run.
+    private(set) var brewUpgradeError: String?
+    /// Streamed tail of the running upgrade, shown as a one-line progress note.
+    private(set) var brewUpgradeNote: String?
+    /// Formula names with a per-row `brew upgrade` in flight (drives the row spinner).
+    private(set) var upgradingFormulae: Set<String> = []
+    /// Per-formula upgrade failures, keyed by formula name; cleared on the next run.
+    private(set) var formulaUpgradeErrors: [String: String] = [:]
+    /// Live tail of a per-formula `brew upgrade`'s output (the "Downloading… / Pouring"
+    /// line), keyed by formula name — so the row shows real progress instead of a bare
+    /// spinner. Cleared when the upgrade finishes.
+    private(set) var formulaUpgradeNotes: [String: String] = [:]
+
+    /// Lazily-fetched release notes per formula (keyed by name), loaded only when a
+    /// formula is selected in the workbench — so a long outdated list never burns the
+    /// GitHub rate limit up front.
+    enum FormulaReleaseState { case loading, loaded(FormulaRelease) }
+    private(set) var formulaReleaseStates: [String: FormulaReleaseState] = [:]
+    private let formulaReleaseService = BrewFormulaReleaseService()
+
+    func formulaReleaseState(name: String) -> FormulaReleaseState? {
+        formulaReleaseStates[name]
+    }
+
+    /// Every brew-managed cask among the results. `HomebrewCaskSource` stamps each
+    /// app it claims with `sourceName == "Homebrew"` (current or outdated alike), so
+    /// this is the authoritative set with no extra subprocess. The workbench pulls
+    /// these out of its Apps list and shows them under Brew instead.
+    var brewCaskResults: [UpdateResult] {
+        results.filter { $0.remote?.sourceName == "Homebrew" }
+    }
+
     private let sparkleInstaller = SparkleInstaller()
     private let homebrewInstaller = HomebrewInstaller()
     private let packageInstaller = PackageInstaller()
@@ -825,6 +876,97 @@ final class AppListModel {
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         await refreshBackupIndex()
+    }
+
+    // MARK: - Homebrew formulae (CLI tools)
+
+    /// Re-read outdated CLI formulae via `brew outdated --formula`. A local tap
+    /// read (no implicit `brew update`), so it's cheap enough to call on every
+    /// popover open. Never throws to the caller — any failure just leaves the list
+    /// empty, so no row shows on a clean or brew-less machine.
+    func refreshBrewFormulae() async {
+        guard BrewFormulaService.isAvailable else {
+            brewOutdatedFormulae = []
+            brewChecked = true
+            return
+        }
+        defer { brewChecked = true }
+        do {
+            brewOutdatedFormulae = try await brewFormulaService.outdated()
+        } catch {
+            Log.app.info("brew outdated --formula failed: \(error.localizedDescription, privacy: .public)")
+            brewOutdatedFormulae = []
+        }
+    }
+
+    /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
+    /// `brew upgrade` but formula-scoped) and refresh the list when it finishes.
+    func upgradeBrewFormulae() async {
+        guard !brewUpgrading else { return }
+        brewUpgrading = true
+        brewUpgradeError = nil
+        brewUpgradeNote = "Starting…"
+        defer { brewUpgrading = false; brewUpgradeNote = nil }
+        do {
+            try await brewFormulaService.upgradeAll { [weak self] line in
+                Task { @MainActor in self?.brewUpgradeNote = line }
+            }
+            await refreshBrewFormulae()
+        } catch {
+            brewUpgradeError = error.localizedDescription
+        }
+    }
+
+    /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row
+    /// action in the workbench Brew list — then re-read the outdated set.
+    func upgradeBrewFormula(_ formula: BrewOutdatedFormula) async {
+        guard !upgradingFormulae.contains(formula.name) else { return }
+        let name = formula.name
+        upgradingFormulae.insert(name)
+        formulaUpgradeErrors[name] = nil
+        formulaUpgradeNotes[name] = "Starting…"
+        defer {
+            upgradingFormulae.remove(name)
+            formulaUpgradeNotes[name] = nil
+        }
+        do {
+            try await brewFormulaService.upgrade(formula: name) { [weak self] line in
+                // Map brew's noisy raw output to a clean phase word; ignore lines we
+                // don't recognize so the label stays stable instead of flickering
+                // through dependency chatter ("✔ Bottle graphite2 …").
+                guard let phase = Self.brewUpgradePhase(from: line) else { return }
+                Task { @MainActor in self?.formulaUpgradeNotes[name] = phase }
+            }
+            await refreshBrewFormulae()
+        } catch {
+            formulaUpgradeErrors[name] = error.localizedDescription
+        }
+    }
+
+    /// Classify a raw `brew upgrade` output line into a friendly phase, or nil when
+    /// it's chatter we'd rather not surface. brew prints download percentages with
+    /// carriage returns (not newlines), so a numeric progress bar isn't reliably
+    /// available — the phase is the stable signal.
+    nonisolated static func brewUpgradePhase(from line: String) -> String? {
+        let l = line.lowercased()
+        if l.contains("pouring") || l.contains("installing") { return "Installing…" }
+        if l.contains("downloading") || l.contains("fetching") || l.contains("bottle") { return "Downloading…" }
+        if l.contains("cleaning") || l.contains("cleanup") { return "Cleaning up…" }
+        return nil
+    }
+
+    /// Fetch a formula's release notes once, on first selection. Idempotent: a
+    /// loaded/loading entry is left alone, so reselecting renders the cache instantly.
+    func ensureFormulaReleaseLoading(_ formula: BrewOutdatedFormula) {
+        guard formulaReleaseStates[formula.name] == nil else { return }
+        formulaReleaseStates[formula.name] = .loading
+        let token = GitHubToken.resolve(explicit: prefs.githubToken.isEmpty ? nil : prefs.githubToken)
+        let name = formula.name
+        let version = formula.currentVersion
+        Task {
+            let release = await formulaReleaseService.release(for: name, version: version, token: token)
+            formulaReleaseStates[name] = .loaded(release)
+        }
     }
 
     /// Merge a fresh disk scan onto the current rows, carrying each app's prior

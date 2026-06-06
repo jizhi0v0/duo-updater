@@ -18,8 +18,20 @@ public enum GitHubMarkdownParser {
 
     /// Parse a single release body into a `Changelog` with one entry, or nil
     /// when the body contains no extractable bullet items.
+    ///
+    /// Two passes. The strict pass (original behavior) takes only top-level
+    /// `-`/`*`/`+` bullets. ONLY when that finds nothing do we retry leniently —
+    /// also accepting indented bullets and numbered lists, and skipping fenced code
+    /// blocks. Gating the lenient pass on an empty strict result means every body
+    /// that already parsed is byte-for-byte unchanged (no regression for the GitHub
+    /// apps that share this parser); the lenient pass purely rescues bodies that
+    /// would otherwise fall back to a raw web view — e.g. nvm's space-indented
+    /// `- ` lists, or any project that writes its notes as a numbered list.
     public static func parse(body: String, version: String, date: String?) -> Changelog? {
-        let items = extractItems(from: body)
+        var items = extractItems(from: body, lenient: false)
+        if items.isEmpty {
+            items = extractItems(from: body, lenient: true)
+        }
         guard !items.isEmpty else { return nil }
         let entry = Changelog.Entry(version: version, date: date, items: items)
         return Changelog(entries: [entry])
@@ -31,13 +43,31 @@ public enum GitHubMarkdownParser {
         "new contributors", "contributors", "full changelog",
     ]
 
-    private static func extractItems(from body: String) -> [String] {
+    /// Extra headings the lenient pass skips: release bodies that aren't bullet
+    /// changelogs often still carry a checksum/hash block, which we never want as
+    /// "change items".
+    private static let lenientExtraSkipKeywords = [
+        "sha256", "sha-256", "sha1", "md5", "checksum", "hashes", "artifacts",
+    ]
+
+    private static func extractItems(from body: String, lenient: Bool) -> [String] {
         let lines = body.components(separatedBy: .newlines)
+        let skipKeywords = lenient ? skippedSectionKeywords + lenientExtraSkipKeywords
+                                   : skippedSectionKeywords
         var items: [String] = []
         var inSkippedSection = false
+        var inCodeBlock = false
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            // Fenced code block (lenient only): skip its contents so a release's
+            // SHA256 table or example snippet isn't mistaken for change items.
+            if lenient, trimmed.hasPrefix("```") {
+                inCodeBlock.toggle()
+                continue
+            }
+            if inCodeBlock { continue }
 
             // Section heading: ## Title or ### Title
             if trimmed.hasPrefix("#") {
@@ -45,26 +75,42 @@ public enum GitHubMarkdownParser {
                     .drop(while: { $0 == "#" })
                     .trimmingCharacters(in: .whitespaces)
                     .lowercased()
-                inSkippedSection = skippedSectionKeywords.contains(where: { heading.contains($0) })
+                inSkippedSection = skipKeywords.contains(where: { heading.contains($0) })
                 continue
             }
 
             if inSkippedSection { continue }
 
-            // Bullet: `- text`, `* text`, `+ text`.
-            // Skip any indented sub-bullet — a leading space or tab marks PR-body
-            // detail that usually duplicates the top-level item. (Checked on the
-            // raw line; `trimmed` below has the indentation stripped.)
-            guard let first = line.first, first != " ", first != "\t" else { continue }
+            if lenient {
+                // Indented bullets and numbered lists count too. Safe here because
+                // the strict pass already came up empty, so there are no top-level
+                // items for an indented line to be a duplicate sub-detail of.
+                if let raw = bulletContent(from: trimmed) ?? numberedContent(from: trimmed) {
+                    let cleaned = cleanItem(raw)
+                    if cleaned.count >= 6 { items.append(cleaned) }
+                }
+            } else {
+                // Bullet: `- text`, `* text`, `+ text`.
+                // Skip any indented sub-bullet — a leading space or tab marks PR-body
+                // detail that usually duplicates the top-level item. (Checked on the
+                // raw line; `trimmed` below has the indentation stripped.)
+                guard let first = line.first, first != " ", first != "\t" else { continue }
 
-            if let raw = bulletContent(from: trimmed) {
-                let cleaned = cleanItem(raw)
-                // Drop very short items (emoji-only, single-word, link-only lines).
-                if cleaned.count >= 6 { items.append(cleaned) }
+                if let raw = bulletContent(from: trimmed) {
+                    let cleaned = cleanItem(raw)
+                    // Drop very short items (emoji-only, single-word, link-only lines).
+                    if cleaned.count >= 6 { items.append(cleaned) }
+                }
             }
         }
 
         return items
+    }
+
+    /// A numbered-list item's text: "1. text" / "12) text" → "text". nil otherwise.
+    private static func numberedContent(from line: String) -> String? {
+        guard let r = line.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) else { return nil }
+        return String(line[r.upperBound...])
     }
 
     private static func bulletContent(from line: String) -> String? {

@@ -44,6 +44,9 @@ struct WorkbenchWindowView: View {
     /// Sidebar filter text. Empty shows every app; otherwise the list narrows to
     /// apps whose name (or bundle id) contains the query, case/diacritic-insensitively.
     @State private var searchText = ""
+    /// Collapsed/expanded state for the two sidebar trees. Both open by default.
+    @State private var appsExpanded = true
+    @State private var brewExpanded = true
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
 
@@ -56,8 +59,22 @@ struct WorkbenchWindowView: View {
     /// pending updates float to the top, everything else alphabetical — so
     /// flipping between Release Notes and Traffic never reshuffles the list under
     /// the user. The lens only changes each row's trailing detail, not its place.
+    ///
+    /// Brew-managed casks are excluded here: they live under the Brew tree instead
+    /// (the "cask 只在此面板" rule), so they never appear in both places.
     private var apps: [UpdateResult] {
-        model.results.sorted { lhs, rhs in
+        model.results
+            .filter { $0.remote?.sourceName != "Homebrew" }
+            .sorted { lhs, rhs in
+                if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
+                return lhs.app.name.localizedCaseInsensitiveCompare(rhs.app.name) == .orderedAscending
+            }
+    }
+
+    /// Brew-managed casks, updates first then alphabetical — the cask half of the
+    /// Brew tree. (The formula half is `model.brewOutdatedFormulae`.)
+    private var brewCasks: [UpdateResult] {
+        model.brewCaskResults.sorted { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
             return lhs.app.name.localizedCaseInsensitiveCompare(rhs.app.name) == .orderedAscending
         }
@@ -87,6 +104,15 @@ struct WorkbenchWindowView: View {
         model.results.first { $0.id == detailSelection }
     }
 
+    /// The Brew-tree formula selected, when the selection is a formula row (tagged
+    /// `brew:formula:<name>`) rather than an app. Drives the formula detail pane.
+    private var selectedFormula: BrewOutdatedFormula? {
+        let prefix = "brew:formula:"
+        guard let id = detailSelection, id.hasPrefix(prefix) else { return nil }
+        let name = String(id.dropFirst(prefix.count))
+        return model.brewOutdatedFormulae.first { $0.name == name }
+    }
+
     var body: some View {
         NavigationSplitView {
             sidebar
@@ -95,6 +121,9 @@ struct WorkbenchWindowView: View {
             if let selected {
                 detail(for: selected)
                     .id(selected.id)
+            } else if let formula = selectedFormula {
+                FormulaDetailPane(formula: formula, model: model)
+                    .id("brew:formula:\(formula.name)")
             } else {
                 ContentUnavailableView(
                     "Select an app",
@@ -106,9 +135,10 @@ struct WorkbenchWindowView: View {
         }
         .navigationTitle("Duo Updater")
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                ModeSwitcher(mode: $mode)
-            }
+            // Traffic lens hidden for now — the metering wasn't pulling its weight, so
+            // the Release Notes/Traffic switcher is gone and the detail is always
+            // Release Notes. (Underlying TrafficStore still records; only the UI is
+            // hidden, so this is reversible.)
             ToolbarItem(placement: .primaryAction) {
                 Button { openWindow(id: SettingsView.windowID) } label: {
                     Image(systemName: "gearshape")
@@ -133,6 +163,8 @@ struct WorkbenchWindowView: View {
                 detailSelection = selection   // first show is immediate, no debounce
             }
         }
+        // Brew tree data (formulae + the cask set derives from results above).
+        .task { await model.refreshBrewFormulae() }
         // Refocus → re-read on-disk versions. App-scoped notification, cheap, idempotent.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             Task { await model.refreshLocal() }
@@ -168,30 +200,184 @@ struct WorkbenchWindowView: View {
 
     // MARK: - Sidebar
 
+    /// A prominent, full-width-clickable group header that lives OUTSIDE the
+    /// scrolling lists (so both Apps and Brew titles are always on screen at once —
+    /// you never have to scroll the app list to discover Brew). The whole row
+    /// toggles the section; the rotating chevron shows collapsed/expanded and the
+    /// trailing pill shows the item count.
+    @ViewBuilder
+    private func sectionHeader<Accessory: View>(
+        _ title: String, systemImage: String, count: Int, expanded: Binding<Bool>,
+        @ViewBuilder accessory: () -> Accessory = { EmptyView() }
+    ) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { expanded.wrappedValue.toggle() }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
+                    Image(systemName: systemImage)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Text(title)
+                        .font(.headline)
+                    Spacer(minLength: 8)
+                    Text("\(count)")
+                        .font(.caption.weight(.semibold)).monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 7).padding(.vertical, 1)
+                        .background(.quaternary, in: Capsule())
+                }
+                .foregroundStyle(.primary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // Optional trailing control (e.g. Brew's bulk Upgrade) — a sibling of the
+            // collapse button, so tapping it never toggles the section.
+            accessory()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+    }
+
+    /// Whether there's anything brew-managed to show a Brew tree for. Non-brew users
+    /// see only the Apps tree (no empty Brew header).
+    private var hasBrew: Bool {
+        !brewCasks.isEmpty || !model.brewOutdatedFormulae.isEmpty
+    }
+
+    /// Total brew items, for the Brew header's count pill and its list height.
+    private var brewItemCount: Int {
+        brewCasks.count + model.brewOutdatedFormulae.count
+    }
+
     @ViewBuilder
     private var sidebar: some View {
         VStack(spacing: 0) {
             AppSearchField(text: $searchText)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-            List(filteredApps, selection: $selection) { result in
+
+            // Fill the middle and top-align: without this, when both trees are
+            // collapsed (no list filling the space) the outer VStack would center the
+            // headers vertically, floating them in the middle with empty space above.
+            splitRegion
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private var appsHeader: some View {
+        sectionHeader("Apps", systemImage: "square.grid.2x2.fill",
+                      count: filteredApps.count, expanded: $appsExpanded)
+    }
+
+    private var brewHeader: some View {
+        sectionHeader("Brew", systemImage: "mug.fill",
+                      count: brewItemCount, expanded: $brewExpanded) {
+            brewBulkUpgrade
+        }
+    }
+
+    /// Bulk "Upgrade All" for the Brew tree — runs `brew upgrade --formula` (all
+    /// outdated CLI formulae at once). Only shown when there are formulae to upgrade;
+    /// casks stay per-row (their own distribution channel). A spinner replaces it
+    /// while the bulk run is in flight.
+    @ViewBuilder
+    private var brewBulkUpgrade: some View {
+        if !model.brewOutdatedFormulae.isEmpty {
+            if model.brewUpgrading {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("Upgrade All") { Task { await model.upgradeBrewFormulae() } }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .help("Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above.")
+            }
+        }
+    }
+
+    /// The two trees. Only when BOTH are open does it use a native VSplitView
+    /// (NSSplitView) — that's the case that needs a draggable divider, and the
+    /// system splitter resizes the NSScrollView-backed lists without the ghosting a
+    /// hand-rolled per-frame resize causes. The moment either tree is collapsed there's
+    /// nothing to resize, so it drops to a plain stack with a thin Divider — avoiding
+    /// NSSplitView's heavy splitter bar rendering as a black line against a 34pt
+    /// collapsed pane.
+    @ViewBuilder
+    private var splitRegion: some View {
+        if hasBrew && appsExpanded && brewExpanded {
+            VSplitView {
+                VStack(spacing: 0) { appsHeader; appsListView }
+                    .frame(minHeight: 120)
+                VStack(spacing: 0) { brewHeader; brewListView }
+                    .frame(minHeight: 100)
+            }
+            // Persist the divider position across launches. VSplitView exposes no
+            // position binding, so we reach the backing NSSplitView and give it an
+            // autosaveName — AppKit then saves/restores the split to UserDefaults.
+            .background(SplitViewAutosave(name: "duo.workbench.sidebarSplit"))
+        } else {
+            VStack(spacing: 0) {
+                appsHeader
+                if appsExpanded { appsListView.frame(maxHeight: .infinity) }
+                if hasBrew {
+                    Divider()
+                    brewHeader
+                    if brewExpanded { brewListView.frame(maxHeight: .infinity) }
+                }
+            }
+        }
+    }
+
+    /// The Apps tree's scrolling list (extracted so the split layout above stays
+    /// readable).
+    private var appsListView: some View {
+        List(selection: $selection) {
+            ForEach(filteredApps) { result in
                 WorkbenchSidebarRow(
                     result: result,
                     mode: mode,
                     bytes: bytes(for: result),
                     isSelected: result.id == selection,
-                    isRunning: model.isRunning(result))
+                    isRunning: model.isRunning(result),
+                    needsRestart: model.needsRestart.contains(result.id),
+                    runningVersion: model.runningVersion(result.id))
                     .tag(result.id)
             }
-            .overlay {
-                // No match for the current filter — say so rather than show a blank list.
-                if filteredApps.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
-                }
-            }
-            Divider()
-            totalFooter
         }
+        .listStyle(.sidebar)
+        .overlay {
+            if filteredApps.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            }
+        }
+    }
+
+    /// The Brew tree's scrolling list: brew-managed casks (reusing the app row + its
+    /// existing install path) above outdated CLI formulae (their own inline action).
+    private var brewListView: some View {
+        List(selection: $selection) {
+            ForEach(brewCasks) { result in
+                WorkbenchSidebarRow(
+                    result: result,
+                    mode: mode,
+                    bytes: bytes(for: result),
+                    isSelected: result.id == selection,
+                    isRunning: model.isRunning(result),
+                    needsRestart: model.needsRestart.contains(result.id),
+                    runningVersion: model.runningVersion(result.id))
+                    .tag(result.id)
+            }
+            ForEach(model.brewOutdatedFormulae) { formula in
+                BrewFormulaSidebarRow(formula: formula, model: model)
+                    .tag("brew:formula:\(formula.name)")
+            }
+        }
+        .listStyle(.sidebar)
     }
 
     /// Grand-total downloaded, carried over from the old Traffic window's header so
@@ -334,6 +520,42 @@ private struct WorkbenchActionView: View {
     }
 }
 
+// MARK: - Split-view autosave
+
+/// Gives the `VSplitView`'s backing `NSSplitView` an `autosaveName` so AppKit
+/// persists its divider position across launches (SwiftUI's `VSplitView` exposes
+/// no position binding of its own). Introspects the window's view tree for the
+/// FIRST horizontal-divider split view — `isVertical == false` skips the
+/// `NavigationSplitView`'s own (vertical-divider) sidebar split, which we don't
+/// want to bind to.
+private struct SplitViewAutosave: NSViewRepresentable {
+    let name: String
+
+    func makeNSView(context: Context) -> NSView {
+        let probe = NSView()
+        DispatchQueue.main.async { [weak probe] in
+            guard let root = probe?.window?.contentView,
+                  let split = Self.firstHorizontalSplit(in: root) else { return }
+            // Setting the same autosaveName on every appearance is idempotent; AppKit
+            // restores the saved position when the name is assigned.
+            if split.autosaveName != name { split.autosaveName = name }
+        }
+        return probe
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    /// Depth-first search for a split view whose dividers are horizontal (panes
+    /// stacked vertically — what VSplitView produces).
+    private static func firstHorizontalSplit(in view: NSView) -> NSSplitView? {
+        if let split = view as? NSSplitView, !split.isVertical { return split }
+        for sub in view.subviews {
+            if let found = firstHorizontalSplit(in: sub) { return found }
+        }
+        return nil
+    }
+}
+
 // MARK: - Mode switcher
 
 /// The detail-lens switcher, wrapping a native `NSSegmentedControl`. SwiftUI's
@@ -383,6 +605,12 @@ private struct WorkbenchSidebarRow: View {
     let isSelected: Bool
     /// Whether the app currently has a running process — shows the green live dot.
     let isRunning: Bool
+    /// Self-updated on disk, waiting for a relaunch to take effect (the "Restart"
+    /// state). When set, the subtitle shows running → installed instead of a bare
+    /// version, so the row says what the restart will land.
+    let needsRestart: Bool
+    /// The still-running (older) version, when known — the "from" side of a restart.
+    let runningVersion: String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -419,10 +647,150 @@ private struct WorkbenchSidebarRow: View {
                 // White over the blue highlight when selected; blue tint otherwise.
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                 .lineLimit(1)
+        } else if needsRestart, let running = runningVersion {
+            // Self-updated on disk: show running build → installed build so "Restart"
+            // reads as a real change. Builds (not marketing) because that's all we can
+            // read off the live process — and for date/serial builds it's the only
+            // thing that moved (marketing can be unchanged, e.g. Zed Preview).
+            let from = UpdateResult.strippingBuildPrefix(running)
+            let to = UpdateResult.strippingBuildPrefix(
+                result.app.buildVersion ?? result.app.shortVersion ?? "?")
+            Text("\(from) → \(to)")
+                .font(.caption)
+                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         } else {
             Text("v\(result.app.shortVersion ?? "?")")
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
+    }
+}
+
+// MARK: - Brew formula row
+
+/// A CLI-formula row under the Brew tree. Unlike a cask (which reuses
+/// `WorkbenchSidebarRow` + the app install path), a formula isn't an app — no
+/// icon, channel, or changelog — so it gets this compact row with its own inline
+/// `brew upgrade --formula <name>` action.
+private struct BrewFormulaSidebarRow: View {
+    let formula: BrewOutdatedFormula
+    @Bindable var model: AppListModel
+
+    private var upgrading: Bool { model.upgradingFormulae.contains(formula.name) }
+    private var error: String? { model.formulaUpgradeErrors[formula.name] }
+    private var progressNote: String? { model.formulaUpgradeNotes[formula.name] }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "terminal")
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(formula.name).font(.body).lineLimit(1)
+                if let error {
+                    Text(error).font(.caption).foregroundStyle(.red).lineLimit(1)
+                } else if upgrading, let progressNote {
+                    // Live brew output ("Downloading…", "Pouring…") so the upgrade
+                    // visibly progresses instead of sitting on a bare spinner.
+                    Text(progressNote)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                } else {
+                    Text("\(formula.installedVersion) → \(formula.currentVersion)")
+                        .font(.caption).foregroundStyle(.tint).lineLimit(1)
+                }
+            }
+            Spacer()
+            if upgrading {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("Update") { Task { await model.upgradeBrewFormula(formula) } }
+                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Formula detail pane
+
+/// The detail pane for a selected Brew formula. A formula isn't an app, so it has
+/// no Sparkle/recipe changelog — instead we lazily fetch its GitHub release notes
+/// (`BrewFormulaReleaseService`) and render them with the same `ChangelogEntriesView`
+/// the app rows use; non-GitHub formulae fall back to a web view of their page.
+private struct FormulaDetailPane: View {
+    let formula: BrewOutdatedFormula
+    @Bindable var model: AppListModel
+
+    private var upgrading: Bool { model.upgradingFormulae.contains(formula.name) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            Divider()
+            notes
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .task { model.ensureFormulaReleaseLoading(formula) }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "terminal")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+                .frame(width: 44, height: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(formula.name).font(.title2).fontWeight(.semibold)
+                Text("\(formula.installedVersion) → \(formula.currentVersion)")
+                    .font(.callout).foregroundStyle(.tint)
+            }
+            Spacer()
+            if upgrading {
+                HStack(spacing: 7) {
+                    ProgressView().controlSize(.small)
+                    Text(model.formulaUpgradeNotes[formula.name] ?? "Updating…")
+                        .font(.callout).foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(.quaternary, in: Capsule())
+            } else {
+                Button("Update") { Task { await model.upgradeBrewFormula(formula) } }
+                    .controlSize(.large)
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(16)
+    }
+
+    @ViewBuilder
+    private var notes: some View {
+        switch model.formulaReleaseState(name: formula.name) {
+        case .loaded(let release):
+            if let changelog = release.changelog {
+                ChangelogEntriesView(changelog: changelog)
+            } else if let url = release.pageURL {
+                CachedWebView(url: url)
+            } else {
+                noNotes
+            }
+        default:
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var noNotes: some View {
+        ContentUnavailableView {
+            Label("No release notes", systemImage: "doc.text.magnifyingglass")
+        } description: {
+            Text("Homebrew doesn’t publish notes for \(formula.name), and it isn’t a GitHub release we can read.")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

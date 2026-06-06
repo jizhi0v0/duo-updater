@@ -91,6 +91,10 @@ struct MenuContentView: View {
                     .padding(.vertical, 8)
             }
             content
+            if showBrewRow {
+                Divider()
+                brewFormulaRow
+            }
             Divider()
             footer
         }
@@ -113,6 +117,9 @@ struct MenuContentView: View {
                 await model.refreshLocal()
             }
         }
+        // CLI formulae: a separate brew-upgrade surface (formula-only), kicked off
+        // concurrently so it never delays the app check above.
+        .task { await model.refreshBrewFormulae() }
     }
 
     @ViewBuilder
@@ -269,6 +276,82 @@ struct MenuContentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
+
+    /// Reserve the brew row for any machine with Homebrew installed: while the first
+    /// `brew outdated` check is still running (so the result lands in place instead of
+    /// inserting a row and shifting clicks onto the wrong control), while an upgrade
+    /// runs, or when there's at least one outdated formula. Brew-less machines never
+    /// see it; a machine that finishes the check with nothing outdated drops it (one
+    /// upward settle, far less disruptive than a downward insert under the cursor).
+    private var showBrewRow: Bool {
+        guard model.brewInstalled else { return false }
+        return !model.brewChecked || model.brewUpgrading || !model.brewOutdatedFormulae.isEmpty
+    }
+
+    /// A single footer row mirroring a bare terminal `brew upgrade`, scoped to CLI
+    /// formulae. Casks are managed per-app in the list above, so this never
+    /// double-counts them.
+    @ViewBuilder
+    private var brewFormulaRow: some View {
+        if model.brewUpgrading {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(model.brewUpgradeNote ?? "Upgrading…")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.middle)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        } else if !model.brewChecked && model.brewOutdatedFormulae.isEmpty {
+            // First check still in flight — mirror the real row's structure (icon +
+            // two-line VStack) EXACTLY so it's the same height and the result swaps in
+            // without moving anything below it. The row height is driven by the
+            // two-line VStack, so the trailing spinner-vs-button difference is moot.
+            HStack(spacing: 8) {
+                Image(systemName: "terminal").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Checking Homebrew…")
+                        .font(.caption).fontWeight(.medium)
+                    Text("Reading outdated formulae")
+                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer()
+                ProgressView().controlSize(.small)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        } else {
+            let count = model.brewOutdatedFormulae.count
+            HStack(spacing: 8) {
+                Image(systemName: "terminal").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(count) brew formula\(count == 1 ? "" : "e") outdated")
+                        .font(.caption).fontWeight(.medium)
+                    if let error = model.brewUpgradeError {
+                        Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
+                    } else {
+                        Text(brewFormulaSummary)
+                            .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                Spacer()
+                Button("Upgrade") { Task { await model.upgradeBrewFormulae() } }
+                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
+                    .help("Runs `brew upgrade --formula` — upgrades every outdated command-line formula at once. GUI casks are managed per-app above, so they aren't touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+    }
+
+    /// "wget, fd, ripgrep…" — the first few outdated formula names as a one-line hint.
+    private var brewFormulaSummary: String {
+        let names = model.brewOutdatedFormulae.prefix(4).map(\.name)
+        let more = model.brewOutdatedFormulae.count > names.count ? "…" : ""
+        return names.joined(separator: ", ") + more
+    }
 }
 
 private struct AppRow: View {
@@ -352,6 +435,14 @@ private struct AppRow: View {
             // Vendor's latest is *older* than what's installed — show it muted with a
             // down-arrow (only reachable under "Show all", since the row is upToDate).
             downgradeVersionLine(older)
+        } else if model.needsRestart.contains(result.id),
+                  let runningBuild = model.runningVersion(result.id) {
+            // Self-updated on disk, restart pending. Show the running build → the
+            // installed build so the row reads as a real change, not a static
+            // "v1.6.1". We only have the running *build* (lsappinfo), not its
+            // marketing version, so both sides use the build number — same namespace,
+            // and for date/serial builds (Zed, Warp) it's the only thing that moved.
+            restartVersionLine(runningBuild)
         } else {
             switch result.status {
             case .updateAvailable(let latest):
@@ -398,6 +489,26 @@ private struct AppRow: View {
         .lineLimit(1)
         .minimumScaleFactor(0.75)
         .help("The vendor's latest is \(older) — older than your \(installed). You're ahead, so there's nothing to do. Usually a beta channel, a pulled release, or a lagging check.")
+    }
+
+    /// The restart version line: running build → installed build. Surfaced when an
+    /// app self-updated on disk but the old process is still live, so "Restart" reads
+    /// as a concrete version bump. Build numbers (not marketing) because that's all
+    /// we can read off the running process; the JetBrains-style prefix is stripped so
+    /// both sides share one namespace.
+    @ViewBuilder
+    private func restartVersionLine(_ runningBuild: String) -> some View {
+        let from = UpdateResult.strippingBuildPrefix(runningBuild)
+        let installed = result.app.buildVersion ?? result.app.shortVersion ?? "?"
+        let to = UpdateResult.strippingBuildPrefix(installed)
+        HStack(spacing: 4) {
+            Text(from).foregroundStyle(.secondary)
+            Image(systemName: "arrow.right").font(.caption2)
+            Text(to).fontWeight(.semibold).foregroundStyle(.orange)
+        }
+        .font(.caption)
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
     }
 
     /// The staged-relaunch version line: installed → staged. `actionableStaged`

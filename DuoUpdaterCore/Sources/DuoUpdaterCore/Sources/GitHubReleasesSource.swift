@@ -406,5 +406,23 @@ public enum GitHubReleaseRegistry {
             owner: "desktop", repo: "desktop",
             usePrereleases: false,
             versionPattern: #"release-([0-9]+\.[0-9]+\.[0-9]+)$"#),
+
+        // Ollama — Electron app distributed via an `auto_updates` Homebrew cask,
+        // which falls through `HomebrewCaskSource` and leaves no `SUFeedURL`, so
+        // the installed copy drifts (0.24.0 while GitHub ships v0.30.6) with no
+        // detection source — only a changelog recipe. The macOS app is the same
+        // GitHub `/releases/latest`: ollama.com/install.sh and ollama.com/download
+        // both 307→ github releases/latest/download (`Ollama-darwin.zip` / the
+        // `Ollama.dmg` asset). Tags carry a `v` prefix (`v0.30.6`), stripped by the
+        // default pattern → `0.30.6`. Verified end-to-end 2026-06-06: the .app inside
+        // the latest zip self-reports CFBundleShortVersionString 0.30.6 (homogeneous,
+        // no ghost update). Stable channel, no prereleases (`/releases/latest`).
+        // Detection-only by choice: the asset IS a notarized Developer ID build,
+        // Team 3MU9H2V9Y9 (Infra Technologies) matching the install, so a one-click
+        // swap would pass the VendorInstaller gate — but Ollama self-updates, so we
+        // surface the version and link to releases rather than fight its updater.
+        GitHubReleaseRule(
+            bundleID: "com.electron.ollama",
+            owner: "ollama", repo: "ollama"),
     ]
 }

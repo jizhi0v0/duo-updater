@@ -12,9 +12,9 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | —       | ✗        | —   | ○      | ○           |
+| **stable**   | —       | ✗        | —   | ✓      | ○           |
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **unknown**。`auto_updates: true` cask 会让 Homebrew 返回 nil；当前只有 changelog coverage。
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（`ollama/ollama` `/releases/latest`）。`auto_updates: true` cask 会让 Homebrew 返回 nil。2026-06-06 接入 `GitHubReleaseRule`，验证 latest zip 内 `.app` 自报 `0.30.6` 与 tag `v0.30.6` 同构。
 
 ## Channel 详情
 
@@ -23,9 +23,11 @@
 | stable  | `com.electron.ollama` | — | — | GitHub releases | C ✓ / 检测未接 |
 
 ## 更新检测
-- 源: 当前无 `VendorProbeRecipe` / `GitHubReleaseRule`；local bundle has no `SUFeedURL`.
-- 端点: 可调查 GitHub Releases 或 vendor endpoint。
-- 注意事项: 本机版本 0.24.0 与 cask 0.30.4 已出现明显漂移，说明 `auto_updates` cask 不能当检测源。
+- 源: `GitHubReleaseRule`（`ollama/ollama`，默认 pattern 剥 `v` 前缀）；local bundle has no `SUFeedURL`.
+- 端点: `https://api.github.com/repos/ollama/ollama/releases/latest`。
+- 验证（2026-06-06）: `ollama.com/install.sh` 与 `ollama.com/download/Ollama.dmg` 均 307→ github `releases/latest/download`；latest zip 内 `.app` 自报 `CFBundleShortVersionString = 0.30.6`，与 tag `v0.30.6` 同构，无幽灵更新。
+- 备选（未采用）: redirect-VendorProbe 抠最终 path 的 `v0.30.6`，可免 GitHub API 60/时限流；本次保留 API 方式（用户决定，2026-06-06）。
+- 注意事项: 本机版本 0.24.0 与 cask 0.30.4 漂移，说明 `auto_updates` cask 不能当检测源。
 
 ## Changelog
 - 来源: `ChangelogRecipe` + `ChangelogCatalog`

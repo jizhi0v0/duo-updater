@@ -58,10 +58,33 @@ application.ini` 的 `RemotingName`（baked per-channel）区分——`ReleaseCh
 | **OrbStack** | `dev.kdrag0n.MacVirt` | `updates_optinChannel`(=`beta`) | channel-tag |
 | **CleanShot X** | `pl.maketheweb.cleanshotx` | `activationKey` | license-keyed legit feed（`legit.maketheweb.io/api/v1/appcast`）|
 
-### 其它 multi-channel
+### Pattern B/C 续 — Tailscale（2026-06-06 接 unstable）
 
-- **Tailscale** `io.tailscale.ipn.macsys` — 厂商有 stable/rc/unstable；当前只接 stable
-  （probe + changelog）。rc/unstable 未覆盖。
+- **Tailscale** `io.tailscale.ipn.macsys` — stable + unstable 两轨都接。unstable 经
+  `TailscaleChannel` 读 UserDefaults `UnstableUpdatesEnabled`(Bool)→ `.unstable`(新增
+  枚举)，channel 门控路由到 `pkgs.tailscale.com/unstable` probe。`pkgs.tailscale.com/rc`
+  **404**（无第三消费轨，已否决）。stable/unstable changelog 共用 tailscale.com/changelog。
+
+### Pattern A 续 — VS Code Insiders（2026-06-06 接）
+
+- **VS Code Insiders** `com.microsoft.VSCodeInsiders`（显示名 "Code - Insiders" → detect
+  读独立词 "Insiders" → `.preview`）。probe 走 `update.code.visualstudio.com/.../insider/
+  latest`，**版本必须连 `-insider` 后缀一起抽**(`1.124.0-insider`，否则永远幽灵更新)；
+  `name` 仅月度 minor 跳号(每日构建只换 commit hash，Info.plist 不暴露)→ 月度粒度，
+  Insiders 本就每日自更新。一键 = zip 就地换(同 stable)。本机已装、harness ✓。
+
+### Android Studio Preview — Canary + Beta（2026-06-06 接，§2 旧条已落地）
+
+- **Android Studio** Canary/Beta 与 Stable **全部共享** `com.google.android.studio`、
+  CFBundleName 全是 "Android Studio"、marketing 版截断成 "2026.1"——唯一 channel 信号是
+  **bundle 文件名**(brew-cask 重命名 "… Preview Canary/Beta"，Stable 留 "Android Studio")。
+  `ReleaseChannel.detect` step 0.5 对该 id 专属读文件名(canary>beta>preview 优先，绕开
+  channelWord 把 preview 排在 beta 前的坑)；裸 dmg "Android Studio Preview.app" → `.preview`
+  → 无配方 → 安全跳过(不会被误推 stable)。两条 VendorProbe 走官方 releases-list JSON
+  (`jb.gg/android-studio-releases-list.json`)，**比 `build` 字段**(`AI-261.…`，与装机
+  CFBundleVersion 逐字符相同；marketing 截断无法比)`versionIsBuild:true`；Beta 轨当前发 RC，
+  故接受 channel `Beta|RC`、文件名 `beta|rc`。修了原 §284 错注释(曾称 Canary 被跳过，实为
+  误判 .stable 的潜在跨轨覆盖 bug)。两轨本机已装、harness ✓。
 
 ---
 
@@ -69,19 +92,11 @@ application.ini` 的 `RemotingName`（baked per-channel）区分——`ReleaseCh
 
 > 候选已于 **2026-06-04 用 `brew info --cask` 实测复核**（时效性：cask 名/版本会变）。
 
-- [ ] **VS Code — Insiders** · bundle id（待实测，应为 `com.microsoft.VSCodeInsiders`）
-      cask `visual-studio-code@insiders` ✓现存，app `Visual Studio Code - Insiders.app`，
-      `auto_updates`（落穿→需 probe/GitHub 检测），实测版本 `1.124.0-insider`。
-      probe 与 stable 同机制（VSCode update API），改 channel=insider。changelog 价值低。
-      → `/app-audit "VS Code Insiders"` 装一个确认 bundle id，再加 channel=insider 的 probe。
-- [ ] **Android Studio — Canary + Beta**（**两条轨**，旧调查只记了 Canary）
-      ⚠️ **cask 已改名**：旧的 `android-studio-canary` 不存在；现为
-      `android-studio-preview@canary`（`Android Studio Preview Canary.app`，`2026.1.2.4`）
-      和 `android-studio-preview@beta`（`Android Studio Preview Beta.app`，`2026.1.1.7`）。
-      ⚠️ **bundle id 存疑**：旧写的 `com.google.android.studio-EAP` 早于这次改名，须装后实测
-      （可能已变 `...-canary`/`-beta`）。两轨都 `auto_updates`（落穿）。changelog
-      `developer.android.com/studio/preview/features`（preview 全 channel 同页）。
-      → `/app-audit "Android Studio Preview"`（先实测 canary/beta 各自 bundle id）。
+- [x] **VS Code — Insiders** ✓（2026-06-06 接，见 §1）。bundle id 实测为
+      `com.microsoft.VSCodeInsiders`（如预期）；版本带 `-insider` 后缀是关键陷阱。
+- [x] **Android Studio — Canary + Beta** ✓（2026-06-06 接，见 §1）。实测 bundle id 是
+      **共享的 `com.google.android.studio`**（非旧记的 `-EAP`），改用 bundle 文件名检测 +
+      releases-list JSON 的 `build` 字段比对。
 - [ ] ~~**Edge — Canary**~~ · `com.microsoft.edgemac.Canary` —— **受阻**：
       `edgeupdates.microsoft.com/api/products?view=enterprise` 只列 Stable/Beta/Dev，
       不含 Canary（Canary 走 EdgeUpdate/Omaha，无公开企业 JSON）。暂搁。
@@ -121,9 +136,12 @@ application.ini` 的 `RemotingName`（baked per-channel）区分——`ReleaseCh
 - ✗ **Figma — Beta** · 应用内 feature flag，无独立下载/bundle id
 - ✗ **GitHub Desktop — Beta** · 同 `com.github.GitHubClient`，beta tag 是 prerelease，stable rule 已排除
 
-> **IntelliJ IDEA — EAP**：不在死轨——EAP 是独立 id `com.jetbrains.intellij-EAP`，
-> 检测已由 **ToolboxSource** 覆盖（Toolbox 纳管走 eap API）。stable changelog 已接，
-> EAP changelog 未接（结构化价值低）。
+> **IntelliJ IDEA — EAP**：检测已由 ToolboxSource/VendorProbe(`channel: .preview`)覆盖，
+> stable changelog 已接。EAP changelog **确认不接**（2026-06-06 复核）：每个 EAP build 的
+> JetBrains data-services `whatsnew` 是样板占位（"… EAP N is out! … refer to the release
+> notes" + 每 build 不同的 YouTrack 文章链接），无结构化 `<li>` 变更条目；真正变更在
+> per-build YouTrack 文章里，而 ChangelogRecipe.source 是固定 URL，架构追不了。EAP probe
+> 已设 `changelogURL: jetbrains.com/idea/whatsnew/`，WebView 已兜底，故无需结构化 recipe。
 
 ### Warp 死轨（JSON 仍列但已停更，recipe 已删）
 

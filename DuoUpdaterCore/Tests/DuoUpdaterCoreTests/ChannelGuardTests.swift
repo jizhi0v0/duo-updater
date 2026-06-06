@@ -94,6 +94,29 @@ import Foundation
         keystoneChannel: nil, version: "151.0.3") == .stable)
 }
 
+// GitHub Desktop Beta shares Stable's bundle id (`com.github.GitHubClient`) AND its
+// app name ("GitHub Desktop") — the installed `-betaN` version suffix is the ONLY
+// channel signal. This is the linchpin the GitHubReleasesSource channel gate uses to
+// route the `.beta` rule (keeping the `-betaN` tag) instead of the stable one.
+@Test func githubDesktopBetaVersionSuffixSignalsBeta() {
+    #expect(ReleaseChannel.detect(
+        name: "GitHub Desktop", bundleID: "com.github.GitHubClient",
+        keystoneChannel: nil, version: "3.5.12-beta2") == .beta)
+    // Stable build (no suffix) stays stable.
+    #expect(ReleaseChannel.detect(
+        name: "GitHub Desktop", bundleID: "com.github.GitHubClient",
+        keystoneChannel: nil, version: "3.5.12") == .stable)
+    // Build-metadata shapes other apps use for NON-channel builds must NOT trip it:
+    // the trailing digits must be the whole tail (`-beta[0-9]+$`). Real installed
+    // examples 2026-06-06: ClaudeUsageMenuBar `…-beta.1429+sha`, DuoPaste `…-beta+sha`.
+    #expect(ReleaseChannel.detect(
+        name: "ClaudeUsageMenuBar", bundleID: "com.example.claudeusage",
+        keystoneChannel: nil, version: "0.3.377-beta.1429+09acc19") == .stable)
+    #expect(ReleaseChannel.detect(
+        name: "DuoPaste", bundleID: "com.example.duopaste",
+        keystoneChannel: nil, version: "0.1.1251-beta+962a0e1") == .stable)
+}
+
 @Test func mozillaRemotingNameIsAuthoritative() {
     // Real values read from official bundles 2026-06-04. RemotingName is checked
     // FIRST and overrides the (misleading) name/version signals: an ESR install
@@ -122,6 +145,36 @@ import Foundation
         == .esr)
     #expect(detect("Thunderbird Daily", "org.mozilla.thunderbird-daily", "153.0a1",
         "thunderbird-nightly") == .nightly)
+}
+
+@Test func androidStudioChannelFromBundleFilename() {
+    // Real bundle facts (read off the official DMGs 2026-06-06): Stable, Canary,
+    // and Beta all carry bundle id `com.google.android.studio`, CFBundleName
+    // "Android Studio", and a marketing version truncated to "2026.1" — so the
+    // ONLY channel signal is the on-disk bundle filename (Homebrew's casks name
+    // them per track). The scanner's display name is CFBundleName ("Android
+    // Studio"), which carries no word, so channel detection must key on the
+    // filename via the dedicated `bundleFileName` parameter.
+    func detect(_ fileName: String) -> ReleaseChannel {
+        ReleaseChannel.detect(
+            name: "Android Studio", bundleID: "com.google.android.studio",
+            keystoneChannel: nil, version: "2026.1", bundleFileName: fileName)
+    }
+    #expect(detect("Android Studio") == .stable)
+    #expect(detect("Android Studio Preview Canary") == .canary)
+    // "Preview Beta" contains BOTH "Preview" and "Beta"; the generic channelWord
+    // table ranks preview above beta, so this must NOT route through it — the
+    // scoped match takes canary>beta>preview and lands on .beta.
+    #expect(detect("Android Studio Preview Beta") == .beta)
+    // The raw DMG name ("Android Studio Preview.app", channel-ambiguous) maps to
+    // .preview — no recipe targets it, so it's safely skipped, NEVER misdetected
+    // as .stable and offered a cross-channel Stable build.
+    #expect(detect("Android Studio Preview") == .preview)
+    // The bundle-filename signal is scoped to Android Studio's id: another app
+    // that happens to live in a "… Canary.app" still goes through normal signals.
+    #expect(ReleaseChannel.detect(
+        name: "Some App", bundleID: "com.example.other",
+        keystoneChannel: nil, bundleFileName: "Some App") == .stable)
 }
 
 @Test func plainStableAppsStayStable() {

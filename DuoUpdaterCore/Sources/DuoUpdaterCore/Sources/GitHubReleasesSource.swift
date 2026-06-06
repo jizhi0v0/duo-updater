@@ -291,14 +291,21 @@ public enum GitHubReleaseRegistry {
         // default pattern strips the `v` → `1.5.3`, matching the installed
         // `dev.zed.Zed`'s `CFBundleShortVersionString`. Channel-gated to `.stable`
         // (default) so it can't be served to the Preview install that ships under
-        // a different bundle id anyway. Detection-only: a `Zed-aarch64.dmg` asset
-        // ships, but its Team ID isn't confirmed against the install and Zed has
-        // its own updater, so no `installAssetPattern` — same stance as Preview.
-        // Closes the stable-channel version gap the 2026-06-04 audit surfaced
-        // (Homebrew `auto_updates` falls through, no `SUFeedURL`).
+        // a different bundle id anyway. Closes the stable-channel version gap the
+        // 2026-06-04 audit surfaced (Homebrew `auto_updates` falls through, no
+        // `SUFeedURL`).
+        //
+        // Best-effort one-click: the stable `/releases/latest` ships `Zed-aarch64.dmg`,
+        // whose `Zed.app` is a notarized Developer ID build (Team MQ55VZLNZQ, Zed
+        // Industries) with bundle id dev.zed.Zed — verified 2026-06-06 to match the
+        // install, so the swap passes the VendorInstaller gate. Zed has a robust
+        // built-in updater, so this is a fallback for when that hasn't kept up, not a
+        // replacement for it. arm64 only (a `Zed-x86_64.dmg` also ships).
         GitHubReleaseRule(
             bundleID: "dev.zed.Zed",
-            owner: "zed-industries", repo: "zed"),
+            owner: "zed-industries", repo: "zed",
+            installAssetPattern: #"^Zed-aarch64\.dmg$"#,
+            installerKind: .dmg),
 
         // Zed Preview — the Preview channel ships as prereleases (`vX.Y.Z-pre`).
         // MUST declare `channel: .preview`: the Preview install detects as
@@ -306,17 +313,33 @@ public enum GitHubReleaseRegistry {
         // doesn't match the install. Without this the rule defaults to `.stable`
         // and the gate skips it, leaving a real Preview install with no source
         // (regressed when the channel gate landed; caught by the live `--check`).
+        //
+        // Best-effort one-click, same as stable: the Preview prerelease ships its own
+        // `Zed-aarch64.dmg` whose `Zed Preview.app` is the same Team MQ55VZLNZQ build,
+        // bundle id dev.zed.Zed-Preview — verified 2026-06-06 to match the install.
+        // The rule resolves the right tag (prerelease), so each channel gets its own
+        // dmg/bundle id; the gate enforces the Team match. arm64 only.
         GitHubReleaseRule(
             bundleID: "dev.zed.Zed-Preview",
             owner: "zed-industries", repo: "zed",
             usePrereleases: true,
             versionPattern: #"v([0-9]+\.[0-9]+\.[0-9]+)-pre"#,
+            installAssetPattern: #"^Zed-aarch64\.dmg$"#,
+            installerKind: .dmg,
             channel: .preview),
 
-        // Pearcleaner — tags have no `v` prefix.
+        // Pearcleaner — tags have no `v` prefix. One-click installs the universal
+        // `Pearcleaner.dmg`: verified 2026-06-06 the dmg's `Pearcleaner.app` is a
+        // notarized Developer ID build (Team BK8443AXLU, Marius Lupascu) reporting
+        // CFBundleShortVersionString 5.4.3 == tag, bundle id com.alienator88.Pearcleaner
+        // matching the install — so the in-place swap passes the VendorInstaller gate.
+        // The universal dmg avoids the arch-specific `-arm`/`-intel` zips. No self-
+        // updater (a Sparkle-less menu utility), so a plain one-click, not best-effort.
         GitHubReleaseRule(
             bundleID: "com.alienator88.Pearcleaner",
-            owner: "alienator88", repo: "Pearcleaner"),
+            owner: "alienator88", repo: "Pearcleaner",
+            installAssetPattern: #"^Pearcleaner\.dmg$"#,
+            installerKind: .dmg),
 
         // RustDesk — tags have no `v` prefix. One-click installs the arm64 dmg
         // asset (`rustdesk-<ver>-aarch64.dmg`): the official GitHub build is a
@@ -333,15 +356,30 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^rustdesk-[0-9.]+-aarch64\.dmg$"#,
             installerKind: .dmg),
 
-        // Alcove — dedicated releases repo, no `v` prefix.
+        // Alcove — dedicated releases repo, no `v` prefix. One-click installs the
+        // universal `Alcove.dmg`: verified 2026-06-06 its `Alcove.app` is a notarized
+        // Developer ID build (Team 287NUTSP69, Henrik Ruscon) reporting version 1.7.2
+        // == tag, bundle id com.henrikruscon.Alcove matching the install → passes the
+        // VendorInstaller gate. No self-updater, so a plain one-click.
         GitHubReleaseRule(
             bundleID: "com.henrikruscon.Alcove",
-            owner: "henrikruscon", repo: "alcove-releases"),
+            owner: "henrikruscon", repo: "alcove-releases",
+            installAssetPattern: #"^Alcove\.dmg$"#,
+            installerKind: .dmg),
 
         // Macs Fan Control — tags carry a `v` prefix (stripped by the pattern).
+        // One-click installs `macsfancontrol.zip`, which wraps `Macs Fan Control.app`:
+        // verified 2026-06-06 it's a notarized Developer ID build (Team ACC5R6RH47,
+        // Ilya Parniuk) reporting version 1.5.21 == tag, bundle id
+        // com.crystalidea.macsfancontrol matching the install → passes the gate. Two
+        // other zips ship (`_legacy` for old macOS, the Windows `_setup.exe`); the
+        // bare `macsfancontrol.zip` is the current-macOS app. Swapped in place like
+        // the other zip recipes. No Sparkle, so a plain one-click.
         GitHubReleaseRule(
             bundleID: "com.crystalidea.macsfancontrol",
-            owner: "crystalidea", repo: "macs-fan-control"),
+            owner: "crystalidea", repo: "macs-fan-control",
+            installAssetPattern: #"^macsfancontrol\.zip$"#,
+            installerKind: .zip),
 
         // Stats — macOS menu-bar system monitor. Tags carry a `v` prefix
         // (stripped by the default pattern). Stable channel, no prereleases.
@@ -362,10 +400,21 @@ public enum GitHubReleaseRegistry {
         // Beekeeper Studio (Community) — tags carry a `v` prefix (v5.8.1),
         // stripped by the default pattern. Betas ship as `vX.Y.Z-beta.N` flagged
         // prerelease, so usePrereleases=false / `/releases/latest` correctly skips
-        // them. Detection-only.
+        // them.
+        //
+        // Best-effort one-click: the `Beekeeper-Studio-<ver>-arm64.dmg` asset wraps
+        // `Beekeeper Studio.app` — verified 2026-06-06 a notarized Developer ID build
+        // (Team 7KK583U8H2, Matthew Rathbone) reporting version 5.8.1 == tag, bundle
+        // id io.beekeeperstudio.desktop. Electron app with its own updater, so a
+        // fallback. The filename carries the version, so the pattern stays version-
+        // agnostic; arm64 (a universal `…-<ver>.dmg` and `-mac.zip` also ship). Not
+        // installed on the author's machine — the VendorInstaller Team-gate enforces
+        // the match against whatever is installed.
         GitHubReleaseRule(
             bundleID: "io.beekeeperstudio.desktop",
-            owner: "beekeeper-studio", repo: "beekeeper-studio"),
+            owner: "beekeeper-studio", repo: "beekeeper-studio",
+            installAssetPattern: #"^Beekeeper-Studio-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg),
 
         // Insomnia — Kong/insomnia is a monorepo whose Releases are tagged per
         // package (`core@X.Y.Z` is the Insomnia desktop app; `lib@…`/`inso@…` are
@@ -375,37 +424,82 @@ public enum GitHubReleaseRegistry {
         // tags — lib@/inso@ yield no capture and are skipped — and since GitHub
         // returns newest-first, the first `core@` hit is the latest; interleaved
         // `core@…-beta.N` sort after the stable release of the same line.
-        // Detection-only.
+        //
+        // Best-effort one-click: the `Insomnia.Core-<ver>.dmg` (universal) wraps
+        // `Insomnia.app` — verified 2026-06-06 a notarized Developer ID build (Team
+        // FX44YY62GV, Kong Inc.) reporting version 12.6.0 == tag, bundle id
+        // com.insomnia.app. The sibling `inso-macos-*` assets are the CLI, not the
+        // desktop app — the `Insomnia.Core-` anchor excludes them. Electron app with
+        // its own updater, so a fallback; not installed locally, so the Team-gate
+        // enforces the match at install time.
         GitHubReleaseRule(
             bundleID: "com.insomnia.app",
             owner: "Kong", repo: "insomnia",
             usePrereleases: true,
-            versionPattern: #"core@([0-9]+\.[0-9]+\.[0-9]+)"#),
+            versionPattern: #"core@([0-9]+\.[0-9]+\.[0-9]+)"#,
+            installAssetPattern: #"^Insomnia\.Core-[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
 
         // Zen Browser — stable tags carry a trailing letter suffix (e.g.
         // "1.20.1b"). That suffix is PART of the CFBundleShortVersionString, so
         // the pattern MUST keep the trailing [a-z] — stripping it would read as a
         // perpetual update/downgrade. Zen also publishes a rolling "twilight"
         // prerelease; /releases/latest (usePrereleases: false) excludes it.
-        // Detection-only.
+        //
+        // Best-effort one-click: the `zen.macos-universal.dmg` wraps `Zen.app` —
+        // verified 2026-06-06 a notarized Developer ID build (Team 9V5K9TP787, Mauro
+        // Baladés) reporting version 1.20.2b == tag (the trailing `b` kept, matching
+        // CFBundleShortVersionString), bundle id app.zen-browser.zen. A Firefox fork
+        // with its own updater, so a fallback; not installed locally, so the Team-gate
+        // enforces the match at install time.
         GitHubReleaseRule(
             bundleID: "app.zen-browser.zen",
             owner: "zen-browser", repo: "desktop",
             usePrereleases: false,
-            versionPattern: #"([0-9]+\.[0-9]+(?:\.[0-9]+)?[a-z]?)"#),
+            versionPattern: #"([0-9]+\.[0-9]+(?:\.[0-9]+)?[a-z]?)"#,
+            installAssetPattern: #"^zen\.macos-universal\.dmg$"#,
+            installerKind: .dmg),
 
-        // GitHub Desktop — both production and beta/test builds publish here, and
-        // beta/test tags are interleaved AHEAD of production in the releases list
-        // (e.g. `release-3.5.12-beta2` sits above `release-3.5.12`). Betas are
-        // prerelease=true and `/releases/latest` resolves to the production tag,
-        // so usePrereleases=false. The `$`-anchored pattern is belt-and-suspenders:
-        // it captures only the bare X.Y.Z from a plain `release-X.Y.Z` tag and
-        // refuses any `-beta`/`-test` suffix. Detection-only.
+        // GitHub Desktop — TWO channels share ONE bundle id (com.github.GitHubClient)
+        // AND one app name ("GitHub Desktop"): Stable ships `release-X.Y.Z` tags,
+        // Beta ships `release-X.Y.Z-betaN` prereleases, interleaved AHEAD of
+        // production in the list (`release-3.5.12-beta2` sits above `release-3.5.12`).
+        // Unlike Zed (separate bundle ids per channel), the ONLY channel signal is
+        // the installed version string's `-betaN` suffix — `ReleaseChannel.detect`'s
+        // step-5 `-beta[0-9]+` shape flips a `3.5.12-beta2` install to `.beta`, and
+        // the channel gate then serves it the beta rule below, never this stable one.
+        // Both verified end-to-end 2026-06-06: stable `GitHub.Desktop-arm64.zip`
+        // (3.5.12) and beta (3.5.12-beta2) are the same notarized Developer ID build
+        // (Team VEKTX9H2N7, GitHub), same bundle id; the beta is the copy installed
+        // on this machine. Squirrel self-updater, so one-click is a best-effort
+        // fallback. arm64 only (a `-x64.zip` also ships), swapped in place.
+        //
+        // Stable: `/releases/latest` resolves to the production tag (betas are
+        // prerelease=true), so usePrereleases=false; the `$`-anchored pattern
+        // captures only the bare X.Y.Z and refuses any `-beta`/`-test` suffix.
         GitHubReleaseRule(
             bundleID: "com.github.GitHubClient",
             owner: "desktop", repo: "desktop",
             usePrereleases: false,
-            versionPattern: #"release-([0-9]+\.[0-9]+\.[0-9]+)$"#),
+            versionPattern: #"release-([0-9]+\.[0-9]+\.[0-9]+)$"#,
+            installAssetPattern: #"^GitHub\.Desktop-arm64\.zip$"#,
+            installerKind: .zip),
+
+        // GitHub Desktop Beta — same repo/asset, `channel: .beta` so the gate serves
+        // it only to a `-betaN`-detected install. usePrereleases scans the list and
+        // takes the first `release-X.Y.Z-betaN` tag (newest beta, since GitHub
+        // returns newest-first); the pattern KEEPS the `-betaN` so the captured
+        // `3.5.12-beta2` equals the installed CFBundleShortVersionString (no phantom
+        // update/downgrade against the stable 3.5.12). Same `GitHub.Desktop-arm64.zip`
+        // one-click as stable.
+        GitHubReleaseRule(
+            bundleID: "com.github.GitHubClient",
+            owner: "desktop", repo: "desktop",
+            usePrereleases: true,
+            versionPattern: #"release-([0-9]+\.[0-9]+\.[0-9]+-beta[0-9]+)$"#,
+            installAssetPattern: #"^GitHub\.Desktop-arm64\.zip$"#,
+            installerKind: .zip,
+            channel: .beta),
 
         // Ollama — Electron app distributed via an `auto_updates` Homebrew cask,
         // which falls through `HomebrewCaskSource` and leaves no `SUFeedURL`, so
@@ -417,12 +511,21 @@ public enum GitHubReleaseRegistry {
         // default pattern → `0.30.6`. Verified end-to-end 2026-06-06: the .app inside
         // the latest zip self-reports CFBundleShortVersionString 0.30.6 (homogeneous,
         // no ghost update). Stable channel, no prereleases (`/releases/latest`).
-        // Detection-only by choice: the asset IS a notarized Developer ID build,
-        // Team 3MU9H2V9Y9 (Infra Technologies) matching the install, so a one-click
-        // swap would pass the VendorInstaller gate — but Ollama self-updates, so we
-        // surface the version and link to releases rather than fight its updater.
+        //
+        // Best-effort one-click: the `Ollama-darwin.zip` asset IS a notarized
+        // Developer ID build, Team 3MU9H2V9Y9 (Infra Technologies) matching the
+        // install, so the in-place swap passes the VendorInstaller Team-ID gate.
+        // Ollama ships its own updater, but it drifts in practice (seen stuck on
+        // 0.24.0 while GitHub was on v0.30.6), so rather than refuse to act we offer
+        // the swap as a fallback when its updater hasn't kept up. The zip wraps
+        // `Ollama.app`, swapped in place like the other zip recipes. Ollama runs a
+        // background `ollama serve`, so after the swap the live process is still the
+        // old build and the row lands in `needsRestart` → the standard Restart action
+        // quits every `com.electron.ollama` instance and reopens it on the new build.
         GitHubReleaseRule(
             bundleID: "com.electron.ollama",
-            owner: "ollama", repo: "ollama"),
+            owner: "ollama", repo: "ollama",
+            installAssetPattern: #"^Ollama-darwin\.zip$"#,
+            installerKind: .zip),
     ]
 }

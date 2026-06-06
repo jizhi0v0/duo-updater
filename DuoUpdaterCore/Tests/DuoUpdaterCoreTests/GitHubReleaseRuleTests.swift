@@ -46,15 +46,20 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(extract("v1.5.3", "dev.zed.Zed") == "1.5.3")
     // Stable rule reads `/releases/latest` (not the prerelease list)…
     #expect(rule("dev.zed.Zed").usePrereleases == false)
-    // …is gated to the stable channel, and stays detection-only.
+    // …is gated to the stable channel, and now ships best-effort one-click: the
+    // stable `Zed-aarch64.dmg` is a notarized Developer ID build matching the
+    // installed bundle, so the swap passes the VendorInstaller gate.
     #expect(rule("dev.zed.Zed").channel == .stable)
-    #expect(rule("dev.zed.Zed").installAssetPattern == nil)
+    #expect(rule("dev.zed.Zed").installAssetPattern == #"^Zed-aarch64\.dmg$"#)
     // Preview stays a distinct bundle id on the prerelease list — no collision.
     #expect(rule("dev.zed.Zed-Preview").usePrereleases == true)
     // Preview MUST be channel-gated to `.preview`, else the source's channel gate
     // skips it and a real Preview install resolves to no source (the regression
     // the live `--check` caught when the gate defaulted the rule to `.stable`).
     #expect(rule("dev.zed.Zed-Preview").channel == .preview)
+    // Preview also ships best-effort one-click (its own prerelease `Zed-aarch64.dmg`,
+    // bundle id dev.zed.Zed-Preview, same Team — each channel gets its own dmg).
+    #expect(rule("dev.zed.Zed-Preview").installAssetPattern == #"^Zed-aarch64\.dmg$"#)
 }
 
 @Test func zenRuleKeepsLetterSuffix() {

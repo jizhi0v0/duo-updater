@@ -279,12 +279,12 @@ public struct VendorProbeRecipe: Sendable {
 /// e.g. Brave `148.1.90.128`, Feishu `131.0.6778.268` — but every vendor feed
 /// only exposes the bare app version `1.90.128` / `7.69.9`, which can't be made
 /// to compare in the same scheme, so any probe would phantom-update or
-/// phantom-downgrade; don't re-attempt without a Chromium-major source). The Android
-/// Studio recipe below targets the Stable channel only; a Canary/Preview install
-/// (which shares `com.google.android.studio`) is detected as a non-stable
-/// `ReleaseChannel` and skipped by `VendorProbeSource`'s channel gate, so it's
-/// never overwritten with a Stable build — a dedicated canary endpoint is still
-/// pending.
+/// phantom-downgrade; don't re-attempt without a Chromium-major source). Android
+/// Studio's Stable, Canary, and Beta tracks all share `com.google.android.studio`;
+/// the install's channel is read from the bundle filename (`ReleaseChannel.detect`
+/// step 0.5) and `VendorProbeSource`'s channel gate routes each to its own recipe
+/// below — Stable to developer.android.com/studio, Canary/Beta to the official
+/// releases-list JSON (compared on the `build` field via `versionIsBuild`).
 ///
 /// GitHub-released apps are handled by `GitHubReleasesSource`, not here.
 public enum VendorProbeRegistry {
@@ -301,6 +301,30 @@ public enum VendorProbeRegistry {
                 urlSource: .redirect(
                     URL(string: "https://update.code.visualstudio.com/latest/darwin-arm64/stable")!),
                 kind: .zip)),
+
+        // VS Code Insiders — same update API on the `insider` track, its own
+        // bundle id `com.microsoft.VSCodeInsiders` (display name "Code - Insiders",
+        // so `ReleaseChannel.detect` reads the standalone "Insiders" word → .preview;
+        // the bundle id has no `.insiders`/`-insiders` suffix to match on). CRUCIAL:
+        // the installed `CFBundleShortVersionString` carries the `-insider` suffix
+        // ("1.124.0-insider"), so the version pattern MUST keep it too — the stable
+        // `\d+\.\d+\.\d+` would extract a bare "1.124.0" and read every install as
+        // perpetually out-of-date. `name` only bumps on the ~monthly minor (the
+        // daily builds differ by commit hash, which the Info.plist doesn't expose),
+        // so detection is monthly-granular; Insiders self-updates daily anyway, and
+        // comparing on the suffixed name can only ever say "up to date" or a real
+        // minor bump — never a phantom update. One-click mirrors stable (zip swap).
+        VendorProbeRecipe(
+            bundleID: "com.microsoft.VSCodeInsiders",
+            url: URL(string: "https://update.code.visualstudio.com/api/update/darwin-arm64/insider/latest")!,
+            mode: .responseBody,
+            versionPattern: #""name"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+-insider)""#,
+            changelogURL: URL(string: "https://code.visualstudio.com/updates"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://update.code.visualstudio.com/latest/darwin-arm64/insider")!),
+                kind: .zip),
+            channel: .preview),
 
         // IntelliJ IDEA — JetBrains data services. 3-component (YYYY.x.y) so the
         // 2-component `majorVersion` field can't match. Only consulted when Toolbox
@@ -926,6 +950,9 @@ public enum VendorProbeRegistry {
 
         // Tailscale — official package index. `MacZipsVersion` is the macsys
         // build (top-level `Version` is the Linux/Windows train — wrong here).
+        // Two public tracks share `io.tailscale.ipn.macsys`; the channel gate
+        // routes each install to its own endpoint per the app's opt-in toggle
+        // (see `TailscaleChannel`). `pkgs.tailscale.com/rc` 404s — no third track.
         VendorProbeRecipe(
             bundleID: "io.tailscale.ipn.macsys",
             url: URL(string: "https://pkgs.tailscale.com/stable/?mode=json")!,
@@ -938,7 +965,23 @@ public enum VendorProbeRegistry {
                 urlSource: .bodyPatternRelative(
                     #""universal-package"\s*:\s*"(Tailscale-[^"]+\.pkg)""#,
                     base: URL(string: "https://pkgs.tailscale.com/stable/")!),
-                kind: .pkg)),
+                kind: .pkg),
+            channel: .stable),
+        // Tailscale unstable — same JSON shape on the `/unstable` track (odd
+        // minor, e.g. 1.99.x). Only reached when the install opted in via
+        // `UnstableUpdatesEnabled`; the same Tailscale-signed pkg path.
+        VendorProbeRecipe(
+            bundleID: "io.tailscale.ipn.macsys",
+            url: URL(string: "https://pkgs.tailscale.com/unstable/?mode=json")!,
+            mode: .responseBody,
+            versionPattern: #""MacZipsVersion"\s*:\s*"([0-9.]+)""#,
+            changelogURL: URL(string: "https://tailscale.com/changelog"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #""universal-package"\s*:\s*"(Tailscale-[^"]+\.pkg)""#,
+                    base: URL(string: "https://pkgs.tailscale.com/unstable/")!),
+                kind: .pkg),
+            channel: .unstable),
 
         // AweSun (Oray) — official software API; same endpoint the Homebrew cask
         // livecheck uses. Intel build drops the `_ARM` suffix. The dmg holds a
@@ -1090,6 +1133,49 @@ public enum VendorProbeRegistry {
                 urlSource: .bodyPattern(
                     #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*mac_arm\.dmg)"#),
                 kind: .dmg)),
+
+        // Android Studio — Canary & Beta preview tracks. Both share Stable's
+        // `com.google.android.studio`; the install's channel is read from the
+        // bundle filename (see `ReleaseChannel.detect` step 0.5), and the channel
+        // gate routes each here. Source is Google's official releases-list JSON
+        // (`jb.gg/android-studio-releases-list.json`, the same data the download
+        // page uses; 307→TeamCity, redirect followed). CRUCIAL: the installed
+        // `CFBundleShortVersionString` is truncated to "2026.1" and identical
+        // across tracks, so a marketing-version compare is useless — we compare on
+        // the `build` field ("AI-261.24374.151.2612.15561891"), which matches the
+        // installed `CFBundleVersion` byte-for-byte, via `versionIsBuild`. The feed
+        // is newest-first and interleaves channels, so each pattern anchors on its
+        // own `"channel"` value and the FIRST match is that track's latest. The
+        // Beta track currently ships RELEASE CANDIDATES, so it accepts channel
+        // `Beta` OR `RC` (and dmg filenames `beta`/`rc`). dmg → signed, Team
+        // EQHXZ8M8AV → mandatory signature gate (no inline checksum needed). The
+        // dmg's app is "Android Studio Preview.app"; the cask renames it per track.
+        VendorProbeRecipe(
+            bundleID: "com.google.android.studio",
+            url: URL(string: "https://jb.gg/android-studio-releases-list.json")!,
+            mode: .responseBody,
+            versionPattern:
+                #""build"\s*:\s*"(AI-[^"]+)","platformVersion":"[^"]*","name":"[^"]*","channel":"Canary""#,
+            changelogURL: URL(string: "https://developer.android.com/studio/preview/features"),
+            versionIsBuild: true,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*canary[0-9]*-mac_arm\.dmg)"#),
+                kind: .dmg),
+            channel: .canary),
+        VendorProbeRecipe(
+            bundleID: "com.google.android.studio",
+            url: URL(string: "https://jb.gg/android-studio-releases-list.json")!,
+            mode: .responseBody,
+            versionPattern:
+                #""build"\s*:\s*"(AI-[^"]+)","platformVersion":"[^"]*","name":"[^"]*","channel":"(?:Beta|RC)""#,
+            changelogURL: URL(string: "https://developer.android.com/studio/preview/features"),
+            versionIsBuild: true,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:beta|rc)[0-9]*-mac_arm\.dmg)"#),
+                kind: .dmg),
+            channel: .beta),
 
         // Slack (desktop, mac) — the website's own "latest" download link. A
         // single 302 from slack.com/ssb/download-osx-universal lands on the

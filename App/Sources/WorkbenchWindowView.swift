@@ -72,7 +72,7 @@ struct WorkbenchWindowView: View {
     }
 
     /// Brew-managed casks, updates first then alphabetical — the cask half of the
-    /// Brew tree. (The formula half is `model.brewOutdatedFormulae`.)
+    /// Brew tree. (The formula half is `model.brewFormulae` — all top-level leaves.)
     private var brewCasks: [UpdateResult] {
         model.brewCaskResults.sorted { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
@@ -106,11 +106,11 @@ struct WorkbenchWindowView: View {
 
     /// The Brew-tree formula selected, when the selection is a formula row (tagged
     /// `brew:formula:<name>`) rather than an app. Drives the formula detail pane.
-    private var selectedFormula: BrewOutdatedFormula? {
+    private var selectedFormula: BrewInstalledFormula? {
         let prefix = "brew:formula:"
         guard let id = detailSelection, id.hasPrefix(prefix) else { return nil }
         let name = String(id.dropFirst(prefix.count))
-        return model.brewOutdatedFormulae.first { $0.name == name }
+        return model.brewFormulae.first { $0.name == name }
     }
 
     var body: some View {
@@ -247,12 +247,12 @@ struct WorkbenchWindowView: View {
     /// Whether there's anything brew-managed to show a Brew tree for. Non-brew users
     /// see only the Apps tree (no empty Brew header).
     private var hasBrew: Bool {
-        !brewCasks.isEmpty || !model.brewOutdatedFormulae.isEmpty
+        !brewCasks.isEmpty || !model.brewFormulae.isEmpty
     }
 
     /// Total brew items, for the Brew header's count pill and its list height.
     private var brewItemCount: Int {
-        brewCasks.count + model.brewOutdatedFormulae.count
+        brewCasks.count + model.brewFormulae.count
     }
 
     @ViewBuilder
@@ -290,11 +290,20 @@ struct WorkbenchWindowView: View {
     private var brewBulkUpgrade: some View {
         if !model.brewOutdatedFormulae.isEmpty {
             if model.brewUpgrading {
-                ProgressView().controlSize(.small)
+                HStack(spacing: 6) {
+                    if let progress = model.brewBulkProgressText {
+                        Text(progress)
+                            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    }
+                    ProgressView().controlSize(.small)
+                }
             } else {
                 Button("Upgrade All") { Task { await model.upgradeBrewFormulae() } }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
+                    // A per-row upgrade is already holding brew's lock — a bulk run
+                    // would just fail, so disable it until that row finishes.
+                    .disabled(!model.upgradingFormulae.isEmpty)
                     .help("Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above.")
             }
         }
@@ -372,7 +381,7 @@ struct WorkbenchWindowView: View {
                     runningVersion: model.runningVersion(result.id))
                     .tag(result.id)
             }
-            ForEach(model.brewOutdatedFormulae) { formula in
+            ForEach(model.brewFormulae) { formula in
                 BrewFormulaSidebarRow(formula: formula, model: model)
                     .tag("brew:formula:\(formula.name)")
             }
@@ -674,10 +683,16 @@ private struct WorkbenchSidebarRow: View {
 /// icon, channel, or changelog — so it gets this compact row with its own inline
 /// `brew upgrade --formula <name>` action.
 private struct BrewFormulaSidebarRow: View {
-    let formula: BrewOutdatedFormula
+    let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
 
-    private var upgrading: Bool { model.upgradingFormulae.contains(formula.name) }
+    // A bulk "Upgrade All" run upgrades every *outdated* formula at once, so each
+    // outdated row is part of it — show the same in-flight state and (crucially) hide
+    // its Update button so it can't fire a conflicting `brew upgrade` on top of the
+    // bulk run. Up-to-date leaves aren't touched by the bulk run, so they stay quiet.
+    private var upgrading: Bool {
+        model.upgradingFormulae.contains(formula.name) || (model.brewUpgrading && formula.hasUpdate)
+    }
     private var error: String? { model.formulaUpgradeErrors[formula.name] }
     private var progressNote: String? { model.formulaUpgradeNotes[formula.name] }
 
@@ -696,16 +711,20 @@ private struct BrewFormulaSidebarRow: View {
                     Text(progressNote)
                         .font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)
-                } else {
-                    Text("\(formula.installedVersion) → \(formula.currentVersion)")
+                } else if let available = formula.availableVersion {
+                    Text("\(formula.installedVersion) → \(available)")
                         .font(.caption).foregroundStyle(.tint).lineLimit(1)
+                } else {
+                    // Up-to-date leaf: just its version, like an up-to-date app row.
+                    Text(formula.installedVersion)
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             Spacer()
             if upgrading {
                 ProgressView().controlSize(.small)
-            } else {
-                Button("Update") { Task { await model.upgradeBrewFormula(formula) } }
+            } else if formula.hasUpdate {
+                Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
             }
@@ -721,7 +740,7 @@ private struct BrewFormulaSidebarRow: View {
 /// (`BrewFormulaReleaseService`) and render them with the same `ChangelogEntriesView`
 /// the app rows use; non-GitHub formulae fall back to a web view of their page.
 private struct FormulaDetailPane: View {
-    let formula: BrewOutdatedFormula
+    let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
 
     private var upgrading: Bool { model.upgradingFormulae.contains(formula.name) }
@@ -733,7 +752,13 @@ private struct FormulaDetailPane: View {
             notes
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .task { model.ensureFormulaReleaseLoading(formula) }
+        // Load notes for the upgrade target when there is one, else the installed
+        // version (so an up-to-date formula still shows its current release notes).
+        .task {
+            model.ensureFormulaReleaseLoading(
+                name: formula.name,
+                version: formula.availableVersion ?? formula.installedVersion)
+        }
     }
 
     private var header: some View {
@@ -744,8 +769,13 @@ private struct FormulaDetailPane: View {
                 .frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(formula.name).font(.title2).fontWeight(.semibold)
-                Text("\(formula.installedVersion) → \(formula.currentVersion)")
-                    .font(.callout).foregroundStyle(.tint)
+                if let available = formula.availableVersion {
+                    Text("\(formula.installedVersion) → \(available)")
+                        .font(.callout).foregroundStyle(.tint)
+                } else {
+                    Text(formula.installedVersion)
+                        .font(.callout).foregroundStyle(.secondary)
+                }
             }
             Spacer()
             if upgrading {
@@ -757,8 +787,8 @@ private struct FormulaDetailPane: View {
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.quaternary, in: Capsule())
-            } else {
-                Button("Update") { Task { await model.upgradeBrewFormula(formula) } }
+            } else if formula.hasUpdate {
+                Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
             }

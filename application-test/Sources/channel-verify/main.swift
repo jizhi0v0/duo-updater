@@ -210,7 +210,10 @@ let detected = ReleaseChannel.detect(
     bundleID: bundleID,
     keystoneChannel: ksChannel,
     version: shortVersion,
-    mozillaRemotingName: remotingName
+    mozillaRemotingName: remotingName,
+    // Android Studio's per-channel signal (Stable/Canary/Beta share id + name +
+    // version) — the bundle filename. Same value AppScanner feeds production.
+    bundleFileName: displayName
 )
 
 print("""

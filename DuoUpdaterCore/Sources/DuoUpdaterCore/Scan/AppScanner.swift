@@ -164,7 +164,11 @@ public struct AppScanner: Sendable {
             // Use the RAW marketing version (not the Toolbox-aligned display one)
             // so Mozilla's "153.0a1" nightly suffix can be read for channel.
             version: shortVersion,
-            mozillaRemotingName: mozillaRemotingName
+            mozillaRemotingName: mozillaRemotingName,
+            // Android Studio's only on-disk channel signal is the bundle filename
+            // (Stable/Canary/Beta share id, CFBundleName, and a truncated version).
+            // See `ReleaseChannel.detect` step 0.5.
+            bundleFileName: bundleURL.deletingPathExtension().lastPathComponent
         )
 
         // Some apps hide the user's channel choice in a private preference (no

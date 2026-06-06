@@ -35,12 +35,24 @@ enum AppIconCache {
     static func invalidate(_ path: String) { cache.removeObject(forKey: path as NSString) }
 }
 
+/// Carries the measured height of the popover's update list up to the frame, so it
+/// can hug its content instead of guessing a per-row height.
+private struct ListHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct MenuContentView: View {
     @Bindable var model: AppListModel
     @State private var showAll = false
     /// Popover filter text. When non-empty it overrides the pending/Show-all split
     /// and searches across *every* app, so an up-to-date app is still findable.
     @State private var searchText = ""
+    /// Measured height of the visible update list, so the popover hugs its content
+    /// exactly (capped at 380) instead of overshooting with a per-row estimate.
+    @State private var listContentHeight: CGFloat = 0
     @Environment(\.openWindow) private var openWindow
 
     /// Whether the user is actively filtering — drives the search-across-all
@@ -144,7 +156,11 @@ struct MenuContentView: View {
             }
         } else {
             ScrollView {
-                LazyVStack(spacing: 0) {
+                // Plain VStack (not lazy) so the background GeometryReader measures
+                // the *full* content height — a LazyVStack only reports realized rows,
+                // which would feed back a too-short frame. Row counts here are small
+                // (apps with updates, or the Show-all list), so non-lazy is fine.
+                VStack(spacing: 0) {
                     ForEach(Array(visible.enumerated()), id: \.element.id) { index, result in
                         // Divider *between* rows only — a trailing one after the
                         // last row left a dangling line floating over the empty
@@ -153,12 +169,15 @@ struct MenuContentView: View {
                         AppRow(result: result, model: model)
                     }
                 }
+                .background(GeometryReader { geo in
+                    Color.clear.preference(key: ListHeightKey.self, value: geo.size.height)
+                })
             }
-            // Size to the rows, capped at 380. A fixed 380 left a big empty void
-            // under a single update (the common case) — the popover now hugs its
-            // content for short lists and only starts scrolling once it would
-            // exceed the cap. ~54pt per row is the measured row height.
-            .frame(height: min(380, max(54, CGFloat(visible.count) * 54)))
+            // Hug the measured content exactly, capped at 380 (then it scrolls). Using
+            // the true height — not a per-row estimate — means no dead space at the
+            // bottom for short lists. 54 is just the pre-measurement placeholder.
+            .frame(height: min(380, listContentHeight == 0 ? 54 : listContentHeight))
+            .onPreferenceChange(ListHeightKey.self) { listContentHeight = $0 }
         }
     }
 
@@ -277,15 +296,12 @@ struct MenuContentView: View {
         .padding(.vertical, 8)
     }
 
-    /// Reserve the brew row for any machine with Homebrew installed: while the first
-    /// `brew outdated` check is still running (so the result lands in place instead of
-    /// inserting a row and shifting clicks onto the wrong control), while an upgrade
-    /// runs, or when there's at least one outdated formula. Brew-less machines never
-    /// see it; a machine that finishes the check with nothing outdated drops it (one
-    /// upward settle, far less disruptive than a downward insert under the cursor).
+    /// Reserve the brew row for any machine with Homebrew installed — always, even
+    /// when nothing's outdated: it then shows an "up to date" placeholder so the brew
+    /// surface stays present and discoverable (and the row never inserts/removes under
+    /// the cursor as the outdated count changes). Brew-less machines never see it.
     private var showBrewRow: Bool {
-        guard model.brewInstalled else { return false }
-        return !model.brewChecked || model.brewUpgrading || !model.brewOutdatedFormulae.isEmpty
+        model.brewInstalled
     }
 
     /// A single footer row mirroring a bare terminal `brew upgrade`, scoped to CLI
@@ -294,12 +310,17 @@ struct MenuContentView: View {
     @ViewBuilder
     private var brewFormulaRow: some View {
         if model.brewUpgrading {
+            // Keep the same `terminal` identity icon the idle/checking states show, so
+            // the row stays recognizably "the brew CLI surface" mid-upgrade — only the
+            // trailing control swaps to a spinner.
             HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text(model.brewUpgradeNote ?? "Upgrading…")
+                Image(systemName: "terminal").foregroundStyle(.secondary)
+                Text(model.brewBulkProgressText ?? "Upgrading…")
                     .font(.caption).foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle)
+                    .monospacedDigit()
                 Spacer()
+                ProgressView().controlSize(.small)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -318,6 +339,24 @@ struct MenuContentView: View {
                 }
                 Spacer()
                 ProgressView().controlSize(.small)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        } else if model.brewOutdatedFormulae.isEmpty {
+            // Checked, nothing outdated — the placeholder. Keeps the same icon +
+            // two-line structure as the outdated row, with a green seal instead of an
+            // Upgrade button, so the brew surface stays present and recognizably idle.
+            HStack(spacing: 8) {
+                Image(systemName: "terminal").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Homebrew formulae up to date")
+                        .font(.caption).fontWeight(.medium)
+                    Text(brewUpToDateSummary)
+                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -351,6 +390,15 @@ struct MenuContentView: View {
         let names = model.brewOutdatedFormulae.prefix(4).map(\.name)
         let more = model.brewOutdatedFormulae.count > names.count ? "…" : ""
         return names.joined(separator: ", ") + more
+    }
+
+    /// Subtitle for the up-to-date placeholder — the count of top-level formulae we
+    /// track, so the idle row still says something concrete. Falls back to a plain
+    /// line when the leaf count isn't available yet.
+    private var brewUpToDateSummary: String {
+        let n = model.brewFormulae.count
+        guard n > 0 else { return "All command-line formulae are current." }
+        return "\(n) top-level formula\(n == 1 ? "" : "e") · all current"
     }
 }
 

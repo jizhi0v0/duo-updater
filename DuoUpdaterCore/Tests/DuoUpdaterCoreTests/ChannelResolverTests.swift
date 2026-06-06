@@ -91,6 +91,21 @@ import Foundation
     #expect(key == "a b&c")  // decodes back to the original
 }
 
+// MARK: - Tailscale (`UnstableUpdatesEnabled` Bool → channel tag, no feed swap)
+
+@Test func tailscaleUnstableEnabledMapsToUnstable() {
+    let r = TailscaleChannel.resolve(unstableEnabled: true)
+    #expect(r.channel == .unstable)
+    // Channel-tag app: never a feed override, the channel gate picks the recipe.
+    #expect(r.feedOverride == nil)
+}
+
+@Test func tailscaleUnstableDisabledStaysStable() {
+    let r = TailscaleChannel.resolve(unstableEnabled: false)
+    #expect(r.channel == .stable)
+    #expect(r.feedOverride == nil)
+}
+
 // MARK: - Registry dispatch
 
 @Test func channelBindingDispatchesKnownAppsAndIgnoresOthers() {
@@ -100,6 +115,7 @@ import Foundation
     // Known apps resolve to *something* (live pref read; value machine-dependent).
     #expect(ChannelBinding.resolve(bundleID: ForkChannel.bundleID) != nil)
     #expect(ChannelBinding.resolve(bundleID: OrbStackChannel.bundleID) != nil)
+    #expect(ChannelBinding.resolve(bundleID: TailscaleChannel.bundleID) != nil)
 }
 
 @Test func channelBindingMatchesBundleIDCaseInsensitively() {

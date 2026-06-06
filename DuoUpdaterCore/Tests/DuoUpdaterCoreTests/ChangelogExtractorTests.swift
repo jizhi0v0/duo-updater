@@ -145,6 +145,18 @@ private let chatWiseFixture = """
 ]
 """
 
+// Trimmed real payloads from central.github.com/deployments/desktop/desktop/
+// changelog.json — the stable feed (bare semver) and the `?env=beta` feed
+// (`-betaN` versions). The beta note includes a JSON `\"` escape to prove the
+// json-mode string unescaper turns it into a real quote.
+private let ghDesktopStableFixture = """
+[{"name":"","notes":["[Fixed] Items in lists such as branches and changed files are properly announced by screen readers on Windows - #22219"],"pub_date":"2026-06-01T17:43:05Z","version":"3.5.12"},{"name":"","notes":["[Fixed] Fix launching custom shells"],"pub_date":"2026-05-26T00:00:00Z","version":"3.5.11"}]
+"""
+
+private let ghDesktopBetaFixture = """
+[{"name":"","notes":["[Improved] Show \\"No newline at end of file\\" as visible text in the diff view instead of requiring a tooltip hover - #22204","[Fixed] Screen reader now correctly announces added and removed line counts in the pull request preview dialog - #22202"],"pub_date":"2026-05-29T09:38:07Z","version":"3.5.12-beta2"}]
+"""
+
 // Trimmed real markup from the latest VS Code updates page (v1_123): one release
 // header and its highlight bullets. Includes the trailing <blockquote> aside
 // that 1.123 introduced between the highlights <ul> and "Happy Coding!" — the
@@ -273,6 +285,28 @@ private let aweSunFixture = #"""
     #expect(changelog.entries[1].version == "26.5.2")
     #expect(changelog.entries[1].items.count == 3)
     #expect(changelog.entries[1].items[1] == "Custom provider: add Responses API support for openai-compatible providers")
+}
+
+@Test func extractsGitHubDesktopPerChannelFromJSON() throws {
+    // Stable channel → bare semver versions, plain-text notes.
+    let stable = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "com.github.GitHubClient", channel: .stable))
+    let scl = try #require(ChangelogExtractor.extract(from: ghDesktopStableFixture, using: stable))
+    #expect(scl.entries.count == 2)
+    #expect(scl.entries[0].version == "3.5.12")
+    #expect(scl.entries[0].date == "2026-06-01")
+    #expect(scl.entries[0].items.count == 1)
+    #expect(scl.entries[0].items[0] == "[Fixed] Items in lists such as branches and changed files are properly announced by screen readers on Windows - #22219")
+    #expect(scl.entries[1].version == "3.5.11")
+
+    // Beta channel — SAME bundle id, selected by `channel: .beta`: -betaN version,
+    // and the JSON `\"` escape in the first note must decode to a real quote.
+    let beta = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "com.github.GitHubClient", channel: .beta))
+    let bcl = try #require(ChangelogExtractor.extract(from: ghDesktopBetaFixture, using: beta))
+    #expect(bcl.entries[0].version == "3.5.12-beta2")
+    #expect(bcl.entries[0].items.count == 2)
+    #expect(bcl.entries[0].items[0] == "[Improved] Show \"No newline at end of file\" as visible text in the diff view instead of requiring a tooltip hover - #22204")
 }
 
 @Test func extractsLatestVSCodeReleaseHighlights() throws {

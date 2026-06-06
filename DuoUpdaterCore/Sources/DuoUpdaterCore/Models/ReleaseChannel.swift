@@ -26,6 +26,14 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     case alpha
     /// Insiders / EAP / Tech-Preview / "Preview" builds.
     case preview
+    /// Tailscale's rolling pre-release train (`pkgs.tailscale.com/unstable`),
+    /// distinct from its `rc` and stable tracks. Shares the macsys bundle id
+    /// `io.tailscale.ipn.macsys` with Stable, so it can't be told apart by name,
+    /// bundle suffix, or version shape — only by the app's own opt-in preference
+    /// `UnstableUpdatesEnabled` (read via `TailscaleChannel`/`ChannelBinding`).
+    /// Tailscale's even/odd-minor convention (stable 1.98.x, unstable 1.99.x)
+    /// corroborates but isn't used as a detection signal.
+    case unstable
     /// Firefox/Thunderbird Extended Support Release — its own long-lived train,
     /// distinct from Stable. Shares a bundle id with Release/Beta, so it's
     /// detected from the `esr` suffix in the version string.
@@ -54,7 +62,8 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         bundleID: String?,
         keystoneChannel: String?,
         version: String? = nil,
-        mozillaRemotingName: String? = nil
+        mozillaRemotingName: String? = nil,
+        bundleFileName: String? = nil
     ) -> ReleaseChannel {
         // 0. Mozilla `RemotingName` — authoritative for Firefox/Thunderbird.
         if let remoting = mozillaRemotingName?
@@ -62,6 +71,29 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
            !remoting.isEmpty,
            let channel = mozillaChannel(fromRemoting: remoting) {
             return channel
+        }
+
+        // 0.5 Android Studio — Stable, Canary, and Beta ALL ship one bundle id
+        //     (`com.google.android.studio`) with the same `CFBundleName`
+        //     ("Android Studio") and a marketing version truncated to "2026.1"
+        //     (no channel suffix). The only on-disk channel signal is the app's
+        //     BUNDLE FILENAME, which Homebrew's casks set per channel
+        //     ("Android Studio Preview Canary" / "… Beta"; Stable stays
+        //     "Android Studio"). It can't go through the display-name `channelWord`
+        //     path below: the scanner's display name is `CFBundleName`
+        //     ("Android Studio" — no word), and the filename also carries Google's
+        //     umbrella "Preview" token, which `channelWord` ranks ABOVE "beta", so
+        //     "… Preview Beta" would mis-resolve to `.preview`. Hence this scoped
+        //     canary>beta>preview match. A bare "Android Studio Preview.app" (the
+        //     raw DMG name — channel-ambiguous, could be either track) maps to
+        //     `.preview`: no recipe targets it, so it's safely skipped rather than
+        //     misdetected as Stable and offered a cross-channel Stable build.
+        if bundleID == "com.google.android.studio",
+           let fn = bundleFileName?.lowercased() {
+            if fn.contains("canary") { return .canary }
+            if fn.contains("beta") { return .beta }
+            if fn.contains("preview") { return .preview }
+            return .stable
         }
 
         // 1. Keystone's own channel id — authoritative when present.
@@ -112,6 +144,14 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             if version.lowercased().contains("esr") { return .esr }
             if fullyMatches(#"[0-9]+\.[0-9]+b[0-9]+"#, version) { return .beta }
             if fullyMatches(#"[0-9]+\.[0-9]+a[0-9]+"#, version) { return .nightly }
+            // GitHub Desktop-style explicit `-betaN` suffix on a full semver
+            // (`3.5.12-beta2`): same bundle id (`com.github.GitHubClient`) and app
+            // name as Stable, so the version string is the ONLY channel signal.
+            // Require the trailing digits to be the whole tail (`-beta[0-9]+$`) so
+            // build-metadata shapes other apps use for non-channel builds —
+            // `0.3.377-beta.1429+sha`, `0.1.1251-beta+sha` — don't trip it (verified
+            // against the real installed bundles 2026-06-06).
+            if fullyMatches(#"[0-9]+(\.[0-9]+)+-beta[0-9]+"#, version) { return .beta }
         }
 
         return .stable

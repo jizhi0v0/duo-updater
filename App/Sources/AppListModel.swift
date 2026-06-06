@@ -170,6 +170,9 @@ final class AppListModel {
     private let brewFormulaService = BrewFormulaService()
     /// Outdated CLI formulae from the last `brew outdated --formula` read.
     private(set) var brewOutdatedFormulae: [BrewOutdatedFormula] = []
+    /// Every top-level (`brew leaves`) formula, outdated or current — the workbench
+    /// Brew tree's formula half, so it shows all you manage like the Apps tree does.
+    private(set) var brewFormulae: [BrewInstalledFormula] = []
     /// Whether Homebrew is installed at all (cached once — install state doesn't
     /// change mid-session). Lets the menu reserve the brew row's space from the very
     /// first paint for brew users, so the async `brew outdated` result lands in place
@@ -184,6 +187,12 @@ final class AppListModel {
     private(set) var brewUpgradeError: String?
     /// Streamed tail of the running upgrade, shown as a one-line progress note.
     private(set) var brewUpgradeNote: String?
+    /// Bulk-upgrade progress: how many of the targeted formulae have finished
+    /// pouring, and how many were targeted. Both 0 when no bulk run is active.
+    /// Drives the "x/n" readout (popover footer + workbench header) so the bulk
+    /// run shows real progress, not just a spinner.
+    private(set) var brewUpgradeDone = 0
+    private(set) var brewUpgradeTotal = 0
     /// Formula names with a per-row `brew upgrade` in flight (drives the row spinner).
     private(set) var upgradingFormulae: Set<String> = []
     /// Per-formula upgrade failures, keyed by formula name; cleared on the next run.
@@ -887,6 +896,7 @@ final class AppListModel {
     func refreshBrewFormulae() async {
         guard BrewFormulaService.isAvailable else {
             brewOutdatedFormulae = []
+            brewFormulae = []
             brewChecked = true
             return
         }
@@ -897,19 +907,39 @@ final class AppListModel {
             Log.app.info("brew outdated --formula failed: \(error.localizedDescription, privacy: .public)")
             brewOutdatedFormulae = []
         }
+        // The workbench Brew tree lists all top-level formulae (not just outdated),
+        // mirroring how the Apps tree lists every app. Best-effort: leaves() never
+        // throws, returning [] on any brew hiccup.
+        brewFormulae = (try? await brewFormulaService.leaves()) ?? []
     }
 
     /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
     /// `brew upgrade` but formula-scoped) and refresh the list when it finishes.
     func upgradeBrewFormulae() async {
         guard !brewUpgrading else { return }
+        // Don't stack a bulk run on top of in-flight per-row upgrades — both call
+        // `brew`, which takes a single global lock; the second would just fail.
+        guard upgradingFormulae.isEmpty else { return }
         brewUpgrading = true
         brewUpgradeError = nil
         brewUpgradeNote = "Starting…"
-        defer { brewUpgrading = false; brewUpgradeNote = nil }
+        // Snapshot the target set so dependency formulae brew pulls in (which also
+        // emit a 🍺 line) don't inflate the count past the user-visible total.
+        let targets = Set(brewOutdatedFormulae.map(\.name))
+        brewUpgradeTotal = targets.count
+        brewUpgradeDone = 0
+        defer { brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0 }
         do {
             try await brewFormulaService.upgradeAll { [weak self] line in
-                Task { @MainActor in self?.brewUpgradeNote = line }
+                Task { @MainActor in
+                    self?.brewUpgradeNote = line
+                    // One 🍺 Cellar line per poured formula — count only the targeted
+                    // ones, clamped so it never reads past the total.
+                    if let name = Self.brewPouredFormula(from: line), targets.contains(name),
+                       let self, self.brewUpgradeDone < self.brewUpgradeTotal {
+                        self.brewUpgradeDone += 1
+                    }
+                }
             }
             await refreshBrewFormulae()
         } catch {
@@ -917,11 +947,21 @@ final class AppListModel {
         }
     }
 
+    /// Name of the formula a `🍺  /…/Cellar/<name>/<version>: …` success line
+    /// reports, or nil for any other line. brew prints exactly one such line per
+    /// formula it finishes installing, so counting them tracks bulk progress.
+    nonisolated static func brewPouredFormula(from line: String) -> String? {
+        guard let range = line.range(of: "/Cellar/") else { return nil }
+        let after = line[range.upperBound...]
+        guard let slash = after.firstIndex(of: "/") else { return nil }
+        let name = String(after[..<slash])
+        return name.isEmpty ? nil : name
+    }
+
     /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row
     /// action in the workbench Brew list — then re-read the outdated set.
-    func upgradeBrewFormula(_ formula: BrewOutdatedFormula) async {
-        guard !upgradingFormulae.contains(formula.name) else { return }
-        let name = formula.name
+    func upgradeBrewFormula(named name: String) async {
+        guard !upgradingFormulae.contains(name) else { return }
         upgradingFormulae.insert(name)
         formulaUpgradeErrors[name] = nil
         formulaUpgradeNotes[name] = "Starting…"
@@ -955,14 +995,20 @@ final class AppListModel {
         return nil
     }
 
+    /// One-line "x/n" status for an in-flight bulk upgrade — the count of the next
+    /// formula being worked on over the total. nil when no bulk run is active.
+    var brewBulkProgressText: String? {
+        guard brewUpgrading, brewUpgradeTotal > 0 else { return nil }
+        let current = min(brewUpgradeDone + 1, brewUpgradeTotal)
+        return "Upgrading… (\(current)/\(brewUpgradeTotal))"
+    }
+
     /// Fetch a formula's release notes once, on first selection. Idempotent: a
     /// loaded/loading entry is left alone, so reselecting renders the cache instantly.
-    func ensureFormulaReleaseLoading(_ formula: BrewOutdatedFormula) {
-        guard formulaReleaseStates[formula.name] == nil else { return }
-        formulaReleaseStates[formula.name] = .loading
+    func ensureFormulaReleaseLoading(name: String, version: String) {
+        guard formulaReleaseStates[name] == nil else { return }
+        formulaReleaseStates[name] = .loading
         let token = GitHubToken.resolve(explicit: prefs.githubToken.isEmpty ? nil : prefs.githubToken)
-        let name = formula.name
-        let version = formula.currentVersion
         Task {
             let release = await formulaReleaseService.release(for: name, version: version, token: token)
             formulaReleaseStates[name] = .loaded(release)

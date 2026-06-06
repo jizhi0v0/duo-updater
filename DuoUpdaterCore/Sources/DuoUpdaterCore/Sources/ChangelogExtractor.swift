@@ -106,7 +106,15 @@ public enum ChangelogExtractor {
     private static func clean(_ raw: String, _ recipe: ChangelogRecipe) -> String {
         var s = raw
         if recipe.stripTags { s = stripTags(s) }
-        if recipe.decodeEntities { s = decodeEntities(s) }
+        if recipe.decodeEntities {
+            // `.json` feeds carry JSON string escapes (`\"`, `\\`, `\n`, `\uXXXX`)
+            // the HTML entity decoder doesn't understand — unescape them first so a
+            // quote or newline inside a note renders as text, not as `\"`. Gated to
+            // `.json` on purpose: in HTML prose a literal `\n` (a Windows path, say)
+            // must stay literal, so the broad HTML path is left untouched.
+            if recipe.mode == .json { s = decodeJSONStringEscapes(s) }
+            s = decodeEntities(s)
+        }
         return collapseWhitespace(s)
     }
 
@@ -171,6 +179,44 @@ public enum ChangelogExtractor {
                 result.append(Character(scalar))
             } else {
                 result += ns.substring(with: m.range)  // leave it untouched
+            }
+            last = m.range.location + m.range.length
+        }
+        result += ns.substring(from: last)
+        return result
+    }
+
+    /// Full JSON string unescape (`\"`, `\\`, `\/`, `\n`, `\t`, `\r`, `\b`, `\f`,
+    /// `\uXXXX`) in one left-to-right pass — used only for `.json`-mode feeds, where
+    /// note text arrives as raw JSON string content. Single-pass over `\\(u…|.)` so
+    /// an escaped backslash (`\\`) is consumed atomically and never re-interpreted.
+    /// An unknown escape drops the backslash and keeps the char (lenient, like JSON).
+    private static func decodeJSONStringEscapes(_ s: String) -> String {
+        guard s.contains("\\") else { return s }
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\\(u[0-9a-fA-F]{4}|.)"#, options: [.dotMatchesLineSeparators]
+        ) else { return s }
+        let ns = s as NSString
+        var result = ""
+        var last = 0
+        for m in regex.matches(in: s, range: NSRange(location: 0, length: ns.length)) {
+            result += ns.substring(with: NSRange(location: last, length: m.range.location - last))
+            let tok = ns.substring(with: m.range(at: 1))
+            if tok.count == 5, tok.hasPrefix("u") || tok.hasPrefix("U"),
+               let cp = UInt32(tok.dropFirst(), radix: 16), let scalar = Unicode.Scalar(cp) {
+                result.append(Character(scalar))
+            } else {
+                switch tok {
+                case "\"": result += "\""
+                case "\\": result += "\\"
+                case "/": result += "/"
+                case "n": result += "\n"
+                case "t": result += "\t"
+                case "r": result += "\r"
+                case "b": result += "\u{08}"
+                case "f": result += "\u{0C}"
+                default: result += tok  // unknown escape → keep the char, drop the `\`
+                }
             }
             last = m.range.location + m.range.length
         }

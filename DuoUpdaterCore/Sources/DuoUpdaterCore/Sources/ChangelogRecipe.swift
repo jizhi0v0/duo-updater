@@ -1084,6 +1084,47 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 1,
             channel: .beta,
             sourceTemplate: "https://www.thunderbird.net/en-US/thunderbird/{version}/releasenotes/"),
+
+        // ── GitHub Desktop — one bundle id (`com.github.GitHubClient`), TWO channels
+        // distinguished only by the install's `-betaN` version suffix (see
+        // ReleaseChannel.detect / the GitHubReleaseRule pair). The desktop.github.com
+        // /release-notes page is a client-rendered SPA; its data is a JSONP-ish feed
+        // at central.github.com/deployments/desktop/desktop/changelog.json, and the
+        // page's `?env=beta` maps to a `?env=beta` query on that feed (read from
+        // desktop-releases.js). Fetched without the `callback` param it returns a
+        // plain JSON array, newest-first, each element:
+        //   {"name":"","notes":["[Fixed] …- #22219", …],
+        //    "pub_date":"2026-06-01T17:43:05Z","version":"3.5.12"}
+        // `version` is LAST in each object, so the entry pattern walks name→notes→
+        // pub_date→version in document order; `body` is the notes array, sliced into
+        // items by the JSON-string pattern (each note keeps its `[Fixed]`/`[Added]`
+        // prefix and trailing `- #issue`). Stable feed carries bare `3.5.12`; beta
+        // carries `3.5.12-beta2`. JSON mode + decodeEntities unescapes the `\"` some
+        // beta notes contain. A parse miss just falls back to embedding the SPA.
+        ChangelogRecipe(
+            bundleID: "com.github.GitHubClient",
+            source: URL(string: "https://central.github.com/deployments/desktop/desktop/changelog.json")!,
+            entryPattern:
+                #"\{"name":"[^"]*","notes":\[(?<body>.*?)\],"#
+                + #""pub_date":"(?<date>\d{4}-\d{2}-\d{2})[^"]*","version":"(?<version>[^"]+)"\}"#,
+            itemPatterns: [#""(?<item>(?:\\.|[^"\\])*)""#],
+            mode: .json,
+            stripTags: false,
+            channel: .stable),
+
+        // GitHub Desktop Beta — same feed with `?env=beta`, matched by `channel:
+        // .beta` so a `-betaN`-detected install gets beta notes (`3.5.12-beta2`)
+        // instead of the stable train. Identical structure/patterns.
+        ChangelogRecipe(
+            bundleID: "com.github.GitHubClient",
+            source: URL(string: "https://central.github.com/deployments/desktop/desktop/changelog.json?env=beta")!,
+            entryPattern:
+                #"\{"name":"[^"]*","notes":\[(?<body>.*?)\],"#
+                + #""pub_date":"(?<date>\d{4}-\d{2}-\d{2})[^"]*","version":"(?<version>[^"]+)"\}"#,
+            itemPatterns: [#""(?<item>(?:\\.|[^"\\])*)""#],
+            mode: .json,
+            stripTags: false,
+            channel: .beta),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

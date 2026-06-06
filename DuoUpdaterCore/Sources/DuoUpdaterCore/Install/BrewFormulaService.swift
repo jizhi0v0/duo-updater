@@ -14,6 +14,19 @@ public struct BrewOutdatedFormula: Sendable, Identifiable, Equatable {
     public let currentVersion: String
 }
 
+/// A top-level installed formula (a `brew leaves` entry — one you installed on
+/// purpose, not a dependency pulled in for something else), with the newer version
+/// available when there is one. Drives the workbench Brew tree, which mirrors the
+/// Apps tree by listing everything you manage, not just what's outdated.
+public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
+    public var id: String { name }
+    public let name: String
+    public let installedVersion: String
+    /// The version `brew outdated` says is available, or nil when up to date.
+    public let availableVersion: String?
+    public var hasUpdate: Bool { availableVersion != nil }
+}
+
 /// Reads outdated Homebrew formulae and runs a formula-only `brew upgrade`.
 ///
 /// Detection reads the *local* tap (`brew outdated` does not auto-update), so the
@@ -76,6 +89,87 @@ public actor BrewFormulaService {
         }
 
         return Self.parse(data)
+    }
+
+    /// Top-level installed formulae (`brew leaves`) merged with their installed
+    /// version (`brew list --formula --versions`) and the outdated set, so each row
+    /// shows its version and — when behind — the available upgrade. Returns an empty
+    /// list (never throws) when brew is absent, so a brew-less machine shows no tree.
+    ///
+    /// `leaves` deliberately excludes dependency-only formulae: the hundreds of
+    /// transitive packages brew installs to satisfy others would bury the list, and
+    /// the user only cares about what they asked for (the analog of "apps you have").
+    public func leaves() async throws -> [BrewInstalledFormula] {
+        guard HomebrewInstaller.brewPath() != nil else { return [] }
+
+        // Run the three reads concurrently — they're independent and each spawns a
+        // brew subprocess, so serializing them would triple the latency.
+        async let leafNames = runReading(["leaves"])
+        async let versionList = runReading(["list", "--formula", "--versions"])
+        async let outdatedList = (try? outdated()) ?? []
+
+        let leaves = Set(Self.parseLines(await leafNames))
+        guard !leaves.isEmpty else { return [] }
+        let versions = Self.parseVersions(await versionList)
+        let available = Dictionary(
+            (await outdatedList).map { ($0.name, $0.currentVersion) },
+            uniquingKeysWith: { a, _ in a })
+
+        return leaves.map { name in
+            BrewInstalledFormula(
+                name: name,
+                installedVersion: versions[name] ?? "—",
+                availableVersion: available[name])
+        }
+        .sorted { lhs, rhs in
+            if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    /// `name` → installed version, parsed from `brew list --formula --versions`
+    /// (each line is "name v1 [v2 …]"; we keep the last/newest version token).
+    static func parseVersions(_ output: String) -> [String: String] {
+        var out: [String: String] = [:]
+        for line in output.split(separator: "\n") {
+            let parts = line.split(separator: " ")
+            guard let name = parts.first, parts.count >= 2 else { continue }
+            out[String(name)] = String(parts.last!)
+        }
+        return out
+    }
+
+    /// Non-empty whitespace-trimmed lines, for the one-name-per-line `brew leaves`.
+    static func parseLines(_ output: String) -> [String] {
+        output.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// Run a read-only `brew` subcommand and return stdout, never triggering an
+    /// implicit `brew update`. Returns "" on any failure — the callers treat a
+    /// missing read as "nothing to show" rather than surfacing an error.
+    private func runReading(_ arguments: [String]) async -> String {
+        guard let brew = HomebrewInstaller.brewPath() else { return "" }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: brew)
+        process.arguments = arguments
+        var env = ProcessInfo.processInfo.environment
+        env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+        env["HOMEBREW_NO_ENV_HINTS"] = "1"
+        process.environment = env
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do {
+            try process.run()
+        } catch {
+            return ""
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
     }
 
     /// Parse the `--json=v2` payload's `formulae` array. Tolerant: skips any entry

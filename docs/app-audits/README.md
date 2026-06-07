@@ -51,7 +51,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Cursor** · `com.todesktop.230313mzl4w4u92` — P · ✓ src=Vendor
 - [x] **Notion** · `notion.id` — P C · ✓ src=Vendor
 - [x] **Obsidian** · `md.obsidian` — P C · ✓ src=Vendor
-- [x] **Figma** · `com.figma.Desktop` — P C · ✓ src=Vendor
+- [x] [**Figma**](com-figma-Desktop.md) · `com.figma.Desktop` (+beta `com.figma.DesktopBeta`) — P(stable/beta) C (one-click) · 2 独立 bundle, Pattern A · 真机验证 2026-06-06 ✓
 - [x] **Slack** · `com.tinyspeck.slackmacgap` — P C · ✓ src=Vendor
 - [x] **1Password** · `com.1password.1password` — P C · ✓ src=Vendor
 - [x] **Sublime Text** · `com.sublimetext.4` — P C · ✓ src=Vendor
@@ -85,7 +85,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Stats** · `eu.exelban.Stats` — G · ✓ src=GitHub
 - [x] **DBeaver** · `org.jkiss.dbeaver.core.product` — G · ✓ src=GitHub
 - [x] **Beekeeper Studio** · `io.beekeeperstudio.desktop` — G · ✓ src=GitHub
-- [x] **Insomnia** · `com.insomnia.app` — G · ✓ src=GitHub
+- [x] [**Insomnia**](com-insomnia-app.md) · `com.insomnia.app` — G C (one-click) · ✓ src=GitHub · changelog=insomnia.rest(`__NEXT_DATA__` JSON) · 修 stable 跨渠道误推（pattern 加 `$` 锚，2026-06-06）· beta/alpha 受阻于 detect() 不解析 `-beta.N` 后缀
 - [x] **Pearcleaner** · `com.alienator88.Pearcleaner` — G · ✓ src=GitHub
 - [x] **Macs Fan Control** · `com.crystalidea.macsfancontrol` — G · ✓ src=GitHub
 - [x] **Alcove** · `com.henrikruscon.Alcove` — G · ✓ src=GitHub

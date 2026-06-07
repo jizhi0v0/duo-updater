@@ -312,13 +312,20 @@ struct MenuContentView: View {
         if model.brewUpgrading {
             // Keep the same `terminal` identity icon the idle/checking states show, so
             // the row stays recognizably "the brew CLI surface" mid-upgrade — only the
-            // trailing control swaps to a spinner.
+            // trailing control swaps to a spinner. Mirror the real row's icon + two-line
+            // VStack structure EXACTLY (like the checking state does) so clicking
+            // Upgrade doesn't collapse the row from two lines to one and jolt the
+            // popover's height — the live `brew upgrade` line goes on the subtitle row.
             HStack(spacing: 8) {
                 Image(systemName: "terminal").foregroundStyle(.secondary)
-                Text(model.brewBulkProgressText ?? "Upgrading…")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .lineLimit(1).truncationMode(.middle)
-                    .monospacedDigit()
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Upgrading Homebrew formulae")
+                        .font(.caption).fontWeight(.medium)
+                    Text(model.brewBulkProgressText ?? "Running brew upgrade…")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                        .monospacedDigit()
+                }
                 Spacer()
                 ProgressView().controlSize(.small)
             }

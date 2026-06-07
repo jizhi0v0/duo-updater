@@ -106,6 +106,20 @@ import Foundation
     #expect(r.feedOverride == nil)
 }
 
+// MARK: - IINA (`receiveBetaUpdate` Bool → feed swap)
+
+@Test func iinaBetaTrueRetargetsToBetaFeed() {
+    let r = IINAChannel.resolve(receiveBeta: true)
+    #expect(r.channel == .beta)
+    #expect(r.feedOverride == IINAChannel.betaFeed)
+}
+
+@Test func iinaBetaFalseStaysOnStableFeed() {
+    let r = IINAChannel.resolve(receiveBeta: false)
+    #expect(r.channel == .stable)
+    #expect(r.feedOverride == IINAChannel.stableFeed)
+}
+
 // MARK: - Registry dispatch
 
 @Test func channelBindingDispatchesKnownAppsAndIgnoresOthers() {
@@ -116,6 +130,7 @@ import Foundation
     #expect(ChannelBinding.resolve(bundleID: ForkChannel.bundleID) != nil)
     #expect(ChannelBinding.resolve(bundleID: OrbStackChannel.bundleID) != nil)
     #expect(ChannelBinding.resolve(bundleID: TailscaleChannel.bundleID) != nil)
+    #expect(ChannelBinding.resolve(bundleID: IINAChannel.bundleID) != nil)
 }
 
 @Test func channelBindingMatchesBundleIDCaseInsensitively() {

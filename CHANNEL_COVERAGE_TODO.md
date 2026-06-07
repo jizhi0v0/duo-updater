@@ -101,6 +101,35 @@ application.ini` 的 `RemotingName`（baked per-channel）区分——`ReleaseCh
       `edgeupdates.microsoft.com/api/products?view=enterprise` 只列 Stable/Beta/Dev，
       不含 Canary（Canary 走 EdgeUpdate/Omaha，无公开企业 JSON）。暂搁。
 
+### 2026-06-06 渠道扫描新增 — Pattern A
+
+- [x] **Brave Browser — Beta** · `com.brave.Browser.beta`（独立 app：`Brave Browser Beta.app`）
+      Sparkle feed `updates.bravesoftware.com/sparkle/Brave-Browser/beta/appcast.xml`，
+      版本号 `1.92.x`，已验证 brew cask `brave-browser@beta` 存在。
+      VendorProbe 已接入（`channel: .beta`，`sparkle:shortVersionString` attribute 提取 4-part 版本）。
+- [x] **Brave Browser — Nightly** · `com.brave.Browser.nightly`（独立 app：`Brave Browser Nightly.app`）
+      Sparkle feed `updates.bravesoftware.com/sparkle/Brave-Browser/nightly/appcast.xml`，
+      版本号 `1.93.x`，已验证 brew cask `brave-browser@nightly` 存在。
+      VendorProbe 已接入（`channel: .nightly`，同 Beta 模式）。
+- [x] **Vivaldi — Snapshot** · `com.vivaldi.Vivaldi.snapshot`（独立 app：`Vivaldi Snapshot.app`）
+      Sparkle feed `update.vivaldi.com/update/1.0/snapshot/mac/appcast.xml`，
+      已验证 brew cask `vivaldi@snapshot` 存在。
+      VendorProbe 已接入（`channel: .preview`，`ReleaseChannel` 新增 `snapshot` → `.preview` 映射）。
+      测试通过。
+
+---
+
+## §2b TODO — Pattern B/C 候选（app 内切换，需真机验证信号）
+
+> 以下 app 有明确 in-app channel toggle，但切换后是否留下可读的本地信号（defaults/plist）
+> 仍需真机 diff 确认。不要直接标为 detectable。
+
+- [x] **IINA** · `com.colliderli.iina` — Preferences → General → **"Receive beta updates"**
+      checkbox。源码确认 UserDefaults key 为 `receiveBetaUpdate`（Bool，默认 false）。
+      真机验证：切换后 `defaults read com.colliderli.iina receiveBetaUpdate` 返回 `1`。
+      已接入 `IINAChannel`（feed-swap：stable `appcast.xml` ↔ beta `appcast-beta.xml`），
+      注册到 `ChannelBinding`，测试通过。
+
 ---
 
 ## §3 死轨 — Pattern D / 不可行（已否决，**勿重开**）
@@ -126,15 +155,43 @@ application.ini` 的 `RemotingName`（baked per-channel）区分——`ReleaseCh
 - ✗ **LM Studio — Beta** · 同 `ai.elementlabs.lmstudio`，版本 API 无 channel 参数
 - ✗ **DBeaver — Early Access** · 同 `org.jkiss.dbeaver.core.product`，EA 共享 id、标签格式同 stable
 - ✗ **Beekeeper Studio — Beta** · 同 `io.beekeeperstudio.desktop`，同 repo prerelease，stable rule 已排除
-- ✗ **Insomnia — Beta/Alpha** · 同 `com.insomnia.app`，monorepo tag 无法路由到独立安装
+- ✗ **Insomnia — Beta/Alpha** · 同 `com.insomnia.app`（共享 id）。真机验证 2026-06-06：beta 构建 `CFBundleShortVersionString` **保留** `13.0.0-beta.0` 后缀（无 Mozilla 式剥离），但 `ReleaseChannel.detect()` **不解析版本后缀** → 检测为 `.stable`。所以 `channel: .beta` rule 永远不会被 channel gate 选中。**前置依赖**：先教 `detect()` 识别 `com.insomnia.app` 的 `-beta.N`/`-alpha.N` 后缀，beta channel 才可接（GitHub prerelease tag + `Insomnia.Core-<ver>-beta.N.dmg` 资产已就绪）
 - ✗ **Postman — Canary** · 已停产（cask `postman@canary` 2025-11-15 disabled）
 - ✗ **RustDesk — Nightly** · 同 `com.carriez.rustdesk`，同 repo prerelease，stable rule 已排除
 - ✗ **1Password — Beta** · 同 `com.1password.1password`，cask 装同名同 id；vendor API 仅服务 NIGHTLY 且需 auth
 - ✗ **Raycast — Beta(v2)** · 应用内 opt-in，无独立下载/bundle id
 - ✗ **VLC — Nightly** · 同 `org.videolan.vlc`，nightlies 滚动构建无版本语义，不可区分
 - ✗ **Blender — Daily/Alpha/Beta** · 同 bundle id，builder.blender.org 滚动构建，无检测信号
-- ✗ **Figma — Beta** · 应用内 feature flag，无独立下载/bundle id
+- ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）
 - ✗ **GitHub Desktop — Beta** · 同 `com.github.GitHubClient`，beta tag 是 prerelease，stable rule 已排除
+
+### 2026-06-06 渠道扫描确认 — 单 channel / 无 detectable beta
+
+以下 app 经 web 搜索（官网、GitHub、brew cask）**确认无独立 beta/nightly 渠道**，
+也**无 app 内可切换的 channel toggle**（或 toggle 不存在/无本地信号）。归入单 channel，
+不单独成轨。
+
+- [x] **Alfred** · 已修正（2026-06-07）：Alfred 实际有 **Pre-releases** 开关（v5.5 起）。
+  信号：UserDefaults `prereleases` 存于 `~/Library/Application Support/Alfred/Alfred.alfredpreferences/
+  preferences/local/<hash>/update/prefs.plist`，值 `1`（Bool）→ `.beta`（Pre-release）。
+  已接入 `AlfredChannel`（feed-swap：`general.xml` ↔ `prerelease.xml`），注册到 `ChannelBinding`，
+  测试通过。官网“无 beta”是**旧判断**，已更新。
+- ✗ **Arc** · 无 beta/preview 渠道，Dia 是另一独立产品，非 Arc 的 channel
+- ✗ **HandBrake** · 开源 GitHub 仅有 snapshots（`HandBrake-snapshots`），无独立 bundle id，
+  无 app 内 toggle，snapshot 与 stable 同构建
+- ✗ **Keka** · 开源 GitHub 有 dev pre-release（`v1.5.2-dev.r5614`），但无独立 bundle id，
+  无 app 内 channel toggle
+- ✗ **Lark** · 无 beta 渠道，官网仅 stable
+- ✗ **MonitorControl** · 开源 GitHub releases，无 beta 渠道
+- ✗ **OBS Studio** · 开源 GitHub releases，有 RC/Beta tag（pre-release），但无独立 bundle id，
+  无 app 内 toggle；RC 构建是发布流程的一部分，非独立 channel
+- ✗ **Orion** · 无 beta 渠道，官网仅 stable + 各平台 release notes
+- ✗ **Proxyman** · 无 beta 渠道，官网仅 stable，changelog 随 stable 走
+- ✗ **Rectangle** · 开源 GitHub releases，无 beta 渠道（Pro 是付费 tier，非 channel）
+- ✗ **Shottr** · 无 beta 渠道，官网仅 stable
+- ✗ **The Unarchiver** · 无 beta 渠道，官网仅 stable
+- ✗ **Mirage Client** · 网站不可达（`mirageclient.com` transport error），无法确认
+- ✗ **Mirage Host** · 网站 "Coming Soon"（`miragehost.com`），无可用信息
 
 > **IntelliJ IDEA — EAP**：检测已由 ToolboxSource/VendorProbe(`channel: .preview`)覆盖，
 > stable changelog 已接。EAP changelog **确认不接**（2026-06-06 复核）：每个 EAP build 的
@@ -155,7 +212,56 @@ application.ini` 的 `RemotingName`（baked per-channel）区分——`ReleaseCh
 ## 已全覆盖的单 channel app（存档参考）
 
 只有 stable、无其它轨需接的：Claude / Codex / ChatWise / Ollama / Conductor / opencode /
-Alfred / CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcleaner /
+CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcleaner /
 Stats / MacsFanControl / Calibre / Notion / JetBrains Air / LibreWolf / Plex / Dropbox /
 Orion / VS Code(stable) / Cursor / Figma / Slack / 1Password / Sublime（Text/Merge）/
-RustDesk / GitHub Desktop / DBeaver / Beekeeper / Insomnia / Macs Fan Control / Alcove 等。
+RustDesk / GitHub Desktop / DBeaver / Beekeeper / Insomnia / Macs Fan Control / Alcove /
+Arc / HandBrake / Keka / Lark / MonitorControl / OBS Studio / Proxyman / Rectangle /
+The Unarchiver 等。
+
+> Alfred 已移出（见 §2  Pattern B/C 接入）。
+
+### 2026-06-07 ChangelogRecipe 批量补全
+
+**已接入结构化 ChangelogRecipe（5 个）：**
+
+| App | bundle id | 源 | 备注 |
+|---|---|---|---|
+| **Bartender 6** | `com.macbartender.Bartender6` | `macbartender.com/Bartender6/release_notes/` | Next.js 页面，`<h2>` 含 `<!-- -->` 注释；多 section `<h3>` + `<ul>` |
+| **Shottr** | `cc.ffitch.shottr` | `shottr.cc/newversion.html` | 静态页面，`<h1>`/`<h3>` 标题 + `<b>` section + `<ul>` |
+| **Orion stable** | `com.kagi.kagimacOS` | `orionbrowser.com/updates/orion-release-notes` | 与 RC 同页，stable 条目排除 `RC`/`Beta`（`Orion \d+` 不匹配 `Orion RC…`）|
+| **The Unarchiver** | `com.macpaw.site.theunarchiver` | `updates.devmate.com/releasenotes/147/…` | DevMate 页面，`<h2>` + `<strong>` section + `<ul>`，`<hr />` 分隔 |
+| **Plex Desktop** | `tv.plex.desktop` | `forums.plex.tv/…/446435.rss` | Discourse RSS feed，`<item>` 内 `<p>Version X.Y.Z…` + `<ul>` |
+
+**确认不可解析、fallback webview（6 个）：**
+
+| App | 原因 |
+|---|---|
+| **Arc** | `resources.arc.net` 403；blog 无结构化版本内容 |
+| **Lark** | `larksuite.com/hc/…` 纯客户端 JS 渲染，无静态 HTML |
+| **Mirage** | 仓库 `github.com/EthanLipnik/MirageKit` 0 releases；网站不可达 |
+| **Dropbox** | `dropbox.com/release-notes` 按月份/功能组织，无按版本号结构 |
+| **Discord** | `discord.com/blog` 混合内容（Patch Notes 与其他文章混排），无专用结构化页面 |
+| **Vivaldi** | `vivaldi.com/blog/desktop` 博客列表（Desktop Releases / Updates / Snapshots 混排），非结构化 changelog |
+
+> 所有 5 个新增 recipe 均通过 `ChangelogExtractorTests` fixture 验证（共 73 个测试全部通过）。
+> 加上此前已接的 6 个 GitHub releases 型（HandBrake / IINA / Keka / MonitorControl / OBS / Rectangle）
+> 及 4 个新增 recipe（Sublime Merge / Brave / Proxyman / Alfred），本次批次 22 个已扫描 app
+> 全部完成接入判定。
+
+### 2026-06-07 续 — Changelog 数据结构 section 结构化
+
+- `Changelog.Entry` 新增 `sections: [Section]?` 字段，`Section` 含 `title` + `items`。
+- `items` 自动由 `sections` 扁平化，保持向后兼容（旧测试/代码无需重写）。
+- `ChangelogRecipe` 新增 `sectionPattern: String?` 字段：当设置时，`ChangelogExtractor`
+  先用 `sectionPattern` 把 `body` 拆分为 section，再在每 section 内运行 `itemPatterns`。
+  section 匹配需提供 `sectionTitle` 和 `sectionBody` 捕获组。
+- `ChangelogEntryView` 已按 `sections` 分节渲染：有 `sections` 时按 section 分组显示
+  （section 标题加粗），无 `sections` 时回退到 flat items。
+- **已接入 `sectionPattern` 的 recipe（5 个）：**
+  - **Bartender 6** — `<h3>` section 分隔（Fixes / New / Top Shelf）
+  - **Orion stable** — `<h3>` section 分隔（Improvements and bug fixes / WebKit…）
+  - **Orion RC** — `<h3>` section 分隔（Features / Improvements and bug fixes）
+  - **The Unarchiver** — `<p><strong>…</strong></p>` section 分隔（Fixed / New）
+  - **Shottr** — `<b>` section 分隔（Improvements / Bug Fixes / New Features）
+- `swift test` 共 316 个测试全部通过。

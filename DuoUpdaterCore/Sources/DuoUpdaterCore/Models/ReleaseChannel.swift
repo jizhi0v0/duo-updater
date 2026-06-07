@@ -128,6 +128,12 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             if bundleID.hasSuffix(".eap") || bundleID.hasSuffix("-eap") {
                 return .preview
             }
+            // Vivaldi Snapshot ships under `com.vivaldi.Vivaldi.snapshot` — a
+            // pre-release track distinct from Stable. The channel word is "snapshot",
+            // not "preview", so the generic loop above misses it.
+            if bundleID.hasSuffix(".snapshot") || bundleID.hasSuffix("-snapshot") {
+                return .preview
+            }
         }
 
         // 3. A standalone channel word in the display name. Word-boundary matched
@@ -192,6 +198,7 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             ("nightly", .nightly),
             ("insiders", .preview),
             ("preview", .preview),
+            ("snapshot", .preview),
             ("ptb", .ptb),
             ("beta", .beta),
             ("alpha", .alpha),

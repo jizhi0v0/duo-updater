@@ -1081,8 +1081,15 @@ final class AppListModel {
     /// `prefs.notifyOnUpdates`: that setting governs unsolicited *background*
     /// discovery alerts, whereas these are direct feedback for an install the user
     /// just clicked. The batch path opts out via `notify: false` instead.
+    ///
+    /// `deferBookkeeping` (batch only) skips the shared post-install sweep —
+    /// restart info (`lsappinfo`), self-update staging, backup index — which is
+    /// independent of *which* app just installed. Run per app inside a sequential
+    /// "Update All", each finished row would sit at 100% while that sweep (an
+    /// `lsappinfo` call that can stall right after we relaunch apps) blocked the
+    /// next install from starting. `installAll` runs it once after the whole batch.
     @discardableResult
-    func install(_ result: UpdateResult, notify: Bool = true) async -> Bool {
+    func install(_ result: UpdateResult, notify: Bool = true, deferBookkeeping: Bool = false) async -> Bool {
         let id = result.id
         // Re-entrancy guard (matches `retry`): the popover "Update anyway" button
         // and the major-upgrade badge aren't disabled while an install is in
@@ -1275,9 +1282,14 @@ final class AppListModel {
             // next detail-window open re-fetches notes for the build we just landed.
             invalidateChangelog(forBundleID: updated.app.bundleID)
             replaceRow(updated)
-            await computeRestartInfo()
-            await computeSelfUpdateStaging()
-            await refreshBackupIndex()
+            // In a batch, this shared sweep is deferred to once after the loop (see
+            // `installAll`) so each row clears at 100% immediately instead of holding
+            // the next install behind a per-app `lsappinfo`/staging/backup pass.
+            if !deferBookkeeping {
+                await computeRestartInfo()
+                await computeSelfUpdateStaging()
+                await refreshBackupIndex()
+            }
 
             // Tell the user it landed. If the app was running, its live process
             // is still on the old code (so it's in needsRestart) — point them at
@@ -1821,8 +1833,16 @@ final class AppListModel {
         // already-current/early-out/error), so the summary banner is exact.
         var installed = 0
         for target in targets {
-            if await install(target, notify: false) { installed += 1 }
+            if await install(target, notify: false, deferBookkeeping: true) { installed += 1 }
         }
+        // The shared post-install sweep, run once for the whole batch rather than
+        // per app (`deferBookkeeping: true` above): each pass is independent of which
+        // app just installed, and running it inline made every finished row linger at
+        // 100% while the next install waited on it (most visibly the `lsappinfo`
+        // restart probe, which can stall right after a wave of relaunches).
+        await computeRestartInfo()
+        await computeSelfUpdateStaging()
+        await refreshBackupIndex()
         if prefs.notifyOnUpdates && installed > 0 {
             UpdateNotifier.batchUpdated(count: installed)
         }

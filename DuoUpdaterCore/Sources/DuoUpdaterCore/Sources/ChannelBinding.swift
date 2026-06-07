@@ -69,6 +69,8 @@ enum ChannelBinding {
         case TablePlusChannel.bundleID.lowercased(): return TablePlusChannel.resolveCurrent()
         case CleanShotChannel.bundleID.lowercased(): return CleanShotChannel.resolveCurrent()
         case TailscaleChannel.bundleID.lowercased(): return TailscaleChannel.resolveCurrent()
+        case IINAChannel.bundleID.lowercased():    return IINAChannel.resolveCurrent()
+        case AlfredChannel.bundleID.lowercased():  return AlfredChannel.resolveCurrent()
         default:                       return nil
         }
     }

@@ -416,14 +416,22 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^Beekeeper-Studio-[0-9.]+-arm64\.dmg$"#,
             installerKind: .dmg),
 
-        // Insomnia — Kong/insomnia is a monorepo whose Releases are tagged per
-        // package (`core@X.Y.Z` is the Insomnia desktop app; `lib@…`/`inso@…` are
-        // sibling packages). `/releases/latest` could resolve to a non-core
+        // Insomnia (stable) — Kong/insomnia is a monorepo whose Releases are tagged
+        // per package (`core@X.Y.Z` is the Insomnia desktop app; `lib@…`/`inso@…`
+        // are sibling packages). `/releases/latest` could resolve to a non-core
         // release, so scan the list (usePrereleases) and take the first tag the
-        // pattern matches. The `core@`-anchored pattern matches ONLY the app's
-        // tags — lib@/inso@ yield no capture and are skipped — and since GitHub
-        // returns newest-first, the first `core@` hit is the latest; interleaved
-        // `core@…-beta.N` sort after the stable release of the same line.
+        // pattern matches — lib@/inso@ yield no capture and are skipped.
+        //
+        // The `$` anchor is load-bearing: Kong publishes prerelease tags
+        // (`core@13.0.0-beta.0`) BEFORE the matching stable, and a prerelease of a
+        // *new* line sorts newest — first in the list. An unanchored
+        // `core@(X.Y.Z)` captured `13.0.0` out of `core@13.0.0-beta.0` and pushed a
+        // beta onto stable users as "13.0.0" (and the `-beta.0` dmg name then failed
+        // `installAssetPattern`, so the row showed "Open", not even "Update"). With
+        // `$`, only suffix-free stable tags (`core@12.6.0`) match; the beta channel,
+        // if/when added, is a separate `channel: .beta` rule. (The earlier comment's
+        // "betas sort after the stable of the same line" assumption was simply wrong
+        // when a brand-new line debuts as a prerelease.)
         //
         // Best-effort one-click: the `Insomnia.Core-<ver>.dmg` (universal) wraps
         // `Insomnia.app` — verified 2026-06-06 a notarized Developer ID build (Team
@@ -436,7 +444,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.insomnia.app",
             owner: "Kong", repo: "insomnia",
             usePrereleases: true,
-            versionPattern: #"core@([0-9]+\.[0-9]+\.[0-9]+)"#,
+            versionPattern: #"core@([0-9]+\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^Insomnia\.Core-[0-9.]+\.dmg$"#,
             installerKind: .dmg),
 

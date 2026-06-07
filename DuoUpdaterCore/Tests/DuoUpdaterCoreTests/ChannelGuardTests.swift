@@ -460,6 +460,22 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         name: "Warp", bundleID: "dev.warp.Warp-Stable", keystoneChannel: nil) == .stable)
 }
 
+// Vivaldi Snapshot ships as a distinct bundle id with a `.snapshot` suffix and
+// its display name contains "Snapshot" — both signals must map to `.preview`.
+@Test func vivaldiSnapshotBundleIdAndNameSignalPreview() {
+    #expect(ReleaseChannel.detect(
+        name: "Vivaldi Snapshot", bundleID: "com.vivaldi.Vivaldi.snapshot",
+        keystoneChannel: nil) == .preview)
+    // The bundle id suffix alone is sufficient.
+    #expect(ReleaseChannel.detect(
+        name: "Vivaldi", bundleID: "com.vivaldi.Vivaldi.snapshot",
+        keystoneChannel: nil) == .preview)
+    // A stable Vivaldi (no suffix) stays stable.
+    #expect(ReleaseChannel.detect(
+        name: "Vivaldi", bundleID: "com.vivaldi.Vivaldi",
+        keystoneChannel: nil) == .stable)
+}
+
 // MARK: - Single-channel recipes resolve a clean version (live)
 
 @Test func singleChannelRecipesResolve() async throws {

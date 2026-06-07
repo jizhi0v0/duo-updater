@@ -29,13 +29,21 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
 }
 
 @Test func insomniaRuleMatchesCoreTagOnly() {
-    // Captures the desktop version from a core@ tag…
+    // Captures the desktop version from a stable core@ tag…
     #expect(extract("core@12.6.0", "com.insomnia.app") == "12.6.0")
     // …and ignores sibling monorepo packages (no capture → skipped by the source).
     #expect(extract("lib@3.0.0", "com.insomnia.app") == nil)
     #expect(extract("inso@11.0.0", "com.insomnia.app") == nil)
-    // Newest-first feed: first matching tag is the latest stable.
-    let feed = ["core@12.6.0", "core@12.6.0-beta.0", "core@12.5.0"]
+    // The `$` anchor rejects PRERELEASE tags so the stable rule never serves a beta
+    // as if it were stable — the cross-channel push bug. (A 12.6.0 stable install
+    // was being offered "13.0.0", stripped out of `core@13.0.0-beta.0`.)
+    #expect(extract("core@13.0.0-beta.0", "com.insomnia.app") == nil)
+    #expect(extract("core@12.5.1-alpha.0", "com.insomnia.app") == nil)
+    // Real failing feed (observed 2026-06-06): a brand-new line debuts as a
+    // prerelease, so it sorts NEWEST — first in the newest-first list — ahead of
+    // the actual latest stable. The first MATCHING tag must still be 12.6.0, not
+    // 13.0.0.
+    let feed = ["core@13.0.0-beta.0", "core@12.6.0", "core@12.6.0-beta.0", "core@12.5.0"]
     let first = feed.lazy.compactMap { extract($0, "com.insomnia.app") }.first
     #expect(first == "12.6.0")
 }

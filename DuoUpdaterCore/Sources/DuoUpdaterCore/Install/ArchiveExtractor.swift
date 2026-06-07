@@ -14,8 +14,31 @@ enum ArchiveExtractor {
             case .unsupported(let ext): return "Unsupported archive type: .\(ext)"
             case .noAppFound: return "No .app bundle was found inside the archive."
             case .toolFailed(let tool, let code, let msg):
-                return "\(tool) failed (\(code)): \(msg)"
+                return "\(tool) failed (\(code)): \(Self.condense(msg))"
             }
+        }
+
+        /// Boil a tool's raw stderr down to one short, legible line. `ditto`/`tar`
+        /// fault per-file, so a single failure (most often a full disk) prints the
+        /// same reason hundreds of times — surfaced verbatim that wall of text both
+        /// reads as noise and, in the workbench, blows the window's min-height up.
+        /// Collapse the common "out of space" case to one clear sentence; otherwise
+        /// keep the first few distinct lines, capped.
+        private static func condense(_ raw: String) -> String {
+            let lines = raw.split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            if lines.contains(where: { $0.localizedCaseInsensitiveContains("No space left on device") }) {
+                return "not enough disk space to extract the update — free up space and try again"
+            }
+            var seen = Set<String>()
+            var kept: [String] = []
+            for line in lines where seen.insert(line).inserted {
+                kept.append(line)
+                if kept.count == 3 { break }
+            }
+            let joined = kept.isEmpty ? "(no output)" : kept.joined(separator: "; ")
+            return joined.count > 300 ? String(joined.prefix(300)) + "…" : joined
         }
     }
 

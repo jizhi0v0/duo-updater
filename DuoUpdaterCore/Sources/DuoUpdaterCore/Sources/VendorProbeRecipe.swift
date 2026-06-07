@@ -425,6 +425,43 @@ public enum VendorProbeRegistry {
             changelogURL: URL(string: "https://developer.chrome.com/release-notes"),
             channel: .canary),
 
+        // Brave Browser — Beta / Nightly. Sparkle appcast per channel. Distinct
+        // bundle ids (`com.brave.Browser.beta` / `.nightly`) so the channel gate
+        // routes each install to its own feed. `sparkle:shortVersionString` carries
+        // the marketing 4-part version (e.g. "1.92.114.0"); `sparkle:version` is the
+        // build number used for the download URL. Detection only — Brave self-updates
+        // via Sparkle.
+        VendorProbeRecipe(
+            bundleID: "com.brave.Browser.beta",
+            url: URL(string: "https://updates.bravesoftware.com/sparkle/Brave-Browser/beta/appcast.xml")!,
+            mode: .responseBody,
+            versionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://brave.com/download-beta/")!,
+            changelogURL: URL(string: "https://brave.com/latest/")!,
+            channel: .beta),
+        VendorProbeRecipe(
+            bundleID: "com.brave.Browser.nightly",
+            url: URL(string: "https://updates.bravesoftware.com/sparkle/Brave-Browser/nightly/appcast.xml")!,
+            mode: .responseBody,
+            versionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://brave.com/download-nightly/")!,
+            changelogURL: URL(string: "https://brave.com/latest/")!,
+            channel: .nightly),
+
+        // Vivaldi — Snapshot (preview) track. Sparkle appcast on the `snapshot`
+        // channel. Independent bundle id (`com.vivaldi.Vivaldi.snapshot`) so the
+        // channel gate routes it automatically. `sparkle:shortVersionString` carries
+        // the marketing version (e.g. "8.1.4063.3"). Detection only — Vivaldi
+        // self-updates.
+        VendorProbeRecipe(
+            bundleID: "com.vivaldi.Vivaldi.snapshot",
+            url: URL(string: "https://update.vivaldi.com/update/1.0/snapshot/mac/appcast.xml")!,
+            mode: .responseBody,
+            versionPattern: #"<sparkle:shortVersionString>([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)</sparkle:shortVersionString>"#,
+            downloadURL: URL(string: "https://vivaldi.com/download/")!,
+            changelogURL: URL(string: "https://vivaldi.com/blog/desktop/")!,
+            channel: .preview),
+
         // Microsoft Edge — Stable / Beta / Dev. One enterprise endpoint lists all
         // products; each per-channel pattern scopes to that Product's first
         // (newest) MacOS release. Distinct bundle ids (`…edgemac[.Beta/.Dev]`) so
@@ -1268,20 +1305,48 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://obsidian.md/download"),
             changelogURL: URL(string: "https://obsidian.md/changelog/")),
 
-        // Figma desktop — official per-arch "latest" manifest (the same
+        // Figma desktop (stable) — official per-arch "latest" manifest (the same
         // RELEASE.json the Homebrew cask livecheck reads). `version` is first and
-        // matches the app's CFBundleShortVersionString (e.g. 126.4.11). mac-arm is
-        // the Apple-silicon flavor; an Intel build would use the `mac` path.
-        // Detection only — a Figma-<ver>.zip exists in the same body but was NOT
-        // confirmed same-Team-ID, so no in-place install; Figma also self-updates
-        // via Squirrel. ChangelogRecipe(com.figma.Desktop) renders the notes.
+        // matches the app's CFBundleShortVersionString (e.g. 126.4.13). mac-arm is
+        // the Apple-silicon flavor; an Intel build would use the `mac` path. The
+        // body also carries the absolute zip URL ("url":"…/Figma-<ver>.zip") — the
+        // install spec captures that for one-click. Confirmed 2026-06-06: the
+        // downloaded Figma-126.4.13.zip is a notarized Developer ID build, Team
+        // T8RA8NE3B7 (Figma, Inc.), bundle id com.figma.Desktop == the installed
+        // app, so the VendorInstaller Team gate passes. ChangelogRecipe renders the
+        // notes. (Figma also self-updates via Squirrel; this is a manual fallback.)
         VendorProbeRecipe(
             bundleID: "com.figma.Desktop",
             url: URL(string: "https://desktop.figma.com/mac-arm/RELEASE.json")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
             downloadURL: URL(string: "https://www.figma.com/downloads/"),
-            changelogURL: URL(string: "https://www.figma.com/release-notes/")),
+            changelogURL: URL(string: "https://www.figma.com/release-notes/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""url"\s*:\s*"(https://desktop\.figma\.com/[^"]+\.zip)""#),
+                kind: .zip)),
+
+        // Figma Beta — a SEPARATE app (NOT an in-app toggle): its own bundle id
+        // com.figma.DesktopBeta, its own "Figma Beta.app", and a parallel endpoint
+        // tree under /beta/. Pattern A (independent installs), so no cross-channel
+        // risk — this recipe only ever resolves against a real Figma Beta install,
+        // which detects as `.beta` (verified via channel-verify on the 126.6.2
+        // bundle). Endpoint mirrors stable exactly: RELEASE.json → version + the
+        // FigmaBeta-<ver>.zip url. Same signer as stable (Team T8RA8NE3B7,
+        // confirmed 2026-06-06 on the real FigmaBeta-126.6.2.zip), so one-click is
+        // safe behind the same Team gate. Notes share the product release-notes page
+        // (Figma publishes no separate beta changelog).
+        VendorProbeRecipe(
+            bundleID: "com.figma.DesktopBeta",
+            url: URL(string: "https://desktop.figma.com/mac-arm/beta/RELEASE.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://www.figma.com/downloads/"),
+            changelogURL: URL(string: "https://www.figma.com/release-notes/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""url"\s*:\s*"(https://desktop\.figma\.com/[^"]+\.zip)""#),
+                kind: .zip),
+            channel: .beta),
 
         // 1Password 8 — self-updates via its own EdDSA updater, so no standard
         // source resolves it. The vendor's app-updates.agilebits.com/check JSON

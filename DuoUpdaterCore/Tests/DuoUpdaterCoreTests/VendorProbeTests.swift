@@ -491,6 +491,60 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "1.9.3")
 }
 
+// MARK: - Brave Beta / Nightly Sparkle appcast extraction
+
+@Test func braveBetaProbeExtractsVersionFromAppcast() {
+    // Real Brave Beta appcast: sparkle:shortVersionString is an ATTRIBUTE on the
+    // <enclosure> (not an element). The feed is descending (newest first), so
+    // first match is the latest version.
+    let fixture = #"""
+    <item>
+      <title>Brave-Browser 192.114</title>
+      <enclosure url="https://updates-cdn.bravesoftware.com/sparkle/Brave-Browser/beta/192.114/Brave-Browser-Beta-x64.dmg"
+                 sparkle:version="192.114"
+                 sparkle:shortVersionString="1.92.114.0"
+                 length="162002408" type="application/octet-stream"/>
+    </item>
+    """#
+    let recipe = registryRecipe("com.brave.Browser.beta")
+    #expect(recipe.channel == .beta)
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: recipe.versionPattern) == "1.92.114.0")
+}
+
+@Test func braveNightlyProbeExtractsVersionFromAppcast() {
+    // Same attribute shape as Beta, just a different channel endpoint.
+    let fixture = #"""
+    <item>
+      <title>Brave-Browser 193.35</title>
+      <enclosure url="https://updates-cdn.bravesoftware.com/sparkle/Brave-Browser/nightly/193.35/Brave-Browser-Nightly-x64.dmg"
+                 sparkle:version="193.35"
+                 sparkle:shortVersionString="1.93.35.0"
+                 length="162002408" type="application/octet-stream"/>
+    </item>
+    """#
+    let recipe = registryRecipe("com.brave.Browser.nightly")
+    #expect(recipe.channel == .nightly)
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: recipe.versionPattern) == "1.93.35.0")
+}
+
+// MARK: - Vivaldi Snapshot Sparkle appcast extraction
+
+@Test func vivaldiSnapshotProbeExtractsVersionFromAppcast() {
+    // Real Vivaldi Snapshot appcast: sparkle:shortVersionString is an ELEMENT
+    // (not an attribute), and the feed carries only the latest release.
+    let fixture = #"""
+    <item>
+      <title>8.1.4063.3</title>
+      <sparkle:shortVersionString>8.1.4063.3</sparkle:shortVersionString>
+      <sparkle:version>8.1.4063.3</sparkle:version>
+      <enclosure url="https://downloads.vivaldi.com/snapshot-auto/Vivaldi.8.1.4063.3.universal.tar.xz" />
+    </item>
+    """#
+    let recipe = registryRecipe("com.vivaldi.Vivaldi.snapshot")
+    #expect(recipe.channel == .preview)
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: recipe.versionPattern) == "8.1.4063.3")
+}
+
 // MARK: - End-to-end version-routing (the verdict, not just extraction)
 //
 // The extraction tests above prove a recipe pulls *a string*; they don't prove

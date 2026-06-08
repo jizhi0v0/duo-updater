@@ -70,6 +70,15 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
             lock.unlock()
             var request = URLRequest(url: url)
             request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
+            // Force identity encoding. URLSession otherwise advertises
+            // `Accept-Encoding: gzip` and some CDNs (Google's edgedl.me.gvt1.com,
+            // serving the Android Studio dmg) honour it even for already-compressed
+            // archives. URLSession then decompresses transparently and reports
+            // `totalBytesExpectedToWrite == -1` (it can't know the inflated size
+            // up front), which stalls the progress bar at 0% while bytes stream to
+            // disk. gzip buys nothing on a dmg/zip/pkg, so we opt out and get a
+            // real Content-Length. Caller headers below may still override.
+            request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
             for (field, value) in headers {
                 request.setValue(value, forHTTPHeaderField: field)
             }
@@ -123,6 +132,10 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         if reported > 0 { return reported }
         guard let http = response as? HTTPURLResponse else { return reported }
         if let header = http.value(forHTTPHeaderField: "x-goog-stored-content-length"),
+           let n = Int64(header) { return n }
+        // Google's edgedl CDN exposes the uncompressed size here even when it
+        // gzip-encodes the body and drops the usable Content-Length.
+        if let header = http.value(forHTTPHeaderField: "x-identity-content-length"),
            let n = Int64(header) { return n }
         if http.expectedContentLength > 0 { return http.expectedContentLength }
         return reported

@@ -1713,7 +1713,9 @@ final class AppListModel {
             reopenAfterQuit.insert(id)
             relaunching.insert(id)
         }
-        quitContinuations.removeValue(forKey: id)?.resume(returning: proceed)
+        let cont = quitContinuations.removeValue(forKey: id)
+        Log.install.info("confirmQuit: \(id, privacy: .public) proceed=\(proceed) resumedInstaller=\(cont != nil)")
+        cont?.resume(returning: proceed)
     }
 
     /// Reopen an app we quit for an incremental App Store update (App Store's

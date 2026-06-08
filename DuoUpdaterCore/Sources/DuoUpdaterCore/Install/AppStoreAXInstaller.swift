@@ -38,10 +38,13 @@ import ApplicationServices
 ///   4. Only once the download finishes does App Store raise an `AXSheet` ("Close
 ///      This App to Update" / Continue · Cancel) — and only because the app is open.
 ///      We gate that sheet behind the UI's Relaunch tap (`confirmQuit`), then press
-///      its Continue ourselves (the sheet's `AXDefaultButton`, language-independent;
-///      the buttons' own identifiers are unstable `_NS:` values). A sheet that
-///      appears *without* a download behind it is a subscription / purchase / terms
-///      confirmation, which we never press — we surface it for manual handling.
+///      its Continue (the sheet's `AXDefaultButton`, language-independent; the buttons'
+///      own identifiers are unstable `_NS:` values) **and quit the app ourselves**: a
+///      backgrounded App Store presses Continue but doesn't reliably bring the app
+///      down to finish the swap, so we deliver the quit it's waiting for (graceful
+///      `terminate()`; see `terminateAndWait`). A sheet that appears *without* a
+///      download behind it is a subscription / purchase / terms confirmation, which we
+///      never press — we surface it for manual handling.
 public actor AppStoreAXInstaller {
 
     public init() {}
@@ -125,6 +128,9 @@ public actor AppStoreAXInstaller {
     ) async throws {
         guard Self.isTrusted else { throw AXError.notTrusted }
 
+        let runningAtStart = bundleID.map { isRunning($0) } ?? false
+        Log.install.info("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
+
         onStage(.checking)
 
         // Bring App Store up *before* the deep link so the navigation doesn't race a
@@ -155,8 +161,10 @@ public actor AppStoreAXInstaller {
         // update runs without stealing focus or flashing App Store to the foreground.
 
         guard try await waitForOfferButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList, renavigateTrackID: viaUpdatesList ? nil : trackID) != nil else {
+            Log.install.error("appstore-ax: \(appName, privacy: .public) offer button not found (viaUpdatesList=\(viaUpdatesList))")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
+        Log.install.info("appstore-ax: \(appName, privacy: .public) offer button located")
 
         // Baseline the on-disk version *before* pressing, so completion is gated on
         // the bundle actually changing (see driveToCompletion) rather than on the
@@ -178,9 +186,11 @@ public actor AppStoreAXInstaller {
         // localized title — pressing an up-to-date button no-ops. Re-find the button right
         // before pressing: the ref from the wait can go stale if the page re-rendered.
         guard let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) else {
+            Log.install.error("appstore-ax: \(appName, privacy: .public) offer button vanished before press")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
         AXUIElementPerformAction(offer, kAXPressAction as CFString)
+        Log.install.info("appstore-ax: \(appName, privacy: .public) pressed Update (baseline short=\(baseline.short ?? "?", privacy: .public) build=\(baseline.build ?? "?", privacy: .public))")
         onStage(.downloading(fraction: 0))
 
         try await driveToCompletion(
@@ -203,7 +213,12 @@ public actor AppStoreAXInstaller {
         // product-page path nudges the badge. Best-effort: a completed install must
         // never fail over a cosmetic badge, so refreshUpdatesBadge swallows everything.
         if !viaUpdatesList {
-            await refreshUpdatesBadge(store: store)
+            // Fire-and-forget: this only nudges App Store's cosmetic Dock badge and
+            // sleeps ~1s doing it. Awaiting it would delay the caller's relaunch of the
+            // app the user is waiting to see return, so detach it — the badge self-heals
+            // on Apple's next check regardless.
+            let pid = store.processIdentifier
+            Task { await self.refreshUpdatesBadge(pid: pid) }
         }
     }
 
@@ -214,12 +229,12 @@ public actor AppStoreAXInstaller {
     /// silent: it runs backgrounded (`open -g` + a menu AXPress that needs no
     /// activation), and any failure just leaves the badge to self-heal on Apple's next
     /// check — exactly the prior behavior.
-    private func refreshUpdatesBadge(store: NSRunningApplication) async {
+    private func refreshUpdatesBadge(pid: pid_t) async {
         try? navigate("macappstore://showUpdatesPage")
         // Let the Updates view load before reloading it — reloading reissues the
         // server-side update check, which is what recomputes the count.
         try? await Task.sleep(for: .seconds(1))
-        reloadUpdatesPage(in: AXUIElementCreateApplication(store.processIdentifier))
+        reloadUpdatesPage(in: AXUIElementCreateApplication(pid))
     }
 
     /// Fire App Store's "Reload Page" (⌘R) on whatever page is showing. On the Updates
@@ -393,6 +408,7 @@ public actor AppStoreAXInstaller {
         var continued = false     // we pressed Continue; the app is quitting + swapping
         var idleTicks = 0         // consecutive polls with no progress and no sheet
         var repressed = false     // we re-pressed Update once after an idle stretch
+        var postContinueTicks = 0 // polls since we pressed Continue (to flag a no-op press)
 
         // ~6 min hard cap of *polling* — the suspension on `confirmQuit` below doesn't
         // burn iterations, so waiting on the user's Relaunch tap never times us out.
@@ -401,8 +417,22 @@ public actor AppStoreAXInstaller {
             // Covers both the app-not-running case (installs directly, no sheet) and
             // the post-Continue swap. Keyed on short OR build version changing.
             if versionChanged(from: baseline, appPath: appPath) {
+                Log.install.info("appstore-ax: \(appName, privacy: .public) install complete — bundle version changed on disk")
                 onStage(.done)
                 return
+            }
+
+            // After Continue, cap the wait on App Store's swap. The swap normally lands
+            // in well under a minute (WeChat ~24s), so if the version hasn't changed
+            // ~90s after Continue the swap silently failed (e.g. the app couldn't be
+            // quit) — bail rather than spin the full 6-min cap, which would freeze the
+            // background scheduler (it defers every tick while an install is in flight).
+            if continued {
+                postContinueTicks += 1
+                if postContinueTicks >= 225 {  // ~90s at 400ms/poll
+                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — no swap ~90s after Continue (the swap likely never started; app still running=\(bundleID.map { isRunning($0) } ?? false))")
+                    throw AXError.timedOut
+                }
             }
 
             // 2. Sheet handling.
@@ -411,22 +441,43 @@ public actor AppStoreAXInstaller {
                 if continued {
                     // Already pressed Continue — the app is quitting and the swap is in
                     // flight. Ignore any lingering sheet and just wait for the version.
+                    // But a sheet still up well after Continue means the press didn't
+                    // register (a stale-ref AXPress no-ops silently) — flag it once so
+                    // a stuck "nothing happened" install is diagnosable.
+                    if postContinueTicks == 10 {  // ~4s after Continue
+                        Log.install.error("appstore-ax: \(appName, privacy: .public) sheet still present ~4s after Continue — press may not have registered (app still running=\(bundleID.map { isRunning($0) } ?? false))")
+                    }
                 } else if sawProgress, let bundleID, isRunning(bundleID) {
                     // Download finished, app still open → App Store's "Close this app to
                     // update" sheet. Gate it behind the user's Relaunch tap, then press
                     // Continue ourselves — we never quit the user's app behind their back.
                     // Re-find the sheet right before pressing: it can re-render across the
                     // await, and an AXPress on a stale ref silently no-ops.
+                    Log.install.info("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — awaiting user Relaunch/Cancel")
                     guard await confirmQuit(appName) else {
+                        Log.install.info("appstore-ax: \(appName, privacy: .public) user declined — pressing Cancel")
                         if let fresh = quitSheet(in: axApp) {
                             pressSheetButton(fresh, "AXCancelButton")
+                        } else {
+                            Log.install.error("appstore-ax: \(appName, privacy: .public) sheet ref gone at Cancel-press time — Cancel skipped (no-op)")
                         }
                         throw AXError.cancelled
                     }
-                    onStage(.installing)  // "Relaunching" — Continue quits + swaps in
+                    onStage(.installing)  // "Relaunching" — Continue + our quit, then swap
                     if let fresh = quitSheet(in: axApp) {
                         pressSheetButton(fresh, "AXDefaultButton")  // Continue
+                        Log.install.info("appstore-ax: \(appName, privacy: .public) user confirmed — pressed Continue (AXDefaultButton)")
+                    } else {
+                        Log.install.error("appstore-ax: \(appName, privacy: .public) sheet ref gone at Continue-press time — Continue skipped (no-op)")
                     }
+                    // A backgrounded App Store presses Continue but doesn't reliably bring
+                    // the app down to complete the swap — verified failing for WeChat
+                    // (2026-06-08): Continue dismissed the sheet, yet the app never quit and
+                    // App Store gave up ~35s later with "could not be installed". The user
+                    // consented via Relaunch, so we deliver the quit App Store is waiting on
+                    // ourselves (the originally-verified quit-first mechanism, removed
+                    // unverified in 599e8dd). Graceful only; see terminateAndWait.
+                    await terminateAndWait(bundleID: bundleID, appName: appName)
                     continued = true
                     sheetTicks = 0
                 } else {
@@ -435,7 +486,13 @@ public actor AppStoreAXInstaller {
                     // ticks in case it's transient, then bail and point the user at the
                     // App Store — never press a charge.
                     sheetTicks += 1
-                    if sheetTicks >= 3 { throw AXError.needsManualConfirmation }
+                    if sheetTicks == 1 {
+                        Log.install.info("appstore-ax: \(appName, privacy: .public) unexpected sheet before any download (sawProgress=\(sawProgress), running=\(bundleID.map { isRunning($0) } ?? false)) — likely subscription/purchase/terms")
+                    }
+                    if sheetTicks >= 3 {
+                        Log.install.error("appstore-ax: \(appName, privacy: .public) needs manual confirmation — bailing without pressing")
+                        throw AXError.needsManualConfirmation
+                    }
                 }
             } else {
                 sheetTicks = 0
@@ -445,9 +502,11 @@ public actor AppStoreAXInstaller {
             // Once we've pressed Continue the title is meaningless, so stop reading it.
             if !continued, let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList), let title = title(offer) {
                 if let fraction = Self.progressFraction(title) {
+                    if !sawProgress { Log.install.info("appstore-ax: \(appName, privacy: .public) download started") }
                     sawProgress = true
                     onStage(.downloading(fraction: fraction))
                 } else if Self.isLoadingTitle(title) {
+                    if !sawProgress { Log.install.info("appstore-ax: \(appName, privacy: .public) download starting (loading)") }
                     sawProgress = true
                     onStage(.downloading(fraction: 0))
                 }
@@ -462,17 +521,20 @@ public actor AppStoreAXInstaller {
             } else {
                 idleTicks += 1
                 if idleTicks == 30 && !repressed {
+                    Log.install.info("appstore-ax: \(appName, privacy: .public) no progress/sheet after ~12s — re-pressing Update once")
                     if let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) {
                         AXUIElementPerformAction(offer, kAXPressAction as CFString)
                     }
                     repressed = true
                 } else if idleTicks >= 60 {
+                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — no progress/sheet ~24s after press (the press never took)")
                     throw AXError.timedOut
                 }
             }
 
             try await Task.sleep(for: .milliseconds(400))
         }
+        Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — 6-min poll cap reached (continued=\(continued) sawProgress=\(sawProgress))")
         throw AXError.timedOut
     }
 
@@ -483,6 +545,27 @@ public actor AppStoreAXInstaller {
     private func pressSheetButton(_ sheet: AXUIElement, _ attr: String) {
         guard let button = attribute(sheet, attr) else { return }
         AXUIElementPerformAction(button, kAXPressAction as CFString)
+    }
+
+    /// Quit every running instance of the app *ourselves* (graceful `terminate()`),
+    /// then wait up to ~12s for it to actually exit. Called after the user confirms the
+    /// "Close this app to update" sheet: a backgrounded App Store presses Continue but
+    /// doesn't reliably bring the app down to complete the swap, so we deliver the quit
+    /// it's waiting for. Graceful only — if the app puts up a save prompt and won't
+    /// exit, we leave it (the install then times out) rather than force-killing unsaved
+    /// work. App Store, seeing the app gone, swaps the new build in on its own.
+    private func terminateAndWait(bundleID: String, appName: String) async {
+        for app in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) {
+            app.terminate()
+        }
+        for _ in 0..<60 {  // ~12s at 200ms
+            if !isRunning(bundleID) {
+                Log.install.info("appstore-ax: \(appName, privacy: .public) quit — App Store can now swap in the update")
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        Log.install.error("appstore-ax: \(appName, privacy: .public) won't quit within 12s (likely a save prompt) — leaving it; install may time out")
     }
 
     /// Parse a fraction (0…1) out of an offer-button title like "80% loaded" or

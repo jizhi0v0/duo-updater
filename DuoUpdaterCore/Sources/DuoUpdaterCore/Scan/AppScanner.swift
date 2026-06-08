@@ -35,6 +35,25 @@ public struct AppScanner: Sendable {
         }
     }
 
+    /// Strip invisible bidi / zero-width formatting marks that some bundles embed in
+    /// their display name (e.g. WhatsApp's leading U+200E LEFT-TO-RIGHT MARK). These
+    /// are presentational only — they never belong to the logical name and break any
+    /// literal comparison against the same name rendered without them. We remove the
+    /// specific bidi controls and zero-width spaces, deliberately leaving ZERO WIDTH
+    /// JOINER (U+200D) alone so emoji / Indic-script names keep rendering correctly,
+    /// then trim surrounding whitespace.
+    static func stripInvisibleMarks(_ name: String) -> String {
+        let marks: Set<Unicode.Scalar> = [
+            "\u{200B}",  // ZERO WIDTH SPACE
+            "\u{200E}", "\u{200F}",                          // LRM / RLM
+            "\u{202A}", "\u{202B}", "\u{202C}", "\u{202D}", "\u{202E}",  // bidi embeddings/overrides
+            "\u{2066}", "\u{2067}", "\u{2068}", "\u{2069}",  // bidi isolates
+            "\u{FEFF}"   // ZERO WIDTH NO-BREAK SPACE (BOM)
+        ]
+        let cleaned = String(String.UnicodeScalarView(name.unicodeScalars.filter { !marks.contains($0) }))
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// Scan all configured locations and return the apps found, sorted by name.
     public func scan() -> [InstalledApp] {
         let fm = FileManager.default
@@ -101,10 +120,18 @@ public struct AppScanner: Sendable {
               !shortVersion.isEmpty
         else { return nil }
 
-        let displayName =
+        // Some bundles wrap their display name in invisible bidi/zero-width marks —
+        // WhatsApp's `CFBundleDisplayName` is "\u{200E}WhatsApp" (a leading LEFT-TO-RIGHT
+        // MARK) so the name renders LTR regardless of locale. Those marks are purely
+        // presentational and never part of the logical name, yet they poison every
+        // literal comparison against text rendered *without* them — most visibly the
+        // App Store AX updater's `pageMentions`/row matching, which then "can't find the
+        // update button". Strip them so the canonical name matches everywhere.
+        let displayName = Self.stripInvisibleMarks(
             (plist["CFBundleDisplayName"] as? String)
             ?? (plist["CFBundleName"] as? String)
             ?? bundleURL.deletingPathExtension().lastPathComponent
+        )
 
         // Wrapped iOS apps can only come from the Mac App Store; native Mac apps
         // carry a `_MASReceipt` when bought there. TestFlight builds ALSO carry a

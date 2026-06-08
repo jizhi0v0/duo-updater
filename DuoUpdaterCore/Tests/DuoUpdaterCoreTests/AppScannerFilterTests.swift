@@ -33,6 +33,35 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     #expect(apps.map(\.name) == ["Real"])  // helper excluded
 }
 
+@Test func scannerStripsInvisibleBidiMarksFromDisplayName() throws {
+    // WhatsApp ships CFBundleDisplayName "\u{200E}WhatsApp" (a leading LEFT-TO-RIGHT
+    // MARK). That invisible mark made the canonical name "\u{200E}WhatsApp", which
+    // never matched the App Store page's plain "WhatsApp" in the AX updater's
+    // `pageMentions` guard — surfacing as "Couldn't find the update button".
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    _ = try makeApp(at: tmp, name: "WhatsAppRaw", info: [
+        "CFBundleIdentifier": "net.whatsapp.WhatsApp",
+        "CFBundleShortVersionString": "26.21.73",
+        "CFBundleDisplayName": "\u{200E}WhatsApp",
+    ])
+
+    let apps = AppScanner(locations: [tmp]).scan()
+    #expect(apps.map(\.name) == ["WhatsApp"])  // bidi mark stripped
+    #expect(!(apps.first?.name.unicodeScalars.contains("\u{200E}") ?? true))
+}
+
+@Test func stripInvisibleMarksKeepsZeroWidthJoiner() {
+    // ZWJ (U+200D) binds emoji / Indic clusters — stripping it would corrupt the
+    // name, so it's deliberately preserved while bidi marks are removed.
+    #expect(AppScanner.stripInvisibleMarks("\u{200E}A\u{200B}B\u{FEFF}") == "AB")
+    #expect(AppScanner.stripInvisibleMarks("man\u{200D}woman") == "man\u{200D}woman")
+    #expect(AppScanner.stripInvisibleMarks("  Plain  ") == "Plain")
+}
+
 @Test func twoBundlesSharingABundleIDGetDistinctIDs() throws {
     // Two JetBrains-Toolbox Android Studio installs (Otter + Koala) ship the
     // same CFBundleIdentifier. Identity keys on the on-disk path, not the

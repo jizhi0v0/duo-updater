@@ -448,7 +448,11 @@ private struct IgnoredSettings: View {
     /// key → display name, resolved from the current scan where possible.
     private var names: [String: String] {
         var map: [String: String] = [:]
-        for result in model.results { map[prefs.key(for: result.app)] = result.app.name }
+        for result in model.results {
+            map[prefs.key(for: result.app)] = result.app.name
+            // Also map the pre-migration key so a still-legacy entry shows its name.
+            map[prefs.legacyKey(for: result.app)] = result.app.name
+        }
         return map
     }
 

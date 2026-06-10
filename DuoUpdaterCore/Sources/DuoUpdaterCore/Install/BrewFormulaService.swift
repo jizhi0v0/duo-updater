@@ -91,35 +91,55 @@ public actor BrewFormulaService {
         return Self.parse(data)
     }
 
-    /// Top-level installed formulae (`brew leaves`) merged with their installed
-    /// version (`brew list --formula --versions`) and the outdated set, so each row
-    /// shows its version and — when behind — the available upgrade. Returns an empty
+    /// Fast local inventory: top-level installed formulae (`brew leaves`) with their
+    /// installed version (`brew list --formula --versions`), but WITHOUT update info —
+    /// `availableVersion` is always nil. This is the cheap first phase of a two-phase
+    /// load: two quick local reads, no `brew outdated`, so the workbench Brew tree can
+    /// paint immediately (the way the Apps tree shows apps before their update checks
+    /// land). The caller fills in the update badges afterward by merging in
+    /// `outdated()` via `Self.merge(_:outdated:)`. Sorted by name. Returns an empty
     /// list (never throws) when brew is absent, so a brew-less machine shows no tree.
     ///
     /// `leaves` deliberately excludes dependency-only formulae: the hundreds of
     /// transitive packages brew installs to satisfy others would bury the list, and
     /// the user only cares about what they asked for (the analog of "apps you have").
-    public func leaves() async throws -> [BrewInstalledFormula] {
+    public func installedLeaves() async throws -> [BrewInstalledFormula] {
         guard HomebrewInstaller.brewPath() != nil else { return [] }
 
-        // Run the three reads concurrently — they're independent and each spawns a
-        // brew subprocess, so serializing them would triple the latency.
+        // The two reads are independent and each spawns a brew subprocess, so run
+        // them concurrently rather than serializing the latency.
         async let leafNames = runReading(["leaves"])
         async let versionList = runReading(["list", "--formula", "--versions"])
-        async let outdatedList = (try? outdated()) ?? []
 
         let leaves = Set(Self.parseLines(await leafNames))
         guard !leaves.isEmpty else { return [] }
         let versions = Self.parseVersions(await versionList)
-        let available = Dictionary(
-            (await outdatedList).map { ($0.name, $0.currentVersion) },
-            uniquingKeysWith: { a, _ in a })
 
         return leaves.map { name in
             BrewInstalledFormula(
                 name: name,
                 installedVersion: versions[name] ?? "—",
-                availableVersion: available[name])
+                availableVersion: nil)
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Re-stamp a fast `installedLeaves()` inventory with the available upgrades from
+    /// `outdated()`, re-sorting so rows with an update float to the top — the second
+    /// phase of the two-phase load. Pure (no subprocess), so it's trivially testable
+    /// and runs instantly once both reads are in hand.
+    public static func merge(
+        _ inventory: [BrewInstalledFormula],
+        outdated: [BrewOutdatedFormula]
+    ) -> [BrewInstalledFormula] {
+        let available = Dictionary(
+            outdated.map { ($0.name, $0.currentVersion) },
+            uniquingKeysWith: { a, _ in a })
+        return inventory.map { f in
+            BrewInstalledFormula(
+                name: f.name,
+                installedVersion: f.installedVersion,
+                availableVersion: available[f.name])
         }
         .sorted { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }

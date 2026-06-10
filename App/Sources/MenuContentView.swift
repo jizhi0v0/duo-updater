@@ -33,6 +33,10 @@ enum AppIconCache {
     /// Called after an in-place install: the bundle is replaced but its path is
     /// unchanged, so the stale icon would otherwise persist until app restart.
     static func invalidate(_ path: String) { cache.removeObject(forKey: path as NSString) }
+
+    /// The real App Store.app icon, used as the source tag for store-managed apps.
+    /// Resolved once (the path is fixed) and shared through the same icon cache.
+    static let appStore = icon(for: "/System/Applications/App Store.app")
 }
 
 /// Carries the measured height of the popover's update list up to the frame, so it
@@ -1042,7 +1046,9 @@ private struct AppRow: View {
     /// date or the lookup returned nothing. Either way, updates are the store's
     /// job, so the row never offers an action we can't perform.
     private var appStoreManagedLabel: some View {
-        Text("App Store").font(.caption2).foregroundStyle(.tertiary)
+        Image(nsImage: AppIconCache.appStore)
+            .resizable()
+            .frame(width: 16, height: 16)
             .help("Managed by the App Store — it handles this app's updates")
     }
 

@@ -47,6 +47,11 @@ struct WorkbenchWindowView: View {
     /// Collapsed/expanded state for the two sidebar trees. Both open by default.
     @State private var appsExpanded = true
     @State private var brewExpanded = true
+
+    /// Negative top padding that cancels the top inset VSplitView adds to each pane's
+    /// sidebar list (see `splitRegion`). Measured at 10pt; kept as one constant so the
+    /// two panes stay in sync and it's a single knob to retune.
+    private static let splitPaneListInset: CGFloat = -10
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
 
@@ -320,9 +325,14 @@ struct WorkbenchWindowView: View {
     private var splitRegion: some View {
         if hasBrew && appsExpanded && brewExpanded {
             VSplitView {
-                VStack(spacing: 0) { appsHeader; appsListView }
+                // VSplitView gives each pane's sidebar list a ~10pt top inset that the
+                // collapsed (plain-VStack) layout doesn't, so the list sat 10pt lower
+                // under its header only while the split was engaged (measured: the rows
+                // shifted down exactly 20px @2x). Pull each list back up by that inset so
+                // both layouts hug the header identically.
+                VStack(spacing: 0) { appsHeader; appsListView.padding(.top, Self.splitPaneListInset) }
                     .frame(minHeight: 120)
-                VStack(spacing: 0) { brewHeader; brewListView }
+                VStack(spacing: 0) { brewHeader; brewListView.padding(.top, Self.splitPaneListInset) }
                     .frame(minHeight: 100)
             }
             // Persist the divider position across launches. VSplitView exposes no

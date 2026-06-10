@@ -900,6 +900,17 @@ final class AppListModel {
             brewChecked = true
             return
         }
+        // Phase 1 — fast local inventory: paint the Brew tree immediately with the
+        // installed leaves (no update badges yet), mirroring how the Apps tree shows
+        // every app before its update check lands. The `await` yields to the runloop,
+        // so SwiftUI repaints with the list before phase 2 runs. Best-effort:
+        // installedLeaves() returns [] on any brew hiccup.
+        brewFormulae = (try? await brewFormulaService.installedLeaves()) ?? []
+
+        // Phase 2 — the slower `brew outdated` read: learn which leaves have an
+        // upgrade, then re-stamp the already-shown list so badges appear in place
+        // (updates floating to the top). `brewChecked` flips only here, since until
+        // outdated returns we don't actually know the update state.
         defer { brewChecked = true }
         do {
             brewOutdatedFormulae = try await brewFormulaService.outdated()
@@ -907,10 +918,7 @@ final class AppListModel {
             Log.app.info("brew outdated --formula failed: \(error.localizedDescription, privacy: .public)")
             brewOutdatedFormulae = []
         }
-        // The workbench Brew tree lists all top-level formulae (not just outdated),
-        // mirroring how the Apps tree lists every app. Best-effort: leaves() never
-        // throws, returning [] on any brew hiccup.
-        brewFormulae = (try? await brewFormulaService.leaves()) ?? []
+        brewFormulae = BrewFormulaService.merge(brewFormulae, outdated: brewOutdatedFormulae)
     }
 
     /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
@@ -1119,6 +1127,12 @@ final class AppListModel {
         // Install policy: a running self-updating vendor app is handed to its own
         // updater rather than swapped under it — unless the user chose to always
         // overwrite. (Re-checked here, not just in the UI, so any caller honors it.)
+        // Re-derive the live running set first: `runningAppPaths` is only updated by
+        // NSWorkspace launch/terminate notifications, which aren't delivered while
+        // this menu-bar app is App-Napped — so a quit that happened during a nap can
+        // leave the set stale and make `isRunning` (and thus this defer) lie. This is
+        // a consequential decision, so base it on the live process list, not a cache.
+        refreshRunningApps()
         if vendorDefersToSelfUpdater(result) {
             Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
             openSelfUpdater(result)
@@ -2090,7 +2104,14 @@ final class AppListModel {
             return
         }
 
-        let newly = actionable.filter { baseline[prefs.key(for: $0.app)] != version($0) }
+        // Consult the legacy key too: a baseline recorded before the switch to
+        // per-path keys lives under the old bundle-id key, and we don't want that
+        // migration to re-announce everything once as "new".
+        func wasNotified(_ r: UpdateResult) -> Bool {
+            baseline[prefs.key(for: r.app)] == version(r)
+                || baseline[prefs.legacyKey(for: r.app)] == version(r)
+        }
+        let newly = actionable.filter { !wasNotified($0) }
 
         // Record the current target version for every actionable app (so a later
         // refresh won't re-announce the same version), and drop entries for apps no

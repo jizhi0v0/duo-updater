@@ -254,29 +254,46 @@ final class Preferences {
 
     // MARK: - Per-app keys
 
-    /// A stable identity for an app's preferences. Delegates to `BackupStore.key`
-    /// so an ignore/skip and a backup resolve to the *same* string for the same
-    /// app — prefer the bundle id (survives the app moving on disk), fall back to
-    /// the sanitised path when there's none.
+    /// A stable per-install identity for an app's preferences (ignore, skip,
+    /// notification baseline). Keys on the on-disk path — exactly like
+    /// `InstalledApp.id`, and deliberately NOT the bundle id: several installed
+    /// apps can legitimately share one (the JetBrains-Toolbox Android Studio
+    /// channels, Thunderbird stable/esr, …), and a bundle-id key collapses them
+    /// so ignoring/skipping one applied to every copy. (Backups still key by
+    /// bundle id via `BackupStore.key`; nothing cross-references the two.)
     func key(for app: InstalledApp) -> String {
+        BackupStore.key(bundleID: nil, path: app.path)
+    }
+
+    /// The previous bundle-id-preferred identity. Entries written before the
+    /// switch to per-path keys live under this; we still honour them on read so
+    /// an existing ignore/skip never silently resurfaces, and migrate them to the
+    /// new key the next time the app is toggled.
+    func legacyKey(for app: InstalledApp) -> String {
         BackupStore.key(bundleID: app.bundleID, path: app.path)
     }
 
     // MARK: - Ignore
 
     func isIgnored(_ app: InstalledApp) -> Bool {
-        ignoredKeys.contains(key(for: app))
+        ignoredKeys.contains(key(for: app)) || ignoredKeys.contains(legacyKey(for: app))
     }
 
     func setIgnored(_ ignored: Bool, _ app: InstalledApp) {
-        let k = key(for: app)
-        if ignored { ignoredKeys.insert(k) } else { ignoredKeys.remove(k) }
+        if ignored {
+            ignoredKeys.insert(key(for: app))
+        } else {
+            // Drop both forms so unignoring clears any legacy (possibly shared) entry too.
+            ignoredKeys.remove(key(for: app))
+            ignoredKeys.remove(legacyKey(for: app))
+        }
     }
 
     // MARK: - Skip version
 
     func isVersionSkipped(_ app: InstalledApp, version: String?) -> Bool {
-        guard let version, let skipped = skippedVersions[key(for: app)] else { return false }
+        guard let version else { return false }
+        let skipped = skippedVersions[key(for: app)] ?? skippedVersions[legacyKey(for: app)]
         return skipped == version
     }
 
@@ -286,6 +303,7 @@ final class Preferences {
 
     func clearSkip(_ app: InstalledApp) {
         skippedVersions[key(for: app)] = nil
+        skippedVersions[legacyKey(for: app)] = nil
     }
 
     /// Key-based removals for the Settings list, where we only have the stored key

@@ -250,7 +250,7 @@ struct WelcomeView: View {
     private func openGitHubSetup() {
         model.requestedSettingsSection = .github
         openWindow(id: SettingsView.windowID)
-        NSApp.activate(ignoringOtherApps: true)
+        model.surfaceWindow(sceneID: SettingsView.windowID)
     }
 }
 

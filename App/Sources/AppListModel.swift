@@ -317,6 +317,27 @@ final class AppListModel {
         if openWindowCount == 0 { NSApp.setActivationPolicy(.accessory) }
     }
 
+    /// Bring an already-open (or just-opened) SwiftUI `Window` scene to the visual
+    /// front. `openWindow(id:)` re-keys a window but, on macOS 26/27, does NOT
+    /// raise its z-order above a sibling window of the same app — and when the
+    /// window is *already open behind* another, its view never re-runs `.onAppear`,
+    /// so the lifecycle-based ordering never fires. So every Settings open site
+    /// calls this right after `openWindow` to force the order regardless of state.
+    ///
+    /// Matches on the SwiftUI window identifier, whose rawValue embeds the scene id
+    /// (e.g. "settings-AppWindow-1"). Runs on the next runloop so the window exists
+    /// for a fresh open, and after `windowAppeared`'s `activate` so our order wins.
+    func surfaceWindow(sceneID: String) {
+        DispatchQueue.main.async {
+            guard let window = NSApp.windows.first(where: {
+                ($0.identifier?.rawValue.contains(sceneID) ?? false) && $0.isVisible
+            }) else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+        }
+    }
+
     // MARK: - Accessibility trust polling
 
     @ObservationIgnored private var trustPollTask: Task<Void, Never>?
@@ -1357,8 +1378,11 @@ final class AppListModel {
         var ids: Set<String> = []
         var versions: [String: String] = [:]
         for result in results {
-            guard let bundleID = result.app.bundleID,
-                  let runVersion = running[bundleID],
+            // Match on the resolved bundle path, not bundle id: a row whose exact
+            // .app isn't running must not pick up a channel sibling's running
+            // version (Android Studio Preview vs Stable share one bundle id).
+            let runKey = result.app.path.resolvingSymlinksInPath().path
+            guard let runVersion = running[runKey],
                   let disk = result.app.buildVersion ?? result.app.shortVersion,
                   VersionComparator.isNewer(disk, than: runVersion) else { continue }
             // Always record the lagging running version — even for a row that
@@ -1475,8 +1499,14 @@ final class AppListModel {
         }
     }
 
-    /// Map of bundle id → the build version each running app launched with,
-    /// parsed from `lsappinfo list` (one call for all running apps).
+    /// Map of symlink-resolved bundle path → the build version each running app
+    /// launched with, parsed from `lsappinfo list` (one call for all running apps).
+    ///
+    /// Keyed by *path*, not bundle id, on purpose: channel siblings like Android
+    /// Studio Preview and Stable share one bundle id (`com.google.android.studio`),
+    /// so a bundle-id map would let a *non-running* Preview inherit the running
+    /// Stable's version — and since Preview's build is higher, falsely flag Preview
+    /// as needing a restart, then strand the Restart click trying to quit Stable.
     ///
     /// Runs entirely off the main actor: `lsappinfo` talks to `coreservicesd`
     /// and can be slow or hang — most acutely right after we terminate and
@@ -1515,8 +1545,10 @@ final class AppListModel {
             var map: [String: String] = [:]
             var current: String?
             for line in text.split(separator: "\n") {
-                if let bundleID = quotedValue(after: "bundleID", in: line) {
-                    current = bundleID
+                if let path = quotedValue(after: "bundle path", in: line) {
+                    // Resolve symlinks to line up with how `AppScanner` records
+                    // `InstalledApp.path` (and `computeRestartInfo`'s lookup key).
+                    current = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
                 } else if let cur = current, map[cur] == nil,
                           let version = quotedValue(after: "Version", in: line) {
                     map[cur] = version
@@ -1534,6 +1566,19 @@ final class AppListModel {
         return String(rest[..<end])
     }
 
+    /// The running instances launched from *this exact .app*, not just any app
+    /// sharing its bundle id. Channel siblings (Android Studio Preview/Stable,
+    /// etc.) share one bundle id, so terminating "all with this bundle id" would
+    /// also kill the sibling we never meant to touch — and the quit-wait below
+    /// would never see the set empty (the sibling stays up), stranding the spinner.
+    private func runningInstances(of result: UpdateResult) -> [NSRunningApplication] {
+        let target = result.app.path.resolvingSymlinksInPath().path
+        let candidates = result.app.bundleID.map {
+            NSRunningApplication.runningApplications(withBundleIdentifier: $0)
+        } ?? NSWorkspace.shared.runningApplications
+        return candidates.filter { $0.bundleURL?.resolvingSymlinksInPath().path == target }
+    }
+
     /// Quit the stale running instance and relaunch it so the new version takes
     /// effect. Graceful only — if it won't quit (unsaved work), we leave it and
     /// keep the Restart prompt for the user to retry.
@@ -1547,14 +1592,14 @@ final class AppListModel {
         relaunching.insert(result.id)
         defer { relaunching.remove(result.id) }
         Log.app.info("restart: \(result.app.name, privacy: .public) [\(bundleID, privacy: .public)]")
-        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        let running = runningInstances(of: result)
         guard !running.isEmpty else { needsRestart.remove(result.id); return }
         for app in running { app.terminate() }
         for _ in 0..<30 {
-            if NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty { break }
+            if runningInstances(of: result).isEmpty { break }
             try? await Task.sleep(for: .milliseconds(200))
         }
-        guard NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty else {
+        guard runningInstances(of: result).isEmpty else {
             Log.app.error("restart: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving badge")
             return  // still up (likely a save prompt) — leave the badge
         }
@@ -1580,7 +1625,7 @@ final class AppListModel {
     /// version, so a swap that didn't land stays "Relaunch" instead of falling back
     /// to our (colliding) Update.
     func relaunchStagedUpdate(_ result: UpdateResult) async {
-        guard let bundleID = result.app.bundleID else { return }
+        guard result.app.bundleID != nil else { return }
         // Block re-entry: a slow swap must not be re-triggered by repeated clicks.
         guard !relaunching.contains(result.id) else {
             Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) already in flight — ignoring repeat")
@@ -1588,7 +1633,7 @@ final class AppListModel {
         }
         relaunching.insert(result.id)
         defer { relaunching.remove(result.id) }
-        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        let running = runningInstances(of: result)
         guard !running.isEmpty else {
             // Not running: the staged swap applies on the app's own next quit, not
             // on demand from us. Leave the badge; a later check clears it once the
@@ -1613,7 +1658,7 @@ final class AppListModel {
                 applied = true
                 break
             }
-            let stillUp = !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
+            let stillUp = !runningInstances(of: result).isEmpty
             if stillUp && tick >= 15 {  // ~3s and never quit → refused (likely a save prompt)
                 Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
                 break
@@ -1621,7 +1666,7 @@ final class AppListModel {
         }
         // Fallback: if ShipIt swapped but didn't relaunch (or never ran), bring the
         // app back so the user isn't left without it.
-        if NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty {
+        if runningInstances(of: result).isEmpty {
             NSWorkspace.shared.open(result.app.path)
         }
         Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public)")

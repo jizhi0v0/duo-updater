@@ -145,7 +145,10 @@ struct WorkbenchWindowView: View {
             // Release Notes. (Underlying TrafficStore still records; only the UI is
             // hidden, so this is reversible.)
             ToolbarItem(placement: .primaryAction) {
-                Button { openWindow(id: SettingsView.windowID) } label: {
+                Button {
+                    openWindow(id: SettingsView.windowID)
+                    model.surfaceWindow(sceneID: SettingsView.windowID)
+                } label: {
                     Image(systemName: "gearshape")
                 }
                 .help("Settings")

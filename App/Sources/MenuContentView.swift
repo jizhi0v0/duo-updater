@@ -241,7 +241,7 @@ struct MenuContentView: View {
             .help("Rescan and check for updates")
             Button {
                 openWindow(id: SettingsView.windowID)
-                NSApp.activate(ignoringOtherApps: true)
+                model.surfaceWindow(sceneID: SettingsView.windowID)
             } label: {
                 Image(systemName: "gearshape")
             }

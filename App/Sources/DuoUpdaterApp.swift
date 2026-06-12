@@ -44,7 +44,7 @@ struct DuoUpdaterApp: App {
         .commands {
             // Restore the ⌘, "Settings…" app-menu item now that there's no Settings
             // scene to provide it automatically.
-            SettingsCommand()
+            SettingsCommand(model: model)
         }
     }
 }
@@ -80,12 +80,16 @@ private struct MenuBarLabel: View {
 
 /// The app-menu "Settings…" command (⌘,), pointing at our Window-based settings.
 private struct SettingsCommand: Commands {
+    let model: AppListModel
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(replacing: .appSettings) {
-            Button("Settings…") { openWindow(id: SettingsView.windowID) }
-                .keyboardShortcut(",", modifiers: .command)
+            Button("Settings…") {
+                openWindow(id: SettingsView.windowID)
+                model.surfaceWindow(sceneID: SettingsView.windowID)
+            }
+            .keyboardShortcut(",", modifiers: .command)
         }
     }
 }

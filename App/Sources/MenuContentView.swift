@@ -550,20 +550,19 @@ private struct AppRow: View {
         .help("The vendor's latest is \(older) — older than your \(installed). You're ahead, so there's nothing to do. Usually a beta channel, a pulled release, or a lagging check.")
     }
 
-    /// The restart version line: running build → installed build. Surfaced when an
-    /// app self-updated on disk but the old process is still live, so "Restart" reads
-    /// as a concrete version bump. Build numbers (not marketing) because that's all
-    /// we can read off the running process; the JetBrains-style prefix is stripped so
-    /// both sides share one namespace.
+    /// The restart version line: running build → installed marketing version (build).
+    /// Surfaced when an app self-updated on disk but the old process is still live, so
+    /// "Restart" reads as a concrete version bump. The from side is build-only — that's
+    /// all `lsappinfo` exposes for the running process — while the on-disk to side
+    /// carries the full marketing version, so we show "1.7.3 (194)" there rather than a
+    /// bare build. The JetBrains-style prefix is stripped so the builds share a namespace.
     @ViewBuilder
     private func restartVersionLine(_ runningBuild: String) -> some View {
         let from = UpdateResult.strippingBuildPrefix(runningBuild)
-        let installed = result.app.buildVersion ?? result.app.shortVersion ?? "?"
-        let to = UpdateResult.strippingBuildPrefix(installed)
         HStack(spacing: 4) {
             Text(from).foregroundStyle(.secondary)
             Image(systemName: "arrow.right").font(.caption2)
-            Text(to).fontWeight(.semibold).foregroundStyle(.orange)
+            Text(result.restartTargetVersion).fontWeight(.semibold).foregroundStyle(.orange)
         }
         .font(.caption)
         .lineLimit(1)
@@ -1115,5 +1114,22 @@ extension UpdateResult {
         let remoteClean = Self.strippingBuildPrefix(remoteBuild)
         guard installed != remoteClean else { return nil }
         return (installed, remoteClean)
+    }
+
+    /// The "to" side of a restart line: the on-disk (post-self-update) version a
+    /// relaunch will land. Unlike the still-running process — which exposes only its
+    /// build via `lsappinfo` — the on-disk bundle carries both fields, so we show the
+    /// full marketing version with the build in parens ("1.7.3 (194)") rather than a
+    /// bare build number. Falls back to the bare build (date/serial apps whose
+    /// marketing string equals or is absent vs the build) or the marketing version
+    /// alone. The JetBrains-style build prefix is stripped to match the from side.
+    var restartTargetVersion: String {
+        let build = app.buildVersion.map(Self.strippingBuildPrefix)
+        switch (app.shortVersion, build) {
+        case let (marketing?, build?) where marketing != build: return "\(marketing) (\(build))"
+        case let (_, build?): return build
+        case let (marketing?, nil): return marketing
+        default: return "?"
+        }
     }
 }

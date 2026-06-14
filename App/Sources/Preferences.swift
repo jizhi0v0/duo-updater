@@ -259,10 +259,12 @@ final class Preferences {
     /// `InstalledApp.id`, and deliberately NOT the bundle id: several installed
     /// apps can legitimately share one (the JetBrains-Toolbox Android Studio
     /// channels, Thunderbird stable/esr, …), and a bundle-id key collapses them
-    /// so ignoring/skipping one applied to every copy. (Backups still key by
-    /// bundle id via `BackupStore.key`; nothing cross-references the two.)
+    /// so ignoring/skipping one applied to every copy. Kept separate from
+    /// `BackupStore.key`: rollback storage has its own compatibility and
+    /// collision-avoidance rules, while preferences must preserve old ignore/skip
+    /// identities exactly.
     func key(for app: InstalledApp) -> String {
-        BackupStore.key(bundleID: nil, path: app.path)
+        Self.preferenceKey(app.path.path)
     }
 
     /// The previous bundle-id-preferred identity. Entries written before the
@@ -270,7 +272,17 @@ final class Preferences {
     /// an existing ignore/skip never silently resurfaces, and migrate them to the
     /// new key the next time the app is toggled.
     func legacyKey(for app: InstalledApp) -> String {
-        BackupStore.key(bundleID: app.bundleID, path: app.path)
+        Self.preferenceKey(app.bundleID ?? app.path.path)
+    }
+
+    private static func preferenceKey(_ raw: String) -> String {
+        let safe = raw.unicodeScalars.map { scalar -> Character in
+            let c = Character(scalar)
+            if c.isLetter || c.isNumber || c == "." || c == "-" || c == "_" { return c }
+            return "_"
+        }
+        let joined = String(safe)
+        return joined.isEmpty || joined.allSatisfy { $0 == "." } ? "app" : joined
     }
 
     // MARK: - Ignore

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// A single application discovered on disk, with the metadata we need to
@@ -11,10 +12,20 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// collision and silently dropped one copy in `refreshLocal`'s id-keyed dict.
     public var id: String { path.path }
 
-    /// A filesystem-safe token for scratch directories. `id` is a full path (with
-    /// slashes), so installers can't use it directly in a path component.
+    /// A filesystem-safe token for scratch directories. It includes a path token
+    /// because two installed copies can share one bundle id and still update at
+    /// the same time. The token is a SHA-256 digest of the resolved path, NOT
+    /// `String.hashValue` — that is seeded per process, so a dir named off it
+    /// couldn't be reclaimed by name on a later run. `SparkleInstaller` /
+    /// `VendorInstaller` name their scratch dir off this and remove a leftover
+    /// one (from a hard crash mid-install) by name before reusing it, so the slug
+    /// must be stable across launches.
     public var scratchSlug: String {
-        (bundleID ?? path.lastPathComponent).replacingOccurrences(of: "/", with: "_")
+        let label = Self.safePathComponent(bundleID ?? path.deletingPathExtension().lastPathComponent)
+        let resolved = path.resolvingSymlinksInPath().standardizedFileURL.path
+        let digest = SHA256.hash(data: Data(resolved.utf8))
+        let pathToken = digest.prefix(8).map { String(format: "%02x", $0) }.joined()
+        return "\(label)-\(pathToken)"
     }
 
     /// Display name, e.g. "Visual Studio Code".
@@ -92,6 +103,16 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// catching a user who opted into beta but is still on a stable build, which
     /// build-inference alone can't see. Defaults to false (infer from the build).
     public let channelIsAuthoritative: Bool
+
+    private static func safePathComponent(_ raw: String) -> String {
+        let safe = raw.unicodeScalars.map { scalar -> Character in
+            let c = Character(scalar)
+            if c.isLetter || c.isNumber || c == "." || c == "-" || c == "_" { return c }
+            return "_"
+        }
+        let joined = String(safe)
+        return joined.isEmpty || joined.allSatisfy { $0 == "." } ? "app" : joined
+    }
 
     public init(
         name: String,

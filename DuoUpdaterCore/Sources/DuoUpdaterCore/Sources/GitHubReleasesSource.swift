@@ -356,16 +356,13 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^rustdesk-[0-9.]+-aarch64\.dmg$"#,
             installerKind: .dmg),
 
-        // Alcove — dedicated releases repo, no `v` prefix. One-click installs the
-        // universal `Alcove.dmg`: verified 2026-06-06 its `Alcove.app` is a notarized
-        // Developer ID build (Team 287NUTSP69, Henrik Ruscon) reporting version 1.7.2
-        // == tag, bundle id com.henrikruscon.Alcove matching the install → passes the
-        // VendorInstaller gate. No self-updater, so a plain one-click.
-        GitHubReleaseRule(
-            bundleID: "com.henrikruscon.Alcove",
-            owner: "henrikruscon", repo: "alcove-releases",
-            installAssetPattern: #"^Alcove\.dmg$"#,
-            installerKind: .dmg),
+        // Alcove — moved to a VendorProbeRecipe (see VendorProbeRegistry). The
+        // `henrikruscon/alcove-releases` mirror this rule used to read LAGS the real
+        // release: on 2026-06-14 it was stuck at 1.7.2 while the vendor's own update
+        // server already served 1.7.3 (build 194, published 2026-06-12), so every
+        // 1.7.3 install silently read as up-to-date. Alcove's own "Reworked update
+        // manager" hits update.tryalcove.com, which is the authoritative, current
+        // feed — the probe reads that instead.
 
         // Macs Fan Control — tags carry a `v` prefix (stripped by the pattern).
         // One-click installs `macsfancontrol.zip`, which wraps `Macs Fan Control.app`:

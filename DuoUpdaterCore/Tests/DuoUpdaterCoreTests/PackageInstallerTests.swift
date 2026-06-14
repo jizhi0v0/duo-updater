@@ -53,4 +53,14 @@ struct PackageInstallerTests {
         #expect(!PackageInstaller.isPackageEntry(symlink, insideResolvedPath: base))
         #expect(!PackageInstaller.isPackageEntry(text, insideResolvedPath: base))
     }
+
+    @Test func packageScratchDirectoriesAreUniquePerInstall() {
+        let app = URL(fileURLWithPath: "/Applications/Example App.app", isDirectory: true)
+        let first = PackageInstaller.workDirectory(forInstalledApp: app)
+        let second = PackageInstaller.workDirectory(forInstalledApp: app)
+
+        #expect(first != second)
+        #expect(first.lastPathComponent.hasPrefix("DuoUpdater-pkg-Example-App-"))
+        #expect(second.lastPathComponent.hasPrefix("DuoUpdater-pkg-Example-App-"))
+    }
 }

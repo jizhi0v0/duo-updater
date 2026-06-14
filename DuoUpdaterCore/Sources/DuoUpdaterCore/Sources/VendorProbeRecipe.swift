@@ -833,6 +833,37 @@ public enum VendorProbeRegistry {
             changelogURL: URL(string: "https://github.com/element-hq/element-desktop/releases"),
             channel: .nightly),
 
+        // WeType (微信输入法) — Tencent's input method. Installs under
+        // `/Library/Input Methods` (not /Applications), now scanned by AppScanner.
+        // No standard source resolves it: its bundled Sparkle has NO SUFeedURL in
+        // Info.plist (set at runtime), and the hardcoded public appcast froze at
+        // 1.4.1 (2025-07) while 2.x updates ride an in-app WeChat push channel — so
+        // the only public "what's the latest macOS version" surface is the official
+        // changelog page. It's a Next.js page but the data is server-rendered inline
+        // (an `__next_f` RSC blob, no JS needed): a flat list of release objects for
+        // ALL platforms — `"platform":1`=iOS, `2`=Android, `3`=macOS, `4`=Windows.
+        // CRUCIAL anchor: `version` precedes `platform` in each object, so the
+        // pattern ties the captured version to its OWN object's `"platform":3` —
+        // `[^"]*` can't cross a structural quote, so it can't span into an adjacent
+        // (e.g. iOS) object. Without that gate, a bare/highest version pattern would
+        // grab a higher non-macOS version (iOS is at 3.4.0) → a phantom update.
+        // `content_html` carries no raw `"` (quotes are `&quot;`-encoded), so the
+        // `[^"]*` field bounds hold. selectHighest because the page lists releases
+        // ascending (oldest-first) and the pattern matches NOTHING BUT macOS
+        // versions. Detection-only: the page exposes no `download_url` and only the
+        // marketing version (no build number to build an installer URL), and WeType
+        // self-updates in-app anyway. changelogURL is the same page (the `/macos`
+        // route filters to macOS client-side) — also parsed natively by a
+        // ChangelogRecipe; this is the webview fallback if that parse misses.
+        VendorProbeRecipe(
+            bundleID: "com.tencent.inputmethod.wetype",
+            url: URL(string: "https://z.weixin.qq.com/web/change-log/macos")!,
+            mode: .responseBody,
+            versionPattern: #""version":"([0-9][^"]*)","content":"[^"]*","content_html":"[^"]*","platform":3"#,
+            downloadURL: URL(string: "https://z.weixin.qq.com/"),
+            changelogURL: URL(string: "https://z.weixin.qq.com/web/change-log/macos"),
+            selectHighest: true),
+
         // Cursor — official update API; the first `version` field is the latest
         // build. Single channel (its "stable"/"latest" tracks resolve to the same
         // build). Detection only — Cursor self-updates via ToDesktop.
@@ -1518,6 +1549,31 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern: #"<!--BEGINVERSION-->([0-9.]+)<!--ENDVERSION-->"#,
             changelogURL: URL(string: "https://www.corecode.io/macupdater/history3.html")),
+
+        // Alcove — vendor's own update endpoint (the app's "Reworked update
+        // manager" hits update.tryalcove.com). Replaces the GitHubReleaseRule that
+        // read henrikruscon/alcove-releases: that mirror lags the real release
+        // (stuck at 1.7.2 on 2026-06-14 while this endpoint already served 1.7.3,
+        // build 194, published 2026-06-12), so it silently missed updates. The
+        // endpoint returns GitHub-release-shaped JSON: `tag_name` is the version
+        // (semver == the app's CFBundleShortVersionString — no build trap) and
+        // `assets[].browser_download_url` carries the versioned Alcove.dmg, anchored
+        // on `Alcove\.dmg` so it's picked over the sibling Alcove.zip regardless of
+        // order. One-click installs that dmg, gated by VendorInstaller's same-Team-ID
+        // signature check (287NUTSP69, Henrik Ruscon — notarized Developer ID,
+        // verified 2026-06-06). The download is the "trial" (unlicensed) build: it's
+        // the same binary the licensed install runs, the license lives outside the
+        // app bundle, so swapping it in place keeps the activation. Changelog comes
+        // from the matching ChangelogRecipe parsing this same endpoint's `body`.
+        VendorProbeRecipe(
+            bundleID: "com.henrikruscon.Alcove",
+            url: URL(string: "https://update.tryalcove.com")!,
+            mode: .responseBody,
+            versionPattern: #""tag_name"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://www.tryalcove.com/download")!,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""browser_download_url"\s*:\s*"([^"]+Alcove\.dmg)""#),
+                kind: .dmg)),
 
         // (Surge needs no recipe here: it declares a Sparkle SUFeedURL, so the
         // higher-priority SparkleAppcastSource handles it, and `SurgeChannel`

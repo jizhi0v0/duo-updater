@@ -11,6 +11,15 @@ enum ChangelogLoadState {
     case failed
 }
 
+/// Identity for one rendered changelog in the workbench. Some apps share a
+/// bundle id across channels (Thunderbird Stable/ESR/Beta), and templated
+/// recipes fetch per-version pages, so bundle id alone is not enough.
+struct ChangelogCacheKey: Hashable {
+    let bundleID: String
+    let channel: ReleaseChannel
+    let version: String?
+}
+
 /// Owns the scanned app list, their update status, and in-flight installs.
 @MainActor
 @Observable
@@ -288,14 +297,6 @@ final class AppListModel {
     /// Grand total bytes downloaded across every app.
     private(set) var trafficTotalBytes: Int64 = 0
 
-    /// Parsed changelogs the workbench detail has loaded this session, keyed by
-    /// bundle id. The workbench reads this *synchronously* before deciding to show
-    /// a spinner: a hit renders instantly, so flipping between apps in the sidebar
-    /// no longer re-fetches or flashes a progress wheel. Cleared on every manual
-    /// refresh (alongside the network-level `ChangelogCache`) so the notes stay
-    /// fresh after the user asks for a re-check.
-    private(set) var changelogByBundleID: [String: Changelog] = [:]
-
     /// How many of our top-level windows (workbench, Settings) are currently open.
     /// A menu-bar (.accessory) app has no Dock presence; we promote it to .regular
     /// while any window is open so it gets a Dock icon, app menu, and ⌘-Tab, then
@@ -498,25 +499,23 @@ final class AppListModel {
         await refreshTrafficStats()
     }
 
-    /// Per-app load state for a recipe-backed changelog, keyed by bundle id. The
-    /// workbench reads this to render reactively; it never drives the fetch from a
-    /// view's `.task`, so switching apps can't cancel an in-flight load.
-    private(set) var changelogState: [String: ChangelogLoadState] = [:]
-    /// The live load task per bundle id, owned by the model (NOT the view). Because
-    /// it lives here, navigating away from an app mid-fetch doesn't cancel it — the
-    /// fetch finishes in the background and caches, so coming back is instant
-    /// instead of restarting from scratch (the "it refetches every time" bug).
-    @ObservationIgnored private var changelogTasks: [String: Task<Void, Never>] = [:]
+    /// Per-app load state for a recipe-backed changelog, keyed by
+    /// bundle/channel/target-version. The workbench reads this to render
+    /// reactively; it never drives the fetch from a view's `.task`, so switching
+    /// apps can't cancel an in-flight load.
+    private(set) var changelogState: [ChangelogCacheKey: ChangelogLoadState] = [:]
+    /// The live load task per changelog key, owned by the model (NOT the view).
+    /// Because it lives here, navigating away from an app mid-fetch doesn't cancel
+    /// it — the fetch finishes in the background and caches, so coming back is
+    /// instant instead of restarting from scratch.
+    @ObservationIgnored private var changelogTasks: [ChangelogCacheKey: Task<Void, Never>] = [:]
 
     /// The current state of an app's changelog, if it's recipe-backed. `nil` means
     /// the app has no recipe (the workbench then renders inline/structured/web
     /// notes directly, with no fetch involved).
     func changelogState(for result: UpdateResult) -> ChangelogLoadState? {
-        guard let bundleID = result.app.bundleID,
-              ChangelogRecipeRegistry.recipe(
-                forBundleID: bundleID, channel: result.app.releaseChannel) != nil
-        else { return nil }
-        return changelogState[bundleID] ?? .loading
+        guard let key = changelogKey(for: result) else { return nil }
+        return changelogState[key] ?? .loading
     }
 
     /// Kick off a background load for an app's recipe-backed changelog if one isn't
@@ -528,26 +527,38 @@ final class AppListModel {
         guard let bundleID = result.app.bundleID,
               let recipe = ChangelogRecipeRegistry.recipe(
                 forBundleID: bundleID, channel: result.app.releaseChannel) else { return }
-        switch changelogState[bundleID] {
+        let targetVersion = result.remote?.displayVersion ?? result.app.shortVersion
+        let key = ChangelogCacheKey(
+            bundleID: bundleID, channel: result.app.releaseChannel, version: targetVersion)
+        switch changelogState[key] {
         case .loaded, .loading: return          // already done / in flight
         case .failed, .none: break              // (re)start
         }
-        changelogState[bundleID] = .loading
+        changelogState[key] = .loading
         // The version whose notes to show: the offered update if any, else the
         // installed build. Templated recipes (Thunderbird) fetch exactly that
         // version's page so the rendered notes match what the user sees.
-        let targetVersion = result.remote?.displayVersion ?? result.app.shortVersion
-        changelogTasks[bundleID] = Task { [weak self] in
+        changelogTasks[key] = Task { [weak self] in
             let changelog = await ChangelogService.load(recipe, version: targetVersion)
             guard let self else { return }
-            self.changelogTasks[bundleID] = nil
+            self.changelogTasks[key] = nil
             if let changelog {
-                self.changelogByBundleID[bundleID] = changelog
-                self.changelogState[bundleID] = .loaded(changelog)
+                self.changelogState[key] = .loaded(changelog)
             } else {
-                self.changelogState[bundleID] = .failed
+                self.changelogState[key] = .failed
             }
         }
+    }
+
+    private func changelogKey(for result: UpdateResult) -> ChangelogCacheKey? {
+        guard let bundleID = result.app.bundleID,
+              ChangelogRecipeRegistry.recipe(
+                forBundleID: bundleID, channel: result.app.releaseChannel) != nil
+        else { return nil }
+        return ChangelogCacheKey(
+            bundleID: bundleID,
+            channel: result.app.releaseChannel,
+            version: result.remote?.displayVersion ?? result.app.shortVersion)
     }
 
     /// Drop one app's cached changelog across both layers — the session-wide
@@ -558,10 +569,13 @@ final class AppListModel {
     /// The next `ensureChangelogLoading` re-fetches fresh notes for the new build.
     func invalidateChangelog(forBundleID bundleID: String?) {
         guard let bundleID else { return }
-        changelogTasks[bundleID]?.cancel()
-        changelogTasks[bundleID] = nil
-        changelogByBundleID[bundleID] = nil
-        changelogState[bundleID] = nil
+        for key in changelogTasks.keys.filter({ $0.bundleID == bundleID }) {
+            changelogTasks[key]?.cancel()
+            changelogTasks[key] = nil
+        }
+        for key in changelogState.keys.filter({ $0.bundleID == bundleID }) {
+            changelogState[key] = nil
+        }
         // Clear the network cache for every channel variant's page (Stable & ESR
         // share this bundle id but have different sources), since we don't know
         // here which channel's notes were cached.
@@ -694,7 +708,6 @@ final class AppListModel {
         // after a manual refresh — the user expects fresh release notes. Drop the
         // parsed-changelog cache too, so the workbench re-loads fresh notes.
         await ChangelogCache.shared.invalidateAll()
-        changelogByBundleID = [:]
         changelogState = [:]
         changelogTasks.values.forEach { $0.cancel() }
         changelogTasks = [:]
@@ -1832,8 +1845,12 @@ final class AppListModel {
         let map = await Task.detached(priority: .utility) { BackupStore.allBackups() }.value
         var byID: [String: String] = [:]
         for result in results {
-            let key = BackupStore.key(bundleID: result.app.bundleID, path: result.app.path)
-            if let backup = map[key] { byID[result.id] = backup.version ?? "previous" }
+            for key in BackupStore.keyCandidates(
+                bundleID: result.app.bundleID, path: result.app.path)
+            where map[key] != nil {
+                byID[result.id] = map[key]?.version ?? "previous"
+                break
+            }
         }
         backupVersions = byID
     }
@@ -1846,7 +1863,9 @@ final class AppListModel {
         let id = result.id
         guard installing[id] == nil else { return }
         let target = result.app.path
-        let key = BackupStore.key(bundleID: result.app.bundleID, path: target)
+        let key = BackupStore.keyCandidates(bundleID: result.app.bundleID, path: target)
+            .first { BackupStore.backup(forKey: $0) != nil }
+            ?? BackupStore.key(bundleID: result.app.bundleID, path: target)
         installErrors[id] = nil
         installing[id] = .installing
         Log.install.info("rollback start: \(result.app.name, privacy: .public)")

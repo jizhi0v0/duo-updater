@@ -1735,3 +1735,31 @@ private let thunderbirdBetaFixture = """
     #expect(onBeta?.channel == nil)
 }
 
+// WeType (微信输入法) — trimmed slice of the real `__next_f` RSC blob: release
+// objects for several platforms interleaved, OLDEST-FIRST (the macOS entries run
+// 2.1.0 then 2.2.0 in document order), with a higher-versioned iOS entry between
+// them to prove the `platform":3` anchor scopes to macOS. Notes carry a `&quot;`
+// entity and a dash-bulleted `<h2>` line to prove decoding + the h2 item pattern.
+private let weTypeFixture = """
+[{"id":121,"title":"微信输入法 2.1.0 for Mac","release_date":1746000000,"version":"2.1.0","content":"","content_html":"<h2>- 新增「隔空传送」</h2>","platform":3,"download_url":""},\
+{"id":130,"title":"微信输入法 3.4.0 for iOS","release_date":1747000000,"version":"3.4.0","content":"","content_html":"<h2>iOS only</h2>","platform":1,"download_url":""},\
+{"id":152,"title":"微信输入法 2.2.0 for Mac","release_date":1748000000,"version":"2.2.0","content":"","content_html":"<h2>语音输入大模型升级</h2>\\n<h2>- 自动去掉&quot;嗯、啊&quot;等口水词</h2>","platform":3,"download_url":""}]
+"""
+
+@Test func extractsWeTypeMacOSEntriesNewestFirst() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "com.tencent.inputmethod.wetype"))
+    #expect(recipe.newestLast)  // linchpin: the page lists releases oldest-first
+    let changelog = try #require(ChangelogExtractor.extract(from: weTypeFixture, using: recipe))
+
+    // Only the two macOS entries (iOS 3.4.0 is excluded by the platform:3 anchor),
+    // flipped to newest-first by `newestLast`.
+    #expect(changelog.entries.count == 2)
+    #expect(changelog.entries[0].version == "2.2.0")
+    #expect(changelog.entries[1].version == "2.1.0")
+    // `&quot;` decoded, h2-line items captured.
+    #expect(changelog.entries[0].items.count == 2)
+    #expect(changelog.entries[0].items[0] == "语音输入大模型升级")
+    #expect(changelog.entries[0].items[1] == "- 自动去掉\"嗯、啊\"等口水词")
+}
+

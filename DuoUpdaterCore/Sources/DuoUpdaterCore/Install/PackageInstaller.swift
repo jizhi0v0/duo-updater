@@ -48,10 +48,18 @@ public actor PackageInstaller {
     ) async throws -> Int64 {
         guard let url else { throw PackageError.noURL }
 
-        // Keep the download where the system installer can read it for the whole
-        // session; we drop stale copies on the next run rather than mid-install.
-        let workDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("DuoUpdater-pkg")
+        // Each install below gets its own dir that we deliberately never delete
+        // (the system Installer keeps reading the package after we return), so
+        // make good on "drop stale copies on the next run" here: clear out the
+        // ones old enough that no Installer window could still be using them.
+        Self.sweepStaleWorkDirectories()
+
+        // Keep each download in its own scratch directory where the system
+        // installer can read it for the whole session. This method awaits during
+        // the download, so the actor may be re-entered by another package update;
+        // a shared `/tmp/DuoUpdater-pkg/mnt` would let concurrent installs collide
+        // or remove a package an already-open Installer window is still reading.
+        let workDir = Self.workDirectory(forInstalledApp: installedApp)
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
 
         let downloader = Downloader(destinationDir: workDir) { fraction in
@@ -115,6 +123,44 @@ public actor PackageInstaller {
             throw PackageError.downloadFailed("Could not copy the installer package out of the disk image.")
         }
         return dest
+    }
+
+    static func workDirectory(forInstalledApp installedApp: URL) -> URL {
+        let appName = installedApp.deletingPathExtension().lastPathComponent
+        let safeName = safePathComponent(appName.isEmpty ? "app" : appName)
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent("DuoUpdater-pkg-\(safeName)-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    /// Best-effort removal of leftover package scratch dirs from earlier installs.
+    /// Because each `downloadAndOpen` keeps its own UUID dir alive for the system
+    /// Installer, they would otherwise pile up across installs. We only drop dirs
+    /// untouched for a full day — long after any Installer window has finished
+    /// reading the package — so an in-flight or recent install is never disturbed.
+    static func sweepStaleWorkDirectories() {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(
+            at: fm.temporaryDirectory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]) else { return }
+        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        for entry in entries where entry.lastPathComponent.hasPrefix("DuoUpdater-pkg-") {
+            let modified = (try? entry.resourceValues(
+                forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if let modified, modified < cutoff {
+                try? fm.removeItem(at: entry)
+            }
+        }
+    }
+
+    private static func safePathComponent(_ raw: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        let scalars = raw.unicodeScalars.map { allowed.contains($0) ? Character($0) : "-" }
+        let collapsed = String(scalars)
+            .split(separator: "-", omittingEmptySubsequences: true)
+            .joined(separator: "-")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-."))
+        return collapsed.isEmpty ? "app" : collapsed
     }
 
     /// `pkgutil --check-signature` validates the package chain and prints the

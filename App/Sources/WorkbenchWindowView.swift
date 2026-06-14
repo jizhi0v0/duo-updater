@@ -670,13 +670,13 @@ private struct WorkbenchSidebarRow: View {
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                 .lineLimit(1)
         } else if needsRestart, let running = runningVersion {
-            // Self-updated on disk: show running build → installed build so "Restart"
-            // reads as a real change. Builds (not marketing) because that's all we can
-            // read off the live process — and for date/serial builds it's the only
-            // thing that moved (marketing can be unchanged, e.g. Zed Preview).
+            // Self-updated on disk: show running build → installed marketing version
+            // (build) so "Restart" reads as a real change. The from side is build-only
+            // (all the live process exposes via lsappinfo); the on-disk to side carries
+            // the marketing version, so it reads "1.7.3 (194)" — for date/serial builds
+            // with no distinct marketing string it collapses to the bare build.
             let from = UpdateResult.strippingBuildPrefix(running)
-            let to = UpdateResult.strippingBuildPrefix(
-                result.app.buildVersion ?? result.app.shortVersion ?? "?")
+            let to = result.restartTargetVersion
             Text("\(from) → \(to)")
                 .font(.caption)
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))

@@ -54,9 +54,29 @@ struct BackupStoreTests {
         #expect(!k.contains("/"))
     }
 
-    @Test func keyPrefersBundleID() {
-        let k = BackupStore.key(bundleID: "com.example.app", path: URL(fileURLWithPath: "/Applications/Foo.app"))
-        #expect(k == "com.example.app")
+    @Test func keyKeepsBundleIDAsReadablePrefix() {
+        let k = BackupStore.key(
+            bundleID: "com.example.app",
+            path: URL(fileURLWithPath: "/Applications/Foo.app"))
+        #expect(k.hasPrefix("com.example.app-"))
+    }
+
+    @Test func keySeparatesCopiesWithTheSameBundleID() {
+        let first = BackupStore.key(
+            bundleID: "com.example.app",
+            path: URL(fileURLWithPath: "/Applications/Foo.app"))
+        let second = BackupStore.key(
+            bundleID: "com.example.app",
+            path: URL(fileURLWithPath: "/Users/me/Applications/Foo.app"))
+        #expect(first != second)
+    }
+
+    @Test func keyCandidatesKeepLegacyBundleIDKeyForExistingBackups() {
+        let app = URL(fileURLWithPath: "/Applications/Foo.app")
+        let candidates = BackupStore.keyCandidates(bundleID: "com.example.app", path: app)
+
+        #expect(candidates.first == BackupStore.key(bundleID: "com.example.app", path: app))
+        #expect(candidates.contains("com.example.app"))
     }
 
     // MARK: - Save / query
@@ -104,6 +124,36 @@ struct BackupStoreTests {
         try withScratchRoot { _ in
             #expect(BackupStore.backup(forKey: "nope") == nil)
             #expect(BackupStore.allBackups().isEmpty)
+        }
+    }
+
+    /// A backup written before keys became path-scoped lived under the bare,
+    /// sanitised bundle id. Once a canonical path-scoped backup is saved, that
+    /// orphan must be dropped so we don't leak a whole stale bundle per migrated
+    /// app — while the *first* (legacy-keyed) save must not delete itself.
+    @Test func saveDropsOrphanedLegacyBundleIDBackup() throws {
+        try withScratchRoot { _ in
+            let apps = FileManager.default.temporaryDirectory
+                .appendingPathComponent("apps-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: apps) }
+
+            let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
+            let bundleID = "com.example.foo"
+            let legacyKey = bundleID  // the pre-path-scoped key was the bare bundle id
+
+            // Pre-fix backup under the legacy key. This save's own cleanup is a
+            // no-op (legacy == key), so the backup it just wrote survives.
+            try BackupStore.save(appPath: app, key: legacyKey, version: "1.0", bundleID: bundleID)
+            #expect(BackupStore.backup(forKey: legacyKey) != nil)
+
+            // The canonical path-scoped save supersedes and removes the orphan.
+            let canonical = BackupStore.key(bundleID: bundleID, path: app)
+            try BackupStore.save(appPath: app, key: canonical, version: "2.0", bundleID: bundleID)
+
+            #expect(BackupStore.backup(forKey: canonical)?.version == "2.0")
+            #expect(BackupStore.backup(forKey: legacyKey) == nil)  // orphan reclaimed
+            #expect(BackupStore.allBackups().count == 1)           // exactly one copy on disk
         }
     }
 

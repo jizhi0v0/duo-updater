@@ -686,3 +686,27 @@ private func verdict(
     #expect(daily.channel == .nightly)
     #expect(daily.changelogURL == nil)
 }
+
+// WeType (微信输入法) — the changelog page lists releases for ALL platforms in one
+// flat list (`"platform":1`=iOS … `3`=macOS). The recipe's pattern anchors the
+// version to its own object's `"platform":3`, and selectHighest picks the newest
+// MACOS release — it must NOT grab a higher-versioned non-macOS entry (here iOS
+// 3.4.0 > macOS 2.2.0), which an unanchored highest-version pattern would, causing
+// a phantom "update available".
+@Test func weTypeProbeSelectsHighestMacOSVersionNotHigherIOS() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.tencent.inputmethod.wetype" })
+    #expect(recipe.selectHighest)  // page lists macOS releases ascending → take highest
+    #expect(recipe.install == nil) // detection-only (no download_url / build number)
+
+    let body = """
+    [{"id":120,"title":"x for iOS","release_date":1,"version":"3.4.0","content":"","content_html":"<h2>iOS</h2>","platform":1,"download_url":""},\
+    {"id":121,"title":"x for Mac","release_date":2,"version":"2.1.0","content":"","content_html":"<h2>old</h2>","platform":3,"download_url":""},\
+    {"id":152,"title":"x for Mac","release_date":3,"version":"2.2.0","content":"","content_html":"<h2>new &quot;v&quot;</h2>","platform":3,"download_url":""}]
+    """
+    // selectHighest path used by the source for this recipe.
+    #expect(VendorProbeRecipe.highestVersion(from: body, pattern: recipe.versionPattern) == "2.2.0")
+    // The trap, documented: an unanchored highest pattern grabs the iOS version.
+    #expect(VendorProbeRecipe.highestVersion(
+        from: body, pattern: #""version":"([0-9][^"]*)""#) == "3.4.0")
+}

@@ -47,7 +47,22 @@ public enum ChangelogExtractor {
             guard !items.isEmpty else { return }
 
             entries.append(.init(title: title, version: version, date: date, items: items))
-            if let cap = recipe.maxEntries, entries.count >= cap { stop.pointee = true }
+            // For a newest-first page the cap can halt the scan early (we already
+            // have the recent ones). For an oldest-first page (`newestLast`) the
+            // recent entries are at the END, so we must read them all, then reverse
+            // and cap below — no early stop here.
+            if !recipe.newestLast, let cap = recipe.maxEntries, entries.count >= cap {
+                stop.pointee = true
+            }
+        }
+
+        // Oldest-first sources: flip to newest-first and keep the recent `maxEntries`
+        // from that (new) end.
+        if recipe.newestLast {
+            entries.reverse()
+            if let cap = recipe.maxEntries, entries.count > cap {
+                entries = Array(entries.prefix(cap))
+            }
         }
 
         return entries.isEmpty ? nil : Changelog(entries: entries)

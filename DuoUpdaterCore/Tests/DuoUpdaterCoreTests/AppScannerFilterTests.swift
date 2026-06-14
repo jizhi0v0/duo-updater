@@ -85,6 +85,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     let apps = AppScanner(locations: [tmp]).scan()
     #expect(apps.count == 2)
     #expect(Set(apps.map(\.id)).count == 2)  // distinct identities, no ghost row
+    #expect(Set(apps.map(\.scratchSlug)).count == 2)  // distinct installer scratch dirs
 }
 
 /// Build a throwaway wrapped iOS app: `<Name>.app/Wrapper/<Inner>.app/Info.plist`

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Keeps one backup copy of each app's *previous* bundle so an update can be
@@ -44,11 +45,31 @@ public enum BackupStore {
         let savedAt: Date
     }
 
-    /// A filesystem-safe directory name for an app. Prefer the bundle id (stable
-    /// across moves); fall back to the on-disk path when an app has none. Both are
-    /// sanitised so a stray slash/colon can't escape the backups root.
+    /// A filesystem-safe directory name for one installed copy of an app. It keeps
+    /// the bundle id/name as a readable prefix, but scopes the key by resolved path:
+    /// two installed copies can share a bundle id (Android Studio channels,
+    /// duplicate app bundles), and their rollback points must never overwrite each
+    /// other.
     public static func key(bundleID: String?, path: URL) -> String {
-        let raw = bundleID ?? path.path
+        let label = sanitized(bundleID ?? path.deletingPathExtension().lastPathComponent)
+        let pathID = shortPathID(path)
+        return "\(label)-\(pathID)"
+    }
+
+    /// Current key followed by the pre-path-scoped key. Read paths use this so
+    /// backups written before the collision fix still appear and can be restored;
+    /// new writes always use ``key(bundleID:path:)``.
+    public static func keyCandidates(bundleID: String?, path: URL) -> [String] {
+        let current = key(bundleID: bundleID, path: path)
+        let legacy = legacyKey(bundleID: bundleID, path: path)
+        return current == legacy ? [current] : [current, legacy]
+    }
+
+    private static func legacyKey(bundleID: String?, path: URL) -> String {
+        sanitized(bundleID ?? path.path)
+    }
+
+    private static func sanitized(_ raw: String) -> String {
         let safe = raw.unicodeScalars.map { scalar -> Character in
             let c = Character(scalar)
             if c.isLetter || c.isNumber || c == "." || c == "-" || c == "_" { return c }
@@ -57,6 +78,12 @@ public enum BackupStore {
         let joined = String(safe)
         // Guard against an empty or all-dots name that could resolve oddly.
         return joined.isEmpty || joined.allSatisfy { $0 == "." } ? "app" : joined
+    }
+
+    private static func shortPathID(_ path: URL) -> String {
+        let resolved = path.resolvingSymlinksInPath().standardizedFileURL.path
+        let digest = SHA256.hash(data: Data(resolved.utf8))
+        return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - Save
@@ -91,6 +118,13 @@ public enum BackupStore {
         if let data = try? JSONEncoder().encode(meta) {
             try? data.write(to: dir.appendingPathComponent("backup.json"))
         }
+        // Migration cleanup: a copy backed up before keys became path-scoped left
+        // a dir under the bare bundle-id legacy key. Now that the canonical,
+        // path-scoped backup exists (and `keyCandidates` would only ever fall back
+        // to that orphan), drop it so retention stays at one copy on disk instead
+        // of leaking a whole stale bundle per migrated app.
+        let legacy = legacyKey(bundleID: bundleID, path: appPath)
+        if legacy != key { remove(forKey: legacy) }
         return Backup(key: key, version: version, bundlePath: dest, savedAt: savedAt)
     }
 

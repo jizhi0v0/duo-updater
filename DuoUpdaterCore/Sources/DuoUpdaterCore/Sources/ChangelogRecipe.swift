@@ -70,6 +70,15 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// fragments that survive tag-stripping. Default 1 (keep anything non-empty).
     public var minItemLength: Int
 
+    /// When the source page lists releases **oldest-first** (ascending), set this
+    /// so the parser reverses the extracted entries to newest-first and applies
+    /// `maxEntries` from the NEW (recent) end. Default false — nearly every vendor
+    /// changelog is already newest-first, and for those the streaming early-stop at
+    /// `maxEntries` is correct. WeType's official changelog is the exception: its
+    /// inline release list runs oldest→newest, so without this the cap would keep
+    /// the most ancient versions and drop the latest.
+    public var newestLast: Bool
+
     /// When non-nil, `source` is treated as a **version index** page — a
     /// newest-first list of per-version changelog links — not the changelog
     /// itself. `ChangelogService` fetches `source`, takes the **first** match of
@@ -110,7 +119,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         minItemLength: Int = 1,
         indexLinkPattern: String? = nil,
         channel: ReleaseChannel? = nil,
-        sourceTemplate: String? = nil
+        sourceTemplate: String? = nil,
+        newestLast: Bool = false
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -124,6 +134,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.indexLinkPattern = indexLinkPattern
         self.channel = channel
         self.sourceTemplate = sourceTemplate
+        self.newestLast = newestLast
     }
 
     /// The actual page URL to fetch for a given target version. When
@@ -179,6 +190,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         indexLinkPattern = try c.decodeIfPresent(String.self, forKey: .indexLinkPattern)
         channel = try c.decodeIfPresent(ReleaseChannel.self, forKey: .channel)
         sourceTemplate = try c.decodeIfPresent(String.self, forKey: .sourceTemplate)
+        newestLast = try c.decodeIfPresent(Bool.self, forKey: .newestLast) ?? false
     }
 }
 
@@ -372,6 +384,36 @@ public enum ChangelogRecipeRegistry {
                 #""logid":\d+.*?"logs":"<ol><li>(?<version>[^<]+)<\\/li>(?<body>.*?)<\\/ol>".*?"updatedate":"(?<date>\d{4}-\d{2}-\d{2})"#,
             itemPatterns: [#"<li>(?<item>.*?)<\\/li>"#],
             mode: .json),
+
+        // WeType (微信输入法) — same official changelog page as its VendorProbe.
+        // Next.js page with the data server-rendered inline (an `__next_f` RSC blob,
+        // no JS needed): a flat list of release objects for ALL platforms, tagged
+        // `"platform":1`=iOS / `2`=Android / `3`=macOS / `4`=Windows. The entry
+        // pattern ties the captured version/body to its OWN object's `"platform":3`
+        // (version precedes platform; `[^"]*` can't cross a structural quote, so it
+        // can't bleed into an adjacent platform's object) — so only macOS releases
+        // become entries. The notes live in `content_html`, where each line is its
+        // own tag — usually `<h2>` (including the dash-bulleted lines), sometimes
+        // `<ul><li>` or `<p>` — so itemPatterns try all three. No human per-entry
+        // date is published (only a unix `release_date`), so `date` is omitted
+        // rather than shown as a raw epoch. CRUCIAL: the list runs oldest→newest, so
+        // `newestLast` flips it to newest-first before the cap. Quotes inside notes
+        // are `&quot;`-encoded (no raw `"`), so the `[^"]*` field bounds hold and the
+        // default HTML entity decode renders them. A parse miss falls back to
+        // embedding this same page (the VendorProbe's changelogURL).
+        ChangelogRecipe(
+            bundleID: "com.tencent.inputmethod.wetype",
+            source: URL(string: "https://z.weixin.qq.com/web/change-log/macos")!,
+            entryPattern:
+                #""version":"(?<version>[0-9][^"]*)","content":"[^"]*","#
+                + #""content_html":"(?<body>[^"]*)","platform":3"#,
+            itemPatterns: [
+                #"<li[^>]*>(?<item>.*?)</li>"#,
+                #"<h2[^>]*>(?<item>.*?)</h2>"#,
+                #"<p[^>]*>(?<item>.*?)</p>"#,
+            ],
+            maxEntries: 20,
+            newestLast: true),
 
         // Fork — git-fork.com/releasenotes is a single server-rendered page with all
         // Mac releases. Each version block opens with:
@@ -1125,6 +1167,28 @@ public enum ChangelogRecipeRegistry {
             mode: .json,
             stripTags: false,
             channel: .beta),
+
+        // Alcove — same endpoint the VendorProbeRecipe reads (update.tryalcove.com),
+        // a single GitHub-release-shaped JSON object: `tag_name` is the version,
+        // `published_at` an ISO timestamp (date prefix taken), `body` a Markdown
+        // changelog with `## section` headers and `- bullet` lines. We flatten every
+        // bullet across sections into change lines (headers are skipped — they aren't
+        // `- ` items); newlines arrive escaped as `\n`, so the item pattern matches
+        // `\\n` like the chatwise/GitHub Desktop JSON recipes. stripTags/decode off
+        // (plain Markdown, no HTML); the leading emoji on section headers never
+        // reaches an item, so the `\u….` escapes in the body are harmless.
+        ChangelogRecipe(
+            bundleID: "com.henrikruscon.Alcove",
+            source: URL(string: "https://update.tryalcove.com")!,
+            entryPattern:
+                #""tag_name"\s*:\s*"(?<version>[0-9][^"]*)".*?"#
+                + #""published_at"\s*:\s*"(?<date>\d{4}-\d{2}-\d{2})[^"]*".*?"#
+                + #""body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
+            itemPatterns: [#"(?:^|\\n)-\s*(?<item>.*?)\s*(?=\\n-\s|\\n\\n|\\n#|$)"#],
+            mode: .json,
+            stripTags: false,
+            decodeEntities: false,
+            maxEntries: 20),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

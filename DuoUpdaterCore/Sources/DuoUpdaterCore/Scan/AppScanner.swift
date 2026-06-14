@@ -30,7 +30,16 @@ public struct AppScanner: Sendable {
             self.locations = [
                 URL(fileURLWithPath: "/Applications", isDirectory: true),
                 URL(fileURLWithPath: "/Applications/Utilities", isDirectory: true),
-                home.appendingPathComponent("Applications", isDirectory: true)
+                home.appendingPathComponent("Applications", isDirectory: true),
+                // Input methods install as `.app` bundles OUTSIDE /Applications —
+                // a separate OS class (`/Library/Input Methods`, system-wide, root-
+                // owned; the per-user `~/Library/Input Methods`). They carry a normal
+                // Info.plist with a version, so the same `readApp` filter applies. We
+                // scan them so an IME like WeType (微信输入法) can be version-checked
+                // via its VendorProbe recipe. Sourceless IMEs fall to "unknown" like
+                // any other app without a feed — acceptable noise for the coverage.
+                URL(fileURLWithPath: "/Library/Input Methods", isDirectory: true),
+                home.appendingPathComponent("Library/Input Methods", isDirectory: true)
             ]
         }
     }

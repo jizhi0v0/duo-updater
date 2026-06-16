@@ -480,6 +480,33 @@ private struct AppRow: View {
             Divider()
             Button("Roll back to \(version)") { Task { await model.rollback(result) } }
         }
+        // Store-managed apps update through Apple's own apps — give a direct way
+        // to jump there from the row, since we don't drive those installs.
+        if appStorePageURL != nil || result.app.isTestFlightApp {
+            Divider()
+            if appStorePageURL != nil {
+                Button("Open in App Store") { openAppStorePage() }
+            }
+            if result.app.isTestFlightApp {
+                // TestFlight has no working per-app deep link on macOS (the iOS
+                // `itms-beta://…/v1/app/<id>` form just opens the app list), so this
+                // only launches TestFlight — labelled plainly to not over-promise.
+                Button("Open TestFlight") { openTestFlight() }
+            }
+        }
+    }
+
+    /// Deep link to this app's App Store product page: the freshest link from a
+    /// check if we have one, else the locally-indexed adamID. Nil when neither is
+    /// available (e.g. a sideloaded copy Spotlight reports as adamID 0).
+    private var appStorePageURL: URL? {
+        if let url = result.remote?.appStore?.deepLink { return url }
+        guard let id = result.app.appStoreAdamID else { return nil }
+        return URL(string: "macappstore://apps.apple.com/app/id\(id)")
+    }
+
+    private func openAppStorePage() {
+        if let url = appStorePageURL { NSWorkspace.shared.open(url) }
     }
 
     @ViewBuilder
@@ -779,7 +806,7 @@ private struct AppRow: View {
             .controlSize(.small)
             .buttonStyle(.bordered)
             .tint(.orange)
-            .help("\(result.app.name) already downloaded \(staged.version) — relaunch to apply it (no extra download)")
+            .help("\(result.app.name) already downloaded \(staged.version) — relaunch to apply it (no extra download; a large app may take a minute to swap & reopen)")
     }
 
     /// An incremental App Store update is downloaded but the app is running, so the

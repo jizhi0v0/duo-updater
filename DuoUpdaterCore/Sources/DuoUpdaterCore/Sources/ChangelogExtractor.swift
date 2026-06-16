@@ -16,6 +16,7 @@ public enum ChangelogExtractor {
         guard let entryRegex = compile(recipe.entryPattern) else { return nil }
         let itemRegexes = recipe.itemPatterns.compactMap(compile)
         guard !itemRegexes.isEmpty else { return nil }
+        let imageRegex = recipe.imagePattern.flatMap(compile)
 
         let whole = NSRange(text.startIndex..., in: text)
         var entries: [Changelog.Entry] = []
@@ -43,10 +44,25 @@ public enum ChangelogExtractor {
                 ?? group(match, nil, in: text)
                 ?? ""
 
-            let items = firstNonEmptyItems(in: bodyText, regexes: itemRegexes, recipe: recipe)
-            guard !items.isEmpty else { return }
+            let noteHits = firstNonEmptyItemHits(in: bodyText, regexes: itemRegexes, recipe: recipe)
+            guard !noteHits.isEmpty else { return }
+            let items = noteHits.map(\.text)
 
-            entries.append(.init(title: title, version: version, date: date, items: items))
+            // Interleave images with the notes by document position — but only when
+            // the recipe asks for images AND this entry has at least one. Otherwise
+            // `content` stays empty and the renderer just bullets `items` (unchanged
+            // for every text-only recipe).
+            let imageHits = imageRegex.map { imageHits(in: bodyText, regex: $0) } ?? []
+            let content: [Changelog.Entry.Block] = imageHits.isEmpty
+                ? []
+                : (noteHits.map { ($0.location, Changelog.Entry.Block.note($0.text)) }
+                    + imageHits.map { ($0.location, .image($0.url)) })
+                    .sorted { $0.0 < $1.0 }
+                    .map(\.1)
+
+            entries.append(.init(
+                title: title, version: version, date: date,
+                items: items, content: content))
             // For a newest-first page the cap can halt the scan early (we already
             // have the recent ones). For an oldest-first page (`newestLast`) the
             // recent entries are at the END, so we must read them all, then reverse
@@ -77,28 +93,50 @@ public enum ChangelogExtractor {
     }
 
     /// Try each item regex in order; return the cleaned matches of the first that
-    /// produces any. Each match contributes its `item` group, else group 1, else
+    /// produces any, each tagged with its match location so the caller can order it
+    /// against images. Each match contributes its `item` group, else group 1, else
     /// the whole match.
-    private static func firstNonEmptyItems(
+    private static func firstNonEmptyItemHits(
         in body: String,
         regexes: [NSRegularExpression],
         recipe: ChangelogRecipe
-    ) -> [String] {
+    ) -> [(location: Int, text: String)] {
         let range = NSRange(body.startIndex..., in: body)
         for regex in regexes {
-            var items: [String] = []
+            var hits: [(location: Int, text: String)] = []
             for match in regex.matches(in: body, range: range) {
                 let raw = group(match, "item", in: body)
                     ?? group(match, nil, in: body)
                     ?? ""
                 let cleaned = clean(raw, recipe)
                 if cleaned.count >= recipe.minItemLength {
-                    items.append(cleaned)
+                    hits.append((match.range.location, cleaned))
                 }
             }
-            if !items.isEmpty { return items }
+            if !hits.isEmpty { return hits }
         }
         return []
+    }
+
+    /// Collect illustration images from an entry body, each tagged with its match
+    /// location. Each match yields its `image` group (else group 1, else whole
+    /// match); only absolute `http(s)` URLs are kept, and duplicates are dropped
+    /// while preserving order. HTML entities in the URL (e.g. `&amp;`) are decoded.
+    private static func imageHits(
+        in body: String, regex: NSRegularExpression
+    ) -> [(location: Int, url: URL)] {
+        let range = NSRange(body.startIndex..., in: body)
+        var hits: [(location: Int, url: URL)] = []
+        var seen = Set<URL>()
+        for match in regex.matches(in: body, range: range) {
+            guard let raw = group(match, "image", in: body)
+                ?? group(match, nil, in: body) else { continue }
+            let decoded = decodeEntities(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+            guard let url = URL(string: decoded), let scheme = url.scheme,
+                  scheme == "http" || scheme == "https", seen.insert(url).inserted else { continue }
+            hits.append((match.range.location, url))
+        }
+        return hits
     }
 
     /// Extract a capture group's substring. `name` = a named group; nil = capture

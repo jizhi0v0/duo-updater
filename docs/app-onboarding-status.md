@@ -33,6 +33,14 @@ JetBrains Air, Ollama, AppCleaner, …)
 Discord, Figma, Obsidian, Notion, Slack, 1Password, Sublime Text, Sublime Merge,
 Plex, Alfred, Shottr, The Unarchiver, Orion, Dropbox.
 
+**VendorProbe + one-click** (official-website installs, Team-ID-gated in-place swap):
+ToDesk, AweSun, Spotify, **WeChat (微信 官网版)**. WeChat reads its public Sparkle
+appcast (`dldir1.qq.com/weixin/mac/mac-release.xml`) but compares only the 3-segment
+**marketing version** (the feed's `4.1.10.53` truncated to `4.1.10` = what the bundle
+and the official site report; the `sparkle:version` build is deliberately ignored to
+avoid surfacing meaningless sub-build bumps). Changelog = the official per-version
+updates page via `sourceTemplate`.
+
 **GitHubReleaseRule** (detection + notes) — `GitHubReleasesSource.swift`:
 GitHub Desktop, Stats, DBeaver, Beekeeper Studio, Insomnia, Zen.
 

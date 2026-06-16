@@ -1,4 +1,5 @@
 import Foundation
+import CoreServices
 
 /// Discovers installed `.app` bundles and reads the Info.plist metadata we
 /// need for update checks. Pure filesystem work — no network, no UI.
@@ -61,6 +62,26 @@ public struct AppScanner: Sendable {
         ]
         let cleaned = String(String.UnicodeScalarView(name.unicodeScalars.filter { !marks.contains($0) }))
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The Mac App Store receipt environment for a bundle, from Spotlight metadata
+    /// (`kMDItemAppStoreReceiptType`): "Production" for a store purchase,
+    /// "ProductionSandbox" for a TestFlight build. Returns nil when Spotlight has
+    /// no value (indexing off / not yet indexed), so the caller can fall back to
+    /// the TestFlight DB rather than mis-tagging.
+    static func appStoreReceiptType(_ bundleURL: URL) -> String? {
+        guard let item = MDItemCreate(nil, bundleURL.path as CFString) else { return nil }
+        return MDItemCopyAttribute(item, "kMDItemAppStoreReceiptType" as CFString) as? String
+    }
+
+    /// The App Store track id (`kMDItemAppStoreAdamID`) Spotlight has indexed for
+    /// a store-installed bundle, used to deep-link to the product page. Returns
+    /// nil when absent or zero (sideloaded copies report 0).
+    static func appStoreAdamID(_ bundleURL: URL) -> Int? {
+        guard let item = MDItemCreate(nil, bundleURL.path as CFString),
+              let id = (MDItemCopyAttribute(item, "kMDItemAppStoreAdamID" as CFString) as? NSNumber)?.intValue,
+              id != 0 else { return nil }
+        return id
     }
 
     /// Scan all configured locations and return the apps found, sorted by name.
@@ -144,17 +165,28 @@ public struct AppScanner: Sendable {
 
         // Wrapped iOS apps can only come from the Mac App Store; native Mac apps
         // carry a `_MASReceipt` when bought there. TestFlight builds ALSO carry a
-        // `_MASReceipt`, so decide TestFlight first (by matching the installed
-        // build against TestFlight's DB) and exclude it from the MAS flag — else a
-        // TestFlight app would be checked against the App Store's stable track.
-        // Wrapped iOS apps have no `Contents/` — their MAS provenance is implied by
-        // the wrapper itself, so we never look for a `Contents/_MASReceipt` there
-        // (that path can't exist and the check would always be false).
+        // `_MASReceipt`, so we must decide TestFlight first and exclude it from the
+        // MAS flag — else a TestFlight app would be checked against the App Store's
+        // stable track. Wrapped iOS apps have no `Contents/` — their MAS provenance
+        // is implied by the wrapper itself, so we never look for a
+        // `Contents/_MASReceipt` there (that path can't exist).
         let bundleID = plist["CFBundleIdentifier"] as? String
         let buildVersion = plist["CFBundleVersion"] as? String
-        let isTestFlight = testflight.isManaged(bundleID: bundleID, installedBuild: buildVersion)
         let hasReceipt = !isiOSAppOnMac && fm.fileExists(
             atPath: bundleURL.appendingPathComponent("Contents/_MASReceipt/receipt").path)
+        // Primary TestFlight signal: the receipt ENVIRONMENT. A TestFlight build
+        // carries a sandbox receipt ("ProductionSandbox"); an App Store purchase a
+        // "Production" one. Unlike matching the installed build against TestFlight's
+        // cached DB, this is local and never stale — it still recognizes a
+        // TestFlight install whose build has OUTRUN the DB (Paste on 18771 while the
+        // DB still lists 18655 → the old DB-only check fell through to the MAS path
+        // and got compared against the App Store stable track). It also cleanly
+        // distinguishes a TestFlight copy from an App Store copy of an app the user
+        // merely has TestFlight access to. Fall back to the DB match when the type
+        // is unreadable (e.g. Spotlight indexing off).
+        let isTestFlight =
+            (hasReceipt && Self.appStoreReceiptType(bundleURL) == "ProductionSandbox")
+            || testflight.isManaged(bundleID: bundleID, installedBuild: buildVersion)
         let isMAS = !isTestFlight && (isiOSAppOnMac || hasReceipt)
 
         var feedURL: URL?
@@ -237,7 +269,10 @@ public struct AppScanner: Sendable {
                 .trimmingCharacters(in: .whitespacesAndNewlines),
             hasSelfUpdater: hasSelfUpdater,
             releaseChannel: releaseChannel,
-            channelIsAuthoritative: channelIsAuthoritative
+            channelIsAuthoritative: channelIsAuthoritative,
+            // Only store-installed bundles carry an adamID; skip the metadata
+            // read for everything else.
+            appStoreAdamID: (isMAS || isTestFlight) ? Self.appStoreAdamID(bundleURL) : nil
         )
     }
 

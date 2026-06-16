@@ -163,6 +163,17 @@ public struct VendorProbeSource: UpdateSource {
 
             text = String(decoding: data, as: UTF8.self)
             resolvedDownload = recipe.downloadURL ?? recipe.url
+
+        case .zipEntryPlist(let entry, let key):
+            // The version lives in a bundled Info.plist inside a (small) zip —
+            // see `Mode.zipEntryPlist`. We extract the one entry and read `key`;
+            // `text` becomes that value so the shared `versionPattern` validates
+            // it exactly like any other mode. Any failure → nil → "unknown".
+            guard let value = try await zipEntryPlistValue(
+                url: recipe.url, entry: entry, key: key)
+            else { return nil }
+            text = value
+            resolvedDownload = recipe.downloadURL ?? recipe.url
         }
 
         // Default to the first match (the app's own field, which structured
@@ -288,6 +299,54 @@ public struct VendorProbeSource: UpdateSource {
             else { return nil }
             return (Self.preferHTTPS(finalURL), checksum)
         }
+    }
+
+    /// Download a (small) zip and read one property-list entry's string value —
+    /// the runtime behind `Mode.zipEntryPlist`. Used for vendors (Spotify) whose
+    /// only cheap version surface is a stub-installer archive whose bundled app's
+    /// Info.plist tracks the latest client version. Returns nil on any failure so
+    /// the probe degrades to "unknown" rather than guessing.
+    private func zipEntryPlistValue(
+        url: URL, entry: String, key: String
+    ) async throws -> String? {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 30
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await session.data(for: request)
+        guard
+            let http = response as? HTTPURLResponse,
+            (200..<300).contains(http.statusCode)
+        else { return nil }
+
+        // `unzip` needs a seekable file (the zip's central directory lives at the
+        // end), so stage the archive in a temp file and extract just the one entry
+        // to stdout. The entry is a small plist — well under the pipe buffer — so a
+        // read-then-wait can't deadlock.
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vendorprobe-\(UUID().uuidString).zip")
+        try data.write(to: tmp)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        proc.arguments = ["-p", tmp.path, entry]
+        let out = Pipe()
+        proc.standardOutput = out
+        proc.standardError = FileHandle.nullDevice
+        do { try proc.run() } catch { return nil }
+        let plistData = out.fileHandleForReading.readDataToEndOfFile()
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0, !plistData.isEmpty else { return nil }
+
+        // Parse as a property list (Spotify's is a binary plist, `bplist00`) and
+        // read the requested key as a string.
+        guard
+            let obj = try? PropertyListSerialization.propertyList(
+                from: plistData, options: [], format: nil),
+            let dict = obj as? [String: Any],
+            let value = dict[key] as? String
+        else { return nil }
+        return value
     }
 
     /// Upgrade/normalize download URLs to HTTPS. Our vendor hosts all support TLS,

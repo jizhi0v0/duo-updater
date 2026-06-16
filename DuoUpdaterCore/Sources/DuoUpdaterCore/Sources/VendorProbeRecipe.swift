@@ -105,6 +105,16 @@ public struct VendorProbeRecipe: Sendable {
         /// `url` is a small text/JSON endpoint whose body contains the version;
         /// we GET it and apply `versionPattern` to the response text.
         case responseBody
+        /// `url` is a (small) ZIP whose version lives in a bundled Info.plist —
+        /// for vendors whose only cheap version surface is a "stub installer"
+        /// archive: we GET the zip, extract the named `entry`, parse it as a
+        /// property list (binary or XML), and read `key` as the version, which
+        /// `versionPattern` then validates. Needed because the value sits behind
+        /// TWO layers — a deflate-compressed zip entry and a binary plist — that
+        /// neither text-regex (`.responseBody`) nor `.redirectFilename` can reach.
+        /// (Spotify: `SpotifyInstaller.zip` (1.8MB) → `Install Spotify.app`'s
+        /// `CFBundleShortVersionString`, which tracks the latest client in lockstep.)
+        case zipEntryPlist(entry: String, key: String)
     }
 
     /// `CFBundleIdentifier` of the installed app this recipe targets.
@@ -271,10 +281,9 @@ public struct VendorProbeRecipe: Sendable {
 /// arm64-flavored where the vendor splits by architecture — fine for Apple
 /// Silicon; an Intel build would need its own URLs.
 ///
-/// Known-unfeasible (left out, would only mislead): Spotify (version API needs
-/// an account token), Paste (no public version API; direct build outruns MAS),
-/// ToDesk (appcast behind a JS bot-challenge), WeLink (Zoom-SDK private
-/// updater), RunnerNotify / STCM Editor (ad-hoc internal builds), Brave and
+/// Known-unfeasible (left out, would only mislead): Paste (no public version
+/// API; direct build outruns MAS), WeLink (Zoom-SDK private updater),
+/// RunnerNotify / STCM Editor (ad-hoc internal builds), Brave and
 /// Feishu/Lark (their `CFBundleShortVersionString` is Chromium-major-prefixed —
 /// e.g. Brave `148.1.90.128`, Feishu `131.0.6778.268` — but every vendor feed
 /// only exposes the bare app version `1.90.128` / `7.69.9`, which can't be made
@@ -863,6 +872,106 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://z.weixin.qq.com/"),
             changelogURL: URL(string: "https://z.weixin.qq.com/web/change-log/macos"),
             selectHighest: true),
+
+        // WeChat (微信, 官网版) — Tencent's flagship messenger, installed from the
+        // official site (Developer ID, no MAS receipt, no SUFeedURL in Info.plist).
+        // No standard source resolves it: the Homebrew cask is `auto_updates: true`
+        // (fall-through), MAS is a separate copy, and WeChat's bundled Sparkle sets
+        // its feed URL at runtime. But the appcast IS public — the same XML the cask's
+        // livecheck reads. We probe it directly.
+        //
+        // VERSION SCHEME: compare the MARKETING version, the way users (and the
+        // official site) track WeChat — "4.1.10". The feed's `sparkle:shortVersionString`
+        // is a 4-segment `4.1.10.53`, but the installed bundle STRIPS the 4th segment
+        // and reports `CFBundleShortVersionString = 4.1.10`; the official changelog and
+        // download both say "4.1.10". So the pattern captures only the first THREE
+        // segments → "4.1.10", which equals the installed marketing version (up to
+        // date) and bumps cleanly to "4.1.11" when that ships. We deliberately do NOT
+        // compare the `sparkle:version` build (268853 vs 268851): WeChat re-spins
+        // builds inside one marketing version, and surfacing "→ 268853" is both a
+        // meaningless number and a non-update in the user's eyes. The pattern matches
+        // both the element and the enclosure-attribute form of `shortVersionString`;
+        // selectHighest takes the newest across all items (it matches nothing but app
+        // versions).
+        //
+        // One-click dmg: the enclosure is on Tencent's own CDN, same channel, signed
+        // by the same Team `5A4RE8SF68` (Tencent Mobile International) as the installed
+        // app — the VendorInstaller signature gate enforces it. `.bodyPattern` takes
+        // the FIRST `<enclosure>` (newest item, listed first); its `?t=<token>` query
+        // is read fresh from each probe's feed. Structured notes come from a
+        // ChangelogRecipe over the official per-version updates page; changelogURL is
+        // the webview fallback.
+        VendorProbeRecipe(
+            bundleID: "com.tencent.xinWeChat",
+            url: URL(string: "https://dldir1.qq.com/weixin/mac/mac-release.xml")!,
+            mode: .responseBody,
+            versionPattern: #"sparkle:shortVersionString[>="]+\s*(\d+\.\d+\.\d+)"#,
+            downloadURL: URL(string: "https://mac.weixin.qq.com/"),
+            changelogURL: URL(string: "https://weixin.qq.com/updates?platform=mac"),
+            selectHighest: true,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#"<enclosure url="(https://[^"]+\.dmg[^"]*)""#),
+                kind: .dmg)),
+
+        // ToDesk (远程控制) — Hainan Youqu's remote-desktop app. No standard source
+        // resolves it; its in-app appcast sits behind a JS bot-challenge (the reason
+        // it was long left "unknown"). The public download page is the way in: it's a
+        // Nuxt/Vue SPA, but the macOS pkg URL is SERVER-RENDERED into the inline data
+        // blob (no JS needed) — `…("",false,"-1","4.9.7.1","https://dl.todesk.com/
+        // macos/ToDesk_4.9.7.1.pkg",…`. CRUCIAL anchor: the page also lists a long
+        // version HISTORY (e.g. 4.8.5.1, 4.7.2.0, 1.0.4.0 …), so a bare 4-component
+        // pattern would grab a stray older number; tying the capture to the
+        // `ToDesk_<ver>.pkg` filename (the single current-download literal) is the
+        // only safe match. The marketing version equals the app's
+        // CFBundleShortVersionString (`4.9.7.1`), so this is a normal (non-build)
+        // recipe — no selectHighest (one pkg literal; first match is correct).
+        // One-click pkg install: the download is on the vendor's own dl.todesk.com,
+        // same channel, signed by the same Team KM56KD59W4 (Hainan Youqu Technology)
+        // as the installed app — the VendorInstaller signature gate enforces it.
+        // The full pkg URL in the body is unicode-escaped (`/`), so we recover
+        // the install URL from the clean filename literal resolved against the
+        // macos/ base rather than the escaped absolute form.
+        VendorProbeRecipe(
+            bundleID: "com.youqu.todesk.mac",
+            url: URL(string: "https://www.todesk.com/download.html")!,
+            mode: .responseBody,
+            versionPattern: #"ToDesk_([0-9]+(?:\.[0-9]+)+)\.pkg"#,
+            downloadURL: URL(string: "https://www.todesk.com/download.html"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #"(ToDesk_[0-9]+(?:\.[0-9]+)+\.pkg)"#,
+                    base: URL(string: "https://dl.todesk.com/macos/")!),
+                kind: .pkg)),
+
+        // Spotify — no cheap public version API (the cohort `upgrade.scdn.co`
+        // endpoint is session-token-gated, not a configurable key). BUT the 1.8MB
+        // "stub" web installer `download.scdn.co/SpotifyInstaller.zip` bundles an
+        // `Install Spotify.app` whose CFBundleShortVersionString tracks the latest
+        // CLIENT version in lockstep — verified 2026-06-16: stub `1.2.92.148` while
+        // the installed app AND Homebrew's cask both lagged at `.147`, so the stub
+        // is the FRESHEST surface (even ahead of brew's heavyweight `extract_plist`
+        // of the 164MB dmg). The version sits behind two layers — a
+        // deflate-compressed zip entry + a binary plist — so it needs the
+        // `.zipEntryPlist` mode (text-regex / redirect modes can't reach it); the
+        // pattern just validates the extracted string is a dotted version. Same
+        // marketing scheme the app reports (4-component `1.2.x.y`), so not a build
+        // recipe. One-click install pulls the full always-latest universal dmg
+        // (`download.scdn.co/SpotifyARM64.dmg`, 164MB, fetched only at apply time) —
+        // an in-place app swap gated by Spotify's Team 2FNC3A47ZF. changelogURL is
+        // nil on purpose: spotify.com/release-notes tracks a DIFFERENT (mobile/web)
+        // version scheme (`1.2.534.x`), so embedding it for a `1.2.92.x` desktop
+        // build would show an unrelated page — better the honest "no notes" state.
+        VendorProbeRecipe(
+            bundleID: "com.spotify.client",
+            url: URL(string: "https://download.scdn.co/SpotifyInstaller.zip")!,
+            mode: .zipEntryPlist(
+                entry: "Install Spotify.app/Contents/Info.plist",
+                key: "CFBundleShortVersionString"),
+            versionPattern: #"^([0-9]+(?:\.[0-9]+)+)$"#,
+            downloadURL: URL(string: "https://www.spotify.com/download/mac/"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(URL(string: "https://download.scdn.co/SpotifyARM64.dmg")!),
+                kind: .dmg)),
 
         // Cursor — official update API; the first `version` field is the latest
         // build. Single channel (its "stable"/"latest" tracks resolve to the same

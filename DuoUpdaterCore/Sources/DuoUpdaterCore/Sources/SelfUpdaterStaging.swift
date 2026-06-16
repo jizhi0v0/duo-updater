@@ -34,17 +34,41 @@ public struct StagedSelfUpdate: Sendable, Hashable {
 /// ShipIt cache layout, not a per-app recipe.
 public enum SelfUpdaterStaging {
 
+    /// Cheap predicate for whether `app` could have a staged self-update at all —
+    /// the candidate filter before doing per-app filesystem work. Covers Squirrel
+    /// apps (the generic ShipIt path) plus the handful of vendors that ship their
+    /// own staging layout (Spotify). Keeps `computeSelfUpdateStaging` from
+    /// stat-ing every installed app.
+    public static func mayHaveStaging(_ app: InstalledApp) -> Bool {
+        app.hasSelfUpdater || app.bundleID == spotifyBundleID
+    }
+
+    private static let spotifyBundleID = "com.spotify.client"
+
     /// The staged self-update for `app`, or nil when there isn't one. Returns nil
     /// unless: the app ships a self-updater, a ShipIt state file names *this exact
     /// bundle* as its target, the staged bundle still exists on disk, and its
     /// version is strictly newer than what's installed. All filesystem access is
     /// best-effort — any malformed/missing piece yields nil, never a throw.
+    ///
+    /// Spotify ships its OWN (non-Squirrel) updater, so it's handled by a separate
+    /// branch reading its native staging layout — same "Relaunch, no re-download"
+    /// outcome, different on-disk format.
     public static func staged(
         for app: InstalledApp,
         cachesDirectory: URL? = nil,
+        applicationSupportDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) -> StagedSelfUpdate? {
-        guard app.hasSelfUpdater, let bundleID = app.bundleID else { return nil }
+        guard let bundleID = app.bundleID else { return nil }
+
+        if bundleID == spotifyBundleID {
+            return spotifyStaged(
+                for: app, applicationSupportDirectory: applicationSupportDirectory,
+                fileManager: fileManager)
+        }
+
+        guard app.hasSelfUpdater else { return nil }
 
         // Squirrel writes its staging area to ~/Library/Caches/<bundleID>.ShipIt/.
         let caches = cachesDirectory
@@ -83,6 +107,58 @@ public enum SelfUpdaterStaging {
 
         return StagedSelfUpdate(
             version: stagedShort, buildVersion: stagedBuild, stagedBundlePath: staged)
+    }
+
+    /// Spotify's native staged update. Spotify's own updater downloads the next
+    /// build to `~/Library/Application Support/Spotify/PersistentCache/Update/`
+    /// (a `spotify-autoupdate-<ver>.tbz` plus an `update.json` carrying
+    /// `version_from`/`version_to`/`update_path`) and applies it on the app's next
+    /// quit — the "Spotify has been updated to version X. Please restart to
+    /// install." state. That's the same situation as a ShipIt staged update, so we
+    /// surface it as **Relaunch** rather than letting the vendor probe offer a
+    /// 164MB re-download of bytes Spotify already has on disk.
+    private static func spotifyStaged(
+        for app: InstalledApp,
+        applicationSupportDirectory: URL?,
+        fileManager: FileManager
+    ) -> StagedSelfUpdate? {
+        let appSupport = applicationSupportDirectory
+            ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        guard let appSupport else { return nil }
+        let stateURL = appSupport
+            .appendingPathComponent("Spotify/PersistentCache/Update", isDirectory: true)
+            .appendingPathComponent("update.json", isDirectory: false)
+
+        guard let data = try? Data(contentsOf: stateURL) else { return nil }
+        // CRUCIAL: update.json is NOT valid JSON — its `installation_id` carries raw
+        // (non-UTF8) bytes, so a full `JSONSerialization` parse fails on the whole
+        // file. Decode leniently (bad bytes → replacement chars) and regex out only
+        // the clean ASCII fields we need; the version/path are unaffected.
+        let text = String(decoding: data, as: UTF8.self)
+        guard
+            let versionTo = VendorProbeRecipe.extractVersion(
+                from: text, pattern: #""version_to"\s*:\s*"([0-9][0-9.]*)""#),
+            let updatePath = VendorProbeRecipe.extractVersion(
+                from: text, pattern: #""update_path"\s*:\s*"([^"]+)""#)
+        else { return nil }
+
+        // The staged archive update.json names must still be on disk — guard a
+        // leftover update.json after the .tbz was consumed or cleared.
+        guard fileManager.fileExists(atPath: updatePath) else { return nil }
+
+        // `version_to` is Spotify's marketing version, so compare it against the
+        // installed marketing string (the installed value may carry a trailing
+        // `.gHASH`, but they already differ at the build component). Only a
+        // strictly newer staged version counts — once applied, on-disk equals
+        // `version_to` and this returns nil. Mirrors the ShipIt branch.
+        guard let installedV = app.shortVersion ?? app.buildVersion,
+              VersionComparator.isNewer(versionTo, than: installedV) else { return nil }
+
+        // stagedBundlePath is informational here (the relaunch action quits the
+        // app and lets Spotify perform the swap), so point it at the staged .tbz.
+        return StagedSelfUpdate(
+            version: versionTo, buildVersion: nil,
+            stagedBundlePath: URL(fileURLWithPath: updatePath))
     }
 
     /// Parse a string-keyed dictionary from either a property list or JSON.

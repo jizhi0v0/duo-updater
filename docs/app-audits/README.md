@@ -77,6 +77,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **IntelliJ IDEA** · `com.jetbrains.intellij` — P C (EAP via Toolbox) · ✓ src=Toolbox(managed)
 - [x] **JetBrains Toolbox** · `com.jetbrains.toolbox` — P C · ✓ src=Vendor
 - [x] **Android Studio** · `com.google.android.studio` — P · ✓ src=Toolbox(managed)
+- [x] [**WeChat (微信 官网版)**](com-tencent-xinWeChat.md) · `com.tencent.xinWeChat` — P C (one-click dmg) · ✓ src=Vendor · 检测=公开 Sparkle appcast 截 3 段 marketing（4.1.10.53→4.1.10，不比 build）· changelog=官网 per-version 页 sourceTemplate · live smoke=up to date · 2026-06-16
 
 ## Single-channel — GitHub Releases
 

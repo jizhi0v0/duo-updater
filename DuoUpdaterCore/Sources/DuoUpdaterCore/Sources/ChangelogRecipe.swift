@@ -105,6 +105,14 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// every channel exactly as before.
     public let channel: ReleaseChannel?
 
+    /// Optional regex run over each entry's `body` to pull illustration image URLs
+    /// (capture group 1, or the named `image` group). Every match becomes one image,
+    /// rendered after the change lines. nil = no images (the common case). Only
+    /// absolute `http(s)` URLs are kept; relative paths are skipped. Use for vendors
+    /// who embed release screenshots in their notes (WeChat's updates page puts a
+    /// feature illustration between the change lines).
+    public let imagePattern: String?
+
     public enum Mode: String, Codable, Sendable { case html, json }
 
     public init(
@@ -120,7 +128,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         indexLinkPattern: String? = nil,
         channel: ReleaseChannel? = nil,
         sourceTemplate: String? = nil,
-        newestLast: Bool = false
+        newestLast: Bool = false,
+        imagePattern: String? = nil
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -135,6 +144,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.channel = channel
         self.sourceTemplate = sourceTemplate
         self.newestLast = newestLast
+        self.imagePattern = imagePattern
     }
 
     /// The actual page URL to fetch for a given target version. When
@@ -191,6 +201,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         channel = try c.decodeIfPresent(ReleaseChannel.self, forKey: .channel)
         sourceTemplate = try c.decodeIfPresent(String.self, forKey: .sourceTemplate)
         newestLast = try c.decodeIfPresent(Bool.self, forKey: .newestLast) ?? false
+        imagePattern = try c.decodeIfPresent(String.self, forKey: .imagePattern)
     }
 }
 
@@ -414,6 +425,35 @@ public enum ChangelogRecipeRegistry {
             ],
             maxEntries: 20,
             newestLast: true),
+
+        // WeChat (微信, 官网版) — the official updates site publishes ONE page per
+        // Mac version at `weixin.qq.com/updates?platform=mac&version=<X.Y.Z>`, with the
+        // exact labels/dates the user sees in-app (4.1.10, 4.1.9, …). The Sparkle feed
+        // the VendorProbe reads is NOT a usable changelog source: it carries 4-segment
+        // labels (4.1.10.53) and a sparse, gap-ridden history. So this is a templated
+        // recipe (like Thunderbird): `{version}` is the marketing version the probe
+        // offers (or the installed one), substituted to fetch exactly that release's
+        // page. It's a Nuxt SSR page but the notes are server-rendered: a `faq_title`
+        // "微信 <ver> for Mac …", a `发布日期：<date>`, then the change lines as `<h4>`
+        // inside `#page_center`. We bound `body` to that container so unrelated `<h4>`
+        // (footer/marketing) can't leak in. A parse miss falls back to the webview
+        // (the VendorProbe's changelogURL).
+        ChangelogRecipe(
+            bundleID: "com.tencent.xinWeChat",
+            source: URL(string: "https://weixin.qq.com/updates?platform=mac")!,
+            entryPattern:
+                #"微信 (?<version>[0-9]+(?:\.[0-9]+)+) for Mac.*?"#
+                + #"发布日期[：: ]*(?<date>[0-9-]+).*?"#
+                + #"<div id="page_center"[^>]*>(?<body>.*?)</div>"#,
+            itemPatterns: [
+                // Notes carry a literal "- " bullet; drop it so the UI's own bullet
+                // doesn't render as "• - …".
+                #"<h4[^>]*>\s*-?\s*(?<item>.*?)</h4>"#,
+            ],
+            sourceTemplate: "https://weixin.qq.com/updates?platform=mac&version={version}",
+            // Each release embeds one or more feature screenshots between the change
+            // lines (res.wxqcloud.qq.com.cn / res.wx.qq.com); surface them inline.
+            imagePattern: #"<img[^>]+src="(?<image>https?://[^"]+)""#),
 
         // Fork — git-fork.com/releasenotes is a single server-rendered page with all
         // Mac releases. Each version block opens with:

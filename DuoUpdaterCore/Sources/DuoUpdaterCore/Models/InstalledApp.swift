@@ -104,6 +104,13 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// build-inference alone can't see. Defaults to false (infer from the build).
     public let channelIsAuthoritative: Bool
 
+    /// The App Store numeric track id (`kMDItemAppStoreAdamID` from Spotlight),
+    /// when this is a Mac App Store / TestFlight install Spotlight has indexed.
+    /// Lets the UI deep-link straight to the product page without a network
+    /// lookup. Nil for non-store apps, or when the metadata is absent/zero
+    /// (sideloaded copies report 0).
+    public let appStoreAdamID: Int?
+
     private static func safePathComponent(_ raw: String) -> String {
         let safe = raw.unicodeScalars.map { scalar -> Character in
             let c = Character(scalar)
@@ -129,7 +136,8 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         sparkleEdPublicKey: String? = nil,
         hasSelfUpdater: Bool = false,
         releaseChannel: ReleaseChannel = .stable,
-        channelIsAuthoritative: Bool = false
+        channelIsAuthoritative: Bool = false,
+        appStoreAdamID: Int? = nil
     ) {
         self.name = name
         self.bundleID = bundleID
@@ -146,5 +154,6 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.hasSelfUpdater = hasSelfUpdater
         self.releaseChannel = releaseChannel
         self.channelIsAuthoritative = channelIsAuthoritative
+        self.appStoreAdamID = appStoreAdamID
     }
 }

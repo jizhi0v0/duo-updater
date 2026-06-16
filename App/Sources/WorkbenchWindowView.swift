@@ -1270,16 +1270,56 @@ private struct ChangelogEntryView: View {
                     }
                 }
             }
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(entry.items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").foregroundStyle(.secondary)
-                        Text(item).fixedSize(horizontal: false, vertical: true)
+            // Rich entries (notes interleaved with images, e.g. WeChat) walk `content`
+            // so a screenshot lands between the change lines exactly as on the vendor's
+            // page. Text-only entries (the common case) just bullet `items`.
+            if entry.content.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(entry.items.enumerated()), id: \.offset) { _, item in
+                        noteRow(item)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(entry.content.enumerated()), id: \.offset) { _, block in
+                        switch block {
+                        case let .note(text): noteRow(text)
+                        case let .image(url): noteImage(url)
+                        }
                     }
                 }
             }
         }
         .textSelection(.enabled)
+    }
+
+    @ViewBuilder
+    private func noteRow(_ item: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("•").foregroundStyle(.secondary)
+            Text(item).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// A vendor-embedded release illustration. Loaded lazily; a load failure shows
+    /// nothing rather than a broken-image box.
+    @ViewBuilder
+    private func noteImage(_ url: URL) -> some View {
+        AsyncImage(url: url) { phase in
+            if let image = phase.image {
+                image.resizable().scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else if phase.error != nil {
+                EmptyView()
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.quaternary)
+                    .frame(height: 120)
+                    .overlay(ProgressView())
+            }
+        }
+        .frame(maxWidth: 480, alignment: .leading)
+        .padding(.vertical, 2)
     }
 
     private static func displayDate(for raw: String) -> String {

@@ -1413,16 +1413,17 @@ final class AppListModel {
         results = sorted(results)
     }
 
-    /// Flag apps whose own Squirrel updater has downloaded and staged a newer
-    /// build (the ShipIt "Relaunch to update" state) that hasn't been swapped in
-    /// yet. Reads each candidate's ShipIt cache off-main — pure filesystem work,
-    /// but enough of it (plist parse per Squirrel app) to keep off the main actor.
+    /// Flag apps whose own updater has downloaded and staged a newer build (the
+    /// "Relaunch to update" state) that hasn't been swapped in yet — Squirrel's
+    /// ShipIt cache, plus vendors with their own staging layout (Spotify). Reads
+    /// each candidate's staging area off-main — pure filesystem work, but enough of
+    /// it (a plist/json parse per candidate) to keep off the main actor.
     private func computeSelfUpdateStaging() async {
         // Track which apps were surfacing a *Relaunch* (actionable staged = the
         // staged build is the latest) so we can clear their banner if they stop —
         // applied, staging gone, OR a newer release now makes the staged build trail.
         let previouslyActionable = Set(results.compactMap { actionableStaged($0) != nil ? $0.id : nil })
-        let apps = results.map(\.app).filter(\.hasSelfUpdater)
+        let apps = results.map(\.app).filter(SelfUpdaterStaging.mayHaveStaging)
         let staged = await Task.detached(priority: .utility) {
             var map: [String: StagedSelfUpdate] = [:]
             for app in apps {
@@ -1655,24 +1656,36 @@ final class AppListModel {
             return
         }
         let old = result.app.shortVersion ?? result.app.buildVersion
-        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old ?? "?", privacy: .public)) — letting ShipIt swap & relaunch (no reopen)")
+        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old ?? "?", privacy: .public)) — letting its own updater swap & relaunch (no reopen)")
         for app in running { app.terminate() }
 
-        // Wait for ShipIt: with all instances quit it swaps the (large Electron)
-        // bundle, then relaunches. Success = on-disk version advances past `old`.
-        // We deliberately do NOT reopen while waiting — that's what made ShipIt
-        // abort. If the app never quits (a save prompt keeps it up), bail early so
-        // we don't block ~40s on a swap that can't start.
+        // Wait for the updater: with all instances quit it swaps the (large) bundle,
+        // then relaunches. Success = on-disk version advances past `old`. We
+        // deliberately do NOT reopen while waiting — that's what made ShipIt abort.
+        //
+        // Two phases with very different patience:
+        //  • Until it actually quits: short. If it's still up after a few seconds a
+        //    save prompt is blocking the quit — bail and leave it staged.
+        //  • Once quit: long. Applying a big update (e.g. Spotify extracting a 161MB
+        //    .tbz and replacing its whole app bundle) takes a while, and a busy or
+        //    slow disk stretches it further — so be patient rather than dropping the
+        //    spinner mid-swap and looking stuck.
+        let quitGraceTicks = 25   // ~5s to actually quit (else a save prompt is up)
+        let maxTicks = 900        // up to ~180s for a slow swap on a busy disk
         var applied = false
-        for tick in 0..<200 {  // up to ~40s
+        var everQuit = false
+        for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
             if let disk = Self.readShortVersion(result.app.path),
                let old, VersionComparator.isNewer(disk, than: old) {
                 applied = true
                 break
             }
-            let stillUp = !runningInstances(of: result).isEmpty
-            if stillUp && tick >= 15 {  // ~3s and never quit → refused (likely a save prompt)
+            if runningInstances(of: result).isEmpty {
+                everQuit = true  // quit succeeded — now we're waiting on the swap
+            } else if !everQuit && tick >= quitGraceTicks {
+                // Never quit → a save prompt (or similar) is keeping it up; the swap
+                // can't start, so don't block the long window on it.
                 Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
                 break
             }

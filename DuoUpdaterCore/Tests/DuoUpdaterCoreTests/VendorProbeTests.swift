@@ -24,6 +24,51 @@ import Foundation
         == "5.11.2026052520-alpha")
 }
 
+// ToDesk — the download page server-renders the current pkg URL into an inline
+// data blob, but also lists a long version HISTORY. The recipe must anchor to the
+// `ToDesk_<ver>.pkg` filename so it captures the CURRENT version (4.9.7.1), not a
+// stray older number (4.8.5.1, 4.7.2.0 …) — a bare 4-component pattern would.
+@Test func todeskScrapesCurrentPkgVersionNotHistory() {
+    let recipe = try! #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.youqu.todesk.mac" })
+    // Trimmed real blob: the current download literal sits among older history numbers.
+    let body = #"history:["4.8.5.1","4.7.2.0","1.0.4.0"],"#
+        + #"("",false,"-1","4.9.7.1","https://dl.todesk.com/macos/ToDesk_4.9.7.1.pkg","#
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "4.9.7.1")
+    // The install spec resolves the clean filename literal against the macos/ base.
+    guard case let .bodyPatternRelative(pat, base) = recipe.install?.urlSource else {
+        Issue.record("expected bodyPatternRelative install source"); return
+    }
+    let fn = try! #require(VendorProbeRecipe.extractVersion(from: body, pattern: pat))
+    #expect(URL(string: fn, relativeTo: base)?.absoluteString
+        == "https://dl.todesk.com/macos/ToDesk_4.9.7.1.pkg")
+}
+
+// Spotify — has no cheap version API; the version is read from the bundled
+// Info.plist inside the 1.8MB stub-installer zip via the .zipEntryPlist mode.
+// Can't exercise the network+unzip offline, so assert the recipe wiring and that
+// the validator accepts a real dotted version while rejecting the binary-plist
+// header / non-version noise the extractor would otherwise see on a bad parse.
+@Test func spotifyZipPlistRecipeIsWiredAndValidatesVersion() {
+    let recipe = try! #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.spotify.client" })
+    guard case let .zipEntryPlist(entry, key) = recipe.mode else {
+        Issue.record("expected .zipEntryPlist mode"); return
+    }
+    #expect(entry == "Install Spotify.app/Contents/Info.plist")
+    #expect(key == "CFBundleShortVersionString")
+    // versionPattern is the final validator over the plist value.
+    #expect(VendorProbeRecipe.extractVersion(from: "1.2.92.148", pattern: recipe.versionPattern) == "1.2.92.148")
+    #expect(VendorProbeRecipe.extractVersion(from: "bplist00", pattern: recipe.versionPattern) == nil)
+    #expect(VendorProbeRecipe.extractVersion(from: "Spotify", pattern: recipe.versionPattern) == nil)
+    // One-click install pulls the always-latest universal dmg (fixed URL).
+    guard case let .fixed(url) = recipe.install?.urlSource else {
+        Issue.record("expected fixed dmg install source"); return
+    }
+    #expect(url.absoluteString == "https://download.scdn.co/SpotifyARM64.dmg")
+    #expect(recipe.install?.kind == .dmg)
+}
+
 @Test func extractsClaudeVersionFromRedirectLocationPath() {
     // Claude's `dmg/latest/redirect` 307s here; the version is a path segment,
     // not the filename (the filename is a content hash). The pattern must read
@@ -630,6 +675,78 @@ private func verdict(
         verdict(recipe: recipe, extracted: "262.7132.23", installed: older)
             == .updateAvailable(latest: "262.7132.23"),
         "EAP missed a real build bump")
+}
+
+// WeChat's public appcast: the current release is emitted once per system-version
+// band (all carrying the same `sparkle:version`), plus older items. A trimmed but
+// faithful slice — item 1 has the enclosure dmg; item 3 is DOCTYPE-wrapped and has
+// NO enclosure (it tells the user to download from the website).
+private let weChatFeed = #"""
+<?xml version="1.0" ?><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel>
+<item>
+<title>4.1.10.53</title>
+<sparkle:version>268853</sparkle:version>
+<sparkle:shortVersionString>4.1.10.53</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>
+<enclosure url="https://dldir1v6.qq.com/weixin/Universal/Mac/xWeChatMac_universal_4.1.10.53_39917.dmg?t=1781161112" length="496955386" type="application/octet-stream" sparkle:edSignature="aZyHiWF0=="/>
+</item>
+<item>
+<title>4.1.10.53</title>
+<sparkle:version>268853</sparkle:version>
+<sparkle:maximumSystemVersion>14.3</sparkle:maximumSystemVersion>
+<sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>
+<enclosure url="https://dldir1v6.qq.com/weixin/Universal/Mac/xWeChatMac_universal_4.1.10.53_39917.dmg?t=1781161112" sparkle:shortVersionString="4.1.10.53" type="application/octet-stream"/>
+</item>
+<item>
+<title>4.1.10.53</title>
+<sparkle:version>268853</sparkle:version>
+<sparkle:minimumSystemVersion>14.3</sparkle:minimumSystemVersion>
+</item>
+<item>
+<title>3.8.10.17</title>
+<sparkle:version>27317</sparkle:version>
+<sparkle:shortVersionString>3.8.10.17</sparkle:shortVersionString>
+<enclosure url="https://dldir1v6.qq.com/weixin/Universal/Mac/xWeChatMac_universal_3.8.10.17_31000.dmg?t=1" type="application/octet-stream"/>
+</item>
+</channel></rss>
+"""#
+
+@Test func weChatProbesMarketingVersionAndDmg() {
+    let recipe = registryRecipe("com.tencent.xinWeChat")
+    #expect(recipe.selectHighest, "WeChat lists several shortVersionString — needs highest-wins")
+    #expect(!recipe.versionIsBuild, "WeChat compares the MARKETING version (4.1.10), not the build")
+
+    // The feed's 4-segment "4.1.10.53" is truncated to the 3-segment marketing
+    // "4.1.10" — what the installed bundle and the official site report. The older
+    // item (3.8.10.17 → 3.8.10) loses to it under selectHighest.
+    #expect(VendorProbeRecipe.highestVersion(from: weChatFeed, pattern: recipe.versionPattern) == "4.1.10")
+
+    // One-click pulls the FIRST enclosure (newest item), token query intact.
+    guard case let .bodyPattern(pat) = recipe.install?.urlSource else {
+        Issue.record("expected bodyPattern install source"); return
+    }
+    #expect(recipe.install?.kind == .dmg)
+    #expect(
+        VendorProbeRecipe.extractVersion(from: weChatFeed, pattern: pat)
+            == "https://dldir1v6.qq.com/weixin/Universal/Mac/xWeChatMac_universal_4.1.10.53_39917.dmg?t=1781161112")
+}
+
+@Test func weChatMarketingVersionDoesNotPhantomUpdate() {
+    let recipe = registryRecipe("com.tencent.xinWeChat")
+
+    // On the latest marketing version → up to date, even though a newer build (268853)
+    // exists for the same 4.1.10. We deliberately don't surface sub-builds.
+    let current = installedApp(bundleID: "com.tencent.xinWeChat", short: "4.1.10", build: "268851")
+    #expect(
+        verdict(recipe: recipe, extracted: "4.1.10", installed: current) == .upToDate,
+        "WeChat phantom-updated against the same marketing version")
+
+    // A genuinely newer marketing version still surfaces, shown as "4.1.10".
+    let behind = installedApp(bundleID: "com.tencent.xinWeChat", short: "4.1.9", build: "268000")
+    #expect(
+        verdict(recipe: recipe, extracted: "4.1.10", installed: behind)
+            == .updateAvailable(latest: "4.1.10"),
+        "WeChat missed a real marketing-version bump")
 }
 
 @Test func nonBuildRecipesStillCompareAgainstMarketingVersion() {

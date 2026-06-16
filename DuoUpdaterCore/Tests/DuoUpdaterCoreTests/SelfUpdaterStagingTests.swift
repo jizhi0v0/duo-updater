@@ -168,4 +168,84 @@ struct SelfUpdaterStagingTests {
             #expect(result == nil)
         }
     }
+
+    // MARK: - Spotify (its own, non-Squirrel staging layout)
+
+    private let spotifyID = "com.spotify.client"
+
+    /// Write Spotify's `PersistentCache/Update/{update.json,<staged>.tbz}` into an
+    /// Application Support scratch dir, returning that dir for the param injection.
+    private func writeSpotifyStaging(
+        in appSupport: URL, from: String, to: String, tbzExists: Bool = true
+    ) throws -> URL {
+        let dir = appSupport.appendingPathComponent("Spotify/PersistentCache/Update", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let tbz = dir.appendingPathComponent("spotify-autoupdate-\(to).gHASH-26.tbz")
+        if tbzExists { try Data([0x42]).write(to: tbz) }
+        // Mirror the REAL file faithfully: `installation_id` holds raw non-UTF8
+        // bytes, so the file is NOT valid JSON. A naive JSONSerialization parse
+        // fails on it — detection must regex the clean fields out instead.
+        var data = Data(#"{"installation_id":""#.utf8)
+        data.append(contentsOf: [0xCE, 0x91, 0xAD, 0x04, 0x4E])  // invalid UTF-8 sequence
+        data.append(Data(#"","version_from":"\#(from)","version_to":"\#(to)","update_path":"\#(tbz.path)"}"#.utf8))
+        try data.write(to: dir.appendingPathComponent("update.json"))
+        return appSupport
+    }
+
+    private func spotifyApp(short: String) -> InstalledApp {
+        // Spotify is NOT a Squirrel app — hasSelfUpdater stays false; its branch
+        // keys on the bundle id, not that flag.
+        InstalledApp(
+            name: "Spotify", bundleID: spotifyID, shortVersion: short, buildVersion: nil,
+            path: .init(fileURLWithPath: "/Applications/Spotify.app"),
+            isMASApp: false, sparkleFeedURL: nil, hasSelfUpdater: false)
+    }
+
+    @Test func detectsSpotifyNativeStagedUpdate() throws {
+        try withScratch { root in
+            let appSupport = try writeSpotifyStaging(
+                in: root, from: "1.2.92.147", to: "1.2.92.148")
+            // Installed value even carries the trailing .gHASH the About panel shows.
+            let result = SelfUpdaterStaging.staged(
+                for: spotifyApp(short: "1.2.92.147.g5b8f9367"),
+                applicationSupportDirectory: appSupport)
+            #expect(result?.version == "1.2.92.148")
+        }
+    }
+
+    @Test func ignoresSpotifyStagingAtOrBelowInstalled() throws {
+        try withScratch { root in
+            // update.json left over after the swap already landed: installed == to.
+            let appSupport = try writeSpotifyStaging(
+                in: root, from: "1.2.92.147", to: "1.2.92.148")
+            let result = SelfUpdaterStaging.staged(
+                for: spotifyApp(short: "1.2.92.148"),
+                applicationSupportDirectory: appSupport)
+            #expect(result == nil)
+        }
+    }
+
+    @Test func ignoresSpotifyStagingWhenArchiveGone() throws {
+        try withScratch { root in
+            // update.json present but the .tbz was already consumed/cleared.
+            let appSupport = try writeSpotifyStaging(
+                in: root, from: "1.2.92.147", to: "1.2.92.148", tbzExists: false)
+            let result = SelfUpdaterStaging.staged(
+                for: spotifyApp(short: "1.2.92.147"),
+                applicationSupportDirectory: appSupport)
+            #expect(result == nil)
+        }
+    }
+
+    @Test func mayHaveStagingCoversSquirrelAndSpotifyOnly() {
+        #expect(SelfUpdaterStaging.mayHaveStaging(spotifyApp(short: "1.0")))
+        #expect(SelfUpdaterStaging.mayHaveStaging(
+            app(at: .init(fileURLWithPath: "/X.app"), short: "1.0", build: "1.0")))  // Squirrel
+        // A plain non-Squirrel, non-Spotify app is skipped (no filesystem probe).
+        let plain = InstalledApp(
+            name: "Plain", bundleID: "com.example.plain", shortVersion: "1.0", buildVersion: "1.0",
+            path: .init(fileURLWithPath: "/Plain.app"), isMASApp: false, sparkleFeedURL: nil,
+            hasSelfUpdater: false)
+        #expect(!SelfUpdaterStaging.mayHaveStaging(plain))
+    }
 }

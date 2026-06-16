@@ -31,14 +31,43 @@ public struct Changelog: Codable, Sendable, Hashable {
         /// shows no date for this entry.
         public let date: String?
         /// The individual change lines, in document order. Emoji/category prefixes
-        /// (✨ 🔔 🎨 …) are kept inline as the vendor wrote them.
+        /// (✨ 🔔 🎨 …) are kept inline as the vendor wrote them. Always the full set
+        /// of text lines, even when `content` also carries them interleaved with
+        /// images — so a text-only consumer never needs to walk `content`.
         public let items: [String]
+        /// Notes and illustration images in their original document order. Empty for
+        /// the common (text-only) case, where the renderer just bullets `items`.
+        /// Populated only when a recipe sets `imagePattern` AND the entry actually
+        /// embeds an image — then the renderer walks this so a screenshot lands
+        /// between the change lines exactly as it does on the vendor's page (WeChat).
+        public let content: [Block]
 
-        public init(title: String? = nil, version: String, date: String?, items: [String]) {
+        /// One ordered piece of a rich entry: a change line, or an embedded image.
+        public enum Block: Codable, Sendable, Hashable {
+            case note(String)
+            case image(URL)
+        }
+
+        public init(
+            title: String? = nil, version: String, date: String?,
+            items: [String], content: [Block] = []
+        ) {
             self.title = title
             self.version = version
             self.date = date
             self.items = items
+            self.content = content
+        }
+
+        // Custom decode so entries cached before `content` existed still decode —
+        // a missing key falls back to empty rather than throwing.
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            title = try c.decodeIfPresent(String.self, forKey: .title)
+            version = try c.decode(String.self, forKey: .version)
+            date = try c.decodeIfPresent(String.self, forKey: .date)
+            items = try c.decode([String].self, forKey: .items)
+            content = try c.decodeIfPresent([Block].self, forKey: .content) ?? []
         }
     }
 }

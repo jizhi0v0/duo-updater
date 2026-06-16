@@ -1763,3 +1763,50 @@ private let weTypeFixture = """
     #expect(changelog.entries[0].items[1] == "- 自动去掉\"嗯、啊\"等口水词")
 }
 
+// WeChat's official updates site renders ONE Mac version per page (the recipe is
+// templated on `{version}`): a Nuxt SSR page with a `faq_title`, a `发布日期`, and
+// the change lines as `<h4>- …</h4>` inside `#page_center`. Trimmed but faithful.
+private let weChatChangelogFixture = #"""
+<style>.faq_title{font-size:32px}</style>
+<div class="faq_content"><div class="faq__wrap"><div class="faq__detail">
+<div class="faq_title"><!--[-->微信 4.1.10 for Mac 全新发布<!--]--></div><p>发布日期： 2026-05-27</p>
+<div id="page_top" class="page_top"><p> 发布版本： 微信 4.1.10 for Mac <a href="https://dldir1v6.qq.com/weixin/Universal/Mac/WeChatMac_4.1.10.dmg">下载最新版本</a></p></div>
+<div id="page_center"><p class="page_center_title">该版本主要更新如下：</p>
+<!--[--><h4>- 在发消息时，支持边写边译为指定的语言；</h4><p><img src="https://res/mac1.png"></p><!--]-->
+<!--[--><h4>- 修复一些已知问题。</h4><!--]-->
+</div>
+<div class="faq_footer"><h4>不相关的页脚标题</h4></div>
+</div></div></div>
+"""#
+
+@Test func resolvesWeChatPerVersionUpdatesPage() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.tencent.xinWeChat"))
+    // {version} is substituted with the offered/installed MARKETING version, so the
+    // page fetched is exactly the release whose notes the user sees.
+    #expect(recipe.resolvedSource(forVersion: "4.1.10").absoluteString
+        == "https://weixin.qq.com/updates?platform=mac&version=4.1.10")
+}
+
+@Test func extractsWeChatNotesFromUpdatesPage() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.tencent.xinWeChat"))
+    let changelog = try #require(ChangelogExtractor.extract(from: weChatChangelogFixture, using: recipe))
+
+    // One entry — the page is per-version. Label + date match the official site.
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "4.1.10")
+    #expect(changelog.entries[0].date == "2026-05-27")
+    // The leading "- " bullet is stripped; the footer <h4> (outside #page_center) is
+    // NOT picked up because `body` is bounded to the page_center container.
+    #expect(changelog.entries[0].items == [
+        "在发消息时，支持边写边译为指定的语言；",
+        "修复一些已知问题。",
+    ])
+    // `content` preserves document order: the feature screenshot sits BETWEEN the two
+    // change lines, exactly as on the vendor's page — not lumped at the end.
+    #expect(changelog.entries[0].content == [
+        .note("在发消息时，支持边写边译为指定的语言；"),
+        .image(URL(string: "https://res/mac1.png")!),
+        .note("修复一些已知问题。"),
+    ])
+}
+

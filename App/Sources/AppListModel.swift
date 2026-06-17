@@ -31,6 +31,9 @@ final class AppListModel {
 
     /// Per-app install progress, keyed by app id.
     private(set) var installing: [String: InstallStage] = [:]
+    /// True while "Update All" is running. Blocks a second batch from being
+    /// started while the first one still has queued work.
+    private(set) var isInstallingAll = false
     /// Per-app install error message, keyed by app id.
     private(set) var installErrors: [String: String] = [:]
     /// Per-app informational note (not an error), keyed by app id — e.g. "opened
@@ -162,6 +165,12 @@ final class AppListModel {
 
     var updateCount: Int { results.filter(isActionableUpdate).count }
 
+    /// A full networked refresh rewrites the whole result list. Keep it out of
+    /// the way while installs are mutating individual rows and replacing bundles.
+    var canRefresh: Bool {
+        !isScanning && !isChecking && installing.isEmpty && !isInstallingAll
+    }
+
     /// The count shown on the menu-bar badge. A full refresh briefly blanks every
     /// row to `.unknown` (so `updateCount` dips to 0) before the check repopulates
     /// it — which made the badge flicker to the "no updates" icon and back. While a
@@ -241,6 +250,9 @@ final class AppListModel {
     /// when an install is blocked by the privacy gate. Lazy so we only spin up the
     /// panel/window-tracking machinery the first time we actually hit a denial.
     @ObservationIgnored private lazy var permissionFlow = PermissionFlow.makeController()
+    /// During a batch, a stale App Management preflight can make several parallel
+    /// installs fail together. Show the permission guide once for that wave.
+    @ObservationIgnored private var appManagementPermissionFlowPresentedInBatch = false
 
     /// User settings (token, concurrency, ignore list, backups…). Read live on
     /// each refresh so a change made in the Settings window takes effect next check.
@@ -624,6 +636,10 @@ final class AppListModel {
             await existing.value
             return
         }
+        guard canRefresh else {
+            Log.app.info("refresh: skipped — install/check already in flight")
+            return
+        }
         // Only this path ever assigns `refreshTask`; coalescing callers above just
         // await it. So once our task finishes we can clear it unconditionally.
         let task = Task { await self.performRefresh(allowTestFlight: allowTestFlight) }
@@ -911,7 +927,7 @@ final class AppListModel {
         // re-sorts `results` wholesale, which would reorder/replace the row under
         // an active spinner. Installs key by id and finish fine, but the visible
         // row shouldn't shuffle mid-install.
-        guard !results.isEmpty, !isChecking, installing.isEmpty else { return }
+        guard !results.isEmpty, !isChecking, installing.isEmpty, !isInstallingAll else { return }
         let found = await Task.detached(priority: .userInitiated) {
             AppScanner().scan()
         }.value
@@ -1362,7 +1378,7 @@ final class AppListModel {
             // the drag-to-authorize panel; the install can be retried once granted.
             Log.install.error("install blocked by App Management: \(result.app.name, privacy: .public)")
             installErrors[id] = error.errorDescription
-            presentAppManagementPermissionFlow()
+            presentAppManagementPermissionFlowForInstallFailure()
         } catch {
             Log.install.error("install failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             installErrors[id] = error.localizedDescription
@@ -1734,6 +1750,14 @@ final class AppListModel {
         )
     }
 
+    private func presentAppManagementPermissionFlowForInstallFailure() {
+        if isInstallingAll {
+            guard !appManagementPermissionFlowPresentedInBatch else { return }
+            appManagementPermissionFlowPresentedInBatch = true
+        }
+        presentAppManagementPermissionFlow()
+    }
+
     /// Open System Settings → Privacy & Security → Accessibility and float the same
     /// drag-to-authorize panel, prompting the user to drag **DuoUpdater itself** into
     /// the list. Needed only for the incremental (AX-driven) App Store update route,
@@ -1906,27 +1930,111 @@ final class AppListModel {
 
     // MARK: - Batch update
 
-    /// Install every pending update we can apply in place without a confirmation
-    /// gate — skipping major upgrades (license-boundary warning), pkg/installer
-    /// updates (need the system installer), App Store / Toolbox / TestFlight
-    /// (managed elsewhere), and anything ignored or version-skipped. Sequential on
-    /// purpose: parallel installs would contend on the network, the privileged
-    /// swap, and the restart bookkeeping. Snapshots the target set up front so the
-    /// re-sorting each install triggers can't reshuffle what we iterate.
-    func installAll() async {
-        let targets = results.filter { result in
+    /// Keep batch installs parallel without letting a large update wave saturate
+    /// the network, Homebrew, and privileged swap prompts all at once.
+    private static let maxParallelInstalls = 3
+
+    /// Pending updates "Update All" should act on: in-place installs only, no
+    /// confirmation gates, and no row that's already busy. Snapshotted up front
+    /// so the re-sorting each install triggers can't reshuffle what we iterate.
+    private func installAllTargets() -> [UpdateResult] {
+        results.filter { result in
             isActionableUpdate(result)
                 && canAutoInstall(result)
                 && !result.isMajorUpgrade
                 && installing[result.id] == nil
         }
+    }
+
+    /// Only independent archive/appcast installs run in parallel, and only once
+    /// App Management is known granted. Package installers, Homebrew, and App Store
+    /// all involve shared system UI/tools, so they stay serial.
+    private func canBatchInstallInParallel(_ result: UpdateResult) -> Bool {
+        guard !requiresInstaller(result) else { return false }
+        guard appManagementStatus == .granted else { return false }
+        switch result.remote?.sourceName {
+        case "Sparkle", "Vendor", "GitHub":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func installInParallel(_ targets: [UpdateResult], limit: Int) async -> Int {
+        guard !targets.isEmpty, limit > 0 else { return 0 }
+        var installed = 0
+        await withTaskGroup(of: Bool.self) { group in
+            var next = 0
+            var inFlight = 0
+
+            func addNext() -> Bool {
+                guard next < targets.count else { return false }
+                let target = targets[next]
+                next += 1
+                group.addTask {
+                    await self.install(target, notify: false, deferBookkeeping: true)
+                }
+                return true
+            }
+
+            while inFlight < limit, addNext() {
+                inFlight += 1
+            }
+            while let didInstall = await group.next() {
+                if didInstall { installed += 1 }
+                inFlight -= 1
+                if Task.isCancelled {
+                    group.cancelAll()
+                    continue
+                }
+                if addNext() {
+                    inFlight += 1
+                }
+            }
+        }
+        return installed
+    }
+
+    private func hitAppManagementGate(_ result: UpdateResult) -> Bool {
+        installErrors[result.id]?.contains("App Management permission") == true
+    }
+
+    /// Install every pending update we can apply in place without a confirmation
+    /// gate — skipping major upgrades (license-boundary warning), pkg/installer
+    /// updates (need the system installer), Toolbox / TestFlight (managed
+    /// elsewhere), and anything ignored or version-skipped. App Store and Homebrew
+    /// entries run serially because they share global tools/UI automation; independent
+    /// Sparkle/Vendor/GitHub swaps may run with a bounded parallel window. The shared
+    /// restart/staging/backup sweep runs once after the whole batch has settled.
+    func installAll() async {
+        guard !isInstallingAll, !isScanning, !isChecking, installing.isEmpty else { return }
+        refreshPermissionStatus()
+        let targets = installAllTargets()
         guard !targets.isEmpty else { return }
-        Log.app.info("update all: \(targets.count, privacy: .public) apps")
+        isInstallingAll = true
+        appManagementPermissionFlowPresentedInBatch = false
+        defer {
+            isInstallingAll = false
+            appManagementPermissionFlowPresentedInBatch = false
+        }
+
+        let parallelTargets = targets.filter(canBatchInstallInParallel)
+        let serialTargets = targets.filter { !canBatchInstallInParallel($0) }
+        let limit = min(Self.maxParallelInstalls, parallelTargets.count)
+        Log.app.info("update all: \(targets.count, privacy: .public) apps, parallel=\(parallelTargets.count, privacy: .public), serial=\(serialTargets.count, privacy: .public), parallelism=\(limit, privacy: .public)")
         // Count only the installs that actually happened (install returns false for
         // already-current/early-out/error), so the summary banner is exact.
         var installed = 0
-        for target in targets {
-            if await install(target, notify: false, deferBookkeeping: true) { installed += 1 }
+        installed += await installInParallel(parallelTargets, limit: limit)
+        for target in serialTargets {
+            if Task.isCancelled { break }
+            if await install(target, notify: false, deferBookkeeping: true) {
+                installed += 1
+            }
+            if hitAppManagementGate(target) {
+                Log.app.info("update all: stopping serial batch after App Management gate")
+                break
+            }
         }
         // The shared post-install sweep, run once for the whole batch rather than
         // per app (`deferBookkeeping: true` above): each pass is independent of which
@@ -1944,9 +2052,7 @@ final class AppListModel {
     /// True when there's more than one app "Update All" would act on — used to
     /// decide whether to show the batch button.
     var canUpdateAll: Bool {
-        results.filter {
-            isActionableUpdate($0) && canAutoInstall($0) && !$0.isMajorUpgrade
-        }.count > 1
+        !isInstallingAll && !isScanning && !isChecking && installing.isEmpty && installAllTargets().count > 1
     }
 
     // MARK: - Ignore / skip
@@ -2061,7 +2167,7 @@ final class AppListModel {
                 // re-evaluate on a short backoff — so the moment connectivity
                 // returns the next tick (≤60s away) runs the check immediately.
                 let offline = !NetworkMonitor.shared.isOnline
-                if !offline && !self.isChecking && !self.isScanning && self.installing.isEmpty {
+                if !offline && self.canRefresh {
                     Log.app.info("scheduler: tick — running background check")
                     await self.backgroundRefresh()
                     isFirstCheck = false

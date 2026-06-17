@@ -221,7 +221,7 @@ struct MenuContentView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if model.canUpdateAll && !model.isChecking && !model.isScanning {
+            if model.canUpdateAll {
                 Button("Update All") { Task { await model.installAll() } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
@@ -237,7 +237,7 @@ struct MenuContentView: View {
                 }
             }
             .buttonStyle(.borderless)
-            .disabled(model.isScanning || model.isChecking)
+            .disabled(!model.canRefresh)
             .help("Rescan and check for updates")
             Button {
                 openWindow(id: SettingsView.windowID)

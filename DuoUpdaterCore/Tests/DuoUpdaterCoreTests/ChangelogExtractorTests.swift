@@ -892,52 +892,145 @@ private let tailscaleFixture = """
     #expect(changelog.entries[1].items[0] == "An issue causing a deadlock when processing peer changes.")
 }
 
-// Trimmed real markup from docs.warp.dev/changelog/2026/. Two versioned entries
-// with `(v…)` qualifiers plus a date-only heading `2026.04.29` which the pattern
-// must skip, yielding exactly two entries.
-private let warpFixture = """
-<div class="sl-heading-wrapper level-h3">\
-<h3 id="20260527-v0202605271544">2026.05.27 (v0.2026.05.27.15.44)</h3>\
-<a class="sl-anchor-link" href="#20260527-v0202605271544"><span class="sr-only">anchor</span></a></div>
-<p><strong>New features</strong></p>
-<ul>
-<li>Added git operations to the code review pane. (<a href="https://github.com/warpdotdev/warp/pull/11716">#11716</a>)</li>
-</ul>
-<p><strong>Improvements</strong></p>
-<ul>
-<li>A new, faster implementation of find is now available as an opt-in setting.</li>
-</ul>
-<div class="sl-heading-wrapper level-h3">\
-<h3 id="20260520-v0202605200921">2026.05.20 (v0.2026.05.20.09.21)</h3>\
-<a class="sl-anchor-link" href="#20260520-v0202605200921"><span class="sr-only">anchor</span></a></div>
-<p><strong>Improvements</strong></p>
-<ul>
-<li>Added support for double-clicking pane dividers to evenly redistribute panes.</li>
-</ul>
-<div class="sl-heading-wrapper level-h3">\
-<h3 id="20260429">2026.04.29</h3>\
-<a class="sl-anchor-link" href="#20260429"><span class="sr-only">anchor</span></a></div>
-<p><strong>Improvements</strong></p>
-<ul>
-<li>New AI setting to control whether Oz adds an attribution co-author line.</li>
-</ul>
+// Trimmed real shape of releases.warp.dev/channel_versions.json: a per-channel
+// `changelogs` map whose entries are NOT in newest-first order (the June build is
+// listed AFTER May), one entry with empty `markdown_sections` that must be skipped,
+// markdown PR links to flatten, and a separate `preview` channel that must not leak
+// into a `stable` decode. This is what the docs-site HTML scrape was replaced with.
+private let warpFeedFixture = """
+{
+  "stable": { "version": "v0.2026.06.10.09.27.stable_01" },
+  "changelogs": {
+    "stable": {
+      "v0.2026.05.20.09.21.stable_03": {
+        "date": "2026-05-20T09:21:00+00:00",
+        "markdown_sections": [
+          { "title": "Improvements",
+            "markdown": "* Added support for double-clicking pane dividers to evenly redistribute panes." }
+        ]
+      },
+      "v0.2026.06.10.09.27.stable_01": {
+        "date": "2026-06-10T09:27:00+0000",
+        "markdown_sections": [
+          { "title": "New features",
+            "markdown": "* Git operations are now supported on remote sessions ([#12230](https://github.com/warpdotdev/warp/pull/12230))" },
+          { "title": "Bug fixes",
+            "markdown": "* Fixed a crash that could occur after clearing a terminal. ([#12085](https://github.com/warpdotdev/warp/pull/12085))\\n* Applied the latest security patches." }
+        ]
+      },
+      "v0.2026.04.29.00.00.stable_00": {
+        "date": "2026-04-29T00:00:00+0000",
+        "markdown_sections": []
+      }
+    },
+    "preview": {
+      "v0.2026.06.11.10.00.preview_00": {
+        "date": "2026-06-11T10:00:00+0000",
+        "markdown_sections": [
+          { "title": "New features", "markdown": "* A preview-only feature." }
+        ]
+      }
+    }
+  }
+}
 """
 
-@Test func extractsWarpVersionedEntriesAndSkipsDateOnly() throws {
+@Test func warpRecipeIsStructuredJSON() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.warp.Warp-Stable"))
-    let changelog = try #require(ChangelogExtractor.extract(from: warpFixture, using: recipe))
+    #expect(recipe.structuredFormat == .warpChannelVersions)
+    #expect(recipe.channel == .stable)
+    #expect(recipe.source.absoluteString == "https://releases.warp.dev/channel_versions.json")
+}
 
-    // Date-only heading "2026.04.29" (no `(v…)`) must be skipped.
+@Test func decodesWarpStableSortedNewestFirstSkippingEmpty() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        warpFeedFixture, format: .warpChannelVersions, channel: .stable, maxEntries: 20))
+
+    // The empty-`markdown_sections` April entry is dropped; the remaining two are
+    // ordered newest-first despite the June build being listed second in the JSON.
     #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "0.2026.05.27.15.44")
-    #expect(changelog.entries[0].date == "2026.05.27")
-    #expect(changelog.entries[0].items.count == 2)
-    #expect(changelog.entries[0].items[0] == "Added git operations to the code review pane. (#11716)")
-    #expect(changelog.entries[0].items[1] == "A new, faster implementation of find is now available as an opt-in setting.")
+    #expect(changelog.entries[0].version == "0.2026.06.10.09.27")
+    #expect(changelog.entries[0].date == "2026-06-10")
+    // Sections flatten into one ordered list: 1 (New features) + 2 (Bug fixes).
+    #expect(changelog.entries[0].items.count == 3)
+    // Markdown PR link `([#12230](url))` flattens to `(#12230)`.
+    #expect(changelog.entries[0].items[0] == "Git operations are now supported on remote sessions (#12230)")
+    #expect(changelog.entries[0].items[1] == "Fixed a crash that could occur after clearing a terminal. (#12085)")
+    #expect(changelog.entries[0].items[2] == "Applied the latest security patches.")
     #expect(changelog.entries[1].version == "0.2026.05.20.09.21")
-    #expect(changelog.entries[1].date == "2026.05.20")
-    #expect(changelog.entries[1].items.count == 1)
-    #expect(changelog.entries[1].items[0] == "Added support for double-clicking pane dividers to evenly redistribute panes.")
+    #expect(changelog.entries[1].date == "2026-05-20")
+    #expect(changelog.entries[1].items == ["Added support for double-clicking pane dividers to evenly redistribute panes."])
+}
+
+@Test func warpChannelsDoNotLeak() throws {
+    // A `stable` decode must not surface the `preview`-only build, and vice versa.
+    let stable = try #require(StructuredChangelogDecoder.decode(
+        warpFeedFixture, format: .warpChannelVersions, channel: .stable, maxEntries: 20))
+    #expect(!stable.entries.contains { $0.version.contains("06.11") })
+
+    let preview = try #require(StructuredChangelogDecoder.decode(
+        warpFeedFixture, format: .warpChannelVersions, channel: .preview, maxEntries: 20))
+    #expect(preview.entries.count == 1)
+    #expect(preview.entries[0].version == "0.2026.06.11.10.00")
+}
+
+@Test func warpDecodeRespectsMaxEntries() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        warpFeedFixture, format: .warpChannelVersions, channel: .stable, maxEntries: 1))
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "0.2026.06.10.09.27")
+}
+
+// Two builds in the SAME minute-timestamp whose `_NN` counter has crossed into two
+// digits: `_10` is newer than `_9`, but a plain descending lexical sort ranks `_9`
+// first (because '9' > '1'). The decoder must compare the counter numerically.
+@Test func warpSortHandlesWideBuildCounterNumerically() throws {
+    let feed = """
+    {
+      "changelogs": {
+        "stable": {
+          "v0.2026.06.10.09.27.stable_9": {
+            "date": "2026-06-10T09:27:00+0000",
+            "markdown_sections": [ { "title": "x", "markdown": "* build nine" } ]
+          },
+          "v0.2026.06.10.09.27.stable_10": {
+            "date": "2026-06-10T09:27:00+0000",
+            "markdown_sections": [ { "title": "x", "markdown": "* build ten" } ]
+          }
+        }
+      }
+    }
+    """
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        feed, format: .warpChannelVersions, channel: .stable, maxEntries: 20))
+    #expect(changelog.entries.count == 2)
+    #expect(changelog.entries[0].items == ["build ten"])
+    #expect(changelog.entries[1].items == ["build nine"])
+}
+
+// A change line that links to a URL containing parentheses must flatten to the link
+// text with no dangling `)`, and an inline image must be stripped (not decay to a
+// stray `!alt`).
+@Test func warpBulletFlattensParenURLsAndStripsImages() throws {
+    let feed = """
+    {
+      "changelogs": {
+        "stable": {
+          "v0.2026.06.10.09.27.stable_01": {
+            "date": "2026-06-10T09:27:00+0000",
+            "markdown_sections": [
+              { "title": "Notes",
+                "markdown": "* See [docs](https://en.wikipedia.org/wiki/Foo_(bar)) for details\\n* ![shot](https://x/y.png) Added a thing" }
+            ]
+          }
+        }
+      }
+    }
+    """
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        feed, format: .warpChannelVersions, channel: .stable, maxEntries: 20))
+    #expect(changelog.entries[0].items[0] == "See docs for details")
+    #expect(changelog.entries[0].items[1] == "Added a thing")
 }
 
 // Trimmed real markup from videolan.org/vlc/releases/3.0.23.html: the slash-form
@@ -1808,5 +1901,77 @@ private let weChatChangelogFixture = #"""
         .image(URL(string: "https://res/mac1.png")!),
         .note("修复一些已知问题。"),
     ])
+}
+
+
+// MARK: - Typeless (gzip'd __NEXT_DATA__ → structured decoder)
+
+// Synthetic page: `__NEXT_DATA__.props.pageProps.compressedData` is base64(gzip(JSON))
+// of a `<version> -> <locale> -> {date, features:[{title, content}]}` map. Two
+// versions out of semver order ("1.9.0" listed before "1.10.0") to prove the
+// decoder sorts numerically (1.10 > 1.9, not lexically). 1.10.0 also carries a
+// non-en locale that must be ignored in favor of `en`.
+private let typelessB64 = "H4sIAAAAAAAC/6WQQU+DMBTHv0rl5JIVWnCY7ep9J2/A4YFvo7GUhj62KeG7S9G4RaPJ9NTX37/5v/w6BDJchyLYsCFAMx8H7Jxq/fyRLVnwBIQexCJOuUh5nHhqNdCu7RqfNFC1zkOCvZtAVkzzDoH6Duf7EJAiPbdslUH/tGoNoSGPbrLitiaybhNF9GJRo3PcEZCqwqptIogOkq+5CI9Y2kVucuNLGGhbA7PQwb4DW4efQYl0yYOxGMelF5LiF9s5/KZ7z4X8j+7jtOoPtlJc6k4lZx92VFQzYJlW5vlcdQrxBI3VGNnFrDxtfa35w/Za0x9E8n6V3MkvLu8w79OyXOV9IkQ8f/b4Bok9TtBaAgAA"
+
+private let typelessFixture = """
+<!doctype html><html><body>
+<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"platform":"macos","compressedData":"\(typelessB64)"}},"page":"/help/release-notes/[platform]"}</script>
+</body></html>
+"""
+
+@Test func typelessRecipeIsStructuredJSON() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "now.typeless.desktop"))
+    #expect(recipe.structuredFormat == .typelessReleaseNotes)
+    #expect(recipe.source.absoluteString == "https://www.typeless.com/help/release-notes/macos")
+}
+
+@Test func gzipDecodeRoundTrips() throws {
+    // GzipDecode handles the real base64+gzip member the page ships.
+    let gz = try #require(Data(base64Encoded: typelessB64))
+    let inflated = try #require(GzipDecode.decompress(gz))
+    let json = try #require(String(data: inflated, encoding: .utf8))
+    #expect(json.contains("\"1.10.0\""))
+    #expect(json.contains("Ten paragraph"))
+}
+
+@Test func decodesTypelessSortedNewestFirstWithImages() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        typelessFixture, format: .typelessReleaseNotes, channel: nil, maxEntries: 12))
+
+    #expect(changelog.entries.count == 2)
+    // 1.10.0 outranks 1.9.0 numerically (a lexical sort would invert this).
+    let ten = changelog.entries[0]
+    #expect(ten.version == "1.10.0")
+    #expect(ten.date == "2026-07-01")
+    #expect(ten.title == "Ten")           // single feature → title rides the entry
+    #expect(ten.items == ["Ten paragraph with a link."])  // [link](url) flattened
+    // content preserves order: hero image first, then the prose note.
+    #expect(ten.content == [
+        .image(URL(string: "https://typeless-static.com/a/v1-10-0.webp")!),
+        .note("Ten paragraph with a link."),
+    ])
+
+    let nine = changelog.entries[1]
+    #expect(nine.version == "1.9.0")
+    #expect(nine.title == "Nine")
+    #expect(nine.items == ["Nine alpha paragraph.", "Nine beta paragraph."])
+    #expect(nine.content == [
+        .image(URL(string: "https://typeless-static.com/a/v1-9-0.webp")!),
+        .note("Nine alpha paragraph."),
+        .note("Nine beta paragraph."),
+    ])
+}
+
+@Test func typelessDecodeRespectsMaxEntries() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        typelessFixture, format: .typelessReleaseNotes, channel: nil, maxEntries: 1))
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "1.10.0")
+}
+
+@Test func typelessDecodeDegradesToNilOnGarbage() {
+    #expect(StructuredChangelogDecoder.decode(
+        "<html>no next data here</html>", format: .typelessReleaseNotes,
+        channel: nil, maxEntries: 12) == nil)
 }
 

@@ -36,6 +36,33 @@ public extension URLSession {
             memoryCapacity: 16 * 1024 * 1024,   // 16 MB (update feeds + changelog pages)
             diskCapacity:   20 * 1024 * 1024     // 20 MB
         )
-        return URLSession(configuration: config)
+        // A redirect delegate that strips credential headers on a cross-host hop:
+        // GitHub API requests carry `Authorization: Bearer <token>`, and a 3xx to a
+        // different host would otherwise forward it to the redirect target.
+        return URLSession(
+            configuration: config,
+            delegate: CrossHostCredentialStripper(),
+            delegateQueue: nil)
     }()
+}
+
+/// Drops `Authorization`/`Cookie` from a redirect that crosses to a different host,
+/// so a token meant for one API can't leak to a third party; otherwise follows the
+/// redirect unchanged. Stateless, so safe to share across the session's tasks.
+private final class CrossHostCredentialStripper: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        var forwarded = request
+        if request.url?.host != task.originalRequest?.url?.host {
+            for field in ["Authorization", "Cookie", "Proxy-Authorization"] {
+                forwarded.setValue(nil, forHTTPHeaderField: field)
+            }
+        }
+        completionHandler(forwarded)
+    }
 }

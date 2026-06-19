@@ -78,7 +78,7 @@ public struct UpdateChecker: Sendable {
         let label = "\(app.name) [\(app.bundleID ?? "no-bundle-id")] v\(app.shortVersion ?? "?")"
         Log.check.debug("check start: \(label, privacy: .public)")
 
-        if app.isToolboxManaged {
+        if app.isToolboxManaged && !app.prefersVendorProbeOverToolbox {
             if let verdict = await toolbox?.verdict(for: app) {
                 let remote = RemoteVersion(
                     shortVersion: verdict.latestVersion,

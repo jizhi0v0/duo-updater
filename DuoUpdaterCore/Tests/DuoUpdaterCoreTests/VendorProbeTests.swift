@@ -677,6 +677,70 @@ private func verdict(
         "EAP missed a real build bump")
 }
 
+@Test func androidStudioPreviewObeysStabilityFloorAndShowsCleanVersion() {
+    // Faithful newest-first slice spanning TWO feature versions: the next version's
+    // Canary 1 (2026.1.3, newest overall) sits above the current version's RC 1
+    // (2026.1.2) and Canary 7 (2026.1.2). The quality ladder is Canary < Beta < RC.
+    let body = #"""
+    {"content":{"item":[\#
+    {"build":"AI-261.25134.95.2613.15674866","platformVersion":"2026.1.3","name":"Android Studio Quail 3 | 2026.1.3 Canary 1","channel":"Canary","version":"2026.1.3.1"},\#
+    {"build":"AI-261.25134.95.2612.15653154","platformVersion":"2026.1.2","name":"Android Studio Quail 2 | 2026.1.2 RC 1","channel":"RC","version":"2026.1.2.8"},\#
+    {"build":"AI-261.25134.95.2612.15616290","platformVersion":"2026.1.2","name":"Android Studio Quail 2 | 2026.1.2 Canary 7","channel":"Canary","version":"2026.1.2.7"}\#
+    ]}}
+    """#
+
+    func recipe(_ channel: ReleaseChannel) -> VendorProbeRecipe {
+        let r = VendorProbeRegistry.recipes.first {
+            $0.bundleID == "com.google.android.studio" && $0.channel == channel
+        }
+        #expect(r != nil, "no AS preview recipe for \(channel.rawValue)")
+        return r!
+    }
+    func resolved(_ r: VendorProbeRecipe) -> (build: String, display: String) {
+        let build = VendorProbeRecipe.extractVersion(from: body, pattern: r.versionPattern)
+        let display = r.displayVersionPattern.flatMap {
+            VendorProbeRecipe.extractVersion(from: body, pattern: $0)
+        }
+        #expect(build != nil && display != nil)
+        return (build!, display!)
+    }
+
+    // Canary accepts the whole ladder → newest overall is the next version's Canary 1.
+    let canary = resolved(recipe(.canary))
+    #expect(canary.build == "AI-261.25134.95.2613.15674866")
+    #expect(canary.display == "2026.1.3 Canary 1")
+
+    // Beta accepts ONLY Beta/RC → it skips 2026.1.3 Canary 1 and lands on RC 1.
+    // (A Beta must never be offered a Canary — that's a stability downgrade.)
+    let beta = resolved(recipe(.beta))
+    #expect(beta.build == "AI-261.25134.95.2612.15653154")
+    #expect(beta.display == "2026.1.2 RC 1")
+
+    // A Beta already on RC 1 is up to date — NOT pushed onto the newer Canary 1.
+    let betaRemote = VendorProbeSource.makeRemoteVersion(
+        recipe: recipe(.beta), version: beta.build, install: nil, plan: nil,
+        resolvedDownload: nil, display: beta.display)
+    #expect(betaRemote.displayVersion == "2026.1.2 RC 1")
+    let betaOnRC = installedApp(
+        bundleID: "com.google.android.studio", short: "2026.1.2",
+        build: "AI-261.25134.95.2612.15653154")
+    #expect(
+        UpdateChecker.evaluate(installed: betaOnRC, remote: betaRemote) == .upToDate,
+        "Beta on RC 1 must not be offered the next version's Canary")
+
+    // A Canary 7 install IS offered Canary 1 of the next version, shown cleanly.
+    let canaryRemote = VendorProbeSource.makeRemoteVersion(
+        recipe: recipe(.canary), version: canary.build, install: nil, plan: nil,
+        resolvedDownload: nil, display: canary.display)
+    let canaryOn7 = installedApp(
+        bundleID: "com.google.android.studio", short: "2026.1.2",
+        build: "AI-261.25134.95.2612.15616290")
+    #expect(
+        UpdateChecker.evaluate(installed: canaryOn7, remote: canaryRemote)
+            == .updateAvailable(latest: "2026.1.3 Canary 1"),
+        "Canary should advance onto the newest preview, shown as a clean version")
+}
+
 // WeChat's public appcast: the current release is emitted once per system-version
 // band (all carrying the same `sparkle:version`), plus older items. A trimmed but
 // faithful slice — item 1 has the enclosure dmg; item 3 is DOCTYPE-wrapped and has
@@ -802,6 +866,202 @@ private let weChatFeed = #"""
         VendorProbeRegistry.recipes.first { $0.bundleID == "org.mozilla.thunderbird-daily" })
     #expect(daily.channel == .nightly)
     #expect(daily.changelogURL == nil)
+}
+
+// Thunderbird — every channel is one-click via Mozilla's `download.mozilla.org`
+// per-channel `-latest` redirect (302 → CDN `.dmg`). Lock in that each recipe
+// carries a `.redirect` dmg install pointing at its own product code, so a future
+// edit can't silently drop a channel back to detection-only or cross-wire it.
+@Test func thunderbirdAllChannelsOneClickDmg() throws {
+    let expected: [(channel: ReleaseChannel, product: String)] = [
+        (.stable, "thunderbird-latest"),
+        (.beta, "thunderbird-beta-latest"),
+        (.esr, "thunderbird-esr-latest"),
+        (.nightly, "thunderbird-nightly-latest"),
+    ]
+    for (channel, product) in expected {
+        let recipe = try #require(
+            VendorProbeRegistry.recipes.first {
+                $0.bundleID.hasPrefix("org.mozilla.thunderbird") && $0.channel == channel
+            },
+            "missing Thunderbird recipe for channel \(channel)")
+        let install = try #require(recipe.install, "\(channel) must be one-click")
+        #expect(install.kind == .dmg)
+        guard case let .redirect(url) = install.urlSource else {
+            Issue.record("\(channel) install must use a .redirect URL source")
+            continue
+        }
+        #expect(url.absoluteString.contains("product=\(product)"))
+        #expect(url.absoluteString.contains("os=osx"))
+    }
+}
+
+// Firefox — same Mozilla one-click mechanism as Thunderbird, across all five
+// channels. Dev Edition's product code is `firefox-devedition-latest` (NOT a
+// plain `-dev`), so lock that mapping in too.
+@Test func firefoxAllChannelsOneClickDmg() throws {
+    let expected: [(bundleID: String, channel: ReleaseChannel, product: String)] = [
+        ("org.mozilla.firefox", .stable, "firefox-latest"),
+        ("org.mozilla.firefox", .beta, "firefox-beta-latest"),
+        ("org.mozilla.firefox", .esr, "firefox-esr-latest"),
+        ("org.mozilla.firefoxdeveloperedition", .dev, "firefox-devedition-latest"),
+        ("org.mozilla.nightly", .nightly, "firefox-nightly-latest"),
+    ]
+    for (bundleID, channel, product) in expected {
+        let recipe = try #require(
+            VendorProbeRegistry.recipes.first {
+                $0.bundleID == bundleID && $0.channel == channel
+            },
+            "missing Firefox recipe for \(bundleID)/\(channel)")
+        let install = try #require(recipe.install, "\(channel) must be one-click")
+        #expect(install.kind == .dmg)
+        guard case let .redirect(url) = install.urlSource else {
+            Issue.record("\(channel) install must use a .redirect URL source")
+            continue
+        }
+        #expect(url.absoluteString.contains("product=\(product)"))
+        #expect(url.absoluteString.contains("os=osx"))
+    }
+}
+
+// Signal — one-click resolves the UNIVERSAL dmg from the same latest-mac.yml we
+// probe (not the per-arch zips), against updates.signal.org/desktop/, and pulls
+// the dmg's own sha512 from the next yml line. Exercise both on the real yml shape.
+@Test func signalOneClickResolvesUniversalDmgAndChecksum() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "org.whispersystems.signal-desktop" })
+    let body = """
+    version: 8.14.0
+    files:
+      - url: signal-desktop-mac-x64-8.14.0.zip
+        sha512: ZIPx64sha==
+        size: 145932354
+      - url: signal-desktop-mac-arm64-8.14.0.zip
+        sha512: ZIParm64sha==
+        size: 137665143
+      - url: signal-desktop-mac-universal-8.14.0.dmg
+        sha512: DMGuniversalSha512Value==
+        size: 256425367
+    path: signal-desktop-mac-x64-8.14.0.zip
+    """
+    let install = try #require(recipe.install)
+    #expect(install.kind == .dmg)
+    guard case let .bodyPatternRelative(pat, base) = install.urlSource else {
+        Issue.record("expected bodyPatternRelative"); return
+    }
+    let fn = try #require(VendorProbeRecipe.extractVersion(from: body, pattern: pat))
+    // Must grab the universal dmg, never the x64/arm64 zips.
+    #expect(URL(string: fn, relativeTo: base)?.absoluteString
+        == "https://updates.signal.org/desktop/signal-desktop-mac-universal-8.14.0.dmg")
+    // Checksum pattern must read the dmg's sha512 (the line after its url), not a zip's.
+    let csum = try #require(install.checksumPattern)
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: csum) == "DMGuniversalSha512Value==")
+}
+
+// Obsidian — the manifest's own downloadUrl is an asar.gz we can't apply, so the
+// one-click templates the GitHub release dmg from the STABLE latestVersion. The
+// trap: a nested `beta` object carries a HIGHER latestVersion — the field regex
+// (first match) must pick stable, or we'd ship a beta dmg to a stable install.
+@Test func obsidianOneClickTemplatesStableDmgNotBeta() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "md.obsidian" })
+    let body = """
+    {"minimumVersion":"0.14.5","latestVersion":"1.12.7",\
+    "downloadUrl":"https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/obsidian-1.12.7.asar.gz",\
+    "beta":{"latestVersion":"1.13.1","downloadUrl":"https://releases.obsidian.md/release/obsidian-1.13.1.asar.gz"}}
+    """
+    let install = try #require(recipe.install)
+    #expect(install.kind == .dmg)
+    guard case let .bodyTemplate(template, fields) = install.urlSource else {
+        Issue.record("expected bodyTemplate"); return
+    }
+    var filled = template
+    for (i, pat) in fields.enumerated() {
+        let v = try #require(VendorProbeRecipe.extractVersion(from: body, pattern: pat))
+        filled = filled.replacingOccurrences(of: "{\(i)}", with: v)
+    }
+    #expect(filled
+        == "https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/Obsidian-1.12.7.dmg")
+}
+
+// Notion — one-click reuses the same /desktop/mac/download 307 the probe reads,
+// HEAD-following it to the versioned universal dmg. Detection still uses
+// followRedirects:false (reads the 307 itself) — the two must not be conflated.
+@Test func notionOneClickRedirectsToDmg() throws {
+    let recipe = try #require(VendorProbeRegistry.recipes.first { $0.bundleID == "notion.id" })
+    #expect(recipe.followRedirects == false) // detection still reads the 307, not the 203MB body
+    let install = try #require(recipe.install)
+    #expect(install.kind == .dmg)
+    guard case let .redirect(url) = install.urlSource else {
+        Issue.record("expected redirect install"); return
+    }
+    #expect(url.absoluteString == "https://www.notion.so/desktop/mac/download")
+}
+
+// Batch 3 one-click wiring — verify each recipe's install URLSource resolves the
+// RIGHT installer from a realistic body (the traps: stable-vs-beta keys, the
+// ascending Orion feed's newest-last enclosure, macOS-vs-Windows in the Plex feed).
+@Test func batch3OneClickInstallSourcesResolveCorrectly() throws {
+    func recipe(_ id: String, channel: ReleaseChannel = .stable) throws -> VendorProbeRecipe {
+        try #require(VendorProbeRegistry.recipes.first { $0.bundleID == id && $0.channel == channel })
+    }
+    func bodyPattern(_ r: VendorProbeRecipe) throws -> String {
+        guard case let .bodyPattern(p) = try #require(r.install).urlSource else {
+            Issue.record("\(r.bundleID): expected bodyPattern"); return ""
+        }
+        return p
+    }
+
+    // Cursor — downloadUrl dmg.
+    let cursorBody = #"{"downloadUrl":"https://downloads.cursor.com/production/abc/darwin/arm64/Cursor-darwin-arm64.dmg","version":"3.7.42"}"#
+    #expect(VendorProbeRecipe.extractVersion(from: cursorBody, pattern: try bodyPattern(try recipe("com.todesktop.230313mzl4w4u92")))
+        == "https://downloads.cursor.com/production/abc/darwin/arm64/Cursor-darwin-arm64.dmg")
+
+    // Raycast — downloadURL (proxy-wrapped presigned url, no literal quote inside).
+    let rayBody = #"{"version":"1.104.19","downloadURL":"https://worker.raycast-releases.com/?url=https%3A%2F%2Fx.dmg%26X-Amz-Algorithm%3DAWS4"}"#
+    #expect(VendorProbeRecipe.extractVersion(from: rayBody, pattern: try bodyPattern(try recipe("com.raycast.macos")))
+        == "https://worker.raycast-releases.com/?url=https%3A%2F%2Fx.dmg%26X-Amz-Algorithm%3DAWS4")
+
+    // Shottr — must grab "package", NOT "betaPackage".
+    let shottrBody = #"{"betaPackage":"https://shottr.cc/dl/eap/Shottr-1.9.pkg","package":"https://shottr.cc/dl/Shottr-1.9.1.pkg"}"#
+    #expect(VendorProbeRecipe.extractVersion(from: shottrBody, pattern: try bodyPattern(try recipe("cc.ffitch.shottr")))
+        == "https://shottr.cc/dl/Shottr-1.9.1.pkg")
+
+    // Element stable + nightly — nested updateTo.url zip from each feed's body.
+    let elBody = #"{"currentRelease":"1.12.21","releases":[{"updateTo":{"url":"https://packages.element.io/desktop/update/macos/Element-1.12.21-universal-mac.zip"}}]}"#
+    #expect(VendorProbeRecipe.extractVersion(from: elBody, pattern: try bodyPattern(try recipe("im.riot.app")))
+        == "https://packages.element.io/desktop/update/macos/Element-1.12.21-universal-mac.zip")
+
+    // Plex — MacOS universal zip, not the Windows installer that appears earlier.
+    let plexBody = #"{"Windows":{"releases":[{"url":"https://downloads.plex.tv/plex-desktop/1.1/windows/Plex-Setup.exe"}]},"#
+        + #""MacOS":{"version":"1.112.0","releases":[{"url":"https://downloads.plex.tv/plex-desktop/1.112.0.359-0d79a49f/macos/Plex-1.112.0.359-0d79a49f-universal.zip"}]}}"#
+    #expect(VendorProbeRecipe.extractVersion(from: plexBody, pattern: try bodyPattern(try recipe("tv.plex.desktop")))
+        == "https://downloads.plex.tv/plex-desktop/1.112.0.359-0d79a49f/macos/Plex-1.112.0.359-0d79a49f-universal.zip")
+
+    // Orion — ASCENDING feed: install must take the LAST enclosure (newest), not first.
+    let orionRecipe = try recipe("com.kagi.kagimacOS")
+    guard case let .bodyPatternLast(orionPat) = try #require(orionRecipe.install).urlSource else {
+        Issue.record("Orion: expected bodyPatternLast"); return
+    }
+    let orionBody = """
+    <item><enclosure url="https://browser.kagi.com/updates/14_0/126.zip"/></item>
+    <item><enclosure url="https://cdn.kagi.com/updates/26_0/147.zip"/></item>
+    <item><enclosure url="https://cdn.kagi.com/updates/26_0/147.1.zip"/></item>
+    """
+    #expect(VendorProbeRecipe.lastMatch(from: orionBody, pattern: orionPat)
+        == "https://cdn.kagi.com/updates/26_0/147.1.zip")
+    // First-match would wrongly grab the oldest.
+    #expect(VendorProbeRecipe.extractVersion(from: orionBody, pattern: orionPat)
+        == "https://browser.kagi.com/updates/14_0/126.zip")
+
+    // Slack + Discord stable use .redirect; just assert kind + that they're wired.
+    if case .redirect = try #require(try recipe("com.tinyspeck.slackmacgap").install).urlSource {} else {
+        Issue.record("Slack: expected redirect")
+    }
+    if case .redirect = try #require(try recipe("com.hnc.Discord").install).urlSource {} else {
+        Issue.record("Discord: expected redirect")
+    }
+    #expect(try recipe("im.riot.nightly", channel: .nightly).install != nil)
 }
 
 // WeType (微信输入法) — the changelog page lists releases for ALL platforms in one

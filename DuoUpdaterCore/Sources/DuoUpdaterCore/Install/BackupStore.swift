@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Security
 
 /// Keeps one backup copy of each app's *previous* bundle so an update can be
 /// rolled back — the safety net that makes a one-click in-place update feel safe.
@@ -98,16 +99,24 @@ public enum BackupStore {
     ) throws -> Backup {
         let fm = FileManager.default
         let dir = root.appendingPathComponent(key, isDirectory: true)
-        // Retention = 1: drop any prior backup wholesale before writing the new one.
-        try? fm.removeItem(at: dir)
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        // Build the new backup in a hidden staging dir FIRST, then swap it into place
+        // atomically. Retention = 1 must not delete the prior rollback point until the
+        // new copy is fully written — otherwise a failed/interrupted re-backup (disk
+        // full, crash) would leave the user with no backup at all for an app that's
+        // about to change versions. The staging name is hidden (`.`-prefixed, so it's
+        // skipped by `allBackups`' directory scan) and keyed per app, so it self-cleans
+        // across a crashed prior attempt.
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        let staging = root.appendingPathComponent(".staging-\(key)", isDirectory: true)
+        try? fm.removeItem(at: staging)
+        try fm.createDirectory(at: staging, withIntermediateDirectories: true)
 
         let name = appPath.lastPathComponent
-        let dest = dir.appendingPathComponent(name)
+        let staged = staging.appendingPathComponent(name)
         // `ditto` preserves the bundle's symlinks, xattrs, and (importantly) its
         // code signature exactly — a plain copy can mangle them.
-        guard runDitto(from: appPath, to: dest) else {
-            try? fm.removeItem(at: dir)
+        guard runDitto(from: appPath, to: staged) else {
+            try? fm.removeItem(at: staging)
             throw BackupError.copyFailed(appPath.path)
         }
 
@@ -115,9 +124,30 @@ public enum BackupStore {
         let meta = Meta(
             version: version, bundleID: bundleID,
             originalPath: appPath.path, bundleName: name, savedAt: savedAt)
-        if let data = try? JSONEncoder().encode(meta) {
-            try? data.write(to: dir.appendingPathComponent("backup.json"))
+        // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
+        // without it), so a backup whose sidecar didn't write is unusable. Fail the
+        // save (leaving the prior backup intact) rather than leave an invisible bundle.
+        guard let metaData = try? JSONEncoder().encode(meta),
+              (try? metaData.write(to: staging.appendingPathComponent("backup.json"),
+                                   options: .atomic)) != nil else {
+            try? fm.removeItem(at: staging)
+            throw BackupError.copyFailed(appPath.path)
         }
+
+        // New backup is complete in `staging`; now replace the old one atomically (a
+        // same-volume rename, so the swap window is a single near-instant operation
+        // rather than the multi-second copy above).
+        do {
+            if fm.fileExists(atPath: dir.path) {
+                _ = try fm.replaceItemAt(dir, withItemAt: staging)
+            } else {
+                try fm.moveItem(at: staging, to: dir)
+            }
+        } catch {
+            try? fm.removeItem(at: staging)
+            throw BackupError.copyFailed(appPath.path)
+        }
+        let dest = dir.appendingPathComponent(name)
         // Migration cleanup: a copy backed up before keys became path-scoped left
         // a dir under the bare bundle-id legacy key. Now that the canonical,
         // path-scoped backup exists (and `keyCandidates` would only ever fall back
@@ -164,8 +194,34 @@ public enum BackupStore {
         guard runDitto(from: backup.bundlePath, to: staged) else {
             throw BackupError.copyFailed(backup.bundlePath.path)
         }
+        // Best-effort integrity check before swapping a backup over the live app: if
+        // the backup is code-signed and its signature no longer validates, log it —
+        // a sign the stored bundle was corrupted or tampered with. We deliberately do
+        // NOT block the swap on this: a rollback is an explicit user action and the
+        // save path writes backups atomically (complete-or-nothing), so refusing here
+        // would more often strand a user wanting to recover than catch real damage.
+        // The signed identifier isn't checked against the target — a rollback may
+        // legitimately cross an identifier/Team change the forward update introduced.
+        if !backupSignatureLooksValid(staged) {
+            Log.install.error(
+                "rollback: backup for \(key, privacy: .public) failed signature validation — restoring anyway (it may be corrupted)")
+        }
         try InPlaceSwap.replace(newApp: staged, over: target)
         return backup.version
+    }
+
+    /// True if the staged backup either validates cleanly or is simply unsigned;
+    /// false only when a present signature fails to validate (corruption/tampering).
+    private static func backupSignatureLooksValid(_ bundle: URL) -> Bool {
+        do {
+            try SignatureVerifier.verifyCodeSignature(appAt: bundle)
+            return true
+        } catch let SignatureVerifier.VerifyError.codeSignatureInvalid(status)
+                    where status == errSecCSUnsigned {
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Every current backup, keyed by app key — one scan of the backups root.

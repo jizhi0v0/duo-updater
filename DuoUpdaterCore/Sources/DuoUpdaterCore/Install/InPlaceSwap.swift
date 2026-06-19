@@ -28,7 +28,38 @@ public struct AppManagementRequiredError: LocalizedError {
 ///   3. **Atomicity** — on a user-writable location we stage the new bundle beside
 ///      the target and `replaceItemAt` (an atomic same-volume exchange), so a
 ///      failure leaves the original app fully intact rather than trashed-then-gone.
-enum InPlaceSwap {
+public enum InPlaceSwap {
+
+    /// Recover from a privileged swap (`privilegedReplace`) that was interrupted
+    /// between its two renames: the installed app is then sitting at
+    /// `<App>.app.duoupdater-old` while `<App>.app` itself is missing. Sweep
+    /// `directory` and rename any such orphan back into place — turning a would-be
+    /// bricked app back into a working one — and clear stale `.duoupdater-new`/
+    /// `-staged` (and present-app `.duoupdater-old`) leftovers. Best-effort; safe to
+    /// run on every launch. Only the non-admin / read-only-parent install path can
+    /// leave these behind (the common admin path is a truly atomic `replaceItemAt`).
+    public static func recoverInterruptedSwaps(in directory: URL) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil, options: []) else { return }
+        let oldSuffix = ".duoupdater-old"
+        let newSuffix = ".duoupdater-new"
+        let stagedPrefix = ".duoupdater-staged-"
+        for entry in entries {
+            let name = entry.lastPathComponent
+            if name.hasSuffix(oldSuffix) {
+                let appURL = directory.appendingPathComponent(String(name.dropLast(oldSuffix.count)))
+                if fm.fileExists(atPath: appURL.path) {
+                    try? fm.removeItem(at: entry)             // real app present → stale copy
+                } else if (try? fm.moveItem(at: entry, to: appURL)) != nil {
+                    Log.install.error(
+                        "recovered an interrupted update: restored \(appURL.lastPathComponent, privacy: .public) from its pre-swap backup")
+                }
+            } else if name.hasSuffix(newSuffix) || name.hasPrefix(stagedPrefix) {
+                try? fm.removeItem(at: entry)                 // unused new/staged leftover
+            }
+        }
+    }
 
     enum SwapError: LocalizedError {
         case invalidTarget(String)

@@ -70,28 +70,32 @@ public actor PackageInstaller {
 
         onStage(.installing)
         let toOpen = try resolveInstaller(from: file, workDir: workDir)
-        // Gate: a `.pkg`/`.mpkg` runs install scripts (often with admin rights) the
-        // moment the user confirms in the system installer. A hijacked download URL
-        // could otherwise serve an arbitrary package. Refuse to open one that isn't
-        // signed by a valid Developer ID / notarized. (A bare `.dmg` fallback can't
-        // be pkg-checked — the user still drives that one manually.)
+        // Gate (fail closed): a `.pkg`/`.mpkg` runs install scripts (often with admin
+        // rights) the moment the user confirms in the system installer. This is the
+        // *package* installer, so the ONLY thing it may hand off is a signed .pkg/.mpkg
+        // whose Team ID matches the installed app. The download's filename/extension is
+        // server-controlled (`suggestedFilename`), so a hijacked or misconfigured
+        // endpoint could resolve to something else — refuse it rather than open an
+        // arbitrary downloaded file (which would sidestep the Developer-ID/Team-ID
+        // check entirely). A `.dmg` is already resolved to its inner pkg above.
         let ext = toOpen.pathExtension.lowercased()
-        if ext == "pkg" || ext == "mpkg" {
-            guard let installedTeam = try SignatureVerifier.teamIdentifier(at: installedApp) else {
-                throw SignatureVerifier.VerifyError.noTeamIdentifier(which: "installed")
-            }
-            let packageSignature = packageSignature(toOpen)
-            guard packageSignature.isValid else {
-                throw PackageError.unsignedPackage
-            }
-            guard let packageTeam = packageSignature.teamIdentifier else {
-                throw PackageError.packageTeamIdentifierMissing
-            }
-            guard packageTeam == installedTeam else {
-                throw PackageError.packageTeamIdentifierMismatch(
-                    installed: installedTeam,
-                    package: packageTeam)
-            }
+        guard ext == "pkg" || ext == "mpkg" else {
+            throw PackageError.noInstallablePackage
+        }
+        guard let installedTeam = try SignatureVerifier.teamIdentifier(at: installedApp) else {
+            throw SignatureVerifier.VerifyError.noTeamIdentifier(which: "installed")
+        }
+        let packageSignature = packageSignature(toOpen)
+        guard packageSignature.isValid else {
+            throw PackageError.unsignedPackage
+        }
+        guard let packageTeam = packageSignature.teamIdentifier else {
+            throw PackageError.packageTeamIdentifierMissing
+        }
+        guard packageTeam == installedTeam else {
+            throw PackageError.packageTeamIdentifierMismatch(
+                installed: installedTeam,
+                package: packageTeam)
         }
         await open(toOpen)
         onStage(.done)

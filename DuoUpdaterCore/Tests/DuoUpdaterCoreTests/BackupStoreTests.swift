@@ -127,6 +127,35 @@ struct BackupStoreTests {
         }
     }
 
+    /// Data-safety invariant: a re-backup whose copy FAILS (here, a missing source so
+    /// `ditto` errors) must NOT destroy the existing rollback point, and must not leak
+    /// a staging artifact into the backup listing. Retention=1 builds the new copy in
+    /// a hidden staging dir and only swaps it in once complete.
+    @Test func failedRebackupKeepsPriorBackup() throws {
+        try withScratchRoot { _ in
+            let apps = FileManager.default.temporaryDirectory
+                .appendingPathComponent("apps-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: apps) }
+
+            let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
+            try BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
+
+            // A second save whose source can't be copied must fail without touching
+            // the prior backup.
+            let missing = apps.appendingPathComponent("Gone.app")
+            #expect(throws: (any Error).self) {
+                try BackupStore.save(appPath: missing, key: "k", version: "2.0", bundleID: nil)
+            }
+
+            let surviving = try #require(BackupStore.backup(forKey: "k"))
+            #expect(surviving.version == "1.0")
+            #expect(marker(of: surviving.bundlePath) == "v1")
+            // No leftover staging dir leaks into the listing.
+            #expect(BackupStore.allBackups().count == 1)
+        }
+    }
+
     /// A backup written before keys became path-scoped lived under the bare,
     /// sanitised bundle id. Once a canonical path-scoped backup is saved, that
     /// orphan must be dropped so we don't leak a whole stale bundle per migrated

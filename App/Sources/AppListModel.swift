@@ -110,6 +110,23 @@ final class AppListModel {
     func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
     func backupVersion(_ id: String) -> String? { backupVersions[id] }
 
+    /// The "from" side of a restart line, as the user should read it. `lsappinfo`
+    /// only exposes the running process's *build* (e.g. "3965"), so a bare restart
+    /// line reads as a mystery number with its marketing version "lost". But we wrote
+    /// the pre-update marketing version into the rollback backup right before swapping
+    /// — and that sidecar survives our own relaunches — so recover it here and pair
+    /// the two as "26.609.71450 (3965)", matching the on-disk "to" side's shape.
+    /// Falls back to the bare build when no backup marketing is on record. nil when
+    /// the app isn't lagging a newer on-disk build.
+    func restartFromVersion(_ id: String) -> String? {
+        guard let runningBuild = runningVersionByID[id] else { return nil }
+        let build = UpdateResult.strippingBuildPrefix(runningBuild)
+        if let marketing = backupVersions[id], marketing != build {
+            return "\(marketing) (\(build))"
+        }
+        return build
+    }
+
     /// The raw staged self-update for a row, if its own updater has downloaded a
     /// newer build than what's on disk (regardless of whether it's the latest).
     func stagedSelfUpdate(_ id: String) -> StagedSelfUpdate? { pendingSelfUpdate[id] }
@@ -473,17 +490,34 @@ final class AppListModel {
     /// and the App Store source re-reads the signed-in storefront region.
     private func makeSources() -> [any UpdateSource] {
         let token = GitHubToken.resolve(explicit: prefs.githubToken.isEmpty ? nil : prefs.githubToken)
-        return [
+        var sources: [any UpdateSource] = [
             MacAppStoreSource(),
             SparkleAppcastSource(),
             HomebrewCaskSource(),
             // GitHub Releases for apps distributed that way (detection only unless
             // a rule names an installable asset).
             GitHubReleasesSource(token: token),
-            // Last resort: bespoke per-vendor version endpoints. Only fires when
-            // the earlier sources all miss and a recipe exists.
-            VendorProbeSource()
         ]
+        // Alcove's authoritative (licensed) update channel, ahead of the vendor
+        // probe: its public mirrors lag the licensed channel, so when the user's
+        // credentials are present this answers first; otherwise it's omitted and the
+        // public VendorProbe recipe handles Alcove (lagging) like before.
+        if let creds = alcoveCredentials() {
+            sources.append(AlcoveUpdateSource(credentials: creds))
+        }
+        // Last resort: bespoke per-vendor version endpoints. Only fires when
+        // the earlier sources all miss and a recipe exists.
+        sources.append(VendorProbeSource())
+        return sources
+    }
+
+    /// Alcove's licensed-update credentials, or nil if either secret is missing
+    /// (then the public vendor probe handles Alcove, lagging).
+    private func alcoveCredentials() -> AlcoveUpdateSource.Credentials? {
+        let key = prefs.alcoveLicenseKey
+        let instance = prefs.alcoveInstanceID
+        guard !key.isEmpty, !instance.isEmpty else { return nil }
+        return AlcoveUpdateSource.Credentials(licenseKey: key, instanceID: instance)
     }
 
     /// Pull the latest per-app traffic snapshot out of the store onto the main
@@ -530,6 +564,22 @@ final class AppListModel {
         return changelogState[key] ?? .loading
     }
 
+    /// The hand-authored changelog recipe to use for THIS result, or nil. Recipes
+    /// are keyed by bundle id, but a recipe targets a vendor's *official-site*
+    /// distribution; when the same bundle id is also installed from the Mac App
+    /// Store, that copy is a separate distribution whose notes come from the store's
+    /// own "What's New" (`releaseNotesHTML` / the store page). WeChat is the live
+    /// case: the official-site copy and the App Store copy share
+    /// `com.tencent.xinWeChat`, but the official site's per-version page doesn't
+    /// describe the App Store build. So gate the recipe out for App-Store-sourced
+    /// results (only `MacAppStoreSource` attaches `appStore`) and let them fall
+    /// through to the store notes.
+    private func applicableRecipe(for result: UpdateResult) -> ChangelogRecipe? {
+        guard result.remote?.appStore == nil else { return nil }
+        return ChangelogRecipeRegistry.recipe(
+            forBundleID: result.app.bundleID, channel: result.app.releaseChannel)
+    }
+
     /// Kick off a background load for an app's recipe-backed changelog if one isn't
     /// already loaded or in flight. Idempotent and non-blocking: the task runs off
     /// the main actor's critical path (it only `await`s the network) and survives
@@ -537,8 +587,7 @@ final class AppListModel {
     /// Re-tries a previous `.failed`.
     func ensureChangelogLoading(for result: UpdateResult) {
         guard let bundleID = result.app.bundleID,
-              let recipe = ChangelogRecipeRegistry.recipe(
-                forBundleID: bundleID, channel: result.app.releaseChannel) else { return }
+              let recipe = applicableRecipe(for: result) else { return }
         let targetVersion = result.remote?.displayVersion ?? result.app.shortVersion
         let key = ChangelogCacheKey(
             bundleID: bundleID, channel: result.app.releaseChannel, version: targetVersion)
@@ -550,12 +599,30 @@ final class AppListModel {
         // The version whose notes to show: the offered update if any, else the
         // installed build. Templated recipes (Thunderbird) fetch exactly that
         // version's page so the rendered notes match what the user sees.
+        //
+        // Stale-while-revalidate: if the cross-launch disk cache already holds this
+        // version's notes, paint them instantly, then revalidate from the network
+        // and swap in any change. A released version's notes are immutable, so the
+        // cached value is correct to show outright; the revalidation just catches a
+        // post-publish edit and keeps the very latest list current.
         changelogTasks[key] = Task { [weak self] in
-            let changelog = await ChangelogService.load(recipe, version: targetVersion)
+            if let cached = await ChangelogService.diskCached(recipe, version: targetVersion) {
+                if Task.isCancelled { return }
+                guard let self else { return }
+                self.changelogState[key] = .loaded(cached)
+            }
+            let fresh = await ChangelogService.load(recipe, version: targetVersion)
+            // A concurrent invalidate (app updated on disk) cancels this task and
+            // clears the key; bail rather than resurrect stale notes or clobber the
+            // task slot a fresh load may have installed.
+            if Task.isCancelled { return }
             guard let self else { return }
             self.changelogTasks[key] = nil
-            if let changelog {
-                self.changelogState[key] = .loaded(changelog)
+            if let fresh {
+                self.changelogState[key] = .loaded(fresh)
+            } else if case .loaded = self.changelogState[key] {
+                // Network revalidation failed but we already painted cached notes —
+                // keep them rather than dropping to the web-view fallback.
             } else {
                 self.changelogState[key] = .failed
             }
@@ -564,8 +631,7 @@ final class AppListModel {
 
     private func changelogKey(for result: UpdateResult) -> ChangelogCacheKey? {
         guard let bundleID = result.app.bundleID,
-              ChangelogRecipeRegistry.recipe(
-                forBundleID: bundleID, channel: result.app.releaseChannel) != nil
+              applicableRecipe(for: result) != nil
         else { return nil }
         return ChangelogCacheKey(
             bundleID: bundleID,
@@ -588,12 +654,89 @@ final class AppListModel {
         for key in changelogState.keys.filter({ $0.bundleID == bundleID }) {
             changelogState[key] = nil
         }
-        // Clear the network cache for every channel variant's page (Stable & ESR
-        // share this bundle id but have different sources), since we don't know
-        // here which channel's notes were cached.
-        let sources = ChangelogRecipeRegistry.recipes(forBundleID: bundleID).map(\.source)
-        if !sources.isEmpty {
-            Task { for source in sources { await ChangelogCache.shared.invalidate(source) } }
+        // Clear the network cache for every channel variant (Stable & ESR share this
+        // bundle id but have different sources; Warp's three channels share one
+        // endpoint but get distinct channel-fragmented cache slots), since we don't
+        // know here which channel's notes were cached.
+        let recipes = ChangelogRecipeRegistry.recipes(forBundleID: bundleID)
+        if !recipes.isEmpty {
+            Task { for recipe in recipes { await ChangelogService.invalidateMemoryCache(for: recipe) } }
+        }
+    }
+
+    /// Pre-warm every recipe-backed app's changelog right after a check, so opening
+    /// one paints instantly with no loading flash. The key insight is that the
+    /// workbench renders the *in-memory* `changelogState`; the disk cache alone
+    /// isn't enough, because the view still has to round-trip to disk on first
+    /// appear (showing the spinner meanwhile). So this fills `changelogState`
+    /// directly — disk-first, fetching only when disk has nothing for this version.
+    ///
+    /// Because a released version's notes are immutable, a disk hit needs no network
+    /// at all; steady-state this touches the wire only for genuinely new releases
+    /// (the periodic check thus doubles as a near-free changelog pre-warm). Runs for
+    /// every recipe-backed app, not just those with updates, since the user browses
+    /// notes for up-to-date apps too. On failure it leaves the key absent so the
+    /// open path retries rather than getting stuck on a stale spinner / web fallback.
+    /// Bounds how many changelog prewarms hit the network at once (a cold cache would
+    /// otherwise fire one fetch per recipe-backed installed app simultaneously).
+    private static let prewarmNetworkGate = AsyncSemaphore(value: 4)
+
+    private func prewarmChangelogs(for results: [UpdateResult]) {
+        for result in results {
+            guard let key = changelogKey(for: result),
+                  let recipe = applicableRecipe(for: result) else { continue }
+            // Don't clobber an entry that's already loaded, loading, or being viewed.
+            if changelogState[key] != nil { continue }
+            let targetVersion = result.remote?.displayVersion ?? result.app.shortVersion
+            changelogState[key] = .loading
+            changelogTasks[key] = Task { [weak self] in
+                var changelog = await ChangelogService.diskCached(recipe, version: targetVersion)
+                if changelog == nil {
+                    // Cap concurrent network prewarms: a cold cache would otherwise
+                    // fan out one fetch per recipe-backed app at once. Disk hits above
+                    // skip the gate; only genuine network fetches queue through it.
+                    await Self.prewarmNetworkGate.wait()
+                    changelog = await ChangelogService.load(recipe, version: targetVersion)
+                    await Self.prewarmNetworkGate.signal()
+                }
+                if Task.isCancelled { return }
+                guard let self else { return }
+                self.changelogTasks[key] = nil
+                if let changelog {
+                    self.changelogState[key] = .loaded(changelog)
+                    self.prewarmImages(in: changelog)
+                } else {
+                    // Network miss during pre-warm: settle on `.failed` so the pane
+                    // shows the web-view fallback rather than stranding on the spinner.
+                    // (`changelogState(for:)` maps a *missing* key back to `.loading`,
+                    // and the view's `.onAppear` fires once per appearance — so clearing
+                    // the key would leave an in-flight-looking spinner that never
+                    // re-triggers a fetch. The next refresh re-prewarms and can recover.)
+                    self.changelogState[key] = .failed
+                }
+            }
+        }
+    }
+
+    /// Warm the changelog image cache for every illustration in `changelog`, so a
+    /// prewarmed entry's pictures (WeChat embeds feature screenshots) are on screen
+    /// the instant the user opens it, not streamed in on appear. Fetches the bytes
+    /// (disk-first via `ImageStore`) and decodes into the main-actor memory cache.
+    /// Skips URLs already decoded in memory; cheap and idempotent.
+    private func prewarmImages(in changelog: Changelog) {
+        let urls = changelog.entries
+            .flatMap(\.content)
+            .compactMap { block -> URL? in
+                if case let .image(url) = block { return url }
+                return nil
+            }
+        for url in urls where ImageMemoryCache.shared.image(for: url) == nil {
+            // Detached so the NSImage decode in `store` runs off the main actor —
+            // prewarming several full-res WeChat screenshots shouldn't hitch the UI.
+            Task.detached(priority: .utility) {
+                guard let data = await ImageStore.shared.data(for: url) else { return }
+                ImageMemoryCache.shared.store(data, for: url)
+            }
         }
     }
 
@@ -715,8 +858,26 @@ final class AppListModel {
         }
     }
 
+    @ObservationIgnored private var didRecoverSwaps = false
+
+    /// Run the interrupted-swap recovery sweep once per session, off the main thread.
+    /// Scans `/Applications` (the only place the privileged, non-atomic swap path can
+    /// leave an orphan — user-writable locations take the atomic path).
+    private func recoverInterruptedSwapsOnce() {
+        guard !didRecoverSwaps else { return }
+        didRecoverSwaps = true
+        Task.detached(priority: .utility) {
+            InPlaceSwap.recoverInterruptedSwaps(in: URL(fileURLWithPath: "/Applications"))
+        }
+    }
+
     private func performRefresh(allowTestFlight: Bool = true) async {
         Log.app.info("refresh: start (scan + network check, testflight=\(allowTestFlight, privacy: .public))")
+        // Once per session, before the scan: recover any app left at
+        // `<App>.app.duoupdater-old` by a privileged swap that died mid-rename (a
+        // power loss / force-quit on the non-admin install path). Restoring it here
+        // means the about-to-run scan sees a working app rather than a missing one.
+        recoverInterruptedSwapsOnce()
         // Snapshot the current count before we blank the rows below, so the menu-bar
         // badge holds it steady through the scan/check instead of flickering to 0.
         heldBadgeCount = updateCount
@@ -792,6 +953,9 @@ final class AppListModel {
         Log.app.info("refresh: checking \(found.count, privacy: .public) apps")
         let checked = await checker.check(found)
         results = sorted(checked)
+        // Pre-warm the disk changelog cache for anything pending, so opening its
+        // notes is instant (and a no-op network-wise for versions already cached).
+        prewarmChangelogs(for: checked)
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         await refreshBackupIndex()
@@ -937,6 +1101,23 @@ final class AppListModel {
         await refreshBackupIndex()
     }
 
+    /// Re-read a single app from disk and re-derive its row plus the restart/staging
+    /// flags — the per-app equivalent of `refreshLocal`, but WITHOUT its
+    /// `installing.isEmpty` guard. The wholesale `refreshLocal` deliberately no-ops
+    /// while any install is in flight (so it doesn't churn the list under an active
+    /// spinner), which means a quit-to-apply action that lands *during* an "Update
+    /// All" batch would otherwise have its refresh silently dropped — stranding a
+    /// stale "1.x → 1.y / Relaunch" row that never clears (the app is already current
+    /// on disk and running the new build, but the row never got re-read). Only the
+    /// touched row is replaced here, so the concurrently-installing app's spinner row
+    /// is left intact.
+    private func refreshRow(_ result: UpdateResult) async {
+        let updated = await recheck(result)
+        replaceRow(updated)
+        await computeRestartInfo()
+        await computeSelfUpdateStaging()
+    }
+
     // MARK: - Homebrew formulae (CLI tools)
 
     /// Re-read outdated CLI formulae via `brew outdated --formula`. A local tap
@@ -969,6 +1150,31 @@ final class AppListModel {
             brewOutdatedFormulae = []
         }
         brewFormulae = BrewFormulaService.merge(brewFormulae, outdated: brewOutdatedFormulae)
+        prewarmFormulaReleases()
+    }
+
+    /// Warm formula release notes after a brew refresh so selecting an outdated
+    /// formula paints instantly instead of spinning on a `brew info` + GitHub fetch.
+    /// Rate-limit-aware: a disk-cached version loads for free (no Process, no API
+    /// call), but an UNcached formula is fetched up front only when a GitHub token is
+    /// present. Without a token the service stays deliberately lazy (on-select) so a
+    /// screenful of outdated formulae can't burn the 60/hr unauthenticated budget —
+    /// the disk cache still makes every re-select and relaunch instant.
+    private func prewarmFormulaReleases() {
+        let token = GitHubToken.resolve(explicit: prefs.githubToken.isEmpty ? nil : prefs.githubToken)
+        for formula in brewFormulae where formula.hasUpdate {
+            guard formulaReleaseStates[formula.name] == nil else { continue }
+            let version = formula.availableVersion ?? formula.installedVersion
+            Task { [weak self] in
+                guard let self else { return }
+                if let cached = await self.formulaReleaseService.cached(
+                    for: formula.name, version: version) {
+                    self.formulaReleaseStates[formula.name] = .loaded(cached)
+                } else if token != nil {
+                    self.ensureFormulaReleaseLoading(name: formula.name, version: version)
+                }
+            }
+        }
     }
 
     /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
@@ -1154,6 +1360,43 @@ final class AppListModel {
         // flight, so a double-click could otherwise launch two concurrent installs
         // for the same app — two downloads, two in-place swaps, two notifications.
         guard installing[id] == nil else { return false }
+        // Bound *total* concurrent installs across every entry point through one
+        // global gate: "Update All" and each manual row click queue through the
+        // same permits, so a wave of clicks (or a batch overlapping manual clicks)
+        // can't all fire at once — saturating the network, thrashing the disk, and
+        // stacking several privileged-swap auth prompts. Mark the row `.queued`
+        // *before* suspending so the guard above already rejects re-clicks and the
+        // UI shows the wait, then park until a slot frees (the semaphore is FIFO).
+        installing[id] = .queued
+        // Per-host sub-cap: several apps that download from the *same* host (GitHub
+        // releases, one vendor CDN) would otherwise split that host's bandwidth and
+        // are the most likely to trip its rate limiter / WAF. Acquired *before* the
+        // global permit so a saturated host parks here without burning a global slot
+        // (which would starve apps on other, idle hosts). Installs whose bytes we
+        // don't fetch ourselves — Homebrew, App Store — have no `downloadURL` host
+        // and skip this, bounded by the global gate alone.
+        let hostGate = result.remote?.downloadURL?.host.map(hostInstallGate(for:))
+        await hostGate?.wait()
+        await Self.installGate.wait()
+        // A queued item cancelled while waiting — e.g. "Update All" was stopped
+        // before this row's turn came up — releases its slots without installing.
+        if Task.isCancelled {
+            installing[id] = nil
+            await Self.installGate.signal()
+            await hostGate?.signal()
+            return false
+        }
+        // `performInstall` catches all its own errors and always returns, so both
+        // permits are guaranteed to recycle here.
+        let didInstall = await performInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
+        await Self.installGate.signal()
+        await hostGate?.signal()
+        return didInstall
+    }
+
+    @discardableResult
+    private func performInstall(_ result: UpdateResult, notify: Bool, deferBookkeeping: Bool) async -> Bool {
+        let id = result.id
         installErrors[id] = nil
         installNotes[id] = nil
         Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
@@ -1625,7 +1868,12 @@ final class AppListModel {
         let running = runningInstances(of: result)
         guard !running.isEmpty else { needsRestart.remove(result.id); return }
         for app in running { app.terminate() }
-        for _ in 0..<30 {
+        // Wait up to ~30s for a graceful quit. A heavy app (large workspace) can take
+        // well over the old 6s to actually exit; bailing early would leave it
+        // terminated-but-not-relaunched — i.e. we asked it to quit and then never
+        // brought it back. The only case we intentionally give up on is a genuine
+        // hang/save-prompt, where the app stays *up* (so it's never stranded down).
+        for _ in 0..<150 {
             if runningInstances(of: result).isEmpty { break }
             try? await Task.sleep(for: .milliseconds(200))
         }
@@ -1714,8 +1962,11 @@ final class AppListModel {
         Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public)")
         // Re-read disk: clears the staged flag + reminder banner if the swap landed
         // (via `computeSelfUpdateStaging`'s departed-id sweep), keeps "Relaunch" if
-        // it didn't. Never optimistic, never an Update fallback.
-        await refreshLocal()
+        // it didn't. Never optimistic, never an Update fallback. Use the per-app
+        // `refreshRow`, not `refreshLocal`: the latter no-ops while an "Update All"
+        // batch is still installing, which would strand this row stale (it's current
+        // on disk but the row never gets re-read).
+        await refreshRow(result)
         if applied {
             UpdateNotifier.restarted(app: result.app.name, version: Self.readShortVersion(result.app.path), appID: result.app.bundleID)
         }
@@ -1873,6 +2124,10 @@ final class AppListModel {
         }.value
         if !ok {
             Log.install.error("backup failed: \(result.app.name, privacy: .public) — proceeding without a rollback point")
+            // Tell the user their safety net is gone for this update, rather than
+            // discovering it only when they later try to roll back and find nothing.
+            installNotes[result.id] =
+                "Couldn’t back up the current version — this update will be applied without a rollback point."
         }
     }
 
@@ -1933,6 +2188,31 @@ final class AppListModel {
     /// Keep batch installs parallel without letting a large update wave saturate
     /// the network, Homebrew, and privileged swap prompts all at once.
     private static let maxParallelInstalls = 3
+
+    /// The single concurrency authority for *all* installs, manual or batch. Every
+    /// `install()` acquires a permit before doing any work and releases it when
+    /// done, so the total in-flight count never exceeds this regardless of how the
+    /// install was triggered. The batch task group below bounds how many tasks it
+    /// *spawns*; this bounds how many actually *run* — including manual clicks that
+    /// land while a batch is in progress.
+    private static let installGate = AsyncSemaphore(value: maxParallelInstalls)
+
+    /// How many concurrent installs may download from a single host. Lower than the
+    /// global cap on purpose: same-host downloads compete for that host's bandwidth
+    /// and are the ones that trip its rate limiter / WAF.
+    private static let maxPerHostInstalls = 2
+
+    /// One semaphore per download host, created on demand. Main-actor isolated, so
+    /// the lookup/insert needs no extra locking. Entries are never evicted — the set
+    /// of hosts is tiny and bounded by the installed-app catalog.
+    private var hostInstallGates: [String: AsyncSemaphore] = [:]
+
+    private func hostInstallGate(for host: String) -> AsyncSemaphore {
+        if let gate = hostInstallGates[host] { return gate }
+        let gate = AsyncSemaphore(value: Self.maxPerHostInstalls)
+        hostInstallGates[host] = gate
+        return gate
+    }
 
     /// Pending updates "Update All" should act on: in-place installs only, no
     /// confirmation gates, and no row that's already busy. Snapshotted up front

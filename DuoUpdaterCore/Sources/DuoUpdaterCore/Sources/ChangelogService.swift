@@ -38,15 +38,82 @@ public enum ChangelogService {
         // URL so different versions never serve each other's notes.
         let resolved = recipe.resolvedSource(forVersion: version)
         // Delegate to the cache's fetch-through helper, which handles hit, miss,
-        // and concurrent-miss coalescing in one place.
-        return await ChangelogCache.shared.load(for: resolved) {
+        // and concurrent-miss coalescing in one place. Structured recipes that pack
+        // every channel into one endpoint (Warp) get a per-channel cache key so the
+        // channels don't serve each other's notes from this shared slot.
+        let cacheURL = cacheKeyURL(for: recipe, resolved: resolved)
+        let diskCacheKey = diskKey(for: recipe, version: version)
+        return await ChangelogCache.shared.load(for: cacheURL) {
             Log.source.debug(
                 "changelog cache miss: \(resolved.host ?? "?", privacy: .public)")
-            guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session),
-                  let text = await fetchBody(pageURL, session: session)
-            else { return nil }
-            return ChangelogExtractor.extract(from: text, using: recipe)
+            let parsed: Changelog?
+            if let format = recipe.structuredFormat {
+                guard let text = await fetchBody(resolved, session: session) else { return nil }
+                parsed = StructuredChangelogDecoder.decode(
+                    text, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries)
+            } else {
+                guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session),
+                      let text = await fetchBody(pageURL, session: session)
+                else { return nil }
+                parsed = ChangelogExtractor.extract(from: text, using: recipe)
+            }
+            // Persist to the cross-launch disk cache, keyed by version (immutable
+            // notes), so the next launch paints instantly and the periodic pre-warm
+            // can skip the network for versions we already hold. This lives INSIDE the
+            // fetch closure so it runs only on an actual network fetch (a cache miss) —
+            // an in-memory hit must not re-encode + re-write + re-prune on every open.
+            if let parsed, let diskCacheKey {
+                await ChangelogDiskCache.shared.set(parsed, for: diskCacheKey)
+            }
+            return parsed
         }
+    }
+
+    /// Drop every in-memory ``ChangelogCache`` slot this recipe could occupy: the
+    /// plain resolved page URL plus, for structured per-channel recipes (Warp), the
+    /// channel-fragmented key (`…#stable`). Called after an app updates on disk so the
+    /// next open re-fetches fresh notes instead of serving the prior version's from
+    /// the still-warm in-memory cache.
+    public static func invalidateMemoryCache(for recipe: ChangelogRecipe) async {
+        let resolved = recipe.source
+        await ChangelogCache.shared.invalidate(resolved)
+        let keyURL = cacheKeyURL(for: recipe, resolved: resolved)
+        if keyURL != resolved { await ChangelogCache.shared.invalidate(keyURL) }
+    }
+
+    /// The cross-launch disk-cached notes for this recipe+version, with no network
+    /// fetch. The workbench reads this for an instant first paint before kicking off
+    /// the stale-while-revalidate network load. nil when nothing is cached (or no
+    /// version is known to key on).
+    public static func diskCached(
+        _ recipe: ChangelogRecipe, version: String?
+    ) async -> Changelog? {
+        guard let key = diskKey(for: recipe, version: version) else { return nil }
+        return await ChangelogDiskCache.shared.get(for: key)
+    }
+
+    /// The in-memory cache slot for a recipe. Normally just the resolved page URL,
+    /// but structured recipes whose channels share one endpoint (Warp's
+    /// `channel_versions.json`) append the channel as a fragment so each channel
+    /// owns a distinct slot — the fragment never reaches the network (we always
+    /// fetch the un-fragmented `resolved`).
+    static func cacheKeyURL(for recipe: ChangelogRecipe, resolved: URL) -> URL {
+        guard recipe.structuredFormat != nil else { return resolved }
+        let token = recipe.channel?.rawValue ?? "default"
+        return URL(string: resolved.absoluteString + "#" + token) ?? resolved
+    }
+
+    /// The disk-cache key for a recipe+version, or nil when no version is known
+    /// (the disk layer is keyed by the immutable per-version notes, so a versionless
+    /// load can't be cached there — it still uses the in-memory cache).
+    static func diskKey(
+        for recipe: ChangelogRecipe, version: String?
+    ) -> ChangelogDiskCache.Key? {
+        guard let version, !version.isEmpty else { return nil }
+        return ChangelogDiskCache.Key(
+            bundleID: recipe.bundleID,
+            channel: recipe.channel?.rawValue ?? "default",
+            version: version)
     }
 
     /// The page the entry/item patterns run against, given the already-resolved

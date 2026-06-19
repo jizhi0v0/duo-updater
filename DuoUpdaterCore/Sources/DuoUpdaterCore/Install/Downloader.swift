@@ -101,7 +101,16 @@ final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
         }
         do {
             try SecureScheme.requireSecureDownload(url)
-            completionHandler(request)
+            // Strip credential headers when a redirect crosses to a different host,
+            // so a caller-supplied `Authorization`/`Cookie` (e.g. a license-bearing
+            // download header) can't be forwarded to a third-party redirect target.
+            var forwarded = request
+            if url.host != task.originalRequest?.url?.host {
+                for field in ["Authorization", "Cookie", "Proxy-Authorization"] {
+                    forwarded.setValue(nil, forHTTPHeaderField: field)
+                }
+            }
+            completionHandler(forwarded)
         } catch {
             finish(.failure(error))
             completionHandler(nil)

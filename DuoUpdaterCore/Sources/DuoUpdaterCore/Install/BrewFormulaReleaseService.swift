@@ -6,7 +6,7 @@ import Foundation
 /// the release tag. From that we fetch the GitHub release body and parse it into the
 /// same structured `Changelog` the app rows render, so formula notes look native.
 /// Non-GitHub formulae (Go, GNU tools) fall back to their homepage.
-public struct FormulaRelease: Sendable {
+public struct FormulaRelease: Sendable, Codable {
     /// Structured notes, when a GitHub release body was found and parsed. nil falls
     /// the UI back to `pageURL` (rendered in a web view).
     public let changelog: Changelog?
@@ -18,6 +18,10 @@ public struct FormulaRelease: Sendable {
         self.changelog = changelog
         self.pageURL = pageURL
     }
+
+    /// Worth persisting only when it carries something the UI can show; a fully-empty
+    /// result is a transient failure (e.g. `brew info` hiccup) we'd rather retry.
+    var isUseful: Bool { changelog != nil || pageURL != nil }
 }
 
 /// Fetches a formula's release notes: `brew info` (local) for the repo/tag, then
@@ -26,9 +30,45 @@ public struct FormulaRelease: Sendable {
 /// GitHub rate limit up front.
 public actor BrewFormulaReleaseService {
     private let session: URLSession
-    public init(session: URLSession = .updates) { self.session = session }
+    private let directory: URL
+
+    /// `directory` defaults to `…/com.duoupdater.app/formula-releases` — the same
+    /// container the changelog/image caches use. Overridable for tests.
+    public init(session: URLSession = .updates, cacheDirectory: URL? = nil) {
+        self.session = session
+        if let cacheDirectory {
+            self.directory = cacheDirectory
+        } else {
+            let base = FileManager.default.urls(
+                for: .applicationSupportDirectory, in: .userDomainMask).first
+                ?? FileManager.default.temporaryDirectory
+            self.directory = base
+                .appendingPathComponent("com.duoupdater.app", isDirectory: true)
+                .appendingPathComponent("formula-releases", isDirectory: true)
+        }
+    }
+
+    /// The cross-launch disk-cached notes for a formula version, with NO `brew info`
+    /// spawn and NO GitHub call. Used by the pre-warm probe and as the fast path in
+    /// `release(for:…)`. A formula version's notes are immutable, so a hit is final.
+    public func cached(for name: String, version: String) -> FormulaRelease? {
+        guard let data = try? Data(contentsOf: fileURL(name: name, version: version)),
+              let release = try? JSONDecoder().decode(FormulaRelease.self, from: data)
+        else { return nil }
+        return release
+    }
 
     public func release(for name: String, version: String, token: String?) async -> FormulaRelease {
+        // Disk first: a version's notes never change, so a hit skips both the local
+        // `brew info` Process and the (rate-limited) GitHub API call entirely.
+        if let cached = cached(for: name, version: version) { return cached }
+
+        let computed = await compute(name: name, version: version, token: token)
+        if computed.isUseful { persist(computed, name: name, version: version) }
+        return computed
+    }
+
+    private func compute(name: String, version: String, token: String?) async -> FormulaRelease {
         guard let info = Self.brewInfo(name: name) else {
             return FormulaRelease(changelog: nil, pageURL: nil)
         }
@@ -50,6 +90,37 @@ public actor BrewFormulaReleaseService {
         return FormulaRelease(changelog: nil, pageURL: tagPage ?? info.homepage)
     }
 
+    // MARK: - Disk cache
+
+    private func fileURL(name: String, version: String) -> URL {
+        directory.appendingPathComponent(prefix(name: name) + sanitize(version) + ".json")
+    }
+
+    /// Persist a formula version's notes, pruning any older-version file for the same
+    /// formula (only the current version is ever shown). Best-effort.
+    private func persist(_ release: FormulaRelease, name: String, version: String) {
+        let keep = fileURL(name: name, version: version).lastPathComponent
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try JSONEncoder().encode(release).write(
+                to: directory.appendingPathComponent(keep), options: .atomic)
+        } catch {
+            Log.app.debug("formula release disk write failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        let pfx = prefix(name: name)
+        if let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) {
+            for n in names where n.hasPrefix(pfx) && n != keep {
+                try? FileManager.default.removeItem(at: directory.appendingPathComponent(n))
+            }
+        }
+    }
+
+    private func prefix(name: String) -> String { sanitize(name) + "__" }
+
+    /// Shared rule — see ``String/filesystemSafeToken``.
+    private func sanitize(_ raw: String) -> String { raw.filesystemSafeToken }
+
     // MARK: - brew info (local)
 
     private struct Info { let homepage: URL?; let stableURL: String? }
@@ -60,7 +131,8 @@ public actor BrewFormulaReleaseService {
         guard let brew = HomebrewInstaller.brewPath() else { return nil }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: brew)
-        process.arguments = ["info", "--json=v2", "--formula", name]
+        // `--` terminates option parsing so a name can never be misread as a flag.
+        process.arguments = ["info", "--json=v2", "--formula", "--", name]
         var env = ProcessInfo.processInfo.environment
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         env["HOMEBREW_NO_ENV_HINTS"] = "1"

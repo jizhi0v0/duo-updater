@@ -522,13 +522,13 @@ private struct AppRow: View {
             // down-arrow (only reachable under "Show all", since the row is upToDate).
             downgradeVersionLine(older)
         } else if model.needsRestart.contains(result.id),
-                  let runningBuild = model.runningVersion(result.id) {
-            // Self-updated on disk, restart pending. Show the running build → the
-            // installed build so the row reads as a real change, not a static
-            // "v1.6.1". We only have the running *build* (lsappinfo), not its
-            // marketing version, so both sides use the build number — same namespace,
-            // and for date/serial builds (Zed, Warp) it's the only thing that moved.
-            restartVersionLine(runningBuild)
+                  let from = model.restartFromVersion(result.id) {
+            // Self-updated on disk, restart pending. Show the running version → the
+            // installed version so the row reads as a real change, not a static
+            // "v1.6.1". `lsappinfo` only exposes the running *build*; `restartFromVersion`
+            // recovers the marketing version from the rollback backup when it can, so
+            // the from side reads "26.609.71450 (3965)" rather than a bare "3965".
+            restartVersionLine(from)
         } else {
             switch result.status {
             case .updateAvailable(let latest):
@@ -540,7 +540,7 @@ private struct AppRow: View {
                 // "from" above is the *staged* on-disk version — the live process
                 // is still older. Surface what's actually running so the row isn't
                 // misread as "you're on the staged build".
-                if let running = model.runningVersion(result.id) {
+                if let running = model.restartFromVersion(result.id) {
                     Text("· current \(running)")
                         .foregroundStyle(.tertiary)
                         .help("Still running \(running) — restart pending from an earlier update")
@@ -577,15 +577,14 @@ private struct AppRow: View {
         .help("The vendor's latest is \(older) — older than your \(installed). You're ahead, so there's nothing to do. Usually a beta channel, a pulled release, or a lagging check.")
     }
 
-    /// The restart version line: running build → installed marketing version (build).
+    /// The restart version line: running version → installed marketing version (build).
     /// Surfaced when an app self-updated on disk but the old process is still live, so
-    /// "Restart" reads as a concrete version bump. The from side is build-only — that's
-    /// all `lsappinfo` exposes for the running process — while the on-disk to side
-    /// carries the full marketing version, so we show "1.7.3 (194)" there rather than a
-    /// bare build. The JetBrains-style prefix is stripped so the builds share a namespace.
+    /// "Restart" reads as a concrete version bump. The `from` is pre-formatted by
+    /// `restartFromVersion` — the running build alone, or "marketing (build)" when the
+    /// pre-update marketing version is recoverable from the rollback backup — while the
+    /// on-disk `to` side carries the full marketing version, e.g. "1.7.3 (194)".
     @ViewBuilder
-    private func restartVersionLine(_ runningBuild: String) -> some View {
-        let from = UpdateResult.strippingBuildPrefix(runningBuild)
+    private func restartVersionLine(_ from: String) -> some View {
         HStack(spacing: 4) {
             Text(from).foregroundStyle(.secondary)
             Image(systemName: "arrow.right").font(.caption2)
@@ -682,8 +681,11 @@ private struct AppRow: View {
         } else {
             switch result.status {
             case .updateAvailable:
-                if result.remote?.sourceName == "Toolbox" {
-                    // Detected via Toolbox's own cache — it installs, we just route.
+                if result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged {
+                    // Toolbox owns the install. Either Toolbox's own cache detected
+                    // it, or we borrowed a vendor probe to read the version reliably
+                    // (Android Studio previews — see `prefersVendorProbeOverToolbox`);
+                    // either way the action is "open Toolbox", never an in-place swap.
                     toolboxButton
                 } else if result.remote?.sourceName == "TestFlight" {
                     // Detected via TestFlight's cache — it installs, we just route.
@@ -758,6 +760,7 @@ private struct AppRow: View {
 
     private func stageLabel(_ stage: InstallStage) -> String {
         switch stage {
+        case .queued: return "Queued"
         case .checking: return "Checking"
         case .downloading(let f): return "\(Int(f * 100))%"
         case .verifyingSignature, .verifyingCodeSignature: return "Verifying"

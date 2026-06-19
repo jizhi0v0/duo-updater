@@ -77,11 +77,18 @@ public actor MASInstaller {
         // script -q /dev/null → pseudo-TTY (so mas emits live "N% downloaded").
         // env … → SUDO_UID/GID/USER (so mas seteuid's to the account owner).
         // MAS_NO_AUTO_INDEX silences mas's per-app Spotlight re-index warnings.
+        // Single-quote every interpolated path/identity value with the canonical
+        // POSIX `'\''` escape. uid/gid/adamID are integers; user/mas/logPath are
+        // strings, so a stray quote in any of them would otherwise break out of the
+        // shell quoting and (since this runs as root via `with administrator
+        // privileges`) execute arbitrary code. Defense-in-depth — these aren't
+        // attacker-controlled today, but the cost of getting it wrong is total.
+        func sq(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
         let shellCommand =
             "/bin/launchctl asuser \(uid) "
             + "/usr/bin/script -q /dev/null "
-            + "/usr/bin/env SUDO_UID=\(uid) SUDO_GID=\(gid) SUDO_USER='\(user)' MAS_NO_AUTO_INDEX=1 "
-            + "'\(mas)' install \(adamID) --force > '\(logPath)' 2>&1"
+            + "/usr/bin/env SUDO_UID=\(uid) SUDO_GID=\(gid) SUDO_USER=\(sq(user)) MAS_NO_AUTO_INDEX=1 "
+            + "\(sq(mas)) install \(adamID) --force > \(sq(logPath)) 2>&1"
         // Embed in a double-quoted AppleScript string literal.
         let escaped = shellCommand
             .replacingOccurrences(of: "\\", with: "\\\\")

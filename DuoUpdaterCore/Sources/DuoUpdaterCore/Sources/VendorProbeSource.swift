@@ -73,7 +73,12 @@ public struct VendorProbeSource: UpdateSource {
         // A Toolbox-managed JetBrains IDE updates through Toolbox. Probing the
         // vendor endpoint here would offer a cross-channel install — exactly what
         // we forbid — so defer to Toolbox even when a recipe matches the bundle.
-        guard !app.isToolboxManaged else { return nil }
+        // The exception is an app our recipe tracks more reliably than Toolbox's
+        // own verdict (Android Studio Canary/Beta, where Toolbox's local cache is
+        // flaky/cross-track); see `InstalledApp.prefersVendorProbeOverToolbox`.
+        guard !app.isToolboxManaged || app.prefersVendorProbeOverToolbox else {
+            return nil
+        }
         guard let bundleID = app.bundleID, let candidates = recipes[bundleID] else {
             return nil  // no recipe for this app — not applicable
         }
@@ -91,7 +96,13 @@ public struct VendorProbeSource: UpdateSource {
         }
         // Swallow every failure: a probe that can't answer must look like "this
         // source doesn't apply", not like an error or a confident result.
-        let resolved = (try? await probe(recipe)) ?? nil
+        //
+        // For a Toolbox-managed app we only borrowed the probe to learn the version
+        // RELIABLY (Toolbox's cache is flaky — see `prefersVendorProbeOverToolbox`);
+        // the INSTALL must still go through Toolbox, never an in-place bundle swap
+        // that would desync Toolbox's state and (for Android Studio) drag a ~1.5 GB
+        // dmg off a drop-prone CDN. So resolve detection-only here.
+        let resolved = (try? await probe(recipe, allowInstall: !app.prefersVendorProbeOverToolbox)) ?? nil
         // Record recipe health so a vendor changing their page surfaces in
         // diagnostics rather than silently degrading the app to "unknown". A
         // transient miss is cleared by the next successful check (success/miss are
@@ -106,7 +117,10 @@ public struct VendorProbeSource: UpdateSource {
     }
 
     /// Run one recipe. Returns nil (→ "unknown") on any non-confident outcome.
-    private func probe(_ recipe: VendorProbeRecipe) async throws -> RemoteVersion? {
+    /// `allowInstall` false forces a detection-only result even when the recipe
+    /// carries an install spec — used for apps whose install another channel owns
+    /// (Toolbox-managed), where we want the version but not an in-place swap.
+    private func probe(_ recipe: VendorProbeRecipe, allowInstall: Bool = true) async throws -> RemoteVersion? {
         let text: String
         let resolvedDownload: URL?
 
@@ -183,19 +197,26 @@ public struct VendorProbeSource: UpdateSource {
             : VendorProbeRecipe.extractVersion
         guard let version = extractor(text, recipe.versionPattern) else { return nil }
 
+        // Optional clean marketing string to show instead of an ugly build id
+        // (e.g. Android Studio's "2026.1.2 RC 1" vs "AI-261.…"). Display only; the
+        // build still drives the comparison. From the same body, so first-match.
+        let display = recipe.displayVersionPattern.flatMap {
+            VendorProbeRecipe.extractVersion(from: text, pattern: $0)
+        }
+
         // If this recipe knows how to install in place, resolve the installer URL
         // (and any checksum) now — from the same body we already have. A failure
         // here just falls back to detection-only; it never blocks the version.
-        if let spec = recipe.install,
+        if allowInstall, let spec = recipe.install,
            let plan = try? await resolveInstall(spec, body: text) {
             return Self.makeRemoteVersion(
                 recipe: recipe, version: version, install: spec, plan: plan,
-                resolvedDownload: resolvedDownload)
+                resolvedDownload: resolvedDownload, display: display)
         }
 
         return Self.makeRemoteVersion(
             recipe: recipe, version: version, install: nil, plan: nil,
-            resolvedDownload: resolvedDownload)
+            resolvedDownload: resolvedDownload, display: display)
     }
 
     /// Assemble the `RemoteVersion` a recipe yields from an already-extracted
@@ -208,12 +229,18 @@ public struct VendorProbeSource: UpdateSource {
         version: String,
         install spec: VendorInstallSpec?,
         plan: (url: URL, checksum: String?)?,
-        resolvedDownload: URL?
+        resolvedDownload: URL?,
+        display: String? = nil
     ) -> RemoteVersion {
         // A build-number recipe routes the value into `version` (compared against
         // the installed `CFBundleVersion`); `shortVersion` stays nil so a build
-        // string can never be mismatched against a shorter marketing version.
-        let shortVersion = recipe.versionIsBuild ? nil : version
+        // string can never be mismatched against a shorter marketing version —
+        // UNLESS the recipe supplies an explicit display string (a clean marketing
+        // version), in which case it rides in `shortVersion` for the UI only. The
+        // engine still compares builds: `evaluate` prefers `version` whenever the
+        // installed app has a `buildVersion`, which a `versionIsBuild` app always
+        // does — so a display marketing string here never drives the comparison.
+        let shortVersion = recipe.versionIsBuild ? display : version
         let buildVersion = recipe.versionIsBuild ? version : nil
 
         if let spec, let plan {

@@ -113,7 +113,7 @@ final class Preferences {
     }
 
     private enum Key {
-        static let githubToken = "GitHubToken"   // pre-existing key; keep it
+        static let githubToken = "GitHubToken"   // legacy plaintext key — migration-only (read once, then removed; token now lives in the Keychain)
         static let githubTokenAccount = "GitHubTokenAccount"   // login the token verified as
         static let checkFrequency = "CheckFrequency"
         static let launchAtLogin = "LaunchAtLogin"
@@ -133,10 +133,24 @@ final class Preferences {
 
     // MARK: - Stored settings
 
+    /// Keychain account under which the GitHub token is stored. The token is a live
+    /// credential, so it lives in the Keychain — never in the plaintext defaults plist.
+    static let githubTokenKeychainAccount = "github-token"
+
+    /// Keychain accounts for Alcove's licensed-update credentials. Alcove pushes new
+    /// builds to its licensed API channel before any public mirror, so the only
+    /// authoritative version surface needs the user's permanent license key plus this
+    /// machine's activation instance id (see `AlcoveUpdateSource`). Both are live
+    /// secrets → Keychain, not the plaintext plist. Seeded once; absent → the public
+    /// vendor probe still answers.
+    static let alcoveLicenseKeyKeychainAccount = "alcove-license-key"
+    static let alcoveInstanceIDKeychainAccount = "alcove-instance-id"
+
     /// A GitHub API token the user pasted in. Empty means "fall back to env /
-    /// `gh` CLI" — `GitHubToken.resolve` treats empty as no explicit value.
+    /// `gh` CLI" — `GitHubToken.resolve` treats empty as no explicit value. Persisted
+    /// to the Keychain (an empty value clears it).
     var githubToken: String {
-        didSet { defaults.set(githubToken, forKey: Key.githubToken) }
+        didSet { Keychain.set(githubToken, account: Self.githubTokenKeychainAccount) }
     }
 
     /// The GitHub login the saved token last verified as, for display in
@@ -144,6 +158,19 @@ final class Preferences {
     /// came from env / `gh` CLI, or predates verification).
     var githubTokenAccount: String {
         didSet { defaults.set(githubTokenAccount, forKey: Key.githubTokenAccount) }
+    }
+
+    /// The user's Alcove license key. Empty = not configured (Alcove then falls
+    /// back to the public, lagging vendor probe). A live credential → Keychain,
+    /// never the plist. See `AlcoveUpdateSource` / `AlcoveLicenseService`.
+    var alcoveLicenseKey: String {
+        didSet { Keychain.set(alcoveLicenseKey, account: Self.alcoveLicenseKeyKeychainAccount) }
+    }
+
+    /// This machine's Alcove activation instance id (resolved from the license key,
+    /// or pasted manually for at-limit licenses). Keychain-backed like the key.
+    var alcoveInstanceID: String {
+        didSet { Keychain.set(alcoveInstanceID, account: Self.alcoveInstanceIDKeychainAccount) }
     }
 
     var checkFrequency: CheckFrequency {
@@ -229,10 +256,24 @@ final class Preferences {
         notifiedVersions = versions
     }
 
+    /// Read the GitHub token, migrating a pre-existing plaintext copy out of
+    /// UserDefaults into the Keychain on the first launch after this upgrade (then
+    /// scrubbing the plist so the secret no longer sits there in the clear).
+    private static func loadGitHubToken(defaults: UserDefaults) -> String {
+        if let legacy = defaults.string(forKey: Key.githubToken), !legacy.isEmpty {
+            Keychain.set(legacy, account: githubTokenKeychainAccount)
+            defaults.removeObject(forKey: Key.githubToken)
+            return legacy
+        }
+        return Keychain.string(account: githubTokenKeychainAccount) ?? ""
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.githubToken = defaults.string(forKey: Key.githubToken) ?? ""
+        self.githubToken = Self.loadGitHubToken(defaults: defaults)
         self.githubTokenAccount = defaults.string(forKey: Key.githubTokenAccount) ?? ""
+        self.alcoveLicenseKey = Keychain.string(account: Self.alcoveLicenseKeyKeychainAccount) ?? ""
+        self.alcoveInstanceID = Keychain.string(account: Self.alcoveInstanceIDKeychainAccount) ?? ""
         self.checkFrequency = CheckFrequency(
             rawValue: defaults.string(forKey: Key.checkFrequency) ?? "") ?? .every6Hours
         self.launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)

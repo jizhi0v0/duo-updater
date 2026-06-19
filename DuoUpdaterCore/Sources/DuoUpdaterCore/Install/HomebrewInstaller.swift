@@ -33,7 +33,8 @@ public actor HomebrewInstaller {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: brew)
-        process.arguments = ["install", "--cask", "--force", caskToken]
+        // `--` terminates option parsing so a token can never be misread as a flag.
+        process.arguments = ["install", "--cask", "--force", "--", caskToken]
         // Non-interactive so brew never blocks on a prompt we can't answer.
         // We deliberately allow auto-update here: our detection reads the fresh
         // formulae.brew.sh API, so the local tap must refresh first or brew
@@ -78,7 +79,9 @@ public actor HomebrewInstaller {
         var text: String { lock.lock(); defer { lock.unlock() }; return buffer }
     }
 
-    /// Locate brew: Apple Silicon default, then Intel default, then PATH.
+    /// Locate brew at its fixed install prefixes: Apple Silicon default, then Intel
+    /// default. Deliberately does NOT consult `$PATH`, so a `brew` planted earlier on
+    /// the path can't be run.
     static func brewPath() -> String? {
         let candidates = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
         for path in candidates where FileManager.default.isExecutableFile(atPath: path) {

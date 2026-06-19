@@ -115,11 +115,35 @@ public struct ChangelogRecipe: Codable, Sendable {
 
     public enum Mode: String, Codable, Sendable { case html, json }
 
+    /// A vendor JSON feed too irregular for the regex `ChangelogExtractor` — nested
+    /// objects, or entries that aren't in newest-first document order — that instead
+    /// gets a small bespoke decoder. When set, `ChangelogService` decodes the fetched
+    /// body with this format's structured parser and `entryPattern`/`itemPatterns`
+    /// are unused (and may be empty). nil = the common regex path. The `channel`
+    /// selects which sub-feed to read for formats that pack every channel into one
+    /// document (Warp's `channel_versions.json`).
+    public enum StructuredFormat: String, Codable, Sendable {
+        /// Warp's `releases.warp.dev/channel_versions.json` — a `changelogs.<channel>`
+        /// map of `v0.YYYY.MM.DD.HH.MM.<channel>_NN` → `{date, markdown_sections}`.
+        /// Read instead of the docs site, which now sits behind a Vercel bot wall.
+        case warpChannelVersions
+        /// Typeless's `help/release-notes/macos` page — the whole release-notes JSON
+        /// is base64+gzip in the Next.js `__NEXT_DATA__.props.pageProps.compressedData`
+        /// (a `<version> -> <locale> -> {date, features:[{title, content}]}` map, with
+        /// markdown content carrying a leading illustration image). No regex can reach
+        /// it; the decoder inflates and walks the JSON.
+        case typelessReleaseNotes
+    }
+
+    /// Non-nil → this recipe is parsed by a structured decoder, not the regex
+    /// extractor (see ``StructuredFormat``). nil for the common HTML/JSON-regex case.
+    public let structuredFormat: StructuredFormat?
+
     public init(
         bundleID: String,
         source: URL,
-        entryPattern: String,
-        itemPatterns: [String],
+        entryPattern: String = "",
+        itemPatterns: [String] = [],
         mode: Mode = .html,
         stripTags: Bool = true,
         decodeEntities: Bool = true,
@@ -129,13 +153,15 @@ public struct ChangelogRecipe: Codable, Sendable {
         channel: ReleaseChannel? = nil,
         sourceTemplate: String? = nil,
         newestLast: Bool = false,
-        imagePattern: String? = nil
+        imagePattern: String? = nil,
+        structuredFormat: StructuredFormat? = nil
     ) {
         self.bundleID = bundleID
         self.source = source
         self.entryPattern = entryPattern
         self.itemPatterns = itemPatterns
         self.mode = mode
+        self.structuredFormat = structuredFormat
         self.stripTags = stripTags
         self.decodeEntities = decodeEntities
         self.maxEntries = maxEntries
@@ -190,8 +216,10 @@ public struct ChangelogRecipe: Codable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         bundleID = try c.decode(String.self, forKey: .bundleID)
         source = try c.decode(URL.self, forKey: .source)
-        entryPattern = try c.decode(String.self, forKey: .entryPattern)
-        itemPatterns = try c.decode([String].self, forKey: .itemPatterns)
+        // Empty defaults so a structured recipe (no regex fields) decodes cleanly.
+        entryPattern = try c.decodeIfPresent(String.self, forKey: .entryPattern) ?? ""
+        itemPatterns = try c.decodeIfPresent([String].self, forKey: .itemPatterns) ?? []
+        structuredFormat = try c.decodeIfPresent(StructuredFormat.self, forKey: .structuredFormat)
         mode = try c.decodeIfPresent(Mode.self, forKey: .mode) ?? .html
         stripTags = try c.decodeIfPresent(Bool.self, forKey: .stripTags) ?? true
         decodeEntities = try c.decodeIfPresent(Bool.self, forKey: .decodeEntities) ?? true
@@ -688,23 +716,50 @@ public enum ChangelogRecipeRegistry {
                 + #"(?<body>.*?)(?=<div id="|</article>)"#,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
 
-        // Warp — official Starlight-rendered changelog at docs.warp.dev/changelog/2026/.
-        // Each entry is a `<div class="sl-heading-wrapper level-h3">` containing an
-        // `<h3>` with heading text `YYYY.MM.DD (v0.YYYY.MM.DD.HH.MM)`. The pattern
-        // requires the `(v…)` version qualifier, so the rare date-only headings (no
-        // build info) are gracefully skipped. Items are plain `<li>` within the
-        // `<ul>` blocks that follow. NOTE: URL is year-pinned; update to `/2027/`
-        // when the new year's page goes live — same as the Ghostty version-pin pattern.
+        // Warp — read the machine-readable feed, not the docs site. As of mid-2026
+        // docs.warp.dev sits behind a Vercel "Security Checkpoint" JS bot wall that
+        // returns HTTP 429 + a challenge page to any non-browser fetch, so the old
+        // Starlight-HTML scrape (year-pinned `/changelog/2026/`) went permanently
+        // dark. `releases.warp.dev/channel_versions.json` is the same ungated
+        // endpoint the vendor probe already uses and carries a full per-channel,
+        // per-version `changelogs` map (date + markdown sections) — richer and far
+        // more stable than scraping rendered HTML. One recipe per channel; all three
+        // point at the same JSON but the `channel` selects the sub-feed (and gives
+        // each its own cache slot — see `ChangelogService`). The entries are NOT in
+        // newest-first document order in the JSON, so the structured decoder sorts
+        // by the (lexically-chronological) version key — hence not a regex recipe.
         ChangelogRecipe(
             bundleID: "dev.warp.Warp-Stable",
-            source: URL(string: "https://docs.warp.dev/changelog/2026/")!,
-            entryPattern:
-                #"<div class="sl-heading-wrapper level-h3">\s*"#
-                + #"<h3[^>]*>(?<date>\d{4}\.\d{2}\.\d{2})\s*\(v(?<version>[\d.]+)\)"#
-                + #".*?</h3>.*?</div>\s*(?<body>.*?)"#
-                + #"(?=<div class="sl-heading-wrapper level-h3"|$)"#,
-            itemPatterns: [#"<li>(?<item>.*?)</li>"#],
-            maxEntries: 20),
+            source: URL(string: "https://releases.warp.dev/channel_versions.json")!,
+            maxEntries: 20,
+            channel: .stable,
+            structuredFormat: .warpChannelVersions),
+        ChangelogRecipe(
+            bundleID: "dev.warp.Warp-Preview",
+            source: URL(string: "https://releases.warp.dev/channel_versions.json")!,
+            maxEntries: 20,
+            channel: .preview,
+            structuredFormat: .warpChannelVersions),
+        ChangelogRecipe(
+            bundleID: "dev.warp.Warp-Dev",
+            source: URL(string: "https://releases.warp.dev/channel_versions.json")!,
+            maxEntries: 20,
+            channel: .dev,
+            structuredFormat: .warpChannelVersions),
+
+        // Typeless — the release-notes page ships every version's notes (with a
+        // hero image per release) base64+gzip'd inside the Next.js `__NEXT_DATA__`.
+        // No regex can read that, so the structured decoder inflates it and emits
+        // rich entries (image + prose blocks). Single channel. `maxEntries` caps the
+        // long history (20 versions back to 0.1.0) at the most recent handful. The
+        // page lists an upcoming version a few days ahead of its date; that's fine —
+        // the changelog is informational and the vendor probe still gates "update
+        // available" on the GA electron-builder feed.
+        ChangelogRecipe(
+            bundleID: "now.typeless.desktop",
+            source: URL(string: "https://www.typeless.com/help/release-notes/macos")!,
+            maxEntries: 12,
+            structuredFormat: .typelessReleaseNotes),
 
         // VLC — two-stage. `source` is the newest-first releases index; the
         // `indexLinkPattern` follows its first per-version link (currently

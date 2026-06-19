@@ -176,6 +176,16 @@ public struct VendorProbeRecipe: Sendable {
     /// version as their marketing string).
     public let versionIsBuild: Bool
 
+    /// Optional regex (capture group 1) for a HUMAN-READABLE version to *show*,
+    /// when the compared value (`versionPattern`) is an ugly build id. Pulled from
+    /// the same response body and routed into `RemoteVersion.shortVersion` for
+    /// display only — the build still drives the comparison via `version`, so the
+    /// row reads "2026.1.2 → 2026.1.2 RC 1" instead of "2026.1.2 → AI-261.…".
+    /// Only meaningful with `versionIsBuild`; nil → show the build itself.
+    /// Like every probe pattern it takes the FIRST match, so it must live in the
+    /// same (newest-first) entry the build pattern matches, or the two desync.
+    public let displayVersionPattern: String?
+
     /// When present, the app can be updated in place through its own channel: the
     /// source resolves the installer URL (and optional checksum) and hands it to
     /// `VendorInstaller`. Absent → detection only (the user is sent to download
@@ -199,6 +209,7 @@ public struct VendorProbeRecipe: Sendable {
         changelogURL: URL? = nil,
         selectHighest: Bool = false,
         versionIsBuild: Bool = false,
+        displayVersionPattern: String? = nil,
         install: VendorInstallSpec? = nil,
         followRedirects: Bool = true,
         channel: ReleaseChannel = .stable
@@ -212,6 +223,7 @@ public struct VendorProbeRecipe: Sendable {
         self.changelogURL = changelogURL
         self.selectHighest = selectHighest
         self.versionIsBuild = versionIsBuild
+        self.displayVersionPattern = displayVersionPattern
         self.install = install
         self.followRedirects = followRedirects
     }
@@ -676,15 +688,25 @@ public enum VendorProbeRegistry {
         // RemotingName `firefox-dev`) and Nightly (`org.mozilla.nightly`) have
         // their own ids. The captured version KEEPS the feed's `bN`/`esr` form: it
         // sorts as a pre-release (never phantoms against the suffix-less install)
-        // while a real bump still compares newer. Detection only — Firefox
-        // self-updates.
+        // while a real bump still compares newer. One-click: identical mechanism to
+        // Thunderbird — `download.mozilla.org/?product=…-latest&os=osx` 302→ the
+        // per-channel `.dmg` (verified 2026-06-17: firefox-latest 152.0,
+        // -beta-latest 152.0b10, -esr-latest 140.12.0esr, -devedition-latest
+        // 152.0b10, -nightly-latest 154.0a1). All Mozilla-signed (Team `43AQ936H96`),
+        // so VendorInstaller's same-Team gate is satisfied / fails closed. Note Dev
+        // Edition's product code is `firefox-devedition-latest` (its dmg lives under
+        // /pub/devedition/, not /pub/firefox/).
         VendorProbeRecipe(
             bundleID: "org.mozilla.firefox",
             url: URL(string: "https://product-details.mozilla.org/1.0/firefox_versions.json")!,
             mode: .responseBody,
             versionPattern: #""LATEST_FIREFOX_VERSION"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/"),
-            changelogURL: URL(string: "https://www.mozilla.org/firefox/notes/")),
+            changelogURL: URL(string: "https://www.mozilla.org/firefox/notes/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.mozilla.org/?product=firefox-latest&os=osx&lang=en-US")!),
+                kind: .dmg)),
         VendorProbeRecipe(
             bundleID: "org.mozilla.firefox",
             url: URL(string: "https://product-details.mozilla.org/1.0/firefox_versions.json")!,
@@ -692,6 +714,10 @@ public enum VendorProbeRegistry {
             versionPattern: #""LATEST_FIREFOX_RELEASED_DEVEL_VERSION"\s*:\s*"([0-9]+\.[0-9]+b[0-9]+)""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/channel/desktop/"),
             changelogURL: URL(string: "https://www.mozilla.org/firefox/beta/notes/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.mozilla.org/?product=firefox-beta-latest&os=osx&lang=en-US")!),
+                kind: .dmg),
             channel: .beta),
         VendorProbeRecipe(
             bundleID: "org.mozilla.firefox",
@@ -700,6 +726,10 @@ public enum VendorProbeRegistry {
             versionPattern: #""FIREFOX_ESR"\s*:\s*"([0-9]+(?:\.[0-9]+)+esr)""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/enterprise/"),
             changelogURL: URL(string: "https://www.mozilla.org/firefox/organizations/notes/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.mozilla.org/?product=firefox-esr-latest&os=osx&lang=en-US")!),
+                kind: .dmg),
             channel: .esr),
         VendorProbeRecipe(
             bundleID: "org.mozilla.firefoxdeveloperedition",
@@ -711,6 +741,10 @@ public enum VendorProbeRegistry {
             // Developer Edition tracks the Beta train (version is a `bN`) but has
             // its own bundle id and RemotingName `firefox-dev`, so the detector
             // classifies it `.dev` — the channel its recipe must target.
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.mozilla.org/?product=firefox-devedition-latest&os=osx&lang=en-US")!),
+                kind: .dmg),
             channel: .dev),
         VendorProbeRecipe(
             bundleID: "org.mozilla.nightly",
@@ -719,6 +753,10 @@ public enum VendorProbeRegistry {
             versionPattern: #""FIREFOX_NIGHTLY"\s*:\s*"([0-9]+\.[0-9]+a[0-9]+)""#,
             downloadURL: URL(string: "https://www.mozilla.org/firefox/channel/desktop/"),
             changelogURL: URL(string: "https://www.mozilla.org/firefox/nightly/notes/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.mozilla.org/?product=firefox-nightly-latest&os=osx&lang=en-US")!),
+                kind: .dmg),
             channel: .nightly),
 
         // Thunderbird — same Mozilla `product-details` mechanism. Channel routing
@@ -730,14 +768,24 @@ public enum VendorProbeRegistry {
         // The probe still captures the feed's full `bN`/`esr` form: it sorts as a
         // pre-release (< the suffix-less installed version) so it never phantoms;
         // a real version bump (140.11.1→140.12.0esr) still compares newer.
-        // Detection only — Thunderbird self-updates.
+        // One-click: Mozilla's `download.mozilla.org/?product=…-latest&os=osx`
+        // 302-redirects to the per-channel `.dmg` on its CDN (verified 2026-06-17:
+        // thunderbird-latest → 152.0, -beta-latest → 152.0b4, -esr-latest →
+        // 140.12.0esr, -nightly-latest → 154.0a1). Every channel is signed by
+        // Mozilla Corporation (Team `43AQ936H96`), so the VendorInstaller same-Team
+        // gate is satisfied and fails closed if Mozilla ever rotates. Best-effort
+        // in-place dmg swap on top of Thunderbird's own self-updater.
         VendorProbeRecipe(
             bundleID: "org.mozilla.thunderbird",
             url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
             mode: .responseBody,
             versionPattern: #""LATEST_THUNDERBIRD_VERSION"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://www.thunderbird.net/"),
-            changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/")),
+            changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.mozilla.org/?product=thunderbird-latest&os=osx&lang=en-US")!),
+                kind: .dmg)),
         VendorProbeRecipe(
             bundleID: "org.mozilla.thunderbirdbeta",
             url: URL(string: "https://product-details.mozilla.org/1.0/thunderbird_versions.json")!,
@@ -745,6 +793,10 @@ public enum VendorProbeRegistry {
             versionPattern: #""LATEST_THUNDERBIRD_DEVEL_VERSION"\s*:\s*"([0-9]+\.[0-9]+b[0-9]+)""#,
             downloadURL: URL(string: "https://www.thunderbird.net/channel/desktop/"),
             changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.mozilla.org/?product=thunderbird-beta-latest&os=osx&lang=en-US")!),
+                kind: .dmg),
             channel: .beta),
         VendorProbeRecipe(
             bundleID: "org.mozilla.thunderbird",
@@ -753,6 +805,10 @@ public enum VendorProbeRegistry {
             versionPattern: #""THUNDERBIRD_ESR"\s*:\s*"([0-9]+(?:\.[0-9]+)+esr)""#,
             downloadURL: URL(string: "https://www.thunderbird.net/enterprise/"),
             changelogURL: URL(string: "https://www.thunderbird.net/thunderbird/releases/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.mozilla.org/?product=thunderbird-esr-latest&os=osx&lang=en-US")!),
+                kind: .dmg),
             channel: .esr),
         // Daily/Nightly has NO changelogURL on purpose: thunderbird.net publishes
         // no nightly release notes (every /<ver>/releasenotes/ 404s) and no
@@ -766,6 +822,10 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern: #""LATEST_THUNDERBIRD_NIGHTLY_VERSION"\s*:\s*"([0-9]+\.[0-9]+a[0-9]+)""#,
             downloadURL: URL(string: "https://www.thunderbird.net/channel/desktop/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.mozilla.org/?product=thunderbird-nightly-latest&os=osx&lang=en-US")!),
+                kind: .dmg),
             channel: .nightly),
 
         // Warp — Preview / Dev. One JSON lists every channel's version, each tagged
@@ -803,14 +863,25 @@ public enum VendorProbeRegistry {
         // Signal — Stable + Beta. electron-builder feeds (one per channel). Stable
         // ships `org.whispersystems.signal-desktop`; Beta is a separate
         // "Signal Beta.app" (detected as `.beta` from its name). Detection only —
-        // Signal self-updates via electron-updater.
+        // Signal self-updates via electron-updater. One-click: the same
+        // `latest-mac.yml` we probe lists a **universal** `.dmg` (alongside per-arch
+        // zips); we resolve its filename against `updates.signal.org/desktop/` and
+        // verify the dmg's base64 sha512 from the very next yml line — defense in
+        // depth on top of VendorInstaller's mandatory same-Team gate. (Beta reads
+        // beta-mac.yml the same way.)
         VendorProbeRecipe(
             bundleID: "org.whispersystems.signal-desktop",
             url: URL(string: "https://updates.signal.org/desktop/latest-mac.yml")!,
             mode: .responseBody,
             versionPattern: #"version:\s*([0-9][^\s]*)"#,
             downloadURL: URL(string: "https://signal.org/download/"),
-            changelogURL: URL(string: "https://github.com/signalapp/Signal-Desktop/releases")),
+            changelogURL: URL(string: "https://github.com/signalapp/Signal-Desktop/releases"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #"(signal-desktop-mac-universal-[^\s]+\.dmg)"#,
+                    base: URL(string: "https://updates.signal.org/desktop/")!),
+                kind: .dmg,
+                checksumPattern: #"signal-desktop-mac-universal-[^\n]+\.dmg\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#)),
         VendorProbeRecipe(
             bundleID: "org.whispersystems.signal-desktop-beta",
             url: URL(string: "https://updates.signal.org/desktop/beta-mac.yml")!,
@@ -818,21 +889,59 @@ public enum VendorProbeRegistry {
             versionPattern: #"version:\s*([0-9][^\s]*)"#,
             downloadURL: URL(string: "https://signal.org/download/"),
             changelogURL: URL(string: "https://github.com/signalapp/Signal-Desktop/releases"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #"(signal-desktop-mac-universal-[^\s]+\.dmg)"#,
+                    base: URL(string: "https://updates.signal.org/desktop/")!),
+                kind: .dmg,
+                checksumPattern: #"signal-desktop-mac-universal-[^\n]+\.dmg\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#),
             channel: .beta),
+
+        // Typeless (now.typeless.desktop) — AI voice dictation, Electron app that
+        // self-updates via electron-updater (Squirrel.Mac). No Sparkle feed in
+        // Info.plist; the Homebrew cask is `auto_updates true` so brew never answers
+        // — the only public "latest version" surface is the electron-builder feed.
+        // Single stable channel (no beta/canary anywhere). The vendor splits by arch:
+        // `arm64-mac.yml` for Apple Silicon (what we probe), `latest-mac.yml` for x64.
+        // The feed's `version` is the marketing version (1.8.0) and matches the
+        // installed app's CFBundleShortVersionString exactly (build is 1.8.0.109 — we
+        // do NOT compare against that), so no versionIsBuild. One-click: the same yml
+        // lists `Typeless-<ver>-arm64.dmg`; we resolve its filename against
+        // typeless-static.com/desktop-release/ and verify the dmg's base64 sha512 from
+        // the line right after its `url:` — on top of VendorInstaller's mandatory
+        // same-Team gate (installed Team 947QKAND4W). No public changelog page exists.
+        VendorProbeRecipe(
+            bundleID: "now.typeless.desktop",
+            url: URL(string: "https://typeless-static.com/desktop-release/arm64-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"version:\s*([0-9][^\s]*)"#,
+            downloadURL: URL(string: "https://typeless.com/"),
+            changelogURL: URL(string: "https://www.typeless.com/help/release-notes/macos"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #"(Typeless-[^\s]+-arm64\.dmg)"#,
+                    base: URL(string: "https://typeless-static.com/desktop-release/")!),
+                kind: .dmg,
+                checksumPattern: #"Typeless-[^\n]+-arm64\.dmg\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#)),
 
         // Element — Stable + Nightly, split bundle ids (`im.riot.app` vs
         // `im.riot.nightly` — verified 2026-06-04 against a real Nightly bundle;
         // the earlier `io.element.nightly` guess never matched and the probe
         // silently missed). `currentRelease` is the latest version (semver for
-        // Stable, a `YYYYMMDDNN` build stamp for Nightly). Detection only —
-        // Element self-updates via Squirrel.
+        // Stable, a `YYYYMMDDNN` build stamp for Nightly). One-click: the same
+        // releases.json nests the installer under `updateTo.url` — the
+        // `Element[-| Nightly-]<ver>-universal-mac.zip` on packages.element.io. We
+        // capture that absolute zip url directly (each channel from its own feed).
         VendorProbeRecipe(
             bundleID: "im.riot.app",
             url: URL(string: "https://packages.element.io/desktop/update/macos/releases.json")!,
             mode: .responseBody,
             versionPattern: #""currentRelease"\s*:\s*"([^"]+)""#,
             downloadURL: URL(string: "https://element.io/download"),
-            changelogURL: URL(string: "https://github.com/element-hq/element-desktop/releases")),
+            changelogURL: URL(string: "https://github.com/element-hq/element-desktop/releases"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""url"\s*:\s*"(https://packages\.element\.io/[^"]+\.zip)""#),
+                kind: .zip)),
         VendorProbeRecipe(
             bundleID: "im.riot.nightly",
             url: URL(string: "https://packages.element.io/nightly/update/macos/releases.json")!,
@@ -840,6 +949,9 @@ public enum VendorProbeRegistry {
             versionPattern: #""currentRelease"\s*:\s*"([^"]+)""#,
             downloadURL: URL(string: "https://element.io/download"),
             changelogURL: URL(string: "https://github.com/element-hq/element-desktop/releases"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""url"\s*:\s*"(https://packages\.element\.io/[^"]+\.zip)""#),
+                kind: .zip),
             channel: .nightly),
 
         // WeType (微信输入法) — Tencent's input method. Installs under
@@ -975,24 +1087,34 @@ public enum VendorProbeRegistry {
 
         // Cursor — official update API; the first `version` field is the latest
         // build. Single channel (its "stable"/"latest" tracks resolve to the same
-        // build). Detection only — Cursor self-updates via ToDesktop.
+        // build). One-click: the same JSON carries `downloadUrl` → the arm64
+        // `Cursor-darwin-arm64.dmg` on downloads.cursor.com. (Cursor self-updates via
+        // ToDesktop; this is the fallback, guarded by the same-Team gate.)
         VendorProbeRecipe(
             bundleID: "com.todesktop.230313mzl4w4u92",
             url: URL(string: "https://api2.cursor.sh/updates/api/download/latest/darwin-arm64/cursor")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
             downloadURL: URL(string: "https://www.cursor.com/downloads"),
-            changelogURL: URL(string: "https://www.cursor.com/changelog")),
+            changelogURL: URL(string: "https://www.cursor.com/changelog"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""downloadUrl"\s*:\s*"(https://downloads\.cursor\.com/[^"]+\.dmg)""#),
+                kind: .dmg)),
 
         // Raycast — official "latest release" endpoint; `version` is first. Single
-        // channel. Detection only — Raycast self-updates.
+        // channel. One-click: the same JSON's `downloadURL` is the dmg (a
+        // worker.raycast-releases.com proxy URL wrapping a presigned R2 object;
+        // resolved fresh from each probe so its signed expiry is never stale).
         VendorProbeRecipe(
             bundleID: "com.raycast.macos",
             url: URL(string: "https://releases.raycast.com/releases/latest?build=universal")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
             downloadURL: URL(string: "https://www.raycast.com/"),
-            changelogURL: URL(string: "https://www.raycast.com/changelog")),
+            changelogURL: URL(string: "https://www.raycast.com/changelog"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""downloadURL"\s*:\s*"(https://[^"]+)""#),
+                kind: .dmg)),
 
         // Docker Desktop — Sparkle appcast. Titles read "<ver> (<build>)" (and
         // "Version <ver> (<build>)"); take the highest since the feed isn't
@@ -1311,7 +1433,7 @@ public enum VendorProbeRegistry {
                     #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*mac_arm\.dmg)"#),
                 kind: .dmg)),
 
-        // Android Studio — Canary & Beta preview tracks. Both share Stable's
+        // Android Studio — Canary & Beta preview installs. Both share Stable's
         // `com.google.android.studio`; the install's channel is read from the
         // bundle filename (see `ReleaseChannel.detect` step 0.5), and the channel
         // gate routes each here. Source is Google's official releases-list JSON
@@ -1320,34 +1442,57 @@ public enum VendorProbeRegistry {
         // `CFBundleShortVersionString` is truncated to "2026.1" and identical
         // across tracks, so a marketing-version compare is useless — we compare on
         // the `build` field ("AI-261.24374.151.2612.15561891"), which matches the
-        // installed `CFBundleVersion` byte-for-byte, via `versionIsBuild`. The feed
-        // is newest-first and interleaves channels, so each pattern anchors on its
-        // own `"channel"` value and the FIRST match is that track's latest. The
-        // Beta track currently ships RELEASE CANDIDATES, so it accepts channel
-        // `Beta` OR `RC` (and dmg filenames `beta`/`rc`). dmg → signed, Team
-        // EQHXZ8M8AV → mandatory signature gate (no inline checksum needed). The
-        // dmg's app is "Android Studio Preview.app"; the cask renames it per track.
+        // installed `CFBundleVersion` byte-for-byte, via `versionIsBuild`.
+        //
+        // STABILITY FLOOR (not "newest preview wins"): each preview channel accepts
+        // builds at its own quality OR more stable, never less stable. Android
+        // Studio's quality ladder is Canary (least stable) → Beta → RC → stable.
+        //   • Canary install → newest of {Canary, Beta, RC}: a Canary 7 install
+        //     correctly moves onto `2026.1.2 RC 1` when no newer Canary exists, and
+        //     onto `2026.1.3 Canary 1` once the next feature version opens.
+        //   • Beta install → newest of {Beta, RC} ONLY — it must NEVER be offered a
+        //     Canary build (that's a stability DOWNGRADE). When a Beta sits on the
+        //     latest RC and the only newer thing is the next version's Canary, the
+        //     Beta is correctly up to date.
+        // (An earlier "highest across all previews" version wrongly pushed
+        //  `2026.1.3 Canary 1` at a Beta install that was already current; and the
+        //  original channel-pure "Canary only" wrongly hid the RC the user wanted.
+        //  See `InstalledApp.prefersVendorProbeOverToolbox`.) The feed is
+        // newest-first, so the FIRST channel-set match is that set's newest build.
+        // dmg patterns mirror each channel set — though these installs are
+        // Toolbox-managed → detection-only, so the install spec is suppressed at the
+        // source and the user updates through Toolbox; the dmg set just stays in
+        // lockstep with the version set. Team EQHXZ8M8AV.
         VendorProbeRecipe(
             bundleID: "com.google.android.studio",
             url: URL(string: "https://jb.gg/android-studio-releases-list.json")!,
             mode: .responseBody,
             versionPattern:
-                #""build"\s*:\s*"(AI-[^"]+)","platformVersion":"[^"]*","name":"[^"]*","channel":"Canary""#,
+                #""build"\s*:\s*"(AI-[^"]+)","platformVersion":"[^"]*","name":"[^"]*","channel":"(?:Canary|Beta|RC)""#,
             changelogURL: URL(string: "https://developer.android.com/studio/preview/features"),
             versionIsBuild: true,
+            // Show the feed's clean marketing name ("2026.1.2 RC 1") not the raw
+            // build id ("AI-261.…"); the build still drives the comparison.
+            displayVersionPattern:
+                #""name":"[^"]*\|\s*([^"]+)","channel":"(?:Canary|Beta|RC)""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
-                    #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*canary[0-9]*-mac_arm\.dmg)"#),
+                    #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:canary|beta|rc)[0-9]*-mac_arm\.dmg)"#),
                 kind: .dmg),
             channel: .canary),
         VendorProbeRecipe(
             bundleID: "com.google.android.studio",
             url: URL(string: "https://jb.gg/android-studio-releases-list.json")!,
             mode: .responseBody,
+            // Beta accepts only Beta/RC — NEVER Canary (a stability downgrade).
             versionPattern:
                 #""build"\s*:\s*"(AI-[^"]+)","platformVersion":"[^"]*","name":"[^"]*","channel":"(?:Beta|RC)""#,
             changelogURL: URL(string: "https://developer.android.com/studio/preview/features"),
             versionIsBuild: true,
+            // Show the feed's clean marketing name ("2026.1.2 RC 1") not the raw
+            // build id ("AI-261.…"); the build still drives the comparison.
+            displayVersionPattern:
+                #""name":"[^"]*\|\s*([^"]+)","channel":"(?:Beta|RC)""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:beta|rc)[0-9]*-mac_arm\.dmg)"#),
@@ -1359,16 +1504,20 @@ public enum VendorProbeRegistry {
         // versioned package downloads.slack-edge.com/.../mac/universal/<ver>/
         // Slack-<ver>-macOS.dmg, so the version rides in the resolved filename
         // (HEAD+follow → lastPathComponent). Use the -universal link, NOT -osx
-        // (that resolves to the x64/Intel build). Detection only — Slack
-        // self-updates via Squirrel; ChangelogRecipe(com.tinyspeck.slackmacgap)
-        // renders the notes natively.
+        // (that resolves to the x64/Intel build). ChangelogRecipe(com.tinyspeck.slackmacgap)
+        // renders the notes natively. One-click: the same -universal link IS the
+        // installer — the spec HEAD-follows the 302 to the versioned universal dmg
+        // and swaps in place (on top of Slack's own Squirrel updater).
         VendorProbeRecipe(
             bundleID: "com.tinyspeck.slackmacgap",
             url: URL(string: "https://slack.com/ssb/download-osx-universal")!,
             mode: .redirectFilename,
             versionPattern: #"^Slack-([0-9]+\.[0-9]+\.[0-9]+)-macOS\.dmg$"#,
             downloadURL: URL(string: "https://slack.com/downloads/mac"),
-            changelogURL: URL(string: "https://slack.com/release-notes/mac")),
+            changelogURL: URL(string: "https://slack.com/release-notes/mac"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://slack.com/ssb/download-osx-universal")!),
+                kind: .dmg)),
 
         // Discord — official update manifest (channel=stable, platform=osx). The
         // version lives ONLY as the JSON array `host_version:[0,0,393]` and as a
@@ -1378,16 +1527,25 @@ public enum VendorProbeRegistry {
         // which carries the whole X.Y.Z in one group. Every url in the body (full
         // + deltas + per-module) targets the same destination version, so first
         // match is correct; the delta SOURCE (0.0.392) never appears as a
-        // /universal/<v>/ segment. Detection only — Discord self-updates via its
-        // own host updater. ptb/canary ship as separate bundle ids with their own
-        // channel=ptb|canary endpoints — their dedicated recipes follow below.
+        // /universal/<v>/ segment. Discord self-updates via its own host updater.
+        // ptb/canary ship as separate bundle ids with their own channel=ptb|canary
+        // endpoints — their dedicated recipes follow below. One-click NOTE: the
+        // manifest carries only `.distro` module files, not an app dmg, so the
+        // install uses Discord's SEPARATE public download endpoint —
+        // `discord.com/api/download?platform=osx&format=dmg` — which 302s to the same
+        // version's `…/apps/osx/<ver>/Discord.dmg` (verified 0.0.395 == host_version).
+        // ptb/canary stay detection-only for now (their dmg endpoints unverified).
         VendorProbeRecipe(
             bundleID: "com.hnc.Discord",
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=osx&arch=x64")!,
             mode: .responseBody,
             versionPattern: #"stable\.dl2\.discordapp\.net/distro/app/stable/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
             downloadURL: URL(string: "https://discord.com/download"),
-            changelogURL: URL(string: "https://discord.com/blog")),
+            changelogURL: URL(string: "https://discord.com/blog"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://discord.com/api/download?platform=osx&format=dmg")!),
+                kind: .dmg)),
 
         // Discord PTB / Canary — same manifest endpoint as Stable, just a different
         // `channel=` query, and each ships under its own bundle id with its own
@@ -1419,8 +1577,10 @@ public enum VendorProbeRegistry {
         // filename. It redirects on BOTH HEAD and GET, but the target is a
         // ~203 MB dmg, so don't follow — read the small 307 Location. Use the
         // `.so` host: it's a single hop, whereas `.com/desktop/mac/download`
-        // bounces through app.notion.com first. Detection only — Notion ships a
-        // universal dmg and self-updates; ChangelogRecipe(notion.id) renders notes.
+        // bounces through app.notion.com first. ChangelogRecipe(notion.id) renders
+        // notes. One-click: the very same `/desktop/mac/download` 307 IS the
+        // installer link — the install spec HEAD-follows it to the versioned
+        // universal dmg and swaps in place (on top of Notion's own self-updater).
         VendorProbeRecipe(
             bundleID: "notion.id",
             url: URL(string: "https://www.notion.so/desktop/mac/download")!,
@@ -1428,6 +1588,9 @@ public enum VendorProbeRegistry {
             versionPattern: #"Notion-([0-9]+\.[0-9]+\.[0-9]+)-"#,
             downloadURL: URL(string: "https://www.notion.com/desktop")!,
             changelogURL: URL(string: "https://www.notion.com/releases")!,
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://www.notion.so/desktop/mac/download")!),
+                kind: .dmg),
             followRedirects: false),
 
         // Obsidian — official desktop-releases manifest (the same file Obsidian's
@@ -1435,15 +1598,26 @@ public enum VendorProbeRegistry {
         // one is STABLE, then a nested "beta" object carries the (currently HIGHER)
         // insider build. We anchor to the FIRST match so we read STABLE only;
         // selectHighest stays false (true would grab the bigger beta value and
-        // invent a phantom update for a stable install). Detection only — Obsidian
-        // self-updates; ChangelogRecipe(md.obsidian) renders the notes natively.
+        // invent a phantom update for a stable install). ChangelogRecipe(md.obsidian)
+        // renders the notes natively. One-click CAVEAT: this manifest's own
+        // `downloadUrl` is an `.asar.gz` — Obsidian's in-place patch format, which we
+        // can't apply. The full signed dmg lives only on the GitHub release, named
+        // `Obsidian-<ver>.dmg`, so we template that URL from the stable `latestVersion`
+        // (first match — the nested `beta` object's higher version comes later and is
+        // intentionally NOT picked). A full-bundle dmg swap supersedes Obsidian's own
+        // lighter asar self-update; the same-Team gate still guards it.
         VendorProbeRecipe(
             bundleID: "md.obsidian",
             url: URL(string: "https://raw.githubusercontent.com/obsidianmd/obsidian-releases/master/desktop-releases.json")!,
             mode: .responseBody,
             versionPattern: #""latestVersion"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
             downloadURL: URL(string: "https://obsidian.md/download"),
-            changelogURL: URL(string: "https://obsidian.md/changelog/")),
+            changelogURL: URL(string: "https://obsidian.md/changelog/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyTemplate(
+                    "https://github.com/obsidianmd/obsidian-releases/releases/download/v{0}/Obsidian-{0}.dmg",
+                    fields: [#""latestVersion"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#]),
+                kind: .dmg)),
 
         // Figma desktop (stable) — official per-arch "latest" manifest (the same
         // RELEASE.json the Homebrew cask livecheck reads). `version` is first and
@@ -1552,14 +1726,21 @@ public enum VendorProbeRegistry {
         // treats the missing 4th component as 0) — a permanent phantom update. The
         // MacOS block's top-level `version` precedes its `releases` array, so the
         // `[^}]*?` reaches it without crossing a `}` and never grabs the (earlier)
-        // Windows block. Detection only — Plex desktop self-updates via Squirrel.
+        // Windows block. One-click: the MacOS block's release `url` is the
+        // `Plex-<full>-universal.zip` on downloads.plex.tv/plex-desktop/ — anchored
+        // to that path so it can't grab the Windows installer. (Plex self-updates via
+        // Squirrel; this is the fallback behind the same-Team gate.)
         VendorProbeRecipe(
             bundleID: "tv.plex.desktop",
             url: URL(string: "https://plex.tv/api/downloads/6.json")!,
             mode: .responseBody,
             versionPattern: #""MacOS"\s*:\s*\{[^}]*?"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"#,
             downloadURL: URL(string: "https://www.plex.tv/media-server-downloads/?cat=plex+desktop"),
-            changelogURL: URL(string: "https://www.plex.tv/media-server-downloads/?cat=plex+desktop")),
+            changelogURL: URL(string: "https://www.plex.tv/media-server-downloads/?cat=plex+desktop"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"(https://downloads\.plex\.tv/plex-desktop/[^"]+/macos/[^"]+universal\.zip)"#),
+                kind: .zip)),
 
         // Alfred 5 — Sparkle PLIST appcast (not RSS). Alfred has no Info.plist
         // SUFeedURL (the feed is configured in Alfred's own Preferences), so it
@@ -1584,14 +1765,20 @@ public enum VendorProbeRegistry {
         // app's CFBundleShortVersionString. A `betaLatestVersion` also lives in the
         // body — the `"latestVersion"` anchor can't match the `"betaLatestVersion"`
         // key (different literal prefix), so a stable install is never offered the
-        // beta build. Detection only — Shottr self-updates via its own .pkg updater.
+        // One-click: the same JSON's `"package"` is the stable `Shottr-<ver>.pkg`.
+        // Anchor to `"package"` (leading quote) so it never matches `"betaPackage"`
+        // — a stable install is never handed the EAP pkg. (Shottr self-updates via
+        // its own .pkg updater; this is the fallback behind the same-Team gate.)
         VendorProbeRecipe(
             bundleID: "cc.ffitch.shottr",
             url: URL(string: "https://shottr.cc/api/version.json")!,
             mode: .responseBody,
             versionPattern: #""latestVersion"\s*:\s*"([0-9]+\.[0-9]+(?:\.[0-9]+)?)""#,
             downloadURL: URL(string: "https://shottr.cc/"),
-            changelogURL: URL(string: "https://shottr.cc/newversion.html")),
+            changelogURL: URL(string: "https://shottr.cc/newversion.html"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""package"\s*:\s*"(https://shottr\.cc/[^"]+\.pkg)""#),
+                kind: .pkg)),
 
         // The Unarchiver (MacPaw) — DevMate Sparkle appcast. Like the Codex/Alfred
         // neighbors it carries no Info.plist SUFeedURL (DevMate configures the feed
@@ -1621,7 +1808,10 @@ public enum VendorProbeRegistry {
         // CFBundleShortVersionString (1.0.8); feeding the build "147.1" would compare
         // 147 > 1 and invent a permanent phantom update. Trade-off: blind to a
         // build-only rebuild at an unchanged marketing version — the conservative,
-        // never-lie choice. Detection only — Orion self-updates via Sparkle.
+        // never-lie choice. One-click: the feed is ASCENDING, so the install takes
+        // the LAST `<enclosure url=…zip>` (newest) — `.bodyPatternLast`, mirroring
+        // `selectHighest` on the version side; first-match would grab the oldest 0.99.
+        // (Orion self-updates via Sparkle; fallback behind the same-Team gate.)
         VendorProbeRecipe(
             bundleID: "com.kagi.kagimacOS",
             url: URL(string: "https://cdn.kagi.com/updates/26_0/appcast.xml")!,
@@ -1629,7 +1819,10 @@ public enum VendorProbeRegistry {
             versionPattern: #"<sparkle:shortVersionString>([0-9]+(?:\.[0-9]+)+)</sparkle:shortVersionString>"#,
             downloadURL: URL(string: "https://browser.kagi.com/"),
             changelogURL: URL(string: "https://browser.kagi.com/updates/orion-release-notes.html"),
-            selectHighest: true),
+            selectHighest: true,
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternLast(#"url="(https://[^"]+\.zip)""#),
+                kind: .zip)),
 
         // Dropbox (desktop, mac) — the website's "latest" download link. A single
         // 302 from www.dropbox.com/download?plat=mac&full=1 lands on the versioned
@@ -1659,12 +1852,16 @@ public enum VendorProbeRegistry {
             versionPattern: #"<!--BEGINVERSION-->([0-9.]+)<!--ENDVERSION-->"#,
             changelogURL: URL(string: "https://www.corecode.io/macupdater/history3.html")),
 
-        // Alcove — vendor's own update endpoint (the app's "Reworked update
-        // manager" hits update.tryalcove.com). Replaces the GitHubReleaseRule that
-        // read henrikruscon/alcove-releases: that mirror lags the real release
-        // (stuck at 1.7.2 on 2026-06-14 while this endpoint already served 1.7.3,
-        // build 194, published 2026-06-12), so it silently missed updates. The
-        // endpoint returns GitHub-release-shaped JSON: `tag_name` is the version
+        // Alcove — PUBLIC mirror, kept only as the no-credential fallback. The
+        // authoritative source is `AlcoveUpdateSource` (the licensed api.tryalcove.com
+        // channel the app's own "Reworked update manager" uses), wired ahead of this
+        // probe so it answers first whenever the user's license credentials are seeded.
+        // This endpoint (update.tryalcove.com) is NOT authoritative — like the
+        // henrikruscon/alcove-releases GitHub mirror it lags the licensed channel
+        // (verified 2026-06-17: it served 1.7.3 while the licensed channel — and the
+        // app itself — already offered 1.7.4). So it's best-effort detection for users
+        // who haven't seeded credentials, nothing more. The endpoint returns
+        // GitHub-release-shaped JSON: `tag_name` is the version
         // (semver == the app's CFBundleShortVersionString — no build trap) and
         // `assets[].browser_download_url` carries the versioned Alcove.dmg, anchored
         // on `Alcove\.dmg` so it's picked over the sibling Alcove.zip regardless of

@@ -2,6 +2,9 @@ import Foundation
 
 /// Stages emitted as an install proceeds, for driving UI.
 public enum InstallStage: Sendable, Equatable {
+    /// Waiting for a slot in the global install queue — too many installs are
+    /// already in flight, so this one is parked until one of them finishes.
+    case queued
     /// Re-verifying the app still needs updating before acting on it.
     case checking
     case downloading(fraction: Double)

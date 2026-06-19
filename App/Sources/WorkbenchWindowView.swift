@@ -367,7 +367,7 @@ struct WorkbenchWindowView: View {
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
-                    runningVersion: model.runningVersion(result.id))
+                    runningVersion: model.restartFromVersion(result.id))
                     .tag(result.id)
             }
         }
@@ -391,7 +391,7 @@ struct WorkbenchWindowView: View {
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
-                    runningVersion: model.runningVersion(result.id))
+                    runningVersion: model.restartFromVersion(result.id))
                     .tag(result.id)
             }
             ForEach(model.brewFormulae) { formula in
@@ -531,6 +531,7 @@ private struct WorkbenchActionView: View {
 
     private func stageLabel(_ stage: InstallStage) -> String {
         switch stage {
+        case .queued: return "Queued"
         case .checking: return "Checking"
         case .downloading(let f): return "\(Int(f * 100))%"
         case .verifyingSignature, .verifyingCodeSignature: return "Verifying"
@@ -631,7 +632,9 @@ private struct WorkbenchSidebarRow: View {
     /// state). When set, the subtitle shows running → installed instead of a bare
     /// version, so the row says what the restart will land.
     let needsRestart: Bool
-    /// The still-running (older) version, when known — the "from" side of a restart.
+    /// The "from" side of a restart line, pre-formatted by `restartFromVersion`: the
+    /// running build, or "marketing (build)" when the pre-update marketing version is
+    /// recoverable from the rollback backup. nil when not lagging an on-disk build.
     let runningVersion: String?
 
     var body: some View {
@@ -669,13 +672,12 @@ private struct WorkbenchSidebarRow: View {
                 // White over the blue highlight when selected; blue tint otherwise.
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                 .lineLimit(1)
-        } else if needsRestart, let running = runningVersion {
-            // Self-updated on disk: show running build → installed marketing version
-            // (build) so "Restart" reads as a real change. The from side is build-only
-            // (all the live process exposes via lsappinfo); the on-disk to side carries
-            // the marketing version, so it reads "1.7.3 (194)" — for date/serial builds
-            // with no distinct marketing string it collapses to the bare build.
-            let from = UpdateResult.strippingBuildPrefix(running)
+        } else if needsRestart, let from = runningVersion {
+            // Self-updated on disk: show running version → installed marketing version
+            // (build) so "Restart" reads as a real change. `from` is pre-formatted by
+            // `restartFromVersion` — the running build, or "marketing (build)" when the
+            // pre-update marketing version is recoverable from the rollback backup; the
+            // on-disk `to` side carries the marketing version, e.g. "1.7.3 (194)".
             let to = result.restartTargetVersion
             Text("\(from) → \(to)")
                 .font(.caption)
@@ -1301,25 +1303,14 @@ private struct ChangelogEntryView: View {
         }
     }
 
-    /// A vendor-embedded release illustration. Loaded lazily; a load failure shows
-    /// nothing rather than a broken-image box.
+    /// A vendor-embedded release illustration. Served from the changelog image cache
+    /// (prewarmed alongside the notes, so it paints instantly); a load failure shows
+    /// a quiet placeholder rather than a broken-image box.
     @ViewBuilder
     private func noteImage(_ url: URL) -> some View {
-        AsyncImage(url: url) { phase in
-            if let image = phase.image {
-                image.resizable().scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            } else if phase.error != nil {
-                EmptyView()
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.quaternary)
-                    .frame(height: 120)
-                    .overlay(ProgressView())
-            }
-        }
-        .frame(maxWidth: 480, alignment: .leading)
-        .padding(.vertical, 2)
+        CachedImage(url: url)
+            .frame(maxWidth: 480, alignment: .leading)
+            .padding(.vertical, 2)
     }
 
     private static func displayDate(for raw: String) -> String {

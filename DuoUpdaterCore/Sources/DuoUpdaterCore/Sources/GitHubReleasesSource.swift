@@ -356,13 +356,13 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^rustdesk-[0-9.]+-aarch64\.dmg$"#,
             installerKind: .dmg),
 
-        // Alcove — moved to a VendorProbeRecipe (see VendorProbeRegistry). The
-        // `henrikruscon/alcove-releases` mirror this rule used to read LAGS the real
-        // release: on 2026-06-14 it was stuck at 1.7.2 while the vendor's own update
-        // server already served 1.7.3 (build 194, published 2026-06-12), so every
-        // 1.7.3 install silently read as up-to-date. Alcove's own "Reworked update
-        // manager" hits update.tryalcove.com, which is the authoritative, current
-        // feed — the probe reads that instead.
+        // Alcove — handled by `AlcoveUpdateSource` (licensed api.tryalcove.com), with
+        // a public `update.tryalcove.com` VendorProbeRecipe as the no-credential
+        // fallback. The `henrikruscon/alcove-releases` mirror this rule used to read
+        // LAGS the real release (2026-06-14: stuck at 1.7.2 while the vendor served
+        // 1.7.3) — but so does every public surface, including update.tryalcove.com
+        // (2026-06-17: still 1.7.3 while the licensed channel already had 1.7.4). Only
+        // the licensed channel is authoritative; see `AlcoveUpdateSource`.
 
         // Macs Fan Control — tags carry a `v` prefix (stripped by the pattern).
         // One-click installs `macsfancontrol.zip`, which wraps `Macs Fan Control.app`:

@@ -111,6 +111,31 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// (sideloaded copies report 0).
     public let appStoreAdamID: Int?
 
+    /// A Toolbox-managed install we should route through its `VendorProbeRecipe`
+    /// instead of deferring to Toolbox's own verdict.
+    ///
+    /// Toolbox-managed apps normally skip every other source (see
+    /// `UpdateChecker.check`) and report whatever Toolbox's verdict says. But
+    /// Android Studio's Canary/Beta previews are handled UNRELIABLY there: Toolbox
+    /// tracks all "AI" installs under one product code, and only the newest-build
+    /// install follows Google's live feed — every other preview copy falls back to
+    /// Toolbox's *local channel cache*, which is frequently empty (Toolbox hasn't
+    /// refreshed) and, when populated, can lag or surface the wrong build. The
+    /// upshot was a flaky/missing "Canary → RC" update (the symptom the user
+    /// reported). Our `VendorProbeRecipe` reads Google's release feed directly and
+    /// resolves the newest preview build deterministically — see the one-train note
+    /// on the Android Studio recipe — so it's the better source for these.
+    ///
+    /// Restricted to non-stable channels: Stable is shared by retained older majors
+    /// (a kept Koala alongside the current release), and Toolbox's
+    /// `isNewestOfProduct` logic is what stops those from nagging a cross-major
+    /// jump — a guarantee the preview recipe doesn't make.
+    public var prefersVendorProbeOverToolbox: Bool {
+        isToolboxManaged
+            && bundleID == "com.google.android.studio"
+            && (releaseChannel == .canary || releaseChannel == .beta)
+    }
+
     private static func safePathComponent(_ raw: String) -> String {
         let safe = raw.unicodeScalars.map { scalar -> Character in
             let c = Character(scalar)

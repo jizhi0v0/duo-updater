@@ -765,6 +765,11 @@ final class AppListModel {
     /// network check — which is exactly how an "up to date" snapshot could clobber
     /// a check that had found updates.
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    /// Whether the in-flight `refreshTask` was started with TestFlight reads enabled.
+    /// A user-present caller (`allowTestFlight: true`) that coalesces onto a silent
+    /// background refresh (`false`) would otherwise return with TestFlight tags never
+    /// applied — so we check this and run one follow-up that does the TestFlight read.
+    @ObservationIgnored private var refreshTaskAllowedTestFlight = false
 
     /// The Toolbox inventory to use for a scan: the real one (reads `state.json`)
     /// when JetBrains Toolbox is actually installed, an EMPTY one when it isn't.
@@ -791,8 +796,22 @@ final class AppListModel {
     /// cold launch never prompts unprompted.
     func refresh(allowTestFlight: Bool = true) async {
         if let existing = refreshTask {
+            // A `true` caller that lands on a silent (`false`) refresh would otherwise
+            // return without ever doing the TestFlight read — its tags stay missing
+            // until the next refresh. Note the in-flight grant *before* awaiting, since
+            // the owning call clears `refreshTask`/`refreshTaskAllowedTestFlight` once
+            // it returns.
+            let needTestFlightFollowUp = allowTestFlight && !refreshTaskAllowedTestFlight
             Log.app.info("refresh: already in flight — coalescing onto it")
             await existing.value
+            // Run one fresh refresh with TestFlight enabled. This recurses at most
+            // once: that refresh starts with `allowTestFlight == true`, so it can't
+            // re-trigger this branch and loop. (`reapplyTestFlightWhenGranted` also
+            // folds in, so no duplicate prompt.)
+            if needTestFlightFollowUp {
+                Log.app.info("refresh: coalesced onto a silent refresh — running TestFlight follow-up")
+                await refresh(allowTestFlight: true)
+            }
             return
         }
         guard canRefresh else {
@@ -803,8 +822,10 @@ final class AppListModel {
         // await it. So once our task finishes we can clear it unconditionally.
         let task = Task { await self.performRefresh(allowTestFlight: allowTestFlight) }
         refreshTask = task
+        refreshTaskAllowedTestFlight = allowTestFlight
         await task.value
         refreshTask = nil
+        refreshTaskAllowedTestFlight = false
     }
 
     /// Race a detached task against a timeout. Returns the task's value if it
@@ -1183,13 +1204,29 @@ final class AppListModel {
         for formula in brewFormulae where formula.hasUpdate {
             guard formulaReleaseStates[formula.name] == nil else { continue }
             let version = formula.availableVersion ?? formula.installedVersion
+            // Claim the slot SYNCHRONOUSLY before suspending: the `cached(...)` await
+            // below yields the main actor, and a concurrent `ensureFormulaReleaseLoading`
+            // (user selecting this formula) would pass its own nil-guard in that window
+            // and double-fetch (`brew info` + GitHub) — the redundant work the
+            // rate-limit design avoids. `.loading` makes both guards reject.
+            formulaReleaseStates[formula.name] = .loading
             Task { [weak self] in
                 guard let self else { return }
                 if let cached = await self.formulaReleaseService.cached(
                     for: formula.name, version: version) {
                     self.formulaReleaseStates[formula.name] = .loaded(cached)
                 } else if token != nil {
-                    self.ensureFormulaReleaseLoading(name: formula.name, version: version)
+                    // Fetch up front (a token means we have budget). We can't delegate
+                    // to `ensureFormulaReleaseLoading` — its own nil-guard would reject
+                    // the slot we just claimed — so do the load it would do.
+                    let release = await self.formulaReleaseService.release(
+                        for: formula.name, version: version, token: token)
+                    self.formulaReleaseStates[formula.name] = .loaded(release)
+                } else {
+                    // No token and not cached: stay deliberately lazy/on-select so a
+                    // screenful of formulae can't burn the 60/hr unauthenticated
+                    // budget. Release the claimed slot so a later select can fetch it.
+                    self.formulaReleaseStates[formula.name] = nil
                 }
             }
         }
@@ -1333,6 +1370,12 @@ final class AppListModel {
     /// cuts that churn by ~50× and removes the visible jitter when several apps
     /// download at once.
     private func setStage(_ id: String, _ stage: InstallStage) {
+        // Progress callbacks dispatch un-awaited onto the main actor, so a late tick
+        // can land after the install finished and cleared `installing[id]`. Resurrecting
+        // a stale stage here would re-show a phantom row and wedge the re-entrancy
+        // guard (`installing[id] == nil`). Every real stage is preceded by a direct
+        // `installing[id] = …` assignment, so a nil here means the install is over.
+        guard installing[id] != nil else { return }
         if case .downloading(let f) = stage,
            case .downloading(let prev)? = installing[id],
            Int(f * 100) == Int(prev * 100) {
@@ -1390,25 +1433,32 @@ final class AppListModel {
         // releases, one vendor CDN) would otherwise split that host's bandwidth and
         // are the most likely to trip its rate limiter / WAF. Acquired *before* the
         // global permit so a saturated host parks here without burning a global slot
-        // (which would starve apps on other, idle hosts). Installs whose bytes we
-        // don't fetch ourselves — Homebrew, App Store — have no `downloadURL` host
-        // and skip this, bounded by the global gate alone.
-        let hostGate = result.remote?.downloadURL?.host.map(hostInstallGate(for:))
-        await hostGate?.wait()
+        // (which would starve apps on other, idle hosts).
+        //
+        // App Store rows are special-cased to a dedicated single-slot gate instead:
+        // they drive the one App Store UI (AX/mas), so two at once would fight over
+        // it — and `MacAppStoreSource` gives them `apps.apple.com` as a `downloadURL`
+        // host, which would otherwise let two share the per-host cap of 2. Homebrew
+        // *does* carry a real `downloadURL` host (the cask's source CDN), so it still
+        // takes a host gate as a coarse limiter even though brew fetches the bytes.
+        let gate: AsyncSemaphore? = result.remote?.sourceName == "App Store"
+            ? Self.appStoreInstallGate
+            : result.remote?.downloadURL?.host.map(hostInstallGate(for:))
+        await gate?.wait()
         await Self.installGate.wait()
         // A queued item cancelled while waiting — e.g. "Update All" was stopped
         // before this row's turn came up — releases its slots without installing.
         if Task.isCancelled {
             installing[id] = nil
             await Self.installGate.signal()
-            await hostGate?.signal()
+            await gate?.signal()
             return false
         }
         // `performInstall` catches all its own errors and always returns, so both
         // permits are guaranteed to recycle here.
         let didInstall = await performInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
         await Self.installGate.signal()
-        await hostGate?.signal()
+        await gate?.signal()
         return didInstall
     }
 
@@ -2214,6 +2264,14 @@ final class AppListModel {
     /// *spawns*; this bounds how many actually *run* — including manual clicks that
     /// land while a batch is in progress.
     private static let installGate = AsyncSemaphore(value: maxParallelInstalls)
+
+    /// App Store installs serialize to one at a time, regardless of how many rows
+    /// the user clicks. They don't fetch bytes we control — they drive the single
+    /// App Store UI via AX/mas — so two at once would fight over the same window
+    /// (and `MacAppStoreSource` gives them `apps.apple.com` as a `downloadURL` host,
+    /// which would otherwise let two share the per-host cap of 2). This dedicated
+    /// gate replaces the host gate for App Store rows.
+    private static let appStoreInstallGate = AsyncSemaphore(value: 1)
 
     /// How many concurrent installs may download from a single host. Lower than the
     /// global cap on purpose: same-host downloads compete for that host's bandwidth

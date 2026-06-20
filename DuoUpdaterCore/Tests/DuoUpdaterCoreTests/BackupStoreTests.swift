@@ -24,13 +24,28 @@ struct BackupStoreTests {
     }
 
     /// Build a minimal `.app` bundle with a marker file we can check survived a
-    /// restore.
+    /// restore. Includes a real `Info.plist` so the bundle is *structurally valid*
+    /// but unsigned: `restore` now hard-fails a backup whose present code signature
+    /// won't validate, and only an `Info.plist`-bearing bundle reports the allowed
+    /// `errSecCSUnsigned` (a bare directory reports `errSecCSBadBundleFormat`, which
+    /// is — correctly — treated as corruption).
     @discardableResult
     private func makeApp(named name: String, in dir: URL, marker: String) throws -> URL {
         let app = dir.appendingPathComponent(name)
         let contents = app.appendingPathComponent("Contents")
         try? FileManager.default.removeItem(at: app)
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0"><dict>
+          <key>CFBundleExecutable</key><string>App</string>
+          <key>CFBundleIdentifier</key><string>com.example.testapp</string>
+          <key>CFBundleName</key><string>App</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+        </dict></plist>
+        """
+        try plist.data(using: .utf8)!.write(to: contents.appendingPathComponent("Info.plist"))
         try marker.data(using: .utf8)!.write(to: contents.appendingPathComponent("marker.txt"))
         return app
     }

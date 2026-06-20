@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 /// Thrown when the in-place swap is blocked by the **App Management** privacy
 /// gate (`kTCCServiceSystemPolicyAppBundles`): replacing another installed app's
@@ -51,6 +52,19 @@ public enum InPlaceSwap {
                 let appURL = directory.appendingPathComponent(String(name.dropLast(oldSuffix.count)))
                 if fm.fileExists(atPath: appURL.path) {
                     try? fm.removeItem(at: entry)             // real app present → stale copy
+                } else if !orphanSignatureLooksValid(entry) {
+                    // Verify before promoting: this runs on every launch and acts on
+                    // any `*.app.duoupdater-old` it finds. An attacker who can write to
+                    // an app directory could plant a malicious `<App>.app.duoupdater-old`
+                    // (with `<App>.app` absent) and have us auto-promote it to the live
+                    // app — so we refuse to promote an orphan whose present code
+                    // signature no longer validates (corruption/tampering). Leave it in
+                    // place rather than deleting it, so a later manual investigation is
+                    // still possible. A genuinely unsigned bundle is still allowed below
+                    // (the helper distinguishes that from a failed present signature),
+                    // matching BackupStore's tolerance.
+                    Log.install.error(
+                        "refusing to recover \(appURL.lastPathComponent, privacy: .public): its pre-swap backup failed signature validation (may be corrupted or planted) — left in place")
                 } else if (try? fm.moveItem(at: entry, to: appURL)) != nil {
                     Log.install.error(
                         "recovered an interrupted update: restored \(appURL.lastPathComponent, privacy: .public) from its pre-swap backup")
@@ -58,6 +72,24 @@ public enum InPlaceSwap {
             } else if name.hasSuffix(newSuffix) || name.hasPrefix(stagedPrefix) {
                 try? fm.removeItem(at: entry)                 // unused new/staged leftover
             }
+        }
+    }
+
+    /// True if the orphaned `*.duoupdater-old` bundle either validates cleanly or is
+    /// simply unsigned; false only when a present signature fails to validate
+    /// (corruption/tampering). Mirrors `BackupStore.backupSignatureLooksValid` but is
+    /// kept local on purpose — recovery in Core must not depend on the App-layer
+    /// backup store. The threat it guards: this runs unattended on every launch, so a
+    /// planted `*.duoupdater-old` could otherwise be auto-promoted to a live app.
+    private static func orphanSignatureLooksValid(_ bundle: URL) -> Bool {
+        do {
+            try SignatureVerifier.verifyCodeSignature(appAt: bundle)
+            return true
+        } catch let SignatureVerifier.VerifyError.codeSignatureInvalid(status)
+                    where status == errSecCSUnsigned {
+            return true
+        } catch {
+            return false
         }
     }
 

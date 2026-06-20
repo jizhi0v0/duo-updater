@@ -194,17 +194,20 @@ public enum BackupStore {
         guard runDitto(from: backup.bundlePath, to: staged) else {
             throw BackupError.copyFailed(backup.bundlePath.path)
         }
-        // Best-effort integrity check before swapping a backup over the live app: if
-        // the backup is code-signed and its signature no longer validates, log it —
-        // a sign the stored bundle was corrupted or tampered with. We deliberately do
-        // NOT block the swap on this: a rollback is an explicit user action and the
-        // save path writes backups atomically (complete-or-nothing), so refusing here
-        // would more often strand a user wanting to recover than catch real damage.
-        // The signed identifier isn't checked against the target — a rollback may
-        // legitimately cross an identifier/Team change the forward update introduced.
-        if !backupSignatureLooksValid(staged) {
+        // Integrity gate before swapping a backup over the live app: a backup whose
+        // present code signature no longer validates has been corrupted or tampered
+        // with, and swapping it in would brick the live app with a broken bundle.
+        // Hard-fail rather than restore it — a rollback that knowingly installs a
+        // damaged bundle is worse than leaving the (working) current app in place,
+        // and the failure tells the user the backup is unusable. A genuinely UNSIGNED
+        // bundle is still allowed (the helper distinguishes that from a failed
+        // present signature) — many legitimate apps ship unsigned. The signed
+        // identifier isn't checked against the target — a rollback may legitimately
+        // cross an identifier/Team change the forward update introduced.
+        guard backupSignatureLooksValid(staged) else {
             Log.install.error(
-                "rollback: backup for \(key, privacy: .public) failed signature validation — restoring anyway (it may be corrupted)")
+                "rollback: backup for \(key, privacy: .public) failed signature validation — refusing to restore (it may be corrupted)")
+            throw BackupError.backupCorrupted(backup.bundlePath.lastPathComponent)
         }
         try InPlaceSwap.replace(newApp: staged, over: target)
         return backup.version
@@ -253,6 +256,7 @@ public enum BackupStore {
     public enum BackupError: LocalizedError {
         case copyFailed(String)
         case noBackup(String)
+        case backupCorrupted(String)
 
         public var errorDescription: String? {
             switch self {
@@ -260,6 +264,8 @@ public enum BackupStore {
                 return "Could not copy the app bundle at “\(path)”."
             case .noBackup(let key):
                 return "There is no backup to roll back to for “\(key)”."
+            case .backupCorrupted(let name):
+                return "The backup for “\(name)” appears corrupted (its code signature no longer validates) and was not restored."
             }
         }
     }

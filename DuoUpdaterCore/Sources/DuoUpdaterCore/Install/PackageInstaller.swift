@@ -69,7 +69,7 @@ public actor PackageInstaller {
         let bytesDownloaded = downloader.bytesDownloaded
 
         onStage(.installing)
-        let toOpen = try resolveInstaller(from: file, workDir: workDir)
+        let toOpen = try resolveInstaller(from: file, workDir: workDir, installedApp: installedApp)
         // Gate (fail closed): a `.pkg`/`.mpkg` runs install scripts (often with admin
         // rights) the moment the user confirms in the system installer. This is the
         // *package* installer, so the ONLY thing it may hand off is a signed .pkg/.mpkg
@@ -106,7 +106,7 @@ public actor PackageInstaller {
     /// For a `.dmg` we mount it, copy the contained `.pkg` out (so the installer
     /// keeps working after we unmount), and return that; otherwise we open the
     /// file itself (a bare `.pkg`, or the `.dmg`/folder as a fallback).
-    private func resolveInstaller(from file: URL, workDir: URL) throws -> URL {
+    private func resolveInstaller(from file: URL, workDir: URL, installedApp: URL) throws -> URL {
         guard file.pathExtension.lowercased() == "dmg" else { return file }
 
         let mountPoint = workDir.appendingPathComponent("mnt")
@@ -118,7 +118,10 @@ public actor PackageInstaller {
         guard attach == 0 else { throw PackageError.noInstallablePackage }
         defer { _ = run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]) }
 
-        guard let pkg = firstPackage(in: mountPoint) else {
+        // Pass the installed app's name so a multi-pkg image is matched to *this*
+        // product (see `firstPackage`).
+        let appName = installedApp.deletingPathExtension().lastPathComponent
+        guard let pkg = firstPackage(in: mountPoint, preferring: appName) else {
             throw PackageError.noInstallablePackage
         }
         let dest = workDir.appendingPathComponent(pkg.lastPathComponent)
@@ -175,7 +178,7 @@ public actor PackageInstaller {
         return (true, Self.packageTeamIdentifier(fromPkgutilOutput: result.output))
     }
 
-    private func firstPackage(in dir: URL) -> URL? {
+    private func firstPackage(in dir: URL, preferring appName: String) -> URL? {
         let fm = FileManager.default
         let dirBase = dir.resolvingSymlinksInPath().standardizedFileURL.path
         guard let entries = try? fm.contentsOfDirectory(
@@ -183,8 +186,23 @@ public actor PackageInstaller {
             includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
             options: [.skipsHiddenFiles]
         ) else { return nil }
-        return entries.sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .first { Self.isPackageEntry($0, insideResolvedPath: dirBase) }
+        let valid = entries.sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .filter { Self.isPackageEntry($0, insideResolvedPath: dirBase) }
+        // The pkg path is gated by a Team-ID match but NOT a bundle-id match, so a
+        // disk image carrying several pkgs from the same Team (a vendor suite, or a
+        // bundled helper) could otherwise have us open the *wrong* product just
+        // because its filename sorts first. Prefer a pkg whose filename references the
+        // app we're actually updating; fall back to the alphabetical-first valid pkg
+        // when nothing matches (single-pkg images, or names that don't line up).
+        let needle = appName.lowercased().replacingOccurrences(of: " ", with: "")
+        if !needle.isEmpty,
+           let matched = valid.first(where: {
+               $0.lastPathComponent.lowercased().replacingOccurrences(of: " ", with: "")
+                   .contains(needle)
+           }) {
+            return matched
+        }
+        return valid.first
     }
 
     static func isPackageEntry(_ url: URL, insideResolvedPath dirBase: String) -> Bool {

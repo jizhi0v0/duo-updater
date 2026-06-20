@@ -82,7 +82,7 @@ private struct MenuBarLabel: View {
                 return
             }
             openWindow(id: WelcomeView.windowID)
-            NSApp.activate(ignoringOtherApps: true)
+            model.surfaceWindow(sceneID: WelcomeView.windowID)
         }
         .onChange(of: model.badgeCount) { _, count in
             AppDockBadge.sync(count: count)

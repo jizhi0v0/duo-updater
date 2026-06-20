@@ -125,7 +125,7 @@ struct MenuContentView: View {
             // notification's "View" action how to open the window.
             model.start(showUpdates: {
                 openWindow(id: WorkbenchWindowView.windowID)
-                NSApp.activate(ignoringOtherApps: true)
+                model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
             })
             // First open: full (networked) check. Every later open: a cheap
             // local rescan to catch background self-updates and surface Restart.
@@ -195,7 +195,7 @@ struct MenuContentView: View {
     private var setupBanner: some View {
         Button {
             openWindow(id: WelcomeView.windowID)
-            NSApp.activate(ignoringOtherApps: true)
+            model.surfaceWindow(sceneID: WelcomeView.windowID)
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -333,7 +333,7 @@ struct MenuContentView: View {
             Spacer()
             Button("Open Window") {
                 openWindow(id: WorkbenchWindowView.windowID)
-                NSApp.activate(ignoringOtherApps: true)
+                model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
             }
             .buttonStyle(.borderless)
             .font(.caption)

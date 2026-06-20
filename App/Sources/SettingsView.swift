@@ -790,7 +790,10 @@ private struct DiagnosticsSettings: View {
                         Button("Grant…") { model.presentAppManagementPermissionFlow() }
                     }
                 }
-                Button("Run Setup Again…") { openWindow(id: WelcomeView.windowID) }
+                Button("Run Setup Again…") {
+                    openWindow(id: WelcomeView.windowID)
+                    model.surfaceWindow(sceneID: WelcomeView.windowID)
+                }
                 Button("Relaunch DuoUpdater") { Self.relaunch() }
             } header: {
                 Text("Permissions")

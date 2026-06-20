@@ -280,6 +280,13 @@ final class AppListModel {
     /// it on appear/change, so the window lands on that tab instead of General.
     var requestedSettingsSection: SettingsView.Section?
 
+    /// Whether a GitHub token resolved (explicit, env, or `gh` login) the last
+    /// time the source stack was built. Drives the aggregate rate-limit banner:
+    /// false + several rate-limited rows ⇒ nudge the user to add a token. Stays
+    /// false until the first check (the banner also requires rate-limit errors,
+    /// which only exist after a check has run `makeSources` and set this).
+    private(set) var hasGitHubToken = false
+
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
 
@@ -333,10 +340,18 @@ final class AppListModel {
     /// types don't fight over the policy.
     @ObservationIgnored private var openWindowCount = 0
 
+    @MainActor
+    private func syncDockBadge() {
+        AppDockBadge.sync(count: badgeCount)
+    }
+
     /// Call from a window's `.onAppear`: bump the count, ensure .regular, focus.
     func windowAppeared() {
         openWindowCount += 1
         NSApp.setActivationPolicy(.regular)
+        AppIcon.applyIfAvailable()
+        syncDockBadge()
+        AppDockBadge.syncSoon(count: badgeCount)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -490,6 +505,7 @@ final class AppListModel {
     /// and the App Store source re-reads the signed-in storefront region.
     private func makeSources() -> [any UpdateSource] {
         let token = GitHubToken.resolve(explicit: prefs.githubToken.isEmpty ? nil : prefs.githubToken)
+        hasGitHubToken = (token != nil)
         var sources: [any UpdateSource] = [
             MacAppStoreSource(),
             SparkleAppcastSource(),
@@ -965,6 +981,7 @@ final class AppListModel {
         // Announce anything newly pending — keyed off a persisted baseline, so it
         // fires no matter which refresh path got here first (background or manual).
         notifyNewUpdates()
+        syncDockBadge()
         Log.app.info("refresh done: \(self.updateCount, privacy: .public) updates, \(self.needsRestart.count, privacy: .public) need restart")
     }
 
@@ -1099,6 +1116,7 @@ final class AppListModel {
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         await refreshBackupIndex()
+        syncDockBadge()
     }
 
     /// Re-read a single app from disk and re-derive its row plus the restart/staging
@@ -2341,6 +2359,7 @@ final class AppListModel {
     func toggleIgnore(_ result: UpdateResult) {
         let nowIgnored = !prefs.isIgnored(result.app)
         prefs.setIgnored(nowIgnored, result.app)
+        syncDockBadge()
         Log.app.info("\(nowIgnored ? "ignore" : "unignore", privacy: .public): \(result.app.name, privacy: .public)")
     }
 
@@ -2348,6 +2367,7 @@ final class AppListModel {
     func skipThisVersion(_ result: UpdateResult) {
         guard let version = result.remote?.displayVersion else { return }
         prefs.skipVersion(version, result.app)
+        syncDockBadge()
         Log.app.info("skip \(version, privacy: .public): \(result.app.name, privacy: .public)")
     }
 

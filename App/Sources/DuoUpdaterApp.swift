@@ -1,8 +1,13 @@
 import SwiftUI
+import AppKit
 
 @main
 struct DuoUpdaterApp: App {
     @State private var model = AppListModel()
+
+    init() {
+        AppIcon.start()
+    }
 
     var body: some Scene {
         MenuBarExtra {
@@ -71,9 +76,16 @@ private struct MenuBarLabel: View {
         .task {
             // Runs once at launch. Show onboarding only the first time, then never
             // again (the user can re-open it from Settings).
-            guard !hasCompletedOnboarding else { return }
+            AppDockBadge.sync(count: model.badgeCount)
+            if hasCompletedOnboarding {
+                AppUpdater.shared.start()
+                return
+            }
             openWindow(id: WelcomeView.windowID)
             NSApp.activate(ignoringOtherApps: true)
+        }
+        .onChange(of: model.badgeCount) { _, count in
+            AppDockBadge.sync(count: count)
         }
     }
 }
@@ -90,6 +102,12 @@ private struct SettingsCommand: Commands {
                 model.surfaceWindow(sceneID: SettingsView.windowID)
             }
             .keyboardShortcut(",", modifiers: .command)
+        }
+        CommandGroup(after: .appInfo) {
+            Button("Check for DuoUpdater Updates…") {
+                AppUpdater.shared.checkForUpdates()
+            }
+            .disabled(!AppUpdater.shared.canCheckForUpdates)
         }
     }
 }

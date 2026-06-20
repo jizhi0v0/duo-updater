@@ -127,6 +127,8 @@ public struct GitHubReleasesSource: UpdateSource {
         var errorDescription: String? {
             switch self {
             case .badStatus(403), .badStatus(429):
+                // The phrase "rate limit" is the contract `UpdateStatus.isRateLimitError`
+                // matches on to drive the rate-limit UI nudges — keep it in the string.
                 return "GitHub rate limit reached — retry shortly"
             case .badStatus(let code):
                 return "GitHub returned HTTP \(code)"

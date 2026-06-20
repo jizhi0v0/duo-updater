@@ -4,6 +4,12 @@ import CoreServices
 /// Discovers installed `.app` bundles and reads the Info.plist metadata we
 /// need for update checks. Pure filesystem work — no network, no UI.
 public struct AppScanner: Sendable {
+    /// DuoUpdater updates itself through Sparkle now, via an app-level "Check for
+    /// Updates…" flow. Keeping it in the generic scanned-app list creates a
+    /// second, conflicting surface ("Restart", "Update") driven by filesystem /
+    /// LaunchServices heuristics that were never meant for the host app itself.
+    /// Exclude it from the managed-app inventory entirely.
+    private static let duoUpdaterBundleID = "com.duoupdater.app"
 
     /// Directories we look in. We deliberately skip `/System/Applications`:
     /// those ship with macOS and are updated by Software Update, not us.
@@ -172,6 +178,7 @@ public struct AppScanner: Sendable {
         // `Contents/_MASReceipt` there (that path can't exist).
         let bundleID = plist["CFBundleIdentifier"] as? String
         let buildVersion = plist["CFBundleVersion"] as? String
+        if bundleID == Self.duoUpdaterBundleID { return nil }
         let hasReceipt = !isiOSAppOnMac && fm.fileExists(
             atPath: bundleURL.appendingPathComponent("Contents/_MASReceipt/receipt").path)
         // Primary TestFlight signal: the receipt ENVIRONMENT. A TestFlight build
@@ -206,10 +213,26 @@ public struct AppScanner: Sendable {
         // runtime build "261.617" while Toolbox manages it as Public Preview
         // "261.474" — and the update comparison runs in the Public Preview line).
         // Aligning the display with Toolbox keeps the "from → to" coherent.
+        //
+        // EXCEPT Air/Fleet (no product code): their update is checked against the
+        // Sparkle feed in a 3-part BUILD namespace and the latest surfaces as a raw
+        // build (262.43.17). Showing the marketing `displayVersion` ("262.43 Public
+        // Preview" → "262.43") there makes the row read "262.43 → 262.43.17" — the
+        // installed patch (.15) vanishes and .17 reads as appended. Show the
+        // installed BUILD (262.43.15, from Toolbox `state.json`, already in the feed
+        // namespace) so from→to stay in one namespace: "262.43.15 → 262.43.17".
         let toolboxTool = toolbox.tool(forApp: bundleURL)
-        let displayShortVersion = toolboxTool
-            .map(\.displayVersion).flatMap { $0.isEmpty ? nil : $0 }
-            ?? Self.cleanedJetBrainsVersion(shortVersion, bundleID: bundleID)
+        let displayShortVersion: String = {
+            guard let tool = toolboxTool else {
+                return Self.cleanedJetBrainsVersion(shortVersion, bundleID: bundleID)
+            }
+            if tool.productCode == nil, !tool.installedBuild.isEmpty {
+                return tool.installedBuild
+            }
+            return tool.displayVersion.isEmpty
+                ? Self.cleanedJetBrainsVersion(shortVersion, bundleID: bundleID)
+                : tool.displayVersion
+        }()
 
         // Mozilla apps (Firefox/Thunderbird/forks) bake their channel into
         // `Contents/Resources/application.ini` as `RemotingName` (`firefox-esr`,

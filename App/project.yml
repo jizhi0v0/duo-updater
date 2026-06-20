@@ -8,6 +8,9 @@ options:
 packages:
   DuoUpdaterCore:
     path: ../DuoUpdaterCore
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.3
 
 targets:
   DuoUpdater:
@@ -20,19 +23,17 @@ targets:
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore
+      - package: Sparkle
+        product: Sparkle
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.app
-        MARKETING_VERSION: "0.1.1"
-        CURRENT_PROJECT_VERSION: "2"
-        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.1.2"
+        CURRENT_PROJECT_VERSION: "3"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Info.plist
         # Menu-bar-only app: no Dock icon, no main window.
-        INFOPLIST_KEY_LSUIElement: YES
-        # `restart` quits and relaunches the target app via an Apple event
-        # (NSRunningApplication.terminate); without this string the send is
-        # denied/crashes under the Automation TCC gate.
-        INFOPLIST_KEY_NSAppleEventsUsageDescription: "DuoUpdater quits and relaunches an app after updating it, so the new version takes effect."
         SWIFT_VERSION: "6.0"
         # Sign with a STABLE identity, not ad-hoc ("-"). macOS keys TCC grants
         # (App Management, Automation…) to the app's code identity; an ad-hoc

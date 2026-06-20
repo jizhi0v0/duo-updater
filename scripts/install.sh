@@ -39,6 +39,11 @@ xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
 
 [ -d "$PRODUCT" ] || die "build produced no app at $PRODUCT"
 
+say "Re-signing Sparkle helper tools"
+identity="$(codesign -dvv "$PRODUCT" 2>&1 | sed -n 's/^Authority=//p' | head -n 1)"
+[ -n "$identity" ] || die "could not determine signing identity from $PRODUCT"
+"$REPO/scripts/sign-sparkle-helpers.sh" "$PRODUCT" "$identity" none
+
 # --- Verification gate: refuse to ship an ad-hoc / wrong-identity binary. ---
 # An ad-hoc signature is exactly the regression this whole script guards against,
 # so fail loudly here rather than silently deploying something whose TCC grant
@@ -69,6 +74,17 @@ ditto "$PRODUCT" "$DEST"
 # Strip quarantine so Gatekeeper doesn't prompt on this locally-built,
 # un-notarized Developer ID app.
 xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
+
+# When we replace an existing app in place, Dock / LaunchServices can keep the
+# old icon registration around briefly — especially if the previous build was
+# first seen before its asset catalog or icns was in place. Touch the bundle and
+# re-register it so the system notices the fresh AppIcon metadata immediately.
+say "Refreshing app registration metadata"
+touch "$DEST" "$DEST/Contents/Info.plist" "$DEST/Contents/Resources/AppIcon.icns" 2>/dev/null || true
+lsregister="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+if [ -x "$lsregister" ]; then
+  "$lsregister" -f "$DEST" >/dev/null 2>&1 || true
+fi
 
 say "Relaunching"
 open "$DEST"

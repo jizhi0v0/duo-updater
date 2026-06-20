@@ -49,6 +49,11 @@ xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
 
 [ -d "$BUILD_APP" ] || die "build produced no app at $BUILD_APP"
 
+say "Re-signing Sparkle helper tools"
+identity="$(codesign -dvv "$BUILD_APP" 2>&1 | sed -n 's/^Authority=//p' | head -n 1)"
+[ -n "$identity" ] || die "could not determine signing identity from $BUILD_APP"
+"$REPO/scripts/sign-sparkle-helpers.sh" "$BUILD_APP" "$identity" yes
+
 say "Verifying signing prerequisites for notarization"
 sig="$(codesign -dvv "$BUILD_APP" 2>&1)"
 ents="$(codesign -d --entitlements :- "$BUILD_APP" 2>&1 || true)"

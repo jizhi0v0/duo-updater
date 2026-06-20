@@ -170,6 +170,18 @@ public enum UpdateStatus: Sendable, Equatable {
     case testFlightManaged
     /// A source was tried but failed (network, parse, etc.).
     case error(String)
+
+    /// True when an `.error` looks like GitHub's unauthenticated 60/hour rate
+    /// limit — the common transient when checking GitHub-sourced apps without a
+    /// token. Drives the inline "Rate-limited" row badge and the aggregate
+    /// "add a token" banner. Matches the message produced by
+    /// `GitHubReleasesSource.GitHubError` (kept in sync with that string).
+    public var isRateLimitError: Bool {
+        if case .error(let message) = self {
+            return message.localizedCaseInsensitiveContains("rate limit")
+        }
+        return false
+    }
 }
 
 /// The outcome of checking one installed app for updates.

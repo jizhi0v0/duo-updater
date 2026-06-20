@@ -171,6 +171,7 @@ struct WelcomeView: View {
             // capsule that brightens/refracts on hover and press.
             Button {
                 hasCompletedOnboarding = true
+                AppUpdater.shared.start()
                 dismiss()
             } label: {
                 Text("Get Started")
@@ -184,6 +185,7 @@ struct WelcomeView: View {
         } else {
             Button {
                 hasCompletedOnboarding = true
+                AppUpdater.shared.start()
                 dismiss()
             } label: {
                 Text("Get Started")

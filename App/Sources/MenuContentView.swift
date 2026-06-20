@@ -99,6 +99,10 @@ struct MenuContentView: View {
                 setupBanner
                 Divider()
             }
+            if showRateLimitBanner {
+                rateLimitBanner
+                Divider()
+            }
             // Only worth showing once the list is long enough to be hard to scan;
             // stays put while a query is active even if it filters down to a few.
             if model.results.count > 8 || isSearching {
@@ -200,6 +204,48 @@ struct MenuContentView: View {
                     Text("Accessibility needed").font(.caption).fontWeight(.medium)
                     Text("App Store updates need it — finish setup")
                         .font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(Color.orange.opacity(0.08))
+    }
+
+    /// How many rows failed this cycle with a GitHub rate-limit error.
+    private var rateLimitedCount: Int {
+        model.results.filter(\.status.isRateLimitError).count
+    }
+
+    /// Show the aggregate nudge only when several apps are rate-limited at once
+    /// and no token is configured. A single transient stays a per-row retry, but
+    /// a cluster means the unauthenticated 60/hour cap is biting and a token is
+    /// the real fix.
+    private var showRateLimitBanner: Bool {
+        !model.hasGitHubToken && rateLimitedCount >= 2
+    }
+
+    /// Aggregate counterpart to the per-row "Rate-limited" badge: one tap
+    /// deep-links to Settings → GitHub to add a token (60/hour → 5000/hour).
+    private var rateLimitBanner: some View {
+        Button {
+            model.requestedSettingsSection = .github
+            openWindow(id: SettingsView.windowID)
+            model.surfaceWindow(sceneID: SettingsView.windowID)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Hitting GitHub’s rate limit").font(.caption).fontWeight(.medium)
+                    Text("\(rateLimitedCount) apps couldn’t be checked — add a token")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
@@ -1093,15 +1139,23 @@ private struct AppRow: View {
     /// Unlike `.unknown`'s dead "—", this state is retryable, so it's a button:
     /// one click re-checks just this app. The tooltip carries the failure reason.
     private var errorBadge: some View {
-        Button { Task { await model.retry(result) } } label: {
-            Image(systemName: "arrow.clockwise")
+        HStack(spacing: 6) {
+            // Name the failure inline so a wall of orange retry buttons isn't
+            // indistinguishable — a rate-limit (the common no-token case) reads
+            // differently from a one-off network error without needing a hover.
+            Text(result.status.isRateLimitError ? "Rate-limited" : "Failed")
+                .font(.caption2)
+                .foregroundStyle(result.status.isRateLimitError ? Color.orange : Color.secondary)
+            Button { Task { await model.retry(result) } } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .tint(.orange)
+            .help(errorText.isEmpty
+                ? "Update check failed — click to retry"
+                : "\(errorText) — click to retry")
         }
-        .controlSize(.small)
-        .buttonStyle(.bordered)
-        .tint(.orange)
-        .help(errorText.isEmpty
-            ? "Update check failed — click to retry"
-            : "\(errorText) — click to retry")
     }
 
     private var errorText: String {

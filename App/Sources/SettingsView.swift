@@ -17,11 +17,12 @@ struct SettingsView: View {
     let model: AppListModel
 
     enum Section: String, CaseIterable, Identifiable {
-        case general, github, alcove, ignored, diagnostics
+        case general, updates, github, alcove, ignored, diagnostics
         var id: String { rawValue }
         var label: String {
             switch self {
             case .general:     return "General"
+            case .updates:     return "Updates"
             case .github:      return "GitHub"
             case .alcove:      return "Alcove"
             case .ignored:     return "Ignored"
@@ -31,6 +32,7 @@ struct SettingsView: View {
         var icon: String {
             switch self {
             case .general:     return "gearshape"
+            case .updates:     return "arrow.triangle.2.circlepath.circle"
             case .github:      return "key"
             case .alcove:      return "sparkles"
             case .ignored:     return "eye.slash"
@@ -80,6 +82,7 @@ struct SettingsView: View {
     private func detail(for section: Section) -> some View {
         switch section {
         case .general:     GeneralSettings(prefs: prefs, model: model)
+        case .updates:     UpdateSettings()
         case .github:      GitHubSettings(prefs: prefs)
         case .alcove:      AlcoveSettings(prefs: prefs)
         case .ignored:     IgnoredSettings(prefs: prefs, model: model)
@@ -166,6 +169,56 @@ private struct GeneralSettings: View {
                 GitHubToken.resolve(explicit: explicit) != nil
             }.value
         }
+    }
+}
+
+// MARK: - Updates
+
+private struct UpdateSettings: View {
+    private var currentVersionLine: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let shortVersion = (info["CFBundleShortVersionString"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let build = (info["CFBundleVersion"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch (shortVersion, build) {
+        case let (short?, build?) where !short.isEmpty && !build.isEmpty && short != build:
+            return "\(short) (\(build))"
+        case let (short?, _) where !short.isEmpty:
+            return short
+        case let (_, build?) where !build.isEmpty:
+            return build
+        default:
+            return "Unknown"
+        }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Current version") {
+                    Text(currentVersionLine)
+                        .textSelection(.enabled)
+                }
+            } footer: {
+                Text("Duo Updater updates itself separately from the managed app list, through Sparkle-signed direct downloads.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Button("Check for DuoUpdater updates…") {
+                    AppUpdater.shared.checkForUpdates()
+                }
+                .disabled(!AppUpdater.shared.canCheckForUpdates)
+            } footer: {
+                Text("Automatic checks are enabled too, but this button forces an immediate check.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

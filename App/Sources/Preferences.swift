@@ -49,14 +49,15 @@ final class Preferences {
             }
         }
 
-        /// True for sub-hourly cadences, where the unauthenticated GitHub rate
-        /// limit (60 req/hour/IP) can actually bite: each GitHub-mapped app costs
-        /// one request per cycle, so 12 cycles/hour (every 5 min) caps out at ~5
-        /// GitHub apps before 403s. Hourly and slower stay under the limit for any
-        /// realistic library, so only these warrant the "configure a token" nudge.
+        /// True only for the 5-minute cadence, where the unauthenticated GitHub
+        /// rate limit (60 req/hour/IP) can actually bite: each GitHub-mapped app
+        /// costs one request per cycle, so 12 cycles/hour caps out at ~5 GitHub
+        /// apps before 403s. Every 30 min is just 2 cycles/hour (~30 apps before
+        /// the cap — safe for any realistic library), and hourly/slower safer
+        /// still, so only the 5-min cadence warrants the "configure a token" nudge.
         var isHighFrequency: Bool {
             guard let interval else { return false }
-            return interval < 3600
+            return interval < 30 * 60
         }
     }
 

@@ -63,7 +63,7 @@ final class Preferences {
     /// How Mac App Store updates are applied.
     ///
     /// Both routes drive the store's own `storedownloadd`, so neither mixes
-    /// channels — they differ in dependency and bandwidth, hence a user choice:
+    /// channels — they differ in dependency and bandwidth:
     ///   • `.full` — the `mas` CLI replays the store purchase and redownloads the
     ///     whole app. No extra permission, but needs `mas` (brew) and more traffic.
     ///   • `.incremental` — drives App Store.app's own Update button via the
@@ -75,6 +75,12 @@ final class Preferences {
         case incremental
 
         var id: String { rawValue }
+
+        /// Release builds currently expose only the more predictable full-download
+        /// path. Keep the incremental case in the model so older defaults still
+        /// decode cleanly and the implementation can return later without a
+        /// migration.
+        static let availableCases: [Self] = [.full]
 
         var label: String {
             switch self {
@@ -282,8 +288,12 @@ final class Preferences {
         // Default ON for these two — both are opt-out conveniences.
         self.keepBackups = defaults.object(forKey: Key.keepBackups) as? Bool ?? true
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
-        self.appStoreUpdateStrategy = AppStoreUpdateStrategy(
+        let storedAppStoreStrategy = AppStoreUpdateStrategy(
             rawValue: defaults.string(forKey: Key.appStoreUpdateStrategy) ?? "") ?? .full
+        self.appStoreUpdateStrategy = storedAppStoreStrategy == .incremental ? .full : storedAppStoreStrategy
+        if storedAppStoreStrategy == .incremental {
+            defaults.set(AppStoreUpdateStrategy.full.rawValue, forKey: Key.appStoreUpdateStrategy)
+        }
         self.vendorInstallPolicy = VendorInstallPolicy(
             rawValue: defaults.string(forKey: Key.vendorInstallPolicy) ?? "") ?? .deferWhenRunning
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])

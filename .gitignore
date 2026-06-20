@@ -9,6 +9,7 @@ Package.resolved
 App/build/
 DuoUpdaterCore/build/
 DerivedData/
+dist/
 *.xcuserstate
 xcuserdata/
 

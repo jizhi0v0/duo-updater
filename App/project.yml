@@ -15,14 +15,17 @@ targets:
     platform: macOS
     sources:
       - Sources
+      - path: Resources
+        buildPhase: resources
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore
     settings:
       base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.app
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.1.1"
+        CURRENT_PROJECT_VERSION: "2"
         GENERATE_INFOPLIST_FILE: YES
         # Menu-bar-only app: no Dock icon, no main window.
         INFOPLIST_KEY_LSUIElement: YES
@@ -49,3 +52,14 @@ targets:
         # can never see its grant. (App Management is unaffected: it trips on a
         # filesystem EPERM, not an AX trust check.) Off → Accessibility works.
         ENABLE_DEBUG_DYLIB: NO
+      configs:
+        Release:
+          # Required for notarization. The app is not sandboxed and does not need
+          # any special hardened-runtime exceptions for its current behavior.
+          ENABLE_HARDENED_RUNTIME: YES
+          # Apple notarization requires a secure signing timestamp on the
+          # Developer ID signature, not just a local "Signed Time".
+          OTHER_CODE_SIGN_FLAGS: "--timestamp"
+          # Xcode's injected base entitlements include `get-task-allow`, which is
+          # fine for local development but invalid for notarized distribution.
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO

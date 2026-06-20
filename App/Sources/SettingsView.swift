@@ -138,17 +138,12 @@ private struct GeneralSettings: View {
             }
             Section {
                 Picker("App Store updates", selection: $prefs.appStoreUpdateStrategy) {
-                    ForEach(Preferences.AppStoreUpdateStrategy.allCases) { strategy in
+                    ForEach(Preferences.AppStoreUpdateStrategy.availableCases) { strategy in
                         Text(strategy.label).tag(strategy)
                     }
                 }
-                .onChange(of: prefs.appStoreUpdateStrategy) { _, new in
-                    // Opting into the AX route needs Accessibility — guide the user
-                    // there now instead of failing the first update silently.
-                    if new == .incremental { model.guideAccessibilityForIncrementalIfNeeded() }
-                }
             } footer: {
-                Text("Full uses the mas tool to redownload the whole app — no extra permission. Incremental drives the App Store’s own Update button for a smaller delta download, but needs Accessibility access (you’ll be guided to grant it).")
+                Text("Mac App Store updates currently use the full-download route via mas. It’s the more predictable option for release builds and doesn’t require Accessibility access.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
@@ -732,16 +727,6 @@ private struct DiagnosticsSettings: View {
     var body: some View {
         Form {
             Section {
-                // Accessibility has a live status, so show it rather than a bare
-                // button — it flips to "Granted" the moment the user toggles it.
-                LabeledContent("Accessibility") {
-                    if model.accessibilityTrusted {
-                        Label("Granted", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green).labelStyle(.titleAndIcon)
-                    } else {
-                        Button("Grant…") { model.presentAccessibilityPermissionFlow() }
-                    }
-                }
                 // App Management has no *public* status API, but the private
                 // TCCAccessPreflight SPI lets us read it — show a real check when granted.
                 LabeledContent("App Management") {
@@ -757,7 +742,7 @@ private struct DiagnosticsSettings: View {
             } header: {
                 Text("Permissions")
             } footer: {
-                Text("Accessibility drives incremental App Store updates (pressing Update for you). App Management lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). Neither can be requested programmatically — each opens System Settings with a panel you drag DuoUpdater into.\n\nGranting through that panel doesn't trigger the system's usual “Quit & Reopen”, so a fresh grant may not take effect until DuoUpdater restarts. Use Relaunch above after granting.")
+                Text("App Management lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS can’t grant it programmatically — the button opens System Settings with a panel you drag DuoUpdater into.\n\nGranting through that panel doesn’t trigger the system’s usual “Quit & Reopen”, so a fresh grant may not take effect until DuoUpdater restarts. Use Relaunch above after granting.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {

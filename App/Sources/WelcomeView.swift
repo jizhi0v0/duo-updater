@@ -2,8 +2,8 @@ import SwiftUI
 import AppKit
 import DuoUpdaterCore
 
-/// First-run onboarding. Surfaces the two macOS permissions Duo Updater needs *before*
-/// they block an update mid-flight, so the user grants them deliberately instead of
+/// First-run onboarding. Surfaces the macOS permission Duo Updater needs *before*
+/// it blocks an update mid-flight, so the user grants it deliberately instead of
 /// being interrupted by a system prompt the first time they hit Update.
 ///
 /// Styled like the macOS setup assistant: a chromeless, translucent (frosted-glass)
@@ -11,9 +11,7 @@ import DuoUpdaterCore
 /// and primary button use real **Liquid Glass** (`.glassEffect` / `.glassProminent`);
 /// earlier systems fall back to `ultraThinMaterial`, so it degrades cleanly.
 ///
-/// The two permissions are asymmetric and the UI reflects that honestly:
-///   • **Accessibility** has a status API (`AXIsProcessTrusted()`) — polled while open,
-///     so the card flips to "Granted ✓" the instant the user toggles it.
+/// The permissions are asymmetric and the UI reflects that honestly:
 ///   • **App Management** has no *public* status API; we read it via the private
 ///     `TCCAccessPreflight` SPI (`appManagementStatus`). When that SPI is unavailable we
 ///     fall back to an honest "can't verify — grant to be safe" presentation.
@@ -131,13 +129,6 @@ struct WelcomeView: View {
     @ViewBuilder
     private var cards: some View {
         let stack = VStack(spacing: 14) {
-            PermissionCard(
-                systemImage: "accessibility",
-                title: "Accessibility",
-                detail: "Lets Duo Updater press App Store’s Update button for silent, incremental (delta) updates — no full re-download, and no separate “mas” tool.",
-                status: model.accessibilityTrusted ? .granted : .needed,
-                action: { model.presentAccessibilityPermissionFlow() }
-            )
             PermissionCard(
                 systemImage: "shippingbox",
                 title: "App Management",
@@ -342,4 +333,3 @@ private struct GlassTile: ViewModifier {
         }
     }
 }
-

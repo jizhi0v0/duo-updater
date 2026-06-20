@@ -72,3 +72,26 @@ invalidates the grant; the Developer ID identity is stable, so a grant given onc
 survives all future rebuilds. The script refuses to deploy an ad-hoc binary. After
 the first install, add the app to **Full Disk Access** once (System Settings →
 Privacy & Security) — the script prints the reminder.
+
+### Public distribution
+
+The source repo can stay private. Public binaries are published to the separate
+release-only repo [`jizhi0v0/duo-updater-releases`](https://github.com/jizhi0v0/duo-updater-releases),
+which contains notarized `.zip` artifacts and release notes, but no source code.
+
+```sh
+# One-time local setup
+xcrun notarytool store-credentials "duoupdater-notary" \
+  --apple-id "YOUR_APPLE_ID" \
+  --team-id "RS59HDH7Y3" \
+  --password "YOUR_APP_SPECIFIC_PASSWORD"
+
+# Build + notarize + publish a GitHub Release to the public repo
+NOTARYTOOL_PROFILE=duoupdater-notary make release
+```
+
+Useful overrides:
+
+- `RELEASE_REPO=jizhi0v0/duo-updater-releases` to target a different binary repo
+- `TAG=v0.1.0` / `TITLE="DuoUpdater 0.1.0"` to override the generated release name
+- `RELEASE_NOTES_FILE=/path/to/notes.md` to publish custom notes

@@ -29,8 +29,8 @@ targets:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.app
-        MARKETING_VERSION: "0.1.2"
-        CURRENT_PROJECT_VERSION: "3"
+        MARKETING_VERSION: "0.1.3"
+        CURRENT_PROJECT_VERSION: "4"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Info.plist
         # Menu-bar-only app: no Dock icon, no main window.

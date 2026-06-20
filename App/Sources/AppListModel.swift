@@ -352,7 +352,10 @@ final class AppListModel {
         AppIcon.applyIfAvailable()
         syncDockBadge()
         AppDockBadge.syncSoon(count: badgeCount)
-        NSApp.activate(ignoringOtherApps: true)
+        // Only steal focus when bringing the app up from no windows. A second
+        // window opened while another is up relies on `surfaceWindow` to come
+        // forward — activating here too would race that and yank focus needlessly.
+        if openWindowCount == 1 { NSApp.activate(ignoringOtherApps: true) }
     }
 
     /// Call from a window's `.onDisappear`: drop the count, return to .accessory

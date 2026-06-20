@@ -1012,6 +1012,10 @@ private struct ChangelogEntriesView: View {
     let changelog: Changelog
     @AppStorage("changelogLayout") private var layout: ChangelogLayout = .columns
     @State private var selection = 0
+    /// Cached rail width. The measurement below runs AppKit text sizing over every
+    /// entry plus a sort — pure function of the immutable `changelog`, so it's
+    /// computed once (`.onAppear` / on changelog change) rather than every render.
+    @State private var cachedRailWidth: CGFloat = 200
 
     /// Content-driven rail width. For each row take the wider of its two lines — the
     /// title/version (callout) and the date subtitle (caption2) — since a short
@@ -1021,7 +1025,7 @@ private struct ChangelogEntriesView: View {
     /// 85th percentile fits the great majority; the upper clamp caps a lone runaway
     /// title (and the lower clamp keeps a terse changelog from getting cramped).
     /// Measured with AppKit since the labels are known up front — no GeometryReader.
-    private var railWidth: CGFloat {
+    private static func railWidth(for changelog: Changelog) -> CGFloat {
         let labelFont = NSFont.preferredFont(forTextStyle: .callout)
         let dateFont = NSFont.preferredFont(forTextStyle: .caption2)
         let rowWidths = changelog.entries
@@ -1078,8 +1082,13 @@ private struct ChangelogEntriesView: View {
                 case .list:    listBody
                 }
             }
-            // New changelog (app switch) → select the newest entry again.
-            .onChange(of: changelog) { selection = 0 }
+            // New changelog (app switch) → select the newest entry again, and
+            // re-measure the rail (its width depends only on the changelog).
+            .onChange(of: changelog) {
+                selection = 0
+                cachedRailWidth = Self.railWidth(for: changelog)
+            }
+            .onAppear { cachedRailWidth = Self.railWidth(for: changelog) }
         }
     }
 
@@ -1090,7 +1099,7 @@ private struct ChangelogEntriesView: View {
         let index = min(max(selection, 0), changelog.entries.count - 1)
         return HStack(spacing: 0) {
             ChangelogVersionList(entries: changelog.entries, selection: $selection)
-                .frame(width: railWidth)
+                .frame(width: cachedRailWidth)
             Divider()
             ScrollView {
                 ChangelogEntryView(entry: changelog.entries[index])
@@ -1365,13 +1374,30 @@ private struct ReleaseNotesText: View {
     let text: String
     let format: Format
 
-    var body: some View {
-        Text(attributed)
-            .textSelection(.enabled)
-            .tint(.accentColor)
+    // Parse once per `text` (via `.task(id:)`), not on every body pass: the .html
+    // path runs NSAttributedString's WebKit-backed parser, and re-running it each
+    // render was a UI-freeze source. Seeded with the plain text so the view never
+    // renders blank before the parse lands.
+    @State private var rendered: AttributedString
+
+    init(text: String, format: Format) {
+        self.text = text
+        self.format = format
+        _rendered = State(initialValue: AttributedString(text))
     }
 
-    private var attributed: AttributedString {
+    var body: some View {
+        Text(rendered)
+            .textSelection(.enabled)
+            .tint(.accentColor)
+            .task(id: text) { rendered = Self.parse(text, format: format) }
+    }
+
+    /// NSAttributedString's HTML parser is documented main-thread-only, so this
+    /// stays on the MainActor — the fix is that it now runs once per `text` change
+    /// instead of on every render, which is the actual cost.
+    @MainActor
+    private static func parse(_ text: String, format: Format) -> AttributedString {
         let start = Date()
         defer {
             let ms = Date().timeIntervalSince(start) * 1000

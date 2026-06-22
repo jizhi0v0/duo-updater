@@ -18,6 +18,10 @@ public extension URLSession {
     ///   on standard HTTP caching (`ETag`/`If-None-Match`, `Cache-Control:
     ///   max-age`) — Sparkle appcast feeds, the 5 MB Homebrew Cask catalog, and
     ///   GitHub's `/releases/latest` endpoint all send reuse-friendly headers.
+    ///   Caveat: `max-age` freshness alone is *not* trusted for version feeds —
+    ///   `SparkleAppcastSource` forces `.reloadRevalidatingCacheData` per request
+    ///   because some vendor CDNs stamp a feed with a decade-long `max-age`, which
+    ///   would otherwise pin us to a stale appcast forever (see the note there).
     ///   `ChangelogService` also uses this session, and changelog pages (GitHub
     ///   Releases HTML, Homebrew formula pages) can be 1–2 MB each — 16 MB
     ///   keeps several pages in memory without evicting update-check responses.

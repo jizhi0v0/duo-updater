@@ -126,9 +126,10 @@ private struct GeneralSettings: View {
             }
             Section {
                 Toggle("Notify me when updates are found", isOn: $prefs.notifyOnUpdates)
+                Toggle("Restart updated apps automatically", isOn: $prefs.autoRestartAfterUpdate)
                 Toggle("Keep a backup so updates can be rolled back", isOn: $prefs.keepBackups)
             } footer: {
-                Text("Backups keep one previous version of each app under Application Support, so an update can be undone.")
+                Text("After updating a running app, restart it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won't quit just keeps its “Restart” button.\n\nBackups keep one previous version of each app under Application Support, so an update can be undone.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {

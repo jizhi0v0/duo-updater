@@ -21,6 +21,18 @@ public struct SparkleAppcastSource: UpdateSource {
 
         var request = URLRequest(url: feedURL)
         request.timeoutInterval = 15
+        // Always revalidate the appcast against the origin — never serve it from
+        // the shared `URLCache` on max-age freshness alone. Some vendor CDNs stamp
+        // a static feed with an absurd `Cache-Control: max-age` (Fork's fork.dev
+        // sends ~10 years + `Expires: 2037`): under the default `.useProtocolCache`
+        // policy the cached copy stays "fresh" effectively forever, so once we'd
+        // fetched it we'd replay that stale feed and never see a new release — the
+        // exact reason Fork 2.68.0 went undetected. `.reloadRevalidatingCacheData`
+        // ignores freshness and sends a conditional GET (If-None-Match /
+        // If-Modified-Since from the cached ETag/Last-Modified): unchanged → cheap
+        // 304 served from cache, changed → 200 with the new feed. So we keep the
+        // bandwidth win on quiet feeds without ever going blind to an update.
+        request.cachePolicy = .reloadRevalidatingCacheData
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
         // Header-keyed apps (TablePlus) share one appcast across channels and let
         // a request header pick which builds the server returns. See `ChannelBinding`.

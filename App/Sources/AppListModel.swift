@@ -280,6 +280,12 @@ final class AppListModel {
     /// it on appear/change, so the window lands on that tab instead of General.
     var requestedSettingsSection: SettingsView.Section?
 
+    /// An app the workbench should jump to — set by the menu-bar row's "Changelog"
+    /// item (the result `id`, i.e. the app path) before it opens the workbench.
+    /// `WorkbenchWindowView` consumes and clears it on appear/change, selecting that
+    /// app in the sidebar instead of defaulting to the first row.
+    var requestedWorkbenchAppID: String?
+
     /// Whether a GitHub token resolved (explicit, env, or `gh` login) the last
     /// time the source stack was built. Drives the aggregate rate-limit banner:
     /// false + several rate-limited rows ⇒ nudge the user to add a token. Stays
@@ -1025,8 +1031,21 @@ final class AppListModel {
         if actionableStaged(result) != nil { return false }
         switch result.remote?.sourceName {
         case "Sparkle":
-            return result.app.sparkleEdPublicKey?.isEmpty == false
-                && result.remote?.edSignature != nil
+            // Signed feed: the full EdDSA path — needs both the app's SUPublicEDKey
+            // and a signature in the item.
+            if result.app.sparkleEdPublicKey?.isEmpty == false {
+                return result.remote?.edSignature != nil
+            }
+            // Unsigned feed (no SUPublicEDKey, e.g. Fork): best-effort one-click.
+            // `SparkleInstaller` gates the download on code signature + same Team +
+            // same bundle id instead of EdDSA (identical to Vendor/GitHub). Offer it
+            // only when the enclosure is an archive we can extract and swap in place
+            // — a `.pkg` is a system-installer payload, not an in-place archive, and
+            // a missing URL leaves nothing to install.
+            let ext = result.remote?.downloadURL?.pathExtension.lowercased()
+            return ext.map {
+                ["dmg", "zip", "gz", "bz2", "xz", "tar", "tbz", "tgz", "app"].contains($0)
+            } ?? false
         case "Homebrew":
             return result.remote?.sourceIdentifier != nil
                 && result.remote?.requiresManualInstaller == false
@@ -1677,6 +1696,15 @@ final class AppListModel {
             if needsRestart.contains(updated.id) {
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
                 if notify { UpdateNotifier.readyToRestart(app: updated.app.name, version: version, appID: updated.app.bundleID) }
+                // Finish the job the user started: a one-click Update shouldn't leave
+                // a second "Restart" click dangling. Auto-restart unless the user
+                // opted out. In a batch we skip here and let `installAll` restart the
+                // whole set once at the end (so parallel installs don't quit apps out
+                // from under each other mid-run). `restart()` is graceful — it honors
+                // save prompts and leaves the badge if the app won't quit.
+                if prefs.autoRestartAfterUpdate, !deferBookkeeping {
+                    await restart(updated)
+                }
             } else {
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
@@ -2403,6 +2431,18 @@ final class AppListModel {
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         await refreshBackupIndex()
+        // Auto-restart the apps this batch just updated and left awaiting a restart,
+        // so "Update All" doesn't leave a pile of "Restart" buttons (the per-app
+        // path defers to here in a batch). Only the apps we actually touched — not
+        // a pre-existing badge from some background self-update — and graceful, the
+        // same as the single-app flow. Done after the shared sweep above so
+        // `needsRestart` is current.
+        if prefs.autoRestartAfterUpdate {
+            for target in targets where needsRestart.contains(target.id) {
+                if Task.isCancelled { break }
+                await restart(target)
+            }
+        }
         if prefs.notifyOnUpdates && installed > 0 {
             UpdateNotifier.batchUpdated(count: installed)
         }

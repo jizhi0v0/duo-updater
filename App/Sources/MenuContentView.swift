@@ -462,6 +462,7 @@ struct MenuContentView: View {
 private struct AppRow: View {
     let result: UpdateResult
     @Bindable var model: AppListModel
+    @Environment(\.openWindow) private var openWindow
     @State private var showRegionHint = false
     @State private var showMajorWarning = false
     @State private var showMacCompatHint = false
@@ -505,10 +506,14 @@ private struct AppRow: View {
         .contextMenu { rowMenu }
     }
 
-    /// Right-click actions: skip the offered version, ignore the app, and (when a
-    /// backup exists) roll back to the previous version.
+    /// Right-click actions: launch the app, jump to its changelog in the workbench,
+    /// skip the offered version, ignore the app, and (when a backup exists) roll
+    /// back to the previous version.
     @ViewBuilder
     private var rowMenu: some View {
+        Button("Open") { NSWorkspace.shared.open(result.app.path) }
+        Button("Changelog") { openChangelog() }
+        Divider()
         if result.hasUpdate {
             let offered = result.remote?.displayVersion ?? "this version"
             if model.prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) {
@@ -553,6 +558,15 @@ private struct AppRow: View {
 
     private func openAppStorePage() {
         if let url = appStorePageURL { NSWorkspace.shared.open(url) }
+    }
+
+    /// Open the workbench and select this app, so its changelog is showing. Mirrors
+    /// the Settings deep-link pattern: set the target on the model first, then open
+    /// and surface the window (`WorkbenchWindowView` consumes the target on appear).
+    private func openChangelog() {
+        model.requestedWorkbenchAppID = result.id
+        openWindow(id: WorkbenchWindowView.windowID)
+        model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
     }
 
     @ViewBuilder

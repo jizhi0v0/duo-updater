@@ -127,6 +127,7 @@ final class Preferences {
         static let maxConcurrency = "MaxConcurrency"
         static let keepBackups = "KeepBackups"
         static let notifyOnUpdates = "NotifyOnUpdates"
+        static let autoRestartAfterUpdate = "AutoRestartAfterUpdate"
         static let appStoreUpdateStrategy = "AppStoreUpdateStrategy"
         static let vendorInstallPolicy = "VendorInstallPolicy"
         static let ignoredKeys = "IgnoredApps"
@@ -211,6 +212,15 @@ final class Preferences {
         didSet { defaults.set(notifyOnUpdates, forKey: Key.notifyOnUpdates) }
     }
 
+    /// After an in-place install of a *running* app, automatically quit and
+    /// relaunch it so the new version takes effect — instead of leaving a "Restart"
+    /// badge for a second click. Uses the same graceful quit as the manual button
+    /// (honors save prompts; a refused/blocked quit just leaves the badge), so it
+    /// never force-kills or loses unsaved work. Default ON — an opt-out convenience.
+    var autoRestartAfterUpdate: Bool {
+        didSet { defaults.set(autoRestartAfterUpdate, forKey: Key.autoRestartAfterUpdate) }
+    }
+
     /// Which route to use for Mac App Store updates. See `AppStoreUpdateStrategy`.
     var appStoreUpdateStrategy: AppStoreUpdateStrategy {
         didSet { defaults.set(appStoreUpdateStrategy.rawValue, forKey: Key.appStoreUpdateStrategy) }
@@ -286,9 +296,10 @@ final class Preferences {
         self.launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)
         let storedConcurrency = defaults.integer(forKey: Key.maxConcurrency)
         self.maxConcurrency = storedConcurrency == 0 ? 12 : min(32, max(1, storedConcurrency))
-        // Default ON for these two — both are opt-out conveniences.
+        // Default ON for these — all opt-out conveniences.
         self.keepBackups = defaults.object(forKey: Key.keepBackups) as? Bool ?? true
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
+        self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         let storedAppStoreStrategy = AppStoreUpdateStrategy(
             rawValue: defaults.string(forKey: Key.appStoreUpdateStrategy) ?? "") ?? .full
         self.appStoreUpdateStrategy = storedAppStoreStrategy == .incremental ? .full : storedAppStoreStrategy

@@ -37,15 +37,12 @@ public actor SparkleInstaller {
 
     public enum InstallError: LocalizedError {
         case notSparkleUpdate
-        case noPublicKey
         case noDownloadURL
 
         public var errorDescription: String? {
             switch self {
             case .notSparkleUpdate:
                 return "This update did not come from a Sparkle feed."
-            case .noPublicKey:
-                return "The app has no SUPublicEDKey, so the download can't be verified. Update it manually."
             case .noDownloadURL:
                 return "The update has no download URL."
             }
@@ -62,12 +59,22 @@ public actor SparkleInstaller {
         guard let remote = result.remote, remote.sourceName == "Sparkle" else {
             throw InstallError.notSparkleUpdate
         }
-        guard let publicKey = result.app.sparkleEdPublicKey, !publicKey.isEmpty else {
-            throw InstallError.noPublicKey
-        }
         guard let downloadURL = remote.downloadURL else {
             throw InstallError.noDownloadURL
         }
+        // EdDSA is verified only when the app ships an `SUPublicEDKey` — the
+        // normal, strongly-signed Sparkle feed. Some vendors publish an UNSIGNED
+        // feed (no `SUPublicEDKey` in the bundle, no `sparkle:edSignature` in the
+        // appcast — e.g. Fork) and lean on HTTPS plus the download's own Developer
+        // ID code signature for authenticity. For those we fall back to the SAME
+        // best-effort gate the Vendor/GitHub paths use: code signature valid +
+        // same Team ID + same bundle id as installed (Gates 2/3/4 below), which
+        // fails closed, so an app we can't verify that way is simply not installed.
+        // We only skip EdDSA when there's NO key at all — a feed that ships a key
+        // must still produce a signature (a key'd feed silently dropping its
+        // signature is suspicious), so `verifyEdSignature` stays mandatory there.
+        let publicKey = result.app.sparkleEdPublicKey
+        let verifiesWithEdDSA = !(publicKey?.isEmpty ?? true)
 
         // Scratch dir we own and clean up no matter what.
         let workDir = FileManager.default.temporaryDirectory
@@ -83,14 +90,18 @@ public actor SparkleInstaller {
         let archive = try await downloader.download(downloadURL)
         let bytesDownloaded = downloader.bytesDownloaded
 
-        // 2. Gate 1 — EdDSA signature over the exact bytes we downloaded
-        onStage(.verifyingSignature)
-        let fileData = try Data(contentsOf: archive, options: .mappedIfSafe)
-        try SignatureVerifier.verifyEdSignature(
-            fileData: fileData,
-            signatureBase64: remote.edSignature,
-            publicKeyBase64: publicKey
-        )
+        // 2. Gate 1 — EdDSA signature over the exact bytes we downloaded. Skipped
+        // for an unsigned feed (no key); the code-signature + Team gate below then
+        // carries the trust on its own. See the note above.
+        if verifiesWithEdDSA {
+            onStage(.verifyingSignature)
+            let fileData = try Data(contentsOf: archive, options: .mappedIfSafe)
+            try SignatureVerifier.verifyEdSignature(
+                fileData: fileData,
+                signatureBase64: remote.edSignature,
+                publicKeyBase64: publicKey!
+            )
+        }
 
         // 3. Extract the .app
         onStage(.extracting)

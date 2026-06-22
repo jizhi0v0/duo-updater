@@ -155,6 +155,11 @@ struct WorkbenchWindowView: View {
             }
         }
         .task {
+            // A "Changelog" deep-link from the menu row lands instantly, before the
+            // (possibly networked) refresh below — the row already exists in
+            // `model.results`, so the detail can render right away.
+            let hadRequest = model.requestedWorkbenchAppID != nil
+            if hadRequest { applyRequestedApp() }
             // First open with no data: full (networked) check. Otherwise, if no
             // user-present check has read TestFlight yet this launch, run one full
             // refresh (the natural moment to surface the TCC prompt); past that a
@@ -166,7 +171,7 @@ struct WorkbenchWindowView: View {
             } else {
                 await model.refreshLocal()
             }
-            if selection == nil {
+            if !hadRequest && selection == nil {
                 selection = apps.first?.id
                 detailSelection = selection   // first show is immediate, no debounce
             }
@@ -204,6 +209,21 @@ struct WorkbenchWindowView: View {
                 detailSelection = newValue
             }
         }
+        // A "Changelog" deep-link arriving while the window is already open — the
+        // `.task` above only fires on a fresh open, so catch the in-flight case here.
+        .onChange(of: model.requestedWorkbenchAppID) { applyRequestedApp() }
+    }
+
+    /// Honor a pending "Changelog" deep-link to a specific app, then clear it so the
+    /// selection isn't forced again on the next open. Bypasses the arrow-key debounce
+    /// (sets `detailSelection` directly) — a deliberate jump should land instantly —
+    /// and forces the Release Notes lens so it opens on the changelog, not Traffic.
+    private func applyRequestedApp() {
+        guard let id = model.requestedWorkbenchAppID else { return }
+        model.requestedWorkbenchAppID = nil
+        mode = .releaseNotes
+        selection = id
+        detailSelection = id
     }
 
     // MARK: - Sidebar

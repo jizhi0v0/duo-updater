@@ -5,10 +5,6 @@ import AppKit
 struct DuoUpdaterApp: App {
     @State private var model = AppListModel()
 
-    init() {
-        AppIcon.start()
-    }
-
     var body: some Scene {
         MenuBarExtra {
             MenuContentView(model: model)
@@ -76,7 +72,7 @@ private struct MenuBarLabel: View {
         .task {
             // Runs once at launch. Show onboarding only the first time, then never
             // again (the user can re-open it from Settings).
-            AppDockBadge.sync(count: model.badgeCount)
+            AppDockBadge.syncSoon(count: model.badgeCount)
             if hasCompletedOnboarding {
                 AppUpdater.shared.start()
                 return
@@ -86,6 +82,7 @@ private struct MenuBarLabel: View {
         }
         .onChange(of: model.badgeCount) { _, count in
             AppDockBadge.sync(count: count)
+            AppDockBadge.syncSoon(count: count)
         }
     }
 }

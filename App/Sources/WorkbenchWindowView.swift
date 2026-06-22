@@ -44,9 +44,14 @@ struct WorkbenchWindowView: View {
     /// Sidebar filter text. Empty shows every app; otherwise the list narrows to
     /// apps whose name (or bundle id) contains the query, case/diacritic-insensitively.
     @State private var searchText = ""
-    /// Collapsed/expanded state for the two sidebar trees. Both open by default.
+    /// Collapsed/expanded state for the sidebar trees. All open by default.
     @State private var appsExpanded = true
     @State private var brewExpanded = true
+    /// The Rollback section (apps with a restorable backup) — its own collapse state.
+    /// Collapsed by default: it's a recovery surface that can list many apps, so the
+    /// always-visible header (with its count pill) is the discovery cue, and expanding
+    /// it is opt-in rather than permanently crowding the Apps tree above.
+    @State private var rollbackExpanded = false
 
     /// Negative top padding that cancels the top inset VSplitView adds to each pane's
     /// sidebar list (see `splitRegion`). Measured at 10pt; kept as one constant so the
@@ -83,6 +88,30 @@ struct WorkbenchWindowView: View {
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
             return lhs.app.name.localizedCaseInsensitiveCompare(rhs.app.name) == .orderedAscending
         }
+    }
+
+    /// Apps that have a restorable backup on disk — the ones the user can roll back
+    /// to a prior version. Drawn from `model.backupVersions` (the on-disk backup index)
+    /// rather than the install pipeline, so a just-updated app shows up here even
+    /// though it no longer has a *pending* update. A no-op rollback is filtered out:
+    /// once the on-disk version already matches the backup (e.g. right after a
+    /// rollback), there's nothing left to undo, so the row drops away on its own.
+    private var rollbackableApps: [UpdateResult] {
+        model.results
+            .filter { result in
+                guard let backup = model.backupVersion(result.id) else { return false }
+                return result.app.shortVersion != backup
+            }
+            .sorted { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }
+    }
+
+    /// Whether to show the Rollback section at all — hidden when nothing is restorable.
+    private var hasRollback: Bool { !rollbackableApps.isEmpty }
+
+    /// Content-fitting height for the (bottom-pinned) Rollback list, capped so a long
+    /// list scrolls internally instead of crowding out the Apps tree above it.
+    private var rollbackListHeight: CGFloat {
+        min(CGFloat(rollbackableApps.count) * 34 + 12, 240)
     }
 
     /// `apps` narrowed by the search field. A blank query passes everything through;
@@ -189,10 +218,8 @@ struct WorkbenchWindowView: View {
             guard scenePhase != .background else { return }
             Task { await model.refreshLocal() }
         }
-        // Menu-bar (.accessory) app: promote to .regular while any window is open
-        // — Dock icon, app menu, ⌘-Tab — then drop back when the last one closes.
-        // The model ref-counts open windows so the workbench and the Settings
-        // window don't fight over the policy.
+        // Keep lifecycle bookkeeping in the model so focus/badge refresh behavior
+        // matches the other top-level windows.
         .onAppear { model.windowAppeared() }
         .onDisappear { model.windowDisappeared() }
         // Debounce the detail pane: the sidebar highlight (`selection`) follows the
@@ -295,6 +322,16 @@ struct WorkbenchWindowView: View {
             // headers vertically, floating them in the middle with empty space above.
             splitRegion
                 .frame(maxHeight: .infinity, alignment: .top)
+
+            // Rollback pinned to the bottom, below the Apps/Brew split (so it never
+            // disturbs that draggable divider). Only shown when something is
+            // restorable; the always-visible header is the discovery surface for
+            // apps that have already updated and dropped out of the lists above.
+            if hasRollback {
+                Divider()
+                rollbackHeader
+                if rollbackExpanded { rollbackListView }
+            }
         }
     }
 
@@ -308,6 +345,28 @@ struct WorkbenchWindowView: View {
                       count: brewItemCount, expanded: $brewExpanded) {
             brewBulkUpgrade
         }
+    }
+
+    private var rollbackHeader: some View {
+        sectionHeader("Rollback", systemImage: "arrow.uturn.backward",
+                      count: rollbackableApps.count, expanded: $rollbackExpanded)
+    }
+
+    /// The Rollback list: every app with a backup we can restore, each with an inline
+    /// "Roll back to vX" action. Reuses `$selection`, so clicking a row also opens that
+    /// app's changelog in the detail pane — useful context before undoing an update.
+    private var rollbackListView: some View {
+        List(selection: $selection) {
+            ForEach(rollbackableApps) { result in
+                WorkbenchRollbackRow(
+                    result: result,
+                    target: model.backupVersion(result.id) ?? "previous",
+                    model: model)
+                    .tag(result.id)
+            }
+        }
+        .listStyle(.sidebar)
+        .frame(height: rollbackListHeight)
     }
 
     /// Bulk "Upgrade All" for the Brew tree — runs `brew upgrade --formula` (all
@@ -708,6 +767,51 @@ private struct WorkbenchSidebarRow: View {
             Text("v\(result.app.shortVersion ?? "?")")
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
+    }
+}
+
+// MARK: - Rollback row
+
+/// One row in the Rollback section: an app with a restorable backup, plus an inline
+/// "Roll back" action. Rollback reuses the install pipeline's per-row state, so the
+/// in-flight spinner and inline error read off `installing`/`installErrors` exactly
+/// like an install does (and the model's own guard stops a rollback from racing one).
+private struct WorkbenchRollbackRow: View {
+    let result: UpdateResult
+    /// The version the backup restores to; "previous" when its marketing version
+    /// wasn't recorded.
+    let target: String
+    @Bindable var model: AppListModel
+
+    private var inFlight: Bool { model.installing[result.id] != nil }
+    private var error: String? { model.installErrors[result.id] }
+    private var targetLabel: String { target == "previous" ? "previous version" : "v\(target)" }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(nsImage: AppIconCache.icon(for: result.app.path.path))
+                .resizable().frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(result.app.name).font(.body).lineLimit(1)
+                if let error {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                        .lineLimit(1).truncationMode(.middle)
+                } else {
+                    Text("v\(result.app.shortVersion ?? "?") → \(targetLabel)")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer()
+            if inFlight {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("Roll back") { Task { await model.rollback(result) } }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .help("Restore \(result.app.name) \(targetLabel) from the backup taken before its last update")
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 

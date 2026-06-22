@@ -72,7 +72,13 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
             options: [])
         center.setNotificationCategories([category, selfUpdate])
 
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        // `.badge` is required even though we never badge via UNUserNotificationCenter:
+        // requesting authorization WITHOUT it makes the system deny badge permission for
+        // the app (Settings ▸ Notifications shows no "Badges" toggle), which silently
+        // suppresses the Dock badge set via `NSApp.dockTile.badgeLabel`. An app that never
+        // calls requestAuthorization isn't gated this way — which is why this only bit us
+        // once notifications were wired up.
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
     // MARK: - UNUserNotificationCenterDelegate

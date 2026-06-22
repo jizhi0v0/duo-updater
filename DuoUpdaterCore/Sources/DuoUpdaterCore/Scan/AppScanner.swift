@@ -15,6 +15,28 @@ public struct AppScanner: Sendable {
     /// those ship with macOS and are updated by Software Update, not us.
     public let locations: [URL]
 
+    /// The built-in scan roots. Exposed `static` so the UI can show what's already
+    /// covered (and dedupe user-added folders against it) and the FS watcher can
+    /// watch the same set, without duplicating the list.
+    ///
+    /// We deliberately skip `/System/Applications`. Input methods install as `.app`
+    /// bundles OUTSIDE `/Applications` — a separate OS class (`/Library/Input
+    /// Methods`, system-wide, root-owned; the per-user `~/Library/Input Methods`).
+    /// They carry a normal Info.plist with a version, so the same `readApp` filter
+    /// applies; we scan them so an IME like WeType (微信输入法) can be version-checked
+    /// via its VendorProbe recipe. Sourceless IMEs fall to "unknown" like any other
+    /// app without a feed — acceptable noise for the coverage.
+    public static var defaultLocations: [URL] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            URL(fileURLWithPath: "/Applications/Utilities", isDirectory: true),
+            home.appendingPathComponent("Applications", isDirectory: true),
+            URL(fileURLWithPath: "/Library/Input Methods", isDirectory: true),
+            home.appendingPathComponent("Library/Input Methods", isDirectory: true)
+        ]
+    }
+
     /// Which apps JetBrains Toolbox manages — read once per scan from its
     /// `state.json` so we can tag installs as Toolbox-managed.
     private let toolbox: ToolboxInventory
@@ -23,32 +45,19 @@ public struct AppScanner: Sendable {
     /// tag installs as TestFlight-managed (and keep them out of the MAS path).
     private let testflight: TestFlightInventory
 
+    /// - extraLocations: user-added folders appended to the built-in roots (see
+    ///   `Preferences.customScanPaths`). Each should be a directory that *contains*
+    ///   `.app` bundles, so apps installed outside the standard locations — a
+    ///   developer build folder, a third-party tool dir — get version-checked too.
     public init(
         locations: [URL]? = nil,
+        extraLocations: [URL] = [],
         toolbox: ToolboxInventory = ToolboxInventory(),
         testflight: TestFlightInventory = TestFlightInventory()
     ) {
         self.toolbox = toolbox
         self.testflight = testflight
-        if let locations {
-            self.locations = locations
-        } else {
-            let home = FileManager.default.homeDirectoryForCurrentUser
-            self.locations = [
-                URL(fileURLWithPath: "/Applications", isDirectory: true),
-                URL(fileURLWithPath: "/Applications/Utilities", isDirectory: true),
-                home.appendingPathComponent("Applications", isDirectory: true),
-                // Input methods install as `.app` bundles OUTSIDE /Applications —
-                // a separate OS class (`/Library/Input Methods`, system-wide, root-
-                // owned; the per-user `~/Library/Input Methods`). They carry a normal
-                // Info.plist with a version, so the same `readApp` filter applies. We
-                // scan them so an IME like WeType (微信输入法) can be version-checked
-                // via its VendorProbe recipe. Sourceless IMEs fall to "unknown" like
-                // any other app without a feed — acceptable noise for the coverage.
-                URL(fileURLWithPath: "/Library/Input Methods", isDirectory: true),
-                home.appendingPathComponent("Library/Input Methods", isDirectory: true)
-            ]
-        }
+        self.locations = (locations ?? Self.defaultLocations) + extraLocations
     }
 
     /// Strip invisible bidi / zero-width formatting marks that some bundles embed in

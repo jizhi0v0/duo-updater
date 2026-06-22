@@ -131,6 +131,33 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
     #expect(app.isMASApp)              // iOS-on-Mac apps only come from the App Store
 }
 
+@Test func extraLocationsAreScannedOnTopOfBuiltInRoots() throws {
+    // A user adds a folder outside the standard roots (Settings → Folders), e.g.
+    // a developer build dir holding an app. `extraLocations` appends it to the
+    // defaults, so the app surfaces without losing the built-in coverage.
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    // Unique per run so it can't collide with a real app the test machine happens
+    // to have installed under the built-in roots (else the negative check below
+    // fails — e.g. NotchBadge.app actually sitting in /Applications).
+    let fixtureID = "com.duoupdater.tests.extralocation-\(UUID().uuidString)"
+    _ = try makeApp(at: tmp, name: "ScanFixture", info: [
+        "CFBundleIdentifier": fixtureID,
+        "CFBundleShortVersionString": "1.2",
+        "LSUIElement": true,   // menu-bar app — still scanned (only no-version bundles drop)
+    ])
+
+    // Default roots alone don't reach the temp dir.
+    #expect(!AppScanner().scan().contains { $0.bundleID == fixtureID })
+    // With the folder added it shows up, alongside the real /Applications scan.
+    let apps = AppScanner(extraLocations: [tmp]).scan()
+    #expect(apps.contains { $0.bundleID == fixtureID })
+    #expect(!apps.isEmpty)
+}
+
 @Test func scannerSkipsSymlinksIntoSystem() throws {
     let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("scan-\(UUID().uuidString)")

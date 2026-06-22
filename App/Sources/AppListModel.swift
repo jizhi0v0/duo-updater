@@ -339,36 +339,24 @@ final class AppListModel {
     /// Grand total bytes downloaded across every app.
     private(set) var trafficTotalBytes: Int64 = 0
 
-    /// How many of our top-level windows (workbench, Settings) are currently open.
-    /// A menu-bar (.accessory) app has no Dock presence; we promote it to .regular
-    /// while any window is open so it gets a Dock icon, app menu, and ⌘-Tab, then
-    /// drop back to .accessory when the last closes. Ref-counted so the two window
-    /// types don't fight over the policy.
-    @ObservationIgnored private var openWindowCount = 0
-
     @MainActor
     private func syncDockBadge() {
         AppDockBadge.sync(count: badgeCount)
     }
 
-    /// Call from a window's `.onAppear`: bump the count, ensure .regular, focus.
+    /// Call from a window's `.onAppear`: keep the badge current and bring the
+    /// first surfaced window to the front.
     func windowAppeared() {
-        openWindowCount += 1
-        NSApp.setActivationPolicy(.regular)
-        AppIcon.applyIfAvailable()
         syncDockBadge()
         AppDockBadge.syncSoon(count: badgeCount)
-        // Only steal focus when bringing the app up from no windows. A second
-        // window opened while another is up relies on `surfaceWindow` to come
-        // forward — activating here too would race that and yank focus needlessly.
-        if openWindowCount == 1 { NSApp.activate(ignoringOtherApps: true) }
+        if NSApp.keyWindow == nil && NSApp.mainWindow == nil {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
-    /// Call from a window's `.onDisappear`: drop the count, return to .accessory
-    /// once no window remains.
+    /// Call from a window's `.onDisappear`. Kept for symmetric lifecycle sites even
+    /// though the app now stays `.regular` permanently.
     func windowDisappeared() {
-        openWindowCount = max(0, openWindowCount - 1)
-        if openWindowCount == 0 { NSApp.setActivationPolicy(.accessory) }
     }
 
     /// Bring an already-open (or just-opened) SwiftUI `Window` scene to the visual
@@ -954,8 +942,11 @@ final class AppListModel {
         // First scan with no TestFlight data → the list appears instantly, with no
         // wait on the prompt.
         let initialTF = TestFlightInventory(macRows: [], accessible: false)
+        // User-added scan folders (Settings → Folders). Captured on the main actor
+        // before hopping off it, since `prefs` is `@MainActor`-isolated.
+        let extraScan = prefs.customScanLocations
         var found = await Task.detached(priority: .userInitiated) {
-            AppScanner(toolbox: toolbox, testflight: initialTF).scan()
+            AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF).scan()
         }.value
         // Cold start (no rows yet): show plain `.unknown` rows while the check runs.
         // But when we already have results — e.g. the menu bar populated them and
@@ -981,7 +972,7 @@ final class AppListModel {
                 testflight = loaded
                 let retagged = testflight
                 found = await Task.detached(priority: .userInitiated) {
-                    AppScanner(toolbox: toolbox, testflight: retagged).scan()
+                    AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: retagged).scan()
                 }.value
                 results = sorted(mergeScanned(found))
             } else {
@@ -1011,7 +1002,10 @@ final class AppListModel {
         // Announce anything newly pending — keyed off a persisted baseline, so it
         // fires no matter which refresh path got here first (background or manual).
         notifyNewUpdates()
-        syncDockBadge()
+        // Force-push (not plain `sync`) so every check re-asserts the badge even when the
+        // count is unchanged — otherwise a wiped badge (e.g. after a Dock restart) never
+        // comes back, since re-setting the same value is a no-op the Dock skips.
+        AppDockBadge.syncSoon(count: badgeCount)
         Log.app.info("refresh done: \(self.updateCount, privacy: .public) updates, \(self.needsRestart.count, privacy: .public) need restart")
     }
 
@@ -1152,8 +1146,9 @@ final class AppListModel {
         // an active spinner. Installs key by id and finish fine, but the visible
         // row shouldn't shuffle mid-install.
         guard !results.isEmpty, !isChecking, installing.isEmpty, !isInstallingAll else { return }
+        let extraScan = prefs.customScanLocations
         let found = await Task.detached(priority: .userInitiated) {
-            AppScanner().scan()
+            AppScanner(extraLocations: extraScan).scan()
         }.value
         results = sorted(mergeScanned(found))
         await computeRestartInfo()
@@ -2598,6 +2593,12 @@ final class AppListModel {
             .appendingPathComponent("Applications").path
         var paths = ["/Applications"]  // covers /Applications/Utilities (subtree)
         if FileManager.default.fileExists(atPath: home) { paths.append(home) }
+        // User-added scan folders too, so a background swap there flips the Restart
+        // badge. Folders added after launch are picked up on the next relaunch; the
+        // add action itself triggers an immediate rescan from Settings.
+        for path in prefs.customScanPaths where FileManager.default.fileExists(atPath: path) {
+            paths.append(path)
+        }
         let watcher = AppDirectoryWatcher(paths: paths) { [weak self] in
             Task { @MainActor in await self?.backgroundLocalRescan() }
         }
@@ -2722,8 +2723,9 @@ final class AppListModel {
         // TestFlight tagging, so a single-app recheck just scans without it.
         let testflight = TestFlightInventory(macRows: [], accessible: false)
         let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
+        let extraScan = prefs.customScanLocations
         let apps = await Task.detached(priority: .userInitiated) {
-            AppScanner(toolbox: toolbox, testflight: testflight).scan()
+            AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: testflight).scan()
         }.value
         guard let fresh = apps.first(where: { $0.id == id }) else { return result }
         let checker = UpdateChecker(

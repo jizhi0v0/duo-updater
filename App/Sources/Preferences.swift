@@ -130,6 +130,7 @@ final class Preferences {
         static let autoRestartAfterUpdate = "AutoRestartAfterUpdate"
         static let appStoreUpdateStrategy = "AppStoreUpdateStrategy"
         static let vendorInstallPolicy = "VendorInstallPolicy"
+        static let customScanPaths = "CustomScanPaths"
         static let ignoredKeys = "IgnoredApps"
         static let skippedVersions = "SkippedVersions"
         static let lastCheckDate = "LastCheckDate"
@@ -231,6 +232,16 @@ final class Preferences {
         didSet { defaults.set(vendorInstallPolicy.rawValue, forKey: Key.vendorInstallPolicy) }
     }
 
+    /// Extra folders the user added to the scan, beyond the built-in roots
+    /// (`AppScanner.defaultLocations`). Apps installed outside the standard
+    /// locations — a developer build folder, a tool dir — aren't found otherwise.
+    /// Stored as standardized absolute directory paths; the scan appends them via
+    /// `AppScanner(extraLocations:)`. Mutated only through `addScanPath`/
+    /// `removeScanPath`, which normalize and dedupe.
+    private(set) var customScanPaths: [String] {
+        didSet { defaults.set(customScanPaths, forKey: Key.customScanPaths) }
+    }
+
     /// Apps the user has chosen to hide from update checks entirely, keyed by
     /// `key(for:)`.
     private(set) var ignoredKeys: Set<String> {
@@ -308,6 +319,7 @@ final class Preferences {
         }
         self.vendorInstallPolicy = VendorInstallPolicy(
             rawValue: defaults.string(forKey: Key.vendorInstallPolicy) ?? "") ?? .deferWhenRunning
+        self.customScanPaths = defaults.stringArray(forKey: Key.customScanPaths) ?? []
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
         self.lastCheckDate = defaults.object(forKey: Key.lastCheckDate) as? Date
@@ -346,6 +358,33 @@ final class Preferences {
         }
         let joined = String(safe)
         return joined.isEmpty || joined.allSatisfy { $0 == "." } ? "app" : joined
+    }
+
+    // MARK: - Custom scan folders
+
+    /// The custom scan folders as URLs, for `AppScanner(extraLocations:)`.
+    var customScanLocations: [URL] {
+        customScanPaths.map { URL(fileURLWithPath: $0, isDirectory: true) }
+    }
+
+    /// Add a folder to the scan. A picked `.app` resolves to its *parent* folder
+    /// (the scan looks for `.app` entries inside a location, never at one). The
+    /// path is standardized, then dropped if it's empty, already a built-in root,
+    /// or already added. Returns whether it was actually added (so the UI can flag
+    /// a no-op duplicate).
+    @discardableResult
+    func addScanPath(_ url: URL) -> Bool {
+        let dir = url.pathExtension == "app" ? url.deletingLastPathComponent() : url
+        let path = dir.standardizedFileURL.path
+        guard !path.isEmpty, path != "/" else { return false }
+        let builtIn = Set(AppScanner.defaultLocations.map { $0.standardizedFileURL.path })
+        guard !builtIn.contains(path), !customScanPaths.contains(path) else { return false }
+        customScanPaths.append(path)
+        return true
+    }
+
+    func removeScanPath(_ path: String) {
+        customScanPaths.removeAll { $0 == path }
     }
 
     // MARK: - Ignore

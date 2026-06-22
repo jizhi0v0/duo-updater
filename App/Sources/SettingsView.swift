@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import SystemConfiguration
+import UniformTypeIdentifiers
 import DuoUpdaterCore
 
 /// Settings — a modern System-Settings-style sidebar layout. A tab-style
@@ -17,11 +18,12 @@ struct SettingsView: View {
     let model: AppListModel
 
     enum Section: String, CaseIterable, Identifiable {
-        case general, updates, github, alcove, ignored, diagnostics
+        case general, folders, updates, github, alcove, ignored, diagnostics
         var id: String { rawValue }
         var label: String {
             switch self {
             case .general:     return "General"
+            case .folders:     return "Folders"
             case .updates:     return "Updates"
             case .github:      return "GitHub"
             case .alcove:      return "Alcove"
@@ -32,6 +34,7 @@ struct SettingsView: View {
         var icon: String {
             switch self {
             case .general:     return "gearshape"
+            case .folders:     return "folder"
             case .updates:     return "arrow.triangle.2.circlepath.circle"
             case .github:      return "key"
             case .alcove:      return "sparkles"
@@ -59,10 +62,9 @@ struct SettingsView: View {
                 .toolbar(removing: .sidebarToggle)
         }
         .frame(minWidth: 620, minHeight: 420)
-        // This is a real macOS Settings window, not a sheet. A menu-bar app is
-        // .accessory by default, so the window could open behind / without focus;
-        // ref-count it through the model (same as the workbench) to promote the app
-        // to .regular while it's open and pull it to the front.
+        // This is a real macOS Settings window, not a sheet. Route the lifecycle
+        // through the model so focus and trust-polling stay consistent with the
+        // other top-level windows.
         .onAppear { model.windowAppeared(); model.beginTrustPolling(); applyRequestedSection() }
         // Deep-link target set before the window opened (onAppear) or while it's
         // already open (onChange) — e.g. onboarding asking for the GitHub tab.
@@ -82,6 +84,7 @@ struct SettingsView: View {
     private func detail(for section: Section) -> some View {
         switch section {
         case .general:     GeneralSettings(prefs: prefs, model: model)
+        case .folders:     FoldersSettings(prefs: prefs, model: model)
         case .updates:     UpdateSettings()
         case .github:      GitHubSettings(prefs: prefs)
         case .alcove:      AlcoveSettings(prefs: prefs)
@@ -170,6 +173,123 @@ private struct GeneralSettings: View {
                 GitHubToken.resolve(explicit: explicit) != nil
             }.value
         }
+    }
+}
+
+// MARK: - Folders (scan locations)
+
+/// Lets the user add folders to scan beyond the built-in roots, so apps installed
+/// outside `/Applications` (a developer build folder, a third-party tool dir) get
+/// version-checked too. The built-in roots are shown read-only for context — that's
+/// why an app already in `/Applications` doesn't need a folder added here.
+private struct FoldersSettings: View {
+    @Bindable var prefs: Preferences
+    let model: AppListModel
+
+    /// Set when the picked folder was a no-op (already covered by a built-in root
+    /// or already in the list), so we can tell the user nothing changed.
+    @State private var lastAddWasDuplicate = false
+
+    private var builtInLocations: [URL] { AppScanner.defaultLocations }
+
+    var body: some View {
+        Form {
+            Section {
+                if prefs.customScanPaths.isEmpty {
+                    Text("No extra folders. Add one to scan apps installed outside the standard locations.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    ForEach(prefs.customScanPaths, id: \.self) { path in
+                        folderRow(path)
+                    }
+                }
+                Button {
+                    addFolder()
+                } label: {
+                    Label("Add Folder…", systemImage: "plus")
+                }
+            } header: {
+                Text("Folders to scan")
+            } footer: {
+                if lastAddWasDuplicate {
+                    Label("That folder is already covered.", systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("Pick a folder that contains apps (or pick an app — its folder is added). Apps there are checked for updates just like the ones in your Applications folder.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                ForEach(builtInLocations, id: \.self) { url in
+                    LabeledContent {
+                        Text(url.path)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    } label: {
+                        Label(url.lastPathComponent, systemImage: "folder")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Always scanned")
+            } footer: {
+                Text("Built-in locations — these are always included and can't be removed.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private func folderRow(_ path: String) -> some View {
+        let url = URL(fileURLWithPath: path)
+        let exists = FileManager.default.fileExists(atPath: path)
+        HStack(spacing: 8) {
+            Image(systemName: exists ? "folder.fill" : "folder.badge.questionmark")
+                .foregroundStyle(exists ? Color.accentColor : .orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(url.lastPathComponent)
+                Text(path)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                if !exists {
+                    Text("Folder not found — it may have moved or been deleted.")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
+            }
+            Spacer()
+            Button("Remove") {
+                prefs.removeScanPath(path)
+                lastAddWasDuplicate = false
+                Task { await model.refresh() }
+            }
+            .controlSize(.small)
+        }
+        .padding(.vertical, 1)
+    }
+
+    /// Open a directory picker; on a real pick, add it and kick a rescan so the
+    /// new apps surface immediately (the panel also accepts an `.app`, which the
+    /// preference resolves to its parent folder).
+    private func addFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Add"
+        panel.message = "Choose a folder that contains apps to check for updates."
+
+        guard panel.runModal() == .OK else { return }
+        var added = false
+        for url in panel.urls where prefs.addScanPath(url) { added = true }
+        lastAddWasDuplicate = !added
+        if added { Task { await model.refresh() } }
     }
 }
 

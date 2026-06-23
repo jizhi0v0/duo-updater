@@ -81,6 +81,107 @@ struct DownloaderTrafficTests {
         func stop() { listener.cancel() }
     }
 
+    /// A loopback server that simulates a flaky transfer: the **first** request
+    /// (no `Range`) gets a `200` declaring the full `Content-Length` but only the
+    /// first `truncateAt` bytes, then the socket is slammed shut — exactly the
+    /// premature close URLSession surfaces as a transient `-1005`. Every request
+    /// that carries `Range: bytes=<start>-` gets a proper `206` with the remainder,
+    /// so the downloader's resume can carry the file to completion.
+    private final class RangeResumeServer: @unchecked Sendable {
+        private let listener: NWListener
+        private let body: Data
+        private let truncateAt: Int
+        private let queue = DispatchQueue(label: "RangeResumeServer")
+        let port: UInt16
+
+        init(body: Data, truncateAt: Int) throws {
+            self.body = body
+            self.truncateAt = truncateAt
+            let listener = try NWListener(using: .tcp, on: .any)
+            self.listener = listener
+            let queue = self.queue
+            let total = body.count
+
+            listener.newConnectionHandler = { [body, truncateAt] conn in
+                conn.start(queue: queue)
+                conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { reqData, _, _, _ in
+                    let request = String(data: reqData ?? Data(), encoding: .utf8) ?? ""
+                    let rangeStart = Self.parseRangeStart(request)
+
+                    if let start = rangeStart {
+                        // Resume request → serve the remainder as a clean 206.
+                        let chunk = body.subdata(in: start..<total)
+                        var header = "HTTP/1.1 206 Partial Content\r\n"
+                        header += "Content-Range: bytes \(start)-\(total - 1)/\(total)\r\n"
+                        header += "Content-Length: \(chunk.count)\r\n"
+                        header += "Accept-Ranges: bytes\r\n"
+                        header += "Connection: close\r\n\r\n"
+                        var response = Data(header.utf8)
+                        response.append(chunk)
+                        conn.send(content: response, completion: .contentProcessed { _ in conn.cancel() })
+                    } else {
+                        // First request → declare the full size but cut it short.
+                        var header = "HTTP/1.1 200 OK\r\n"
+                        header += "Content-Length: \(total)\r\n"
+                        header += "Accept-Ranges: bytes\r\n"
+                        header += "Connection: close\r\n\r\n"
+                        var response = Data(header.utf8)
+                        response.append(body.subdata(in: 0..<truncateAt))
+                        // Slam the connection shut mid-body: the client has received
+                        // fewer bytes than Content-Length → a transient failure.
+                        conn.send(content: response, completion: .contentProcessed { _ in conn.cancel() })
+                    }
+                }
+            }
+            listener.start(queue: queue)
+            var resolved: UInt16?
+            for _ in 0..<500 {
+                if let p = listener.port?.rawValue, p != 0 { resolved = p; break }
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+            guard let p = resolved else { throw URLError(.cannotConnectToHost) }
+            self.port = p
+        }
+
+        /// Pull `<start>` out of a `Range: bytes=<start>-` request line, if present.
+        private static func parseRangeStart(_ request: String) -> Int? {
+            for line in request.split(separator: "\r\n") {
+                let lower = line.lowercased()
+                guard lower.hasPrefix("range:"),
+                      let eq = line.firstIndex(of: "="),
+                      let dash = line[line.index(after: eq)...].firstIndex(of: "-") else { continue }
+                let digits = line[line.index(after: eq)..<dash].trimmingCharacters(in: .whitespaces)
+                return Int(digits)
+            }
+            return nil
+        }
+
+        func stop() { listener.cancel() }
+    }
+
+    @Test func downloaderResumesAfterMidTransferDrop() async throws {
+        // 200 KB body, dropped at 80 KB on the first pass; the resume fetches the
+        // remaining 120 KB via Range and the two halves must reassemble exactly.
+        let body = Data((0..<200_000).map { UInt8($0 & 0xFF) })
+        let server = try RangeResumeServer(body: body, truncateAt: 80_000)
+        defer { server.stop() }
+
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dl-resume-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+
+        let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
+        let downloader = Downloader(destinationDir: workDir) { _ in }
+        let file = try await downloader.download(url)
+
+        // The reassembled file is byte-for-byte the original.
+        #expect((try? Data(contentsOf: file)) == body)
+        // Traffic counts the 80 KB first pass plus the 120 KB resume — the full
+        // body, with no double-counting (resume appended rather than restarting).
+        #expect(downloader.bytesDownloaded == Int64(body.count))
+    }
+
     @Test func downloaderCountsExactBytesOverHTTP() async throws {
         // A body whose size isn't a round number, to catch any off-by-anything.
         let body = Data((0..<123_457).map { UInt8($0 & 0xFF) })

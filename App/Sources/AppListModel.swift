@@ -498,10 +498,31 @@ final class AppListModel {
         armRunningAppsMonitor()
     }
 
+    /// The explicit GitHub token preference as the resolver should see it: nil when
+    /// the field is empty, the raw saved value otherwise.
+    private func explicitGitHubToken() -> String? {
+        prefs.githubToken.isEmpty ? nil : prefs.githubToken
+    }
+
+    /// Resolve a GitHub token off the main actor, but don't let a wedged `gh auth
+    /// token` hold the whole refresh hostage forever. Falling back to nil just means
+    /// the check runs unauthenticated this cycle.
+    private static func resolveGitHubToken(
+        explicit: String?, timeout: Duration = .seconds(2)
+    ) async -> String? {
+        let loader = Task.detached(priority: .utility) {
+            GitHubToken.resolve(explicit: explicit)
+        }
+        if let token = await firstResult(of: loader, within: timeout) {
+            return token
+        }
+        Log.app.error("GitHub token resolve timed out — continuing without a token")
+        return nil
+    }
+
     /// The ordered source stack, rebuilt per check so it picks up a token change
     /// and the App Store source re-reads the signed-in storefront region.
-    private func makeSources() -> [any UpdateSource] {
-        let token = GitHubToken.resolve(explicit: prefs.githubToken.isEmpty ? nil : prefs.githubToken)
+    private func makeSources(token: String?) -> [any UpdateSource] {
         hasGitHubToken = (token != nil)
         var sources: [any UpdateSource] = [
             MacAppStoreSource(),
@@ -945,6 +966,9 @@ final class AppListModel {
         // User-added scan folders (Settings → Folders). Captured on the main actor
         // before hopping off it, since `prefs` is `@MainActor`-isolated.
         let extraScan = prefs.customScanLocations
+        // Start token resolution early and off-main so a slow `gh` CLI overlaps the
+        // local scan instead of freezing the UI or delaying the whole refresh later.
+        async let githubToken = Self.resolveGitHubToken(explicit: explicitGitHubToken())
         var found = await Task.detached(priority: .userInitiated) {
             AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF).scan()
         }.value
@@ -983,7 +1007,7 @@ final class AppListModel {
 
         isChecking = true
         let checker = UpdateChecker(
-            sources: makeSources(),
+            sources: makeSources(token: await githubToken),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)
@@ -1217,7 +1241,10 @@ final class AppListModel {
     /// screenful of outdated formulae can't burn the 60/hr unauthenticated budget —
     /// the disk cache still makes every re-select and relaunch instant.
     private func prewarmFormulaReleases() {
-        let token = GitHubToken.resolve(explicit: prefs.githubToken.isEmpty ? nil : prefs.githubToken)
+        let explicitToken = explicitGitHubToken()
+        let tokenTask = Task {
+            await Self.resolveGitHubToken(explicit: explicitToken)
+        }
         for formula in brewFormulae where formula.hasUpdate {
             guard formulaReleaseStates[formula.name] == nil else { continue }
             let version = formula.availableVersion ?? formula.installedVersion
@@ -1232,12 +1259,12 @@ final class AppListModel {
                 if let cached = await self.formulaReleaseService.cached(
                     for: formula.name, version: version) {
                     self.formulaReleaseStates[formula.name] = .loaded(cached)
-                } else if token != nil {
+                } else if await tokenTask.value != nil {
                     // Fetch up front (a token means we have budget). We can't delegate
                     // to `ensureFormulaReleaseLoading` — its own nil-guard would reject
                     // the slot we just claimed — so do the load it would do.
                     let release = await self.formulaReleaseService.release(
-                        for: formula.name, version: version, token: token)
+                        for: formula.name, version: version, token: await tokenTask.value)
                     self.formulaReleaseStates[formula.name] = .loaded(release)
                 } else {
                     // No token and not cached: stay deliberately lazy/on-select so a
@@ -1344,8 +1371,9 @@ final class AppListModel {
     func ensureFormulaReleaseLoading(name: String, version: String) {
         guard formulaReleaseStates[name] == nil else { return }
         formulaReleaseStates[name] = .loading
-        let token = GitHubToken.resolve(explicit: prefs.githubToken.isEmpty ? nil : prefs.githubToken)
+        let explicitToken = explicitGitHubToken()
         Task {
+            let token = await Self.resolveGitHubToken(explicit: explicitToken)
             let release = await formulaReleaseService.release(for: name, version: version, token: token)
             formulaReleaseStates[name] = .loaded(release)
         }
@@ -2723,13 +2751,14 @@ final class AppListModel {
         // TestFlight tagging, so a single-app recheck just scans without it.
         let testflight = TestFlightInventory(macRows: [], accessible: false)
         let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
+        async let githubToken = Self.resolveGitHubToken(explicit: explicitGitHubToken())
         let extraScan = prefs.customScanLocations
         let apps = await Task.detached(priority: .userInitiated) {
             AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: testflight).scan()
         }.value
         guard let fresh = apps.first(where: { $0.id == id }) else { return result }
         let checker = UpdateChecker(
-            sources: makeSources(),
+            sources: makeSources(token: await githubToken),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)

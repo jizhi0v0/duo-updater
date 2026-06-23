@@ -583,9 +583,16 @@ private struct WorkbenchActionView: View {
                 .buttonStyle(.bordered)
                 .help("Downloads the official installer and opens it (asks for admin)")
         } else if let info = result.remote?.appStore, !info.isRegionMismatch, !info.isLatestMacIncompatible {
-            Button("Get") { if let url = info.deepLink ?? result.remote?.downloadURL { NSWorkspace.shared.open(url) } }
-                .buttonStyle(.bordered)
-                .help("Open in the App Store")
+            // iOS-on-Mac apps: only the App Store app can update them (mas can't,
+            // AX is unreliable), so this is a redirect to the store rather than a
+            // one-click. A not-yet-installed App Store app stays a plain "Get".
+            Button(result.app.isiOSAppOnMac ? "App Store" : "Get") {
+                if let url = info.deepLink ?? result.remote?.downloadURL { NSWorkspace.shared.open(url) }
+            }
+            .buttonStyle(.bordered)
+            .help(result.app.isiOSAppOnMac
+                  ? "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here"
+                  : "Open in the App Store")
         } else if let url = result.remote?.downloadURL {
             Button("Open page") { NSWorkspace.shared.open(url) }
                 .buttonStyle(.bordered)

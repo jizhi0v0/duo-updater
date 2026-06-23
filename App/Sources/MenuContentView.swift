@@ -1065,6 +1065,15 @@ private struct AppRow: View {
             .popover(isPresented: $showRegionHint, arrowEdge: .bottom) {
                 regionHintPopover(info)
             }
+        } else if result.app.isiOSAppOnMac {
+            // Wrapped iPhone/iPad app: mas can't update it and the AX route is
+            // unreliable for these, so the dependable path is the App Store app
+            // itself. Send the user to its product page, where an available update
+            // shows an "Update" button — rather than offering a one-click that fails.
+            Button("App Store") { openInAppStore(info) }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .help("Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
         } else {
             Button("Get") { openInAppStore(info) }
                 .controlSize(.small)

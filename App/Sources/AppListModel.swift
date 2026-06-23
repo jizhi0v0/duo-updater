@@ -464,7 +464,11 @@ final class AppListModel {
     /// is genuinely warranted (vs. nagging users who don't use that route).
     var needsAccessibilitySetup: Bool {
         guard prefs.appStoreUpdateStrategy == .incremental, !accessibilityTrusted else { return false }
-        return results.contains { isActionableUpdate($0) && $0.remote?.appStore?.trackID != nil }
+        // iOS-on-Mac apps redirect to the App Store (no AX), so they don't justify
+        // an Accessibility nudge on their own.
+        return results.contains {
+            isActionableUpdate($0) && $0.remote?.appStore?.trackID != nil && !$0.app.isiOSAppOnMac
+        }
     }
 
     /// Whether a *user-present* refresh has read the TestFlight container yet this
@@ -1085,8 +1089,14 @@ final class AppListModel {
             //   • incremental → AX-driven; needs no mas. Accessibility is requested
             //     on demand at install time (mirroring App Management), so we don't
             //     gate the offer on it here.
+            // iOS-on-Mac apps (wrapped iPhone/iPad bundles) are never a one-click:
+            // `mas` has no Mac-store entry to install (it errors "No apps found for
+            // ADAM ID"), and the AX route is too unreliable for them. Only the App
+            // Store app itself updates these, so the row offers an "Open in App
+            // Store" redirect instead (see the App Store branch in both row views).
             guard let info = result.remote?.appStore,
-                  !info.isRegionMismatch, !info.isLatestMacIncompatible else { return false }
+                  !info.isRegionMismatch, !info.isLatestMacIncompatible,
+                  !result.app.isiOSAppOnMac else { return false }
             switch prefs.appStoreUpdateStrategy {
             case .full:        return MASInstaller.isAvailable
             case .incremental: return true
@@ -1590,6 +1600,16 @@ final class AppListModel {
                     Task { @MainActor in self.setStage(id, .runningCommand(line)) }
                 }
             case "App Store":
+                // iOS-on-Mac apps can only be updated by the App Store app itself
+                // (mas has no Mac-store entry; the AX route is unreliable for them).
+                // `canAutoInstall` already keeps them out of the one-click button and
+                // Install-All, but guard here too so any other caller redirects to the
+                // store instead of firing a doomed `mas` install.
+                if result.app.isiOSAppOnMac {
+                    installing[id] = nil
+                    if let url = result.remote?.appStore?.deepLink { NSWorkspace.shared.open(url) }
+                    return false
+                }
                 // Reset the spinner on this early-out too (see Homebrew above) so a
                 // missing adamID can't wedge every future install for this app.
                 guard let adamID = result.remote?.appStore?.trackID else {

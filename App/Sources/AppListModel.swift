@@ -841,13 +841,20 @@ final class AppListModel {
             return
         }
         // Only this path ever assigns `refreshTask`; coalescing callers above just
-        // await it. So once our task finishes we can clear it unconditionally.
-        let task = Task { await self.performRefresh(allowTestFlight: allowTestFlight) }
+        // await it. Clear ownership *inside* the task — before `task.value` resolves
+        // — so a `true` caller that coalesced onto a silent refresh resumes to find
+        // `refreshTask` already nil. Clearing it *after* `await task.value` (out here)
+        // left a window where that caller re-entered the TestFlight follow-up branch
+        // above against the same just-finished silent task and recursed on
+        // `refresh(allowTestFlight: true)` forever — a main-thread livelock (ANR).
+        let task = Task {
+            await self.performRefresh(allowTestFlight: allowTestFlight)
+            self.refreshTask = nil
+            self.refreshTaskAllowedTestFlight = false
+        }
         refreshTask = task
         refreshTaskAllowedTestFlight = allowTestFlight
         await task.value
-        refreshTask = nil
-        refreshTaskAllowedTestFlight = false
     }
 
     /// Race a detached task against a timeout. Returns the task's value if it

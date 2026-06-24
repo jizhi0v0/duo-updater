@@ -42,4 +42,24 @@ sign_target "$FRAMEWORK/Versions/B/XPCServices/Installer.xpc"
 sign_target "$FRAMEWORK/Versions/B/Updater.app"
 sign_target "$FRAMEWORK/Versions/B/Autoupdate"
 sign_target "$FRAMEWORK"
+
+# DuoUpdater's own embedded binaries (not part of Sparkle, but the same
+# notarization rules apply to every nested executable):
+#
+#   • Bundled `mas` ships ad-hoc-signed WITH `get-task-allow` and no hardened
+#     runtime — an instant notarization reject. Re-sign with our hardened
+#     Developer ID identity and DROP its entitlements (no --preserve-metadata,
+#     no --entitlements ⇒ get-task-allow is stripped).
+#   • The privileged helper is already hardened/Developer-ID-signed by the app
+#     build; re-sign mainly to add the secure timestamp in the notarize path.
+#     Preserve its identifier (com.duoupdater.helper) so the XPC code requirement
+#     the app pins still matches.
+MAS="$APP_PATH/Contents/Resources/mas"
+[ -f "$MAS" ] && codesign --force --sign "$IDENTITY" \
+    "${timestamp_flag[@]}" --options runtime --generate-entitlement-der "$MAS"
+HELPER="$APP_PATH/Contents/MacOS/DuoUpdaterHelper"
+[ -f "$HELPER" ] && codesign --force --sign "$IDENTITY" \
+    "${timestamp_flag[@]}" --options runtime \
+    --preserve-metadata=identifier --generate-entitlement-der "$HELPER"
+
 sign_target "$APP_PATH"

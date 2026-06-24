@@ -76,6 +76,12 @@ final class AppListModel {
     /// private `TCCAccessPreflight` SPI. `.unknown` when the SPI is unavailable — the UI
     /// falls back to its honest "can't verify, grant to be safe" presentation then.
     private(set) var appManagementStatus = TCCPreflight.appManagementStatus()
+    /// Observable mirror of the privileged helper's approval (`helperClient.isEnabled`),
+    /// refreshed alongside the other permission statuses. `canAutoInstall` reads THIS
+    /// (not the client's live value) so SwiftUI re-renders App Store rows Get→Update the
+    /// moment the helper is approved — the live property isn't part of the @Observable
+    /// model, so reading it directly wouldn't trigger a re-render.
+    private(set) var helperEnabled = false
     /// Suspended `confirmQuit` calls from the AX installer, keyed by app id, resumed
     /// by `confirmQuit(_:proceed:)` when the user accepts or dismisses the prompt.
     @ObservationIgnored private var quitContinuations: [String: CheckedContinuation<Bool, Never>] = [:]
@@ -260,7 +266,11 @@ final class AppListModel {
     private let homebrewInstaller = HomebrewInstaller()
     private let packageInstaller = PackageInstaller()
     private let vendorInstaller = VendorInstaller()
-    private let masInstaller = MASInstaller()
+    /// Drives the privileged helper (root daemon) that runs `mas` without a
+    /// password prompt; `masInstaller` routes its mas calls through it. The same
+    /// client backs the Settings "Enable…" UI and the `canAutoInstall` gate.
+    let helperClient = PrivilegedHelperClient()
+    private let masInstaller = MASInstaller(runner: HelperShellRunner())
     private let appStoreAXInstaller = AppStoreAXInstaller()
 
     /// Drives the App Management drag-to-authorize panel (vendored PermissionFlow)
@@ -422,6 +432,13 @@ final class AppListModel {
             awaitingAppManagementGrant = false
             permissionFlow.closePanel(returnToPreviousApp: true)
         }
+
+        // Mirror the helper's approval into observable state, and refresh the client's
+        // published status so the Settings "App Store helper" row flips on its own once
+        // approved in Login Items (no second click). The menu's `.task` calls this on
+        // appear, so App Store rows reflect the helper without opening Settings.
+        helperClient.refreshStatus()
+        helperEnabled = helperClient.isEnabled
 
         logPermissionsOnce()
     }
@@ -1113,7 +1130,10 @@ final class AppListModel {
                   !info.isRegionMismatch, !info.isLatestMacIncompatible,
                   !result.app.isiOSAppOnMac else { return false }
             switch prefs.appStoreUpdateStrategy {
-            case .full:        return MASInstaller.isAvailable
+            // `.full` now routes mas through the privileged helper — offered only
+            // once the helper is approved (else the row falls back to App Store "Get").
+            // Reads the observable mirror so rows re-render the moment it's approved.
+            case .full:        return helperEnabled
             case .incremental: return true
             }
         default:

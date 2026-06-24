@@ -911,6 +911,10 @@ private struct DiagnosticsSettings: View {
                         Button("Grant…") { model.presentAppManagementPermissionFlow() }
                     }
                 }
+                // Privileged helper: a one-time approval that lets App Store ("full")
+                // updates run without a password each time. Observes the client so the
+                // row flips to "Enabled" once approved in Login Items.
+                HelperStatusRow(helper: model.helperClient)
                 Button("Run Setup Again…") {
                     openWindow(id: WelcomeView.windowID)
                     model.surfaceWindow(sceneID: WelcomeView.windowID)
@@ -985,5 +989,24 @@ private struct DiagnosticsSettings: View {
         } catch {
             Log.app.error("relaunch failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+}
+
+/// Permissions-row for the privileged helper. Observes the client so it flips to
+/// "Enabled" once the user approves the background item, and re-queries status on
+/// appear (approval happens out-of-app, in System Settings › Login Items).
+private struct HelperStatusRow: View {
+    @ObservedObject var helper: PrivilegedHelperClient
+
+    var body: some View {
+        LabeledContent("App Store helper") {
+            if helper.isEnabled {
+                Label("Enabled", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green).labelStyle(.titleAndIcon)
+            } else {
+                Button("Enable…") { helper.register() }
+            }
+        }
+        .onAppear { helper.refreshStatus() }
     }
 }

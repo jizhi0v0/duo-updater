@@ -25,13 +25,30 @@ import Foundation
 /// file is both block-buffered (nothing until the end) and bar-less. We wrap the
 /// command in `script` (a pseudo-TTY): mas then line-buffers and prints
 /// "N% downloaded", which we parse into real `InstallStage.downloading` updates.
+/// Obtains root and runs a `mas install` as root on the caller's behalf. The
+/// concrete implementation (in the app target) hands the request to a privileged
+/// helper over XPC, so there is no per-install password prompt. Kept as a protocol
+/// here so Core stays free of `ServiceManagement`/XPC.
+public protocol PrivilegedMASRunner: Sendable {
+    /// Run `mas install <adamID> --force` as root, re-associated into the user's
+    /// GUI session, writing `mas`'s output to `logPath` (the caller tails it for
+    /// progress). Returns `mas`'s exit status. Throws `MASInstaller.MASError`
+    /// `.helperNotApproved` when root is unavailable (helper not approved).
+    func installMAS(adamID: Int, uid: Int, gid: Int, userName: String, logPath: String) async throws -> Int32
+}
+
 public actor MASInstaller {
 
-    public init() {}
+    private let runner: PrivilegedMASRunner
+
+    public init(runner: PrivilegedMASRunner) {
+        self.runner = runner
+    }
 
     public enum MASError: LocalizedError {
         case masNotFound
         case cancelled
+        case helperNotApproved
         case failed(code: Int32, output: String)
 
         public var errorDescription: String? {
@@ -40,6 +57,8 @@ public actor MASInstaller {
                 return "The mas CLI isn’t installed — run: brew install mas"
             case .cancelled:
                 return "Authorization cancelled."
+            case .helperNotApproved:
+                return "App Store updates need the DuoUpdater helper — enable it in Settings."
             case .failed(let code, let output):
                 let tail = output.split(separator: "\n").suffix(3).joined(separator: " ")
                 return tail.isEmpty ? "mas failed (\(code))." : "mas failed (\(code)): \(tail)"
@@ -61,79 +80,36 @@ public actor MASInstaller {
         adamID: Int,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
-        guard let mas = Self.executablePath else { throw MASError.masNotFound }
-
         // A fresh log per install; created up front so the tailer can open it
-        // before the privileged shell starts writing.
+        // before the (root) helper starts writing.
         let logPath = (NSTemporaryDirectory() as NSString)
             .appendingPathComponent("duo-mas-\(adamID).log")
         FileManager.default.createFile(atPath: logPath, contents: nil)
         defer { try? FileManager.default.removeItem(atPath: logPath) }
 
-        let uid = getuid()
-        let gid = getgid()
+        // The helper rebuilds the `launchctl asuser … mas install …` command
+        // server-side (so a caller can never hand the root helper an arbitrary
+        // command); we pass only the structured parameters it needs. uid/gid/user
+        // identify the GUI session storedownloadd must run in.
+        let uid = Int(getuid())
+        let gid = Int(getgid())
         let user = NSUserName()
-        // launchctl asuser <uid> → user's Aqua session (so storedownloadd runs).
-        // script -q /dev/null → pseudo-TTY (so mas emits live "N% downloaded").
-        // env … → SUDO_UID/GID/USER (so mas seteuid's to the account owner).
-        // MAS_NO_AUTO_INDEX silences mas's per-app Spotlight re-index warnings.
-        // Single-quote every interpolated path/identity value with the canonical
-        // POSIX `'\''` escape. uid/gid/adamID are integers; user/mas/logPath are
-        // strings, so a stray quote in any of them would otherwise break out of the
-        // shell quoting and (since this runs as root via `with administrator
-        // privileges`) execute arbitrary code. Defense-in-depth — these aren't
-        // attacker-controlled today, but the cost of getting it wrong is total.
-        func sq(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
-        let shellCommand =
-            "/bin/launchctl asuser \(uid) "
-            + "/usr/bin/script -q /dev/null "
-            + "/usr/bin/env SUDO_UID=\(uid) SUDO_GID=\(gid) SUDO_USER=\(sq(user)) MAS_NO_AUTO_INDEX=1 "
-            + "\(sq(mas)) install \(adamID) --force > \(sq(logPath)) 2>&1"
-        // Embed in a double-quoted AppleScript string literal.
-        let escaped = shellCommand
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let appleScript = "do shell script \"\(escaped)\" with administrator privileges"
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", appleScript]
-
-        // mas's own output is in the log; osascript only emits AppleScript-level
-        // errors (e.g. "User canceled. (-128)") on stderr.
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        process.standardOutput = Pipe()
-        let errBox = OutputBox()
-        let errHandle = errPipe.fileHandleForReading
-        errHandle.readabilityHandler = { fh in
-            let data = fh.availableData
-            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
-            errBox.append(text)
-        }
-
+        // Stream progress exactly as before: tail the log the helper writes.
         let tailer = LogTailer(path: logPath) { line in
             if let stage = Self.stage(for: line) { onStage(stage) }
         }
         tailer.start()
+        defer { tailer.stop() }  // idempotent; flushes trailing lines
 
-        try process.run()
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            process.terminationHandler = { _ in cont.resume() }
-        }
-        errHandle.readabilityHandler = nil
-        tailer.stop()  // final flush of any trailing log lines
+        let status = try await runner.installMAS(
+            adamID: adamID, uid: uid, gid: gid, userName: user, logPath: logPath)
+        tailer.stop()  // flush before reading the log for an error tail
 
-        guard process.terminationStatus == 0 else {
-            let stderr = errBox.text
-            // osascript surfaces a user-cancelled auth dialog as error -128.
-            if stderr.contains("-128") || stderr.localizedCaseInsensitiveContains("cancel") {
-                throw MASError.cancelled
-            }
+        guard status == 0 else {
             // The real failure reason (e.g. "Not purchased") is in mas's output.
             let log = (try? String(contentsOfFile: logPath, encoding: .utf8)).map(Self.stripANSI) ?? ""
-            let detail = log.isEmpty ? stderr : log
-            throw MASError.failed(code: process.terminationStatus, output: detail)
+            throw MASError.failed(code: status, output: log)
         }
     }
 
@@ -177,14 +153,6 @@ public actor MASInstaller {
         let candidates = ["/opt/homebrew/bin/mas", "/usr/local/bin/mas"]
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }()
-
-    /// Thread-safe accumulator for stderr streamed off a background handler.
-    private final class OutputBox: @unchecked Sendable {
-        private let lock = NSLock()
-        private var buffer = ""
-        func append(_ s: String) { lock.lock(); buffer += s; lock.unlock() }
-        var text: String { lock.lock(); defer { lock.unlock() }; return buffer }
-    }
 
     /// Polls a growing log file and emits cleaned lines as they land. mas redraws
     /// its progress bar with ANSI clear-line sequences (`ESC[2K ESC[0G`) and `\r`

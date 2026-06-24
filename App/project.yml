@@ -18,6 +18,7 @@ targets:
     platform: macOS
     sources:
       - Sources
+      - Shared
       - path: Resources
         buildPhase: resources
     dependencies:
@@ -25,6 +26,34 @@ targets:
         product: DuoUpdaterCore
       - package: Sparkle
         product: Sparkle
+      # Build the privileged helper first (ordering); the executable + LaunchDaemon
+      # plist are embedded and signed by the post-build script below.
+      - target: DuoUpdaterHelper
+        embed: false
+    # Embed the helper executable into Contents/MacOS/ and the LaunchDaemon plist
+    # into Contents/Library/LaunchDaemons/, then re-sign both the helper and the
+    # whole app. A POST-BUILD script (after Copy Resources) that signs explicitly,
+    # because /tmp/duo-dd is reused across builds and Xcode's implicit final sign
+    # can be skipped on an incremental build, leaving these outside the seal.
+    # Mirrors the hardened-runtime, identifier-based signing the app & Sparkle
+    # helpers use. install.sh re-seals once more afterwards — harmless.
+    postBuildScripts:
+      - name: Embed + sign privileged helper and LaunchDaemon plist
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          APP="$CODESIGNING_FOLDER_PATH"
+          mkdir -p "$APP/Contents/Library/LaunchDaemons" "$APP/Contents/MacOS"
+          cp "$SRCROOT/Helper/com.duoupdater.helper.plist" \
+             "$APP/Contents/Library/LaunchDaemons/com.duoupdater.helper.plist"
+          cp "$BUILT_PRODUCTS_DIR/DuoUpdaterHelper" "$APP/Contents/MacOS/DuoUpdaterHelper"
+          if [ -n "$EXPANDED_CODE_SIGN_IDENTITY" ] && [ "$EXPANDED_CODE_SIGN_IDENTITY" != "-" ]; then
+            rt=""
+            [ "$CONFIGURATION" = "Release" ] && rt="--options runtime"
+            codesign --force $rt --sign "$EXPANDED_CODE_SIGN_IDENTITY" \
+              "$APP/Contents/MacOS/DuoUpdaterHelper"
+            codesign --force $rt --sign "$EXPANDED_CODE_SIGN_IDENTITY" "$APP"
+          fi
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -63,4 +92,44 @@ targets:
           OTHER_CODE_SIGN_FLAGS: "--timestamp"
           # Xcode's injected base entitlements include `get-task-allow`, which is
           # fine for local development but invalid for notarized distribution.
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+
+  # Privileged helper: a root LaunchDaemon (registered via SMAppService.daemon)
+  # that runs `mas install` over XPC — so App Store updates need a password only
+  # once (the one-time Login-Items approval), never per install. Same Developer ID
+  # team as the app, which both XPC peers pin to. The post-build script above
+  # embeds + re-signs it into the app bundle.
+  DuoUpdaterHelper:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Helper
+        # The daemon plist is embedded by the app's build script, not compiled.
+        excludes:
+          - "com.duoupdater.helper.plist"
+      - Shared
+    settings:
+      base:
+        # Executable filename is the target name (DuoUpdaterHelper) — the daemon
+        # plist's BundleProgram points at Contents/MacOS/DuoUpdaterHelper. The bundle
+        # *identifier* (for signing / XPC pinning) is com.duoupdater.helper.
+        PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.helper
+        MARKETING_VERSION: "0.1.9"
+        CURRENT_PROJECT_VERSION: "10"
+        SWIFT_VERSION: "6.0"
+        # Embed a generated Info.plist into the binary's __TEXT,__info_plist so the
+        # helper has a bundle id/version (Bundle.main reads it) without a wrapper.
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        SKIP_INSTALL: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: RS59HDH7Y3
+      configs:
+        Release:
+          # Match the app: hardened runtime for notarization. The post-build script
+          # re-signs with --options runtime too, so the final nested signature is
+          # hardened regardless.
+          ENABLE_HARDENED_RUNTIME: YES
           CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO

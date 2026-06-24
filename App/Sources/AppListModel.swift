@@ -317,6 +317,14 @@ final class AppListModel {
     /// Coalesce background-triggered rescans: a flurry of FS events plus a timer
     /// tick shouldn't stack up redundant scans on top of each other.
     @ObservationIgnored private var localRescanRunning = false
+    /// Set when a background rescan (FS watcher / backstop) was requested but skipped
+    /// because an install was in flight — `refreshLocal` would have dropped it anyway
+    /// (and a rescan mid-install could churn a spinner row). We remember it and drain
+    /// it the moment installs settle, so an app that self-updates *externally* while
+    /// we're installing something else (Chrome's Keystone applying a new build during
+    /// an "Update All") clears its stale "update available" row at once, instead of
+    /// lingering until the next slow backstop tick.
+    @ObservationIgnored private var localRescanDeferred = false
 
     /// `NSWorkspace` launch/terminate observers that keep `runningBundleIDs` live.
     /// Retained for the app's lifetime (the single model never deallocates), so they
@@ -1185,8 +1193,20 @@ final class AppListModel {
         // Don't churn the list while an install is in flight: this rebuilds and
         // re-sorts `results` wholesale, which would reorder/replace the row under
         // an active spinner. Installs key by id and finish fine, but the visible
-        // row shouldn't shuffle mid-install.
+        // row shouldn't shuffle mid-install. (`installAll` calls `performLocalRescan`
+        // directly in its post-batch sweep — installs done, nothing to churn.)
         guard !results.isEmpty, !isChecking, installing.isEmpty, !isInstallingAll else { return }
+        await performLocalRescan()
+    }
+
+    /// The guard-free body of `refreshLocal`: re-scan disk, re-derive every row's
+    /// status against its cached remote (network-free), and refresh the
+    /// restart/staging/backup flags. Callers that have already ensured no install is
+    /// mid-flight — `refreshLocal` (behind its guard) and `installAll`'s post-batch
+    /// sweep — go through here so an app that self-updated externally is re-evaluated
+    /// and clears, not just the restart badge.
+    private func performLocalRescan() async {
+        localRescanDeferred = false
         let extraScan = prefs.customScanLocations
         let found = await Task.detached(priority: .userInitiated) {
             AppScanner(extraLocations: extraScan).scan()
@@ -1478,19 +1498,36 @@ final class AppListModel {
     @discardableResult
     func install(_ result: UpdateResult, notify: Bool = true, deferBookkeeping: Bool = false) async -> Bool {
         let id = result.id
-        // Re-entrancy guard (matches `retry`): the popover "Update anyway" button
-        // and the major-upgrade badge aren't disabled while an install is in
-        // flight, so a double-click could otherwise launch two concurrent installs
-        // for the same app — two downloads, two in-place swaps, two notifications.
+        // Re-entrancy / cross-path guard (matches `retry`): the popover "Update
+        // anyway" button and the major-upgrade badge aren't disabled while an install
+        // is in flight, so a double-click — or a manual click racing "Update All" for
+        // the same app — could otherwise launch two concurrent installs (two
+        // downloads, two in-place swaps, two notifications). Claim the id *before* any
+        // await so whoever sets `.queued` first wins and the loser returns false.
+        // `installAll` pre-claims all its targets, so a manual click on a queued batch
+        // row no-ops here and the row keeps its spinner instead of a live button.
         guard installing[id] == nil else { return false }
+        installing[id] = .queued
+        return await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
+    }
+
+    /// Gate-wait, then install a row whose `installing[id] == .queued` claim the
+    /// caller has ALREADY made — `install` for a single click, `installAll` for a
+    /// batch it pre-queued. Splitting the claim from the work lets the batch mark
+    /// every target `.queued` up front (so each shows a queued spinner at once and
+    /// the re-entrancy guard blocks a manual click) while the gates here still pace
+    /// the actual installs.
+    private func runInstall(_ result: UpdateResult, notify: Bool, deferBookkeeping: Bool) async -> Bool {
+        let id = result.id
         // Bound *total* concurrent installs across every entry point through one
         // global gate: "Update All" and each manual row click queue through the
         // same permits, so a wave of clicks (or a batch overlapping manual clicks)
         // can't all fire at once — saturating the network, thrashing the disk, and
-        // stacking several privileged-swap auth prompts. Mark the row `.queued`
-        // *before* suspending so the guard above already rejects re-clicks and the
-        // UI shows the wait, then park until a slot frees (the semaphore is FIFO).
-        installing[id] = .queued
+        // stacking several privileged-swap auth prompts. The row was marked `.queued`
+        // by the caller before this suspension point, so the UI already shows the wait
+        // and the re-entrancy guard already rejects re-clicks; here we just park until
+        // a slot frees (the semaphore is FIFO).
+        //
         // Per-host sub-cap: several apps that download from the *same* host (GitHub
         // releases, one vendor CDN) would otherwise split that host's bandwidth and
         // are the most likely to trip its rate limiter / WAF. Acquired *before* the
@@ -1509,7 +1546,9 @@ final class AppListModel {
         await gate?.wait()
         await Self.installGate.wait()
         // A queued item cancelled while waiting — e.g. "Update All" was stopped
-        // before this row's turn came up — releases its slots without installing.
+        // before this row's turn came up — releases its slots and clears its claim
+        // without installing. (`installAll`'s cleanup also sweeps any claim that never
+        // reached here at all.)
         if Task.isCancelled {
             installing[id] = nil
             await Self.installGate.signal()
@@ -1521,6 +1560,10 @@ final class AppListModel {
         let didInstall = await performInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
         await Self.installGate.signal()
         await gate?.signal()
+        // If something self-updated externally while this install ran, its rescan was
+        // deferred — drain it now that the install is done (no-op in a batch, which
+        // drains once at the end of `installAll`, and when nothing was deferred).
+        await drainDeferredLocalRescan()
         return didInstall
     }
 
@@ -2409,7 +2452,10 @@ final class AppListModel {
                 let target = targets[next]
                 next += 1
                 group.addTask {
-                    await self.install(target, notify: false, deferBookkeeping: true)
+                    // `runInstall`, not `install`: the batch already claimed this
+                    // target `.queued` up front, so going through `install`'s guard
+                    // would reject it as "already in flight".
+                    await self.runInstall(target, notify: false, deferBookkeeping: true)
                 }
                 return true
             }
@@ -2450,22 +2496,34 @@ final class AppListModel {
         guard !targets.isEmpty else { return }
         isInstallingAll = true
         appManagementPermissionFlowPresentedInBatch = false
+        // Claim every target `.queued` up front so each row shows a queued spinner
+        // immediately — not a still-clickable "Update" button that would otherwise let
+        // a manual tap race the batch — for the whole queue, not just the few currently
+        // running. `runInstall` (below) skips the per-call claim since we made it here;
+        // the gates still pace the actual work. Anything we claim but never run (a
+        // cancelled batch, or serial targets after an App Management gate breaks the
+        // loop) is released in the `defer` so no row is left with a phantom spinner.
+        for target in targets { installing[target.id] = .queued }
         defer {
             isInstallingAll = false
             appManagementPermissionFlowPresentedInBatch = false
+            for target in targets where installing[target.id] == .queued {
+                installing[target.id] = nil
+            }
         }
 
         let parallelTargets = targets.filter(canBatchInstallInParallel)
         let serialTargets = targets.filter { !canBatchInstallInParallel($0) }
         let limit = min(Self.maxParallelInstalls, parallelTargets.count)
         Log.app.info("update all: \(targets.count, privacy: .public) apps, parallel=\(parallelTargets.count, privacy: .public), serial=\(serialTargets.count, privacy: .public), parallelism=\(limit, privacy: .public)")
-        // Count only the installs that actually happened (install returns false for
+        // Count only the installs that actually happened (runInstall returns false for
         // already-current/early-out/error), so the summary banner is exact.
         var installed = 0
         installed += await installInParallel(parallelTargets, limit: limit)
         for target in serialTargets {
             if Task.isCancelled { break }
-            if await install(target, notify: false, deferBookkeeping: true) {
+            // `runInstall`, not `install`: the target is already claimed above.
+            if await runInstall(target, notify: false, deferBookkeeping: true) {
                 installed += 1
             }
             if hitAppManagementGate(target) {
@@ -2477,10 +2535,13 @@ final class AppListModel {
         // per app (`deferBookkeeping: true` above): each pass is independent of which
         // app just installed, and running it inline made every finished row linger at
         // 100% while the next install waited on it (most visibly the `lsappinfo`
-        // restart probe, which can stall right after a wave of relaunches).
-        await computeRestartInfo()
-        await computeSelfUpdateStaging()
-        await refreshBackupIndex()
+        // restart probe, which can stall right after a wave of relaunches). A full
+        // local rescan (not just the restart/staging/backup flags) so an app that
+        // self-updated *externally* while the batch ran — Chrome's Keystone applying a
+        // new build during the "Update All" — is re-evaluated and clears, instead of
+        // keeping its stale "update available" row until the next backstop tick. Safe
+        // here: every install in the batch has finished, so there's no spinner to churn.
+        await performLocalRescan()
         // Auto-restart the apps this batch just updated and left awaiting a restart,
         // so "Update All" doesn't leave a pile of "Restart" buttons (the per-app
         // path defers to here in a batch). Only the apps we actually touched — not
@@ -2675,10 +2736,28 @@ final class AppListModel {
     /// (skips while empty / checking / installing) to stay out of the way.
     private func backgroundLocalRescan() async {
         guard !localRescanRunning else { return }
+        // An install is replacing bundles / mutating rows: a rescan now would be
+        // dropped by `refreshLocal`'s guard (and could churn a spinner row). Remember
+        // the request and drain it when the install settles (see `install` /
+        // `installAll`), so an app that self-updated externally mid-install still
+        // clears promptly instead of waiting for the next backstop tick.
+        guard installing.isEmpty, !isInstallingAll else {
+            localRescanDeferred = true
+            return
+        }
         localRescanRunning = true
         defer { localRescanRunning = false }
         Log.app.debug("local rescan: triggered (watcher or backstop)")
         await refreshLocal()
+    }
+
+    /// Run a local rescan that an in-flight install deferred (see
+    /// `backgroundLocalRescan`), now that the bundles have settled — clearing any app
+    /// that self-updated externally while we were installing. No-op when nothing was
+    /// deferred, so a plain single install pays no extra scan.
+    private func drainDeferredLocalRescan() async {
+        guard localRescanDeferred, installing.isEmpty, !isInstallingAll else { return }
+        await performLocalRescan()
     }
 
     /// Seed `runningAppPaths` from the current process list and keep it live via

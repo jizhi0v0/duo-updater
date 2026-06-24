@@ -52,11 +52,11 @@ public enum ChangelogExtractor {
             // the recipe asks for images AND this entry has at least one. Otherwise
             // `content` stays empty and the renderer just bullets `items` (unchanged
             // for every text-only recipe).
-            let imageHits = imageRegex.map { imageHits(in: bodyText, regex: $0) } ?? []
-            let content: [Changelog.Entry.Block] = imageHits.isEmpty
+            let imageBlocks = imageRegex.map { imageHits(in: bodyText, regex: $0) } ?? []
+            let content: [Changelog.Entry.Block] = imageBlocks.isEmpty
                 ? []
                 : (noteHits.map { ($0.location, Changelog.Entry.Block.note($0.text)) }
-                    + imageHits.map { ($0.location, .image($0.url)) })
+                    + imageBlocks.map { ($0.location, .image($0.url)) })
                     .sorted { $0.0 < $1.0 }
                     .map(\.1)
 

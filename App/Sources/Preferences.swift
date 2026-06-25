@@ -136,6 +136,7 @@ final class Preferences {
         static let lastCheckDate = "LastCheckDate"
         static let notifiedVersions = "NotifiedVersions"
         static let notificationBaselineSeeded = "NotificationBaselineSeeded"
+        static let marketingByBuild = "MarketingVersionByBuild"
     }
 
     private let defaults: UserDefaults
@@ -284,6 +285,28 @@ final class Preferences {
         notifiedVersions = versions
     }
 
+    /// Records the marketing version each on-disk *build* was last seen with, keyed
+    /// by `"<resolved path>\n<CFBundleVersion>"`. `lsappinfo` preserves a running
+    /// process's build but never its marketing version, so after an app self-updates
+    /// on disk the still-running old build would otherwise show as a bare build number
+    /// in the restart line ("20260622.183424 → 1.9.0 (…)"). Looking the running build
+    /// up here recovers its marketing version ("1.8.x (20260622.183424)") so both
+    /// sides of the arrow read in the same namespace. The model rewrites the whole map
+    /// each scan (pruned to currently-installed builds), so it never grows unbounded.
+    private(set) var marketingByBuild: [String: String] {
+        didSet { defaults.set(marketingByBuild, forKey: Key.marketingByBuild) }
+    }
+
+    /// Compose the `marketingByBuild` key from an install's resolved path and build.
+    static func marketingByBuildKey(path: String, build: String) -> String {
+        "\(path)\n\(build)"
+    }
+
+    /// Overwrite the build→marketing history (the model recomputes it each scan).
+    func setMarketingByBuild(_ map: [String: String]) {
+        marketingByBuild = map
+    }
+
     /// Read the GitHub token, migrating a pre-existing plaintext copy out of
     /// UserDefaults into the Keychain on the first launch after this upgrade (then
     /// scrubbing the plist so the secret no longer sits there in the clear).
@@ -325,6 +348,7 @@ final class Preferences {
         self.lastCheckDate = defaults.object(forKey: Key.lastCheckDate) as? Date
         self.notifiedVersions = defaults.dictionary(forKey: Key.notifiedVersions) as? [String: String] ?? [:]
         self.notificationBaselineSeeded = defaults.bool(forKey: Key.notificationBaselineSeeded)
+        self.marketingByBuild = defaults.dictionary(forKey: Key.marketingByBuild) as? [String: String] ?? [:]
     }
 
     // MARK: - Per-app keys

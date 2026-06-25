@@ -91,6 +91,11 @@ final class AppListModel {
     @ObservationIgnored private var reopenAfterQuit: Set<String> = []
     /// id → the build version the running instance launched with, for display.
     private var runningVersionByID: [String: String] = [:]
+    /// id → the marketing version the running (pre-self-update) build corresponds to,
+    /// recovered from `prefs.marketingByBuild` when we scanned that build before the
+    /// swap. Lets the restart line read "1.8.x (build)" instead of a bare build for
+    /// apps that updated through their own updater (no rollback backup to draw on).
+    private var recoveredRestartMarketing: [String: String] = [:]
     /// When the last full networked check finished — shown in the header so the
     /// user can judge how fresh the results are.
     private(set) var lastCheck: Date?
@@ -118,16 +123,22 @@ final class AppListModel {
 
     /// The "from" side of a restart line, as the user should read it. `lsappinfo`
     /// only exposes the running process's *build* (e.g. "3965"), so a bare restart
-    /// line reads as a mystery number with its marketing version "lost". But we wrote
-    /// the pre-update marketing version into the rollback backup right before swapping
-    /// — and that sidecar survives our own relaunches — so recover it here and pair
-    /// the two as "26.609.71450 (3965)", matching the on-disk "to" side's shape.
-    /// Falls back to the bare build when no backup marketing is on record. nil when
-    /// the app isn't lagging a newer on-disk build.
+    /// line reads as a mystery number with its marketing version "lost". We recover
+    /// the marketing version from one of two records and pair the two as
+    /// "26.609.71450 (3965)", matching the on-disk "to" side's shape:
+    ///   1. the rollback backup we wrote right before swapping (our own installs), or
+    ///   2. the `marketingByBuild` history captured when we scanned that build before
+    ///      it was swapped out (apps that updated through their *own* updater).
+    /// Both survive our relaunches. Falls back to the bare build when neither has the
+    /// marketing version on record (the app updated while we weren't running). nil
+    /// when the app isn't lagging a newer on-disk build.
     func restartFromVersion(_ id: String) -> String? {
         guard let runningBuild = runningVersionByID[id] else { return nil }
         let build = UpdateResult.strippingBuildPrefix(runningBuild)
-        if let marketing = backupVersions[id], marketing != build {
+        // Prefer the rollback backup's marketing (authoritative, written when *we*
+        // installed); fall back to the build→marketing history recovered for apps
+        // that self-updated outside us. Either way, pair it with the build.
+        if let marketing = backupVersions[id] ?? recoveredRestartMarketing[id], marketing != build {
             return "\(marketing) (\(build))"
         }
         return build
@@ -1861,11 +1872,24 @@ final class AppListModel {
         let running = await Self.runningBuildVersions()
         var ids: Set<String> = []
         var versions: [String: String] = [:]
+        var recovered: [String: String] = [:]
+        let history = prefs.marketingByBuild
+        // Rebuilt from scratch each scan, then persisted — so it stays pruned to
+        // builds that currently matter (the on-disk build of every install, plus any
+        // still-running pre-update build) and never accumulates dead entries.
+        var freshHistory: [String: String] = [:]
         for result in results {
             // Match on the resolved bundle path, not bundle id: a row whose exact
             // .app isn't running must not pick up a channel sibling's running
             // version (Android Studio Preview vs Stable share one bundle id).
             let runKey = result.app.path.resolvingSymlinksInPath().path
+            // Remember the marketing version this on-disk build carries, so that
+            // AFTER a future self-update — when only the build survives in the running
+            // process (via `lsappinfo`) — we can still name the version it launched
+            // with. Keyed by build, so the new build's entry never clobbers the old.
+            if let diskBuild = result.app.buildVersion, let marketing = result.app.shortVersion {
+                freshHistory[Preferences.marketingByBuildKey(path: runKey, build: diskBuild)] = marketing
+            }
             guard let runVersion = running[runKey],
                   let disk = result.app.buildVersion ?? result.app.shortVersion,
                   VersionComparator.isNewer(disk, than: runVersion) else { continue }
@@ -1875,10 +1899,26 @@ final class AppListModel {
             // nothing newer to install: an update-available row shows Update and
             // installing it re-triggers the restart prompt afterward.
             versions[result.id] = runVersion
+            // Recover the running build's marketing version from a scan taken before
+            // the swap, and keep that entry alive in the pruned history until the
+            // restart is resolved. Absent only when we never scanned the old build
+            // (the app updated while we weren't running) — then the line falls back
+            // to the bare build in `restartFromVersion`.
+            let runHistoryKey = Preferences.marketingByBuildKey(path: runKey, build: runVersion)
+            if let runMarketing = history[runHistoryKey] {
+                recovered[result.id] = runMarketing
+                freshHistory[runHistoryKey] = runMarketing
+            }
             if !result.hasUpdate { ids.insert(result.id) }
         }
         needsRestart = ids
         runningVersionByID = versions
+        recoveredRestartMarketing = recovered
+        // Guard against an empty/partial pass wiping the persisted history before a
+        // real scan has populated `results`.
+        if !results.isEmpty, freshHistory != history {
+            prefs.setMarketingByBuild(freshHistory)
+        }
         // Re-sort: a row that just flipped to needs-restart should move up into
         // the actionable tier rather than stay wherever it last sorted.
         results = sorted(results)

@@ -42,6 +42,19 @@ public struct AppStoreAvailability: Sendable, Hashable {
     }
 }
 
+/// One past release a source told us about in passing — a version and the date
+/// it was published. Sources that hand back a multi-entry feed (a Sparkle appcast,
+/// a GitHub releases list) carry these so the release timeline can backfill an
+/// app's history in one shot, instead of only ever learning the latest.
+public struct ReleaseHistoryEntry: Sendable, Hashable {
+    public let version: String
+    public let publishedAt: Date
+    public init(version: String, publishedAt: Date) {
+        self.version = version
+        self.publishedAt = publishedAt
+    }
+}
+
 /// What a single update source reports as the newest available release.
 public struct RemoteVersion: Sendable, Hashable {
     /// Marketing version, e.g. "1.96.0" (`sparkle:shortVersionString`).
@@ -107,6 +120,20 @@ public struct RemoteVersion: Sendable, Hashable {
     /// `releaseNotesHTML` as an "see full changelog" link.
     public let changelogURL: URL?
 
+    /// When the vendor *published* this release, parsed from the feed's own
+    /// timestamp (Sparkle `<pubDate>`, GitHub/Alcove `published_at`). This is the
+    /// authoritative release moment — to the minute — that the release timeline
+    /// records. Nil for sources that publish no trustworthy date (most vendor
+    /// probes, MAS, Homebrew); those are never plotted as "when it was released",
+    /// only ever as "when we noticed". See `ReleaseTimelineStore`.
+    public let publishedAt: Date?
+
+    /// Past releases the source surfaced alongside the latest — every dated entry
+    /// in a Sparkle appcast / GitHub releases list, so the timeline can backfill
+    /// an app's whole visible history at once (the latest is included too; the
+    /// store dedupes by version). Empty for sources that only resolve one release.
+    public let releaseHistory: [ReleaseHistoryEntry]
+
     public init(
         shortVersion: String?,
         version: String?,
@@ -123,7 +150,9 @@ public struct RemoteVersion: Sendable, Hashable {
         downloadHeaders: [String: String] = [:],
         releaseNotesHTML: String? = nil,
         structuredChangelog: Changelog? = nil,
-        changelogURL: URL? = nil
+        changelogURL: URL? = nil,
+        publishedAt: Date? = nil,
+        releaseHistory: [ReleaseHistoryEntry] = []
     ) {
         self.shortVersion = shortVersion
         self.version = version
@@ -141,6 +170,8 @@ public struct RemoteVersion: Sendable, Hashable {
         self.releaseNotesHTML = releaseNotesHTML
         self.structuredChangelog = structuredChangelog
         self.changelogURL = changelogURL
+        self.publishedAt = publishedAt
+        self.releaseHistory = releaseHistory
     }
 
     /// Best version string to show the user.

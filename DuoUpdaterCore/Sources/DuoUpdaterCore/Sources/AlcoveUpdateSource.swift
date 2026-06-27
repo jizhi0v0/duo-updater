@@ -89,7 +89,8 @@ public struct AlcoveUpdateSource: UpdateSource {
             vendorInstallerKind: dmg == nil ? nil : .dmg,
             // The licensed download needs the same Bearer the probe used.
             downloadHeaders: ["Authorization": "Bearer \(token)"],
-            structuredChangelog: Self.changelog(from: latest)
+            structuredChangelog: Self.changelog(from: latest),
+            publishedAt: ReleaseDate.parse(latest.publishedAt)
         )
     }
 

@@ -202,6 +202,15 @@ public struct GitHubReleasesSource: UpdateSource {
         // the first whose tag the pattern matches — for prerelease channels this
         // skips interleaved stable releases.
         let releases = Self.releases(from: data, list: rule.usePrereleases)
+        // Every matching release that carries a publish date — backfills the app's
+        // visible release history into the timeline at no extra network cost (these
+        // are the same releases we already fetched). A single-`latest` fetch yields
+        // just one entry; a prerelease-channel list yields the whole page.
+        let history: [ReleaseHistoryEntry] = releases.compactMap { release in
+            guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern),
+                  let date = ReleaseDate.parse(release.publishedAt) else { return nil }
+            return ReleaseHistoryEntry(version: v, publishedAt: date)
+        }
         for release in releases {
             if let version = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern) {
                 let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
@@ -230,7 +239,9 @@ public struct GitHubReleasesSource: UpdateSource {
                     vendorInstallerKind: installable ? rule.installerKind : nil,
                     releaseNotesHTML: structured == nil ? body : nil,
                     structuredChangelog: structured,
-                    changelogURL: page
+                    changelogURL: page,
+                    publishedAt: ReleaseDate.parse(release.publishedAt),
+                    releaseHistory: history
                 )
             }
         }

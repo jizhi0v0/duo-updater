@@ -368,6 +368,14 @@ final class AppListModel {
     /// Grand total bytes downloaded across every app.
     private(set) var trafficTotalBytes: Int64 = 0
 
+    /// Per-app release history, built up over time from each check's results and
+    /// persisted across runs. Only releases that arrive with a trustworthy vendor
+    /// timestamp (Sparkle/GitHub/Alcove) are logged.
+    private let releaseTimelineStore = ReleaseTimelineStore()
+    /// Snapshot of the release timelines for the UI, most-recently-released app
+    /// first. Refreshed after each check records new releases.
+    private(set) var releaseTimelines: [AppReleaseTimeline] = []
+
     @MainActor
     private func syncDockBadge() {
         AppDockBadge.sync(count: badgeCount)
@@ -617,6 +625,64 @@ final class AppListModel {
             bytes: bytes
         )
         await refreshTrafficStats()
+    }
+
+    /// Log every release in `checked` that arrived with a trustworthy vendor
+    /// timestamp into the release timeline, then refresh the UI snapshot. The
+    /// store dedupes by (app, version), so re-checks are cheap no-ops and only a
+    /// genuinely new release writes to disk. Results without a `publishedAt`
+    /// (vendor probes, MAS, Homebrew) are skipped by the store.
+    private func recordReleaseTimeline(for checked: [UpdateResult]) async {
+        var added = false
+        for result in checked {
+            guard let remote = result.remote else { continue }
+            // The latest release (when it carries a date)…
+            if remote.publishedAt != nil {
+                let didAdd = await releaseTimelineStore.record(
+                    appID: result.app.id,
+                    appName: result.app.name,
+                    bundleID: result.app.bundleID,
+                    version: remote.displayVersion,
+                    sourceName: remote.sourceName,
+                    publishedAt: remote.publishedAt
+                )
+                added = added || didAdd
+            }
+            // …plus any prior releases the source surfaced (Sparkle appcast items,
+            // a GitHub releases list), so an app's history backfills in one shot.
+            // The store dedupes by version, so the latest overlapping here is free.
+            for entry in remote.releaseHistory {
+                let didAdd = await releaseTimelineStore.record(
+                    appID: result.app.id,
+                    appName: result.app.name,
+                    bundleID: result.app.bundleID,
+                    version: entry.version,
+                    sourceName: remote.sourceName,
+                    publishedAt: entry.publishedAt
+                )
+                added = added || didAdd
+            }
+            // Detection-only sources (a vendor probe, a Homebrew cask, the App
+            // Store) report a version but no date. We can't know when they shipped,
+            // only that a version *change* happened between two checks — so track
+            // the reported version and, on a change, log an estimated window.
+            if remote.publishedAt == nil, remote.releaseHistory.isEmpty,
+               let v = remote.displayVersion {
+                let didAdd = await releaseTimelineStore.observeForChange(
+                    appID: result.app.id,
+                    appName: result.app.name,
+                    bundleID: result.app.bundleID,
+                    version: v,
+                    sourceName: remote.sourceName
+                )
+                added = added || didAdd
+            }
+        }
+        // Always refresh on first run (snapshot starts empty); otherwise only when
+        // something actually changed.
+        if added || releaseTimelines.isEmpty {
+            releaseTimelines = await releaseTimelineStore.snapshot()
+        }
     }
 
     /// Per-app load state for a recipe-backed changelog, keyed by
@@ -1064,6 +1130,9 @@ final class AppListModel {
         // Pre-warm the disk changelog cache for anything pending, so opening its
         // notes is instant (and a no-op network-wise for versions already cached).
         prewarmChangelogs(for: checked)
+        // Log any newly-seen releases (those carrying a real vendor timestamp)
+        // into the persistent release timeline.
+        await recordReleaseTimeline(for: checked)
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         await refreshBackupIndex()

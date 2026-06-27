@@ -331,6 +331,15 @@ struct MenuContentView: View {
                 .toggleStyle(.checkbox)
                 .font(.caption)
             Spacer()
+            Button {
+                openWindow(id: ReleaseLogView.windowID)
+                model.surfaceWindow(sceneID: ReleaseLogView.windowID)
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+            .help("Release Log — when the apps you track shipped each version")
             Button("Open Window") {
                 openWindow(id: WorkbenchWindowView.windowID)
                 model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)

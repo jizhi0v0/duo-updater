@@ -42,6 +42,15 @@ struct DuoUpdaterApp: App {
         }
         .defaultSize(width: 680, height: 460)
         .windowResizability(.contentMinSize)
+
+        // The release log — a global, chronological feed of every release the
+        // tracked apps have shipped, accumulated over time from the version
+        // checks. On its own window so it survives the popover dismissing.
+        Window("Release Log", id: ReleaseLogView.windowID) {
+            ReleaseLogView(model: model)
+        }
+        .defaultSize(width: 520, height: 620)
+        .windowResizability(.contentMinSize)
         .commands {
             // Restore the ⌘, "Settings…" app-menu item now that there's no Settings
             // scene to provide it automatically.

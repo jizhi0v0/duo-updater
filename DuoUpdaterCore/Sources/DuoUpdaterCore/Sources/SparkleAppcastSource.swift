@@ -54,6 +54,16 @@ public struct SparkleAppcastSource: UpdateSource {
         // detail window renders entries instead of falling back to a web view.
         let structured = Self.structuredChangelog(from: usable)
 
+        // Every in-channel item that carries a date — the appcast usually keeps the
+        // last N releases, so this backfills the app's whole visible history into
+        // the release timeline in one shot (not just the newest). Keyed on the same
+        // version string the timeline dedupes by.
+        let history: [ReleaseHistoryEntry] = usable.compactMap { item in
+            guard let v = item.shortVersionString ?? item.version,
+                  let date = ReleaseDate.parse(item.pubDate) else { return nil }
+            return ReleaseHistoryEntry(version: v, publishedAt: date)
+        }
+
         return RemoteVersion(
             shortVersion: best.shortVersionString,
             version: best.version,
@@ -64,7 +74,9 @@ public struct SparkleAppcastSource: UpdateSource {
             minimumAutoupdateVersion: best.minimumAutoupdateVersion,
             releaseNotesHTML: best.descriptionHTML,
             structuredChangelog: structured,
-            changelogURL: best.releaseNotesLink
+            changelogURL: best.releaseNotesLink,
+            publishedAt: ReleaseDate.parse(best.pubDate),
+            releaseHistory: history
         )
     }
 

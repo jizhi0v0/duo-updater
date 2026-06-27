@@ -141,7 +141,37 @@ checksum="$(shasum -a 256 "$ASSET_ZIP" | awk '{print $1}')"
 
 if [ -z "$RELEASE_NOTES_FILE" ]; then
     RELEASE_NOTES_FILE="$AUTO_NOTES"
-    cat > "$RELEASE_NOTES_FILE" <<EOF
+    # Prefer this version's section from CHANGELOG.md (the user-facing source of
+    # truth). Extract the body under "## <version>" up to the next "## " heading.
+    # Only fall back to the boilerplate when there's no such section, so a release
+    # never silently ships metadata-only notes when real notes exist.
+    changelog_section="$(
+        CHANGELOG="$REPO_ROOT/CHANGELOG.md" VERSION="$version" python3 - <<'PY'
+import os, re, sys
+path = os.environ["CHANGELOG"]
+version = os.environ["VERSION"]
+try:
+    text = open(path, encoding="utf-8").read()
+except OSError:
+    sys.exit(0)
+# Match a "## <version>" heading (tolerating "## [1.2.3]" or "## 1.2.3 — date"),
+# capturing everything up to the next top-level "## " heading.
+pat = re.compile(
+    r'^##\s*\[?' + re.escape(version) + r'\]?\b.*?\n(.*?)(?=^##\s|\Z)',
+    re.MULTILINE | re.DOTALL)
+m = pat.search(text)
+if m:
+    body = m.group(1).strip()
+    if body:
+        print(body)
+PY
+    )"
+    if [ -n "$changelog_section" ]; then
+        printf '%s\n' "$changelog_section" > "$RELEASE_NOTES_FILE"
+        say "Release notes: using CHANGELOG.md section for $version"
+    else
+        say "Release notes: no CHANGELOG.md section for $version — using generated metadata"
+        cat > "$RELEASE_NOTES_FILE" <<EOF
 ## DuoUpdater $version
 
 - Released: $(date +%F)
@@ -151,6 +181,7 @@ if [ -z "$RELEASE_NOTES_FILE" ]; then
 
 SHA-256: \`$checksum\`
 EOF
+    fi
 fi
 
 [ -f "$RELEASE_NOTES_FILE" ] || die "release notes file not found: $RELEASE_NOTES_FILE"

@@ -1028,31 +1028,35 @@ public enum VendorProbeRegistry {
         // ToDesk (远程控制) — Hainan Youqu's remote-desktop app. No standard source
         // resolves it; its in-app appcast sits behind a JS bot-challenge (the reason
         // it was long left "unknown"). The public download page is the way in: it's a
-        // Nuxt/Vue SPA, but the macOS pkg URL is SERVER-RENDERED into the inline data
-        // blob (no JS needed) — `…("",false,"-1","4.9.7.1","https://dl.todesk.com/
-        // macos/ToDesk_4.9.7.1.pkg",…`. CRUCIAL anchor: the page also lists a long
-        // version HISTORY (e.g. 4.8.5.1, 4.7.2.0, 1.0.4.0 …), so a bare 4-component
-        // pattern would grab a stray older number; tying the capture to the
-        // `ToDesk_<ver>.pkg` filename (the single current-download literal) is the
-        // only safe match. The marketing version equals the app's
-        // CFBundleShortVersionString (`4.9.7.1`), so this is a normal (non-build)
-        // recipe — no selectHighest (one pkg literal; first match is correct).
-        // One-click pkg install: the download is on the vendor's own dl.todesk.com,
-        // same channel, signed by the same Team KM56KD59W4 (Hainan Youqu Technology)
-        // as the installed app — the VendorInstaller signature gate enforces it.
-        // The full pkg URL in the body is unicode-escaped (`/`), so we recover
-        // the install URL from the clean filename literal resolved against the
-        // macos/ base rather than the escaped absolute form.
+        // Nuxt/Vue SPA, but the macOS version + pkg URL are SERVER-RENDERED into the
+        // inline data blob (no JS needed). ANCHOR ON `mac_version` — the page exposes
+        // TWO macOS channels: the canonical GA fields
+        // (`mac_version:"4.9.7.2",…,mac_link:<ghref to ToDesk_4.9.7.2.pkg>`) and an
+        // OLDER grayscale channel (`mac_link_gray:"…/ToDesk_4.9.7.1.pkg"`). The gray
+        // literal appears EARLIER in the body, so the old `ToDesk_<ver>.pkg`
+        // first-match grabbed the stale gray version (2026-06-26: showed 4.9.7.1 while
+        // the site advertised 4.9.7.2). `mac_version` is the version a visitor sees
+        // and downloads, so we key off it; `mac_version_gray` is a bare variable
+        // (`mac_version_gray:d`), never a quoted-digit literal, so it can't be caught.
+        // (Other platforms' `mac_version:v` in the DaaS block are also variables.)
+        // The marketing version equals the app's CFBundleShortVersionString, so this
+        // is a normal (non-build) recipe — no selectHighest (one GA literal).
+        // One-click pkg install: the body's pkg URLs are unicode-escaped (`/`) AND
+        // the gray one precedes the GA one, so rather than scrape a link we rebuild
+        // the GA pkg URL from the captured `mac_version` (template). The download is
+        // on the vendor's own dl.todesk.com, same channel, signed by the same Team
+        // KM56KD59W4 (Hainan Youqu Technology) as the installed app — the
+        // VendorInstaller signature gate enforces it.
         VendorProbeRecipe(
             bundleID: "com.youqu.todesk.mac",
             url: URL(string: "https://www.todesk.com/download.html")!,
             mode: .responseBody,
-            versionPattern: #"ToDesk_([0-9]+(?:\.[0-9]+)+)\.pkg"#,
+            versionPattern: #"mac_version:"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://www.todesk.com/download.html"),
             install: VendorInstallSpec(
-                urlSource: .bodyPatternRelative(
-                    #"(ToDesk_[0-9]+(?:\.[0-9]+)+\.pkg)"#,
-                    base: URL(string: "https://dl.todesk.com/macos/")!),
+                urlSource: .bodyTemplate(
+                    "https://dl.todesk.com/macos/ToDesk_{0}.pkg",
+                    fields: [#"mac_version:"([0-9]+(?:\.[0-9]+)+)""#]),
                 kind: .pkg)),
 
         // Spotify — no cheap public version API (the cohort `upgrade.scdn.co`

@@ -24,24 +24,28 @@ import Foundation
         == "5.11.2026052520-alpha")
 }
 
-// ToDesk — the download page server-renders the current pkg URL into an inline
-// data blob, but also lists a long version HISTORY. The recipe must anchor to the
-// `ToDesk_<ver>.pkg` filename so it captures the CURRENT version (4.9.7.1), not a
-// stray older number (4.8.5.1, 4.7.2.0 …) — a bare 4-component pattern would.
-@Test func todeskScrapesCurrentPkgVersionNotHistory() {
+// ToDesk — the download page server-renders the macOS version into an inline data
+// blob exposing TWO channels: canonical GA (`mac_version:"4.9.7.2"` + main link) and
+// an OLDER grayscale link (`mac_link_gray:"…/ToDesk_4.9.7.1.pkg"`) that appears FIRST
+// in the body. The recipe must anchor to `mac_version` (the version a visitor sees),
+// not the first `ToDesk_<ver>.pkg` filename — which used to grab the stale gray
+// 4.9.7.1 while the site advertised 4.9.7.2.
+@Test func todeskAnchorsOnGAMacVersionNotGrayChannel() {
     let recipe = try! #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.youqu.todesk.mac" })
-    // Trimmed real blob: the current download literal sits among older history numbers.
-    let body = #"history:["4.8.5.1","4.7.2.0","1.0.4.0"],"#
-        + #"("",false,"-1","4.9.7.1","https://dl.todesk.com/macos/ToDesk_4.9.7.1.pkg","#
-    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "4.9.7.1")
-    // The install spec resolves the clean filename literal against the macos/ base.
-    guard case let .bodyPatternRelative(pat, base) = recipe.install?.urlSource else {
-        Issue.record("expected bodyPatternRelative install source"); return
+    // Trimmed real blob: the gray pkg literal (older) precedes the GA mac_version.
+    let body = #"history:["4.8.5.1","4.7.2.0"],mac_link_gray:"https://dl.todesk.com/macos/ToDesk_4.9.7.1.pkg",mac_version_gray:d,"#
+        + #"mac_version:"4.9.7.2",mac_release_date:"2026.6.17",mac_link:i,"#
+    // Version anchors on the GA field, NOT the earlier gray 4.9.7.1.
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "4.9.7.2")
+    // The install spec rebuilds the GA pkg URL from the captured mac_version.
+    guard case let .bodyTemplate(template, fields) = recipe.install?.urlSource else {
+        Issue.record("expected bodyTemplate install source"); return
     }
-    let fn = try! #require(VendorProbeRecipe.extractVersion(from: body, pattern: pat))
-    #expect(URL(string: fn, relativeTo: base)?.absoluteString
-        == "https://dl.todesk.com/macos/ToDesk_4.9.7.1.pkg")
+    let captured = try! #require(VendorProbeRecipe.extractVersion(from: body, pattern: fields[0]))
+    #expect(captured == "4.9.7.2")
+    #expect(template.replacingOccurrences(of: "{0}", with: captured)
+        == "https://dl.todesk.com/macos/ToDesk_4.9.7.2.pkg")
 }
 
 // Spotify — has no cheap version API; the version is read from the bundled

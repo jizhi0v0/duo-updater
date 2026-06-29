@@ -563,8 +563,8 @@ private struct WorkbenchActionView: View {
     /// popover affordances in the menu bar — so we show a hint that points there.
     @ViewBuilder
     private var updateAction: some View {
-        if model.vendorDefersToSelfUpdater(result) {
-            // Running self-updating vendor app + "defer while running" policy: open
+        if model.defersToSelfUpdater(result) {
+            // Running self-updating app + "defer while running" policy: open
             // its own update path rather than swapping the bundle under it.
             Button("Open") { model.openSelfUpdater(result) }
                 .buttonStyle(.bordered)

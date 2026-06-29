@@ -759,8 +759,8 @@ private struct AppRow: View {
                 } else if result.remote?.sourceName == "TestFlight" {
                     // Detected via TestFlight's cache — it installs, we just route.
                     testFlightButton
-                } else if model.vendorDefersToSelfUpdater(result) {
-                    // Running self-updating vendor app + "defer while running" policy:
+                } else if model.defersToSelfUpdater(result) {
+                    // Running self-updating app + "defer while running" policy:
                     // open its own update path instead of swapping under it.
                     openSelfUpdaterButton
                 } else if result.isMajorUpgrade && (model.canAutoInstall(result) || model.requiresInstaller(result)) {
@@ -978,7 +978,7 @@ private struct AppRow: View {
             .help(openHelp)
     }
 
-    /// Shown for a running self-updating vendor app under the "defer while running"
+    /// Shown for a running self-updating app under the "defer while running"
     /// policy: open the app's own update path rather than installing over it.
     private var openSelfUpdaterButton: some View {
         Button("Open") { model.openSelfUpdater(result) }

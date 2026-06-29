@@ -115,7 +115,7 @@ final class AppListModel {
     /// second copy of the same app (same bundle id, different path) doesn't falsely
     /// light up when only the other copy is open.
     func isRunning(_ result: UpdateResult) -> Bool {
-        runningAppPaths.contains(result.app.path.resolvingSymlinksInPath().path)
+        runningAppPaths.contains(Self.runtimeBundlePath(result.app.path))
     }
 
     func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
@@ -1245,19 +1245,24 @@ final class AppListModel {
     }
 
     /// Whether, per the user's `vendorInstallPolicy`, this update should be handed
-    /// to the app's OWN updater rather than installed over by us right now. True
-    /// only for a self-updating vendor app (a `VendorProbeSource` result) that is
-    /// currently running, when the policy is `.deferWhenRunning`. A not-running app
-    /// (nothing to disturb) or the `.alwaysOverwrite` policy installs in place as
-    /// usual. Detection-only vendor apps (no installable spec) already just "Open"
-    /// their update path, so they're excluded here.
-    func vendorDefersToSelfUpdater(_ result: UpdateResult) -> Bool {
-        guard result.remote?.sourceName == "Vendor",
-              prefs.vendorInstallPolicy == .deferWhenRunning,
+    /// to the app's OWN updater rather than installed over by us right now. True for
+    /// running self-updating apps when the policy is `.deferWhenRunning`. A
+    /// not-running app (nothing to disturb) or the `.alwaysOverwrite` policy installs
+    /// in place as usual. Detection-only vendor apps (no installable spec) already
+    /// just "Open" their update path, so they're excluded here.
+    func defersToSelfUpdater(_ result: UpdateResult) -> Bool {
+        guard prefs.vendorInstallPolicy == .deferWhenRunning,
               isRunning(result),
               canAutoInstall(result) || requiresInstaller(result)
         else { return false }
-        return true
+        switch result.remote?.sourceName {
+        case "Vendor":
+            return true
+        case "Sparkle":
+            return result.app.sparkleFeedURL != nil
+        default:
+            return false
+        }
     }
 
     /// Hand a running self-updating app off to its own update path instead of
@@ -1279,7 +1284,7 @@ final class AppListModel {
             installNotes[result.id] =
                 "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly."
         }
-        Log.app.info("vendor defer-to-self-updater: \(result.app.name, privacy: .public)")
+        Log.app.info("defer-to-self-updater: \(result.app.name, privacy: .public)")
     }
 
     /// A cheap, network-free rescan to run whenever the menu opens. Re-reads each
@@ -1690,7 +1695,7 @@ final class AppListModel {
             return false
         }
 
-        // Install policy: a running self-updating vendor app is handed to its own
+        // Install policy: a running self-updating app is handed to its own
         // updater rather than swapped under it — unless the user chose to always
         // overwrite. (Re-checked here, not just in the UI, so any caller honors it.)
         // Re-derive the live running set first: `runningAppPaths` is only updated by
@@ -1699,7 +1704,7 @@ final class AppListModel {
         // leave the set stale and make `isRunning` (and thus this defer) lie. This is
         // a consequential decision, so base it on the live process list, not a cache.
         refreshRunningApps()
-        if vendorDefersToSelfUpdater(result) {
+        if defersToSelfUpdater(result) {
             Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
             openSelfUpdater(result)
             installing[id] = nil
@@ -2142,7 +2147,7 @@ final class AppListModel {
                 if let path = quotedValue(after: "bundle path", in: line) {
                     // Resolve symlinks to line up with how `AppScanner` records
                     // `InstalledApp.path` (and `computeRestartInfo`'s lookup key).
-                    current = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+                    current = runtimeBundlePath(URL(fileURLWithPath: path))
                 } else if let cur = current, map[cur] == nil,
                           let version = quotedValue(after: "Version", in: line) {
                     map[cur] = version
@@ -2166,11 +2171,14 @@ final class AppListModel {
     /// also kill the sibling we never meant to touch — and the quit-wait below
     /// would never see the set empty (the sibling stays up), stranding the spinner.
     private func runningInstances(of result: UpdateResult) -> [NSRunningApplication] {
-        let target = result.app.path.resolvingSymlinksInPath().path
+        let target = Self.runtimeBundlePath(result.app.path)
         let candidates = result.app.bundleID.map {
             NSRunningApplication.runningApplications(withBundleIdentifier: $0)
         } ?? NSWorkspace.shared.runningApplications
-        return candidates.filter { $0.bundleURL?.resolvingSymlinksInPath().path == target }
+        return candidates.filter { app in
+            guard let bundleURL = app.bundleURL else { return false }
+            return Self.runtimeBundlePath(bundleURL) == target
+        }
     }
 
     /// Quit the stale running instance and relaunch it so the new version takes
@@ -2550,6 +2558,7 @@ final class AppListModel {
         results.filter { result in
             isActionableUpdate(result)
                 && canAutoInstall(result)
+                && !defersToSelfUpdater(result)
                 && !result.isMajorUpgrade
                 && installing[result.id] == nil
         }
@@ -2914,8 +2923,29 @@ final class AppListModel {
     private func refreshRunningApps() {
         runningAppPaths = Set(
             NSWorkspace.shared.runningApplications.compactMap {
-                $0.bundleURL?.resolvingSymlinksInPath().path
+                $0.bundleURL.map(Self.runtimeBundlePath)
             })
+    }
+
+    /// Normalize app bundle paths reported by running processes back to the live
+    /// installed bundle. macOS can keep a process mapped to DuoUpdater's temporary
+    /// `replaceItemAt` staging name after a hot swap; treating that hidden/deleted
+    /// path as distinct makes running detection and Restart miss the exact app.
+    nonisolated private static func runtimeBundlePath(_ url: URL) -> String {
+        let resolved = url.resolvingSymlinksInPath()
+        let name = resolved.lastPathComponent
+        let parent = resolved.deletingLastPathComponent()
+        let stagedPrefix = ".duoupdater-staged-"
+
+        if name.hasPrefix(stagedPrefix) {
+            let original = String(name.dropFirst(stagedPrefix.count))
+            return parent.appendingPathComponent(original).resolvingSymlinksInPath().path
+        }
+        for suffix in [".duoupdater-old", ".duoupdater-new"] where name.hasSuffix(suffix) {
+            let original = String(name.dropLast(suffix.count))
+            return parent.appendingPathComponent(original).resolvingSymlinksInPath().path
+        }
+        return resolved.path
     }
 
     /// Post a "new updates available" banner for actionable updates the user hasn't

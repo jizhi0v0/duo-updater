@@ -351,6 +351,10 @@ final class AppListModel {
     /// Retained for the app's lifetime (the single model never deallocates), so they
     /// stay registered without explicit teardown.
     @ObservationIgnored private var runningAppObservers: [NSObjectProtocol] = []
+    /// Coalesces the terminate+launch burst a manual app restart emits into a single
+    /// restart-info recompute (see `handleRunningAppsChange`). Cancel-and-reschedule,
+    /// so a flurry of process events collapses to one `lsappinfo` read.
+    @ObservationIgnored private var restartRecheckTask: Task<Void, Never>?
 
     /// Periodic "your app downloaded an update on its own — relaunch to apply it"
     /// reminder. Decoupled from the (possibly hours-long) update-check interval:
@@ -2910,9 +2914,40 @@ final class AppListModel {
         for name in [NSWorkspace.didLaunchApplicationNotification,
                      NSWorkspace.didTerminateApplicationNotification] {
             let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in self?.refreshRunningApps() }
+                Task { @MainActor in self?.handleRunningAppsChange() }
             }
             runningAppObservers.append(observer)
+        }
+    }
+
+    /// Handle an app launch/terminate. Always refresh the running-dot set, and — when
+    /// a Restart is pending — re-read the running builds to clear it.
+    ///
+    /// A manual quit+relaunch of a restart-pending app is the *one* update signal that
+    /// never touches the .app on disk: its bundle was already swapped ahead of the
+    /// still-running old process, so relaunching changes only which build is executing.
+    /// The FS watcher sees no bundle write and no networked check fires, so this
+    /// notification is the only live event that marks it. Without recomputing here the
+    /// "Relaunch" badge lingered until the 180s backstop (or the user reopening the
+    /// popover) — the "I restarted it myself but it still shows Relaunch" report.
+    private func handleRunningAppsChange() {
+        refreshRunningApps()
+        // Nothing pending → nothing a relaunch could clear. A launch can't *create* a
+        // needsRestart entry (that needs a newer on-disk build, which only a disk swap
+        // produces — already covered by the FS watcher), so this stays a no-op on the
+        // vast majority of app opens/quits. Defer to the install/check flows while
+        // they're running: they recompute restart state themselves and emit their own
+        // relaunch events (auto-restart), which we shouldn't race.
+        guard !needsRestart.isEmpty, installing.isEmpty, !isInstallingAll, !isChecking else { return }
+        // Coalesce the terminate+launch (plus helper-process) burst one restart emits
+        // into a single read, and give the freshly-relaunched process a moment to
+        // report its new build to `lsappinfo`.
+        restartRecheckTask?.cancel()
+        restartRecheckTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled, let self, !self.needsRestart.isEmpty,
+                  self.installing.isEmpty, !self.isInstallingAll, !self.isChecking else { return }
+            await self.computeRestartInfo()
         }
     }
 

@@ -43,8 +43,15 @@ Firefox/Thunderbird 之外的单轨判定）。
 - Recipe 状态: 不需要（无结构化 changelog recipe；releases 页可内嵌）
 
 ## 一键安装
-- 状态: 仅检测（downloadURL 指向 librewolf.net 安装页，非直链）
-- 阻塞: 一键需指向 Codeberg 的 macOS dmg 直链 + Team ID 校验，未做
+- 状态: **仅检测（不可一键 — 已定论）**
+- 阻塞（2026-07-03 实测）: Codeberg release 里确有 `librewolf-<ver>-macos-arm64-package.dmg`
+  直链，但下载验证 → dmg 内 `LibreWolf.app` 是 **ad-hoc 签名**：`codesign` 显示
+  `TeamIdentifier=not set`、无 `Developer ID` Authority，`spctl -a` 直接 fail
+  （"code has no resources but signature indicates they must be present"）。LibreWolf
+  作为隐私 fork **故意不做 Apple 公证**（用户装时需手动去隔离）。因此过不了
+  `VendorInstaller` 的强制 Team 签名门（fail-closed 会正确拒绝）→ 永久留 detection-only。
+- 教训: "JSON/release 带 mac dmg 直链" 只是必要非充分条件；接一键前必须真下包跑
+  `codesign -dv` + `spctl -a` 确认有 Developer ID Team + Notarized。
 
 ## 已知问题
 - 历史 bug（2026-06-04 修复）: 配方 bundle id 写成 `org.mozilla.librewolf`（永不匹配）
@@ -52,6 +59,5 @@ Firefox/Thunderbird 之外的单轨判定）。
 
 ## 建议下一步
 1. 已修复检测，无需额外动作。
-2. （可选）若要一键安装: 取 Codeberg release 资产里的
-   `librewolf-<ver>-macos-<arch>-package.dmg` 直链，加 `vendorInstallerKind: .dmg`，
-   走 `/fragile-recipe LibreWolf`（VendorProbe install 路径）+ Team ID 校验。
+2. ~~一键安装~~ — **已否决**（见上：dmg 未公证/无 Team ID，过不了签名门）。除非 LibreWolf
+   上游开始公证 mac 构建，否则不再尝试。

@@ -13,7 +13,7 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | —       | ✗(auto)  | —   | —      | ✓           |
+| **stable**   | —       | ✗(auto)  | —   | —      | ✓ +一键      |
 | **alpha**    | —       | —        | —   | —      | ✓ +一键      |
 
 当前生效源: **VendorProbe**
@@ -26,8 +26,8 @@
 | alpha   | `io.dcloud.HBuilderXAlpha` | 独立 | bundle id 含 `Alpha` + 名称 → `.alpha` | ✓ |
 
 ## 更新检测
-- stable: `https://update.liuyingyong.cn/hbuilderx/alpha/macosx-arm64/update/index.json`（路径含 `alpha` 但服务 stable 官方版！非 alpha 轨道端点）
-  - versionPattern: `"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"` 末尾 `"` 关键——防止匹配 `-alpha`/`-beta` 后缀
+- stable: `https://download1.dcloud.net.cn/hbuilderx/release.json`（**2026-07-03 改**：原为第三方镜像 `update.liuyingyong.cn/…/alpha/…`，只有 manifest 会滞后；官方 `release.json` 同时带版本+安装包，更权威更新鲜，与 changelog recipe 同源）
+  - versionPattern: `"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"` 末尾 `"` 关键——防止匹配 `displayVersion`(2 段)或 `-alpha`/`-beta` 后缀
 - alpha: `https://download1.dcloud.net.cn/hbuilderx/alpha.json`
   - versionPattern: `"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+-alpha)"` 捕获含后缀的完整版本
   - `channel: .alpha`——VendorProbeSource channel gate 必须与安装的 `.alpha` 一致
@@ -37,7 +37,10 @@
 - alpha: ChangelogRecipe ✓（相同 changelogURL，单独 bundleID `io.dcloud.HBuilderXAlpha`）
 
 ## 一键安装
-- stable: 仅检测（无 install 字段；端点 manifest 不带可用安装包链接）
+- stable: **一键 ✓**（2026-07-03 加，随版本源改到 `release.json` 一并接入）。`files[]` 里带
+  `mac_simple_arm64` 的 `…arm64.dmg`；`.bodyPattern` 锁 `\.arm64\.dmg`（x64 `mac_simple` `.dmg`
+  排前面，同 alpha 一样必须锚 arm64）；dmg 同 Team `YQM5H857L5`、已公证（`spctl` accepted），
+  过 `VendorInstaller` 签名门。仅 arm64。
 - alpha: **一键 ✓**（2026-06-05 加）。同一个 `alpha.json` 的 `files[]` 里就带安装包；
   `.bodyPattern` 锁 `…-alpha.arm64.dmg`（x64 的 `mac_simple` `.dmg` 排在前面，必须用
   `\.arm64\.dmg` 锚定，否则首个匹配会抓到 Intel 包）；dmg 与已装 alpha 同 Team
@@ -49,3 +52,4 @@
 
 ## channel-verify 状态
 - ✓ **两 channel 已验证 2026-06-04**（`--scan`，本机同时装了 stable 与 alpha）。stable `io.dcloud.HBuilderX` 5.07… 与 alpha `io.dcloud.HBuilderXAlpha` 5.11…-alpha 是独立 bundle id；两条 VendorProbe 均应答=installed。证据：`application-test/records/io-dcloud-HBuilderX.md`
+- ✓ **stable 复验 2026-07-03**（版本源改 `release.json` + 加一键后）：`channel-verify /Applications/HBuilderX.app --expect stable` → detected stable，VendorProbe 应答 `UPDATE 5.07.2026041006 → 5.14.2026070214`，download 抠出 `HBuilderX.5.14.2026070214.arm64.dmg`

@@ -13,9 +13,9 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | —       | ✗(auto)  | —   | —      | ✓           |
-| **beta**     | —       | ✗(auto)  | —   | —      | ✓           |
-| **dev**      | —       | ✗(auto)  | —   | —      | ✓           |
+| **stable**   | —       | ✗(auto)  | —   | —      | ✓ +一键      |
+| **beta**     | —       | ✗(auto)  | —   | —      | ✓ +一键      |
+| **dev**      | —       | ✗(auto)  | —   | —      | ✓ +一键      |
 | **canary**   | —       | ✗(auto)  | —   | —      | ✗(无企业API)|
 
 当前生效源: **VendorProbe**（三 channel 统一命中企业端点）
@@ -46,7 +46,7 @@
 
 ## 一键安装
 - stable: ✓ `fwlink/?linkid=2093504` → `MicrosoftEdge-<ver>.pkg`，走系统 pkg 安装
-- beta/dev: 仅检测（无经验证的 per-channel pkg link）
+- beta/dev: **一键 ✓**（2026-07-03 加）。同一个企业 API JSON 里 `Artifacts[].Location` 就带各 channel 的 `MicrosoftEdge{Beta,Dev}-<ver>.pkg`；install `.bodyPattern` 用与 versionPattern 平行的锚定 `"Product":"Beta|Dev" … "Platform":"MacOS" … "Location":"(…\.pkg)"` 定到该 channel 首个(最新)MacOS release，`\.pkg` 锚跳过同级 `.plist`。pkg 与 stable 同为 `Developer ID Installer: Microsoft Corporation (UBF8T346G9)`、已公证（`spctl` accepted），过签名门。channel gate 仍按各自 bundle id 分发。正则已在实时响应验证：Beta→150.0.4078.50、Dev→151.0.4119.1，pkg 文件名版本与检测版本对齐。
 
 ## 建议下一步
 1. Edge Canary (`com.microsoft.edgemac.Canary`) 无可靠公开端点 → 暂不支持，保留在本 audit 记录里

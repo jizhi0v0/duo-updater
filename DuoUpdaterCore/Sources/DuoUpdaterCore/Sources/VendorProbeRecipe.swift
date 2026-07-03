@@ -384,13 +384,25 @@ public enum VendorProbeRegistry {
             channel: .preview),
 
         // JetBrains Toolbox — uses the 4-component `build`, which matches the
-        // app's CFBundleShortVersionString (e.g. 3.4.3.81140).
+        // app's CFBundleShortVersionString (e.g. 3.4.3.81140). The same releases
+        // JSON carries the aarch64 dmg under `downloads.macM1`, so we install in
+        // place — same shape as the IntelliJ recipes above. No inline sha256 (the
+        // API gives only a `checksumLink`), so we lean on the mandatory Team ID
+        // gate: the dmg is notarized under 2ZEFAR8TH3 (JetBrains s.r.o.). The
+        // `[^}]*?` lazily skips within the `macM1` object to its `link`; `macM1`'s
+        // link is the arm64 build, so no `-arm64` anchor is needed here. Apple
+        // Silicon only. (Toolbox self-updates, but this is a best-effort one-click
+        // with the Team gate as backstop — it never force-kills; a running Toolbox
+        // is quit and relaunched by VendorInstaller like any other in-place dmg.)
         VendorProbeRecipe(
             bundleID: "com.jetbrains.toolbox",
             url: URL(string: "https://data.services.jetbrains.com/products/releases?code=TBA&latest=true&type=release")!,
             mode: .responseBody,
             versionPattern: #""build"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
-            changelogURL: URL(string: "https://blog.jetbrains.com/toolbox-app/")),
+            changelogURL: URL(string: "https://blog.jetbrains.com/toolbox-app/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""macM1"\s*:\s*\{[^}]*?"link"\s*:\s*"([^"]+\.dmg)""#),
+                kind: .dmg)),
 
         // Google Chrome — official VersionHistory API (page_size=1, desc).
         VendorProbeRecipe(
@@ -490,10 +502,16 @@ public enum VendorProbeRegistry {
         // via Microsoft AutoUpdate; like Office there's no rollout-jump risk (the
         // CDN serves the GA build), so Stable gets a one-click pkg from the official
         // "latest" fwlink (linkid=2093504 → MicrosoftEdge-<ver>.pkg, same 4-component
-        // ProductVersion scheme as detection). Beta/Dev stay detection-only — no
-        // verified per-channel pkg link, and the channel gate keeps Stable's pkg off
-        // them. (Edge Canary isn't carried by this enterprise API, so it stays
-        // "unknown" rather than mis-served.)
+        // ProductVersion scheme as detection). Beta/Dev ALSO get a one-click pkg,
+        // but from a different place than Stable: the same enterprise JSON lists
+        // each channel's MacOS pkg under `Artifacts[].Location`, so we scope the
+        // install pattern to that Product's first (newest) MacOS release — exactly
+        // parallel to the versionPattern — and the `\.pkg` anchor skips the sibling
+        // `.plist` artifact. The pkg is notarized under Microsoft's Developer ID
+        // Installer (UBF8T346G9), same as Stable, so it clears the signature gate.
+        // The channel gate still routes each pkg to its own bundle id. (Edge Canary
+        // isn't carried by this enterprise API, so it stays "unknown" rather than
+        // mis-served.)
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
@@ -511,6 +529,10 @@ public enum VendorProbeRegistry {
             versionPattern: #"(?s)"Product"\s*:\s*"Beta".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
             downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
             changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-beta-channel"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"(?s)"Product"\s*:\s*"Beta".*?"Platform"\s*:\s*"MacOS".*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),
+                kind: .pkg),
             channel: .beta),
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac.Dev",
@@ -519,6 +541,10 @@ public enum VendorProbeRegistry {
             versionPattern: #"(?s)"Product"\s*:\s*"Dev".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
             downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
             changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-dev-channel"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"(?s)"Product"\s*:\s*"Dev".*?"Platform"\s*:\s*"MacOS".*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),
+                kind: .pkg),
             channel: .dev),
 
         // Microsoft Teams — Microsoft's config/v1 version API (same family as
@@ -1345,29 +1371,38 @@ public enum VendorProbeRegistry {
                     fields: [#""notes"\s*:\s*\[\s*\{[^}]*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#]),
                 kind: .zip)),
 
-        // HBuilderX (DCloud) — internal update manifest pulled from the app
-        // binary. NOTE: undocumented endpoint; degrades silently to unknown if
-        // it moves. The host also serves the manifest over https, so we hit
-        // that — a plain-http url would be blocked by ATS at load time.
+        // HBuilderX (DCloud) — the vendor's own download-site config. This is the
+        // SAME `release.json` the changelog recipe already reads (see
+        // ChangelogRecipe), and it carries BOTH the version and the installer
+        // `files[]`, so one source drives detection and one-click alike — the same
+        // shape as the alpha recipe below.
         //
-        // The `alpha` in the path is MISLEADING and does NOT mean we track a
-        // pre-release channel: for macOS arm64 this is the only working manifest
-        // (stable/beta/release/official/... all 404), and it serves the OFFICIAL
-        // line — it returns 5.07.2026041006, exactly the latest official build,
-        // matching what the app's own check-for-updates calls "latest". The real
-        // alpha (e.g. 5.11.2026052520-alpha) is a SEPARATE manual download from
-        // dcloud.io and never appears in this manifest, so we don't auto-offer it.
+        // Previously this pointed at a third-party mirror
+        // (update.liuyingyong.cn/…/alpha/…) that only served the update manifest,
+        // no installer, so it was detection-only and could lag the vendor. The
+        // official release.json is fresher and lists the arm64 dmg directly.
+        //
+        // One-click: `files[]` lists the platforms in win/x64/arm64 order, so the
+        // plain `mac_simple` x64 `.dmg` appears BEFORE `mac_simple_arm64`; the
+        // `\.arm64\.dmg` anchor pins the Apple-silicon build regardless of order
+        // (same guard as the alpha recipe). The dmg is notarized under Team
+        // YQM5H857L5 (Digital Heaven / DCloud), same as the alpha, so it clears
+        // VendorInstaller's signature gate. Apple-silicon only.
         //
         // The trailing `"` in versionPattern is load-bearing: it requires the
-        // captured X.Y.Z to be immediately closed by a quote, so a hypothetical
-        // "…-alpha"/"…-beta" suffixed string would fail to match and degrade to
-        // unknown rather than be offered as if it were stable. Don't drop it.
+        // captured X.Y.Z to be immediately closed by a quote, so the config's own
+        // 2-component `displayVersion` ("5.14") and any hypothetical suffixed
+        // string can't be mis-captured. Don't drop it.
         VendorProbeRecipe(
             bundleID: "io.dcloud.HBuilderX",
-            url: URL(string: "https://update.liuyingyong.cn/hbuilderx/alpha/macosx-arm64/update/index.json")!,
+            url: URL(string: "https://download1.dcloud.net.cn/hbuilderx/release.json")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
-            changelogURL: URL(string: "https://hx.dcloud.net.cn/Tutorial/HistoryVersion")),
+            changelogURL: URL(string: "https://hx.dcloud.net.cn/Tutorial/HistoryVersion"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"(https://download1\.dcloud\.net\.cn/download/HBuilderX\.[0-9.]+\.arm64\.dmg)"#),
+                kind: .dmg)),
 
         // HBuilderX Alpha (DCloud) — the alpha track is a SEPARATE app: bundle id
         // io.dcloud.HBuilderXAlpha, installed as HBuilderX-Alpha.app, notarized

@@ -1616,6 +1616,14 @@ final class AppListModel {
         // `installAll` pre-claims all its targets, so a manual click on a queued batch
         // row no-ops here and the row keeps its spinner instead of a live button.
         guard installing[id] == nil else { return false }
+        // Re-initiating clears a prior attempt's error/note right away, so a re-clicked
+        // row shows a clean "Queued" spinner — not last failure's red error text
+        // sitting beside it. (Otherwise the error only clears later in `performInstall`,
+        // once this row's turn at the gate comes up — long after the re-click if it's
+        // queued behind another install, as an App Store row is behind the single-slot
+        // store gate.)
+        installErrors[id] = nil
+        installNotes[id] = nil
         installing[id] = .queued
         return await runInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
     }
@@ -2645,7 +2653,11 @@ final class AppListModel {
         // the gates still pace the actual work. Anything we claim but never run (a
         // cancelled batch, or serial targets after an App Management gate breaks the
         // loop) is released in the `defer` so no row is left with a phantom spinner.
-        for target in targets { installing[target.id] = .queued }
+        for target in targets {
+            installErrors[target.id] = nil  // clear a prior attempt's error up front (see `install`)
+            installNotes[target.id] = nil
+            installing[target.id] = .queued
+        }
         defer {
             isInstallingAll = false
             appManagementPermissionFlowPresentedInBatch = false
@@ -2878,19 +2890,53 @@ final class AppListModel {
     /// (skips while empty / checking / installing) to stay out of the way.
     private func backgroundLocalRescan() async {
         guard !localRescanRunning else { return }
-        // An install is replacing bundles / mutating rows: a rescan now would be
-        // dropped by `refreshLocal`'s guard (and could churn a spinner row). Remember
-        // the request and drain it when the install settles (see `install` /
-        // `installAll`), so an app that self-updated externally mid-install still
-        // clears promptly instead of waiting for the next backstop tick.
-        guard installing.isEmpty, !isInstallingAll else {
-            localRescanDeferred = true
-            return
-        }
         localRescanRunning = true
         defer { localRescanRunning = false }
+        // An install is replacing bundles / mutating rows: a full rescan now would be
+        // dropped by `refreshLocal`'s guard (and could churn a spinner row). Remember
+        // the request and drain the full pass when the install settles (see `install` /
+        // `installAll`). But an app that self-updated externally *while* an unrelated
+        // install/batch runs — Chrome's Keystone swapping in a new build during a slow
+        // App Store batch — shouldn't stay stale until the whole batch ends: clear it
+        // now with a narrowed pass that touches only the settled (non-installing) rows.
+        guard installing.isEmpty, !isInstallingAll else {
+            localRescanDeferred = true
+            await clearSettledExternalUpdates()
+            return
+        }
         Log.app.debug("local rescan: triggered (watcher or backstop)")
         await refreshLocal()
+    }
+
+    /// A narrowed local rescan run *while* an install is in flight: re-read disk and
+    /// re-derive status against each row's cached remote, but replace only rows that
+    /// are NOT currently installing (or queued). This clears an app that self-updated
+    /// externally mid-install — which the deferred full rescan would otherwise leave
+    /// stale until the batch ends — without touching the installing rows, their
+    /// spinners, or the global restart/staging/backup flags (the install flow owns
+    /// those and recomputes them once it settles). Conservative by design: it only
+    /// updates rows already on screen, so it never adds/removes rows mid-batch.
+    private func clearSettledExternalUpdates() async {
+        guard !results.isEmpty else { return }
+        let extraScan = prefs.customScanLocations
+        let found = await Task.detached(priority: .utility) {
+            AppScanner(extraLocations: extraScan).scan()
+        }.value
+        let mergedByID = Dictionary(
+            mergeScanned(found).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var next = results
+        var changed = false
+        for i in next.indices where installing[next[i].id] == nil {
+            guard let fresh = mergedByID[next[i].id],
+                  fresh.status != next[i].status
+                    || fresh.app.shortVersion != next[i].app.shortVersion else { continue }
+            next[i] = fresh
+            changed = true
+        }
+        guard changed else { return }
+        Log.app.debug("local rescan (narrowed, mid-install): cleared settled external update(s)")
+        results = sorted(next)
+        syncDockBadge()
     }
 
     /// Run a local rescan that an in-flight install deferred (see

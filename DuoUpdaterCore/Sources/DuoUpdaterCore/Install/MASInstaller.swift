@@ -40,9 +40,20 @@ public protocol PrivilegedMASRunner: Sendable {
 public actor MASInstaller {
 
     private let runner: PrivilegedMASRunner
+    /// Base unit for the between-retry backoff (multiplied by the attempt number:
+    /// 1×, 2×, 3×). Injectable so tests can exercise the retry loop without the
+    /// real multi-second waits; production always uses one second.
+    private let retryBackoffNanos: UInt64
 
     public init(runner: PrivilegedMASRunner) {
         self.runner = runner
+        self.retryBackoffNanos = 1_000_000_000
+    }
+
+    /// Test seam: same as `init(runner:)` but with a caller-chosen backoff unit.
+    init(runner: PrivilegedMASRunner, retryBackoffNanos: UInt64) {
+        self.runner = runner
+        self.retryBackoffNanos = retryBackoffNanos
     }
 
     public enum MASError: LocalizedError {
@@ -76,12 +87,55 @@ public actor MASInstaller {
     /// streaming progress as parsed `InstallStage` values. `--force` reinstalls
     /// the latest the account can fetch (we only reach here when detection already
     /// found a newer version), so it always lands the current build.
+    ///
+    /// mas reaches the store over the network twice — a metadata lookup, then the
+    /// download — and a flaky link (a local proxy resetting connections, a brief
+    /// drop) makes either fail with an `NSURLErrorDomain` code and a non-zero exit
+    /// (`Failed to lookup app … Code=-1004`). Those are transient, so we retry a
+    /// few times with a growing backoff before surfacing the error — a momentary
+    /// hiccup shouldn't strand an update a second attempt lands cleanly. Definitive
+    /// failures ("Not purchased", wrong storefront, cancelled auth) carry no such
+    /// code and are thrown on the first pass without retrying. Retries don't
+    /// re-prompt: the helper holds root over XPC, so there's no per-attempt auth.
     public func install(
         adamID: Int,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
-        // A fresh log per install; created up front so the tailer can open it
-        // before the (root) helper starts writing.
+        let maxAttempts = 4
+        var lastError: Error = MASError.failed(code: -1, output: "")
+        for attempt in 0..<maxAttempts {
+            do {
+                try await runOnce(adamID: adamID, onStage: onStage)
+                if attempt > 0 {
+                    Log.install.info("mas ADAM \(adamID, privacy: .public): succeeded on retry \(attempt, privacy: .public)")
+                }
+                return
+            } catch let error as MASError {
+                lastError = error
+                // Retry only a transient network failure; a definitive store answer
+                // is thrown as-is on the first pass.
+                guard attempt < maxAttempts - 1,
+                      case .failed(let code, let output) = error,
+                      Self.isTransientNetworkFailure(output) else { throw error }
+                Log.install.notice("mas ADAM \(adamID, privacy: .public): transient network failure (exit \(code, privacy: .public)); retrying \(attempt + 1, privacy: .public)/\(maxAttempts - 1, privacy: .public)")
+                // Growing backoff (1s, 2s, 3s) so we ride over a proxy/CDN that's
+                // momentarily resetting connections rather than hammering it.
+                try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * retryBackoffNanos)
+            }
+        }
+        throw lastError
+    }
+
+    /// One `mas install` attempt: obtain root via the helper, stream progress by
+    /// tailing the log it writes, and throw `MASError.failed` (with mas's output)
+    /// on a non-zero exit. `install` wraps this in the transient-retry loop.
+    private func runOnce(
+        adamID: Int,
+        onStage: @Sendable @escaping (InstallStage) -> Void
+    ) async throws {
+        // A fresh log per attempt; created up front so the tailer can open it before
+        // the (root) helper starts writing. Recreated (truncated) each attempt so a
+        // prior try's error tail never bleeds into this one's output or progress.
         let logPath = (NSTemporaryDirectory() as NSString)
             .appendingPathComponent("duo-mas-\(adamID).log")
         FileManager.default.createFile(atPath: logPath, contents: nil)
@@ -111,6 +165,36 @@ public actor MASInstaller {
             let log = (try? String(contentsOfFile: logPath, encoding: .utf8)).map(Self.stripANSI) ?? ""
             throw MASError.failed(code: status, output: log)
         }
+    }
+
+    /// True when mas's output shows a *transient* network failure — a connection
+    /// that dropped or couldn't be made — rather than a definitive store answer
+    /// ("Not purchased", "No apps found"). mas surfaces the URL error as text (via
+    /// `storedownloadd`) instead of a typed `URLError`, so we match the string: the
+    /// same codes `Downloader.isTransient` resumes on, plus notConnectedToInternet.
+    static func isTransientNetworkFailure(_ output: String) -> Bool {
+        // URLError/CFNetwork codes worth another pass, printed as mas emits them.
+        let transientCodes = [
+            "-1001",  // timedOut
+            "-1004",  // cannotConnectToHost ("Could not connect to the server")
+            "-1005",  // networkConnectionLost
+            "-1009",  // notConnectedToInternet
+            "-1200",  // secureConnectionFailed (TLS reset)
+        ]
+        if output.contains("NSURLErrorDomain") || output.contains("kCFErrorDomainCFNetwork") {
+            if transientCodes.contains(where: { output.contains("Code=\($0)") }) { return true }
+        }
+        // Fallback to the human-readable messages, in case a mas version prints the
+        // localized description without the numeric code. Case-insensitive so a
+        // spelling/casing drift across mas versions still matches.
+        let lowered = output.lowercased()
+        let transientPhrases = [
+            "could not connect to the server",
+            "network connection was lost",
+            "internet connection appears to be offline",
+            "the request timed out",
+        ]
+        return transientPhrases.contains(where: lowered.contains)
     }
 
     /// Map a cleaned mas output line to an install stage. mas prints "N% downloaded"

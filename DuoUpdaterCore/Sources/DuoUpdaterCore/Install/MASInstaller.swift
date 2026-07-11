@@ -167,6 +167,66 @@ public actor MASInstaller {
         }
     }
 
+    /// Whether `mas` currently lists this App Store app as outdated, or `nil` when
+    /// that can't be determined (mas absent, a non-zero exit, or the check timed
+    /// out). This is `mas`'s OWN verdict, computed with the same store machinery the
+    /// install uses, so it's the authority on whether `mas install … --force` could
+    /// actually fetch a newer build — a pre-flight consults it to avoid force-
+    /// reinstalling an app that's already current (which macOS's installer rejects
+    /// with "The upgrade failed"). It's a read (no root, no GUI-session re-
+    /// association), so we run it directly here rather than through the helper.
+    ///
+    /// Returns `nil` — deliberately, not `false` — on any failure: `mas outdated`
+    /// has been flaky across macOS releases, so a caller must treat "couldn't check"
+    /// as inconclusive, NOT as "nothing outdated". Gating a skip on a bare `nil`
+    /// would let a silently-broken check suppress every update.
+    public func outdatedContains(adamID: Int) async -> Bool? {
+        guard let ids = await runOutdated() else { return nil }
+        return ids.contains(adamID)
+    }
+
+    /// Run `mas outdated` and parse the outdated adamIDs, or `nil` on any failure
+    /// (absent binary, non-zero exit, timeout). `mas outdated` reaches the store for
+    /// every installed MAS app, so we cap the wait: a stalled network must not hang
+    /// the install pipeline.
+    private func runOutdated() async -> Set<Int>? {
+        guard let mas = Self.executablePath else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: mas)
+        process.arguments = ["outdated"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+
+        // Terminate by pid if we overrun; the work item is cancelled on a normal
+        // exit, so the kill only fires when we actually timed out. Capturing the pid
+        // (a value) rather than the Process keeps the closure Sendable.
+        let pid = process.processIdentifier
+        let timeout = DispatchWorkItem { kill(pid, SIGTERM) }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 20, execute: timeout)
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            process.terminationHandler = { _ in cont.resume() }
+        }
+        timeout.cancel()
+
+        guard process.terminationStatus == 0 else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return Self.parseOutdatedAdamIDs(from: String(data: data, encoding: .utf8) ?? "")
+    }
+
+    /// Parse `mas outdated` output into the set of outdated adamIDs. Each line leads
+    /// with the numeric adamID, e.g. "497799835  Xcode (15.0 -> 15.1)". Tolerant of
+    /// leading whitespace and any trailing columns. Internal for offline tests.
+    static func parseOutdatedAdamIDs(from output: String) -> Set<Int> {
+        var ids: Set<Int> = []
+        for raw in output.split(whereSeparator: \.isNewline) {
+            let leading = raw.drop { $0 == " " || $0 == "\t" }.prefix { $0.isNumber }
+            if let id = Int(leading) { ids.insert(id) }
+        }
+        return ids
+    }
+
     /// True when mas's output shows a *transient* network failure — a connection
     /// that dropped or couldn't be made — rather than a definitive store answer
     /// ("Not purchased", "No apps found"). mas surfaces the URL error as text (via

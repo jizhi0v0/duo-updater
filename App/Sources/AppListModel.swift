@@ -1814,6 +1814,32 @@ final class AppListModel {
                         await self?.requestQuitConfirmation(id: id, appName: appName) ?? false
                     }
                 } else {
+                    // Pre-flight before we drive the store: the row may have gone current
+                    // since the install-time re-check ran — the App Store's own background
+                    // updater can land the update while this row waits its turn at the
+                    // single-slot store gate. If the bundle on disk is already at the target
+                    // AND `mas` (the authority on what a force-reinstall could actually
+                    // fetch) doesn't list it as outdated, there's nothing to install: skip
+                    // the doomed `mas install --force` / AX redrive before downloading
+                    // anything, and settle the row to up-to-date.
+                    //
+                    // Fail-safe by construction: the on-disk check gates the skip, so a
+                    // flaky or silently-empty `mas outdated` (it has been unreliable across
+                    // macOS releases) can NEVER suppress a genuinely-behind update. `mas`
+                    // may only VETO the skip by listing the app as outdated (`!= true`);
+                    // "not outdated" and "couldn't check" (nil) both defer to the on-disk
+                    // verdict. And because that on-disk gate is evaluated first, `mas
+                    // outdated` runs only in the already-current case — never slowing a real
+                    // update, and never firing for a user without mas (nil → skip on disk).
+                    if let target = result.remote?.displayVersion,
+                       let onDisk = Self.readShortVersion(result.app.path),
+                       !VersionComparator.isNewer(target, than: onDisk),
+                       await masInstaller.outdatedContains(adamID: adamID) != true {
+                        Log.install.notice("App Store: \(result.app.name, privacy: .public) already current (on-disk \(onDisk, privacy: .public) ≥ target \(target, privacy: .public), not outdated per mas) — skipping install before download")
+                        await refreshRow(result)
+                        installing[id] = nil
+                        return false
+                    }
                     switch prefs.appStoreUpdateStrategy {
                     case .full:
                         try await masInstaller.install(adamID: adamID) { stage in
@@ -1932,6 +1958,30 @@ final class AppListModel {
             installErrors[id] = error.errorDescription
             presentAppManagementPermissionFlowForInstallFailure()
         } catch {
+            // A failed *App Store* install whose bundle is ALREADY at the target
+            // version isn't a real failure — it's a no-op reinstall the store tooling
+            // rejected. The canonical case: the row went stale because the app updated
+            // out of band (an App Store background update, or the user updating it in
+            // App Store) after we listed it — or the store updated it mid-install,
+            // racing our own attempt. `mas install --force` then re-downloads the
+            // current build and macOS's installer refuses to "upgrade" it over the same
+            // version ("installer: The upgrade failed", exit 1); the AX route dead-ends
+            // the same way (the offer button reads "Open", the press no-ops, we time
+            // out). Surfacing that alarming red error for an app that's actually current
+            // is wrong, so re-check the row instead — it settles to up-to-date and drops
+            // out of the list. The `!isNewer(target, onDisk)` guard keeps a genuine
+            // failure (bundle still behind the target) on the normal error path below.
+            if result.remote?.sourceName == "App Store",
+               let target = result.remote?.displayVersion,
+               let onDisk = Self.readShortVersion(result.app.path),
+               !VersionComparator.isNewer(target, than: onDisk) {
+                Log.install.notice("install: \(result.app.name, privacy: .public) reported a failure but is already at \(onDisk, privacy: .public) on disk (target \(target, privacy: .public)) — treating as already-current, clearing the stale row")
+                reopenIfQuitForUpdate(id: id, path: result.app.path)
+                relaunching.remove(id)
+                await refreshRow(result)  // re-scan + re-check → up-to-date, error-free
+                installing[id] = nil       // clear the spinner last, matching the skip path
+                return false
+            }
             Log.install.error("install failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             installErrors[id] = error.localizedDescription
         }

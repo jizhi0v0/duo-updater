@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.5
+
+**App Store updates no longer show a scary error for an app that's already up to date.** If the Mac App Store had quietly updated an app in the background — TestFlight, say — DuoUpdater's row could go stale and, on Update, try to reinstall the version that was already there. macOS's installer rejects that with an alarming red "The upgrade failed", even though nothing was actually wrong. DuoUpdater now confirms an App Store app really is behind before reinstalling, and treats a no-op reinstall as "already up to date" — settling the row quietly instead of showing an error.
+
 ## 0.3.4
 
 **App Store updates now ride out network hiccups.** A brief connection drop mid-update — a flaky link, or a proxy resetting the connection — used to fail an App Store update outright with a "could not connect to the server" error. Those updates now retry automatically a few times before giving up, so a momentary blip no longer strands an update that a second attempt lands cleanly. Clicking Update again after a failure also clears the old error immediately, instead of leaving it on screen next to the spinner.

@@ -42,6 +42,27 @@ import Foundation
     #expect(MASInstaller.stage(for: "Install progress cannot be displayed") == nil)
 }
 
+/// `mas outdated` leads each line with the numeric adamID; the install pre-flight
+/// parses those out to tell whether the app being installed is one the store
+/// actually considers outdated (so it can skip a doomed `--force` reinstall of an
+/// already-current app). Tolerant of leading whitespace (mas right-aligns short
+/// ids) and any trailing columns. Blank output — nothing outdated — is an EMPTY set,
+/// deliberately distinct from the `nil` "couldn't check" the caller returns when mas
+/// can't run, so a broken check is never mistaken for "nothing to update".
+@Test func parsesOutdatedAdamIDs() {
+    let output = """
+    497799835  Xcode (15.0 -> 15.1)
+     640199958  Developer (11.0.1 -> 11.0.2)
+    899247664  TestFlight (4.2.0 -> 4.2.2)
+    """
+    #expect(MASInstaller.parseOutdatedAdamIDs(from: output) == [497799835, 640199958, 899247664])
+    // Nothing outdated → empty set (NOT nil — that's the runner's "couldn't check").
+    #expect(MASInstaller.parseOutdatedAdamIDs(from: "").isEmpty)
+    #expect(MASInstaller.parseOutdatedAdamIDs(from: "\n  \n\t\n").isEmpty)
+    // A non-numeric warning/notice line is ignored, not misparsed into a bogus id.
+    #expect(MASInstaller.parseOutdatedAdamIDs(from: "Warning: hmm\n747648890 Telegram (12.7 -> 12.8)") == [747648890])
+}
+
 /// A flaky link (a local proxy resetting connections, a brief drop) makes mas's
 /// store lookup/download fail with an `NSURLErrorDomain` code — those are worth a
 /// retry. A definitive store answer ("Not purchased", "No apps found") is not: it

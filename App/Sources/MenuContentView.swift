@@ -498,10 +498,17 @@ private struct AppRow: View {
                 trailing
             }
             if let installError {
-                Text(installError)
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(installError)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if model.showsAppStoreUpdatesFallback(result.id) {
+                        Button("Open App Store") { model.openAppStoreUpdatesPage() }
+                            .font(.caption2)
+                            .buttonStyle(.link)
+                    }
+                }
             } else if let note = model.installNotes[result.id] {
                 Text(note)
                     .font(.caption2)

@@ -1053,36 +1053,41 @@ public enum VendorProbeRegistry {
 
         // ToDesk (远程控制) — Hainan Youqu's remote-desktop app. No standard source
         // resolves it; its in-app appcast sits behind a JS bot-challenge (the reason
-        // it was long left "unknown"). The public download page is the way in: it's a
-        // Nuxt/Vue SPA, but the macOS version + pkg URL are SERVER-RENDERED into the
-        // inline data blob (no JS needed). ANCHOR ON `mac_version` — the page exposes
-        // TWO macOS channels: the canonical GA fields
-        // (`mac_version:"4.9.7.2",…,mac_link:<ghref to ToDesk_4.9.7.2.pkg>`) and an
-        // OLDER grayscale channel (`mac_link_gray:"…/ToDesk_4.9.7.1.pkg"`). The gray
-        // literal appears EARLIER in the body, so the old `ToDesk_<ver>.pkg`
-        // first-match grabbed the stale gray version (2026-06-26: showed 4.9.7.1 while
-        // the site advertised 4.9.7.2). `mac_version` is the version a visitor sees
-        // and downloads, so we key off it; `mac_version_gray` is a bare variable
-        // (`mac_version_gray:d`), never a quoted-digit literal, so it can't be caught.
-        // (Other platforms' `mac_version:v` in the DaaS block are also variables.)
-        // The marketing version equals the app's CFBundleShortVersionString, so this
-        // is a normal (non-build) recipe — no selectHighest (one GA literal).
-        // One-click pkg install: the body's pkg URLs are unicode-escaped (`/`) AND
-        // the gray one precedes the GA one, so rather than scrape a link we rebuild
-        // the GA pkg URL from the captured `mac_version` (template). The download is
-        // on the vendor's own dl.todesk.com, same channel, signed by the same Team
+        // it was long left "unknown"). The public download page is the way in: a
+        // Nuxt/Vue SPA whose macOS pkg URL is SERVER-RENDERED into the inline data
+        // blob (no JS needed). ANCHOR ON THE `macos/` pkg FILENAME `ToDesk_<ver>.pkg`.
+        // History: we used to key off a quoted `mac_version:"4.9.7.2"` literal, but
+        // 2026-07-13 the vendor variable-ized every macOS version field
+        // (`mac_version:l`, `mac_version_gray:l` — bare vars, no quoted digits), so
+        // that anchor stopped matching → "probe resolved no version". The GA marketing
+        // version now survives only in the positional-arg block
+        // (`("",false,"-1","2026.7.10","…/macos/ToDesk_4.9.7.4.pkg",…`); the pkg
+        // filename is the one durable literal. Two other pkg links share the page —
+        // the DaaS (enterprise) GA `…/daas/mac/ToDesk_DaaS_v1.1.0.1.pkg` and its gray
+        // `ToDesk_DaaS-v1.1.0.1_392.pkg` — but both read `ToDesk_D…`, so anchoring on
+        // `ToDesk_<digit>` excludes them; the only `ToDesk_<digits>.pkg` on the page
+        // is the consumer GA build. NB `2026.7.10` is a release DATE that precedes the
+        // pkg URL — never anchor on it; the real marketing version (==
+        // CFBundleShortVersionString) lives in the filename. Non-build recipe, first
+        // match, no selectHighest.
+        // Residual risk: if the vendor ever moves the consumer GRAY channel back to a
+        // `ToDesk_<digits>.pkg` name that precedes GA in the body, first-match would
+        // grab the (older) gray build — a stale-but-real version, i.e. under-reporting
+        // rather than inventing an update (safe direction). Revisit then.
+        // One-click pkg install rebuilds the GA URL from the captured filename version
+        // (template), on the vendor's own dl.todesk.com, signed by the same Team
         // KM56KD59W4 (Hainan Youqu Technology) as the installed app — the
         // VendorInstaller signature gate enforces it.
         VendorProbeRecipe(
             bundleID: "com.youqu.todesk.mac",
             url: URL(string: "https://www.todesk.com/download.html")!,
             mode: .responseBody,
-            versionPattern: #"mac_version:"([0-9]+(?:\.[0-9]+)+)""#,
+            versionPattern: #"ToDesk_([0-9]+(?:\.[0-9]+)+)\.pkg"#,
             downloadURL: URL(string: "https://www.todesk.com/download.html"),
             install: VendorInstallSpec(
                 urlSource: .bodyTemplate(
                     "https://dl.todesk.com/macos/ToDesk_{0}.pkg",
-                    fields: [#"mac_version:"([0-9]+(?:\.[0-9]+)+)""#]),
+                    fields: [#"ToDesk_([0-9]+(?:\.[0-9]+)+)\.pkg"#]),
                 kind: .pkg)),
 
         // Spotify — no cheap public version API (the cohort `upgrade.scdn.co`

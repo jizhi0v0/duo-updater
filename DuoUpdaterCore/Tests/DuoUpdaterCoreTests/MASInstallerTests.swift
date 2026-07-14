@@ -113,6 +113,52 @@ private let transientLog =
     "Error: Failed to lookup app for ADAM ID 462054704\n" +
     "Error Domain=NSURLErrorDomain Code=-1004 \"Could not connect to the server.\""
 
+// mas downloads the app fully, then CommerceKit balks at the receipt import — the
+// exact shape from the WhatsApp field report.
+private let receiptImportLog =
+    "==> Downloaded WhatsApp Messenger (26.27.73)\n" +
+    "==> Installing WhatsApp Messenger (26.27.73)\n" +
+    "Install progress cannot be displayed" +
+    "Error: Failed to find receipt to import for WhatsApp Messenger (26.27.73)"
+
+/// The receipt-import failure is its own bucket: not a transient *network* error,
+/// not a definitive store answer. It's retryable (clears on a second attempt in the
+/// field), and the surfaced message is actionable guidance rather than the raw log.
+@Test func classifiesReceiptImportFailure() {
+    #expect(MASInstaller.MASError.isReceiptImportFailure(receiptImportLog))
+    #expect(!MASInstaller.MASError.isReceiptImportFailure("Error: Not purchased"))
+    #expect(!MASInstaller.MASError.isReceiptImportFailure(transientLog))
+    #expect(!MASInstaller.isTransientNetworkFailure(receiptImportLog))
+    // The surfaced message swaps the raw log tail for the actionable hint the UI
+    // keys its "Open App Store" button off.
+    let msg = MASInstaller.MASError.failed(code: 1, output: receiptImportLog).errorDescription ?? ""
+    #expect(msg.contains(MASInstaller.MASError.appStoreUpdatesHint))
+    #expect(!msg.contains("Failed to find receipt"))
+}
+
+/// A receipt-import failure is retried and lands on the second attempt — the field
+/// scenario, where a plain retry cleared it.
+@Test func retriesReceiptImportFailureThenSucceeds() async throws {
+    let runner = ScriptedMASRunner([(1, receiptImportLog), (0, "==> Installing")])
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0)
+    try await installer.install(adamID: 900000004) { _ in }
+    let calls = await runner.calls
+    #expect(calls == 2)  // failed once, retried once, succeeded
+}
+
+/// Unlike a network drop (up to 4 attempts), a persistent receipt-import failure is
+/// retried EXACTLY ONCE — each retry re-downloads the whole app, so the waste is
+/// bounded — then surfaced with the actionable guidance.
+@Test func receiptImportFailureRetriesExactlyOnce() async {
+    let runner = ScriptedMASRunner([(1, receiptImportLog)])  // always fails
+    let installer = MASInstaller(runner: runner, retryBackoffNanos: 0)
+    await #expect(throws: MASInstaller.MASError.self) {
+        try await installer.install(adamID: 900000005) { _ in }
+    }
+    let calls = await runner.calls
+    #expect(calls == 2)  // one retry only, not maxAttempts
+}
+
 // `runOnce` writes/reads a temp log keyed by adamID, so each test below uses a
 // distinct adamID to stay isolated when Swift Testing runs them in parallel.
 // (Production serializes App Store installs through a single-slot gate, so real

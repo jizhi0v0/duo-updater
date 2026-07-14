@@ -1013,6 +1013,11 @@ private struct DetailHeader: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
+                if model.showsAppStoreUpdatesFallback(result.id) {
+                    Button("Open App Store") { model.openAppStoreUpdatesPage() }
+                        .font(.caption)
+                        .buttonStyle(.link)
+                }
             } else if let note = model.installNotes[result.id] {
                 Text(note)
                     .font(.caption)

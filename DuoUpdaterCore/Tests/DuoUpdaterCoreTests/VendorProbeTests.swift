@@ -24,28 +24,33 @@ import Foundation
         == "5.11.2026052520-alpha")
 }
 
-// ToDesk — the download page server-renders the macOS version into an inline data
-// blob exposing TWO channels: canonical GA (`mac_version:"4.9.7.2"` + main link) and
-// an OLDER grayscale link (`mac_link_gray:"…/ToDesk_4.9.7.1.pkg"`) that appears FIRST
-// in the body. The recipe must anchor to `mac_version` (the version a visitor sees),
-// not the first `ToDesk_<ver>.pkg` filename — which used to grab the stale gray
-// 4.9.7.1 while the site advertised 4.9.7.2.
-@Test func todeskAnchorsOnGAMacVersionNotGrayChannel() {
+// ToDesk — the download page server-renders the macOS pkg URL into an inline data
+// blob. As of 2026-07-13 every macOS version field is variable-ized (`mac_version:l`),
+// so the one durable literal is the consumer `macos/ToDesk_<ver>.pkg` filename. The
+// page also carries DaaS (enterprise) pkg links `ToDesk_DaaS_v1.1.0.1.pkg` /
+// `…-v1.1.0.1_392.pkg` that appear FIRST; anchoring on `ToDesk_<digit>` skips them
+// (they read `ToDesk_D…`) and lands the consumer GA build. Regression guard below:
+// the retired `mac_version:"…"` anchor must no longer match this body.
+@Test func todeskAnchorsOnGAPkgFilenameNotDaaSChannel() {
     let recipe = try! #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.youqu.todesk.mac" })
-    // Trimmed real blob: the gray pkg literal (older) precedes the GA mac_version.
-    let body = #"history:["4.8.5.1","4.7.2.0"],mac_link_gray:"https://dl.todesk.com/macos/ToDesk_4.9.7.1.pkg",mac_version_gray:d,"#
-        + #"mac_version:"4.9.7.2",mac_release_date:"2026.6.17",mac_link:i,"#
-    // Version anchors on the GA field, NOT the earlier gray 4.9.7.1.
-    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "4.9.7.2")
-    // The install spec rebuilds the GA pkg URL from the captured mac_version.
+    // Trimmed real blob: DaaS GA + gray pkg links (own digits) precede the GA
+    // positional-arg block; every mac_version field is now a bare variable.
+    let body = #"mac_link:"https://dl.todesk.com/daas/mac/ToDesk_DaaS_v1.1.0.1.pkg",mac_link_gray:"https://dl.todesk.com/daas/mac/ToDesk_DaaS-v1.1.0.1_392.pkg",mac_version:l,mac_version_gray:l,"#
+        + #"("",false,"-1","2026.7.10","https://dl.todesk.com/macos/ToDesk_4.9.7.4.pkg",true)"#
+    // Version anchors on the consumer GA pkg filename, NOT the DaaS 1.1.0.1 links.
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "4.9.7.4")
+    // Regression: the retired mac_version literal anchor finds nothing in the new body.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: body, pattern: #"mac_version:"([0-9]+(?:\.[0-9]+)+)""#) == nil)
+    // The install spec rebuilds the GA pkg URL from the captured filename version.
     guard case let .bodyTemplate(template, fields) = recipe.install?.urlSource else {
         Issue.record("expected bodyTemplate install source"); return
     }
     let captured = try! #require(VendorProbeRecipe.extractVersion(from: body, pattern: fields[0]))
-    #expect(captured == "4.9.7.2")
+    #expect(captured == "4.9.7.4")
     #expect(template.replacingOccurrences(of: "{0}", with: captured)
-        == "https://dl.todesk.com/macos/ToDesk_4.9.7.2.pkg")
+        == "https://dl.todesk.com/macos/ToDesk_4.9.7.4.pkg")
 }
 
 // Spotify — has no cheap version API; the version is read from the bundled

@@ -71,9 +71,29 @@ public actor MASInstaller {
             case .helperNotApproved:
                 return "App Store updates need the DuoUpdater helper — enable it in Settings."
             case .failed(let code, let output):
+                // A known dead end on recent macOS: mas downloads the app fully, then
+                // CommerceKit refuses the final receipt import ("Failed to find receipt
+                // to import") because Apple gated the private API mas drives. Retrying
+                // just re-downloads and fails again, so instead of the raw red log tail
+                // we tell the user plainly and offer the App Store's own Updates page
+                // (the UI keys the "Open App Store" button off this sentinel).
+                if Self.isReceiptImportFailure(output) {
+                    return "The App Store blocked mas from finishing this update. \(MASError.appStoreUpdatesHint)"
+                }
                 let tail = output.split(separator: "\n").suffix(3).joined(separator: " ")
                 return tail.isEmpty ? "mas failed (\(code))." : "mas failed (\(code)): \(tail)"
             }
+        }
+
+        /// Stable fragment embedded in the receipt-import failure message; the UI
+        /// matches on it to show a manual "Open App Store" button for the row.
+        public static let appStoreUpdatesHint = "Update it from the App Store’s Updates page."
+
+        /// True when mas downloaded the app but the store tooling couldn't import the
+        /// receipt — a deterministic macOS/CommerceKit limitation, not a transient
+        /// hiccup, so it should be surfaced as actionable guidance rather than retried.
+        static func isReceiptImportFailure(_ output: String) -> Bool {
+            output.lowercased().contains("failed to find receipt to import")
         }
     }
 
@@ -112,12 +132,33 @@ public actor MASInstaller {
                 return
             } catch let error as MASError {
                 lastError = error
-                // Retry only a transient network failure; a definitive store answer
-                // is thrown as-is on the first pass.
-                guard attempt < maxAttempts - 1,
-                      case .failed(let code, let output) = error,
-                      Self.isTransientNetworkFailure(output) else { throw error }
-                Log.install.notice("mas ADAM \(adamID, privacy: .public): transient network failure (exit \(code, privacy: .public)); retrying \(attempt + 1, privacy: .public)/\(maxAttempts - 1, privacy: .public)")
+                guard case .failed(let code, let output) = error else { throw error }
+                // Two retry policies, both throwing to the actionable error otherwise:
+                //  • Transient network failure (proxy reset, brief drop): retry up to
+                //    `maxAttempts - 1` with a growing backoff — a momentary hiccup
+                //    shouldn't strand an update a later attempt lands cleanly.
+                //  • Receipt-import failure: mas downloaded the app fully but
+                //    CommerceKit balked at the final receipt import. Observed to clear
+                //    on a plain second attempt, so retry — but EXACTLY ONCE, since mas
+                //    has no install-only mode and each retry re-downloads the whole
+                //    (often large) app; one retry bounds that waste. If it fails again
+                //    it surfaces the "Open App Store" guidance (see `errorDescription`).
+                //  Definitive answers ("Not purchased", wrong storefront, cancelled
+                //  auth) match neither and are thrown on the first pass.
+                let allowRetry: Bool
+                let reason: String
+                if Self.isTransientNetworkFailure(output) {
+                    allowRetry = attempt < maxAttempts - 1
+                    reason = "transient network failure"
+                } else if MASError.isReceiptImportFailure(output) {
+                    allowRetry = attempt < 1   // one retry only
+                    reason = "receipt-import failure"
+                } else {
+                    allowRetry = false
+                    reason = ""
+                }
+                guard allowRetry else { throw error }
+                Log.install.notice("mas ADAM \(adamID, privacy: .public): \(reason, privacy: .public) (exit \(code, privacy: .public)); retrying \(attempt + 1, privacy: .public)")
                 // Growing backoff (1s, 2s, 3s) so we ride over a proxy/CDN that's
                 // momentarily resetting connections rather than hammering it.
                 try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * retryBackoffNanos)

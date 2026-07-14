@@ -1999,6 +1999,19 @@ final class AppListModel {
         return installErrors[id] == nil
     }
 
+    /// True when the row's install error is the mas receipt-import dead end — mas
+    /// can't finish it (a macOS/CommerceKit limitation), so the row offers a manual
+    /// jump to the App Store's Updates page instead of just showing the red note.
+    func showsAppStoreUpdatesFallback(_ id: String) -> Bool {
+        installErrors[id]?.contains(MASInstaller.MASError.appStoreUpdatesHint) == true
+    }
+
+    /// Open the App Store's Updates list, where the user can finish an update mas
+    /// couldn't. User-initiated (no focus steal from us).
+    func openAppStoreUpdatesPage() {
+        if let url = URL(string: "macappstore://showUpdatesPage") { NSWorkspace.shared.open(url) }
+    }
+
     /// Flag apps whose running instance launched with an older build than
     /// what's now on disk — reliably, by reading the live launch version from
     /// LaunchServices (`lsappinfo`), which is cached at launch and so differs
@@ -2756,6 +2769,18 @@ final class AppListModel {
             for target in targets where needsRestart.contains(target.id) {
                 if Task.isCancelled { break }
                 await restart(target)
+            }
+            // Also flush any apps that already staged a self-update and are only
+            // waiting on a relaunch (the "Relaunch" rows, e.g. Claude's ShipIt).
+            // These are never install targets — `installAllTargets` requires
+            // `hasUpdate`, and a staged row has none — so they'd otherwise sit
+            // untouched after "Update All". Relaunching them can't collide with the
+            // batch: the installs are done, and the app's own updater does the swap
+            // on quit (we don't reopen). Scoped to the same `autoRestartAfterUpdate`
+            // opt-in as the restart loop above, since it quits running apps.
+            for result in results where actionableStaged(result) != nil {
+                if Task.isCancelled { break }
+                await relaunchStagedUpdate(result)
             }
         }
         if prefs.notifyOnUpdates && installed > 0 {

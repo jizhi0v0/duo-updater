@@ -1139,6 +1139,9 @@ final class AppListModel {
         await recordReleaseTimeline(for: checked)
         await computeRestartInfo()
         await computeSelfUpdateStaging()
+        if prefs.pruneOrphanBackups {
+            await Task.detached(priority: .utility) { BackupStore.pruneOrphans() }.value
+        }
         await refreshBackupIndex()
         isChecking = false
         lastCheck = .now
@@ -1543,9 +1546,20 @@ final class AppListModel {
             guard let remote = was.remote else {
                 return UpdateResult(app: app, remote: nil, status: was.status)
             }
-            // Toolbox and TestFlight own their apps' status (computed from their
-            // own cache, not a version compare) — keep it; don't re-evaluate.
-            guard remote.sourceName != "Toolbox", remote.sourceName != "TestFlight" else {
+            // A Toolbox row can't be re-run through `evaluate` (its verdict is a
+            // Toolbox build compare, not a compare against `shortVersion`), but it
+            // must still settle when Toolbox installs the update itself between our
+            // checks — otherwise the cached "update available" stands beside the
+            // freshly-rescanned version, reading "262.132.21 → 262.132.21".
+            if remote.sourceName == "Toolbox" {
+                return UpdateResult(
+                    app: app, remote: remote,
+                    status: UpdateChecker.evaluateToolbox(
+                        cached: was.status, installed: app, remote: remote))
+            }
+            // TestFlight owns its betas' status (its own cache, not a version
+            // compare) — keep it; don't re-evaluate.
+            guard remote.sourceName != "TestFlight" else {
                 return UpdateResult(app: app, remote: remote, status: was.status)
             }
             return UpdateResult(
@@ -2533,6 +2547,16 @@ final class AppListModel {
             installNotes[result.id] =
                 "Couldn’t back up the current version — this update will be applied without a rollback point."
         }
+    }
+
+    /// Settings' "Clean Up Now" button: prunes orphaned backups regardless of the
+    /// auto-prune preference, and refreshes the on-screen backup index so any
+    /// rollback affordance that pointed at a just-removed orphan disappears.
+    /// Returns the bytes freed, for the confirmation the button shows.
+    func cleanUpOrphanBackups() async -> Int64 {
+        let freed = await Task.detached(priority: .utility) { BackupStore.pruneOrphans() }.value
+        await refreshBackupIndex()
+        return freed
     }
 
     /// Re-read which apps have a rollback backup on disk (one directory scan),

@@ -302,6 +302,9 @@ public struct AppScanner: Sendable {
             hasSelfUpdater: hasSelfUpdater,
             releaseChannel: releaseChannel,
             channelIsAuthoritative: channelIsAuthoritative,
+            toolboxInstalledBuild: toolboxTool.flatMap {
+                $0.installedBuild.isEmpty ? nil : $0.installedBuild
+            },
             // Only store-installed bundles carry an adamID; skip the metadata
             // read for everything else.
             appStoreAdamID: (isMAS || isTestFlight) ? Self.appStoreAdamID(bundleURL) : nil

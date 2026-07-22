@@ -126,6 +126,7 @@ final class Preferences {
         static let launchAtLogin = "LaunchAtLogin"
         static let maxConcurrency = "MaxConcurrency"
         static let keepBackups = "KeepBackups"
+        static let pruneOrphanBackups = "PruneOrphanBackups"
         static let notifyOnUpdates = "NotifyOnUpdates"
         static let autoRestartAfterUpdate = "AutoRestartAfterUpdate"
         static let appStoreUpdateStrategy = "AppStoreUpdateStrategy"
@@ -207,6 +208,13 @@ final class Preferences {
     /// rolled back.
     var keepBackups: Bool {
         didSet { defaults.set(keepBackups, forKey: Key.keepBackups) }
+    }
+
+    /// Automatically delete a backup once its app is no longer installed at the
+    /// path it was taken from — retention per app is already one, so orphans
+    /// left behind by an uninstall or move are the only unbounded growth.
+    var pruneOrphanBackups: Bool {
+        didSet { defaults.set(pruneOrphanBackups, forKey: Key.pruneOrphanBackups) }
     }
 
     /// Post a notification when a background check finds updates.
@@ -332,6 +340,7 @@ final class Preferences {
         self.maxConcurrency = storedConcurrency == 0 ? 12 : min(32, max(1, storedConcurrency))
         // Default ON for these — all opt-out conveniences.
         self.keepBackups = defaults.object(forKey: Key.keepBackups) as? Bool ?? true
+        self.pruneOrphanBackups = defaults.object(forKey: Key.pruneOrphanBackups) as? Bool ?? true
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         let storedAppStoreStrategy = AppStoreUpdateStrategy(

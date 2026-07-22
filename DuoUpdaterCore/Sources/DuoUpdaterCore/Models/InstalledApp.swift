@@ -104,6 +104,15 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// build-inference alone can't see. Defaults to false (infer from the build).
     public let channelIsAuthoritative: Bool
 
+    /// The build Toolbox records as installed for this app (`buildNumber` in its
+    /// `state.json`, e.g. "262.132.21"), for a Toolbox-managed install. This is
+    /// the same 3-part build namespace a Toolbox verdict reports as its latest,
+    /// which the on-disk `shortVersion` is NOT (it's marketing for the IDEs, and a
+    /// divergent runtime track for Air/Fleet) — so it's the only local value a
+    /// network-free rescan can compare a cached Toolbox verdict against. Nil for
+    /// everything Toolbox doesn't manage.
+    public let toolboxInstalledBuild: String?
+
     /// The App Store numeric track id (`kMDItemAppStoreAdamID` from Spotlight),
     /// when this is a Mac App Store / TestFlight install Spotlight has indexed.
     /// Lets the UI deep-link straight to the product page without a network
@@ -162,6 +171,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         hasSelfUpdater: Bool = false,
         releaseChannel: ReleaseChannel = .stable,
         channelIsAuthoritative: Bool = false,
+        toolboxInstalledBuild: String? = nil,
         appStoreAdamID: Int? = nil
     ) {
         self.name = name
@@ -179,6 +189,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.hasSelfUpdater = hasSelfUpdater
         self.releaseChannel = releaseChannel
         self.channelIsAuthoritative = channelIsAuthoritative
+        self.toolboxInstalledBuild = toolboxInstalledBuild
         self.appStoreAdamID = appStoreAdamID
     }
 }

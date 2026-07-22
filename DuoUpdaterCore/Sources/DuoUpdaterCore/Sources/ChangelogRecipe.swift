@@ -284,6 +284,35 @@ public enum ChangelogRecipeRegistry {
             minItemLength: 4,
             indexLinkPattern: #"src="(?<link>/assets/index-[^"]*\.js)""#),
 
+        // Claude Desktop — the official docs changelog at
+        // claude.com/docs/cowork/changelog. We fetch the `.md` twin (Mintlify serves a
+        // text/markdown form of every docs page): server-rendered, on a stable URL, and
+        // free of the hashed-JS + zstd-cache fragility of the in-app "What's new" popup
+        // (which reads an inline array baked into claude.ai's web bundle — variable
+        // names rotate every deploy). Each release is one block:
+        //   <Update label="v1.22209.0" description="2026-07-16"> … </Update>
+        // version = the label minus its leading "v" (matches the
+        // com.anthropic.claudefordesktop build the VendorProbe reads); date = the
+        // description verbatim. Inside, notes are grouped into `**General**`, `**Code**`,
+        // `**Cowork**`, and `**3P**` sections of `* ` markdown bullets, in that fixed
+        // order. We deliberately DROP the trailing **3P** section — it's enterprise/MDM
+        // only (managed-settings.json keys) that a normal user never sees in-app (the
+        // popup filters by surface) — by bounding `body` to stop at `**3P**` (or
+        // `</Update>` for a block with none). stripTags is OFF because Code notes carry
+        // literal angle-bracket text (e.g. a typed `<channel-message>` turn) that
+        // tag-stripping would eat; the source is markdown, so there's nothing else to
+        // strip or entity-decode. A parse miss just falls back to embedding the page.
+        ChangelogRecipe(
+            bundleID: "com.anthropic.claudefordesktop",
+            source: URL(string: "https://claude.com/docs/cowork/changelog.md")!,
+            entryPattern:
+                #"<Update label="v(?<version>[^"]+)" description="(?<date>[^"]*)">"#
+                + #"(?<body>.*?)(?=\*\*3P\*\*|</Update>)"#,
+            itemPatterns: [#"\n[ \t]*\*[ \t]+(?<item>[^\n]+)"#],
+            stripTags: false,
+            decodeEntities: false,
+            maxEntries: 20),
+
         // ChatWise — the /changelog page hydrates client-side from the public
         // releases JSON endpoint. The current payload order is:
         //   {"version":"26.5.3","changelog":"- Add Claude Opus 4.8...\\n",

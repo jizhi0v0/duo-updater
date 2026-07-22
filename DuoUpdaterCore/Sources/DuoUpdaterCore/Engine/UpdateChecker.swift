@@ -167,6 +167,31 @@ public struct UpdateChecker: Sendable {
         return UpdateResult(app: app, remote: nil, status: status)
     }
 
+    /// Re-derive a Toolbox row's status without a network call, for the same
+    /// background-rescan path as `evaluate` — which a Toolbox row can't use, since
+    /// its verdict is a Toolbox build compare, not a compare against the on-disk
+    /// `shortVersion` (marketing for the IDEs, a divergent runtime track for
+    /// Air/Fleet). Toolbox installs its apps itself, between our checks, and the
+    /// rescan that picks up the new bundle would otherwise leave the cached
+    /// "update available" standing beside it — the row reading "262.132.21 →
+    /// 262.132.21" until the next check. `state.json` settles that offline: both
+    /// sides here are Toolbox build ids in one namespace (`toolboxInstalledBuild`
+    /// is its `buildNumber`; `remote.version` carries the verdict's `latestBuild`).
+    ///
+    /// One-way by design — it can only settle a row to up-to-date, never raise an
+    /// update. The verdict is the only thing that accounts for pins, channels and
+    /// retained older majors, none of which a bare build compare reproduces, so
+    /// anything short of "the installed build caught up" keeps `cached`.
+    public static func evaluateToolbox(
+        cached: UpdateStatus, installed: InstalledApp, remote: RemoteVersion
+    ) -> UpdateStatus {
+        guard let installedBuild = installed.toolboxInstalledBuild,
+              let latestBuild = remote.version,
+              !VersionComparator.isNewer(latestBuild, than: installedBuild)
+        else { return cached }
+        return .upToDate
+    }
+
     /// Decide whether `remote` is newer than what's installed. Prefer comparing
     /// build versions (Sparkle's canonical key) when both sides have one; fall
     /// back to the marketing version otherwise.

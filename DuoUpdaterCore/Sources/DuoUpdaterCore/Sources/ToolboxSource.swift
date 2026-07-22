@@ -1,25 +1,33 @@
 import Foundation
 
-/// Decides whether a JetBrains-Toolbox-managed app has an update — preferring a
-/// LIVE query so the answer is fresh even when Toolbox itself isn't running (its
-/// local "available builds" cache only refreshes while Toolbox is open).
+/// Decides whether a JetBrains-Toolbox-managed app has an update. Every answer
+/// comes from a LIVE query, because Toolbox's own files record only what it has
+/// INSTALLED — never what's available (see below) — so they can't answer the
+/// question at all.
 ///
 /// Strategy, per tool:
 ///   1. JetBrains IDEs (have a product code, e.g. "IU"): ask the public JetBrains
-///      releases API for the latest build in its channel — always fresh; fall
-///      back to Toolbox's local channel cache when offline.
-///   2. Android Studio (Google, code "AI"): Google's live stable feed, else cache.
-///   3. Air/Fleet (NO product code): use the Sparkle feed, but RETARGETED to the
+///      releases API for the latest build in its channel.
+///   2. Android Studio (Google, code "AI"): Google's live stable feed. Only the
+///      NEWEST install of the product follows it; a retained older copy abstains
+///      so it can't nag about a cross-major jump.
+///   3. Air/Fleet (NO product code): the Sparkle feed, but RETARGETED to the
 ///      channel Toolbox actually tracks. The app's baked-in SUFeedURL points at
 ///      'nightly' (262.x) even on a Public Preview install — wrong channel — so we
 ///      swap the channel segment to Toolbox's quality ("eap") to reach the Public
-///      Preview feed (261.584.13), then compare against the Toolbox installer-base
-///      build `localLatestBuild` (261.474.25), which shares that 3-part namespace.
-///      NOT against the app's CFBundleShortVersionString (261.617) — that's a
-///      divergent SHIP-runtime track and would mis-compare.
-/// In every case the comparison is build-id vs installed build-id in one
-/// namespace, and the action stays "open Toolbox" — we never install a build
-/// ourselves.
+///      Preview feed.
+/// In every case the comparison is the live build id vs Toolbox's `installedBuild`
+/// (`state.json`), which share one 3-part namespace — NOT the app's
+/// CFBundleShortVersionString, which for Air/Fleet is a divergent SHIP-runtime
+/// track (261.617 vs the managed 261.474.x) and would mis-compare. The action
+/// stays "open Toolbox"; we never install a build ourselves.
+///
+/// No offline fallback exists, by design. Toolbox's `history.toolBuilds` reads
+/// like an "available builds" cache but is an INSTALL history — its newest entry
+/// is, by construction, the build already installed. Comparing against it can only
+/// ever answer "up to date", which is a lie dressed as an answer when the live
+/// query is what actually failed. We return nil instead and the row says
+/// "managed by Toolbox" until a live query succeeds.
 public struct ToolboxSource: Sendable {
 
     public struct Verdict: Sendable, Hashable {
@@ -55,48 +63,44 @@ public struct ToolboxSource: Sendable {
         self.session = session
     }
 
-    /// Toolbox's latest-vs-installed verdict for this app, or nil if it isn't a
-    /// Toolbox tool / we have no data at all. Tries fresh sources first, then
-    /// falls back to Toolbox's (possibly stale) local cache.
+    /// Toolbox's latest-vs-installed verdict for this app, or nil when we can't
+    /// answer: not a Toolbox tool, or the live query for it didn't land. Nil is an
+    /// abstention (the row falls back to a plain "managed by Toolbox" label), never
+    /// an implied "up to date" — see the type doc on why there's no offline answer.
     public func verdict(for app: InstalledApp) async -> Verdict? {
         guard let tool = inventory.tool(forApp: app.path) else { return nil }
 
         // Android Studio (Google, code "AI" — not on the JetBrains API). Only the
-        // NEWEST install of the product follows Google's live stable feed; older
-        // retained copies (e.g. a kept-around Koala) stay on Toolbox's local cache
-        // so they don't nag about a cross-major jump to the current release.
+        // NEWEST install of the product follows Google's live stable feed; an older
+        // retained copy (a kept-around Koala) abstains, so it can't nag about a
+        // cross-major jump to the current release.
         if tool.productCode == "AI" {
-            if tool.isNewestOfProduct, let latest = try? await androidStudioLatest() {
-                return Self.verdict(latestBuild: latest.build, display: latest.version, tool: tool)
+            guard tool.isNewestOfProduct, let latest = try? await androidStudioLatest() else {
+                return nil
             }
-            return localVerdict(tool)
+            return Self.verdict(latestBuild: latest.build, display: latest.version, tool: tool)
         }
 
         // Air/Fleet have no JetBrains product code; their update lives in a
-        // channel-correct Sparkle feed. The app's baked-in SUFeedURL points at the
-        // 'nightly' channel (262.x), but Toolbox actually subscribes to EAP /
-        // Public Preview — so retarget the feed to Toolbox's channel and compare
-        // its version against the Toolbox INSTALLER-BASE build (localLatestBuild),
-        // which shares the feed's 3-part namespace (261.474.25 vs 261.584.13). The
-        // app's own CFBundleShortVersionString (261.617) is the divergent SHIP
-        // runtime track and must NOT be compared here.
+        // channel-correct Sparkle feed, which reports a bare build id — so compare
+        // it against the build Toolbox records as installed, the one value that
+        // shares the feed's 3-part namespace (and the one the row displays).
         guard let code = tool.productCode else {
-            if let raw = app.sparkleFeedURL,
-               let feed = Self.retargetChannel(raw, to: tool.channelType),
-               let base = tool.localLatestBuild,
-               let latest = try? await sparkleLatest(feed) {
-                return Verdict(hasUpdate: VersionComparator.isNewer(latest, than: base),
-                               latestVersion: latest, latestBuild: latest)
-            }
-            return nil
+            guard let raw = app.sparkleFeedURL,
+                  let feed = Self.retargetChannel(raw, to: tool.channelType),
+                  let latest = try? await sparkleLatest(feed)
+            else { return nil }
+            return Verdict(hasUpdate: VersionComparator.isNewer(latest, than: tool.installedBuild),
+                           latestVersion: latest, latestBuild: latest)
         }
 
-        // JetBrains IDEs: live releases API, falling back to Toolbox's local cache.
-        if let latest = try? await apiLatest(code: code, type: tool.channelType) {
-            return Self.verdict(latestBuild: latest.build, display: latest.version,
-                                tool: tool, changelogURL: latest.notesLink)
+        // JetBrains IDEs: the live releases API is the only source; no answer, no
+        // verdict.
+        guard let latest = try? await apiLatest(code: code, type: tool.channelType) else {
+            return nil
         }
-        return localVerdict(tool)
+        return Self.verdict(latestBuild: latest.build, display: latest.version,
+                            tool: tool, changelogURL: latest.notesLink)
     }
 
     /// Rewrite a Fleet/Air Sparkle feed URL to a different channel: the path is
@@ -126,12 +130,10 @@ public struct ToolboxSource: Sendable {
             from: body, pattern: #"<sparkle:version>([0-9.]+)</sparkle:version>"#)
     }
 
-    private func localVerdict(_ tool: ToolboxInventory.Tool) -> Verdict? {
-        guard let version = tool.localLatestVersion, let build = tool.localLatestBuild else { return nil }
-        return Self.verdict(latestBuild: build, display: version, tool: tool)
-    }
-
-    private static func verdict(
+    /// Shape a live latest-build answer into a verdict against what Toolbox has
+    /// installed, applying the "keep version" pin. Internal so the pin rules can be
+    /// tested directly — they're the half of this file with no network in their path.
+    static func verdict(
         latestBuild: String, display: String, tool: ToolboxInventory.Tool,
         changelogURL: URL? = nil
     ) -> Verdict {

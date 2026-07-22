@@ -251,4 +251,63 @@ struct BackupStoreTests {
             #expect(BackupStore.backup(forKey: "k") == nil)
         }
     }
+
+    // MARK: - Orphan cleanup
+
+    /// A backup whose original app path no longer exists on disk (uninstalled,
+    /// or moved to a new path-scoped key) has nothing left to restore onto —
+    /// `pruneOrphans` should reclaim it, and leave backups whose app is still
+    /// installed untouched.
+    @Test func pruneOrphansRemovesBackupsForUninstalledApps() throws {
+        try withScratchRoot { _ in
+            let apps = FileManager.default.temporaryDirectory
+                .appendingPathComponent("apps-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: apps) }
+
+            let stillInstalled = try makeApp(named: "Keep.app", in: apps, marker: "v1")
+            let uninstalled = try makeApp(named: "Gone.app", in: apps, marker: "v1")
+            try BackupStore.save(appPath: stillInstalled, key: "keep", version: "1.0", bundleID: nil)
+            try BackupStore.save(appPath: uninstalled, key: "gone", version: "1.0", bundleID: nil)
+
+            // Simulate the second app having been uninstalled.
+            try FileManager.default.removeItem(at: uninstalled)
+
+            let freed = BackupStore.pruneOrphans()
+            #expect(freed > 0)
+            #expect(BackupStore.backup(forKey: "keep") != nil)
+            #expect(BackupStore.backup(forKey: "gone") == nil)
+        }
+    }
+
+    @Test func pruneOrphansIsNoOpWhenAllAppsStillInstalled() throws {
+        try withScratchRoot { _ in
+            let apps = FileManager.default.temporaryDirectory
+                .appendingPathComponent("apps-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: apps) }
+
+            let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
+            try BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
+
+            #expect(BackupStore.pruneOrphans() == 0)
+            #expect(BackupStore.backup(forKey: "k") != nil)
+        }
+    }
+
+    @Test func totalSizeReflectsStoredBackups() throws {
+        try withScratchRoot { _ in
+            #expect(BackupStore.totalSize() == 0)
+
+            let apps = FileManager.default.temporaryDirectory
+                .appendingPathComponent("apps-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: apps) }
+
+            let app = try makeApp(named: "Foo.app", in: apps, marker: "v1")
+            try BackupStore.save(appPath: app, key: "k", version: "1.0", bundleID: nil)
+
+            #expect(BackupStore.totalSize() > 0)
+        }
+    }
 }

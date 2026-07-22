@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.7
+
+**Backups from uninstalled apps are now cleaned up automatically.** DuoUpdater keeps one backup of an app's previous version so an update can be rolled back. Backups for apps you've since uninstalled or moved were never reclaimed and could quietly pile up gigabytes of disk space over time. They're now deleted automatically during the regular update check. Settings shows how much space backups are currently using, with a toggle to turn off the automatic cleanup and a "Clean Up Now" button to run it on demand.
+
+**JetBrains Toolbox apps no longer show a stuck or incorrect "update available."** Version checks for Toolbox-managed apps (IntelliJ, Android Studio, Fleet, Air, and others) now always ask live rather than sometimes falling back to a local cache that could never actually report a new version — it fixes both a status that lingered after Toolbox had already installed the update, and one that never appeared in the first place.
+
+**Claude Desktop's release notes are now shown in DuoUpdater.** Update entries for Claude Desktop now include Anthropic's own per-version changelog instead of a generic notice.
+
 ## 0.3.6
 
 **Update All now also relaunches apps that were only waiting on a restart.** If an app had already downloaded its update and just needed a relaunch to finish — Claude, for instance — clicking Update All used to skip it, leaving a stray "Relaunch" button behind. It now relaunches those too, in the same pass, whenever automatic restart-after-update is on.

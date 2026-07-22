@@ -251,6 +251,56 @@ public enum BackupStore {
             at: root.appendingPathComponent(key, isDirectory: true))
     }
 
+    // MARK: - Cleanup
+
+    /// Removes backups whose original app no longer exists at the recorded path —
+    /// uninstalled, moved, or replaced under a fresh path-scoped key. Retention
+    /// per key is already 1 (`save` supersedes the prior backup atomically), so
+    /// the only unbounded growth left is these orphans: nothing ever revisits a
+    /// key once its app is gone, and a large app bundle backup left behind is
+    /// pure disk waste with no path left to restore onto. Returns the bytes freed.
+    @discardableResult
+    public static func pruneOrphans() -> Int64 {
+        let fm = FileManager.default
+        guard let dirs = try? fm.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]) else { return 0 }
+        var freed: Int64 = 0
+        for dir in dirs {
+            guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            else { continue }
+            let metaURL = dir.appendingPathComponent("backup.json")
+            guard let data = try? Data(contentsOf: metaURL),
+                  let meta = try? JSONDecoder().decode(Meta.self, from: data)
+            else { continue }
+            guard !fm.fileExists(atPath: meta.originalPath) else { continue }
+            freed += directorySize(dir)
+            try? fm.removeItem(at: dir)
+        }
+        return freed
+    }
+
+    /// Total on-disk size of every stored backup, for display in Settings.
+    public static func totalSize() -> Int64 {
+        let fm = FileManager.default
+        guard let dirs = try? fm.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+        else { return 0 }
+        return dirs.reduce(into: 0) { $0 += directorySize($1) }
+    }
+
+    private static func directorySize(_ url: URL) -> Int64 {
+        guard let enumerator = FileManager.default.enumerator(
+            at: url, includingPropertiesForKeys: [.fileSizeKey],
+            options: [], errorHandler: nil)
+        else { return 0 }
+        var total: Int64 = 0
+        for case let file as URL in enumerator {
+            total += Int64((try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+        }
+        return total
+    }
+
     // MARK: - Errors
 
     public enum BackupError: LocalizedError {

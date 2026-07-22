@@ -44,12 +44,12 @@ import Foundation
     #expect(!inv.isManaged(appPath: URL(fileURLWithPath: "/Users/x/Applications/PyCharm.app")))
 }
 
-/// A freshly-added EAP tool whose channel cache has an EMPTY `toolBuilds` array
-/// (Toolbox hasn't fetched its builds yet) must still resolve to the "eap" channel
-/// type from the quality filter. Regression: the empty array used to collapse
-/// `channelInfo` to nil, defaulting `channelType` to "release" — which routed the
-/// EAP install to the stable API track, reported an older stable build as "latest",
-/// and hid the install as up to date.
+/// A freshly-added EAP tool has an EMPTY `toolBuilds` array (it records installs,
+/// and this channel has only ever installed the build it came with) — it must
+/// still resolve to the "eap" channel type from the quality filter. Regression:
+/// the empty array used to collapse `channelInfo` to nil, defaulting `channelType`
+/// to "release" — which routed the EAP install to the stable API track, reported
+/// an older stable build as "latest", and hid the install as up to date.
 @Test func emptyBuildCacheStillReadsEAPChannelType() throws {
     let dir = FileManager.default.temporaryDirectory
         .appendingPathComponent("toolbox-empty-cache-\(UUID().uuidString)", isDirectory: true)
@@ -78,8 +78,9 @@ import Foundation
     let inv = ToolboxInventory(stateURL: dir.appendingPathComponent("state.json"))
     let tool = inv.tool(forApp: URL(fileURLWithPath: "/Users/x/Applications/IntelliJ IDEA 2026.2 EAP.app"))
     #expect(tool?.channelType == "eap")
-    // No cached build to fall back on — the live API is the source of truth.
-    #expect(tool?.localLatestBuild == nil)
+    // The live API is the source of truth for what's newer; all Toolbox owes us
+    // here is the build it installed and which track to ask about.
+    #expect(tool?.installedBuild == "262.6653.22")
 }
 
 /// A Toolbox-managed app must not be probed by vendor/GitHub sources, even when

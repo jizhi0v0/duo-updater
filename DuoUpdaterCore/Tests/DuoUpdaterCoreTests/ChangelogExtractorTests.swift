@@ -1975,3 +1975,62 @@ private let typelessFixture = """
         channel: nil, maxEntries: 12) == nil)
 }
 
+// A trimmed fixture mirroring Claude Desktop's docs `.md` changelog: two
+// `<Update>` blocks with **General**/**Code**/**Cowork**/**3P** sections, a
+// literal `<channel-message>` in a Code note (must survive stripTags:false), and
+// a **3P** section in each block that must be dropped (enterprise/MDM-only).
+private let claudeFixture = """
+<Update label="v1.22209.0" description="2026-07-16">
+  **General**
+
+  * Improved responsiveness while artifacts generate.
+  * Fixed tool errors blaming an organization policy.
+
+  **Code**
+
+  * Added per-row actions to queued messages.
+  * Fixed a typed `<channel-message>` turn rendering as a spoofable card.
+
+  **Cowork**
+
+  * Fixed documents Claude creates not opening in the editor.
+
+  **3P**
+
+  * Added `disableBrowserExternalNavigation` to managed-settings.json.
+</Update>
+
+<Update label="v1.21459.3" description="2026-07-16">
+  **General**
+
+  * Fixed installed extensions failing to load.
+
+  **3P**
+
+  * No user-facing changes.
+</Update>
+"""
+
+@Test func extractsClaudeEntriesSkippingThirdParty() throws {
+    let recipe = try #require(
+        ChangelogRecipeRegistry.recipe(forBundleID: "com.anthropic.claudefordesktop"))
+    let cl = try #require(ChangelogExtractor.extract(from: claudeFixture, using: recipe))
+
+    #expect(cl.entries.count == 2)
+
+    let latest = cl.entries[0]
+    #expect(latest.version == "1.22209.0")
+    #expect(latest.date == "2026-07-16")
+    // General(2) + Code(2) + Cowork(1) = 5; the **3P** bullet is dropped.
+    #expect(latest.items.count == 5)
+    // stripTags:false keeps the literal angle-bracket text intact.
+    #expect(latest.items.contains { $0.contains("<channel-message>") })
+    // the 3P managed-settings note never leaks in.
+    #expect(!latest.items.contains { $0.contains("disableBrowserExternalNavigation") })
+
+    // Second block: only the General bullet; its **3P** "No user-facing changes." is cut.
+    let prev = cl.entries[1]
+    #expect(prev.version == "1.21459.3")
+    #expect(prev.items == ["Fixed installed extensions failing to load."])
+}
+

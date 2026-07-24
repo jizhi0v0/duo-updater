@@ -527,7 +527,9 @@ private struct AppRow: View {
     /// back to the previous version.
     @ViewBuilder
     private var rowMenu: some View {
-        Button("Open") { NSWorkspace.shared.open(result.app.path) }
+        // Via `launchApp`, not `NSWorkspace.open` — the latter blocks the main
+        // thread until the app has finished launching.
+        Button("Open") { Task { await AppListModel.launchApp(result.app.path) } }
         Button("Changelog") { openChangelog() }
         Divider()
         if result.hasUpdate {

@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.8
+
+**No more beachball while an app is relaunching.** Clicking Update on another app while one was being quit and relaunched could freeze DuoUpdater for a moment — the spinning rainbow cursor, an unresponsive window, a click that seemingly did nothing. Relaunching an app now happens in the background instead of on the interface, so the rest of the list stays live and clickable throughout. The same freeze could show up when opening an app from a row's right-click menu, or when handing an update off to an app's own updater; both are fixed too.
+
 ## 0.3.7
 
 **Backups from uninstalled apps are now cleaned up automatically.** DuoUpdater keeps one backup of an app's previous version so an update can be rolled back. Backups for apps you've since uninstalled or moved were never reclaimed and could quietly pile up gigabytes of disk space over time. They're now deleted automatically during the regular update check. Settings shows how much space backups are currently using, with a toggle to turn off the automatic cleanup and a "Clean Up Now" button to run it on demand.

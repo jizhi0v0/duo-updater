@@ -1287,7 +1287,11 @@ final class AppListModel {
             installNotes[result.id] =
                 "Opened \(result.app.name) — its own updater is applying the update."
         } else {
-            NSWorkspace.shared.open(result.app.path)
+            // Detached from this call so a slow LaunchServices activation doesn't
+            // block the main actor (see `launchApp`); the note below is what the
+            // user actually waits on, and it lands immediately either way.
+            let path = result.app.path
+            Task { await Self.launchApp(path) }
             installNotes[result.id] =
                 "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly."
         }
@@ -2299,7 +2303,7 @@ final class AppListModel {
             Log.app.error("restart: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving badge")
             return  // still up (likely a save prompt) — leave the badge
         }
-        let relaunched = NSWorkspace.shared.open(result.app.path)
+        let relaunched = await Self.launchApp(result.app.path)
         needsRestart.remove(result.id)
         runningVersionByID[result.id] = nil
         Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
@@ -2358,7 +2362,7 @@ final class AppListModel {
         var everQuit = false
         for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
-            if let disk = Self.readShortVersion(result.app.path),
+            if let disk = await Self.readShortVersionOffMain(result.app.path),
                let old, VersionComparator.isNewer(disk, than: old) {
                 applied = true
                 break
@@ -2375,7 +2379,7 @@ final class AppListModel {
         // Fallback: if ShipIt swapped but didn't relaunch (or never ran), bring the
         // app back so the user isn't left without it.
         if runningInstances(of: result).isEmpty {
-            NSWorkspace.shared.open(result.app.path)
+            await Self.launchApp(result.app.path)
         }
         Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public)")
         // Re-read disk: clears the staged flag + reminder banner if the swap landed
@@ -2386,8 +2390,40 @@ final class AppListModel {
         // on disk but the row never gets re-read).
         await refreshRow(result)
         if applied {
-            UpdateNotifier.restarted(app: result.app.name, version: Self.readShortVersion(result.app.path), appID: result.app.bundleID)
+            let version = await Self.readShortVersionOffMain(result.app.path)
+            UpdateNotifier.restarted(app: result.app.name, version: version, appID: result.app.bundleID)
         }
+    }
+
+    /// Launch an app bundle **without wedging the main actor**.
+    ///
+    /// `NSWorkspace.open(_:)` is synchronous: it doesn't return until
+    /// LaunchServices has actually launched the app. For a big bundle — worse,
+    /// one just rewritten by its own updater, so nothing is in the page cache —
+    /// that's hundreds of milliseconds to a few seconds of blocked main thread,
+    /// during which every other row's button is dead and the pointer spins
+    /// (the "clicking another Update mid-relaunch beachballs" report).
+    /// `openApplication(at:configuration:)` does the same work off-main and
+    /// suspends instead. Default configuration matches `open(_:)`'s behaviour
+    /// (it activates the launched app).
+    @discardableResult
+    nonisolated static func launchApp(_ bundle: URL) async -> Bool {
+        do {
+            _ = try await NSWorkspace.shared.openApplication(
+                at: bundle, configuration: NSWorkspace.OpenConfiguration())
+            return true
+        } catch {
+            Log.app.error("launch failed: \(bundle.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// `readShortVersion` off the main actor. The staged-relaunch poll calls it
+    /// five times a second against a bundle the vendor's updater is actively
+    /// replacing — a synchronous read of a file mid-swap on a busy disk is
+    /// exactly the kind of small stall that adds up to a visible hitch.
+    nonisolated private static func readShortVersionOffMain(_ bundle: URL) async -> String? {
+        await Task.detached(priority: .utility) { readShortVersion(bundle) }.value
     }
 
     /// Read a bundle's `CFBundleShortVersionString` straight off disk — used to

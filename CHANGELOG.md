@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.9
+
+**Uses less memory and does less work in the background.** This release is entirely under the hood — nothing about what DuoUpdater does has changed, only what it costs to leave running. Every update it downloaded used to leave a small amount of memory behind that was never reclaimed; harmless once, but it adds up over the weeks a menu-bar app tends to stay open. Separately, while the main window was open DuoUpdater re-read every installed app from disk every 15 seconds and started a system process each time to see what was running — that now happens every three minutes, since the filesystem watcher already notices a real change the moment it happens. Recording the release history after each check also used to save its file once per app rather than once per check, and release notes could be fetched more than once when the same page was already on its way in.
+
 ## 0.3.8
 
 **No more beachball while an app is relaunching.** Clicking Update on another app while one was being quit and relaunched could freeze DuoUpdater for a moment — the spinning rainbow cursor, an unresponsive window, a click that seemingly did nothing. Relaunching an app now happens in the background instead of on the interface, so the rest of the list stays live and clickable throughout. The same freeze could show up when opening an app from a row's right-click menu, or when handing an update off to an app's own updater; both are fixed too.

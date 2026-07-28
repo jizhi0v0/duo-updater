@@ -94,6 +94,12 @@ struct DownloaderTrafficTests {
         private let queue = DispatchQueue(label: "RangeResumeServer")
         let port: UInt16
 
+        /// How long to let the truncated body sit on the wire before killing the
+        /// connection — see the send site below. Generous for loopback (delivery
+        /// takes single-digit milliseconds) so a loaded CI box doesn't reintroduce
+        /// the race, and paid only once per run.
+        static let dropDelay: TimeInterval = 0.25
+
         init(body: Data, truncateAt: Int) throws {
             self.body = body
             self.truncateAt = truncateAt
@@ -127,9 +133,24 @@ struct DownloaderTrafficTests {
                         header += "Connection: close\r\n\r\n"
                         var response = Data(header.utf8)
                         response.append(body.subdata(in: 0..<truncateAt))
-                        // Slam the connection shut mid-body: the client has received
-                        // fewer bytes than Content-Length → a transient failure.
-                        conn.send(content: response, completion: .contentProcessed { _ in conn.cancel() })
+                        // Drop the connection mid-body: the client has received fewer
+                        // bytes than Content-Length → a transient failure it resumes from.
+                        //
+                        // The teardown is deliberately NOT immediate. `.contentProcessed`
+                        // only means Network.framework accepted the bytes for
+                        // transmission — not that the peer consumed them — so cancelling
+                        // straight from that callback raced URLSession's delivery of the
+                        // partial body to its delegate. Losing that race means
+                        // `didReceive data:` never fires, the partial file stays empty,
+                        // every resume re-requests from byte 0, and the test fails: it did
+                        // so ~7 times out of 8. (Real drops don't look like this — bytes
+                        // have been flowing for seconds before a proxy resets — so the
+                        // race was an artifact of the fixture, not a defect in
+                        // `Downloader`.) Letting the bytes land first reproduces the real
+                        // shape: data delivered, *then* the connection dies.
+                        conn.send(content: response, completion: .contentProcessed { _ in
+                            queue.asyncAfter(deadline: .now() + Self.dropDelay) { conn.cancel() }
+                        })
                     }
                 }
             }

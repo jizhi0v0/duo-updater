@@ -71,7 +71,12 @@ public actor ChangelogCache {
         let task = Task<Changelog?, Never> { await fetch() }
         inflight[url] = task
         let result = await task.value
-        inflight[url] = nil
+        // Only retract OUR OWN registration. An `invalidate`/`invalidateAll` during
+        // the fetch clears the table, after which a later caller can register a
+        // fresh task under this URL — clearing the slot unconditionally would then
+        // unregister *that* task, and every subsequent concurrent caller would miss
+        // the coalescing check and start yet another redundant fetch.
+        if inflight[url] == task { inflight[url] = nil }
         if let result { set(result, for: url) }
         return result
     }

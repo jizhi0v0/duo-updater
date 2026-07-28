@@ -38,6 +38,13 @@ actor ImageStore {
     /// would accumulate every version's images forever.
     private static let diskByteCap = 64 * 1024 * 1024   // 64 MB
 
+    /// Running estimate of the directory's byte total, so the cap can be enforced
+    /// without a full `contentsOfDirectory` + per-file `resourceValues` sweep after
+    /// *every* image. A changelog with a dozen illustrations used to trigger a dozen
+    /// directory walks in a row. `nil` = not measured yet this session, so the next
+    /// write does one real sweep (which also seeds this).
+    private var estimatedDiskBytes: Int?
+
     /// Image bytes for `url`: disk hit, else download (via the shared update session,
     /// whose private cache also absorbs a repeat), persist, and return. nil on any
     /// network/decoding failure.
@@ -59,13 +66,28 @@ actor ImageStore {
         }
         inflight[url] = task
         let result = await task.value
-        inflight[url] = nil
-        if result != nil { pruneIfOverCap() }
+        // Retract only our own registration — see `ChangelogCache.load` for why an
+        // unconditional clear can unregister a *newer* task and lose coalescing.
+        if inflight[url] == task { inflight[url] = nil }
+        if let result { noteWrite(bytes: result.count) }
         return result
     }
 
+    /// Account for a freshly-written image and sweep only when the running estimate
+    /// says we might be over the cap. The estimate can only drift *low* (files we
+    /// didn't write this session), which the first sweep corrects exactly.
+    private func noteWrite(bytes: Int) {
+        guard let current = estimatedDiskBytes else {
+            pruneIfOverCap()   // unmeasured: one real sweep seeds the estimate
+            return
+        }
+        estimatedDiskBytes = current + bytes
+        if current + bytes > Self.diskByteCap { pruneIfOverCap() }
+    }
+
     /// Keep the on-disk cache under ``diskByteCap`` by deleting the oldest files
-    /// (by modification date) until it fits. Best-effort; runs after a fresh write.
+    /// (by modification date) until it fits, and record the resulting exact total in
+    /// ``estimatedDiskBytes``. Best-effort; the only path that walks the directory.
     private func pruneIfOverCap() {
         let fm = FileManager.default
         let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
@@ -78,6 +100,7 @@ actor ImageStore {
             return (url, size, v.contentModificationDate ?? .distantPast)
         }
         var total = sized.reduce(0) { $0 + $1.size }
+        defer { estimatedDiskBytes = total }
         guard total > Self.diskByteCap else { return }
         sized.sort { $0.date < $1.date }   // oldest first
         for entry in sized where total > Self.diskByteCap {

@@ -60,10 +60,22 @@ struct WorkbenchWindowView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
 
-    /// While the window stays open, re-read on-disk versions every 15s so an app
+    /// While the window stays open, re-read on-disk versions periodically so an app
     /// that self-updates in the background surfaces even if you never close/refocus
     /// the window. `refreshLocal()` is network-free and `!isChecking`-guarded.
-    private let refreshTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
+    ///
+    /// Deliberately slow. "Network-free" is not "cheap": each tick runs a full
+    /// `AppScanner.scan()` (~45ms for 73 apps, growing with the library), spawns an
+    /// `lsappinfo` subprocess for the restart probe (~57ms), stats every
+    /// self-updater's staging area, walks the backup directory, and then replaces
+    /// the whole `results` array — which invalidates the entire `@Observable` graph
+    /// and re-renders the window. At 15s that ran ~240 times an hour to discover
+    /// nothing, because the model ALREADY covers this ground: an FSEvents watcher on
+    /// the same directories (whose whole job is catching background self-updates), a
+    /// 180s backstop, and `NSWorkspace` launch/terminate observers for the
+    /// process-only case. This timer is just a belt-and-braces for a missed event, so
+    /// match the model's own backstop cadence rather than out-polling it 12×.
+    private let refreshTimer = Timer.publish(every: 180, on: .main, in: .common).autoconnect()
 
     /// The sidebar app list. One stable order regardless of the active lens —
     /// pending updates float to the top, everything else alphabetical — so
@@ -207,13 +219,18 @@ struct WorkbenchWindowView: View {
         }
         // Brew tree data (formulae + the cask set derives from results above).
         .task { await model.refreshBrewFormulae() }
-        // Refocus → re-read on-disk versions. App-scoped notification, cheap, idempotent.
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+        // Refocus → re-read on-disk versions. Scoped to THIS window: the
+        // notification carries whichever window became key, and with `object: nil`
+        // we heard every one of them — so merely opening Settings, the Release Log,
+        // or the popover kicked off a full disk rescan that had nothing to do with
+        // the workbench.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+            guard Self.isWorkbenchWindow(note.object) else { return }
             Task { await model.refreshLocal() }
         }
-        // Stationary stay (never lose focus) → the 15s timer keeps versions fresh.
-        // Skip ticks while hidden/minimized: refreshing for a window no one sees is
-        // wasted work and battery.
+        // Stationary stay (never lose focus) → the backstop timer keeps versions
+        // fresh. Skip ticks while hidden/minimized: refreshing for a window no one
+        // sees is wasted work and battery.
         .onReceive(refreshTimer) { _ in
             guard scenePhase != .background else { return }
             Task { await model.refreshLocal() }
@@ -239,6 +256,15 @@ struct WorkbenchWindowView: View {
         // A "Changelog" deep-link arriving while the window is already open — the
         // `.task` above only fires on a fresh open, so catch the in-flight case here.
         .onChange(of: model.requestedWorkbenchAppID) { applyRequestedApp() }
+    }
+
+    /// Whether a `didBecomeKey` notification's object is this workbench's own
+    /// window. SwiftUI stamps a scene's window `identifier` with the scene id
+    /// (e.g. "workbench-AppWindow-1") — the same match `AppListModel.surfaceWindow`
+    /// uses to find a scene's window.
+    private static func isWorkbenchWindow(_ object: Any?) -> Bool {
+        guard let window = object as? NSWindow else { return false }
+        return window.identifier?.rawValue.contains(Self.windowID) ?? false
     }
 
     /// Honor a pending "Changelog" deep-link to a specific app, then clear it so the

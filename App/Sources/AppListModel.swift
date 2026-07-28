@@ -682,6 +682,10 @@ final class AppListModel {
                 added = added || didAdd
             }
         }
+        // One write for the whole check. The store batches every `record` /
+        // `observeForChange` above into dirty flags precisely so a 100-app check
+        // doesn't turn into 100 full-file atomic rewrites.
+        await releaseTimelineStore.flush()
         // Always refresh on first run (snapshot starts empty); otherwise only when
         // something actually changed.
         if added || releaseTimelines.isEmpty {

@@ -203,6 +203,40 @@ struct DownloaderTrafficTests {
         #expect(downloader.bytesDownloaded == Int64(body.count))
     }
 
+    /// A `Downloader` must be fully released once its download returns.
+    ///
+    /// `URLSession(configuration:delegate:delegateQueue:)` keeps a **strong**
+    /// reference to its delegate until the session is invalidated — and the
+    /// delegate here is the `Downloader`, which also owns the session. That's a
+    /// cycle ARC can't break, so a session held for the object's lifetime leaked
+    /// the downloader, the session, and its delegate queue on **every install**,
+    /// for the whole life of a menu-bar process that runs for weeks. `download`
+    /// now scopes the session to one call and invalidates it on exit; this pins
+    /// that, because reverting to a lifetime session still passes every other
+    /// test in this file.
+    @Test func downloaderIsReleasedAfterDownload() async throws {
+        let body = Data((0..<4096).map { UInt8($0 & 0xFF) })
+        let server = try OneShotHTTPServer(body: body)
+        defer { server.stop() }
+
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dl-lifetime-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+
+        let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
+        weak var weakDownloader: Downloader?
+        do {
+            let downloader = Downloader(destinationDir: workDir) { _ in }
+            weakDownloader = downloader
+            _ = try await downloader.download(url)
+        }
+        // `finishTasksAndInvalidate` releases the delegate asynchronously on the
+        // session's own queue, so give it a beat before asserting.
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(weakDownloader == nil, "Downloader leaked — its URLSession was never invalidated")
+    }
+
     @Test func downloaderRefusesInsecureRemoteRedirect() async throws {
         let server = try OneShotHTTPServer(
             body: Data(),

@@ -101,6 +101,8 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
     let store = ReleaseTimelineStore(fileURL: url)
     await store.record(appID: "/p.app", appName: "Persisted", bundleID: "com.p",
         version: "3.1", sourceName: "GitHub", publishedAt: d2)
+    // Writes are batched, so persistence happens at the end of a recording batch.
+    await store.flush()
     // A fresh store over the same file must see the logged release — proving the
     // JSON round-trips with the time-of-day intact.
     let reloaded = ReleaseTimelineStore(fileURL: url)
@@ -179,6 +181,7 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
     // change against it — proving the observation baseline round-trips to disk.
     await store.observeForChange(appID: "/v.app", appName: "V", bundleID: nil,
         version: "1.0", sourceName: "Vendor", now: d1)
+    await store.flush()
     let reloaded = ReleaseTimelineStore(fileURL: url)
     let added = await reloaded.observeForChange(appID: "/v.app", appName: "V", bundleID: nil,
         version: "1.1", sourceName: "Vendor", now: d2)

@@ -31,6 +31,17 @@ public actor ReleaseTimelineStore {
     private var observations: [String: Observation]
     private let observationsURL: URL
 
+    /// Whether each file has unpersisted changes. Writes are **batched**: `record`
+    /// and `observeForChange` are called once per app per check — dozens to hundreds
+    /// of times in a burst — and each used to do a full JSON encode plus an atomic
+    /// (write-temp-then-rename) write of the *entire* file. `observeForChange` was
+    /// the worst: its `defer` fired even on the "nothing changed" path, so a steady-
+    /// state check rewrote the observations file once per detection-only app while
+    /// recording no new information at all. Callers now mark state dirty here and
+    /// call ``flush()`` once when the batch is done.
+    private var timelinesDirty = false
+    private var observationsDirty = false
+
     /// - Parameter fileURL: where to persist the timeline. Defaults to
     ///   `~/Library/Application Support/com.duoupdater.app/releases.json`; the
     ///   detection baselines sit beside it as `release-observations.json`. Tests
@@ -89,7 +100,7 @@ public actor ReleaseTimelineStore {
         timeline.events.sort { $0.timestamp < $1.timestamp }
         timelines[appID] = timeline
 
-        save()
+        timelinesDirty = true
         Log.app.info("release-log: \(appName, privacy: .public) \(version, privacy: .public) published \(publishedAt, privacy: .public) via \(sourceName, privacy: .public)")
         return true
     }
@@ -121,7 +132,7 @@ public actor ReleaseTimelineStore {
         // Update the baseline first; we always remember the latest sighting.
         defer {
             observations[appID] = Observation(version: version, lastSeenAt: now)
-            saveObservations()
+            observationsDirty = true
         }
 
         // No baseline, or unchanged version → nothing to record (just (re)baseline
@@ -157,9 +168,28 @@ public actor ReleaseTimelineStore {
         timeline.events.sort { $0.timestamp < $1.timestamp }
         timelines[appID] = timeline
 
-        save()
+        timelinesDirty = true
         Log.app.info("release-log: \(appName, privacy: .public) \(version, privacy: .public) estimated within \(range.duration, privacy: .public)s via \(sourceName, privacy: .public)")
         return true
+    }
+
+    /// Persist whatever the recording calls above marked dirty. Call once after a
+    /// batch of `record`/`observeForChange` (the model does so at the end of each
+    /// update check). A no-op when nothing changed, so an idle check costs no I/O.
+    ///
+    /// The window this opens — records held in memory until the batch ends — is
+    /// bounded by one check's duration, and this is a best-effort observational log:
+    /// losing a few seconds of it to a crash costs nothing a later check won't
+    /// re-derive.
+    public func flush() {
+        if timelinesDirty {
+            save()
+            timelinesDirty = false
+        }
+        if observationsDirty {
+            saveObservations()
+            observationsDirty = false
+        }
     }
 
     /// Per-app timelines, sorted by most-recent release first (apps that shipped
@@ -195,6 +225,10 @@ public actor ReleaseTimelineStore {
     public func reset() {
         timelines = [:]
         observations = [:]
+        // Drop any pending writes too — a later `flush` must not resurrect the
+        // state we just deleted.
+        timelinesDirty = false
+        observationsDirty = false
         try? FileManager.default.removeItem(at: fileURL)
         try? FileManager.default.removeItem(at: observationsURL)
     }

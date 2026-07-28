@@ -45,7 +45,21 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private let onProgress: @Sendable (Double) -> Void
     private let destinationDir: URL
-    private var session: URLSession!
+    /// Held so each `download` call can build its own session — see `session`.
+    private let configuration: URLSessionConfiguration
+    /// The session for the CURRENT `download` call, created at its start and
+    /// invalidated when it returns.
+    ///
+    /// It deliberately does NOT live for the object's lifetime: a session created
+    /// with `init(configuration:delegate:delegateQueue:)` keeps a **strong**
+    /// reference to its delegate until it is invalidated, and our delegate is
+    /// `self` — which also owns the session. That's a retain cycle ARC can't break,
+    /// so every `Downloader` (and its session, delegate queue, and worker thread)
+    /// leaked for the life of the process. Since a menu-bar app builds one
+    /// `Downloader` per install and runs for weeks, those add up. Scoping the
+    /// session to one `download` call and invalidating it in a `defer` breaks the
+    /// cycle on every exit path, success or throw.
+    private var session: URLSession?
 
     /// Exact number of bytes received over the network, for per-app traffic
     /// accounting. Accumulated across resume attempts, so it reflects real traffic
@@ -71,6 +85,9 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private var writtenOffset: Int64 = 0        // absolute bytes on disk now
     private var totalExpected: Int64 = 0
     private var suggestedFilename: String?
+    /// Last whole-percent handed to `onProgress`, so the delegate only reports a
+    /// visible change. `-1` means "nothing reported yet this attempt".
+    private var lastReportedPercent = -1
     /// A definitive error captured at response time (bad status / disk write), to
     /// be surfaced from `didCompleteWithError` instead of the cancellation it
     /// triggers.
@@ -83,8 +100,8 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     ) {
         self.destinationDir = destinationDir
         self.onProgress = onProgress
+        self.configuration = configuration
         super.init()
-        self.session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
     }
 
     /// Download `url`, returning the location of the downloaded file on disk.
@@ -103,9 +120,21 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
 
         // Local files (only ever `file://` in tests) copy straight across: no
         // network, no range, no retry — and the byte count comes from the file
-        // size exactly.
+        // size exactly. No session is created, so nothing to tear down.
         if url.isFileURL {
             return try copyLocalFile(url)
+        }
+
+        // One session per call, released on every exit path (see `session`). By the
+        // time we return, the data task has already completed — the continuation is
+        // only resumed from `didCompleteWithError` / a redirect rejection — so
+        // `finishTasksAndInvalidate` has nothing outstanding to wait on; it just
+        // drops the session's strong reference to us.
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        self.session = session
+        defer {
+            session.finishTasksAndInvalidate()
+            self.session = nil
         }
 
         // The partial file we accumulate into across resume attempts, in the dir
@@ -168,7 +197,9 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         totalExpected = 0
         fileHandle = nil
         pendingError = nil
+        lastReportedPercent = -1
 
+        guard let session else { throw URLError(.unknown) }
         return try await withCheckedThrowingContinuation { cont in
             lock.lock(); continuation = cont; lock.unlock()
             session.dataTask(with: request).resume()
@@ -240,9 +271,20 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         writtenOffset += Int64(data.count)
         bytesLock.lock(); _bytesDownloaded += Int64(data.count); bytesLock.unlock()
 
-        if totalExpected > 0 {
-            onProgress(min(1.0, Double(writtenOffset) / Double(totalExpected)))
-        }
+        // Report only when the whole percent actually moves. URLSession delivers a
+        // body in many small chunks — thousands for a large dmg — and every caller
+        // routes `onProgress` through a hop onto the main actor
+        // (`Task { @MainActor in setStage(…) }`). The model already discards
+        // same-percent ticks, but it does so *after* that hop, so the hop itself was
+        // still paid thousands of times per download (times however many installs
+        // run in parallel). Filtering here means the actor only hears the ~100
+        // transitions a progress bar can actually show.
+        guard totalExpected > 0 else { return }
+        let fraction = min(1.0, Double(writtenOffset) / Double(totalExpected))
+        let percent = Int(fraction * 100)
+        guard percent != lastReportedPercent else { return }
+        lastReportedPercent = percent
+        onProgress(fraction)
     }
 
     func urlSession(

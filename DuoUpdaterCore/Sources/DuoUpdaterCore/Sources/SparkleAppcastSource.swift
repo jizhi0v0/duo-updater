@@ -32,7 +32,7 @@ public struct SparkleAppcastSource: UpdateSource {
         // If-Modified-Since from the cached ETag/Last-Modified): unchanged → cheap
         // 304 served from cache, changed → 200 with the new feed. So we keep the
         // bandwidth win on quiet feeds without ever going blind to an update.
-        request.cachePolicy = .reloadRevalidatingCacheData
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
         // Header-keyed apps (TablePlus) share one appcast across channels and let
         // a request header pick which builds the server returns. See `ChannelBinding`.

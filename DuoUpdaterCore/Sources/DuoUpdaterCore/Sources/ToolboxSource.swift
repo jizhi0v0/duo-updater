@@ -121,6 +121,7 @@ public struct ToolboxSource: Sendable {
     private func sparkleLatest(_ feed: URL) async throws -> String? {
         var request = URLRequest(url: feed)
         request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse,
@@ -169,6 +170,7 @@ public struct ToolboxSource: Sendable {
         let url = URL(string: "https://dl.google.com/android/studio/patches/updates.xml")!
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse,
@@ -203,6 +205,7 @@ public struct ToolboxSource: Sendable {
         guard let url = URL(string: endpoint) else { return nil }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await session.data(for: request)

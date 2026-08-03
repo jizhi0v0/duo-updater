@@ -119,6 +119,7 @@ public struct AlcoveUpdateSource: UpdateSource {
     private func fetchLatest(token: String, app: InstalledApp) async throws -> UpdatesLatest? {
         var request = URLRequest(url: Self.updatesLatestURL)
         request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")

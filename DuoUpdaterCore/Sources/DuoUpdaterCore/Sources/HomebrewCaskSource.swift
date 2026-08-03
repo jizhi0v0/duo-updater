@@ -32,6 +32,10 @@ public struct HomebrewCaskSource: UpdateSource {
         // scheme), so never resolve a MAS app to Homebrew.
         guard !app.isMASApp else { return nil }
 
+        // Nothing in the Caskroom → the provenance gate below can never pass, so
+        // decline before pulling the 5 MB catalog over the network.
+        guard !inventory.isEmpty else { return nil }
+
         let filename = app.path.lastPathComponent  // e.g. "TablePlus.app"
         var match = try await catalog.entry(forAppFilename: filename)
         if match == nil, let bundleID = app.bundleID {

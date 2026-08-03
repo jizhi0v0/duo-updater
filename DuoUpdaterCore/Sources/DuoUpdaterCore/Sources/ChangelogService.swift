@@ -152,6 +152,11 @@ public enum ChangelogService {
     private static func fetchBody(_ url: URL, session: URLSession) async -> String? {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        // Same reason as a version feed: a changelog *index* page gains its newest
+        // entry in place, so a cached copy held "fresh" silently hides the release
+        // we're trying to show notes for. (Per-version detail pages are immutable
+        // and just 304 here.)
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         guard
             let (data, response) = try? await session.data(for: request),

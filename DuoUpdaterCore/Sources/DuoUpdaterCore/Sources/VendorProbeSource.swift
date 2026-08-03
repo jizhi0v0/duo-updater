@@ -128,6 +128,7 @@ public struct VendorProbeSource: UpdateSource {
         case .redirectFilename:
             var request = URLRequest(url: recipe.url)
             request.timeoutInterval = 15
+            request.cachePolicy = URLRequest.versionFeedCachePolicy
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
             if recipe.followRedirects {
@@ -163,6 +164,7 @@ public struct VendorProbeSource: UpdateSource {
         case .responseBody:
             var request = URLRequest(url: recipe.url)
             request.timeoutInterval = 15
+            request.cachePolicy = URLRequest.versionFeedCachePolicy
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
             // When not following redirects we want the 3xx itself (its small body
@@ -317,6 +319,7 @@ public struct VendorProbeSource: UpdateSource {
             var request = URLRequest(url: url)
             request.httpMethod = "HEAD"
             request.timeoutInterval = 15
+            request.cachePolicy = URLRequest.versionFeedCachePolicy
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
             let (_, response) = try await session.data(for: request)
             guard
@@ -338,6 +341,7 @@ public struct VendorProbeSource: UpdateSource {
     ) async throws -> String? {
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: request)
         guard

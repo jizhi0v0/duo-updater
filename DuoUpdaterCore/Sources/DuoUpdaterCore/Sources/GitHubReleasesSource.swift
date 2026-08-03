@@ -184,6 +184,7 @@ public struct GitHubReleasesSource: UpdateSource {
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
         // Authenticated requests get 5000/hour instead of 60/hour per IP.

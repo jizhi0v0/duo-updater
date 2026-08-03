@@ -30,7 +30,29 @@ public actor HomebrewCaskCatalog {
     public static let shared = HomebrewCaskCatalog()
 
     private var index: CaskIndex?
+    private var indexLoadedAt: Date?
     private var loadTask: Task<CaskIndex, Error>?
+
+    /// How long a loaded index is reused before being refetched.
+    ///
+    /// The index used to be memoized for the life of the process. That's fine for
+    /// a CLI and wrong for a menu-bar app that runs for weeks: every Homebrew-
+    /// sourced app stayed pinned to whatever the catalog said the day the app
+    /// launched, reporting "up to date" forever with no error — the same silent
+    /// shape as a stale HTTP cache (see ``URLRequest/versionFeedCachePolicy``),
+    /// and immune to that fix because the in-memory index short-circuits the
+    /// request entirely.
+    ///
+    /// Six hours, not minutes: the refetch is a full 5 MB whenever the catalog
+    /// actually changed (which is most of the time — brew publishes constantly),
+    /// so this trades a few hours of staleness for bounded background traffic.
+    /// Only paid on machines that have casks installed at all; `HomebrewCaskSource`
+    /// declines before touching the catalog when the Caskroom is empty.
+    static let indexTTL: TimeInterval = 6 * 60 * 60
+
+    /// Test seam: an index seeded via `init(testIndex:)` never expires, so
+    /// offline tests don't reach the network partway through.
+    private var indexNeverExpires = false
 
     private let session: URLSession
     public init(session: URLSession = .updates) {
@@ -42,6 +64,7 @@ public actor HomebrewCaskCatalog {
     init(testIndex: CaskIndex) {
         self.session = .shared
         self.index = testIndex
+        self.indexNeverExpires = true
     }
 
     /// Look up the cask that installs an app with the given bundle filename.
@@ -55,7 +78,7 @@ public actor HomebrewCaskCatalog {
     }
 
     private func loadedIndex() async throws -> CaskIndex {
-        if let index { return index }
+        if let index, !isExpired { return index }
         // Coalesce concurrent callers onto a single in-flight load.
         if let loadTask { return try await loadTask.value }
 
@@ -64,18 +87,29 @@ public actor HomebrewCaskCatalog {
         do {
             let idx = try await task.value
             index = idx
+            indexLoadedAt = Date()
             loadTask = nil
             return idx
         } catch {
             loadTask = nil
+            // A refetch that fails keeps serving the last good index rather than
+            // dropping every Homebrew row to "unknown" on one bad network moment.
+            if let index { return index }
             throw error
         }
+    }
+
+    private var isExpired: Bool {
+        guard !indexNeverExpires else { return false }
+        guard let indexLoadedAt else { return true }
+        return Date().timeIntervalSince(indexLoadedAt) >= Self.indexTTL
     }
 
     private static func fetchAndIndex(session: URLSession) async throws -> CaskIndex {
         let url = URL(string: "https://formulae.brew.sh/api/cask.json")!
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await session.data(for: request)

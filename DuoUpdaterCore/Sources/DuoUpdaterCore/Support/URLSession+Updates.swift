@@ -1,5 +1,34 @@
 import Foundation
 
+public extension URLRequest {
+
+    /// The cache policy every *version feed* request must use.
+    ///
+    /// A version feed is the one thing in this app that must never be answered
+    /// from cache without asking the server, because a stale answer is silent:
+    /// the probe succeeds, reports the old version, and the row reads "up to
+    /// date" with no error anywhere. Two ways the default
+    /// `.useProtocolCachePolicy` produces exactly that:
+    ///
+    /// - **A decade-long `max-age`.** Some vendor CDNs stamp one on an appcast
+    ///   (Fork's did), pinning us to that copy essentially forever.
+    /// - **No `Cache-Control` at all.** Then `URLCache` falls back to *heuristic*
+    ///   freshness — roughly 10% of the document's age — so the longer a feed
+    ///   sits unchanged, the longer a stale copy is served without a request.
+    ///   OrbStack's appcast (ETag + Last-Modified, no `Cache-Control`) hid
+    ///   2.2.1 → 2.2.2 this way.
+    ///
+    /// `.reloadRevalidatingCacheData` keeps the cache but always asks: the
+    /// conditional request 304s when nothing changed, so this costs headers, not
+    /// payload. Set it per-request rather than on the session configuration —
+    /// a `URLRequest` carries `.useProtocolCachePolicy` from birth, so the
+    /// request-level value is what actually takes effect.
+    ///
+    /// Applies to the *feed*, not the download: installer bytes are fetched by
+    /// `Downloader` on its own session and are content-addressed by URL.
+    static let versionFeedCachePolicy: CachePolicy = .reloadRevalidatingCacheData
+}
+
 public extension URLSession {
 
     /// Shared session for all update-check network requests.
@@ -18,10 +47,8 @@ public extension URLSession {
     ///   on standard HTTP caching (`ETag`/`If-None-Match`, `Cache-Control:
     ///   max-age`) — Sparkle appcast feeds, the 5 MB Homebrew Cask catalog, and
     ///   GitHub's `/releases/latest` endpoint all send reuse-friendly headers.
-    ///   Caveat: `max-age` freshness alone is *not* trusted for version feeds —
-    ///   `SparkleAppcastSource` forces `.reloadRevalidatingCacheData` per request
-    ///   because some vendor CDNs stamp a feed with a decade-long `max-age`, which
-    ///   would otherwise pin us to a stale appcast forever (see the note there).
+    ///   Caveat: cache *freshness* is never trusted for a version feed — every
+    ///   source sets ``URLRequest/versionFeedCachePolicy`` (see it for why).
     ///   `ChangelogService` also uses this session, and changelog pages (GitHub
     ///   Releases HTML, Homebrew formula pages) can be 1–2 MB each — 16 MB
     ///   keeps several pages in memory without evicting update-check responses.

@@ -5,6 +5,12 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.12
+
+**An installer you've already downloaded no longer downloads again.** Some apps update through an installer package that macOS opens for you to confirm. If you closed that window without finishing — or quit DuoUpdater and came back — the row went back to offering "Update", and taking it fetched the whole package a second time. ToDesk's is 375 MB. The download was on your disk the entire time; nothing was pointing at it. Those rows now offer "Install" instead, which just re-opens the file you already have. If the installer window is still open it comes forward rather than opening a second one, and the offer stands until either the download is gone or a newer version comes out — at which point the old package would be the wrong one, so the row goes back to a normal "Update".
+
+**Homebrew packages that aren't apps now show up.** DuoUpdater tracked outdated Homebrew formulae, and left casks alone on the grounds that a cask installs an app, which already gets its own row. That holds right up until a cask installs no app — a command-line tool like `codex`, a font, a driver. Those had no row anywhere: nothing for the app list to find, and not a formula either. `codex` sat three versions behind without a word. They're now part of the Homebrew panel, which reads "packages" rather than "formulae" to match. Casks that do install an app are still managed per-app exactly as before, and apps that update themselves are still left to their own updater.
+
 ## 0.3.11
 
 **"Update All" now includes apps that install from a package.** A handful of apps — ToDesk and AweSun among them — ship their update as an installer package rather than something DuoUpdater can swap into place on its own. Those were quietly left out of "Update All" and had to be updated one row at a time; if such an app was the only other update pending, the button disappeared altogether rather than acting on just one. They're now part of the batch, and they run at the very end: everything that updates unattended finishes first, so nothing opens a window or asks for your admin password until the rest is already done. One caveat worth knowing — DuoUpdater can't tell when macOS's installer has finished, so if two package updates come up in the same batch, both installer windows open one after the other rather than waiting in line.

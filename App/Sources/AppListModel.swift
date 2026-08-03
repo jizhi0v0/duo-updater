@@ -2696,7 +2696,14 @@ final class AppListModel {
     private func installAllTargets() -> [UpdateResult] {
         results.filter { result in
             isActionableUpdate(result)
-                && canAutoInstall(result)
+                // `requiresInstaller` too, not just `canAutoInstall`: a vendor `.pkg`
+                // (ToDesk, AweSun) sets `requiresManualInstaller`, which excludes it
+                // from `canAutoInstall` — so those apps used to be silently absent
+                // from "Update All" and could only be updated one row at a time. The
+                // download is unattended like any other; only the final hand-off to
+                // the system installer needs the user, and `installAll` runs those
+                // last (see its phase ordering).
+                && (canAutoInstall(result) || requiresInstaller(result))
                 && !defersToSelfUpdater(result)
                 && !result.isMajorUpgrade
                 && installing[result.id] == nil
@@ -2759,13 +2766,14 @@ final class AppListModel {
         installErrors[result.id]?.contains("App Management permission") == true
     }
 
-    /// Install every pending update we can apply in place without a confirmation
-    /// gate — skipping major upgrades (license-boundary warning), pkg/installer
-    /// updates (need the system installer), Toolbox / TestFlight (managed
-    /// elsewhere), and anything ignored or version-skipped. App Store and Homebrew
-    /// entries run serially because they share global tools/UI automation; independent
-    /// Sparkle/Vendor/GitHub swaps may run with a bounded parallel window. The shared
-    /// restart/staging/backup sweep runs once after the whole batch has settled.
+    /// Install every pending update we can apply without a confirmation gate —
+    /// skipping major upgrades (license-boundary warning), Toolbox / TestFlight
+    /// (managed elsewhere), and anything ignored or version-skipped. Independent
+    /// Sparkle/Vendor/GitHub swaps may run with a bounded parallel window; App Store
+    /// and Homebrew entries run serially because they share global tools/UI
+    /// automation; vendor `.pkg` updates run last, since they end in a system
+    /// installer window that interrupts the user. The shared restart/staging/backup
+    /// sweep runs once after the whole batch has settled.
     func installAll() async {
         guard !isInstallingAll, !isScanning, !isChecking, installing.isEmpty else { return }
         refreshPermissionStatus()
@@ -2793,15 +2801,26 @@ final class AppListModel {
             }
         }
 
+        // Three phases, in this order:
+        //   1. parallel  — independent in-place swaps, bounded window
+        //   2. serial    — Homebrew / App Store: share global tools and UI automation
+        //   3. installer — vendor `.pkg`: hands off to the system installer, which
+        //                  opens a window and asks for an admin password
+        // Phase 3 goes last so every unattended update is already done before
+        // anything interrupts the user. Note the hand-off is fire-and-forget: we
+        // can't observe the system installer finishing, so two pkg updates in one
+        // batch open two Installer windows back to back rather than queueing.
         let parallelTargets = targets.filter(canBatchInstallInParallel)
-        let serialTargets = targets.filter { !canBatchInstallInParallel($0) }
+        let rest = targets.filter { !canBatchInstallInParallel($0) }
+        let serialTargets = rest.filter { !requiresInstaller($0) }
+        let installerTargets = rest.filter(requiresInstaller)
         let limit = min(Self.maxParallelInstalls, parallelTargets.count)
-        Log.app.info("update all: \(targets.count, privacy: .public) apps, parallel=\(parallelTargets.count, privacy: .public), serial=\(serialTargets.count, privacy: .public), parallelism=\(limit, privacy: .public)")
+        Log.app.info("update all: \(targets.count, privacy: .public) apps, parallel=\(parallelTargets.count, privacy: .public), serial=\(serialTargets.count, privacy: .public), installer=\(installerTargets.count, privacy: .public), parallelism=\(limit, privacy: .public)")
         // Count only the installs that actually happened (runInstall returns false for
         // already-current/early-out/error), so the summary banner is exact.
         var installed = 0
         installed += await installInParallel(parallelTargets, limit: limit)
-        for target in serialTargets {
+        for target in serialTargets + installerTargets {
             if Task.isCancelled { break }
             // `runInstall`, not `install`: the target is already claimed above.
             if await runInstall(target, notify: false, deferBookkeeping: true) {

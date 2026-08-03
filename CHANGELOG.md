@@ -5,6 +5,12 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.10
+
+**Fixes updates going unnoticed for days at a time.** DuoUpdater re-uses the answers it gets from each app's version feed so it isn't re-downloading the same file every few minutes. The problem was how long it trusted a stored answer: when a vendor's server doesn't say how long its reply stays valid, macOS guesses — and it guesses longer the longer that feed has gone unchanged. So the very feeds that had been quiet for a while were exactly the ones DuoUpdater stopped re-reading, and a new release could sit there for days with the app still reporting "up to date" and no error to show for it. Every version check now always asks the server whether anything changed, while still skipping the download when nothing has. OrbStack 2.2.2 is the release that surfaced this; the same blind spot applied to most apps checked directly against their vendor, including Chrome, Cursor, Claude, ChatGPT, Warp, Spotify, and Visual Studio Code.
+
+**Homebrew-managed apps no longer get stuck at the version they were on when DuoUpdater started.** The catalog DuoUpdater reads to learn the latest version of a Homebrew app was loaded once per launch and never refreshed, which is invisible if you quit the app daily and wrong if you leave it running for weeks. It now refreshes periodically. As a bonus, machines with no Homebrew casks installed no longer download that 5 MB catalog at all.
+
 ## 0.3.9
 
 **Uses less memory and does less work in the background.** This release is entirely under the hood — nothing about what DuoUpdater does has changed, only what it costs to leave running. Every update it downloaded used to leave a small amount of memory behind that was never reclaimed; harmless once, but it adds up over the weeks a menu-bar app tends to stay open. Separately, while the main window was open DuoUpdater re-read every installed app from disk every 15 seconds and started a system process each time to see what was running — that now happens every three minutes, since the filesystem watcher already notices a real change the moment it happens. Recording the release history after each check also used to save its file once per app rather than once per check, and release notes could be fetched more than once when the same page was already on its way in.

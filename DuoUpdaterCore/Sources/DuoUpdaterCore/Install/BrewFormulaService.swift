@@ -1,17 +1,41 @@
 import Foundation
 
-/// One outdated Homebrew *formula* (a command-line package — NOT a cask). Casks
-/// are deliberately out of scope here: GUI casks are already surfaced per-app by
-/// `HomebrewCaskSource`, and folding them in again would double-count them. This
-/// service mirrors the user's habit of running a bare `brew upgrade` in the
-/// terminal, but scoped to `--formula` so it never touches the cask channel (and
-/// so can never `--force` re-adopt a vendor-installed app the way an unscoped
-/// upgrade could).
+/// One outdated Homebrew package this surface is responsible for.
+///
+/// Formulae always are. Casks are the exception rather than the rule: a GUI cask
+/// installs a `.app`, which the scanner finds and `HomebrewCaskSource` surfaces as
+/// its own row, so folding it in here would double-count it. But **a cask that
+/// installs no app** — a CLI (`codex`, `android-platform-tools`), a font, a driver
+/// — has no app row and so had no home at all: invisible to the per-app list
+/// because there's no bundle to scan, and invisible here because this service used
+/// to be `--formula` only. Those are included; see `installsAnApp(caskToken:)` for
+/// how the line is drawn.
+///
+/// Upgrades stay explicitly scoped either way — `--formula` for formulae, and
+/// `--cask <token>` naming exactly the tokens listed here. Never a bare
+/// `brew upgrade --cask`, which would reach GUI casks this surface doesn't own
+/// (and could `--force` re-adopt a vendor-installed app).
 public struct BrewOutdatedFormula: Sendable, Identifiable, Equatable {
+    public enum Kind: String, Sendable, Equatable {
+        case formula
+        case cask
+    }
+
     public var id: String { name }
     public let name: String
     public let installedVersion: String
     public let currentVersion: String
+    public var kind: Kind = .formula
+
+    public init(
+        name: String, installedVersion: String, currentVersion: String,
+        kind: Kind = .formula
+    ) {
+        self.name = name
+        self.installedVersion = installedVersion
+        self.currentVersion = currentVersion
+        self.kind = kind
+    }
 }
 
 /// A top-level installed formula (a `brew leaves` entry — one you installed on
@@ -192,6 +216,83 @@ public actor BrewFormulaService {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
+    /// Outdated casks that install **no app** — the ones nothing else covers. See
+    /// `BrewOutdatedFormula` for why GUI casks are excluded, and
+    /// `installsAnApp(caskToken:)` for how that's decided.
+    ///
+    /// Non-greedy on purpose: `--greedy` would pull in `auto_updates` casks, whose
+    /// update channel is the app's own updater, not brew.
+    public func outdatedCasks() async throws -> [BrewOutdatedFormula] {
+        guard HomebrewInstaller.brewPath() != nil else { return [] }
+        let output = await runReading(["outdated", "--cask", "--json=v2"])
+        guard let data = output.data(using: .utf8) else { return [] }
+        return Self.parseCasks(data).filter { !Self.installsAnApp(caskToken: $0.name) }
+    }
+
+    /// Whether a cask's staged artifacts contain a `.app` (or a `.pkg`, which
+    /// generally installs one). Read straight off the Caskroom rather than from the
+    /// cask definition, so it needs no network and no catalog load.
+    ///
+    /// True → the app is on disk, the scanner finds it, and it already has its own
+    /// row; this surface must not list it too. False → a CLI, a font, a driver:
+    /// nothing else can show it.
+    ///
+    /// Known edge: a cask whose pkg is deleted from the Caskroom after installing
+    /// would read as "no app" and get a second row here. Benign (a duplicate row,
+    /// never a missed update or a wrong install), and the upgrade path stays correct
+    /// either way — the token is genuinely brew-installed, or `brew outdated`
+    /// wouldn't have listed it.
+    static func installsAnApp(
+        caskToken: String,
+        caskroomPaths: [String] = BrewLocalInventory.defaultCaskroomPaths
+    ) -> Bool {
+        let fm = FileManager.default
+        let roots = caskroomPaths
+            .map { URL(fileURLWithPath: $0).appendingPathComponent(caskToken) }
+        for root in roots {
+            guard let versions = try? fm.contentsOfDirectory(
+                at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+            else { continue }
+            for version in versions {
+                guard let staged = try? fm.contentsOfDirectory(
+                    at: version, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+                else { continue }
+                for entry in staged {
+                    let ext = entry.pathExtension.lowercased()
+                    if ext == "app" || ext == "pkg" || ext == "mpkg" { return true }
+                }
+            }
+        }
+        return false
+    }
+
+    /// Parse the `casks` array of an `outdated --json=v2` payload. Same shape as
+    /// `parse`, minus pinned entries — a pinned cask is deliberately held back, so
+    /// offering to upgrade it would fight the user's own decision.
+    static func parseCasks(_ data: Data) -> [BrewOutdatedFormula] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let casks = root["casks"] as? [[String: Any]]
+        else { return [] }
+
+        var out: [BrewOutdatedFormula] = []
+        for c in casks {
+            guard
+                let name = c["name"] as? String,
+                let current = c["current_version"] as? String,
+                let installed = (c["installed_versions"] as? [String])?.last,
+                (c["pinned"] as? Bool) != true
+            else { continue }
+            out.append(BrewOutdatedFormula(
+                name: name,
+                installedVersion: installed,
+                currentVersion: current,
+                kind: .cask
+            ))
+        }
+        return out
+    }
+
     /// Parse the `--json=v2` payload's `formulae` array. Tolerant: skips any entry
     /// missing a name or a usable installed/current version rather than failing the
     /// whole list.
@@ -225,6 +326,20 @@ public actor BrewFormulaService {
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
         try await run(["upgrade", "--formula"], onOutput: onOutput)
+    }
+
+    /// Upgrade specific casks by token (`brew upgrade --cask <tokens…>`).
+    ///
+    /// Always named explicitly — never a bare `brew upgrade --cask`, which would
+    /// sweep GUI casks this surface doesn't own. Callers pass only the app-less
+    /// casks `outdatedCasks()` returned. A no-op on an empty list so the caller can
+    /// call it unconditionally.
+    public func upgrade(
+        casks tokens: [String],
+        onOutput: @Sendable @escaping (String) -> Void
+    ) async throws {
+        guard !tokens.isEmpty else { return }
+        try await run(["upgrade", "--cask"] + tokens, onOutput: onOutput)
     }
 
     /// Upgrade a single formula by name (`brew upgrade --formula <name>`). The

@@ -50,6 +50,11 @@ final class AppListModel {
     /// of offering our own Update, which would re-download and collide with the
     /// pending swap. Keyed by id → the staged update's details.
     private(set) var pendingSelfUpdate: [String: StagedSelfUpdate] = [:]
+    /// Installer packages already downloaded and handed to the system installer,
+    /// keyed by row id. While one is present and still matches the version on offer,
+    /// the row shows "Install" (re-open the local package) rather than "Update"
+    /// (download it again). Mirrored to `Preferences` so it survives a relaunch.
+    private(set) var stagedPackages: [String: StagedPackage] = [:]
     /// App ids whose staged self-update is mid-relaunch (we've quit the app and are
     /// waiting for its ShipIt to swap & relaunch). Drives a per-row spinner and,
     /// crucially, blocks re-entry: the swap can take tens of seconds, during which
@@ -532,6 +537,9 @@ final class AppListModel {
         // Restore when we last checked so the scheduler can pick up where it left
         // off across relaunches instead of restarting the interval from zero.
         self.lastCheck = prefs.lastCheckDate
+        // Restore installer packages downloaded before this launch, so a relaunch
+        // doesn't turn a finished download back into an "Update" that re-fetches it.
+        loadStagedPackages()
         // Register the notification delegate + actionable categories (this also
         // requests notification permission once).
         NotificationController.shared.register(model: self)
@@ -1380,13 +1388,25 @@ final class AppListModel {
         // (updates floating to the top). `brewChecked` flips only here, since until
         // outdated returns we don't actually know the update state.
         defer { brewChecked = true }
+        var outdated: [BrewOutdatedFormula]
         do {
-            brewOutdatedFormulae = try await brewFormulaService.outdated()
+            outdated = try await brewFormulaService.outdated()
         } catch {
             Log.app.info("brew outdated --formula failed: \(error.localizedDescription, privacy: .public)")
-            brewOutdatedFormulae = []
+            outdated = []
         }
-        brewFormulae = BrewFormulaService.merge(brewFormulae, outdated: brewOutdatedFormulae)
+        // Merge the formula badges into the tree BEFORE folding in casks: the tree
+        // lists `brew leaves`, which casks are not, so a cask name could only ever
+        // fail to match there.
+        brewFormulae = BrewFormulaService.merge(brewFormulae, outdated: outdated)
+        // App-less casks (CLIs, fonts) have no per-app row and no other home — see
+        // `BrewOutdatedFormula`. Best-effort: a failure here must not blank the
+        // formula count we already have.
+        let casks = (try? await brewFormulaService.outdatedCasks()) ?? []
+        if !casks.isEmpty {
+            Log.app.info("brew outdated: \(outdated.count, privacy: .public) formulae + \(casks.count, privacy: .public) app-less casks (\(casks.map(\.name).joined(separator: ", "), privacy: .public))")
+        }
+        brewOutdatedFormulae = outdated + casks
         prewarmFormulaReleases()
     }
 
@@ -1446,20 +1466,29 @@ final class AppListModel {
         // Snapshot the target set so dependency formulae brew pulls in (which also
         // emit a 🍺 line) don't inflate the count past the user-visible total.
         let targets = Set(brewOutdatedFormulae.map(\.name))
+        // Cask tokens are upgraded by name in a second pass — never a bare
+        // `brew upgrade --cask`, which would reach GUI casks this surface doesn't own.
+        let caskTokens = brewOutdatedFormulae.filter { $0.kind == .cask }.map(\.name)
         brewUpgradeTotal = targets.count
         brewUpgradeDone = 0
         defer { brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0 }
         do {
-            try await brewFormulaService.upgradeAll { [weak self] line in
+            let onOutput: @Sendable (String) -> Void = { [weak self] line in
                 Task { @MainActor in
                     self?.brewUpgradeNote = line
                     // One 🍺 Cellar line per poured formula — count only the targeted
-                    // ones, clamped so it never reads past the total.
+                    // ones, clamped so it never reads past the total. Casks don't emit
+                    // a Cellar line, so they're counted separately below.
                     if let name = Self.brewPouredFormula(from: line), targets.contains(name),
                        let self, self.brewUpgradeDone < self.brewUpgradeTotal {
                         self.brewUpgradeDone += 1
                     }
                 }
+            }
+            try await brewFormulaService.upgradeAll(onOutput: onOutput)
+            if !caskTokens.isEmpty {
+                try await brewFormulaService.upgrade(casks: caskTokens, onOutput: onOutput)
+                brewUpgradeDone = min(brewUpgradeDone + caskTokens.count, brewUpgradeTotal)
             }
             await refreshBrewFormulae()
         } catch {
@@ -1761,14 +1790,20 @@ final class AppListModel {
             // control, so we don't mark it up to date — a later rescan will.
             if requiresInstaller(result) {
                 installing[id] = .downloading(fraction: 0)
-                let bytes = try await packageInstaller.downloadAndOpen(
+                let opened = try await packageInstaller.downloadAndOpen(
                     url: result.remote?.downloadURL,
                     installedApp: result.app.path,
                     headers: result.remote?.downloadHeaders ?? [:]
                 ) { stage in
                     Task { @MainActor in self.setStage(id, stage) }
                 }
-                await recordTraffic(result, bytes: bytes)
+                await recordTraffic(result, bytes: opened.bytesDownloaded)
+                // Remember what we handed to the system installer so the row can offer
+                // "Install" — a re-open of this exact file — instead of "Update", which
+                // would download the same hundreds of megabytes again. The install
+                // itself is now the user's to confirm; if they dismiss the window the
+                // package is still on disk and still the right version.
+                recordStagedPackage(result, packageURL: opened.packageURL)
                 installing[id] = nil
                 return true
             }
@@ -2129,6 +2164,107 @@ final class AppListModel {
         results = sorted(results)
         // Start (or stop) the periodic relaunch reminder to match what's actionable.
         updateSelfUpdateReminder()
+        // Same bookkeeping pass, same preconditions (`results` is current): drop any
+        // downloaded installer package that no longer matches what's on offer.
+        pruneStagedPackages()
+    }
+
+    // MARK: - Staged installer packages
+
+    /// An installer package already downloaded for this row and handed to macOS's
+    /// installer. `version` is the version that package installs, so a newer release
+    /// invalidates it rather than silently re-opening a stale installer.
+    struct StagedPackage: Sendable, Equatable {
+        let version: String
+        let url: URL
+    }
+
+    /// Restore the persisted staged packages, dropping anything whose file is gone
+    /// (`PackageInstaller` sweeps its work directories after a day). Called once at
+    /// launch; the per-version check happens later, in `stagedPackage(for:)`, since
+    /// it needs the current check results.
+    private func loadStagedPackages() {
+        var restored: [String: StagedPackage] = [:]
+        for (id, fields) in prefs.stagedPackages {
+            guard
+                let version = fields[Preferences.stagedPackageVersionField],
+                let path = fields[Preferences.stagedPackagePathField],
+                FileManager.default.fileExists(atPath: path)
+            else { continue }
+            restored[id] = StagedPackage(version: version, url: URL(fileURLWithPath: path))
+        }
+        stagedPackages = restored
+        persistStagedPackages()
+    }
+
+    private func recordStagedPackage(_ result: UpdateResult, packageURL: URL) {
+        guard let version = result.remote?.displayVersion else { return }
+        stagedPackages[result.id] = StagedPackage(version: version, url: packageURL)
+        persistStagedPackages()
+        Log.install.info("package staged: \(result.app.name, privacy: .public) \(version, privacy: .public) → \(packageURL.lastPathComponent, privacy: .public)")
+    }
+
+    private func persistStagedPackages() {
+        prefs.setStagedPackages(stagedPackages.mapValues {
+            [
+                Preferences.stagedPackageVersionField: $0.version,
+                Preferences.stagedPackagePathField: $0.url.path,
+            ]
+        })
+    }
+
+    /// The downloaded package for this row, if it's still usable: the file is on disk
+    /// AND it installs exactly the version currently on offer. A newer release makes
+    /// the old package wrong, not merely stale, so the row falls back to "Update".
+    func stagedPackage(for result: UpdateResult) -> StagedPackage? {
+        guard
+            let staged = stagedPackages[result.id],
+            staged.version == result.remote?.displayVersion,
+            FileManager.default.fileExists(atPath: staged.url.path)
+        else { return nil }
+        return staged
+    }
+
+    /// Drop staged packages that are no longer usable — the file was swept, or the
+    /// row moved on (installed, or a newer version now on offer). Runs with the
+    /// other post-rescan bookkeeping so a swept package doesn't leave an "Install"
+    /// button that can't do anything.
+    private func pruneStagedPackages() {
+        guard !stagedPackages.isEmpty else { return }
+        let live = Set(results.map(\.id))
+        let offered = Dictionary(
+            results.compactMap { r in r.remote?.displayVersion.map { (r.id, $0) } },
+            uniquingKeysWith: { a, _ in a })
+        let kept = stagedPackages.filter { id, staged in
+            live.contains(id)
+                && offered[id] == staged.version
+                && FileManager.default.fileExists(atPath: staged.url.path)
+        }
+        guard kept.count != stagedPackages.count else { return }
+        stagedPackages = kept
+        persistStagedPackages()
+    }
+
+    /// Re-open the package we already downloaded for this row. No network: the file
+    /// is on disk, re-verified, and handed back to macOS's installer, which brings
+    /// its existing window forward if it's still open.
+    func openStagedPackage(_ result: UpdateResult) async {
+        guard let staged = stagedPackage(for: result) else { return }
+        installErrors[result.id] = nil
+        do {
+            try await packageInstaller.reopen(
+                package: staged.url, installedApp: result.app.path)
+            installNotes[result.id] =
+                "Opened the installer for \(result.app.name) \(staged.version) — finish it there."
+            Log.install.info("package re-opened: \(result.app.name, privacy: .public) \(staged.version, privacy: .public)")
+        } catch {
+            // The local copy is unusable (swept, truncated, or it no longer passes the
+            // signature gate). Forget it so the row goes back to a clean "Update".
+            stagedPackages[result.id] = nil
+            persistStagedPackages()
+            installErrors[result.id] = error.localizedDescription
+            Log.install.error("package re-open failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// True when any row is surfacing a Relaunch (its staged build is the latest).

@@ -605,9 +605,17 @@ private struct WorkbenchActionView: View {
                 .buttonStyle(.borderedProminent)
                 .help("Download and install \(result.app.name) \(result.remote?.displayVersion ?? "")")
         } else if model.requiresInstaller(result) {
-            Button("Update") { Task { await model.install(result) } }
-                .buttonStyle(.bordered)
-                .help("Downloads the official installer and opens it (asks for admin)")
+            // Already downloaded → "Install" re-opens that exact package instead of
+            // fetching it again. See `AppListModel.stagedPackage(for:)`.
+            if let staged = model.stagedPackage(for: result) {
+                Button("Install") { Task { await model.openStagedPackage(result) } }
+                    .buttonStyle(.borderedProminent)
+                    .help("\(staged.url.lastPathComponent) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
+            } else {
+                Button("Update") { Task { await model.install(result) } }
+                    .buttonStyle(.bordered)
+                    .help("Downloads the official installer and opens it (asks for admin)")
+            }
         } else if let info = result.remote?.appStore, !info.isRegionMismatch, !info.isLatestMacIncompatible {
             // iOS-on-Mac apps: only the App Store app can update them (mas can't,
             // AX is unreliable), so this is a redirect to the store rather than a

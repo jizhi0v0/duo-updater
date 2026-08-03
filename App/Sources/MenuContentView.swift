@@ -415,7 +415,7 @@ struct MenuContentView: View {
             HStack(spacing: 8) {
                 Image(systemName: "terminal").foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Homebrew formulae up to date")
+                    Text("Homebrew packages up to date")
                         .font(.caption).fontWeight(.medium)
                     Text(brewUpToDateSummary)
                         .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
@@ -431,7 +431,9 @@ struct MenuContentView: View {
             HStack(spacing: 8) {
                 Image(systemName: "terminal").foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\(count) brew formula\(count == 1 ? "" : "e") outdated")
+                    // "package", not "formula": this surface also carries casks that
+                    // install no app (CLIs, fonts), which have no per-app row.
+                    Text("\(count) brew package\(count == 1 ? "" : "s") outdated")
                         .font(.caption).fontWeight(.medium)
                     if let error = model.brewUpgradeError {
                         Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
@@ -444,7 +446,7 @@ struct MenuContentView: View {
                 Button("Upgrade") { Task { await model.upgradeBrewFormulae() } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
-                    .help("Runs `brew upgrade --formula` — upgrades every outdated command-line formula at once. GUI casks are managed per-app above, so they aren't touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
+                    .help("Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -935,11 +937,23 @@ private struct AppRow: View {
 
     /// pkg cask: download the official installer and open it (system installer
     /// asks for admin). Not an in-place swap, so it's a plain bordered button.
+    @ViewBuilder
     private var installerButton: some View {
-        Button("Update") { Task { await model.install(result) } }
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .help("Downloads the official installer and opens it (asks for admin)")
+        if let staged = model.stagedPackage(for: result) {
+            // Already downloaded and handed to macOS's installer. Re-opening costs
+            // nothing (and re-uses the installer window if it's still open), so don't
+            // make the user pull hundreds of megabytes down a second time because
+            // they dismissed it.
+            Button("Install") { Task { await model.openStagedPackage(result) } }
+                .controlSize(.small)
+                .buttonStyle(.borderedProminent)
+                .help("\(staged.url.lastPathComponent) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
+        } else {
+            Button("Update") { Task { await model.install(result) } }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .help("Downloads the official installer and opens it (asks for admin)")
+        }
     }
 
     /// Major version bumps may cross a paid app's license boundary. Like the

@@ -138,6 +138,7 @@ final class Preferences {
         static let notifiedVersions = "NotifiedVersions"
         static let notificationBaselineSeeded = "NotificationBaselineSeeded"
         static let marketingByBuild = "MarketingVersionByBuild"
+        static let stagedPackages = "StagedPackages"
     }
 
     private let defaults: UserDefaults
@@ -315,6 +316,28 @@ final class Preferences {
         marketingByBuild = map
     }
 
+    /// Installer packages we downloaded and handed to the system installer, keyed by
+    /// the install's resolved path (per-install, not bundle id — see the ignore/skip
+    /// keys for why). Each value records the version the package installs and where
+    /// it sits on disk.
+    ///
+    /// Persisted rather than kept in memory so the offer survives a DuoUpdater
+    /// relaunch: `PackageInstaller` keeps its work directories for a day, and these
+    /// packages run to hundreds of megabytes — forgetting about one on relaunch means
+    /// downloading it all over again. Entries are pruned by the model whenever the
+    /// file is gone or the version on offer has moved on.
+    private(set) var stagedPackages: [String: [String: String]] {
+        didSet { defaults.set(stagedPackages, forKey: Key.stagedPackages) }
+    }
+
+    static let stagedPackageVersionField = "version"
+    static let stagedPackagePathField = "path"
+
+    /// Overwrite the staged-package map (the model recomputes it each rescan).
+    func setStagedPackages(_ map: [String: [String: String]]) {
+        stagedPackages = map
+    }
+
     /// Read the GitHub token, migrating a pre-existing plaintext copy out of
     /// UserDefaults into the Keychain on the first launch after this upgrade (then
     /// scrubbing the plist so the secret no longer sits there in the clear).
@@ -358,6 +381,8 @@ final class Preferences {
         self.notifiedVersions = defaults.dictionary(forKey: Key.notifiedVersions) as? [String: String] ?? [:]
         self.notificationBaselineSeeded = defaults.bool(forKey: Key.notificationBaselineSeeded)
         self.marketingByBuild = defaults.dictionary(forKey: Key.marketingByBuild) as? [String: String] ?? [:]
+        self.stagedPackages =
+            defaults.dictionary(forKey: Key.stagedPackages) as? [String: [String: String]] ?? [:]
     }
 
     // MARK: - Per-app keys

@@ -34,18 +34,34 @@ public actor PackageInstaller {
         }
     }
 
+    /// What `downloadAndOpen` handed to the system installer.
+    ///
+    /// `packageURL` is kept so the caller can offer to re-open the *same* download
+    /// later — the work directory deliberately outlives this call (see
+    /// `sweepStaleWorkDirectories`), so a user who closed the installer window
+    /// shouldn't have to pull the package down again.
+    public struct OpenedPackage: Sendable {
+        /// Exact bytes downloaded, for per-app traffic accounting.
+        public let bytesDownloaded: Int64
+        /// The `.pkg`/`.mpkg` actually opened (already unwrapped from a `.dmg`).
+        public let packageURL: URL
+
+        public init(bytesDownloaded: Int64, packageURL: URL) {
+            self.bytesDownloaded = bytesDownloaded
+            self.packageURL = packageURL
+        }
+    }
+
     /// Download `url` and open the resulting installer (or the disk image that
     /// contains it). Returns once the installer has been launched — the actual
     /// install happens in macOS's installer, under the user's control.
-    /// Returns the exact number of bytes downloaded for the installer package,
-    /// for per-app traffic accounting.
     @discardableResult
     public func downloadAndOpen(
         url: URL?,
         installedApp: URL,
         headers: [String: String] = [:],
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) async throws -> Int64 {
+    ) async throws -> OpenedPackage {
         guard let url else { throw PackageError.noURL }
 
         // Each install below gets its own dir that we deliberately never delete
@@ -70,14 +86,45 @@ public actor PackageInstaller {
 
         onStage(.installing)
         let toOpen = try resolveInstaller(from: file, workDir: workDir, installedApp: installedApp)
-        // Gate (fail closed): a `.pkg`/`.mpkg` runs install scripts (often with admin
-        // rights) the moment the user confirms in the system installer. This is the
-        // *package* installer, so the ONLY thing it may hand off is a signed .pkg/.mpkg
-        // whose Team ID matches the installed app. The download's filename/extension is
-        // server-controlled (`suggestedFilename`), so a hijacked or misconfigured
-        // endpoint could resolve to something else — refuse it rather than open an
-        // arbitrary downloaded file (which would sidestep the Developer-ID/Team-ID
-        // check entirely). A `.dmg` is already resolved to its inner pkg above.
+        // Gate (fail closed) — see `verifyOpenable`.
+        try verifyOpenable(toOpen, installedApp: installedApp)
+        await open(toOpen)
+        onStage(.done)
+        return OpenedPackage(bytesDownloaded: bytesDownloaded, packageURL: toOpen)
+    }
+
+    /// Re-open a package this installer already downloaded, without fetching it
+    /// again. The work directory outlives `downloadAndOpen` by design, so a user
+    /// who dismissed the installer window (or relaunched DuoUpdater) can resume
+    /// from the local copy — these packages run to hundreds of megabytes.
+    ///
+    /// Re-runs the full signature/Team-ID gate rather than trusting the earlier
+    /// pass: the file has been sitting in a world-readable temp directory since
+    /// then, and this is the same fail-closed posture as the first open — the
+    /// package runs install scripts with admin rights the moment the user
+    /// confirms.
+    ///
+    /// Opening a package the system installer already has open does *not* spawn a
+    /// second window — macOS treats it as the same document and brings the
+    /// existing one forward (verified against Installer.app on macOS 27).
+    public func reopen(package: URL, installedApp: URL) async throws {
+        guard FileManager.default.fileExists(atPath: package.path) else {
+            throw PackageError.noInstallablePackage
+        }
+        try verifyOpenable(package, installedApp: installedApp)
+        await open(package)
+    }
+
+    /// The fail-closed gate: only a signed `.pkg`/`.mpkg` whose Team ID matches the
+    /// installed app may be handed to the system installer. Shared by the first
+    /// open and every re-open.
+    private func verifyOpenable(_ toOpen: URL, installedApp: URL) throws {
+        // A `.pkg`/`.mpkg` runs install scripts (often with admin rights) the moment
+        // the user confirms. The download's filename/extension is server-controlled
+        // (`suggestedFilename`), so a hijacked or misconfigured endpoint could
+        // resolve to something else — refuse it rather than open an arbitrary
+        // downloaded file (which would sidestep the Developer-ID/Team-ID check
+        // entirely). A `.dmg` is already resolved to its inner pkg by the caller.
         let ext = toOpen.pathExtension.lowercased()
         guard ext == "pkg" || ext == "mpkg" else {
             throw PackageError.noInstallablePackage
@@ -85,11 +132,11 @@ public actor PackageInstaller {
         guard let installedTeam = try SignatureVerifier.teamIdentifier(at: installedApp) else {
             throw SignatureVerifier.VerifyError.noTeamIdentifier(which: "installed")
         }
-        let packageSignature = packageSignature(toOpen)
-        guard packageSignature.isValid else {
+        let signature = packageSignature(toOpen)
+        guard signature.isValid else {
             throw PackageError.unsignedPackage
         }
-        guard let packageTeam = packageSignature.teamIdentifier else {
+        guard let packageTeam = signature.teamIdentifier else {
             throw PackageError.packageTeamIdentifierMissing
         }
         guard packageTeam == installedTeam else {
@@ -97,9 +144,6 @@ public actor PackageInstaller {
                 installed: installedTeam,
                 package: packageTeam)
         }
-        await open(toOpen)
-        onStage(.done)
-        return bytesDownloaded
     }
 
     /// Given a downloaded file, return the thing to hand to the system installer.

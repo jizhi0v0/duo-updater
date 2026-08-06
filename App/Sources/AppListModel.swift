@@ -2414,9 +2414,24 @@ final class AppListModel {
         }
     }
 
+    /// Was one of these instances the app the user is actually looking at?
+    ///
+    /// Read *before* we quit anything, and it decides whether the relaunch takes
+    /// the foreground. An app the user had in front should come back in front —
+    /// that's their working context. An app that was buried (or that we're
+    /// updating from the menu bar while they work in something else entirely)
+    /// must come back buried: an update is not a reason to shove a window in
+    /// front of what someone is typing into.
+    private static func isFrontmost(_ instances: [NSRunningApplication]) -> Bool {
+        guard let front = NSWorkspace.shared.frontmostApplication else { return false }
+        return instances.contains { $0.processIdentifier == front.processIdentifier }
+    }
+
     /// Quit the stale running instance and relaunch it so the new version takes
     /// effect. Graceful only — if it won't quit (unsaved work), we leave it and
-    /// keep the Restart prompt for the user to retry.
+    /// keep the Restart prompt for the user to retry. An app that isn't running
+    /// at all never reaches here — it has no `needsRestart` entry (the swap is
+    /// already fully in effect on disk), so updating it never starts it up.
     func restart(_ result: UpdateResult) async {
         guard let bundleID = result.app.bundleID else { return }
         // Block re-entry and show the in-flight spinner (the `relaunching`
@@ -2429,6 +2444,8 @@ final class AppListModel {
         Log.app.info("restart: \(result.app.name, privacy: .public) [\(bundleID, privacy: .public)]")
         let running = runningInstances(of: result)
         guard !running.isEmpty else { needsRestart.remove(result.id); return }
+        // Sample the foreground *before* the quit — once it's gone, so is the answer.
+        let wasFrontmost = Self.isFrontmost(running)
         for app in running { app.terminate() }
         // Wait up to ~30s for a graceful quit. A heavy app (large workspace) can take
         // well over the old 6s to actually exit; bailing early would leave it
@@ -2443,7 +2460,7 @@ final class AppListModel {
             Log.app.error("restart: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving badge")
             return  // still up (likely a save prompt) — leave the badge
         }
-        let relaunched = await Self.launchApp(result.app.path)
+        let relaunched = await Self.launchApp(result.app.path, activates: wasFrontmost)
         needsRestart.remove(result.id)
         runningVersionByID[result.id] = nil
         Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
@@ -2481,6 +2498,7 @@ final class AppListModel {
             Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) not running — ShipIt applies on its own next quit")
             return
         }
+        let wasFrontmost = Self.isFrontmost(running)
         let old = result.app.shortVersion ?? result.app.buildVersion
         Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old ?? "?", privacy: .public)) — letting its own updater swap & relaunch (no reopen)")
         for app in running { app.terminate() }
@@ -2517,9 +2535,10 @@ final class AppListModel {
             }
         }
         // Fallback: if ShipIt swapped but didn't relaunch (or never ran), bring the
-        // app back so the user isn't left without it.
+        // app back so the user isn't left without it — in the background unless it
+        // was the app in front when we quit it.
         if runningInstances(of: result).isEmpty {
-            await Self.launchApp(result.app.path)
+            await Self.launchApp(result.app.path, activates: wasFrontmost)
         }
         Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public)")
         // Re-read disk: clears the staged flag + reminder banner if the swap landed
@@ -2544,13 +2563,21 @@ final class AppListModel {
     /// during which every other row's button is dead and the pointer spins
     /// (the "clicking another Update mid-relaunch beachballs" report).
     /// `openApplication(at:configuration:)` does the same work off-main and
-    /// suspends instead. Default configuration matches `open(_:)`'s behaviour
-    /// (it activates the launched app).
+    /// suspends instead.
+    ///
+    /// `activates` decides whether the launched app takes the foreground. It
+    /// defaults to true (matching `open(_:)`) for launches the user explicitly
+    /// asked for — the "Open" menu item, handing off to an app's own updater —
+    /// but every *restart-after-update* path passes the app's own pre-quit
+    /// foreground state instead, so an app that was in the background comes back
+    /// in the background rather than jumping in front of whatever the user is
+    /// actually doing (see `wasFrontmost`).
     @discardableResult
-    nonisolated static func launchApp(_ bundle: URL) async -> Bool {
+    nonisolated static func launchApp(_ bundle: URL, activates: Bool = true) async -> Bool {
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = activates
         do {
-            _ = try await NSWorkspace.shared.openApplication(
-                at: bundle, configuration: NSWorkspace.OpenConfiguration())
+            _ = try await NSWorkspace.shared.openApplication(at: bundle, configuration: config)
             return true
         } catch {
             Log.app.error("launch failed: \(bundle.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
@@ -2678,10 +2705,15 @@ final class AppListModel {
     /// and the error/timeout exit of `install`, ensuring a quit-but-failed update
     /// never strands the user's app closed. Apps that weren't running were never
     /// inserted into `reopenAfterQuit`, so this only reopens what we closed.
+    ///
+    /// Reopened in the background: by the time this runs the user has been through
+    /// the App Store sheet and the install, with App Store itself pulled to the
+    /// front — whatever they've moved on to shouldn't be interrupted by their app
+    /// popping back up. It's still there, just not in front.
     private func reopenIfQuitForUpdate(id: String, path: URL) {
         guard reopenAfterQuit.remove(id) != nil else { return }
         let config = NSWorkspace.OpenConfiguration()
-        config.activates = true
+        config.activates = false
         NSWorkspace.shared.openApplication(
             at: path, configuration: config, completionHandler: { _, _ in })
     }

@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.14
+
+**An app that gets restarted after an update no longer jumps in front of what you're doing.** When DuoUpdater updates an app that's currently running, it quits and reopens it so the new version actually takes effect. Reopening it also pulled it to the front — so an update to something sitting quietly in the background could drop a window on top of the thing you were typing into. The app's position now survives the restart: whatever was in front comes back in front, and whatever was in the background comes back in the background, still there and still updated, just not in your way. The same applies to apps DuoUpdater reopens after an App Store update. Apps that weren't running at all are, as before, updated on disk and left closed — updating an app never starts it up.
+
 ## 0.3.13
 
 **Fixes AweSun's update failing with "the server returned HTTP 404".** DuoUpdater worked out where to download AweSun's installer by building the filename itself from the version number. Oray then renamed the file — the same 16.6.0 build, one letter's difference — and every attempt at the update hit a dead link. It now takes the filename straight from Oray's own download listing rather than guessing at it, so a future rename won't break it again.

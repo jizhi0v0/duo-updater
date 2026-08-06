@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.13
+
+**Fixes AweSun's update failing with "the server returned HTTP 404".** DuoUpdater worked out where to download AweSun's installer by building the filename itself from the version number. Oray then renamed the file — the same 16.6.0 build, one letter's difference — and every attempt at the update hit a dead link. It now takes the filename straight from Oray's own download listing rather than guessing at it, so a future rename won't break it again.
+
 ## 0.3.12
 
 **An installer you've already downloaded no longer downloads again.** Some apps update through an installer package that macOS opens for you to confirm. If you closed that window without finishing — or quit DuoUpdater and came back — the row went back to offering "Update", and taking it fetched the whole package a second time. ToDesk's is 375 MB. The download was on your disk the entire time; nothing was pointing at it. Those rows now offer "Install" instead, which just re-opens the file you already have. If the installer window is still open it comes forward rather than opening a second one, and the offer stands until either the download is gone or a newer version comes out — at which point the old package would be the wrong one, so the row goes back to a normal "Update".

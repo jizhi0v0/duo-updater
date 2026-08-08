@@ -50,7 +50,12 @@ public struct ResolvedChannel: Sendable, Equatable {
 /// Safety: a resolver only narrows to the user's opted-in channel and, when a
 /// preference is unreadable, falls back to the app's shipped default — never to
 /// a higher channel — so we can't push a prerelease at someone who didn't ask.
-enum ChannelBinding {
+/// `public` so the `channel-verify` harness resolves a channel exactly the way
+/// `AppScanner` does. It used to run `ReleaseChannel.detect()` alone, which for
+/// these apps is only half the answer — it reported Alfred as stable while the
+/// app had it on beta, so a verification run exercised a recipe the user's
+/// machine would never reach.
+public enum ChannelBinding {
 
     /// The user-chosen channel (and feed, for feed-swap apps) for `bundleID`, or
     /// nil when no bespoke resolver exists.
@@ -59,7 +64,7 @@ enum ChannelBinding {
     /// (TablePlus ships `com.tinyapp.TablePlus` but its prefs live under the
     /// lower-cased domain), so a case-sensitive `switch` silently failed to bind
     /// — same convention `ChangelogRecipe.recipe(forBundleID:)` already uses.
-    static func resolve(bundleID: String?) -> ResolvedChannel? {
+    public static func resolve(bundleID: String?) -> ResolvedChannel? {
         guard let id = bundleID?.lowercased() else { return nil }
         switch id {
         case DuoPasteChannel.bundleID.lowercased(): return DuoPasteChannel.resolveCurrent()

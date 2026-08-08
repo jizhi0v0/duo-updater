@@ -205,7 +205,7 @@ let remotingName = (bundleID?.hasPrefix("org.mozilla") == true)
 
 // MARK: - run the PRODUCTION channel detector
 
-let detected = ReleaseChannel.detect(
+let inferred = ReleaseChannel.detect(
     name: displayName,
     bundleID: bundleID,
     keystoneChannel: ksChannel,
@@ -216,6 +216,15 @@ let detected = ReleaseChannel.detect(
     bundleFileName: displayName
 )
 
+// `detect()` alone is NOT what production concludes. `AppScanner` then consults
+// `ChannelBinding`, which for a handful of apps reads the user's own channel
+// preference and OVERRIDES the inference — Alfred's "Pre-releases" toggle, Fork's,
+// TablePlus's. Skipping that step made this harness report Alfred as stable while
+// the app had it on beta, so a verification run exercised a recipe the user's
+// machine would never reach, and the actually-broken channel looked fine.
+let bound = bundleID.flatMap { ChannelBinding.resolve(bundleID: $0) }
+let detected = bound?.channel ?? inferred
+
 print("""
 
   app             \(displayName)
@@ -224,6 +233,8 @@ print("""
   build version   \(buildVersion ?? "<none>")
   KSChannelID     \(ksChannel ?? "<none>")
   RemotingName    \(remotingName ?? "<none>")
+  inferred        \(inferred.rawValue)\(bound == nil ? "" : "  (overridden below)")
+  ChannelBinding  \(bound.map { "\($0.channel.rawValue) — read from this app's own preference" } ?? "<none for this app>")
   ─────────────────────────────────────────────
   detected channel  → \(detected.rawValue)
 """)

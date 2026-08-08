@@ -69,11 +69,41 @@ sleep 1
 pkill -f "DuoUpdater.app/Contents/MacOS/DuoUpdater" 2>/dev/null && sleep 1 || true
 
 say "Deploying single canonical copy → $DEST"
-rm -rf "$DEST"
-ditto "$PRODUCT" "$DEST"
+# Replace the bundle's CONTENTS in place; never delete the bundle itself.
+#
+# `rm -rf "$DEST"` followed by a fresh copy is what corrupted this machine's
+# Background Task Management record. BTM stores the registered daemon by PATH
+# ("$DEST/Contents/Library/LaunchDaemons/com.duoupdater.helper.plist"); deleting
+# the bundle makes that path vanish, and BTM keeps the item while permanently
+# losing its resolution — `effectiveDisposition: FATAL ERROR - fullPath is nil,
+# container=(null)` on every query, `register()` refused with "Operation not
+# permitted" forever after, and the Login Items switch unable to fix it. The only
+# way out was `sudo sfltool resetbtm` plus a restart, which clears every app's
+# background-item approvals, not just ours.
+#
+# Staging beside the destination and rsyncing over it keeps the bundle directory
+# (and therefore the registered plist path) continuously present. Unregistering
+# the daemon first would also work, but would force the user through the Login
+# Items approval again on every single `make install`.
+STAGE="$(dirname "$DEST")/.DuoUpdater.install.$$"
+rm -rf "$STAGE"
+ditto "$PRODUCT" "$STAGE"
+if [ -d "$DEST" ]; then
+  # -E carries extended attributes and resource forks; without them the copy can
+  # land with a broken signature. Verified below either way.
+  rsync -aE --delete "$STAGE/" "$DEST/"
+  rm -rf "$STAGE"
+else
+  mv "$STAGE" "$DEST"
+fi
 # Strip quarantine so Gatekeeper doesn't prompt on this locally-built,
 # un-notarized Developer ID app.
 xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
+
+# The in-place replace above must not have disturbed the signature — a broken one
+# would only surface later as a launch failure or a silently dropped TCC grant.
+codesign --verify --deep --strict "$DEST" 2>/dev/null \
+  || die "deployed bundle fails signature verification — the in-place copy damaged it"
 
 # When we replace an existing app in place, Dock / LaunchServices can keep the
 # old icon registration around briefly — especially if the previous build was

@@ -196,3 +196,30 @@ private let receiptImportLog =
     let calls = await runner.calls
     #expect(calls == 4)  // maxAttempts
 }
+
+@Test func installerUpgradeFailureIsTreatedAsAnAppStoreDeadEnd() {
+    // TestFlight 4.2.2 → 4.3.0: mas downloaded the package, then macOS's own
+    // `installer` refused to replace the bundle. Retrying re-downloads and fails
+    // the same way, so the row should offer the App Store instead.
+    let output = """
+        ==> Downloading TestFlight (4.3.0)\r####### 100% downloaded==> Installing TestFlight (4.3.0)
+        Error: Failed to install TestFlight (4.3.0) from /var/folders/vs/T/NSIRD_mas/899247664.pkg
+        installer: The upgrade failed. (The Installer encountered an error that caused the \
+        installation to fail. An unexpected error occurred while moving files to the final destination.)
+        """
+    #expect(MASInstaller.MASError.isReceiptImportFailure(output))
+    let msg = MASInstaller.MASError.failed(code: 1, output: output).errorDescription ?? ""
+    #expect(msg.contains(MASInstaller.MASError.appStoreUpdatesHint))
+}
+
+@Test func masFailureTailStaysShortAndDropsProgressNoise() {
+    // mas draws progress with carriage returns, so splitting on "\n" alone left the
+    // whole blob as one "line" — the popover rendered ~40 lines of red text.
+    let output = "==> Downloading TestFlight\r"
+        + (0..<50).map { "###### \($0)% downloaded" }.joined(separator: "\r")
+        + "\rsomething went wrong at the very end"
+    let tail = MASInstaller.MASError.tail(of: output)
+    #expect(tail.count <= 221)
+    #expect(!tail.contains("% downloaded"))
+    #expect(tail.contains("something went wrong at the very end"))
+}

@@ -80,9 +80,33 @@ public actor MASInstaller {
                 if Self.isReceiptImportFailure(output) {
                     return "The App Store blocked mas from finishing this update. \(MASError.appStoreUpdatesHint)"
                 }
-                let tail = output.split(separator: "\n").suffix(3).joined(separator: " ")
+                let tail = Self.tail(of: output)
                 return tail.isEmpty ? "mas failed (\(code))." : "mas failed (\(code)): \(tail)"
             }
+        }
+
+        /// The last few lines of `mas` output, as a single short line fit for a row.
+        ///
+        /// Splitting on `\n` alone was not enough: mas draws its download progress
+        /// with carriage returns, and the failing `installer` run it relays comes back
+        /// as one enormous CR-delimited blob. "Last 3 lines" then meant "all of it",
+        /// and the popover rendered ~40 lines of red text — progress bars, package
+        /// paths, a stderr dump — burying the one sentence that mattered. Split on any
+        /// newline, drop the progress noise, and cap the result.
+        static func tail(of output: String, limit: Int = 220) -> String {
+            let lines = output
+                .split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { line in
+                    guard !line.isEmpty else { return false }
+                    // Progress-bar frames ("###… 62% downloaded") and the control
+                    // characters mas emits around them say nothing about the failure.
+                    if line.contains("% downloaded") || line.hasPrefix("#") { return false }
+                    return true
+                }
+            let joined = lines.suffix(3).joined(separator: " ")
+            guard joined.count > limit else { return joined }
+            return String(joined.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
         }
 
         /// Stable fragment embedded in the receipt-import failure message; the UI
@@ -105,7 +129,18 @@ public actor MASInstaller {
         /// receipt — a deterministic macOS/CommerceKit limitation, not a transient
         /// hiccup, so it should be surfaced as actionable guidance rather than retried.
         static func isReceiptImportFailure(_ output: String) -> Bool {
-            output.lowercased().contains("failed to find receipt to import")
+            let lower = output.lowercased()
+            // CommerceKit refusing the receipt import.
+            if lower.contains("failed to find receipt to import") { return true }
+            // macOS's `installer` refusing to upgrade the existing bundle ("The
+            // upgrade failed … An unexpected error occurred while moving files to
+            // the final destination"). Different component, same dead end for us:
+            // mas downloaded the package fine and the system tool won't apply it,
+            // so retrying re-downloads and fails identically. Seen on TestFlight
+            // 4.2.2 → 4.3.0. The App Store's own updater can still do it, which is
+            // exactly what this classification offers the user.
+            return lower.contains("the upgrade failed")
+                || lower.contains("moving files to the final destination")
         }
     }
 

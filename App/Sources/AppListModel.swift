@@ -1727,7 +1727,8 @@ final class AppListModel {
         // host, which would otherwise let two share the per-host cap of 2. Homebrew
         // *does* carry a real `downloadURL` host (the cask's source CDN), so it still
         // takes a host gate as a coarse limiter even though brew fetches the bytes.
-        let gate: AsyncSemaphore? = result.remote?.sourceName == "App Store"
+        let isAppStore = result.remote?.sourceName == "App Store"
+        let gate: AsyncSemaphore? = isAppStore
             ? Self.appStoreInstallGate
             : result.remote?.downloadURL?.host.map(hostInstallGate(for:))
         await gate?.wait()
@@ -1740,10 +1741,21 @@ final class AppListModel {
             await gate?.signal()
             return false
         }
-        // `performInstall` catches all its own errors and always returns, so the
-        // host gate is guaranteed to recycle here.
-        let didInstall = await performInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
-        await gate?.signal()
+        // What the host gate protects is a HOST'S BANDWIDTH, so it belongs to the
+        // download phase and nothing after it. Held for the whole install, it made
+        // two same-host apps serialize across each other's extract, swap, and
+        // relaunch too — which is why splitting the permits only paid off for apps
+        // on different hosts. `performInstall` hands it back the moment its fetch
+        // ends; the handle makes that idempotent so the release below still covers
+        // every path that never got that far (an early-out, a throw, a cancel).
+        //
+        // The App Store gate is NOT handed over: it exists to keep two installs off
+        // the single store UI (AX/mas), which spans the whole install, not the fetch.
+        let hostGate = GateHandle(gate)
+        let didInstall = await performInstall(
+            result, notify: notify, deferBookkeeping: deferBookkeeping,
+            releaseAfterDownload: isAppStore ? nil : hostGate)
+        await hostGate.release()
         // If something self-updated externally while this install ran, its rescan was
         // deferred — drain it now that the install is done (no-op in a batch, which
         // drains once at the end of `installAll`, and when nothing was deferred).
@@ -1751,8 +1763,30 @@ final class AppListModel {
         return didInstall
     }
 
+    /// A semaphore permit that can be handed to a callee to release early, while the
+    /// owner keeps a release of its own for the paths the callee never reaches.
+    /// Releasing twice is a no-op, so both sides can call it unconditionally —
+    /// without that, "release at the end of the download" and "release when the
+    /// install returns" would double-signal and inflate the pool.
+    ///
+    /// Main-actor isolated: it's handed between two main-actor functions, so the
+    /// `released` flip needs no locking.
+    @MainActor
+    final class GateHandle {
+        private var gate: AsyncSemaphore?
+        init(_ gate: AsyncSemaphore?) { self.gate = gate }
+        func release() async {
+            guard let gate else { return }
+            self.gate = nil
+            await gate.signal()
+        }
+    }
+
     @discardableResult
-    private func performInstall(_ result: UpdateResult, notify: Bool, deferBookkeeping: Bool) async -> Bool {
+    private func performInstall(
+        _ result: UpdateResult, notify: Bool, deferBookkeeping: Bool,
+        releaseAfterDownload: GateHandle? = nil
+    ) async -> Bool {
         let id = result.id
         installErrors[id] = nil
         installNotes[id] = nil
@@ -1812,10 +1846,20 @@ final class AppListModel {
             //
             // The flag+defer below covers the ERROR path only: a throw between
             // acquisition and the explicit release still hands the permit back.
-            // Paths that never acquire it (App Store, pkg, and the early-outs)
-            // leave the flag false so the release no-ops.
+            // Paths that never acquire it (pkg's apply, and the early-outs) leave
+            // the flag false so the release no-ops.
             var applyPermitHeld = false
             defer { if applyPermitHeld { Self.installPermits.signalApply() } }
+            // Same flag+defer for the download permit, used by the branches that
+            // can't take it with `withDownloadPermit` because their fetch isn't a
+            // single expression — today that's App Store, whose store-daemon call
+            // is spread across the region-locked/AX/mas routes with early-outs of
+            // its own. Every install type consumes a permit for the bytes it
+            // causes to be fetched, including the ones another process fetches on
+            // our behalf: the permits are a budget for this machine's network, and
+            // a category exempt from it makes the number meaningless.
+            var downloadPermitHeld = false
+            defer { if downloadPermitHeld { Self.installPermits.signalDownload() } }
             // pkg casks: download the official installer and open it. The
             // actual install happens in macOS's installer under the user's
             // control, so we don't mark it up to date — a later rescan will.
@@ -1836,6 +1880,8 @@ final class AppListModel {
                     }
                 }
                 recordEffectiveHost(result, finalHost: opened.finalHost)
+                // Bytes are down: the host gate has nothing left to protect.
+                await releaseAfterDownload?.release()
                 await recordTraffic(result, bytes: opened.bytesDownloaded)
                 // Remember what we handed to the system installer so the row can offer
                 // "Install" — a re-open of this exact file — instead of "Update", which
@@ -1878,6 +1924,9 @@ final class AppListModel {
                 // for it to report its new build — user/process time).
                 Self.installPermits.signalApply()
                 applyPermitHeld = false
+                // brew did its own fetching inside that command, so this is the
+                // earliest its host gate can go back.
+                await releaseAfterDownload?.release()
             case "App Store":
                 // iOS-on-Mac apps can only be updated by the App Store app itself
                 // (mas has no Mac-store entry; the AX route is unreliable for them).
@@ -1898,6 +1947,21 @@ final class AppListModel {
                 installing[id] = .downloading(fraction: 0)
                 // Both routes download through the App Store daemon, so we never see
                 // those bytes — intentionally not recorded (we only count measured).
+                // We still take a download permit for them: the bytes are fetched by
+                // another process but over the same connection as everything else, so
+                // leaving this route outside the budget would let an App Store update
+                // run alongside a full complement of our own downloads. The store's
+                // fetch and install are one opaque call, so the permit spans both —
+                // like Homebrew's fused upgrade, and unlike the archive routes, which
+                // hand the slot back the moment the bytes are down.
+                await Self.installPermits.waitForDownload()
+                downloadPermitHeld = true
+                guard !Task.isCancelled else {
+                    // Cancelled while parked on the permit: nothing started. The
+                    // defer above hands it back.
+                    installing[id] = nil
+                    return false
+                }
                 if result.remote?.appStore?.isRegionMismatch == true {
                     // Region-locked app (listed in a storefront other than the signed-in
                     // account's). mas can't fetch it (wrong storefront) and its product
@@ -1993,6 +2057,10 @@ final class AppListModel {
                         return false
                     }
                 }
+                // The store is done fetching and installing: release before the
+                // restart bookkeeping below, same as the archive routes.
+                Self.installPermits.signalDownload()
+                downloadPermitHeld = false
             case "Vendor", "GitHub":
                 installing[id] = .downloading(fraction: 0)
                 let downloaded = try await Self.installPermits.withDownloadPermit {
@@ -2004,6 +2072,8 @@ final class AppListModel {
                     }
                 }
                 recordEffectiveHost(result, finalHost: downloaded.finalHost)
+                // Bytes are down: the host gate has nothing left to protect.
+                await releaseAfterDownload?.release()
                 await recordTraffic(result, bytes: downloaded.bytesDownloaded)
                 // The download phase left its scratch dir in place for the apply
                 // phase; sweep it on every path from here — an apply failure, or
@@ -2035,6 +2105,8 @@ final class AppListModel {
                     }
                 }
                 recordEffectiveHost(result, finalHost: downloaded.finalHost)
+                // Bytes are down: the host gate has nothing left to protect.
+                await releaseAfterDownload?.release()
                 await recordTraffic(result, bytes: downloaded.bytesDownloaded)
                 defer { try? FileManager.default.removeItem(at: downloaded.workDir) }
                 await Self.installPermits.waitForApply()

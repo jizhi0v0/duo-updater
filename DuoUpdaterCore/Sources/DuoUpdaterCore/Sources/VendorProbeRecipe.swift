@@ -492,6 +492,17 @@ public enum VendorProbeRegistry {
                 kind: .dmg)),
 
         // Google Chrome — official VersionHistory API (page_size=1, desc).
+        //
+        // All four channels install from Google's own permanent per-channel dmg
+        // (`dl.google.com/chrome/mac/universal/<channel>/…`), verified 2026-08-09:
+        // each holds the matching bundle id, Team EQHXZ8M8AV, spctl "Notarized
+        // Developer ID", and a version in the same 4-part form the API reports.
+        //
+        // Chrome self-updates through Keystone, which is NOT a reason to withhold
+        // one-click — that is what `vendorInstallPolicy` is for, and its own settings
+        // copy names Chrome. Keystone keeps managing whatever bundle is on disk; a
+        // swap to a newer build does not confuse it. Under the default "defer while
+        // running", a running Chrome is brought forward to update itself instead.
         VendorProbeRecipe(
             bundleID: "com.google.Chrome",
             url: URL(string: "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/stable/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")!,
@@ -503,14 +514,11 @@ public enum VendorProbeRegistry {
             // highest version at fraction=1 (fully rolled out = what Keystone offers
             // everyone). `fraction` precedes `version` in each release object.
             versionPattern: #""fraction"\s*:\s*1(?:\.0+)?\s*,\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
-            // Detection only (Chrome self-updates via Keystone — we never install
-            // over it). Instead of a download page, point "Open" at Chrome's own
-            // about page: visiting chrome://settings/help makes Chrome run an
-            // immediate update check + download through Keystone — its real,
-            // same-channel update path. (An app-scheme URL, so the UI hands it to
-            // Chrome itself rather than a browser.)
-            downloadURL: URL(string: "chrome://settings/help")!,
-            changelogURL: URL(string: "https://developer.chrome.com/release-notes")),
+            changelogURL: URL(string: "https://developer.chrome.com/release-notes"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg")!),
+                kind: .dmg)),
 
         // Google Chrome — Beta / Dev / Canary channels. Each ships its OWN bundle
         // id (`com.google.Chrome.beta` / `.dev` / `.canary`) and is detected as
@@ -518,31 +526,40 @@ public enum VendorProbeRegistry {
         // matching feed — a Beta install never gets the Stable version and vice
         // versa. Same rollout-aware `fraction:1` pattern as Stable (the
         // VersionHistory API is identical per channel; Canary publishes every
-        // build at fraction 1). Detection only — all Chrome channels self-update
-        // through Keystone, so we never install over them.
+        // build at fraction 1). Each installs from its own permanent dmg — see the
+        // Stable note above for why Keystone is not a reason to withhold that.
         VendorProbeRecipe(
             bundleID: "com.google.Chrome.beta",
             url: URL(string: "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/beta/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")!,
             mode: .responseBody,
             versionPattern: #""fraction"\s*:\s*1(?:\.0+)?\s*,\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
-            downloadURL: URL(string: "chrome://settings/help")!,
             changelogURL: URL(string: "https://developer.chrome.com/release-notes"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://dl.google.com/chrome/mac/universal/beta/googlechromebeta.dmg")!),
+                kind: .dmg),
             channel: .beta),
         VendorProbeRecipe(
             bundleID: "com.google.Chrome.dev",
             url: URL(string: "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/dev/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")!,
             mode: .responseBody,
             versionPattern: #""fraction"\s*:\s*1(?:\.0+)?\s*,\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
-            downloadURL: URL(string: "chrome://settings/help")!,
             changelogURL: URL(string: "https://developer.chrome.com/release-notes"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://dl.google.com/chrome/mac/universal/dev/googlechromedev.dmg")!),
+                kind: .dmg),
             channel: .dev),
         VendorProbeRecipe(
             bundleID: "com.google.Chrome.canary",
             url: URL(string: "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/canary/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")!,
             mode: .responseBody,
             versionPattern: #""fraction"\s*:\s*1(?:\.0+)?\s*,\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
-            downloadURL: URL(string: "chrome://settings/help")!,
             changelogURL: URL(string: "https://developer.chrome.com/release-notes"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://dl.google.com/chrome/mac/universal/canary/googlechromecanary.dmg")!),
+                kind: .dmg),
             channel: .canary),
 
         // Brave Browser — Beta / Nightly. Sparkle appcast per channel and per ARCH.
@@ -999,8 +1016,16 @@ public enum VendorProbeRegistry {
         // (`dev.warp.Warp-Preview`, …) — the Stable build is the existing
         // `dev.warp.Warp-Stable` recipe above. We extract the bare date-version
         // (dropping the `v` prefix and `.<channel>_NN` suffix) to match the form
-        // Stable already compares against. Detection only (Warp self-updates); the
-        // Stable recipe keeps its one-click install.
+        // Stable already compares against.
+        //
+        // PREVIEW installs one-click; DEV deliberately does not. `app.warp.dev/
+        // download?package=dmg&channel=preview` really does serve WarpPreview.app
+        // (verified 2026-08-09: dev.warp.Warp-Preview, Team 2BBY89MBSN, notarized,
+        // version matching the JSON). The same URL with `channel=dev` ignores the
+        // parameter and hands back **Warp.app / dev.warp.Warp-Stable** — wiring that
+        // would install Stable over a Dev install, the cross-channel swap the whole
+        // channel gate exists to prevent. Note the Content-Type on both is
+        // `text/html` despite the body being a 300 MB disk image; don'"'"'t trust it.
         //
         // The JSON still lists `beta` and `canary`, but Warp abandoned both tracks
         // (beta froze at 2024-12, canary at 2022-09 — see 2026-06-04 audit), so we
@@ -1013,8 +1038,11 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"v([0-9.]+)\.preview_[0-9]+""#,
-            downloadURL: URL(string: "https://www.warp.dev/download-preview"),
             changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://app.warp.dev/download?package=dmg&channel=preview")!),
+                kind: .dmg),
             channel: .preview),
         VendorProbeRecipe(
             bundleID: "dev.warp.Warp-Dev",

@@ -274,6 +274,15 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     private var items: [SparkleAppcastItem] = []
     private var current: SparkleAppcastItem?
     private var textBuffer = ""
+    /// Depth inside `<sparkle:deltas>`, whose children are `<enclosure>` elements
+    /// for INCREMENTAL patches — not the item's download. Sparkle names them with
+    /// the same tag as the real one, so a parser that treats every enclosure alike
+    /// ends up holding the last delta it saw: the item's URL becomes
+    /// `Rectangle104-99.delta` and `deltaFrom` gets set, which `usableItems` then
+    /// (correctly) rejects. Every item in the feed is dropped that way and the app
+    /// reports "no source applied" — Rectangle and Keka were both invisible for
+    /// exactly this reason, with no error anywhere to say so.
+    private var deltasDepth = 0
 
     func parser(
         _ parser: XMLParser,
@@ -286,7 +295,11 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
         switch elementName {
         case "item":
             current = SparkleAppcastItem()
+        case "sparkle:deltas":
+            deltasDepth += 1
         case "enclosure":
+            // Inside <sparkle:deltas> this is a patch, not the release download.
+            guard deltasDepth == 0 else { break }
             current?.enclosureURL = attributeDict["url"].flatMap { URL(string: $0) }
             if let length = attributeDict["length"], let n = Int64(length) {
                 current?.enclosureLength = n
@@ -328,6 +341,8 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
     ) {
         let text = textBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
         switch elementName {
+        case "sparkle:deltas":
+            deltasDepth = max(0, deltasDepth - 1)
         case "sparkle:version":
             if current?.version == nil, !text.isEmpty { current?.version = text }
         case "sparkle:shortVersionString":

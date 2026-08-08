@@ -1802,15 +1802,18 @@ final class AppListModel {
 
         do {
             // The apply permit is acquired by whichever stage actually applies
-            // the update (Homebrew's fused upgrade; the Vendor/Sparkle swap) and
-            // held through the end of this block — the restart bookkeeping below
-            // included — mirroring the old single gate's lifetime for everything
-            // but the download. The download permit, by contrast, is scoped to
-            // just the fetch (see `InstallPermits`), so installs pipeline: while
-            // one extracts and swaps, others can already be downloading. Released
-            // on EVERY exit path: the defer covers a throw into `catch`; the flag
-            // keeps the release from firing for paths that never acquired it
-            // (App Store, pkg, and the early-outs).
+            // the update (Homebrew's fused upgrade; the Vendor/Sparkle swap)
+            // and released the moment the swap lands — the restart bookkeeping
+            // below (recheck, relaunch, restart prompt) is user/process time,
+            // not work, and must not hold a permit while using neither network
+            // nor disk. The download permit, by contrast, is scoped to just the
+            // fetch (see `InstallPermits`), so installs pipeline: while one
+            // extracts and swaps, others can already be downloading.
+            //
+            // The flag+defer below covers the ERROR path only: a throw between
+            // acquisition and the explicit release still hands the permit back.
+            // Paths that never acquire it (App Store, pkg, and the early-outs)
+            // leave the flag false so the release no-ops.
             var applyPermitHeld = false
             defer { if applyPermitHeld { Self.installPermits.signalApply() } }
             // pkg casks: download the official installer and open it. The
@@ -1868,6 +1871,12 @@ final class AppListModel {
                 try await homebrewInstaller.upgrade(caskToken: token) { line in
                     Task { @MainActor in self.setStage(id, .runningCommand(line)) }
                 }
+                // The swap has landed: the permit protects nothing anymore, so
+                // hand the slot to the next install before the restart
+                // bookkeeping below (which quits/relaunches the app and waits
+                // for it to report its new build — user/process time).
+                Self.installPermits.signalApply()
+                applyPermitHeld = false
             case "App Store":
                 // iOS-on-Mac apps can only be updated by the App Store app itself
                 // (mas has no Mac-store entry; the AX route is unreliable for them).
@@ -2009,6 +2018,10 @@ final class AppListModel {
                 _ = try await vendorInstaller.apply(result, download: downloaded) { stage in
                     Task { @MainActor in self.setStage(id, stage) }
                 }
+                // The swap has landed: release before the restart bookkeeping
+                // below (see the Homebrew case).
+                Self.installPermits.signalApply()
+                applyPermitHeld = false
             default:
                 installing[id] = .downloading(fraction: 0)
                 let downloaded = try await Self.installPermits.withDownloadPermit {
@@ -2032,6 +2045,10 @@ final class AppListModel {
                 _ = try await sparkleInstaller.apply(result, download: downloaded) { stage in
                     Task { @MainActor in self.setStage(id, stage) }
                 }
+                // The swap has landed: release before the restart bookkeeping
+                // below (see the Homebrew case).
+                Self.installPermits.signalApply()
+                applyPermitHeld = false
             }
             // An incremental App Store update the user OK'd quitting for: the app
             // was open before we quit it to update, so bring it back — and to the

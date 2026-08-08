@@ -545,27 +545,48 @@ public enum VendorProbeRegistry {
             changelogURL: URL(string: "https://developer.chrome.com/release-notes"),
             channel: .canary),
 
-        // Brave Browser — Beta / Nightly. Sparkle appcast per channel. Distinct
-        // bundle ids (`com.brave.Browser.beta` / `.nightly`) so the channel gate
-        // routes each install to its own feed. `sparkle:shortVersionString` carries
-        // the marketing 4-part version (e.g. "1.92.114.0"); `sparkle:version` is the
-        // build number used for the download URL. Detection only — Brave self-updates
-        // via Sparkle.
+        // Brave Browser — Beta / Nightly. Sparkle appcast per channel and per ARCH.
+        // Distinct bundle ids (`com.brave.Browser.beta` / `.nightly`) so the channel
+        // gate routes each install to its own feed.
+        //
+        // COMPARE ON THE BUILD, not the marketing string. The feed's
+        // `sparkle:shortVersionString` is Brave's own 4-part version ("1.94.104.0")
+        // while the installed bundle reports a CHROMIUM-prefixed one
+        // ("151.1.94.104"). Comparing those puts 1 against 151 and concludes the
+        // installed copy is newer — so the row read "up to date" forever and Brave
+        // Beta/Nightly could never surface an update. `sparkle:version` ("194.104")
+        // is exactly the bundle's `CFBundleVersion`, so that's the pair that lines
+        // up; `displayVersionPattern` keeps the human-readable string on screen.
+        //
+        // The `-arm64` feed is deliberate: the plain path serves x64 dmgs only
+        // (`Brave-Browser-Beta-x64.dmg`). Both tracks carry the same version, so this
+        // changes the artifact, not the verdict. Verified 2026-08-09 on beta 194.104
+        // and nightly 195.47 — Team KL8N8XSYF4, notarized, ids matching.
         VendorProbeRecipe(
             bundleID: "com.brave.Browser.beta",
-            url: URL(string: "https://updates.bravesoftware.com/sparkle/Brave-Browser/beta/appcast.xml")!,
+            url: URL(string: "https://updates.bravesoftware.com/sparkle/Brave-Browser/beta-arm64/appcast.xml")!,
             mode: .responseBody,
-            versionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
-            downloadURL: URL(string: "https://brave.com/download-beta/")!,
+            versionPattern: #"sparkle:version="([0-9]+\.[0-9]+)""#,
             changelogURL: URL(string: "https://brave.com/latest/")!,
+            versionIsBuild: true,
+            displayVersionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<enclosure[^>]*url="(https://[^"]+Brave-Browser-Beta-arm64\.dmg)""#),
+                kind: .dmg),
             channel: .beta),
         VendorProbeRecipe(
             bundleID: "com.brave.Browser.nightly",
-            url: URL(string: "https://updates.bravesoftware.com/sparkle/Brave-Browser/nightly/appcast.xml")!,
+            url: URL(string: "https://updates.bravesoftware.com/sparkle/Brave-Browser/nightly-arm64/appcast.xml")!,
             mode: .responseBody,
-            versionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
-            downloadURL: URL(string: "https://brave.com/download-nightly/")!,
+            versionPattern: #"sparkle:version="([0-9]+\.[0-9]+)""#,
             changelogURL: URL(string: "https://brave.com/latest/")!,
+            versionIsBuild: true,
+            displayVersionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<enclosure[^>]*url="(https://[^"]+Brave-Browser-Nightly-arm64\.dmg)""#),
+                kind: .dmg),
             channel: .nightly),
 
         // Vivaldi — Snapshot (preview) track. Sparkle appcast on the `snapshot`
@@ -774,9 +795,22 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://www.macbartender.com/B2/updates/AppcastB6.xml")!,
             mode: .responseBody,
             versionPattern: #"<sparkle:shortVersionString>([0-9]+\.[0-9]+\.[0-9]+)</sparkle:shortVersionString>"#,
-            downloadURL: URL(string: "https://www.macbartender.com/")!,
             changelogURL: URL(string: "https://www.macbartender.com/B2/updates/AppcastB6.xml")!,
-            selectHighest: true),
+            selectHighest: true,
+            // `bodyPatternLast`, not `bodyPattern`: this appcast is ASCENDING, so the
+            // first enclosure is 6.0.0 and the newest is the final one — the same
+            // reason `selectHighest` is set for the version. Taking the first match
+            // would install a two-year-old build over a current one.
+            //
+            // Verified 2026-08-09 on 6.6.2: `Bartender 6.app` in the archive, bundle
+            // id com.surteesstudios.Bartender, Team 24J875RH8J, spctl "Notarized
+            // Developer ID". (Note the older entries are served from macbartender.com
+            // and the recent ones from downloads.macbartender.com — the pattern
+            // accepts either host.)
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternLast(
+                    #"<enclosure[^>]*url="(https://[^"]*macbartender\.com/[^"]+\.zip)""#),
+                kind: .zip)),
 
         // ImageOptim — Sparkle appcast carrying only the latest release
         // (descending, single item). Version in sparkle:shortVersionString.

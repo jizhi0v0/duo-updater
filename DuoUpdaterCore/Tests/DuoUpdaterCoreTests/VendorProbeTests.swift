@@ -562,7 +562,18 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     """#
     let recipe = registryRecipe("com.brave.Browser.beta")
     #expect(recipe.channel == .beta)
-    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: recipe.versionPattern) == "1.92.114.0")
+    // Compare on the BUILD. The feed's marketing string is Brave's own version
+    // while the installed bundle reports a Chromium-prefixed one ("151.92.114.0"
+    // for "1.92.114.0"), so comparing those puts 1 against 151, reads the installed copy
+    // as newer, and hides every update. `sparkle:version` IS the bundle's
+    // CFBundleVersion, so that's the pair that lines up.
+    #expect(recipe.versionIsBuild)
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: recipe.versionPattern) == "192.114")
+    // The marketing string is still what the user sees.
+    let display = try! #require(recipe.displayVersionPattern)
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: display) == "1.92.114.0")
+    // And the install pulls the arm64 artifact — the un-suffixed feed serves x64 only.
+    #expect(recipe.url.absoluteString.contains("beta-arm64"))
 }
 
 @Test func braveNightlyProbeExtractsVersionFromAppcast() {
@@ -578,7 +589,18 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     """#
     let recipe = registryRecipe("com.brave.Browser.nightly")
     #expect(recipe.channel == .nightly)
-    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: recipe.versionPattern) == "1.93.35.0")
+    // Compare on the BUILD. The feed's marketing string is Brave's own version
+    // while the installed bundle reports a Chromium-prefixed one ("151.93.35.0"
+    // for "1.93.35.0"), so comparing those puts 1 against 151, reads the installed copy
+    // as newer, and hides every update. `sparkle:version` IS the bundle's
+    // CFBundleVersion, so that's the pair that lines up.
+    #expect(recipe.versionIsBuild)
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: recipe.versionPattern) == "193.35")
+    // The marketing string is still what the user sees.
+    let display = try! #require(recipe.displayVersionPattern)
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: display) == "1.93.35.0")
+    // And the install pulls the arm64 artifact — the un-suffixed feed serves x64 only.
+    #expect(recipe.url.absoluteString.contains("nightly-arm64"))
 }
 
 // MARK: - Vivaldi Snapshot Sparkle appcast extraction

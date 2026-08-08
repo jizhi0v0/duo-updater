@@ -21,7 +21,11 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
 
 @Test func dbeaverRuleExtractsBareTag() {
     #expect(extract("26.1.0", "org.jkiss.dbeaver.core.product") == "26.1.0")
-    #expect(rule("org.jkiss.dbeaver.core.product").installAssetPattern == nil)
+    // One-click pins the aarch64 asset: the release publishes an x86_64 dmg beside
+    // it, and a looser pattern could hand an Intel build to an Apple Silicon Mac.
+    let pattern = try! #require(rule("org.jkiss.dbeaver.core.product").installAssetPattern)
+    #expect("dbeaver-ce-26.1.4-macos-aarch64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("dbeaver-ce-26.1.4-macos-x86_64.dmg".range(of: pattern, options: .regularExpression) == nil)
 }
 
 @Test func beekeeperRuleExtractsVPrefixedTag() {

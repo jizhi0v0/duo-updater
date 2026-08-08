@@ -592,15 +592,24 @@ public enum VendorProbeRegistry {
         // Vivaldi — Snapshot (preview) track. Sparkle appcast on the `snapshot`
         // channel. Independent bundle id (`com.vivaldi.Vivaldi.snapshot`) so the
         // channel gate routes it automatically. `sparkle:shortVersionString` carries
-        // the marketing version (e.g. "8.1.4063.3"). Detection only — Vivaldi
-        // self-updates.
+        // the marketing version (e.g. "8.1.4063.3"), and here it equals the bundle's
+        // CFBundleShortVersionString exactly — no scheme mismatch to work around,
+        // unlike the Brave feeds above.
+        //
+        // One-click verified 2026-08-09 on 8.2.4126.4: the enclosure is a universal
+        // `.tar.xz` holding `Vivaldi Snapshot.app`, bundle id
+        // com.vivaldi.Vivaldi.snapshot, Team 4XF3XNRN6Y, spctl "Notarized Developer
+        // ID". `.tarGz` covers xz — see the ImageOptim note.
         VendorProbeRecipe(
             bundleID: "com.vivaldi.Vivaldi.snapshot",
             url: URL(string: "https://update.vivaldi.com/update/1.0/snapshot/mac/appcast.xml")!,
             mode: .responseBody,
             versionPattern: #"<sparkle:shortVersionString>([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)</sparkle:shortVersionString>"#,
-            downloadURL: URL(string: "https://vivaldi.com/download/")!,
             changelogURL: URL(string: "https://vivaldi.com/blog/desktop/")!,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<enclosure[^>]*url="(https://downloads\.vivaldi\.com/[^"]+\.tar\.xz)""#),
+                kind: .tarGz),
             channel: .preview),
 
         // Microsoft Edge — Stable / Beta / Dev. One enterprise endpoint lists all
@@ -1290,9 +1299,21 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://desktop.docker.com/mac/main/arm64/appcast.xml")!,
             mode: .responseBody,
             versionPattern: #"<title>(?:Version\s*)?([0-9]+\.[0-9]+\.[0-9]+)\s*\("#,
-            downloadURL: URL(string: "https://www.docker.com/products/docker-desktop/"),
             changelogURL: URL(string: "https://docs.docker.com/desktop/release-notes/"),
-            selectHighest: true),
+            selectHighest: true,
+            // The install pattern anchors on `Docker.dmg` for a reason: this feed
+            // nests `<sparkle:deltas>` whose entries are `<enclosure>` too, pointing
+            // at `Docker-<prev>.delta`. A looser match would happily install a patch
+            // file as if it were the app. (Same trap that made the Sparkle parser
+            // drop whole feeds — see `SparkleAppcastParser`.)
+            //
+            // Verified 2026-08-09 on 4.85.0 (build 235549): `Docker.app` in the
+            // image, bundle id com.docker.docker, Team 9BNSXJN65R, spctl "Notarized
+            // Developer ID". 573 MB, arm64-specific feed path.
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<enclosure[^>]*url="(https://desktop\.docker\.com/[^"]+/Docker\.dmg)""#),
+                kind: .dmg)),
 
         // LibreWolf — release tags, newest first; tag is "<firefox-version>-<packaging>"
         // (e.g. "151.0.3-1") and we capture only the upstream Firefox version so it
@@ -1305,6 +1326,15 @@ public enum VendorProbeRegistry {
         // is 151.x → a stale probe). The brew cask's own livecheck reads this same
         // Codeberg `releases/latest`. Verified 2026-06-04 against an installed cask:
         // app reports `151.0.3-1`; `tag_name` is `151.0.3-1` → captures `151.0.3`.
+        //
+        // DETECTION ONLY, and not for lack of a URL — the release does publish
+        // `librewolf-<ver>-macos-arm64-package.dmg`. Checked it on 2026-08-09: the
+        // `LibreWolf.app` inside is ad-hoc signed (`TeamIdentifier=not set`) and
+        // Gatekeeper rejects it outright ("code has no resources but signature
+        // indicates they must be present"). `VendorInstaller`'s same-Team gate would
+        // refuse it anyway, and rightly: there is no signing identity to compare the
+        // installed copy against. Don't wire one-click here unless LibreWolf starts
+        // shipping a Developer ID build.
         VendorProbeRecipe(
             bundleID: "net.librewolf.librewolf",
             url: URL(string: "https://codeberg.org/api/v1/repos/librewolf/bsys6/releases/latest")!,
@@ -1863,8 +1893,16 @@ public enum VendorProbeRegistry {
         // server-rendered and listed newest-first — the FIRST match is the current
         // stable build (the bare <h1> "1Password for Mac" has no version and is
         // skipped by the required \s+[0-9]). NOTE: HTML scrape — more brittle than
-        // an API; refresh if it stops matching. Detection only; the same page is
-        // also the ChangelogRecipe(com.1password.1password) source.
+        // an API; refresh if it stops matching. The same page is also the
+        // ChangelogRecipe(com.1password.1password) source.
+        //
+        // DETECTION ONLY, deliberately. `downloads.1password.com/mac/1Password.zip`
+        // looks like a perfect one-click target — stable URL, Developer ID
+        // (2BUA8C4S2C), notarized — but what it actually contains is
+        // `1Password Installer.app` (`com.1password.1password-installer`), a stub
+        // that fetches the real app. Swapping that over `/Applications/1Password.app`
+        // would replace the password manager with its installer. Checked 2026-08-09;
+        // don't wire this without a payload that IS the app.
         VendorProbeRecipe(
             bundleID: "com.1password.1password",
             url: URL(string: "https://releases.1password.com/mac/stable/")!,
@@ -2065,26 +2103,45 @@ public enum VendorProbeRegistry {
         // ~200 MB dmg, so don't follow — read the small 302 Location
         // (followRedirects:false). NOTE the scheme is 3-component (254.4.2518 =
         // 254/4/2518, not four) — the pattern is three numeric groups. Detection
-        // only — Dropbox self-updates. (Homebrew cask has no livecheck; its
-        // url/version confirm this host + build.)
+        // Dropbox self-updates, so this row usually just confirms that. (Homebrew
+        // cask has no livecheck; its url/version confirm this host + build.)
+        //
+        // One-click verified 2026-08-09 on 264.4.3385: the image is labelled
+        // "Dropbox Offline Installer" but holds the real `Dropbox.app` —
+        // com.getdropbox.dropbox, Team G7HH3F8CAK, spctl "Notarized Developer ID",
+        // version matching the redirect filename. (Worth stating, since the sibling
+        // 1Password download turned out to be a stub installer, not the app.)
         VendorProbeRecipe(
             bundleID: "com.getdropbox.dropbox",
             url: URL(string: "https://www.dropbox.com/download?plat=mac&full=1")!,
             mode: .redirectFilename,
             versionPattern: #"Dropbox(?:%20| )([0-9]+\.[0-9]+\.[0-9]+)\.dmg"#,
-            downloadURL: URL(string: "https://www.dropbox.com/install")!,
             changelogURL: URL(string: "https://www.dropbox.com/release_notes")!,
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://www.dropbox.com/download?plat=mac&full=1")!),
+                kind: .dmg),
             followRedirects: false),
 
         // MacUpdater — version is in an HTML comment marker on the product page.
         // NOTE: HTML scrape — more brittle than an API; refresh if it stops
         // matching.
+        //
+        // One-click verified 2026-08-09 on 3.5.0: `macupdater_latest.dmg` is an
+        // unversioned "latest" URL holding `MacUpdater.app` — bundle id
+        // com.corecode.MacUpdater, Team 9D78DG5ACV, spctl "Notarized Developer ID".
+        // Fixed rather than scraped: the page's only download href is that same
+        // stable path.
         VendorProbeRecipe(
             bundleID: "com.corecode.MacUpdater",
             url: URL(string: "https://www.corecode.io/macupdater/")!,
             mode: .responseBody,
             versionPattern: #"<!--BEGINVERSION-->([0-9.]+)<!--ENDVERSION-->"#,
-            changelogURL: URL(string: "https://www.corecode.io/macupdater/history3.html")),
+            changelogURL: URL(string: "https://www.corecode.io/macupdater/history3.html"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://www.corecode.io/downloads/macupdater_latest.dmg")!),
+                kind: .dmg)),
 
         // Alcove — PUBLIC mirror, kept only as the no-credential fallback. The
         // authoritative source is `AlcoveUpdateSource` (the licensed api.tryalcove.com

@@ -176,3 +176,87 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
     let apps = AppScanner(locations: [tmp]).scan()
     #expect(!apps.contains { $0.bundleID?.hasPrefix("com.apple") == true })
 }
+
+@Test func scannerSkipsSidecarBackupAndDuplicateBundles() throws {
+    // DuoPaste's own updater parks `DuoPaste.backup-<stamp>.app` next to the real
+    // bundle on every self-update. Three of them accumulated in ~/Applications and
+    // the list showed four identical DuoPaste rows, each offering to install into a
+    // dead path.
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    _ = try makeApp(at: tmp, name: "DuoPaste", info: [
+        "CFBundleIdentifier": "io.duopaste.daemon",
+        "CFBundleShortVersionString": "0.1.1270",
+        "CFBundleVersion": "1271",
+    ])
+    for stamp in ["20260716-183428", "20260716-185238"] {
+        _ = try makeApp(at: tmp, name: "DuoPaste.backup-\(stamp)", info: [
+            "CFBundleIdentifier": "io.duopaste.daemon",
+            "CFBundleShortVersionString": "0.1.1269-beta+9c7aa27",
+            "CFBundleVersion": "1269",
+        ])
+    }
+    _ = try makeApp(at: tmp, name: "DuoPaste copy", info: [
+        "CFBundleIdentifier": "io.duopaste.daemon",
+        "CFBundleShortVersionString": "0.1.1268",
+        "CFBundleVersion": "1268",
+    ])
+    _ = try makeApp(at: tmp, name: "DuoPaste 副本 2", info: [
+        "CFBundleIdentifier": "io.duopaste.daemon",
+        "CFBundleShortVersionString": "0.1.1267",
+        "CFBundleVersion": "1267",
+    ])
+
+    let apps = AppScanner(locations: [tmp]).scan()
+    #expect(apps.count == 1)
+    #expect(apps.first?.shortVersion == "0.1.1270")
+}
+
+@Test func sidecarMatcherLeavesOrdinaryAppNamesAlone() {
+    let sidecars = [
+        "DuoPaste.backup-20260716-183428", "Foo.backup", "Foo.old", "Foo.OLD",
+        "Foo copy", "Foo copy 2", "Foo 副本", "Foo 的副本 2",
+    ]
+    for name in sidecars {
+        #expect(AppScanner.isSidecarCopy(URL(fileURLWithPath: "/Applications/\(name).app")),
+                "expected \(name) to be treated as a sidecar copy")
+    }
+    // Real app names that must survive: "Copy"/"Backup" as words, and versioned
+    // or dotted names that merely look similar.
+    let keepers = [
+        "Copy", "Copy'em", "Backup Buddy", "Time Machine Backups", "iOldMac",
+        "Adobe Photoshop 2026", "DuoPaste", "Old School RuneScape",
+    ]
+    for name in keepers {
+        #expect(!AppScanner.isSidecarCopy(URL(fileURLWithPath: "/Applications/\(name).app")),
+                "expected \(name) to be kept")
+    }
+}
+
+@Test func dedupeKeepsSameBundleIDInstallsThatDifferInVersionOrChannel() {
+    // Two Toolbox Android Studio majors share `com.google.android.studio` and both
+    // must keep their row; Firefox Stable and Beta share `org.mozilla.firefox` and
+    // are told apart only by channel. Only an exact id+channel+version clone folds.
+    func app(_ name: String, _ id: String, _ version: String,
+             _ channel: ReleaseChannel, _ path: String) -> InstalledApp {
+        InstalledApp(
+            name: name, bundleID: id, shortVersion: version, buildVersion: version,
+            path: URL(fileURLWithPath: path), isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: channel)
+    }
+    let apps = [
+        app("Android Studio", "com.google.android.studio", "2025.1", .stable, "/Applications/AS-Koala.app"),
+        app("Android Studio", "com.google.android.studio", "2025.2", .stable, "/Applications/AS-Otter.app"),
+        app("Firefox", "org.mozilla.firefox", "153.0", .stable, "/Applications/Firefox.app"),
+        app("Firefox Beta", "org.mozilla.firefox", "153.0", .beta, "/Applications/Firefox Beta.app"),
+        // A true clone: same id, channel and version, different folder.
+        app("Firefox", "org.mozilla.firefox", "153.0", .stable, "/Users/me/Applications/Firefox.app"),
+    ]
+    let deduped = AppScanner.dedupeIdenticalInstalls(apps)
+    #expect(deduped.count == 4)
+    #expect(deduped.map(\.path.path).contains("/Applications/Firefox.app"))
+    #expect(!deduped.map(\.path.path).contains("/Users/me/Applications/Firefox.app"))
+}

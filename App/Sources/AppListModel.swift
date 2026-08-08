@@ -1323,7 +1323,19 @@ final class AppListModel {
         // an active spinner. Installs key by id and finish fine, but the visible
         // row shouldn't shuffle mid-install. (`installAll` calls `performLocalRescan`
         // directly in its post-batch sweep — installs done, nothing to churn.)
-        guard !results.isEmpty, !isChecking, installing.isEmpty, !isInstallingAll else { return }
+        // Say WHY when we skip. These four guards silently swallowed every FS-watcher
+        // event and backstop tick, which made "the list didn't update" indistinguishable
+        // from "the watcher never fired" — the exact ambiguity that made a dead FSEvents
+        // stream take a live-log session to diagnose. Debug level: one line per skipped
+        // rescan, off unless someone is looking.
+        guard !results.isEmpty, !isChecking, installing.isEmpty, !isInstallingAll else {
+            let reason = results.isEmpty ? "no results yet"
+                : isChecking ? "a check is running"
+                : isInstallingAll ? "batch install in flight"
+                : "install in flight (\(installing.count))"
+            Log.app.debug("local rescan: skipped — \(reason, privacy: .public)")
+            return
+        }
         await performLocalRescan()
     }
 
@@ -3201,6 +3213,19 @@ final class AppListModel {
         appDirWatcher = watcher
         watcher.start()
         Log.app.info("local rescan: watching \(paths.joined(separator: ", "), privacy: .public) + \(Int(self.localRescanInterval.components.seconds), privacy: .public)s backstop")
+
+        // Sleep is the one moment we KNOW the stream may have missed writes (a brew
+        // upgrade or Keystone swap during sleep lands with no live event) — and it's
+        // a plausible way for a stream to be left dead. Rebuild it on wake; the
+        // re-arm rescans immediately, so anything swapped while asleep shows up at
+        // once instead of waiting for the backstop.
+        let wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Log.app.debug("local rescan: re-arming FS watcher after wake")
+            self?.appDirWatcher?.rearm()
+        }
+        runningAppObservers.append(wakeObserver)
 
         localRescanTimer = Task { @MainActor [weak self] in
             while !Task.isCancelled {

@@ -5,6 +5,12 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.15
+
+**The same app no longer appears several times over.** Some apps leave a dated copy of themselves behind every time they update — DuoPaste, for one, parks a `DuoPaste.backup-20260716-183428.app` next to the real thing on each self-update. Those copies are complete, working app bundles as far as anything on disk can tell, so DuoUpdater listed each one as its own app: three identical DuoPaste rows, each offering the same update. Worse, taking one of those offers would have installed the new version *into the backup*, leaving the app you actually use untouched and creating another stray copy. Backup and duplicate bundles are now recognised for what they are and left out of the list, as are exact clones of an app found in two places. Genuinely separate installs that happen to share an identity — Firefox alongside Firefox Beta, two versions of Android Studio kept side by side — still each get their own row.
+
+**The list now reliably notices apps appearing and disappearing.** DuoUpdater watches your Applications folders so that an app updating itself in the background, or one you drag to the Trash, is reflected within a few seconds. That watch could quietly stop working — nothing crashed, nothing was reported, it simply stopped hearing about changes, and the list then went stale until you reopened the window. It's now rebuilt periodically and after your Mac wakes from sleep, with a fresh scan each time, so a watch that dies recovers on its own instead of staying dead for the rest of the session.
+
 ## 0.3.14
 
 **An app that gets restarted after an update no longer jumps in front of what you're doing.** When DuoUpdater updates an app that's currently running, it quits and reopens it so the new version actually takes effect. Reopening it also pulled it to the front — so an update to something sitting quietly in the background could drop a window on top of the thing you were typing into. The app's position now survives the restart: whatever was in front comes back in front, and whatever was in the background comes back in the background, still there and still updated, just not in your way. The same applies to apps DuoUpdater reopens after an App Store update. Apps that weren't running at all are, as before, updated on disk and left closed — updating an app never starts it up.

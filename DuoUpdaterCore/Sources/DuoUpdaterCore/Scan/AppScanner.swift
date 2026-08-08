@@ -99,11 +99,66 @@ public struct AppScanner: Sendable {
         return id
     }
 
+    /// Sidecar copies of an app that sit next to the real bundle: the timestamped
+    /// backups an app's OWN updater leaves behind (DuoPaste writes
+    /// `DuoPaste.backup-20260716-183428.app` beside `DuoPaste.app` on every
+    /// self-update), Finder duplicates, and hand-renamed `.old` spares.
+    ///
+    /// These are complete bundles — real Info.plist, real marketing version, same
+    /// bundle id — so nothing else in `readApp` filters them out. Left in, each one
+    /// becomes its own row offering its own "Update" button, which is both noise
+    /// (three identical DuoPaste rows) and a hazard: installing into
+    /// `DuoPaste.backup-….app` would write a fresh build to a dead path and breed
+    /// yet more zombie copies. Match on the bundle FILENAME only — the name is what
+    /// marks a copy; its contents are indistinguishable from the original.
+    static func isSidecarCopy(_ bundleURL: URL) -> Bool {
+        let base = bundleURL.deletingPathExtension().lastPathComponent
+        // `Name.backup-<stamp>` / `Name.backup` / `Name.old` — updater and manual spares.
+        if base.range(of: #"\.(backup|old)([-_.].*)?$"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return true
+        }
+        // Finder duplicates: "Name copy", "Name copy 2", and the zh-Hans forms
+        // ("Name 副本", "Name 的副本 2"). Anchored at the end after a separator so an
+        // app legitimately named e.g. "Copy" is untouched.
+        if base.range(of: #"\scopy(\s\d+)?$"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return true
+        }
+        if base.range(of: #"\s(的)?副本(\s?\d+)?$"#, options: .regularExpression) != nil {
+            return true
+        }
+        return false
+    }
+
+    /// Collapse byte-identical duplicate installs: the SAME app (bundle id +
+    /// channel) at the SAME version (marketing + build) found in two places — e.g.
+    /// a copy in `~/Applications` shadowing the one in `/Applications`.
+    ///
+    /// Deliberately narrow. Two installs sharing a bundle id are NOT inherently
+    /// duplicates: the JetBrains-Toolbox Android Studio installs (Otter + Koala)
+    /// both carry `com.google.android.studio` and both must keep their own row (see
+    /// `InstalledApp.id`), as do Firefox Stable and Beta, which share
+    /// `org.mozilla.firefox` and are told apart only by channel. Requiring an exact
+    /// version match too means those all survive, while a true clone — nothing to
+    /// distinguish it but its path — folds into one row. First one wins, so scan
+    /// order (`/Applications` before `~/Applications`) decides the keeper.
+    static func dedupeIdenticalInstalls(_ apps: [InstalledApp]) -> [InstalledApp] {
+        var seen = Set<String>()
+        return apps.filter { app in
+            guard let bundleID = app.bundleID else { return true }
+            let key = [
+                bundleID, app.releaseChannel.rawValue,
+                app.shortVersion ?? "", app.buildVersion ?? ""
+            ].joined(separator: "|")
+            return seen.insert(key).inserted
+        }
+    }
+
     /// Scan all configured locations and return the apps found, sorted by name.
     public func scan() -> [InstalledApp] {
         let fm = FileManager.default
         var seen = Set<String>()
         var apps: [InstalledApp] = []
+        var skippedSidecars = 0
 
         for dir in locations {
             guard let entries = try? fm.contentsOfDirectory(
@@ -113,6 +168,13 @@ public struct AppScanner: Sendable {
             ) else { continue }
 
             for entry in entries where entry.pathExtension == "app" {
+                // A backup/duplicate bundle parked next to the real app — same id,
+                // same everything, just a dead path. Checked on the ORIGINAL entry
+                // name (pre-symlink-resolution): that's the name that marks it.
+                if Self.isSidecarCopy(entry) {
+                    skippedSidecars += 1
+                    continue
+                }
                 // Resolve symlinks: /Applications/Utilities often links Apple
                 // system apps out of /System (e.g. Feedback Assistant). Those are
                 // OS-managed by Software Update, not us — skip them, and dedupe on
@@ -126,6 +188,10 @@ public struct AppScanner: Sendable {
             }
         }
 
+        apps = Self.dedupeIdenticalInstalls(apps)
+        if skippedSidecars > 0 {
+            Log.scan.info("skipped \(skippedSidecars, privacy: .public) sidecar backup/duplicate bundle(s)")
+        }
         Log.scan.info("scanned \(self.locations.count, privacy: .public) locations → \(apps.count, privacy: .public) apps")
         return apps.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending

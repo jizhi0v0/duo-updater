@@ -86,7 +86,8 @@ public actor SparkleInstaller {
             return DownloadedUpdate(
                 archiveURL: archive,
                 bytesDownloaded: downloader.bytesDownloaded,
-                workDir: workDir)
+                workDir: workDir,
+                finalHost: downloader.finalHost)
         } catch {
             // A failed (or partially-written) download leaves nothing behind.
             try? FileManager.default.removeItem(at: workDir)

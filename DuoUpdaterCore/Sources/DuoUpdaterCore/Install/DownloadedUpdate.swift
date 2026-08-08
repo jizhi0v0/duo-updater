@@ -16,10 +16,16 @@ public struct DownloadedUpdate: Sendable {
     /// cancellation landing between the phases. On download failure the dir is
     /// removed by `download` itself.
     public let workDir: URL
+    /// The host that actually served the bytes, after redirects — the feed URL
+    /// often bounces to a CDN, which is what the per-host install gate should
+    /// key on. Nil for a `file://` copy or when the transfer never got a
+    /// response.
+    public let finalHost: String?
 
-    public init(archiveURL: URL, bytesDownloaded: Int64, workDir: URL) {
+    public init(archiveURL: URL, bytesDownloaded: Int64, workDir: URL, finalHost: String? = nil) {
         self.archiveURL = archiveURL
         self.bytesDownloaded = bytesDownloaded
         self.workDir = workDir
+        self.finalHost = finalHost
     }
 }

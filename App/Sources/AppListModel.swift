@@ -1835,6 +1835,7 @@ final class AppListModel {
                         Task { @MainActor in self.setStage(id, stage) }
                     }
                 }
+                recordEffectiveHost(result, finalHost: opened.finalHost)
                 await recordTraffic(result, bytes: opened.bytesDownloaded)
                 // Remember what we handed to the system installer so the row can offer
                 // "Install" — a re-open of this exact file — instead of "Update", which
@@ -2002,6 +2003,7 @@ final class AppListModel {
                         Task { @MainActor in self.setStage(id, stage) }
                     }
                 }
+                recordEffectiveHost(result, finalHost: downloaded.finalHost)
                 await recordTraffic(result, bytes: downloaded.bytesDownloaded)
                 // The download phase left its scratch dir in place for the apply
                 // phase; sweep it on every path from here — an apply failure, or
@@ -2032,6 +2034,7 @@ final class AppListModel {
                         Task { @MainActor in self.setStage(id, stage) }
                     }
                 }
+                recordEffectiveHost(result, finalHost: downloaded.finalHost)
                 await recordTraffic(result, bytes: downloaded.bytesDownloaded)
                 defer { try? FileManager.default.removeItem(at: downloaded.workDir) }
                 await Self.installPermits.waitForApply()
@@ -3032,15 +3035,42 @@ final class AppListModel {
     /// and are the ones that trip its rate limiter / WAF.
     private static let maxPerHostInstalls = 2
 
+    /// Feed-URL host → the host that actually served the bytes, learned from a
+    /// completed download through that feed host (see `recordEffectiveHost`).
+    /// Real bytes frequently come from a CDN after redirects, so the gate must
+    /// key on the server that really serves them, not the URL written in the
+    /// feed — two "different" hosts that bounce to one CDN should share a cap,
+    /// and the cap is about the CDN, not the feed.
+    private static var effectiveHostByFeedHost: [String: String] = [:]
+
+    /// Remember which host actually served an install's bytes, so the per-host
+    /// gate keys on it from the next download through this feed host on.
+    private func recordEffectiveHost(_ result: UpdateResult, finalHost: String?) {
+        guard let feedHost = result.remote?.downloadURL?.host, let finalHost,
+              feedHost != finalHost else { return }
+        Self.effectiveHostByFeedHost[feedHost] = finalHost
+    }
+
     /// One semaphore per download host, created on demand. Main-actor isolated, so
     /// the lookup/insert needs no extra locking. Entries are never evicted — the set
     /// of hosts is tiny and bounded by the installed-app catalog.
     private var hostInstallGates: [String: AsyncSemaphore] = [:]
 
     private func hostInstallGate(for host: String) -> AsyncSemaphore {
-        if let gate = hostInstallGates[host] { return gate }
+        // Key on the host that actually SERVED the bytes once we've learned it
+        // from a previous download through this feed host (see
+        // `recordEffectiveHost`). The first download per feed host still keys on
+        // the feed URL's host: the redirect target can't be known before the
+        // first response, and a HEAD request per install just to learn it is
+        // not worth a round trip. So two apps whose feeds bounce to the SAME
+        // CDN are throttled together from their second download onward, and an
+        // app whose feed host serves different CDNs at different times is
+        // throttled on the last-seen one — still better than throttling on a
+        // host that never sends a byte.
+        let effective = Self.effectiveHostByFeedHost[host] ?? host
+        if let gate = hostInstallGates[effective] { return gate }
         let gate = AsyncSemaphore(value: Self.maxPerHostInstalls)
-        hostInstallGates[host] = gate
+        hostInstallGates[effective] = gate
         return gate
     }
 

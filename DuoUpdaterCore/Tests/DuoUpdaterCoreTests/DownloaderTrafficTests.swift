@@ -313,6 +313,34 @@ struct DownloaderTrafficTests {
         #expect((try? Data(contentsOf: file)) == body)
     }
 
+    /// `finalHost` must reflect the host that actually SERVED the bytes — the
+    /// host written in the URL (or the appcast enclosure) can be a redirect
+    /// shim (GitHub → objects.githubusercontent.com). The per-install host gate
+    /// keys on this, so a redirect must not hide the real server.
+    @Test func downloaderReportsPostRedirectHost() async throws {
+        let body = Data("payload".utf8)
+        let target = try OneShotHTTPServer(body: body)
+        defer { target.stop() }
+        let source = try OneShotHTTPServer(
+            body: Data(),
+            status: "302 Found",
+            headers: ["Location": "http://localhost:\(target.port)/payload.bin"]
+        )
+        defer { source.stop() }
+
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dl-finalhost-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+
+        let url = URL(string: "http://127.0.0.1:\(source.port)/redirect")!
+        let downloader = Downloader(destinationDir: workDir) { _ in }
+        let file = try await downloader.download(url)
+
+        #expect((try? Data(contentsOf: file)) == body)
+        #expect(downloader.finalHost == "localhost")
+    }
+
     @Test func downloaderBackstopsByteCountFromFileSize() async throws {
         // A file:// source typically fires no didWriteData; the on-disk size backstop
         // must still produce an exact, non-zero byte count.

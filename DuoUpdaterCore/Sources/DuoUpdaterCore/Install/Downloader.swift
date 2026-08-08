@@ -73,6 +73,13 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         return _bytesDownloaded
     }
 
+    /// The host that actually served the bytes, after redirects — the feed's
+    /// URL frequently points at a host that bounces to a CDN (GitHub →
+    /// `objects.githubusercontent.com`). Set from the final response; nil when
+    /// no response arrived (a local `file://` copy, or a failed transfer).
+    /// Read only after `download` returns, so no lock is needed.
+    var finalHost: String?
+
     // MARK: Per-attempt streaming state
     //
     // Mutated only by one data task's serialized delegate callbacks, and by
@@ -214,6 +221,10 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         didReceive response: URLResponse,
         completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
     ) {
+        // The response arrives AFTER redirects, so `response.url` is the host
+        // that will actually serve the bytes — the per-install gate keys on
+        // this (see `hostInstallGate` in the app).
+        finalHost = response.url?.host
         if let name = response.suggestedFilename, suggestedFilename == nil {
             suggestedFilename = name
         }

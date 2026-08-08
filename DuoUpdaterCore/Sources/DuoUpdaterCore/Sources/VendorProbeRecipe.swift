@@ -786,8 +786,17 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://imageoptim.com/appcast.xml")!,
             mode: .responseBody,
             versionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+)""#,
-            downloadURL: URL(string: "https://imageoptim.com/mac")!,
-            changelogURL: URL(string: "https://imageoptim.com/changelog.html")!),
+            changelogURL: URL(string: "https://imageoptim.com/changelog.html")!,
+            // One-click verified 2026-08-09 on 1.9.3: `ImageOptim.app` in the
+            // archive, bundle id net.pornel.ImageOptim, Team 59KZTZA4XR, accepted by
+            // spctl. The enclosure is a `.tar.xz`, which `.tarGz` handles despite the
+            // name — `VendorInstaller` renames by kind and `ArchiveExtractor` runs
+            // `tar -xf` with no compression flag, so tar sniffs xz itself (checked by
+            // extracting a deliberately misnamed copy).
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<enclosure[^>]*url="(https://imageoptim\.com/[^"]+\.tar\.xz)""#),
+                kind: .tarGz)),
 
         // Firefox — Mozilla's `product-details` endpoint carries every channel's
         // current version in one JSON. Release, Beta and ESR all ship as
@@ -1693,16 +1702,32 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=ptb&platform=osx&arch=x64")!,
             mode: .responseBody,
             versionPattern: #"ptb\.dl2\.discordapp\.net/distro/app/ptb/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
-            downloadURL: URL(string: "https://discord.com/download"),
             changelogURL: URL(string: "https://discord.com/blog"),
+            // One-click verified 2026-08-09: `https://discord.com/api/download/ptb`
+            // 302s to `…/apps/osx/0.0.252/DiscordPTB.dmg`, holding `Discord PTB.app`
+            // — bundle id com.hnc.DiscordPTB, Team 53Q6R32WPB, accepted by spctl.
+            // The stable "latest" redirect is what to install from: the manifest URL
+            // above points at a `.dis` distro blob, not an app.
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://discord.com/api/download/ptb?platform=osx")!),
+                kind: .dmg),
             channel: .ptb),
         VendorProbeRecipe(
             bundleID: "com.hnc.DiscordCanary",
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=canary&platform=osx&arch=x64")!,
             mode: .responseBody,
             versionPattern: #"canary\.dl2\.discordapp\.net/distro/app/canary/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
-            downloadURL: URL(string: "https://discord.com/download"),
             changelogURL: URL(string: "https://discord.com/blog"),
+            // Same stable "latest" redirect as PTB, on the canary track (the
+            // manifest URL points at a `.dis` distro blob, not an app). Verified
+            // separately rather than assumed from PTB: 0.0.1255 →
+            // `Discord Canary.app`, bundle id com.hnc.DiscordCanary, Team
+            // 53Q6R32WPB, accepted by spctl.
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://discord.com/api/download/canary?platform=osx")!),
+                kind: .dmg),
             channel: .canary),
 
         // Notion desktop — public "latest" download redirect. www.notion.so/
@@ -1861,8 +1886,18 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://www.sublimemerge.com/download")!,
             mode: .responseBody,
             versionPattern: #"class="latest"><i>Version:</i>\s*(Build\s+[0-9]{4})"#,
-            downloadURL: URL(string: "https://www.sublimemerge.com/download"),
-            changelogURL: URL(string: "https://www.sublimemerge.com/download")),
+            changelogURL: URL(string: "https://www.sublimemerge.com/download"),
+            // Same shape as Sublime Text: the page ships the download link as the
+            // literal template `sublime_merge_build_${version}_mac.zip` for JS to
+            // fill, so it's rebuilt from the same "latest" marker, taking the BARE
+            // build number (the version keeps its "Build " prefix to match what the
+            // bundle reports; a URL can't carry it). Verified 2026-08-09 on build
+            // 2125: `Sublime Merge.app`, Team Z6D26JE4Y4, accepted by spctl.
+            install: VendorInstallSpec(
+                urlSource: .bodyTemplate(
+                    "https://download.sublimetext.com/sublime_merge_build_{0}_mac.zip",
+                    fields: [#"class="latest"><i>Version:</i>\s*Build\s+([0-9]{4})"#]),
+                kind: .zip)),
 
         // Plex (desktop, mac) — Plex's own downloads feed (plex.tv/api/downloads/
         // 6.json is the desktop product; 7.json is the separate PlexHTPC, and the

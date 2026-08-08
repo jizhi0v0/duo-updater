@@ -371,17 +371,22 @@ public enum VendorProbeRegistry {
                 kind: .zip),
             channel: .preview),
 
-        // IntelliJ IDEA — JetBrains data services. 3-component (YYYY.x.y) so the
-        // 2-component `majorVersion` field can't match. Only consulted when Toolbox
-        // isn't managing it (a website install); the same JSON carries the aarch64
-        // DMG direct link, so we install in place. No inline sha256 (the API gives
-        // only a checksum *link*), so we lean on the mandatory Team ID signature
-        // gate — same posture as VLC's DMG. Apple Silicon (macM1) only.
+        // IntelliJ IDEA — JetBrains data services. The `YYYY.` prefix is what keeps
+        // this off the 2-component `majorVersion` field; the segment count must NOT
+        // be pinned. It was pinned to exactly three (`YYYY.x.y`) and JetBrains then
+        // shipped a fourth — `"version": "2026.2.0.1"` — so the anchored pattern
+        // stopped matching and the row silently fell to "unknown" with the probe
+        // reporting "resolved no version". Accept one to three segments after the
+        // year. Only consulted when Toolbox isn't managing it (a website install);
+        // the same JSON carries the aarch64 DMG direct link, so we install in place.
+        // No inline sha256 (the API gives only a checksum *link*), so we lean on the
+        // mandatory Team ID signature gate — same posture as VLC's DMG. Apple
+        // Silicon (macM1) only.
         VendorProbeRecipe(
             bundleID: "com.jetbrains.intellij",
             url: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&latest=true&type=release")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"([0-9]{4}\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""version"\s*:\s*"([0-9]{4}(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://www.jetbrains.com/idea/whatsnew/"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#""macM1"\s*:\s*\{[^}]*?"link"\s*:\s*"([^"]+\.dmg)""#),

@@ -1829,8 +1829,22 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://www.sublimetext.com/download")!,
             mode: .responseBody,
             versionPattern: #"class="latest"><i>Version:</i>\s*(Build\s+4[0-9]{3})"#,
-            downloadURL: URL(string: "https://www.sublimetext.com/download"),
-            changelogURL: URL(string: "https://www.sublimetext.com/download")),
+            changelogURL: URL(string: "https://www.sublimetext.com/download"),
+            // One-click verified 2026-08-09 on build 4200: `Sublime Text.app` in the
+            // archive, bundle id and Team (Z6D26JE4Y4) matching the installed copy,
+            // its CFBundleShortVersionString literally "Build 4200" like the probe's
+            // value, spctl "Notarized Developer ID".
+            //
+            // The page ships the download link as a TEMPLATE — the literal string
+            // `sublime_text_build_${version}_mac.zip`, with JS filling it in — so
+            // there is no href to lift. Rebuild it from the same "latest" marker the
+            // version comes from, taking the BARE build number (the version pattern
+            // keeps the "Build " prefix on purpose; a URL can't).
+            install: VendorInstallSpec(
+                urlSource: .bodyTemplate(
+                    "https://download.sublimetext.com/sublime_text_build_{0}_mac.zip",
+                    fields: [#"class="latest"><i>Version:</i>\s*Build\s+(4[0-9]{3})"#]),
+                kind: .zip)),
 
         // Sublime Merge — self-updates, so it reaches us here. NOTE: HTML scrape
         // (no usable API; mirrors the Sublime Text 4 recipe above — same vendor,
@@ -1937,8 +1951,16 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://updates.devmate.com/com.macpaw.site.theunarchiver.xml")!,
             mode: .responseBody,
             versionPattern: #"sparkle:shortVersionString="([0-9.]+)""#,
-            downloadURL: URL(string: "https://theunarchiver.com/"),
-            changelogURL: URL(string: "https://updates.devmate.com/releasenotes/147/com.macpaw.site.theunarchiver.html")),
+            changelogURL: URL(string: "https://updates.devmate.com/releasenotes/147/com.macpaw.site.theunarchiver.html"),
+            // One-click verified 2026-08-09 on the 4.3.9 archive from this same
+            // feed: `The Unarchiver.app` inside, bundle id and Team (S8EX82NJP6)
+            // matching the installed copy, spctl "Notarized Developer ID". The
+            // enclosure URL is versioned AND carries a build timestamp, so it can
+            // only come from the feed we just read — first item is newest here.
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<enclosure[^>]*url="(https://dl\.devmate\.com/[^"]+\.zip)""#),
+                kind: .zip)),
 
         // Orion (Kagi) — official Sparkle appcast under the macOS-major flavor dir
         // (`26_0`, the same path the Homebrew cask download uses; the bare

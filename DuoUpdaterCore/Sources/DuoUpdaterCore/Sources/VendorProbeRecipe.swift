@@ -1164,9 +1164,13 @@ public enum VendorProbeRegistry {
         // `content_html` carries no raw `"` (quotes are `&quot;`-encoded), so the
         // `[^"]*` field bounds hold. selectHighest because the page lists releases
         // ascending (oldest-first) and the pattern matches NOTHING BUT macOS
-        // versions. Detection-only: the page exposes no `download_url` and only the
-        // marketing version (no build number to build an installer URL), and WeType
-        // self-updates in-app anyway. changelogURL is the same page (the `/macos`
+        // versions. DETECTION-ONLY, re-checked 2026-08-09: the page DOES now expose
+        // download links (`WeTypeInstaller_2.2.2_647_[d-g].zip`), but each contains
+        // `WeTypeInstaller.app` (`com.tencent.wetype.InstallerApp`, 3 MB, notarized
+        // under Team 88L2Q4487U) — a stub that fetches and installs the real thing.
+        // The input method itself lives at `/Library/Input Methods/WeType.app`, not
+        // in `/Applications`, so there is nothing here for an in-place swap to
+        // replace even if the payload were the app. WeType self-updates in-app. changelogURL is the same page (the `/macos`
         // route filters to macOS client-side) — also parsed natively by a
         // ChangelogRecipe; this is the webview fallback if that parse misses.
         VendorProbeRecipe(

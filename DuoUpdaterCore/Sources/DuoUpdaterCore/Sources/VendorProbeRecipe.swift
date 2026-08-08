@@ -323,15 +323,22 @@ public enum VendorProbeRegistry {
         // The pattern deliberately anchors on `WhatsApp-2.` and takes only the three
         // segments after it.
         //
-        // Detection only for now: wiring one-click needs the dmg's signature checked
-        // against the installed Team (57T9237FN3), and that's a 259 MB download to
-        // confirm. WhatsApp also self-updates, so the row is informational anyway.
+        // One-click verified 2026-08-09 by mounting the 26.31.27 image: it holds
+        // `WhatsApp.app` whose bundle id and Team (57T9237FN3) match the installed
+        // copy, its `CFBundleShortVersionString` equals what the probe reports, and
+        // `spctl` accepts it as "Notarized Developer ID". WhatsApp also updates
+        // itself, so this row usually just confirms what already happened — but when
+        // its own updater is behind, the swap is ours to make.
         VendorProbeRecipe(
             bundleID: "net.whatsapp.WhatsApp",
             url: URL(string: "https://web.whatsapp.com/desktop/mac_native/release/?configuration=Release&src=whatsapp_downloads_desktop_page")!,
             mode: .redirectFilename,
             versionPattern: #"WhatsApp-2\.([0-9]+\.[0-9]+\.[0-9]+)\.dmg"#,
             changelogURL: URL(string: "https://web.whatsapp.com/desktop/mac_native/release-notes/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://web.whatsapp.com/desktop/mac_native/release/?configuration=Release&src=whatsapp_downloads_desktop_page")!),
+                kind: .dmg),
             followRedirects: false),
 
         // UURemote (网易UU远程) — no Sparkle, no public version JSON, and the
@@ -343,13 +350,22 @@ public enum VendorProbeRegistry {
         // The Homebrew cask can't cover this: its provenance gate (correctly) only
         // adopts apps brew actually installed, and this one was installed directly.
         //
-        // Detection only — a `.pkg` hands off to macOS's installer, and wiring that
-        // should come with a signature check of the package first.
+        // One-click verified 2026-08-09 on the 4.35.0 package: `pkgutil
+        // --check-signature` reports "Developer ID Installer: Hangzhou Bobo
+        // Technology Co Ltd (PU9BNSBJW7)" — the same team as the installed bundle —
+        // notarized, with a trusted timestamp. A `.pkg` hands off to macOS's own
+        // installer, so the user still confirms it there (same flow as ToDesk and
+        // AweSun); the install spec re-resolves the redirect at download time so it
+        // always fetches the current package, not this version's.
         VendorProbeRecipe(
             bundleID: "com.netease.uuremote",
             url: URL(string: "https://api.nrd.nie.163.com/api/v1/release/dl/4?channel=gwqd")!,
             mode: .redirectFilename,
             versionPattern: #"uuyc_([0-9]+(?:\.[0-9]+)+)\.pkg"#,
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://api.nrd.nie.163.com/api/v1/release/dl/4?channel=gwqd")!),
+                kind: .pkg),
             followRedirects: false),
 
         // Alfred, PRE-RELEASE channel — the missing half of the pair below.

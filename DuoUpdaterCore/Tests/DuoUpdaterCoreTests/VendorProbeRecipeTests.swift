@@ -45,4 +45,21 @@ import Foundation
     // Both are read from a Location header, never by following the redirect: the
     // target is the installer itself (259 MB / 69 MB).
     #expect(recipe?.followRedirects == false)
+    // One-click: pkg, handed to macOS's installer for the user to confirm.
+    #expect(recipe?.install?.kind == .pkg)
+}
+
+@Test func whatsAppAndUURemoteInstallFromTheirLatestRedirect() {
+    // The install must re-resolve the redirect at download time rather than pin the
+    // version that was current when the recipe was written — these endpoints always
+    // point at the newest package.
+    for id in ["net.whatsapp.WhatsApp", "com.netease.uuremote"] {
+        let recipe = try! #require(VendorProbeRegistry.recipes.first { $0.bundleID == id })
+        let spec = try! #require(recipe.install)
+        guard case .redirect(let url) = spec.urlSource else {
+            Issue.record("\(id) should install from its redirect endpoint")
+            continue
+        }
+        #expect(url == recipe.url)
+    }
 }

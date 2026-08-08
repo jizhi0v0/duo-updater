@@ -570,3 +570,37 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     let message = SparkleAppcastSource.SparkleError.badStatus(404).errorDescription ?? ""
     #expect(message.contains("404"))
 }
+
+@Test func ghosttyBindingSuppliesTheFeedItsInfoPlistOmits() {
+    // Ghostty sets its Sparkle feed in code, so AppScanner finds no SUFeedURL and
+    // the app arrived with no source at all. The binding supplies it; going through
+    // Sparkle rather than a version regex is what keeps the EdDSA signature,
+    // release notes and history.
+    let resolved = try! #require(ChannelBinding.resolve(bundleID: GhosttyChannel.bundleID))
+    #expect(resolved.channel == .stable)
+    #expect(resolved.feedOverride == GhosttyChannel.feed)
+}
+
+@Test func ghosttyStableIsNeverOfferedATipBuild() {
+    // Ghostty's appcast carries two 2024-12 tip entries whose shortVersionString is
+    // a commit hash, untagged like every other item. A stable install must sort
+    // above them, not be handed one.
+    func item(_ short: String, _ build: String) -> SparkleAppcastItem {
+        var i = SparkleAppcastItem()
+        i.shortVersionString = short
+        i.version = build
+        i.enclosureURL = URL(string: "https://example.com/Ghostty.dmg")
+        return i
+    }
+    let items = [item("0abd4ea8 (2024-12-20)", "8343"),
+                 item("663205b5 (2024-12-20)", "8346"),
+                 item("1.3.0", "15112"),
+                 item("1.3.1", "15212")]
+    let app = InstalledApp(
+        name: "Ghostty", bundleID: GhosttyChannel.bundleID, shortVersion: "1.2.0",
+        buildVersion: nil, path: URL(fileURLWithPath: "/Applications/Ghostty.app"),
+        isMASApp: false, sparkleFeedURL: GhosttyChannel.feed,
+        releaseChannel: .stable, channelIsAuthoritative: true)
+    let best = SparkleAppcastSource.bestItem(for: app, from: items, osVersion: "26.6.0")
+    #expect(best?.shortVersionString == "1.3.1")
+}

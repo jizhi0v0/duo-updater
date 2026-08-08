@@ -76,6 +76,7 @@ public enum ChannelBinding {
         case TailscaleChannel.bundleID.lowercased(): return TailscaleChannel.resolveCurrent()
         case IINAChannel.bundleID.lowercased():    return IINAChannel.resolveCurrent()
         case AlfredChannel.bundleID.lowercased():  return AlfredChannel.resolveCurrent()
+        case GhosttyChannel.bundleID.lowercased(): return GhosttyChannel.resolveCurrent()
         default:                       return nil
         }
     }

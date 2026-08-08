@@ -128,6 +128,15 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
         guard SMAppService.daemon(plistName: HelperConfig.plistName).status == .enabled else {
             throw MASInstaller.MASError.helperNotApproved
         }
+        // Prove the helper actually answers BEFORE handing it the install. The
+        // install call's reply doesn't arrive until `mas` has finished — minutes for
+        // an Office update — so it can't carry a timeout of its own, and a helper
+        // that never launches makes it hang forever instead of failing: the row sits
+        // at 0%, the single-slot App Store gate is never released, and every queued
+        // App Store update behind it waits on a reply that will never come. Observed
+        // exactly that: `launchd: service inactive: com.duoupdater.helper` repeating
+        // every 10s while the batch sat frozen, no error anywhere.
+        try await ensureReachable()
         do {
             return try await send(adamID: adamID, uid: uid, gid: gid,
                                   userName: userName, logPath: logPath)
@@ -146,6 +155,7 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
             clearConnection()
             repairRegistration()
             do {
+                try await ensureReachable()
                 return try await send(adamID: adamID, uid: uid, gid: gid,
                                       userName: userName, logPath: logPath)
             } catch let retryError as NSError where Self.isConnectionFailure(retryError) {
@@ -157,6 +167,52 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
                 // is the one the UI knows how to guide out of.
                 throw MASInstaller.MASError.helperNotApproved
             }
+        }
+    }
+
+    /// How long a trivial round-trip may take before we call the helper dead. Long
+    /// enough for launchd to cold-start a daemon on a busy machine, short enough
+    /// that a user watching a stuck row gets an answer.
+    private static let reachabilityTimeout = Duration.seconds(10)
+
+    /// Round-trip `helperVersion` — the cheapest call in the protocol — and give up
+    /// if nothing comes back in time. A registered-but-unlaunchable daemon accepts
+    /// the connection and simply never replies, which no error handler ever fires
+    /// for, so a timeout is the only way to tell "working on it" from "never coming".
+    private func ensureReachable() async throws {
+        let answered = try await withThrowingTaskGroup(of: Bool.self) { group in
+            group.addTask { [self] in await probeVersion() }
+            group.addTask {
+                try await Task.sleep(for: Self.reachabilityTimeout)
+                return false
+            }
+            let first = try await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+        guard answered else {
+            // Drop the connection: a fresh one is the only way a later attempt can
+            // bind to a helper that did eventually come up.
+            clearConnection()
+            log.error("helper did not answer within \(Self.reachabilityTimeout, privacy: .public) — treating as unavailable")
+            throw MASInstaller.MASError.helperNotApproved
+        }
+    }
+
+    /// One `helperVersion` round-trip: true if the helper answered, false if the
+    /// connection errored out. Never returns on a peer that stays silent — that's
+    /// what `ensureReachable`'s timeout is for.
+    private func probeVersion() async -> Bool {
+        let conn = connection()
+        return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            let once = ResumeGuard()
+            guard let proxy = conn.remoteObjectProxyWithErrorHandler({ _ in
+                once.once { cont.resume(returning: false) }
+            }) as? MASHelperProtocol else {
+                once.once { cont.resume(returning: false) }
+                return
+            }
+            proxy.helperVersion { _ in once.once { cont.resume(returning: true) } }
         }
     }
 

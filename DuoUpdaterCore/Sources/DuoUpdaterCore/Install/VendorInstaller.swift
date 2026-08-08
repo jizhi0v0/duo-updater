@@ -16,6 +16,13 @@ import CryptoKit
 /// in place. Any gate failure throws and leaves the installed app untouched (the
 /// old bundle is removed only after the new one is fully verified).
 ///
+/// The pipeline runs as TWO explicit phases — `download`, then `apply` — so the
+/// caller can hold a *download* permit only while fetching bytes and an *apply*
+/// permit while verifying/extracting/swapping (see `InstallPermits`). The seam
+/// is deliberate: only the download is network-bound, and one permit covering
+/// both stages would couple the two resources for no reason — a slot would sit
+/// idle on the network while its install swaps, and vice versa.
+///
 /// The swap happens even while the app is running — macOS keeps the live process
 /// on the code it already mapped, so it keeps working on the old version and the
 /// caller surfaces a "Restart" prompt. We never quit or relaunch the app: the
@@ -45,13 +52,15 @@ public actor VendorInstaller {
         }
     }
 
-    /// Returns the exact number of bytes downloaded for the update, for per-app
-    /// traffic accounting.
-    @discardableResult
-    public func install(
+    /// Phase 1 — network only: fetch the update's archive into a scratch dir we
+    /// own and return it (with the exact byte count, for traffic accounting) as
+    /// a `DownloadedUpdate` for `apply`. On failure the scratch dir is removed
+    /// here; on success it is left in place, owned by the caller until `apply`
+    /// (or a cancellation landing between the phases) is done with it.
+    public func download(
         _ result: UpdateResult,
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) async throws -> Int64 {
+    ) async throws -> DownloadedUpdate {
         // Accept any source whose RemoteVersion carries a resolved installer
         // archive we vet ourselves: the vendor-probe registry ("Vendor") and
         // GitHub release rules with an asset pattern ("GitHub"). Both download a
@@ -68,33 +77,55 @@ public actor VendorInstaller {
             throw InstallError.unknownKind  // pkg goes through PackageInstaller
         }
 
-        // Scratch dir we own and clean up no matter what.
+        // Scratch dir we own. Removed up front so a retry starts clean; on
+        // failure we remove it again below; on success it stays for `apply`.
         let workDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("DuoUpdater-vendor-\(result.app.scratchSlug)-\(remote.displayVersion ?? "new")")
         try? FileManager.default.removeItem(at: workDir)
         try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: workDir) }
+        do {
+            let downloader = Downloader(destinationDir: workDir) { fraction in
+                onStage(.downloading(fraction: fraction))
+            }
+            let downloaded = try await downloader.download(downloadURL, headers: remote.downloadHeaders)
 
-        // 1. Download
-        let downloader = Downloader(destinationDir: workDir) { fraction in
-            onStage(.downloading(fraction: fraction))
+            // Ensure the file carries an extension matching its kind, so the
+            // extractor dispatches correctly even for extensionless CDN-asset URLs.
+            let archive = try normalizedArchive(downloaded, kind: kind, workDir: workDir)
+            return DownloadedUpdate(
+                archiveURL: archive,
+                bytesDownloaded: downloader.bytesDownloaded,
+                workDir: workDir,
+                finalHost: downloader.finalHost)
+        } catch {
+            // A failed (or partially-written) download leaves nothing behind.
+            try? FileManager.default.removeItem(at: workDir)
+            throw error
         }
-        let downloaded = try await downloader.download(downloadURL, headers: remote.downloadHeaders)
-        let bytesDownloaded = downloader.bytesDownloaded
+    }
 
-        // Ensure the file carries an extension matching its kind, so the
-        // extractor dispatches correctly even for extensionless CDN-asset URLs.
-        let archive = try normalizedArchive(downloaded, kind: kind, workDir: workDir)
+    /// Phase 2 — disk + privileged only, no network: verify, extract, and swap
+    /// the archive `download` produced. Returns once the new bundle has been
+    /// swapped in place ("the swap has landed"); everything the caller does
+    /// after this is restart bookkeeping and needs no permit.
+    public func apply(
+        _ result: UpdateResult,
+        download: DownloadedUpdate,
+        onStage: @Sendable @escaping (InstallStage) -> Void
+    ) throws {
+        guard let remote = result.remote else {
+            throw InstallError.notVendorUpdate
+        }
 
         // 2. Gate 1 (optional) — SHA-512 over the exact bytes we downloaded.
         if let expected = remote.expectedSHA512 {
             onStage(.verifyingSignature)
-            try verifyChecksum(archive, expectedBase64: expected)
+            try verifyChecksum(download.archiveURL, expectedBase64: expected)
         }
 
         // 3. Unpack the .app.
         onStage(.extracting)
-        let newApp = try ArchiveExtractor.extractApp(from: archive, workDir: workDir)
+        let newApp = try ArchiveExtractor.extractApp(from: download.archiveURL, workDir: download.workDir)
 
         // 4. Gate 2 + 3 + 4 — code signature valid, same Team ID, AND same signed
         // bundle identifier as the installed app. The bundle-id pin stops a
@@ -120,7 +151,6 @@ public actor VendorInstaller {
         try installApp(newApp, over: result.app.path)
 
         onStage(.done)
-        return bytesDownloaded
     }
 
     // MARK: - Checksum

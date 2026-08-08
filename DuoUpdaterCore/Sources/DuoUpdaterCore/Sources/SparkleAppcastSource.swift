@@ -68,6 +68,7 @@ public struct SparkleAppcastSource: UpdateSource {
             shortVersion: best.shortVersionString,
             version: best.version,
             downloadURL: best.enclosureURL,
+            downloadSize: best.enclosureLength,
             edSignature: best.edSignature,
             minimumSystemVersion: best.minimumSystemVersion,
             sourceName: name,
@@ -209,6 +210,9 @@ struct SparkleAppcastItem {
     var shortVersionString: String?
     var version: String?
     var enclosureURL: URL?
+    /// `<enclosure length>` — the declared download size in bytes, used to
+    /// order "Update All" shortest-first. Absent on feeds that omit it.
+    var enclosureLength: Int64?
     var edSignature: String?
     var minimumSystemVersion: String?
     var deltaFrom: String?
@@ -270,6 +274,9 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             current = SparkleAppcastItem()
         case "enclosure":
             current?.enclosureURL = attributeDict["url"].flatMap { URL(string: $0) }
+            if let length = attributeDict["length"], let n = Int64(length) {
+                current?.enclosureLength = n
+            }
             if let v = attributeDict["sparkle:version"] { current?.version = v }
             if let s = attributeDict["sparkle:shortVersionString"] {
                 current?.shortVersionString = s

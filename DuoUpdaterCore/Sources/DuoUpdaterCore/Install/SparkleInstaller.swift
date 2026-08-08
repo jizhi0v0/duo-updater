@@ -22,6 +22,13 @@ public enum InstallStage: Sendable, Equatable {
 /// download → EdDSA verify → extract → code-signature + Team ID verify →
 /// swap bundle in place.
 ///
+/// The pipeline runs as TWO explicit phases — `download`, then `apply` — so the
+/// caller can hold a *download* permit only while fetching bytes and an *apply*
+/// permit while verifying/extracting/swapping (see `InstallPermits`). The seam
+/// is deliberate: only the download is network-bound, and one permit covering
+/// both stages would couple the two resources for no reason — a slot would sit
+/// idle on the network while its install swaps, and vice versa.
+///
 /// The bundle is replaced even while the app is running: macOS keeps the live
 /// process on the code it already mapped, so the app keeps working untouched on
 /// the old version, and the caller surfaces a "Restart" prompt. We never quit or
@@ -49,18 +56,56 @@ public actor SparkleInstaller {
         }
     }
 
-    /// Returns the exact number of bytes downloaded for the update, for per-app
-    /// traffic accounting.
-    @discardableResult
-    public func install(
+    /// Phase 1 — network only: fetch the update's archive into a scratch dir we
+    /// own and return it (with the exact byte count, for traffic accounting) as
+    /// a `DownloadedUpdate` for `apply`. On failure the scratch dir is removed
+    /// here; on success it is left in place, owned by the caller until `apply`
+    /// (or a cancellation landing between the phases) is done with it.
+    public func download(
         _ result: UpdateResult,
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) async throws -> Int64 {
+    ) async throws -> DownloadedUpdate {
         guard let remote = result.remote, remote.sourceName == "Sparkle" else {
             throw InstallError.notSparkleUpdate
         }
         guard let downloadURL = remote.downloadURL else {
             throw InstallError.noDownloadURL
+        }
+
+        // Scratch dir we own. Removed up front so a retry starts clean; on
+        // failure we remove it again below; on success it stays for `apply`.
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DuoUpdater-\(result.app.scratchSlug)-\(remote.displayVersion ?? "new")")
+        try? FileManager.default.removeItem(at: workDir)
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        do {
+            let downloader = Downloader(destinationDir: workDir) { fraction in
+                onStage(.downloading(fraction: fraction))
+            }
+            let archive = try await downloader.download(downloadURL)
+            return DownloadedUpdate(
+                archiveURL: archive,
+                bytesDownloaded: downloader.bytesDownloaded,
+                workDir: workDir,
+                finalHost: downloader.finalHost)
+        } catch {
+            // A failed (or partially-written) download leaves nothing behind.
+            try? FileManager.default.removeItem(at: workDir)
+            throw error
+        }
+    }
+
+    /// Phase 2 — disk + privileged only, no network: verify, extract, and swap
+    /// the archive `download` produced. Returns once the new bundle has been
+    /// swapped in place ("the swap has landed"); everything the caller does
+    /// after this is restart bookkeeping and needs no permit.
+    public func apply(
+        _ result: UpdateResult,
+        download: DownloadedUpdate,
+        onStage: @Sendable @escaping (InstallStage) -> Void
+    ) throws {
+        guard let remote = result.remote, remote.sourceName == "Sparkle" else {
+            throw InstallError.notSparkleUpdate
         }
         // EdDSA is verified only when the app ships an `SUPublicEDKey` — the
         // normal, strongly-signed Sparkle feed. Some vendors publish an UNSIGNED
@@ -76,26 +121,12 @@ public actor SparkleInstaller {
         let publicKey = result.app.sparkleEdPublicKey
         let verifiesWithEdDSA = !(publicKey?.isEmpty ?? true)
 
-        // Scratch dir we own and clean up no matter what.
-        let workDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("DuoUpdater-\(result.app.scratchSlug)-\(remote.displayVersion ?? "new")")
-        try? FileManager.default.removeItem(at: workDir)
-        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: workDir) }
-
-        // 1. Download
-        let downloader = Downloader(destinationDir: workDir) { fraction in
-            onStage(.downloading(fraction: fraction))
-        }
-        let archive = try await downloader.download(downloadURL)
-        let bytesDownloaded = downloader.bytesDownloaded
-
         // 2. Gate 1 — EdDSA signature over the exact bytes we downloaded. Skipped
         // for an unsigned feed (no key); the code-signature + Team gate below then
         // carries the trust on its own. See the note above.
         if verifiesWithEdDSA {
             onStage(.verifyingSignature)
-            let fileData = try Data(contentsOf: archive, options: .mappedIfSafe)
+            let fileData = try Data(contentsOf: download.archiveURL, options: .mappedIfSafe)
             try SignatureVerifier.verifyEdSignature(
                 fileData: fileData,
                 signatureBase64: remote.edSignature,
@@ -105,7 +136,7 @@ public actor SparkleInstaller {
 
         // 3. Extract the .app
         onStage(.extracting)
-        let newApp = try ArchiveExtractor.extractApp(from: archive, workDir: workDir)
+        let newApp = try ArchiveExtractor.extractApp(from: download.archiveURL, workDir: download.workDir)
 
         // 4. Gate 2 + 3 + 4 — code signature valid, same Team ID, AND same signed
         // bundle identifier as installed (pins the swap to this exact app, not
@@ -130,7 +161,6 @@ public actor SparkleInstaller {
         try installApp(newApp, over: result.app.path)
 
         onStage(.done)
-        return bytesDownloaded
     }
 
     // MARK: - Install

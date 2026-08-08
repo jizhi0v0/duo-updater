@@ -64,6 +64,11 @@ public struct RemoteVersion: Sendable, Hashable {
     public let version: String?
     /// Where to download the new build (Sparkle `enclosure url`).
     public let downloadURL: URL?
+    /// Declared size of the download in bytes (Sparkle `<enclosure length>`,
+    /// GitHub asset `size`), when the source publishes one — lets "Update All"
+    /// order the batch smallest-first instead of alphabetically. Nil when the
+    /// source doesn't know.
+    public let downloadSize: Int64?
     /// EdDSA signature of the enclosure, used to verify the download later.
     public let edSignature: String?
     /// Minimum macOS version the release requires, if declared.
@@ -138,6 +143,7 @@ public struct RemoteVersion: Sendable, Hashable {
         shortVersion: String?,
         version: String?,
         downloadURL: URL?,
+        downloadSize: Int64? = nil,
         edSignature: String? = nil,
         minimumSystemVersion: String? = nil,
         sourceName: String,
@@ -157,6 +163,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.shortVersion = shortVersion
         self.version = version
         self.downloadURL = downloadURL
+        self.downloadSize = downloadSize
         self.edSignature = edSignature
         self.minimumSystemVersion = minimumSystemVersion
         self.sourceName = sourceName

@@ -58,6 +58,14 @@ struct SparkleChannelTests {
         #expect(parsed.first(where: { $0.version == "150" })?.channel == nil)
     }
 
+    /// `<enclosure length>` feeds "Update All"'s shortest-first ordering; the
+    /// parser must surface it (the fixtures above all declare `length="1"`).
+    @Test func parserReadsEnclosureLength() {
+        for item in items {
+            #expect(item.enclosureLength == 1)
+        }
+    }
+
     @Test func stableUserNeverOffersBeta() {
         // On the 1.0 stable build → the only newer in-channel item is 1.5.
         let best = SparkleAppcastSource.bestItem(

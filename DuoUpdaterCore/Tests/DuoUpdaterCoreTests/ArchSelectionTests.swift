@@ -8,22 +8,24 @@ import Foundation
 /// behaving exactly as before.
 struct ArchSelectionTests {
 
-    private func assets(_ names: [String]) -> [(name: String, url: URL)] {
-        names.map { ($0, URL(string: "https://example.com/\($0)")!) }
+    private func assets(_ names: [String]) -> [(name: String, url: URL, size: Int64?)] {
+        names.enumerated().map { index, name in
+            (name, URL(string: "https://example.com/\(name)")!, Int64(index))
+        }
     }
 
     @Test func prefersArm64WhenHostIsArm64() {
         let a = assets(["app-1.0-x86_64.dmg", "app-1.0-arm64.dmg"])
         let url = GitHubReleaseRule.installableAsset(
             from: a, matching: #"app-[0-9.]+-(x86_64|arm64)\.dmg$"#, preferring: .arm64)
-        #expect(url?.lastPathComponent == "app-1.0-arm64.dmg")
+        #expect(url?.url.lastPathComponent == "app-1.0-arm64.dmg")
     }
 
     @Test func prefersX86WhenHostIsIntel() {
         let a = assets(["app-1.0-x86_64.dmg", "app-1.0-arm64.dmg"])
         let url = GitHubReleaseRule.installableAsset(
             from: a, matching: #"app-[0-9.]+-(x86_64|arm64)\.dmg$"#, preferring: .x86_64)
-        #expect(url?.lastPathComponent == "app-1.0-x86_64.dmg")
+        #expect(url?.url.lastPathComponent == "app-1.0-x86_64.dmg")
     }
 
     @Test func neutralAssetPreferredOverForeignArch() {
@@ -32,7 +34,7 @@ struct ArchSelectionTests {
         let a = assets(["app-1.0-x86_64.dmg", "app-1.0-universal.dmg"])
         let url = GitHubReleaseRule.installableAsset(
             from: a, matching: #"app-1\.0-.*\.dmg$"#, preferring: .arm64)
-        #expect(url?.lastPathComponent == "app-1.0-universal.dmg")
+        #expect(url?.url.lastPathComponent == "app-1.0-universal.dmg")
     }
 
     @Test func fallsBackToForeignArchWhenNothingBetter() {
@@ -41,7 +43,7 @@ struct ArchSelectionTests {
         let a = assets(["app-1.0-x86_64.dmg"])
         let url = GitHubReleaseRule.installableAsset(
             from: a, matching: #"app-1\.0-x86_64\.dmg$"#, preferring: .arm64)
-        #expect(url?.lastPathComponent == "app-1.0-x86_64.dmg")
+        #expect(url?.url.lastPathComponent == "app-1.0-x86_64.dmg")
     }
 
     @Test func archPinnedPatternIsUnaffected() {
@@ -53,9 +55,9 @@ struct ArchSelectionTests {
         ])
         let pattern = #"^rustdesk-[0-9.]+-aarch64\.dmg$"#
         #expect(GitHubReleaseRule.installableAsset(from: a, matching: pattern, preferring: .arm64)?
-            .lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
+            .url.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
         #expect(GitHubReleaseRule.installableAsset(from: a, matching: pattern, preferring: .x86_64)?
-            .lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
+            .url.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
     }
 
     @Test func noMatchStillReturnsNil() {

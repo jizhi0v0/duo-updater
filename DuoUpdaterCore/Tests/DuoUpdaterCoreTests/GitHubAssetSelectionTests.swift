@@ -9,8 +9,8 @@ import Foundation
 struct GitHubAssetSelectionTests {
 
     /// The real 1.4.6 asset filenames (trimmed to the macOS-relevant subset plus
-    /// a few decoys), each with a download URL.
-    private let assets: [(name: String, url: URL)] = [
+    /// a few decoys), each with a download URL and declared size.
+    private let assets: [(name: String, url: URL, size: Int64?)] = [
         "rustdesk-1.4.6-0-x86_64.pkg.tar.zst",
         "rustdesk-1.4.6-0.aarch64.rpm",
         "rustdesk-1.4.6-aarch64.deb",
@@ -18,33 +18,37 @@ struct GitHubAssetSelectionTests {
         "rustdesk-1.4.6-x86_64.dmg",
         "rustdesk-1.4.6-x86_64.exe",
         "rustdesk-1.4.6-aarch64.AppImage",
-    ].map { ($0, URL(string: "https://github.com/rustdesk/rustdesk/releases/download/1.4.6/\($0)")!) }
+    ].enumerated().map { index, name in
+        (name, URL(string: "https://github.com/rustdesk/rustdesk/releases/download/1.4.6/\(name)")!, Int64(index) * 1000)
+    }
 
     @Test func picksArm64Dmg() {
-        let url = GitHubReleaseRule.installableAsset(from: assets, matching: #"aarch64\.dmg$"#)
-        #expect(url?.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
+        let asset = GitHubReleaseRule.installableAsset(from: assets, matching: #"aarch64\.dmg$"#)
+        #expect(asset?.url.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
+        // The chosen asset's declared size rides along, for "Update All" ordering.
+        #expect(asset?.size == 3000)
     }
 
     @Test func doesNotPickIntelOrLinuxAssets() {
-        let url = GitHubReleaseRule.installableAsset(from: assets, matching: #"aarch64\.dmg$"#)
-        #expect(url?.lastPathComponent.contains("x86_64") == false)
-        #expect(url?.pathExtension == "dmg")
+        let asset = GitHubReleaseRule.installableAsset(from: assets, matching: #"aarch64\.dmg$"#)
+        #expect(asset?.url.lastPathComponent.contains("x86_64") == false)
+        #expect(asset?.url.pathExtension == "dmg")
     }
 
     @Test func anchorRejectsAarch64NonDmg() {
         // The `$` anchor must not let ".dmg" match inside a longer name, and must
         // not let the arm64 .deb/.AppImage through.
-        let onlyNonDmg: [(name: String, url: URL)] = [
-            ("rustdesk-1.4.6-aarch64.deb", URL(string: "https://example.com/a.deb")!),
-            ("rustdesk-1.4.6-aarch64.AppImage", URL(string: "https://example.com/a.img")!),
+        let onlyNonDmg: [(name: String, url: URL, size: Int64?)] = [
+            ("rustdesk-1.4.6-aarch64.deb", URL(string: "https://example.com/a.deb")!, nil),
+            ("rustdesk-1.4.6-aarch64.AppImage", URL(string: "https://example.com/a.img")!, nil),
         ]
         #expect(GitHubReleaseRule.installableAsset(from: onlyNonDmg, matching: #"aarch64\.dmg$"#) == nil)
     }
 
     @Test func noMatchReturnsNilForDetectionOnly() {
         // A repo with no macOS arm64 dmg → nil → rule stays detection-only.
-        let linuxOnly: [(name: String, url: URL)] = [
-            ("app-1.0-x86_64.AppImage", URL(string: "https://example.com/x.img")!),
+        let linuxOnly: [(name: String, url: URL, size: Int64?)] = [
+            ("app-1.0-x86_64.AppImage", URL(string: "https://example.com/x.img")!, 42),
         ]
         #expect(GitHubReleaseRule.installableAsset(from: linuxOnly, matching: #"aarch64\.dmg$"#) == nil)
     }
@@ -62,15 +66,18 @@ struct GitHubAssetSelectionTests {
     /// so even the suffix pattern is safe today — but anchoring removes the doubt.)
     @Test func anchoredRustDeskPatternPicksCanonicalArm64Dmg() {
         let pattern = #"^rustdesk-[0-9.]+-aarch64\.dmg$"#
-        let withFlavor: [(name: String, url: URL)] = [
+        let withFlavor: [(name: String, url: URL, size: Int64?)] = [
             "rustdesk-1.4.6-aarch64-sciter.dmg",
             "rustdesk-1.4.6-aarch64.dmg",
-        ].map { ($0, URL(string: "https://example.com/\($0)")!) }
-        let url = GitHubReleaseRule.installableAsset(from: withFlavor, matching: pattern)
-        #expect(url?.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
+        ].enumerated().map { index, name in
+            (name, URL(string: "https://example.com/\(name)")!, Int64(index))
+        }
+        let asset = GitHubReleaseRule.installableAsset(from: withFlavor, matching: pattern)
+        #expect(asset?.url.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
+        #expect(asset?.size == 1)  // the size of the CHOSEN asset, not the decoy
         // And it still picks the real asset out of the full release set.
         #expect(GitHubReleaseRule.installableAsset(from: assets, matching: pattern)?
-            .lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
+            .url.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
     }
 
     /// Stats ships exactly one asset per release, `Stats.dmg`. Verified against the
@@ -81,8 +88,8 @@ struct GitHubAssetSelectionTests {
         let rule = GitHubReleaseRegistry.rules.first { $0.bundleID == "eu.exelban.Stats" }
         #expect(rule?.installAssetPattern == #"^Stats\.dmg$"#)
         #expect(rule?.installerKind == .dmg)
-        let assets: [(name: String, url: URL)] = [
-            ("Stats.dmg", URL(string: "https://github.com/exelban/stats/releases/download/v3.0.10/Stats.dmg")!)
+        let assets: [(name: String, url: URL, size: Int64?)] = [
+            ("Stats.dmg", URL(string: "https://github.com/exelban/stats/releases/download/v3.0.10/Stats.dmg")!, 8_000_000)
         ]
         #expect(GitHubReleaseRule.installableAsset(from: assets, matching: #"^Stats\.dmg$"#) != nil)
     }

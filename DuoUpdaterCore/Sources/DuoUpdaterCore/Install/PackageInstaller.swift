@@ -45,10 +45,14 @@ public actor PackageInstaller {
         public let bytesDownloaded: Int64
         /// The `.pkg`/`.mpkg` actually opened (already unwrapped from a `.dmg`).
         public let packageURL: URL
+        /// The host that actually served the bytes after redirects, for the
+        /// per-host install gate (see `Downloader.finalHost`).
+        public let finalHost: String?
 
-        public init(bytesDownloaded: Int64, packageURL: URL) {
+        public init(bytesDownloaded: Int64, packageURL: URL, finalHost: String? = nil) {
             self.bytesDownloaded = bytesDownloaded
             self.packageURL = packageURL
+            self.finalHost = finalHost
         }
     }
 
@@ -90,7 +94,10 @@ public actor PackageInstaller {
         try verifyOpenable(toOpen, installedApp: installedApp)
         await open(toOpen)
         onStage(.done)
-        return OpenedPackage(bytesDownloaded: bytesDownloaded, packageURL: toOpen)
+        return OpenedPackage(
+            bytesDownloaded: bytesDownloaded,
+            packageURL: toOpen,
+            finalHost: downloader.finalHost)
     }
 
     /// Re-open a package this installer already downloaded, without fetching it

@@ -1702,20 +1702,24 @@ final class AppListModel {
     /// the actual installs.
     private func runInstall(_ result: UpdateResult, notify: Bool, deferBookkeeping: Bool) async -> Bool {
         let id = result.id
-        // Bound *total* concurrent installs across every entry point through one
-        // global gate: "Update All" and each manual row click queue through the
-        // same permits, so a wave of clicks (or a batch overlapping manual clicks)
-        // can't all fire at once — saturating the network, thrashing the disk, and
-        // stacking several privileged-swap auth prompts. The row was marked `.queued`
-        // by the caller before this suspension point, so the UI already shows the wait
-        // and the re-entrancy guard already rejects re-clicks; here we just park until
-        // a slot frees (the semaphore is FIFO).
+        // The row was marked `.queued` by the caller before this suspension
+        // point, so the UI already shows the wait and the re-entrancy guard
+        // already rejects re-clicks; here we just park until a slot frees (the
+        // semaphore is FIFO).
+        //
+        // The actual concurrency authority — the download permit (held only
+        // while fetching bytes) and the apply permit (held while
+        // extracting/verifying/swapping) — is taken inside `performInstall`,
+        // around the phases that need it, NOT here: holding both for the whole
+        // install would couple the two stages again, so a slot would sit idle
+        // on the network while its install swaps. This function only holds the
+        // per-host / App Store gate below, for the whole install.
         //
         // Per-host sub-cap: several apps that download from the *same* host (GitHub
         // releases, one vendor CDN) would otherwise split that host's bandwidth and
         // are the most likely to trip its rate limiter / WAF. Acquired *before* the
-        // global permit so a saturated host parks here without burning a global slot
-        // (which would starve apps on other, idle hosts).
+        // download permit so a saturated host parks here without burning a download
+        // slot (which would starve apps on other, idle hosts).
         //
         // App Store rows are special-cased to a dedicated single-slot gate instead:
         // they drive the one App Store UI (AX/mas), so two at once would fight over
@@ -1727,21 +1731,18 @@ final class AppListModel {
             ? Self.appStoreInstallGate
             : result.remote?.downloadURL?.host.map(hostInstallGate(for:))
         await gate?.wait()
-        await Self.installGate.wait()
         // A queued item cancelled while waiting — e.g. "Update All" was stopped
         // before this row's turn came up — releases its slots and clears its claim
         // without installing. (`installAll`'s cleanup also sweeps any claim that never
         // reached here at all.)
         if Task.isCancelled {
             installing[id] = nil
-            await Self.installGate.signal()
             await gate?.signal()
             return false
         }
-        // `performInstall` catches all its own errors and always returns, so both
-        // permits are guaranteed to recycle here.
+        // `performInstall` catches all its own errors and always returns, so the
+        // host gate is guaranteed to recycle here.
         let didInstall = await performInstall(result, notify: notify, deferBookkeeping: deferBookkeeping)
-        await Self.installGate.signal()
         await gate?.signal()
         // If something self-updated externally while this install ran, its rescan was
         // deferred — drain it now that the install is done (no-op in a batch, which
@@ -1800,17 +1801,36 @@ final class AppListModel {
         }
 
         do {
+            // The apply permit is acquired by whichever stage actually applies
+            // the update (Homebrew's fused upgrade; the Vendor/Sparkle swap) and
+            // held through the end of this block — the restart bookkeeping below
+            // included — mirroring the old single gate's lifetime for everything
+            // but the download. The download permit, by contrast, is scoped to
+            // just the fetch (see `InstallPermits`), so installs pipeline: while
+            // one extracts and swaps, others can already be downloading. Released
+            // on EVERY exit path: the defer covers a throw into `catch`; the flag
+            // keeps the release from firing for paths that never acquired it
+            // (App Store, pkg, and the early-outs).
+            var applyPermitHeld = false
+            defer { if applyPermitHeld { Self.installPermits.signalApply() } }
             // pkg casks: download the official installer and open it. The
             // actual install happens in macOS's installer under the user's
             // control, so we don't mark it up to date — a later rescan will.
             if requiresInstaller(result) {
                 installing[id] = .downloading(fraction: 0)
-                let opened = try await packageInstaller.downloadAndOpen(
-                    url: result.remote?.downloadURL,
-                    installedApp: result.app.path,
-                    headers: result.remote?.downloadHeaders ?? [:]
-                ) { stage in
-                    Task { @MainActor in self.setStage(id, stage) }
+                let opened = try await Self.installPermits.withDownloadPermit {
+                    // Cancelled while parked on the download permit (e.g. the
+                    // batch was stopped before this row's turn): don't start
+                    // the fetch — same clean bail the old single-gate check
+                    // gave. `catch is CancellationError` below settles the row.
+                    try Task.checkCancellation()
+                    return try await packageInstaller.downloadAndOpen(
+                        url: result.remote?.downloadURL,
+                        installedApp: result.app.path,
+                        headers: result.remote?.downloadHeaders ?? [:]
+                    ) { stage in
+                        Task { @MainActor in self.setStage(id, stage) }
+                    }
                 }
                 await recordTraffic(result, bytes: opened.bytesDownloaded)
                 // Remember what we handed to the system installer so the row can offer
@@ -1835,6 +1855,16 @@ final class AppListModel {
                 installing[id] = .runningCommand("starting brew…")
                 // brew performs its own download, so we never see those bytes —
                 // intentionally not recorded (we only count what we measured).
+                // Its fetch and swap are one fused command we can't split, so the
+                // whole run takes the apply permit.
+                await Self.installPermits.waitForApply()
+                applyPermitHeld = true
+                guard !Task.isCancelled else {
+                    // Cancelled while parked on the apply permit: no swap. The
+                    // defer above releases the permit back to the pool.
+                    installing[id] = nil
+                    return false
+                }
                 try await homebrewInstaller.upgrade(caskToken: token) { line in
                     Task { @MainActor in self.setStage(id, .runningCommand(line)) }
                 }
@@ -1955,16 +1985,53 @@ final class AppListModel {
                 }
             case "Vendor", "GitHub":
                 installing[id] = .downloading(fraction: 0)
-                let bytes = try await vendorInstaller.install(result) { stage in
+                let downloaded = try await Self.installPermits.withDownloadPermit {
+                    // Cancelled while parked on the permit — don't start the
+                    // fetch (see the pkg case).
+                    try Task.checkCancellation()
+                    return try await vendorInstaller.download(result) { stage in
+                        Task { @MainActor in self.setStage(id, stage) }
+                    }
+                }
+                await recordTraffic(result, bytes: downloaded.bytesDownloaded)
+                // The download phase left its scratch dir in place for the apply
+                // phase; sweep it on every path from here — an apply failure, or
+                // a cancellation landing between the two phases.
+                defer { try? FileManager.default.removeItem(at: downloaded.workDir) }
+                await Self.installPermits.waitForApply()
+                applyPermitHeld = true
+                guard !Task.isCancelled else {
+                    // Cancelled while parked on the apply permit: no swap. The
+                    // defer above releases the permit back to the pool.
+                    installing[id] = nil
+                    return false
+                }
+                _ = try await vendorInstaller.apply(result, download: downloaded) { stage in
                     Task { @MainActor in self.setStage(id, stage) }
                 }
-                await recordTraffic(result, bytes: bytes)
             default:
                 installing[id] = .downloading(fraction: 0)
-                let bytes = try await sparkleInstaller.install(result) { stage in
+                let downloaded = try await Self.installPermits.withDownloadPermit {
+                    // Cancelled while parked on the permit — don't start the
+                    // fetch (see the pkg case).
+                    try Task.checkCancellation()
+                    return try await sparkleInstaller.download(result) { stage in
+                        Task { @MainActor in self.setStage(id, stage) }
+                    }
+                }
+                await recordTraffic(result, bytes: downloaded.bytesDownloaded)
+                defer { try? FileManager.default.removeItem(at: downloaded.workDir) }
+                await Self.installPermits.waitForApply()
+                applyPermitHeld = true
+                guard !Task.isCancelled else {
+                    // Cancelled while parked on the apply permit: no swap. The
+                    // defer above releases the permit back to the pool.
+                    installing[id] = nil
+                    return false
+                }
+                _ = try await sparkleInstaller.apply(result, download: downloaded) { stage in
                     Task { @MainActor in self.setStage(id, stage) }
                 }
-                await recordTraffic(result, bytes: bytes)
             }
             // An incremental App Store update the user OK'd quitting for: the app
             // was open before we quit it to update, so bring it back — and to the
@@ -2022,6 +2089,17 @@ final class AppListModel {
                 // instead of the row just disappearing mid-progress.
                 markJustUpdated(id)
             }
+        } catch is CancellationError {
+            // The install was cancelled — a stopped batch, or the row's own
+            // task torn down. A cancellation isn't a failure: settle the row
+            // silently instead of the red "cancelled" error the generic catch
+            // would leave. All permits are already back in their pools (the
+            // `with*` helpers release on throw; the flag+defer covers the
+            // apply side).
+            Log.install.info("install cancelled: \(result.app.name, privacy: .public)")
+            installing[id] = nil
+            relaunching.remove(id)
+            return false
         } catch let error as AppManagementRequiredError {
             // The swap was blocked by the App Management privacy gate. There's no
             // API to request it, so guide the user to the right Settings pane with
@@ -2897,16 +2975,32 @@ final class AppListModel {
     // MARK: - Batch update
 
     /// Keep batch installs parallel without letting a large update wave saturate
-    /// the network, Homebrew, and privileged swap prompts all at once.
+    /// the network, Homebrew, and privileged swap prompts all at once. This is
+    /// the batch task group's *spawn* bound; the permits below bound how many
+    /// installs actually *run* — including manual clicks that land while a
+    /// batch is in progress.
     private static let maxParallelInstalls = 3
 
-    /// The single concurrency authority for *all* installs, manual or batch. Every
-    /// `install()` acquires a permit before doing any work and releases it when
-    /// done, so the total in-flight count never exceeds this regardless of how the
-    /// install was triggered. The batch task group below bounds how many tasks it
-    /// *spawns*; this bounds how many actually *run* — including manual clicks that
-    /// land while a batch is in progress.
-    private static let installGate = AsyncSemaphore(value: maxParallelInstalls)
+    /// The two resources an install consumes at different stages, each with its
+    /// own permit:
+    ///  - **download (4)** — held only while fetching the update's bytes. The
+    ///    network is the high-latency, shared resource, so it gets the most
+    ///    slots; but not more — every download host is already sub-capped at 2
+    ///    (below), and four simultaneous transfers is plenty for a background
+    ///    updater on a home uplink.
+    ///  - **apply (2)** — held while extracting, verifying, and swapping the
+    ///    bundle. That's disk + privileged work, and the swap is the operation
+    ///    that can stack App Management auth prompts. Tightened from the old
+    ///    single gate's 3 because applies now actually *fill* their slots — the
+    ///    download stage no longer competes for the same permits — and they're
+    ///    short (seconds) next to downloads (minutes), so 2 doesn't hold up a
+    ///    wave.
+    /// Splitting the single gate means a slot never sits idle on the network
+    /// while its install extracts and swaps, and vice versa: the download
+    /// permit is released before the apply one is taken, so the two stages
+    /// pipeline across apps. Every install (manual or batch) draws from this
+    /// one pool, so a wave of clicks can't all fire at once.
+    private static let installPermits = InstallPermits(downloads: 4, applies: 2)
 
     /// App Store installs serialize to one at a time, regardless of how many rows
     /// the user clicks. They don't fetch bytes we control — they drive the single

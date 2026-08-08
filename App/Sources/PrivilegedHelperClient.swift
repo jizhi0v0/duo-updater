@@ -63,6 +63,18 @@ final class PrivilegedHelperClient: ObservableObject {
     /// `HelperShellRunner`'s repair path). Surfaced in Diagnostics so the user can
     /// clear it without first walking into a failed App Store update.
     func reregister() {
+        // Gentle first, for the reason spelled out in `HelperShellRunner`'s repair:
+        // on a corrupt record `register()` is refused, and an unregister-first order
+        // leaves the background item switched OFF with no way back from in-app.
+        do {
+            try service.register()
+            log.notice("helper re-registered — status \(self.service.status.rawValue, privacy: .public)")
+            refreshStatus()
+            if status == .requiresApproval { openLoginItems() }
+            return
+        } catch {
+            log.notice("helper register() refused (\(error.localizedDescription, privacy: .public)) — retrying via unregister")
+        }
         try? service.unregister()
         register()
     }
@@ -136,11 +148,29 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
     /// Diagnostics row already surfaces as an "Enable…" button.
     private func repairRegistration() {
         let service = SMAppService.daemon(plistName: HelperConfig.plistName)
-        try? service.unregister()
+        // Re-register FIRST, without tearing anything down. `register()` on a live
+        // service is a no-op, so this costs nothing when the record is fine — and it
+        // can't make a broken one worse. That matters: when BTM's record is corrupt
+        // (`fullPath is nil, container=(null)`), `register()` is refused with
+        // "Operation not permitted", so an unregister-first repair *disables* the
+        // item and then can't put it back, turning "approved but unreachable" into
+        // "switched off and unfixable from here". Only fall back to the destructive
+        // order once the gentle one has failed.
         do {
             try service.register()
             log.notice("helper re-registered — status \(service.status.rawValue, privacy: .public)")
+            return
         } catch {
+            log.notice("helper register() refused (\(error.localizedDescription, privacy: .public)) — retrying via unregister")
+        }
+        try? service.unregister()
+        do {
+            try service.register()
+            log.notice("helper re-registered after unregister — status \(service.status.rawValue, privacy: .public)")
+        } catch {
+            // Both orders refused: the BTM record is corrupt beyond what an app is
+            // allowed to touch. The caller turns this into the approval prompt, which
+            // is the only lever left on this side.
             log.error("helper re-register failed: \(error.localizedDescription, privacy: .public)")
         }
     }

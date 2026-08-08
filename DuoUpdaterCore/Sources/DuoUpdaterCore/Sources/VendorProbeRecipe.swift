@@ -310,6 +310,48 @@ public struct VendorProbeRecipe: Sendable {
 /// GitHub-released apps are handled by `GitHubReleasesSource`, not here.
 public enum VendorProbeRegistry {
     public static let recipes: [VendorProbeRecipe] = [
+        // WhatsApp — the downloads page's link 302s to a versioned dmg on fbcdn:
+        // `…/WhatsApp-2.26.31.27.dmg`. Read the Location header rather than
+        // following it: the target IS the ~259 MB installer, so a HEAD-follow would
+        // be answered by the CDN with the real payload's headers and any GET would
+        // fetch it outright.
+        //
+        // VERSION SCHEME TRAP: the filename carries a leading `2.` the app does not
+        // — the bundle reports `26.22.20`, the file is `WhatsApp-2.26.31.27.dmg`.
+        // Capturing the whole thing would compare `2.26.31.27` against `26.22.20`
+        // and conclude the installed copy is NEWER, hiding every update forever.
+        // The pattern deliberately anchors on `WhatsApp-2.` and takes only the three
+        // segments after it.
+        //
+        // Detection only for now: wiring one-click needs the dmg's signature checked
+        // against the installed Team (57T9237FN3), and that's a 259 MB download to
+        // confirm. WhatsApp also self-updates, so the row is informational anyway.
+        VendorProbeRecipe(
+            bundleID: "net.whatsapp.WhatsApp",
+            url: URL(string: "https://web.whatsapp.com/desktop/mac_native/release/?configuration=Release&src=whatsapp_downloads_desktop_page")!,
+            mode: .redirectFilename,
+            versionPattern: #"WhatsApp-2\.([0-9]+\.[0-9]+\.[0-9]+)\.dmg"#,
+            changelogURL: URL(string: "https://web.whatsapp.com/desktop/mac_native/release-notes/"),
+            followRedirects: false),
+
+        // UURemote (网易UU远程) — no Sparkle, no public version JSON, and the
+        // product page is client-rendered so the HTML carries no version at all.
+        // The one machine-readable surface is the download button's endpoint, found
+        // in the page's markup: NetEase's release API 302s to the versioned package
+        // (`uuyc_4.35.0.pkg`), which is the version the app reports.
+        //
+        // The Homebrew cask can't cover this: its provenance gate (correctly) only
+        // adopts apps brew actually installed, and this one was installed directly.
+        //
+        // Detection only — a `.pkg` hands off to macOS's installer, and wiring that
+        // should come with a signature check of the package first.
+        VendorProbeRecipe(
+            bundleID: "com.netease.uuremote",
+            url: URL(string: "https://api.nrd.nie.163.com/api/v1/release/dl/4?channel=gwqd")!,
+            mode: .redirectFilename,
+            versionPattern: #"uuyc_([0-9]+(?:\.[0-9]+)+)\.pkg"#,
+            followRedirects: false),
+
         // Alfred, PRE-RELEASE channel — the missing half of the pair below.
         //
         // A user who ticks "Pre-releases" in Alfred's own Update preferences is

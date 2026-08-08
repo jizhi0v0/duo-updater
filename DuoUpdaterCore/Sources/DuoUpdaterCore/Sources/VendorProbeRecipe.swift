@@ -310,6 +310,30 @@ public struct VendorProbeRecipe: Sendable {
 /// GitHub-released apps are handled by `GitHubReleasesSource`, not here.
 public enum VendorProbeRegistry {
     public static let recipes: [VendorProbeRecipe] = [
+        // Alfred, PRE-RELEASE channel — the missing half of the pair below.
+        //
+        // A user who ticks "Pre-releases" in Alfred's own Update preferences is
+        // resolved to `.beta` by `AlfredChannel`, and the channel guard then refuses
+        // the stable recipe — correctly, but with nothing left to answer, so the row
+        // read "Failed" indefinitely. (The Sparkle path couldn't cover for it: that
+        // binding pointed at `alfredapp.com/appcast.xml` and `/prerelease.xml`, both
+        // of which now 404 — the unreadable `SparkleError error 0` in the logs.)
+        //
+        // Same plist shape as stable, different endpoint. The two frequently serve
+        // the SAME build — both were 5.7.3 (2320) here — so being on beta doesn't by
+        // itself mean a newer version is on offer.
+        VendorProbeRecipe(
+            bundleID: AlfredChannel.bundleID,
+            url: URL(string: "https://www.alfredapp.com/app/update5/prerelease.xml")!,
+            mode: .responseBody,
+            versionPattern: #"<key>version</key>\s*<string>([0-9]+(?:\.[0-9]+)+)</string>"#,
+            changelogURL: URL(string: "https://www.alfredapp.com/changelog/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<key>location</key>\s*<string>(https://[^<]+\.tar\.gz)</string>"#),
+                kind: .tarGz),
+            channel: .beta),
+
         // VS Code — Microsoft's official update API. `name` is the version.
         VendorProbeRecipe(
             bundleID: "com.microsoft.VSCode",
@@ -1795,15 +1819,24 @@ public enum VendorProbeRegistry {
         // the Codex/OrbStack neighbors. The manifest is a single-release plist: the
         // top-level <key>version</key><string> is the latest build (5.7.3),
         // unambiguous vs the descending "## Alfred X.Y.Z" history inside
-        // changelogdata. One release listed → first match is correct. Detection
-        // only — Alfred self-updates via Sparkle.
+        // changelogdata. One release listed → first match is correct.
+        //
+        // One-click added 2026-08-08 after verifying what `location` points at: the
+        // tarball holds `Alfred 5.app` at its root, whose bundle id
+        // (`com.runningwithcrayons.Alfred`) and Team (`XZZXE9SED4`) match the
+        // installed copy, and `spctl` reports "Notarized Developer ID". That URL
+        // carries the version, so it's read from the same body rather than fixed.
+        // Alfred still self-updates on its own; this only means the row can too.
         VendorProbeRecipe(
-            bundleID: "com.runningwithcrayons.Alfred",
+            bundleID: AlfredChannel.bundleID,
             url: URL(string: "https://www.alfredapp.com/app/update5/general.xml")!,
             mode: .responseBody,
             versionPattern: #"<key>version</key>\s*<string>([0-9][0-9.]*)</string>"#,
-            downloadURL: URL(string: "https://www.alfredapp.com/"),
-            changelogURL: URL(string: "https://www.alfredapp.com/changelog/")),
+            changelogURL: URL(string: "https://www.alfredapp.com/changelog/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<key>location</key>\s*<string>(https://[^<]+\.tar\.gz)</string>"#),
+                kind: .tarGz)),
 
         // Shottr — its own JSON version check (the same endpoint baked into the app
         // binary: shottr.cc/api/version.json). NOT a Sparkle appcast — Shottr ships

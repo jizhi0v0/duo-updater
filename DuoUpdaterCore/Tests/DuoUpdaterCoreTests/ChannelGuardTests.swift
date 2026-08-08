@@ -543,3 +543,30 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
             installedApp: calculator, downloadedApp: calculator)
     }
 }
+
+@Test func alfredBindingCarriesChannelWithoutAFeedOverride() {
+    // Alfred was wired as a Sparkle feed-swap app, but its endpoint serves an Apple
+    // plist, not an appcast — and both appcast URLs the binding pointed at now 404,
+    // which left the row permanently "Failed". The binding still decides the
+    // channel; the endpoints are read by VendorProbeRecipe.
+    let beta = AlfredChannel.resolve(prereleases: true)
+    #expect(beta.channel == .beta)
+    #expect(beta.feedOverride == nil)
+    let stable = AlfredChannel.resolve(prereleases: false)
+    #expect(stable.channel == .stable)
+    #expect(stable.feedOverride == nil)
+}
+
+@Test func alfredHasARecipePerChannel() {
+    let alfred = VendorProbeRegistry.recipes.filter { $0.bundleID == AlfredChannel.bundleID }
+    #expect(alfred.count == 2)
+    #expect(Set(alfred.map(\.channel)) == [.stable, .beta])
+    // Both must be able to install: the tarball was verified same-team + notarized.
+    #expect(alfred.allSatisfy { $0.install?.kind == .tarGz })
+}
+
+@Test func sparkleFeedErrorSaysWhatWentWrong() {
+    // "SparkleError error 0" named the enum case index and hid the status code.
+    let message = SparkleAppcastSource.SparkleError.badStatus(404).errorDescription ?? ""
+    #expect(message.contains("404"))
+}

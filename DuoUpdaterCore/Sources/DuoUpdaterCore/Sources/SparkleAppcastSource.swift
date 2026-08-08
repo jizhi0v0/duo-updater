@@ -199,8 +199,22 @@ public struct SparkleAppcastSource: UpdateSource {
         return "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
     }
 
-    enum SparkleError: Error {
+    /// A feed fetch that came back with a non-200. `LocalizedError`, not a bare
+    /// `Error`: without a description this surfaced as "The operation couldn't be
+    /// completed. (DuoUpdaterCore.SparkleAppcastSource.SparkleError error 0.)" — a
+    /// message that names the enum case index and hides the one fact that matters.
+    /// Alfred's feed 404'd for weeks behind exactly that text.
+    enum SparkleError: LocalizedError {
         case badStatus(Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .badStatus(404):
+                return "The app's update feed returned HTTP 404 — the vendor moved or retired it."
+            case .badStatus(let code):
+                return "The app's update feed returned HTTP \(code)."
+            }
+        }
     }
 }
 

@@ -14,14 +14,17 @@ import Foundation
 enum AlfredChannel {
     static let bundleID = "com.runningwithcrayons.Alfred"
 
-    static let stableFeed = URL(string: "https://www.alfredapp.com/appcast.xml")!
-    static let betaFeed = URL(string: "https://www.alfredapp.com/prerelease.xml")!
-
     /// Map Alfred's `prereleases` flag to a resolution. Pure and tested.
+    ///
+    /// Channel only — deliberately NO feed override. Alfred never was a Sparkle app:
+    /// its update endpoint serves an Apple *plist* (`version` / `build` / `location`
+    /// keys), not an appcast, and the two appcast URLs this binding used to point at
+    /// (`alfredapp.com/appcast.xml` and `/prerelease.xml`) now 404 — which is what
+    /// left the row permanently "Failed" behind an unreadable `SparkleError error 0`.
+    /// The endpoints are read by `VendorProbeRecipe` instead; this resolver's job is
+    /// just to say which channel the user is on, so the right one is picked.
     static func resolve(prereleases: Bool) -> ResolvedChannel {
-        prereleases
-            ? ResolvedChannel(channel: .beta, feedOverride: betaFeed)
-            : ResolvedChannel(channel: .stable, feedOverride: stableFeed)
+        ResolvedChannel(channel: prereleases ? .beta : .stable, feedOverride: nil)
     }
 
     static func resolveCurrent() -> ResolvedChannel {

@@ -72,4 +72,18 @@ struct GitHubAssetSelectionTests {
         #expect(GitHubReleaseRule.installableAsset(from: assets, matching: pattern)?
             .lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
     }
+
+    /// Stats ships exactly one asset per release, `Stats.dmg`. Verified against the
+    /// real v3.0.10 dmg on 2026-08-08: `Stats.app` at the root, bundle id
+    /// eu.exelban.Stats, notarized Developer ID build from Team RP2S87B72W matching
+    /// the installed copy, and a `CFBundleShortVersionString` equal to the tag.
+    @Test func statsRuleIsConfiguredForInstall() {
+        let rule = GitHubReleaseRegistry.rules.first { $0.bundleID == "eu.exelban.Stats" }
+        #expect(rule?.installAssetPattern == #"^Stats\.dmg$"#)
+        #expect(rule?.installerKind == .dmg)
+        let assets: [(name: String, url: URL)] = [
+            ("Stats.dmg", URL(string: "https://github.com/exelban/stats/releases/download/v3.0.10/Stats.dmg")!)
+        ]
+        #expect(GitHubReleaseRule.installableAsset(from: assets, matching: #"^Stats\.dmg$"#) != nil)
+    }
 }

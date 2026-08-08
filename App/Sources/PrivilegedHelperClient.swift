@@ -58,6 +58,15 @@ final class PrivilegedHelperClient: ObservableObject {
         refreshStatus()
     }
 
+    /// Unregister and register again, to rebuild a Background Task Management record
+    /// that reads as approved but no longer resolves to the daemon (see
+    /// `HelperShellRunner`'s repair path). Surfaced in Diagnostics so the user can
+    /// clear it without first walking into a failed App Store update.
+    func reregister() {
+        try? service.unregister()
+        register()
+    }
+
     func openLoginItems() {
         SMAppService.openSystemSettingsLoginItems()
     }
@@ -73,6 +82,7 @@ final class PrivilegedHelperClient: ObservableObject {
 /// Sendable`. It is intentionally independent of the `@MainActor`
 /// `PrivilegedHelperClient` so `MASInstaller` (an actor) can call it off-main.
 final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
+    private let log = Logger(subsystem: "com.duoupdater.app", category: "helper")
     private let lock = NSLock()
     private var cachedConnection: NSXPCConnection?
 
@@ -81,6 +91,51 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
         guard SMAppService.daemon(plistName: HelperConfig.plistName).status == .enabled else {
             throw MASInstaller.MASError.helperNotApproved
         }
+        do {
+            return try await send(adamID: adamID, uid: uid, gid: gid,
+                                  userName: userName, logPath: logPath)
+        } catch let error as NSError where Self.isConnectionFailure(error) {
+            // Approved but unreachable — the Background Task Management record can
+            // survive the app bundle being replaced (an in-place update, `make
+            // install`) while losing the resolved path to the daemon:
+            //   "FATAL ERROR - fullPath is nil, container=(null) … disposition=[enabled, allowed]"
+            // launchd then never spawns the helper, yet `status` still reads
+            // `.enabled`, so the guard above lets the call through and every App
+            // Store update fails with "Couldn't communicate with a helper
+            // application". Nothing in the UI could fix it either: the Enable button
+            // only shows while NOT enabled. Re-registering rebuilds the record, so
+            // do it once and retry rather than stranding the user.
+            log.error("helper unreachable (\(error.code, privacy: .public)) — re-registering and retrying once")
+            clearConnection()
+            repairRegistration()
+            return try await send(adamID: adamID, uid: uid, gid: gid,
+                                  userName: userName, logPath: logPath)
+        }
+    }
+
+    /// The two ways an XPC call fails when the peer never came up: Cocoa's
+    /// `NSXPCConnectionInvalid` (4097, "Couldn't communicate with a helper
+    /// application") and `NSXPCConnectionInterrupted` (4099) if it died mid-call.
+    private static func isConnectionFailure(_ error: NSError) -> Bool {
+        error.domain == NSCocoaErrorDomain && (error.code == 4097 || error.code == 4099)
+    }
+
+    /// Tear the daemon's registration down and put it back, so BTM re-resolves the
+    /// path to the helper inside the *current* app bundle. If macOS decides this
+    /// needs the user's blessing again it lands as `.requiresApproval`, which the
+    /// Diagnostics row already surfaces as an "Enable…" button.
+    private func repairRegistration() {
+        let service = SMAppService.daemon(plistName: HelperConfig.plistName)
+        try? service.unregister()
+        do {
+            try service.register()
+            log.notice("helper re-registered — status \(service.status.rawValue, privacy: .public)")
+        } catch {
+            log.error("helper re-register failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func send(adamID: Int, uid: Int, gid: Int, userName: String, logPath: String) async throws -> Int32 {
         let conn = connection()
         return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int32, Error>) in
             let guard1 = ResumeGuard()

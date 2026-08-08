@@ -394,11 +394,21 @@ public enum GitHubReleaseRegistry {
 
         // Stats — macOS menu-bar system monitor. Tags carry a `v` prefix
         // (stripped by the default pattern). Stable channel, no prereleases.
-        // Detection-only: a single `Stats.dmg` asset ships, but its Team ID isn't
-        // confirmed against the installed copy, so no installAssetPattern.
+        //
+        // One-click: the single `Stats.dmg` asset was verified 2026-08-08 against
+        // v3.0.10 — `Stats.app` at the dmg root (beside the usual /Applications
+        // symlink), bundle id eu.exelban.Stats, notarized Developer ID build signed
+        // by Team RP2S87B72W (Serhiy Mytrovtsiy), matching the installed copy, so
+        // the swap passes the VendorInstaller gate. Its
+        // `CFBundleShortVersionString` (3.0.10) equals the tag, so the probed
+        // version is the marketing version we compare against — no build-number
+        // trap. Stats has its own in-app updater but ships no Sparkle feed, so this
+        // is a plain one-click.
         GitHubReleaseRule(
             bundleID: "eu.exelban.Stats",
-            owner: "exelban", repo: "stats"),
+            owner: "exelban", repo: "stats",
+            installAssetPattern: #"^Stats\.dmg$"#,
+            installerKind: .dmg),
 
         // DBeaver Community — tags are bare dotted versions (no `v` prefix), e.g.
         // `26.1.0`; the `dbeaver/dbeaver` repo tracks the Community version scheme,

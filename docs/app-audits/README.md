@@ -83,7 +83,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] **RustDesk** · `com.carriez.rustdesk` — G C (one-click) · ✓ src=GitHub
 - [x] **GitHub Desktop** · `com.github.GitHubClient` — G · ✓ src=GitHub
-- [x] **Stats** · `eu.exelban.Stats` — G · ✓ src=GitHub
+- [x] **Stats** · `eu.exelban.Stats` — G (one-click) · ✓ src=GitHub · [audit](eu-exelban-Stats.md)
 - [x] **DBeaver** · `org.jkiss.dbeaver.core.product` — G · ✓ src=GitHub
 - [x] **Beekeeper Studio** · `io.beekeeperstudio.desktop` — G · ✓ src=GitHub
 - [x] [**Insomnia**](com-insomnia-app.md) · `com.insomnia.app` — G C (one-click) · ✓ src=GitHub · changelog=insomnia.rest(`__NEXT_DATA__` JSON) · 修 stable 跨渠道误推（pattern 加 `$` 锚，2026-06-06）· beta/alpha 受阻于 detect() 不解析 `-beta.N` 后缀

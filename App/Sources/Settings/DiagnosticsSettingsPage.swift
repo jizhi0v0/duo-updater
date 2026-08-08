@@ -159,6 +159,15 @@ private struct HelperStatusRow: View {
                 Label("Enabled", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .labelStyle(.titleAndIcon)
+                // "Enabled" is not the same as "reachable": replacing the app bundle
+                // can leave the Background Task Management record approved but
+                // unresolvable, so the daemon never launches and App Store updates
+                // fail with "Couldn't communicate with a helper application". The
+                // install path repairs that on its own, but only once you've hit the
+                // failure — this is the way to fix it before that.
+                Button("Re-register") { helper.reregister() }
+                    .settingsGlassButton()
+                    .help("Rebuild the helper's background-item registration — try this if App Store updates fail to reach the helper")
             } else {
                 Button("Enable…") { helper.register() }
                     .settingsGlassButton()

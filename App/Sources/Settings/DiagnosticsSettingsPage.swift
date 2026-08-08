@@ -154,6 +154,19 @@ private struct HelperStatusRow: View {
     @ObservedObject var helper: PrivilegedHelperClient
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            field
+            if let error = helper.lastRegisterError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)  // so the reset command can be copied
+            }
+        }
+    }
+
+    private var field: some View {
         SettingsField(title: "App Store helper") {
             if helper.isEnabled {
                 Label("Enabled", systemImage: "checkmark.circle.fill")

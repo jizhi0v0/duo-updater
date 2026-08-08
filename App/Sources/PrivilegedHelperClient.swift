@@ -23,6 +23,13 @@ final class PrivilegedHelperClient: ObservableObject {
 
     @Published private(set) var status: SMAppService.Status
 
+    /// Why the last `register()` failed, for the Diagnostics row to show. Registering
+    /// is the only lever the app has — macOS grants no API to flip the approval
+    /// switch itself — so when even that is refused the button appears to do nothing
+    /// at all. Surfacing the reason is the difference between "this button is broken"
+    /// and "macOS is refusing; here's what to do".
+    @Published private(set) var lastRegisterError: String?
+
     private var service: SMAppService { SMAppService.daemon(plistName: HelperConfig.plistName) }
 
     init() {
@@ -45,12 +52,30 @@ final class PrivilegedHelperClient: ObservableObject {
     func register() {
         do {
             try service.register()
+            lastRegisterError = nil
             log.notice("helper register() ok — status \(self.service.status.rawValue, privacy: .public)")
         } catch {
+            lastRegisterError = Self.explain(error)
             log.error("helper register() failed: \(error.localizedDescription, privacy: .public)")
         }
         refreshStatus()
         if status == .requiresApproval { openLoginItems() }
+    }
+
+    /// Turn a `SMAppService` failure into something a user can act on. The one worth
+    /// naming is a Background Task Management record macOS can no longer resolve
+    /// (its log line: "fullPath is nil, container=(null)"): registering is refused
+    /// with a bare "Operation not permitted", the Login Items switch has no effect on
+    /// it, and nothing an app is allowed to do will clear it — only a system-level
+    /// reset will.
+    private static func explain(_ error: Error) -> String {
+        let message = error.localizedDescription
+        guard (error as NSError).code == 1 || message.localizedCaseInsensitiveContains("not permitted")
+        else { return message }
+        return "macOS refused the registration — its record of this background item "
+            + "is damaged. Fixing it needs a system-level reset: run "
+            + "“sudo sfltool resetbtm” in Terminal and restart. That clears background-item "
+            + "approvals for every app, so you'll re-approve the others too."
     }
 
     func unregister() {

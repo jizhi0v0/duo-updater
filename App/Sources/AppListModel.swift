@@ -3165,10 +3165,13 @@ final class AppListModel {
         // anything interrupts the user. Note the hand-off is fire-and-forget: we
         // can't observe the system installer finishing, so two pkg updates in one
         // batch open two Installer windows back to back rather than queueing.
-        let parallelTargets = targets.filter(canBatchInstallInParallel)
+        // Within each phase, sort smallest download first: a 400 MB update
+        // shouldn't occupy a slot while nine 20 MB ones queue behind it. Unknown
+        // sizes sort neutrally (see `InstallBatchOrdering`).
+        let parallelTargets = InstallBatchOrdering.sortByDownloadSize(targets.filter(canBatchInstallInParallel))
         let rest = targets.filter { !canBatchInstallInParallel($0) }
-        let serialTargets = rest.filter { !requiresInstaller($0) }
-        let installerTargets = rest.filter(requiresInstaller)
+        let serialTargets = InstallBatchOrdering.sortByDownloadSize(rest.filter { !requiresInstaller($0) })
+        let installerTargets = InstallBatchOrdering.sortByDownloadSize(rest.filter(requiresInstaller))
         let limit = min(Self.maxParallelInstalls, parallelTargets.count)
         Log.app.info("update all: \(targets.count, privacy: .public) apps, parallel=\(parallelTargets.count, privacy: .public), serial=\(serialTargets.count, privacy: .public), installer=\(installerTargets.count, privacy: .public), parallelism=\(limit, privacy: .public)")
         // Count only the installs that actually happened (runInstall returns false for

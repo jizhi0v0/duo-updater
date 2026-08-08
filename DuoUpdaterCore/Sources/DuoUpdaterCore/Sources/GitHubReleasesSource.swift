@@ -53,11 +53,12 @@ public struct GitHubReleaseRule: Sendable {
         self.installerKind = installerKind
     }
 
-    /// First release asset whose filename matches `installAssetPattern`. Pure and
-    /// static so the arch/format selection is unit-testable without a fetch.
+    /// First release asset whose filename matches `installAssetPattern`, with
+    /// its declared byte size (for shortest-first "Update All" ordering). Pure
+    /// and static so the arch/format selection is unit-testable without a fetch.
     static func installableAsset(
-        from assets: [(name: String, url: URL)], matching pattern: String
-    ) -> URL? {
+        from assets: [(name: String, url: URL, size: Int64?)], matching pattern: String
+    ) -> (url: URL, size: Int64?)? {
         installableAsset(from: assets, matching: pattern, preferring: .current)
     }
 
@@ -71,10 +72,10 @@ public struct GitHubReleaseRule: Sendable {
     /// `aarch64`) are unaffected — there's only one match, so it's returned as
     /// before. This just makes a future broad pattern safe.
     static func installableAsset(
-        from assets: [(name: String, url: URL)],
+        from assets: [(name: String, url: URL, size: Int64?)],
         matching pattern: String,
         preferring arch: HostArch
-    ) -> URL? {
+    ) -> (url: URL, size: Int64?)? {
         let matches = assets.filter {
             $0.name.range(of: pattern, options: .regularExpression) != nil
         }
@@ -88,17 +89,17 @@ public struct GitHubReleaseRule: Sendable {
         // 1. An asset explicitly built for this Mac's architecture.
         if let native = matches.first(where: {
             has(arch.assetTokens, $0.name) && !has(arch.foreignTokens, $0.name)
-        }) { return native.url }
+        }) { return (native.url, native.size) }
 
         // 2. An arch-neutral asset (a universal build, or a name with no arch
         //    marker at all) — safe for either machine.
         if let neutral = matches.first(where: {
             !has(arch.assetTokens, $0.name) && !has(arch.foreignTokens, $0.name)
-        }) { return neutral.url }
+        }) { return (neutral.url, neutral.size) }
 
         // 3. Nothing native or neutral matched — fall back to the first match
         //    (best effort; the pattern author constrained the set deliberately).
-        return matches.first?.url
+        return matches.first.map { ($0.url, $0.size) }
     }
 
     var slug: String { "\(owner)/\(repo)" }
@@ -224,17 +225,18 @@ public struct GitHubReleasesSource: UpdateSource {
                 // a matching one, offer a one-click in-place install (the Team-ID
                 // gate in VendorInstaller still guards the swap). Otherwise stay
                 // detection-only: link to the releases page, install nothing.
-                let installURL = rule.installAssetPattern.flatMap {
+                let asset = rule.installAssetPattern.flatMap {
                     GitHubReleaseRule.installableAsset(from: release.assets, matching: $0)
                 }
-                let installable = installURL != nil && rule.installerKind != nil
+                let installable = asset?.url != nil && rule.installerKind != nil
 
                 await RecipeHealth.shared.recordSuccess(id: rule.slug, source: name)
                 return RemoteVersion(
                     shortVersion: version,
                     version: nil,
-                    downloadURL: installURL
+                    downloadURL: asset?.url
                         ?? URL(string: "https://github.com/\(rule.slug)/releases"),
+                    downloadSize: asset?.size,
                     sourceName: name,
                     requiresManualInstaller: !installable,
                     vendorInstallerKind: installable ? rule.installerKind : nil,
@@ -256,13 +258,14 @@ public struct GitHubReleasesSource: UpdateSource {
     }
 
     /// A GitHub release reduced to the fields we use: tag, notes body, page URL,
-    /// date, and downloadable assets (filename → URL, for installer selection).
+    /// date, and downloadable assets (filename → URL + declared size, for
+    /// installer selection and shortest-first "Update All" ordering).
     private struct Release {
         let tag: String
         let body: String?
         let htmlURL: URL?
         let publishedAt: String?
-        let assets: [(name: String, url: URL)]
+        let assets: [(name: String, url: URL, size: Int64?)]
     }
 
     /// Extract releases from either a single release object or a list.
@@ -276,12 +279,13 @@ public struct GitHubReleasesSource: UpdateSource {
         }
         return objects.compactMap { obj in
             guard let tag = obj["tag_name"] as? String else { return nil }
-            let assets: [(name: String, url: URL)] = (obj["assets"] as? [[String: Any]] ?? [])
+            let assets: [(name: String, url: URL, size: Int64?)] = (obj["assets"] as? [[String: Any]] ?? [])
                 .compactMap { asset in
                     guard let name = asset["name"] as? String,
                           let urlString = asset["browser_download_url"] as? String,
                           let url = URL(string: urlString) else { return nil }
-                    return (name, url)
+                    let size = (asset["size"] as? NSNumber)?.int64Value
+                    return (name, url, size)
                 }
             return Release(
                 tag: tag,

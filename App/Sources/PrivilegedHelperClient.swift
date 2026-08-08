@@ -44,6 +44,12 @@ final class PrivilegedHelperClient: ObservableObject {
     func refreshStatus() {
         let current = service.status
         if current != status { status = current }
+        // A registration failure explains why the helper ISN'T on. Once it is, the
+        // explanation is not just stale but contradictory — the pane showed a green
+        // "Enabled" next to red text telling the user to reset their whole system.
+        // Any path that reaches `.enabled` (a later register, the user approving in
+        // Login Items, a reset that cleared a damaged record) retires the message.
+        if current == .enabled { lastRegisterError = nil }
     }
 
     /// Register the daemon. First time, macOS surfaces it in Login Items as a

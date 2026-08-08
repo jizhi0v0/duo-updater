@@ -510,6 +510,11 @@ private struct AppRow: View {
                             .font(.caption2)
                             .buttonStyle(.link)
                     }
+                    if model.showsHelperApprovalFallback(result.id) {
+                        Button("Turn On Helper…") { model.enableAppStoreHelper() }
+                            .font(.caption2)
+                            .buttonStyle(.link)
+                    }
                 }
             } else if let note = model.installNotes[result.id] {
                 Text(note)

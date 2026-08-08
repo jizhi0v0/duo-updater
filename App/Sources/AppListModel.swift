@@ -296,6 +296,9 @@ final class AppListModel {
     /// During a batch, a stale App Management preflight can make several parallel
     /// installs fail together. Show the permission guide once for that wave.
     @ObservationIgnored private var appManagementPermissionFlowPresentedInBatch = false
+    /// Same for the App Store helper: a batch of App Store updates all fail on the
+    /// same unusable helper, and three identical dialogs would be worse than none.
+    @ObservationIgnored private var helperApprovalFlowPresentedInBatch = false
 
     /// User settings (token, concurrency, ignore list, backups…). Read live on
     /// each refresh so a change made in the Settings window takes effect next check.
@@ -2026,6 +2029,16 @@ final class AppListModel {
             Log.install.error("install blocked by App Management: \(result.app.name, privacy: .public)")
             installErrors[id] = error.errorDescription
             presentAppManagementPermissionFlowForInstallFailure()
+        } catch let error as MASInstaller.MASError where error.isHelperApproval {
+            // The App Store route needs the background helper and it isn't usable.
+            // Left as a red note this dead-ends a normal user: the fix lives in a
+            // System Settings pane they have no reason to know about, and DuoUpdater's
+            // own Diagnostics page hides its Enable button once macOS *claims* the
+            // item is enabled. So prompt directly, the same way an App Management
+            // failure floats its authorize panel.
+            Log.install.error("install blocked by helper approval: \(result.app.name, privacy: .public)")
+            installErrors[id] = error.errorDescription
+            presentHelperApprovalFlowForInstallFailure()
         } catch {
             // A failed *App Store* install whose bundle is ALREADY at the target
             // version isn't a real failure — it's a no-op reinstall the store tooling
@@ -2073,6 +2086,22 @@ final class AppListModel {
     /// jump to the App Store's Updates page instead of just showing the red note.
     func showsAppStoreUpdatesFallback(_ id: String) -> Bool {
         installErrors[id]?.contains(MASInstaller.MASError.appStoreUpdatesHint) == true
+    }
+
+    /// True when the row failed because the App Store helper isn't usable, so the row
+    /// offers a direct way in instead of naming a Settings pane the user has to hunt
+    /// for. The dialog already fired once for this wave; this is what's left on the
+    /// row afterwards, and what a user who dismissed it can still act on.
+    func showsHelperApprovalFallback(_ id: String) -> Bool {
+        installErrors[id]?.contains(MASInstaller.MASError.helperApprovalHint) == true
+    }
+
+    /// Rebuild the helper's registration and, if it still isn't enabled, open the
+    /// Login Items pane. Same two steps as the dialog, minus the dialog.
+    func enableAppStoreHelper() {
+        helperClient.reregister()
+        helperEnabled = helperClient.isEnabled
+        if !helperClient.isEnabled { helperClient.openLoginItems() }
     }
 
     /// Open the App Store's Updates list, where the user can finish an update mas
@@ -2634,6 +2663,40 @@ final class AppListModel {
         )
     }
 
+    /// Guide the user out of a blocked App Store install: rebuild the helper's
+    /// registration first (a record can read as approved yet no longer resolve — see
+    /// `HelperShellRunner`), and only if that doesn't restore it, ask.
+    ///
+    /// Shown at most once per batch, like the App Management flow — an "Update All"
+    /// across three App Store apps must not stack three identical dialogs.
+    private func presentHelperApprovalFlowForInstallFailure() {
+        if isInstallingAll {
+            guard !helperApprovalFlowPresentedInBatch else { return }
+            helperApprovalFlowPresentedInBatch = true
+        }
+        helperClient.reregister()
+        helperEnabled = helperClient.isEnabled
+        // Repaired silently — the record was stale, not unapproved. Nothing to ask;
+        // the row keeps its error and the retry is one click away.
+        guard !helperClient.isEnabled else {
+            Log.install.notice("helper registration repaired without user action")
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Turn on DuoUpdater's background helper"
+        alert.informativeText = """
+            App Store updates install through a background item that macOS asks you to \
+            approve once. Switch DuoUpdater on under Login Items & Extensions, then run \
+            the update again — after that it stays on and never asks for your password.
+            """
+        alert.addButton(withTitle: "Open Login Items")
+        alert.addButton(withTitle: "Not Now")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            helperClient.openLoginItems()
+        }
+    }
+
     private func presentAppManagementPermissionFlowForInstallFailure() {
         if isInstallingAll {
             guard !appManagementPermissionFlowPresentedInBatch else { return }
@@ -2961,6 +3024,7 @@ final class AppListModel {
         guard !targets.isEmpty else { return }
         isInstallingAll = true
         appManagementPermissionFlowPresentedInBatch = false
+        helperApprovalFlowPresentedInBatch = false
         // Claim every target `.queued` up front so each row shows a queued spinner
         // immediately — not a still-clickable "Update" button that would otherwise let
         // a manual tap race the batch — for the whole queue, not just the few currently

@@ -1052,6 +1052,11 @@ private struct DetailHeader: View {
                         .font(.caption)
                         .buttonStyle(.link)
                 }
+                if model.showsHelperApprovalFallback(result.id) {
+                    Button("Turn On Helper…") { model.enableAppStoreHelper() }
+                        .font(.caption)
+                        .buttonStyle(.link)
+                }
             } else if let note = model.installNotes[result.id] {
                 Text(note)
                     .font(.caption)

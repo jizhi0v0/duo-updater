@@ -108,8 +108,18 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
             log.error("helper unreachable (\(error.code, privacy: .public)) — re-registering and retrying once")
             clearConnection()
             repairRegistration()
-            return try await send(adamID: adamID, uid: uid, gid: gid,
-                                  userName: userName, logPath: logPath)
+            do {
+                return try await send(adamID: adamID, uid: uid, gid: gid,
+                                      userName: userName, logPath: logPath)
+            } catch let retryError as NSError where Self.isConnectionFailure(retryError) {
+                // Still unreachable after rebuilding the record — most likely macOS
+                // dropped the background item back to "pending approval". Report it
+                // as `helperNotApproved` rather than letting the raw XPC message
+                // ("Couldn't communicate with a helper application") reach the row:
+                // that text tells the user nothing they can act on, whereas this case
+                // is the one the UI knows how to guide out of.
+                throw MASInstaller.MASError.helperNotApproved
+            }
         }
     }
 

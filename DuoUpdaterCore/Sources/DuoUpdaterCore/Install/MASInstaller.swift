@@ -69,7 +69,7 @@ public actor MASInstaller {
             case .cancelled:
                 return "Authorization cancelled."
             case .helperNotApproved:
-                return "App Store updates need the DuoUpdater helper — enable it in Settings."
+                return "App Store updates need DuoUpdater's background helper. \(MASError.helperApprovalHint)"
             case .failed(let code, let output):
                 // A known dead end on recent macOS: mas downloads the app fully, then
                 // CommerceKit refuses the final receipt import ("Failed to find receipt
@@ -88,6 +88,18 @@ public actor MASInstaller {
         /// Stable fragment embedded in the receipt-import failure message; the UI
         /// matches on it to show a manual "Open App Store" button for the row.
         public static let appStoreUpdatesHint = "Update it from the App Store’s Updates page."
+
+        /// Stable fragment embedded in the helper-approval message. Same contract as
+        /// `appStoreUpdatesHint`: the UI matches on it to attach a "Turn On Helper…"
+        /// action to the row, so the user isn't left reading an error that names a
+        /// Settings pane they'd have to find themselves.
+        public static let helperApprovalHint = "Turn it on in Login Items."
+
+        /// True for the one error the helper-approval flow can act on.
+        public var isHelperApproval: Bool {
+            if case .helperNotApproved = self { return true }
+            return false
+        }
 
         /// True when mas downloaded the app but the store tooling couldn't import the
         /// receipt — a deterministic macOS/CommerceKit limitation, not a transient

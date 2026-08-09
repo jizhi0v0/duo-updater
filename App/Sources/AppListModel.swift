@@ -1664,9 +1664,29 @@ final class AppListModel {
         // The App Store gate is NOT handed over: it exists to keep two installs off
         // the single store UI (AX/mas), which spans the whole install, not the fetch.
         let hostGate = GateHandle(gate)
+        // Machine-wide exclusion, taken here rather than around the whole batch:
+        // a row parked on the host gate must not hold it. Reference-counted
+        // inside the process, so this app's own concurrent installs join one
+        // claim instead of blocking each other (`flock` is exclusive per open
+        // file description, not per process).
+        //
+        // Refused, not queued: the other holder is `duo install`, which may be
+        // part-way through a large download, and a row that spins indefinitely
+        // is worse than one that says who has it.
+        do {
+            try await ProcessInstallLock.shared.claim()
+        } catch {
+            Log.install.error("install blocked by the machine install lock: \(result.app.name, privacy: .public)")
+            installErrors[id] = (error as? LocalizedError)?.errorDescription
+                ?? String(describing: error)
+            installing[id] = nil
+            await hostGate.release()
+            return false
+        }
         let didInstall = await performInstall(
             result, notify: notify, deferBookkeeping: deferBookkeeping,
             releaseAfterDownload: isAppStore ? nil : hostGate)
+        await ProcessInstallLock.shared.release()
         await hostGate.release()
         // If something self-updated externally while this install ran, its rescan was
         // deferred — drain it now that the install is done (no-op in a batch, which

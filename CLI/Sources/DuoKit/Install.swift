@@ -76,19 +76,23 @@ public enum Install {
             return 0
         }
 
-        // One process at a time, machine-wide. Refused rather than queued: the
+        // One process at a time, machine-wide — the menu-bar app takes the same
+        // claim around each of its installs. Refused rather than queued: the
         // holder may be part-way through a 400 MB download, and a CLI that looks
         // hung is worse than one that tells you who has it.
-        let lock: InstallLock
         do {
-            lock = try InstallLock.acquire()
+            try await ProcessInstallLock.shared.claim()
         } catch {
             FileHandle.standardError.write(Data("duo: \(error)\n".utf8))
             return 1
         }
-        defer { lock.release() }
-
-        return await apply(plan, json: options.json)
+        // Released explicitly rather than in a `defer` spawning a Task: the
+        // process exits immediately after this, and a detached release may never
+        // run. (The kernel drops the flock on exit either way — this keeps the
+        // reference count honest for anything that runs in between.)
+        let code = await apply(plan, json: options.json)
+        await ProcessInstallLock.shared.release()
+        return code
     }
 
     // MARK: - Planning

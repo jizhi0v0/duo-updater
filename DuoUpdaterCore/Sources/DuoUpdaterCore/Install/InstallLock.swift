@@ -107,3 +107,52 @@ public final class InstallLock: @unchecked Sendable {
 
     deinit { release() }
 }
+
+/// This process's claim on the machine-wide install lock, reference-counted.
+///
+/// Necessary because `flock` is exclusive *per open file description*, not per
+/// process: two installs in the same app taking the lock separately would block
+/// each other, and the menu-bar app deliberately runs up to four downloads and
+/// two applies at once. So the first install in a process takes the lock, the
+/// rest join it, and it is released when the last one finishes.
+///
+/// What it still excludes is the thing it was built for: a second *process*
+/// swapping bundles and writing the backup index at the same time.
+public actor ProcessInstallLock {
+
+    public static let shared = ProcessInstallLock()
+
+    private var lock: InstallLock?
+    private var holders = 0
+    private let url: URL
+
+    public init(url: URL = InstallLock.defaultURL) {
+        self.url = url
+    }
+
+    /// Join this process's claim, taking the machine-wide lock if we are the
+    /// first. Throws `InstallLock.Failure` when another process holds it.
+    ///
+    /// Deliberately not a `withLock { }` closure: the menu-bar app's caller is
+    /// `@MainActor`-isolated and non-`Sendable`, so handing a closure to this
+    /// actor is a data-race error. Callers pair `claim()` with `release()`
+    /// instead.
+    public func claim() throws {
+        if holders == 0 {
+            lock = try InstallLock.acquire(at: url)
+        }
+        holders += 1
+    }
+
+    /// Drop one claim, releasing the machine-wide lock when it was the last.
+    /// Balanced with `claim()`; calling it without one is a no-op rather than an
+    /// underflow, so an over-eager cleanup path cannot free a live lock.
+    public func release() {
+        guard holders > 0 else { return }
+        holders -= 1
+        if holders == 0 {
+            lock?.release()
+            lock = nil
+        }
+    }
+}

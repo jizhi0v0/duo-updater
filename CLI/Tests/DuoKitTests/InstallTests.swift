@@ -163,3 +163,74 @@ import DuoUpdaterCore
         #expect(try Install.routes(named: []).get().isEmpty)
     }
 }
+
+@Suite(.serialized) struct VisibilityWriteTests {
+
+    /// A scratch domain so these never touch the real preferences.
+    private func scratchDefaults() -> UserDefaults {
+        let suite = "com.duoupdater.tests.\(UUID().uuidString)"
+        return UserDefaults(suiteName: suite)!
+    }
+
+    private func app(_ path: String = "/Applications/Fixture.app") -> InstalledApp {
+        InstalledApp(
+            name: "Fixture", bundleID: "com.example.fixture", shortVersion: "1.0",
+            buildVersion: "1", path: URL(fileURLWithPath: path), isMASApp: false,
+            sparkleFeedURL: nil)
+    }
+
+    private func result(hasUpdate: Bool) -> UpdateResult {
+        UpdateResult(
+            app: app(),
+            remote: RemoteVersion(
+                shortVersion: "2.0", version: nil, downloadURL: nil,
+                sourceName: "Vendor", requiresManualInstaller: false),
+            status: hasUpdate ? .updateAvailable(latest: "2.0") : .upToDate)
+    }
+
+    @Test func ignoringWritesTheSharedKeyAndIsIdempotent() {
+        let defaults = scratchDefaults()
+        guard case .success = Visibility.apply(.ignore, to: result(hasUpdate: true), in: defaults) else {
+            Issue.record("first ignore should succeed"); return
+        }
+        #expect(defaults.stringArray(forKey: UpdateSettings.ignoredKeysKey)
+            == [InstallPreferenceKey.key(for: app())])
+        guard case .failure = Visibility.apply(.ignore, to: result(hasUpdate: true), in: defaults) else {
+            Issue.record("ignoring twice should report it was already ignored"); return
+        }
+    }
+
+    /// An app that is already current still reports a remote version. Keying the
+    /// skip on that recorded a skip for the version the user is happily running,
+    /// which would then hide the next real update's row.
+    @Test func skippingNeedsAnActualUpdate() {
+        let defaults = scratchDefaults()
+        guard case .failure(let why) = Visibility.apply(
+            .skip, to: result(hasUpdate: false), in: defaults) else {
+            Issue.record("skipping an up-to-date app should be refused"); return
+        }
+        #expect(why.contains("no update offered"))
+        #expect(defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey) == nil)
+    }
+
+    @Test func skippingRecordsTheOfferedVersion() {
+        let defaults = scratchDefaults()
+        guard case .success = Visibility.apply(.skip, to: result(hasUpdate: true), in: defaults) else {
+            Issue.record("skip should succeed when an update is offered"); return
+        }
+        let stored = defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey) as? [String: String]
+        #expect(stored?[InstallPreferenceKey.key(for: app())] == "2.0")
+    }
+
+    /// Un-ignoring must clear the legacy bundle-id form too, or the app — which
+    /// matches either key — would still consider it ignored.
+    @Test func unignoringClearsTheLegacyKeyAsWell() {
+        let defaults = scratchDefaults()
+        let legacy = InstallPreferenceKey.legacyKey(for: app())
+        defaults.set([legacy], forKey: UpdateSettings.ignoredKeysKey)
+        guard case .success = Visibility.apply(.unignore, to: result(hasUpdate: true), in: defaults) else {
+            Issue.record("unignore should clear a legacy entry"); return
+        }
+        #expect(defaults.stringArray(forKey: UpdateSettings.ignoredKeysKey)?.isEmpty == true)
+    }
+}

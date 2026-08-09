@@ -80,8 +80,8 @@ final class Preferences {
         static let appStoreUpdateStrategy = UpdateSettings.appStoreUpdateStrategyKey
         static let vendorInstallPolicy = UpdateSettings.vendorInstallPolicyKey
         static let customScanPaths = "CustomScanPaths"
-        static let ignoredKeys = "IgnoredApps"
-        static let skippedVersions = "SkippedVersions"
+        static let ignoredKeys = UpdateSettings.ignoredKeysKey
+        static let skippedVersions = UpdateSettings.skippedVersionsKey
         static let lastCheckDate = "LastCheckDate"
         static let notifiedVersions = "NotifiedVersions"
         static let notificationBaselineSeeded = "NotificationBaselineSeeded"
@@ -90,6 +90,9 @@ final class Preferences {
     }
 
     private let defaults: UserDefaults
+    /// Held for its lifetime: KVO registrations are torn down when this is
+    /// released, and a released observer that is still registered crashes.
+    private var externalObserver: DefaultsKeyObserver?
 
     // MARK: - Stored settings
 
@@ -331,6 +334,52 @@ final class Preferences {
         self.marketingByBuild = defaults.dictionary(forKey: Key.marketingByBuild) as? [String: String] ?? [:]
         self.stagedPackages =
             defaults.dictionary(forKey: Key.stagedPackages) as? [String: [String: String]] ?? [:]
+        observeExternalWrites()
+    }
+
+    // MARK: - Cross-process changes
+
+    /// Re-read the ignore and skip lists when **another process** changes them —
+    /// today that means `duo ignore` / `duo skip`.
+    ///
+    /// Necessary because this class caches both in memory and writes the cache
+    /// back on `didSet`. Without this, the app's next toggle would persist its
+    /// stale copy straight over whatever the CLI wrote, and the CLI would look
+    /// like it had silently done nothing.
+    ///
+    /// KVO rather than `didChangeNotification`: that notification is explicitly
+    /// documented as *not* posted for changes made outside the current process,
+    /// while KVO on a defaults key is documented to fire "regardless of whether
+    /// changes are made within or outside the current process". Developer-forum
+    /// reports say the cross-process half does not work; measured on macOS 27.0
+    /// (26A5388g) it does — a `defaults write` from another process fires the
+    /// observer here. Recorded because the two disagree and the observation is
+    /// what this depends on.
+    private func observeExternalWrites() {
+        externalObserver = DefaultsKeyObserver(
+            defaults: defaults, keys: [Key.ignoredKeys, Key.skippedVersions]
+        ) { [weak self] in
+            // Already hopped to the main actor by the observer.
+            MainActor.assumeIsolated { self?.reloadVisibilityLists() }
+        }
+    }
+
+    /// Pull the two lists back off disk. Assignment goes through `didSet`, which
+    /// writes the identical value back — harmless, and cheaper than a second code
+    /// path — but only when something actually changed, so this cannot ping-pong
+    /// with the observer that triggered it.
+    private func reloadVisibilityLists() {
+        let freshIgnored = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
+        if freshIgnored != ignoredKeys {
+            ignoredKeys = freshIgnored
+            Log.app.info("prefs: ignore list changed externally — \(freshIgnored.count, privacy: .public) entries")
+        }
+        let freshSkipped =
+            defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
+        if freshSkipped != skippedVersions {
+            skippedVersions = freshSkipped
+            Log.app.info("prefs: skip list changed externally — \(freshSkipped.count, privacy: .public) entries")
+        }
     }
 
     // MARK: - Per-app keys

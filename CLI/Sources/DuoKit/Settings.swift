@@ -49,8 +49,9 @@ public struct Settings: Sendable {
         return Settings(
             updateSettings: UpdateSettings(
                 appStoreUpdateStrategy: strategy, vendorInstallPolicy: vendorPolicy),
-            ignoredKeys: Set(defaults.stringArray(forKey: "IgnoredApps") ?? []),
-            skippedVersions: defaults.dictionary(forKey: "SkippedVersions") as? [String: String] ?? [:],
+            ignoredKeys: Set(defaults.stringArray(forKey: UpdateSettings.ignoredKeysKey) ?? []),
+            skippedVersions: defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey)
+                as? [String: String] ?? [:],
             customScanPaths: defaults.stringArray(forKey: "CustomScanPaths") ?? [],
             // 0 means "never set"; the app's own default is 12.
             maxConcurrency: max(1, defaults.integer(forKey: "MaxConcurrency") == 0

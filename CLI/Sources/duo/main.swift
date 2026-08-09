@@ -16,6 +16,8 @@ commands:
   check         What has an update, and how it would be applied.
   install       Apply updates, through the same engine the menu-bar app uses.
   restart       Quit and relaunch apps whose running copy is stale.
+  ignore        Hide an app from update checks. unignore undoes it.
+  skip          Hide the version currently offered. unskip undoes it.
   backups       List the rollback points, or put one back.
   doctor        Whether this machine can actually install anything, and what
                 is missing if not.
@@ -72,6 +74,15 @@ restart options:
   Quits gracefully — an app with unsaved work stays up and is reported rather
   than forced. An app that was in the foreground comes back to the foreground;
   one that was buried stays buried.
+
+ignore / unignore / skip / unskip options:
+  <app>…              Which apps, resolved like check's.
+  --json              Machine-readable form.
+
+  These are the only commands that write the app's preferences. skip records the
+  version being offered now, so it runs a check first; a newer release than the
+  skipped one still surfaces. The running menu-bar app re-reads both lists as
+  soon as they change, so there is nothing to restart.
 
 backups options:
   list                Every stored rollback point: app, version, when, size.
@@ -183,6 +194,14 @@ case "restart":
     var options = Restart.Options()
     options.queries = args.operands
     exit(await Restart.run(options))
+
+case "ignore", "unignore", "skip", "unskip":
+    guard let action = Visibility.Action(rawValue: args.subcommand) else {
+        die("unknown command '\(args.subcommand)'\n\n\(usage)", code: 2)
+    }
+    var options = Visibility.Options(action: action, queries: args.operands)
+    options.json = args.has("json")
+    exit(await Visibility.run(options))
 
 case "backups":
     let operation: Backups.Options.Operation

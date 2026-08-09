@@ -76,6 +76,13 @@ public struct UpdateSettings: Sendable {
     /// The UserDefaults key the app persists `vendorInstallPolicy` under.
     public static let vendorInstallPolicyKey = "VendorInstallPolicy"
 
+    /// Where the ignore list and the per-app skipped version live. Shared
+    /// because `duo ignore` and `duo skip` **write** these: a name that drifted
+    /// would not read as empty, it would silently create a second, invisible
+    /// ignore list while the app kept using the first.
+    public static let ignoredKeysKey = "IgnoredApps"
+    public static let skippedVersionsKey = "SkippedVersions"
+
     public init(
         appStoreUpdateStrategy: AppStoreUpdateStrategy,
         vendorInstallPolicy: VendorInstallPolicy

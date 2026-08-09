@@ -61,63 +61,11 @@ final class Preferences {
         }
     }
 
-    /// How Mac App Store updates are applied.
-    ///
-    /// Both routes drive the store's own `storedownloadd`, so neither mixes
-    /// channels — they differ in dependency and bandwidth:
-    ///   • `.full` — the `mas` CLI replays the store purchase and redownloads the
-    ///     whole app. No extra permission, but needs `mas` (brew) and more traffic.
-    ///   • `.incremental` — drives App Store.app's own Update button via the
-    ///     Accessibility API, so the store fetches a delta. No `mas` needed and less
-    ///     traffic, but requires an Accessibility grant (guided via PermissionFlow).
-    /// Default is `.full`: it asks for no sensitive permission up front.
-    enum AppStoreUpdateStrategy: String, CaseIterable, Identifiable, Sendable {
-        case full
-        case incremental
-
-        var id: String { rawValue }
-
-        /// Release builds currently expose only the more predictable full-download
-        /// path. Keep the incremental case in the model so older defaults still
-        /// decode cleanly and the implementation can return later without a
-        /// migration.
-        static let availableCases: [Self] = [.full]
-
-        var label: String {
-            switch self {
-            case .full:        return "Full download (no extra permission)"
-            case .incremental: return "Incremental (needs Accessibility)"
-            }
-        }
-    }
-
-    /// How to apply an update for a self-updating "vendor" app — the official-
-    /// website / self-baked-updater apps surfaced by `VendorProbeSource` (Office,
-    /// Teams, OneDrive, Edge, Chrome, VS Code, Tailscale, …). These all ship their
-    /// own updater (MAU, Keystone, a daemon, Sparkle), so we're only ever a
-    /// fallback — and how aggressively we step in is a user choice:
-    ///   • `.deferWhenRunning` — respect the app's own updater. If it isn't running
-    ///     we download and install over it in place (no live process to disturb);
-    ///     if it IS running we don't swap the bundle under it — we open its own
-    ///     update path instead (a deep link like Chrome's `chrome://settings/help`
-    ///     when the recipe has one, otherwise just bring the app forward so its
-    ///     built-in updater takes over).
-    ///   • `.alwaysOverwrite` — always download and replace in place regardless of
-    ///     whether it's running, then surface a Restart/Relaunch prompt.
-    /// Default `.deferWhenRunning`: never fight a running app's own updater.
-    enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
-        case deferWhenRunning
-        case alwaysOverwrite
-
-        var id: String { rawValue }
-
-        var label: String {
-            switch self {
-            case .deferWhenRunning: return "Defer to the app’s own updater while it’s running"
-            case .alwaysOverwrite:  return "Always download & replace, then restart"
-            }
-        }
-    }
+    /// Re-exported so existing `Preferences.AppStoreUpdateStrategy` /
+    /// `Preferences.VendorInstallPolicy` references keep resolving — the
+    /// definitions moved to DuoUpdaterCore so the CLI shares the same types.
+    typealias AppStoreUpdateStrategy = DuoUpdaterCore.AppStoreUpdateStrategy
+    typealias VendorInstallPolicy = DuoUpdaterCore.VendorInstallPolicy
 
     private enum Key {
         static let githubToken = "GitHubToken"   // legacy plaintext key — migration-only (read once, then removed; token now lives in the Keychain)
@@ -129,8 +77,8 @@ final class Preferences {
         static let pruneOrphanBackups = "PruneOrphanBackups"
         static let notifyOnUpdates = "NotifyOnUpdates"
         static let autoRestartAfterUpdate = "AutoRestartAfterUpdate"
-        static let appStoreUpdateStrategy = "AppStoreUpdateStrategy"
-        static let vendorInstallPolicy = "VendorInstallPolicy"
+        static let appStoreUpdateStrategy = UpdateSettings.appStoreUpdateStrategyKey
+        static let vendorInstallPolicy = UpdateSettings.vendorInstallPolicyKey
         static let customScanPaths = "CustomScanPaths"
         static let ignoredKeys = "IgnoredApps"
         static let skippedVersions = "SkippedVersions"
@@ -397,7 +345,7 @@ final class Preferences {
     /// collision-avoidance rules, while preferences must preserve old ignore/skip
     /// identities exactly.
     func key(for app: InstalledApp) -> String {
-        Self.preferenceKey(app.path.path)
+        InstallPreferenceKey.key(for: app)
     }
 
     /// The previous bundle-id-preferred identity. Entries written before the
@@ -405,17 +353,7 @@ final class Preferences {
     /// an existing ignore/skip never silently resurfaces, and migrate them to the
     /// new key the next time the app is toggled.
     func legacyKey(for app: InstalledApp) -> String {
-        Self.preferenceKey(app.bundleID ?? app.path.path)
-    }
-
-    private static func preferenceKey(_ raw: String) -> String {
-        let safe = raw.unicodeScalars.map { scalar -> Character in
-            let c = Character(scalar)
-            if c.isLetter || c.isNumber || c == "." || c == "-" || c == "_" { return c }
-            return "_"
-        }
-        let joined = String(safe)
-        return joined.isEmpty || joined.allSatisfy { $0 == "." } ? "app" : joined
+        InstallPreferenceKey.legacyKey(for: app)
     }
 
     // MARK: - Custom scan folders

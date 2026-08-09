@@ -55,7 +55,7 @@ public enum Verify {
                 code: 2)
         }
 
-        let installed = options.useInstalled ? installedVersions() : [:]
+        let installed = options.useInstalled ? await installedVersions() : [:]
         print("""
 
           duo verify
@@ -438,17 +438,53 @@ public enum Verify {
         return make(warnings.isEmpty ? .ok : .warn, version: version, warnings: warnings)
     }
 
+    /// How long to wait for the local scan before deciding the cross-check isn't
+    /// worth the run.
+    static let scanTimeout = Duration.seconds(20)
+
     /// Index the locally installed apps by the recipe id they'd be checked
     /// under, so a recipe can find its own installed copy without re-deriving
     /// the channel gate.
-    private static func installedVersions() -> [String: InstalledVersion] {
-        var out: [String: InstalledVersion] = [:]
-        for app in AppScanner().scan() {
-            guard let bundleID = app.bundleID else { continue }
-            out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] =
-                InstalledVersion(marketing: app.shortVersion, build: app.buildVersion)
+    ///
+    /// **Bounded, because this scan can block forever.** `AppScanner` reads
+    /// TestFlight's SQLite database, which lives behind macOS's app-data
+    /// privacy gate. On a machine with someone at the keyboard that surfaces a
+    /// consent prompt; on a headless runner nothing ever answers it and the
+    /// `open()` syscall simply never returns. The first CI run sat in
+    /// `guarded_open_np` until the job timed out.
+    ///
+    /// The blocked thread can't be cancelled — it is stuck in a syscall — so
+    /// this races it instead and moves on. The cross-check is a bonus signal;
+    /// losing it costs one class of finding, while waiting for it costs the
+    /// entire sweep.
+    static func installedVersions() async -> [String: InstalledVersion] {
+        await withTaskGroup(of: [String: InstalledVersion]?.self) { group in
+            group.addTask {
+                var out: [String: InstalledVersion] = [:]
+                for app in AppScanner().scan() {
+                    guard let bundleID = app.bundleID else { continue }
+                    out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] =
+                        InstalledVersion(marketing: app.shortVersion, build: app.buildVersion)
+                }
+                return out
+            }
+            group.addTask {
+                try? await Task.sleep(for: scanTimeout)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            guard let first else {
+                FileHandle.standardError.write(Data("""
+                    ⚠︎ the local app scan did not finish within \(scanTimeout) — continuing \
+                    without the installed-copy cross-check.
+                      Usually means a privacy prompt nobody can answer (TestFlight's \
+                    database is behind the app-data gate).\n
+                    """.utf8))
+                return [:]
+            }
+            return first
         }
-        return out
     }
 }
 

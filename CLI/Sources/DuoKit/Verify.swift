@@ -175,7 +175,11 @@ public enum Verify {
                 outcome, registry: .vendor, host: recipe.url.host ?? "-",
                 pattern: recipe.versionPattern, attempts: attempt + 1,
                 installed: installed[recipe.recipeID],
-                sanity: { RecipeSanity.complaints(version: $0, recipe: recipe) })
+                sanity: { version, remote in
+                    RecipeSanity.complaints(version: version, recipe: recipe)
+                        + [RecipeSanity.crossChannelArtifact(recipe: recipe, remote: remote)]
+                            .compactMap { $0 }
+                })
             if let version = finding.version,
                let complaint = await brewComplaint(bundleID: recipe.bundleID, version: version) {
                 finding = finding.adding(warning: complaint)
@@ -208,7 +212,7 @@ public enum Verify {
                 outcome, registry: .github, host: "api.github.com",
                 pattern: rule.versionPattern, attempts: attempt + 1,
                 installed: installed["vendor:\(rule.bundleID):\(rule.channel.rawValue)"],
-                sanity: { _ in [] }))
+                sanity: { _, _ in [] }))
         }
         return out
     }
@@ -401,7 +405,7 @@ public enum Verify {
     static func classify(
         _ outcome: ProbeOutcome, registry: Registry, host: String, pattern: String?,
         attempts: Int, installed: InstalledVersion?,
-        sanity: (String) -> [String]
+        sanity: (String, RemoteVersion) -> [String]
     ) -> Finding {
         func make(
             _ status: FindingStatus, version: String? = nil, warnings: [String] = []
@@ -432,7 +436,7 @@ public enum Verify {
         // The judgment rules live in `RecipeSanity`, in the core next to the
         // registry they guard — a second copy here would drift from it.
         var warnings = outcome.warnings.map(\.kind)
-        warnings.append(contentsOf: sanity(version))
+        warnings.append(contentsOf: sanity(version, remote))
         if let installed, let complaint = RecipeSanity.remoteBehindInstalled(
             remote: remote, installedMarketing: installed.marketing,
             installedBuild: installed.build) {

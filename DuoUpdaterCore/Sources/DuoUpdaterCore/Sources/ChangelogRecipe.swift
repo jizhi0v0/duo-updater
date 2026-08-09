@@ -1330,20 +1330,25 @@ public enum ChangelogRecipeRegistry {
             stripTags: false,
             channel: .beta),
 
-        // (No Alcove recipe. It parsed `update.tryalcove.com`, which the vendor
-        // retired — NXDOMAIN as of 2026-08-09. The only public surface still
-        // carrying Alcove's bullet text is `www.tryalcove.com/changelog`, and it
-        // carries it in the wrong shape: the page server-renders version numbers
-        // and dates but leaves each entry's body an empty placeholder, with the
-        // actual `features[]`/`fixes[]` arrays inlined in a content-hashed,
-        // minified route chunk (`/assets/ChangelogPage-<hash>.js`). Parsing that
-        // would mean a two-hop fetch, discovering the hash from the page on every
-        // run because it changes on every site deploy, and anchoring on minifier
-        // output — three fragilities stacked, for notes that the licensed
-        // `AlcoveUpdateSource` already returns as `structuredChangelog` for anyone
-        // with credentials. The VendorProbe's `changelogURL` points at that same
-        // page so the workbench embeds it in a WebView, which renders it correctly
-        // with none of the fragility.)
+        // (No Alcove recipe. It parsed the `body` of update.tryalcove.com, which the
+        // vendor retired outright — NXDOMAIN. Its replacement as the public version
+        // surface, download.tryalcove.com/latest, carries only version/build/date/
+        // assets and no release notes of any kind.
+        //
+        // www.tryalcove.com/changelog IS a real page (an earlier note here said the
+        // site served the same SPA shell on every path; that is no longer true), but
+        // it carries the notes in the wrong shape: it server-renders version numbers
+        // and dates while leaving each entry's body an empty placeholder, with the
+        // actual `features[]`/`fixes[]` arrays inlined in a content-hashed, minified
+        // route chunk (`/assets/ChangelogPage-<hash>.js`). Parsing it would mean a
+        // two-hop fetch, rediscovering the hash on every run because it changes on
+        // every site deploy, and anchoring patterns on minifier output — three
+        // fragilities stacked. The VendorProbe's `changelogURL` points at that page
+        // instead, so the workbench embeds it in a WebView and renders it correctly.
+        //
+        // Licensed users get full structured notes from `AlcoveUpdateSource`, which
+        // reads the `sections` array on the authenticated api.tryalcove.com endpoint.
+        // Re-add a recipe here only if Alcove publishes notes in a parseable form.)
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

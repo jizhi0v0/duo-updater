@@ -794,6 +794,56 @@ private func verdict(
     }
 }
 
+// The Release Log places a release exactly only when `publishedAt` survives the
+// whole probe path — recipe pattern → ReleaseDate → RemoteVersion. Alcove's public
+// endpoint states an ISO8601 time with fractional seconds, which is the shape most
+// likely to fall through a parser, so assert the real value end to end.
+@Test func alcoveProbeCarriesPublishedAtThroughToRemoteVersion() throws {
+    let recipe = registryRecipe("com.henrikruscon.Alcove")
+    let pattern = try #require(recipe.publishedAtPattern)
+    let body = #"{"version":"1.7.9","build":203,"published_at":"2026-06-30T20:57:57.000Z",""#
+        + #""assets":[],"minimum_system_version":"15 Sequoia"}"#
+
+    let raw = try #require(VendorProbeRecipe.extractVersion(from: body, pattern: pattern))
+    #expect(raw == "2026-06-30T20:57:57.000Z")
+    let parsed = try #require(ReleaseDate.parse(raw), "fractional-seconds ISO8601 must parse")
+    // 2026-06-30T20:57:57Z — asserted as an epoch so a formatter silently reading
+    // the timestamp in local time (a 2h skew here) can't pass unnoticed.
+    #expect(parsed == Date(timeIntervalSince1970: 1782853077))
+
+    // …and reaches RemoteVersion, which is what ReleaseTimelineStore gates on.
+    let remote = VendorProbeSource.makeRemoteVersion(
+        recipe: recipe, version: "1.7.9", install: nil, plan: nil,
+        resolvedDownload: recipe.downloadURL, publishedAt: parsed)
+    #expect(remote.publishedAt == parsed)
+}
+
+// Recipes without a publishedAtPattern must stay absent rather than inventing a
+// time — the timeline then shows its estimated "≈" window instead.
+@Test func probeWithoutPublishedAtPatternLeavesReleaseTimeUnset() {
+    let recipe = registryRecipe("com.spotify.client")
+    #expect(recipe.publishedAtPattern == nil)
+    let remote = VendorProbeSource.makeRemoteVersion(
+        recipe: recipe, version: "1.2.92.148", install: nil, plan: nil,
+        resolvedDownload: recipe.downloadURL)
+    #expect(remote.publishedAt == nil)
+}
+
+@Test func alcovePublicProbeComparesMarketingToMarketing() {
+    // download.tryalcove.com/latest exposes BOTH `version` (1.7.9, marketing) and
+    // `build` (203). The installed bundle is 1.7.9 (203), so grabbing the build
+    // would compare 203 against 1.7.9 → a phantom update that never clears. Verified
+    // against the real 2026-07-29 response: installed 1.7.9 reads as up to date.
+    let recipe = registryRecipe("com.henrikruscon.Alcove")
+    let installed = installedApp(
+        bundleID: "com.henrikruscon.Alcove", short: "1.7.9", build: "203")
+    #expect(verdict(recipe: recipe, extracted: "1.7.9", installed: installed) == .upToDate)
+    // An older install still sees the real update.
+    let old = installedApp(bundleID: "com.henrikruscon.Alcove", short: "1.7.7", build: "199")
+    #expect(verdict(recipe: recipe, extracted: "1.7.9", installed: old)
+                == .updateAvailable(latest: "1.7.9"))
+}
+
 @Test func intelliJEAPBuildRecipeStripsPrefixAndDoesNotPhantomUpdate() {
     // The EAP recipe extracts the bare build "262.7132.23" (versionIsBuild) while the
     // installed bundle's CFBundleVersion carries the product-code prefix
@@ -1229,4 +1279,40 @@ private let weChatFeed = #"""
     // The trap, documented: an unanchored highest pattern grabs the iOS version.
     #expect(VendorProbeRecipe.highestVersion(
         from: body, pattern: #""version":"([0-9][^"]*)""#) == "3.4.0")
+}
+
+// Alcove — the old public endpoint (update.tryalcove.com) went NXDOMAIN, so the
+// no-credential probe now reads download.tryalcove.com/latest. Real 2026-07-29
+// response below (verbatim, 210 bytes). Two things this locks down:
+//   1. the key is `version`, and the sibling `minimum_system_version` must never be
+//      mistaken for it — hence the `{`/`,` anchor before the key;
+//   2. it stays DETECTION-ONLY: the public dmg beside this metadata was still the
+//      1.7.7 (199) trial build while /latest said 1.7.9, so an install spec would
+//      install a version older than the one detected and strand the row on a
+//      phantom "update available".
+@Test func alcovePublicProbeReadsVersionNotMinimumSystemVersion() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.henrikruscon.Alcove" })
+    #expect(recipe.url.absoluteString == "https://download.tryalcove.com/latest")
+    #expect(recipe.install == nil)      // see (2) above — do not re-attach
+    #expect(!recipe.versionIsBuild)     // `version` is marketing (== CFBundleShortVersionString)
+
+    let body = #"{"version":"1.7.9","build":203,"published_at":"2026-06-30T20:57:57.000Z",""#
+        + #""assets":[{"name":"Alcove.zip","size_bytes":15269999},{"name":"Alcove.dmg","size_bytes":16086914}],"#
+        + #""minimum_system_version":"15 Sequoia"}"#
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "1.7.9")
+
+    // The `build` number must not leak into the compared value (203 > 1.7.9 would
+    // be a permanent phantom update).
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) != "203")
+
+    // Field order isn't guaranteed: even with a version-shaped minimum_system_version
+    // listed first, the anchor keeps us on the real `version` key.
+    let reordered = #"{"build":203,"minimum_system_version":"15.2.1","version":"1.8.0","assets":[]}"#
+    #expect(VendorProbeRecipe.extractVersion(from: reordered, pattern: recipe.versionPattern) == "1.8.0")
+
+    // Regression: the retired update.tryalcove.com shape (`tag_name`) finds nothing
+    // here, which is exactly how the old recipe went silently blank.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: body, pattern: #""tag_name"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#) == nil)
 }

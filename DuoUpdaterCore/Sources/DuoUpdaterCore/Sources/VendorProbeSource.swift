@@ -102,28 +102,141 @@ public struct VendorProbeSource: UpdateSource {
         // the INSTALL must still go through Toolbox, never an in-place bundle swap
         // that would desync Toolbox's state and (for Android Studio) drag a ~1.5 GB
         // dmg off a drop-prone CDN. So resolve detection-only here.
-        let resolved = (try? await probe(recipe, allowInstall: !app.prefersVendorProbeOverToolbox)) ?? nil
+        let outcome = await probeOutcome(
+            recipe, allowInstall: !app.prefersVendorProbeOverToolbox)
         // Record recipe health so a vendor changing their page surfaces in
         // diagnostics rather than silently degrading the app to "unknown". A
         // transient miss is cleared by the next successful check (success/miss are
         // compared by recency), so this only flags consistently-broken recipes.
-        if resolved != nil {
+        if outcome.remote != nil {
             await RecipeHealth.shared.recordSuccess(id: bundleID, source: name)
         } else {
             await RecipeHealth.shared.recordMiss(
-                id: bundleID, source: name, detail: "probe resolved no version")
+                id: bundleID, source: name,
+                detail: outcome.failure.map { "\($0.kind): \($0.detail)" }
+                    ?? "probe resolved no version")
         }
-        return resolved
+        return outcome.remote
+    }
+
+    /// Run one recipe and report everything that happened, including the parts
+    /// `latestVersion(for:)` discards.
+    ///
+    /// This lives on `VendorProbeSource` rather than in a verification tool on
+    /// purpose: it must share the exact same redirect-blocking session, browser
+    /// user agent, cache policy and HTTPS normalization as the shipping path. A
+    /// reimplementation elsewhere would drift and start reporting failures the
+    /// app never sees — and, worse, passes for recipes the app can't actually
+    /// resolve.
+    public func probeDiagnostic(_ recipe: VendorProbeRecipe) async -> ProbeOutcome {
+        await probeOutcome(recipe, allowInstall: true)
+    }
+
+    /// What a mode's fetch step yields on success: the text the version pattern
+    /// runs against, the download URL that text resolved to, and the status code.
+    private struct FetchedBody {
+        let text: String
+        let resolvedDownload: URL?
+        let status: Int?
     }
 
     /// Run one recipe. Returns nil (→ "unknown") on any non-confident outcome.
     /// `allowInstall` false forces a detection-only result even when the recipe
     /// carries an install spec — used for apps whose install another channel owns
     /// (Toolbox-managed), where we want the version but not an in-place swap.
-    private func probe(_ recipe: VendorProbeRecipe, allowInstall: Bool = true) async throws -> RemoteVersion? {
-        let text: String
-        let resolvedDownload: URL?
+    ///
+    /// Never throws: every failure is captured as a `ProbeFailure` on the
+    /// outcome, so callers that only want the version read `outcome.remote` and
+    /// get exactly the old best-effort `nil`.
+    func probeOutcome(_ recipe: VendorProbeRecipe, allowInstall: Bool = true) async -> ProbeOutcome {
+        let started = DispatchTime.now()
+        func elapsed() -> Int {
+            Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
+        }
+        func fail(_ failure: ProbeFailure, status: Int? = nil, sample: String? = nil) -> ProbeOutcome {
+            ProbeOutcome(
+                recipeID: recipe.recipeID, bundleID: recipe.bundleID, channel: recipe.channel,
+                remote: nil, failure: failure, httpStatus: status,
+                bodySample: sample, elapsedMs: elapsed())
+        }
 
+        let body: FetchedBody
+        switch await fetchBody(recipe) {
+        case .failure(let failure):
+            // A status-code failure is worth keeping the code for even though
+            // there's no body to sample.
+            if case .httpStatus(let code) = failure { return fail(failure, status: code) }
+            return fail(failure)
+        case .success(let fetched):
+            body = fetched
+        }
+
+        let sample = ProbeOutcome.sample(body.text)
+
+        // Default to the first match (the app's own field, which structured
+        // bodies list first); only ascending-order feeds opt into highest-wins.
+        let extractor = recipe.selectHighest
+            ? VendorProbeRecipe.highestVersion
+            : VendorProbeRecipe.extractVersion
+        guard let version = extractor(body.text, recipe.versionPattern) else {
+            // Symmetric with `GitHubReleasesSource`, which has logged its
+            // pattern misses since day one. A probe that fetched fine and matched
+            // nothing is the exact shape of a vendor rewriting their page, and
+            // until now it left no trace in the log at all.
+            Log.source.error(
+                "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: \(body.text.utf8.count) bytes fetched, none matched /\(recipe.versionPattern, privacy: .public)/")
+            return fail(
+                .versionPatternNoMatch(sampleBytes: body.text.utf8.count),
+                status: body.status, sample: sample)
+        }
+
+        // Optional clean marketing string to show instead of an ugly build id
+        // (e.g. Android Studio's "2026.1.2 RC 1" vs "AI-261.…"). Display only; the
+        // build still drives the comparison. From the same body, so first-match.
+        let display = recipe.displayVersionPattern.flatMap {
+            VendorProbeRecipe.extractVersion(from: body.text, pattern: $0)
+        }
+
+        var warnings: [ProbeWarning] = []
+        var remote: RemoteVersion
+
+        // If this recipe knows how to install in place, resolve the installer URL
+        // (and any checksum) now — from the same body we already have. A failure
+        // here just falls back to detection-only; it never blocks the version.
+        if allowInstall, let spec = recipe.install {
+            if let plan = try? await resolveInstall(spec, body: body.text) {
+                remote = Self.makeRemoteVersion(
+                    recipe: recipe, version: version, install: spec, plan: plan,
+                    resolvedDownload: body.resolvedDownload, display: display)
+                // A recipe that names a checksum pattern but no longer matches one
+                // still installs — unverified. Silent today; flag it.
+                if spec.checksumPattern != nil, plan.checksum == nil {
+                    warnings.append(.checksumPatternNoMatch)
+                }
+            } else {
+                // Version still reads, one-click is dead. The app shows this app
+                // as up-to-date-detectable but no longer installable, with no
+                // signal anywhere — so name it.
+                warnings.append(.installURLUnresolved)
+                remote = Self.makeRemoteVersion(
+                    recipe: recipe, version: version, install: nil, plan: nil,
+                    resolvedDownload: body.resolvedDownload, display: display)
+            }
+        } else {
+            remote = Self.makeRemoteVersion(
+                recipe: recipe, version: version, install: nil, plan: nil,
+                resolvedDownload: body.resolvedDownload, display: display)
+        }
+
+        return ProbeOutcome(
+            recipeID: recipe.recipeID, bundleID: recipe.bundleID, channel: recipe.channel,
+            remote: remote, failure: nil, warnings: warnings,
+            httpStatus: body.status, bodySample: sample, elapsedMs: elapsed())
+    }
+
+    /// The per-mode fetch half of a probe, with each `return nil` in the original
+    /// replaced by the specific reason it happened.
+    private func fetchBody(_ recipe: VendorProbeRecipe) async -> Result<FetchedBody, ProbeFailure> {
         switch recipe.mode {
         case .redirectFilename:
             var request = URLRequest(url: recipe.url)
@@ -135,14 +248,21 @@ public struct VendorProbeSource: UpdateSource {
                 // HEAD + follow: the version lives in the final resolved URL's
                 // filename (e.g. "ToDesk_4.7.6.0.dmg").
                 request.httpMethod = "HEAD"
-                let (_, response) = try await session.data(for: request)
-                guard
-                    let http = response as? HTTPURLResponse,
-                    (200..<400).contains(http.statusCode),
-                    let finalURL = response.url
-                else { return nil }
-                text = finalURL.lastPathComponent
-                resolvedDownload = finalURL
+                let response: URLResponse
+                do { (_, response) = try await session.data(for: request) }
+                catch { return .failure(Self.transportFailure(error)) }
+                guard let http = response as? HTTPURLResponse else {
+                    return .failure(.nonHTTPResponse)
+                }
+                guard (200..<400).contains(http.statusCode) else {
+                    return .failure(.httpStatus(http.statusCode))
+                }
+                guard let finalURL = response.url else {
+                    return .failure(.malformedResolvedURL("response carried no final URL"))
+                }
+                return .success(FetchedBody(
+                    text: finalURL.lastPathComponent, resolvedDownload: finalURL,
+                    status: http.statusCode))
             } else {
                 // GET + don't follow: read the version out of the 3xx `Location`
                 // header itself (following would just download the target). Some
@@ -150,15 +270,23 @@ public struct VendorProbeSource: UpdateSource {
                 // GET, reject HEAD with 405, and expose the version nowhere but
                 // the Location path, so `text` is the full redirect target.
                 request.httpMethod = "GET"
-                let (_, response) = try await Self.noRedirectSession.data(for: request)
-                guard
-                    let http = response as? HTTPURLResponse,
-                    (300..<400).contains(http.statusCode),
-                    let location = http.value(forHTTPHeaderField: "Location"),
-                    let finalURL = URL(string: location, relativeTo: recipe.url)?.absoluteURL
-                else { return nil }
-                text = finalURL.absoluteString
-                resolvedDownload = finalURL
+                let response: URLResponse
+                do { (_, response) = try await Self.noRedirectSession.data(for: request) }
+                catch { return .failure(Self.transportFailure(error)) }
+                guard let http = response as? HTTPURLResponse else {
+                    return .failure(.nonHTTPResponse)
+                }
+                guard (300..<400).contains(http.statusCode) else {
+                    return .failure(.httpStatus(http.statusCode))
+                }
+                guard let location = http.value(forHTTPHeaderField: "Location") else {
+                    return .failure(.redirectMissingLocation)
+                }
+                guard let finalURL = URL(string: location, relativeTo: recipe.url)?.absoluteURL
+                else { return .failure(.malformedResolvedURL(location)) }
+                return .success(FetchedBody(
+                    text: finalURL.absoluteString, resolvedDownload: finalURL,
+                    status: http.statusCode))
             }
 
         case .responseBody:
@@ -171,54 +299,40 @@ public struct VendorProbeSource: UpdateSource {
             // / Location), so widen the accepted range and use the blocking session.
             let activeSession = recipe.followRedirects ? session : Self.noRedirectSession
             let okRange = recipe.followRedirects ? (200..<300) : (200..<400)
-            let (data, response) = try await activeSession.data(for: request)
-            guard
-                let http = response as? HTTPURLResponse,
-                okRange.contains(http.statusCode)
-            else { return nil }
-
-            text = String(decoding: data, as: UTF8.self)
-            resolvedDownload = recipe.downloadURL ?? recipe.url
+            let data: Data
+            let response: URLResponse
+            do { (data, response) = try await activeSession.data(for: request) }
+            catch { return .failure(Self.transportFailure(error)) }
+            guard let http = response as? HTTPURLResponse else {
+                return .failure(.nonHTTPResponse)
+            }
+            guard okRange.contains(http.statusCode) else {
+                return .failure(.httpStatus(http.statusCode))
+            }
+            return .success(FetchedBody(
+                text: String(decoding: data, as: UTF8.self),
+                resolvedDownload: recipe.downloadURL ?? recipe.url,
+                status: http.statusCode))
 
         case .zipEntryPlist(let entry, let key):
             // The version lives in a bundled Info.plist inside a (small) zip —
             // see `Mode.zipEntryPlist`. We extract the one entry and read `key`;
             // `text` becomes that value so the shared `versionPattern` validates
-            // it exactly like any other mode. Any failure → nil → "unknown".
-            guard let value = try await zipEntryPlistValue(
-                url: recipe.url, entry: entry, key: key)
-            else { return nil }
-            text = value
-            resolvedDownload = recipe.downloadURL ?? recipe.url
+            // it exactly like any other mode.
+            return await zipEntryPlistValue(url: recipe.url, entry: entry, key: key)
+                .map { FetchedBody(
+                    text: $0, resolvedDownload: recipe.downloadURL ?? recipe.url,
+                    status: nil) }
         }
+    }
 
-        // Default to the first match (the app's own field, which structured
-        // bodies list first); only ascending-order feeds opt into highest-wins.
-        let extractor = recipe.selectHighest
-            ? VendorProbeRecipe.highestVersion
-            : VendorProbeRecipe.extractVersion
-        guard let version = extractor(text, recipe.versionPattern) else { return nil }
-
-        // Optional clean marketing string to show instead of an ugly build id
-        // (e.g. Android Studio's "2026.1.2 RC 1" vs "AI-261.…"). Display only; the
-        // build still drives the comparison. From the same body, so first-match.
-        let display = recipe.displayVersionPattern.flatMap {
-            VendorProbeRecipe.extractVersion(from: text, pattern: $0)
-        }
-
-        // If this recipe knows how to install in place, resolve the installer URL
-        // (and any checksum) now — from the same body we already have. A failure
-        // here just falls back to detection-only; it never blocks the version.
-        if allowInstall, let spec = recipe.install,
-           let plan = try? await resolveInstall(spec, body: text) {
-            return Self.makeRemoteVersion(
-                recipe: recipe, version: version, install: spec, plan: plan,
-                resolvedDownload: resolvedDownload, display: display)
-        }
-
-        return Self.makeRemoteVersion(
-            recipe: recipe, version: version, install: nil, plan: nil,
-            resolvedDownload: resolvedDownload, display: display)
+    /// Classify a thrown networking error. `URLError` covers DNS, TLS, timeouts
+    /// and dropped connections — all "try again", never "fix the recipe".
+    private static func transportFailure(_ error: Error) -> ProbeFailure {
+        let urlError = error as? URLError
+        return .transport(
+            urlErrorCode: urlError?.errorCode ?? (error as NSError).code,
+            urlError?.localizedDescription ?? error.localizedDescription)
     }
 
     /// Assemble the `RemoteVersion` a recipe yields from an already-extracted
@@ -334,20 +448,25 @@ public struct VendorProbeSource: UpdateSource {
     /// Download a (small) zip and read one property-list entry's string value —
     /// the runtime behind `Mode.zipEntryPlist`. Used for vendors (Spotify) whose
     /// only cheap version surface is a stub-installer archive whose bundled app's
-    /// Info.plist tracks the latest client version. Returns nil on any failure so
-    /// the probe degrades to "unknown" rather than guessing.
+    /// Info.plist tracks the latest client version. Every failure degrades the
+    /// probe to "unknown" rather than guessing; the `Result` says which one.
     private func zipEntryPlistValue(
         url: URL, entry: String, key: String
-    ) async throws -> String? {
+    ) async -> Result<String, ProbeFailure> {
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await session.data(for: request)
-        guard
-            let http = response as? HTTPURLResponse,
-            (200..<300).contains(http.statusCode)
-        else { return nil }
+        let data: Data
+        let response: URLResponse
+        do { (data, response) = try await session.data(for: request) }
+        catch { return .failure(Self.transportFailure(error)) }
+        guard let http = response as? HTTPURLResponse else {
+            return .failure(.nonHTTPResponse)
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            return .failure(.httpStatus(http.statusCode))
+        }
 
         // `unzip` needs a seekable file (the zip's central directory lives at the
         // end), so stage the archive in a temp file and extract just the one entry
@@ -355,7 +474,8 @@ public struct VendorProbeSource: UpdateSource {
         // read-then-wait can't deadlock.
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("vendorprobe-\(UUID().uuidString).zip")
-        try data.write(to: tmp)
+        do { try data.write(to: tmp) }
+        catch { return .failure(.archiveExtractionFailed("cannot stage archive: \(error.localizedDescription)")) }
         defer { try? FileManager.default.removeItem(at: tmp) }
 
         let proc = Process()
@@ -364,20 +484,29 @@ public struct VendorProbeSource: UpdateSource {
         let out = Pipe()
         proc.standardOutput = out
         proc.standardError = FileHandle.nullDevice
-        do { try proc.run() } catch { return nil }
+        do { try proc.run() }
+        catch { return .failure(.archiveExtractionFailed("cannot run unzip: \(error.localizedDescription)")) }
         let plistData = out.fileHandleForReading.readDataToEndOfFile()
         proc.waitUntilExit()
-        guard proc.terminationStatus == 0, !plistData.isEmpty else { return nil }
+        guard proc.terminationStatus == 0 else {
+            return .failure(.archiveExtractionFailed(
+                "unzip exited \(proc.terminationStatus) extracting '\(entry)'"))
+        }
+        guard !plistData.isEmpty else {
+            return .failure(.archiveExtractionFailed("'\(entry)' extracted empty"))
+        }
 
         // Parse as a property list (Spotify's is a binary plist, `bplist00`) and
         // read the requested key as a string.
         guard
             let obj = try? PropertyListSerialization.propertyList(
                 from: plistData, options: [], format: nil),
-            let dict = obj as? [String: Any],
-            let value = dict[key] as? String
-        else { return nil }
-        return value
+            let dict = obj as? [String: Any]
+        else { return .failure(.archiveExtractionFailed("'\(entry)' is not a property list")) }
+        guard let value = dict[key] as? String else {
+            return .failure(.plistKeyMissing(entry: entry, key: key))
+        }
+        return .success(value)
     }
 
     /// Upgrade/normalize download URLs to HTTPS. Our vendor hosts all support TLS,

@@ -955,10 +955,13 @@ private let weChatFeed = #"""
     }
 }
 
-// Signal — one-click resolves the UNIVERSAL dmg from the same latest-mac.yml we
-// probe (not the per-arch zips), against updates.signal.org/desktop/, and pulls
-// the dmg's own sha512 from the next yml line. Exercise both on the real yml shape.
-@Test func signalOneClickResolvesUniversalDmgAndChecksum() throws {
+// Signal stable — one-click resolves the UNIVERSAL dmg from the same latest-mac.yml
+// we probe (not the per-arch zips), against updates.signal.org/desktop/. There is
+// deliberately no checksum to assert: Signal staples the dmg after electron-builder
+// writes the yml, so the feed's sha512 never matches the served bytes (see
+// `signalRecipesCarryNoChecksum`). Per-channel filenames: see
+// `signalInstallPatternsAreChannelSpecific`.
+@Test func signalOneClickResolvesUniversalDmg() throws {
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "org.whispersystems.signal-desktop" })
     let body = """
@@ -984,9 +987,6 @@ private let weChatFeed = #"""
     // Must grab the universal dmg, never the x64/arm64 zips.
     #expect(URL(string: fn, relativeTo: base)?.absoluteString
         == "https://updates.signal.org/desktop/signal-desktop-mac-universal-8.14.0.dmg")
-    // Checksum pattern must read the dmg's sha512 (the line after its url), not a zip's.
-    let csum = try #require(install.checksumPattern)
-    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: csum) == "DMGuniversalSha512Value==")
 }
 
 // Obsidian — the manifest's own downloadUrl is an asar.gz we can't apply, so the

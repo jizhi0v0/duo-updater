@@ -15,25 +15,34 @@ import CryptoKit
     func log(_ s: String) { err.write((s + "\n").data(using: .utf8)!) }
 
     // The bundles we've enabled for one-click install (zip/dmg/tarGz swap, or
-    // pkg → system installer).
-    let targets = [
-        "com.microsoft.VSCode", "app.chatwise",
-        "com.openai.codex", "com.conductor.app",
-        "org.videolan.vlc", "dev.kdrag0n.MacVirt",
-        "io.tailscale.ipn.macsys", "com.anthropic.claudefordesktop",
-        "ai.elementlabs.lmstudio", "dev.warp.Warp-Stable",
-        "com.google.android.studio",  // website-install path (Toolbox copies are gated)
-        "com.oray.sunlogin.macclient",  // AweSun: pkg → system installer (WAF Referer)
-        "com.postmanlabs.mac",          // Postman: zip → in-place (self-updater, same Team)
+    // pkg → system installer). The channel is load-bearing: `VendorProbeSource`
+    // only picks a recipe whose channel matches the app's, and `InstalledApp`
+    // defaults to `.stable` — so a non-stable recipe must be asked for by channel
+    // or it silently resolves nothing.
+    let targets: [(id: String, channel: ReleaseChannel)] = [
+        ("com.microsoft.VSCode", .stable), ("app.chatwise", .stable),
+        ("com.openai.codex", .stable), ("com.conductor.app", .stable),
+        ("org.videolan.vlc", .stable), ("dev.kdrag0n.MacVirt", .stable),
+        ("io.tailscale.ipn.macsys", .stable), ("com.anthropic.claudefordesktop", .stable),
+        ("ai.elementlabs.lmstudio", .stable), ("dev.warp.Warp-Stable", .stable),
+        ("com.google.android.studio", .stable),  // website-install path (Toolbox copies are gated)
+        ("com.oray.sunlogin.macclient", .stable),  // AweSun: pkg → system installer (WAF Referer)
+        ("com.postmanlabs.mac", .stable),          // Postman: zip → in-place (self-updater, same Team)
+        // Both Signal channels: the per-channel dmg filenames differ (beta carries
+        // an extra `beta-` segment) and a vendor rename silently drops one-click to
+        // detection-only, so each channel has to be resolved live, not just offline.
+        ("org.whispersystems.signal-desktop", .stable),
+        ("org.whispersystems.signal-desktop-beta", .beta),
     ]
     let source = VendorProbeSource()
     log("\n=== vendor install plans ===")
-    for bundleID in targets {
+    for (bundleID, channel) in targets {
         let app = InstalledApp(
             name: bundleID, bundleID: bundleID,
             shortVersion: "0.0.0", buildVersion: "0",
             path: URL(fileURLWithPath: "/Applications/\(bundleID).app"),
-            isMASApp: false, sparkleFeedURL: nil)
+            isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: channel)
         let remote = try? await source.latestVersion(for: app)
         let kind = remote?.vendorInstallerKind.map { "\($0)" } ?? "nil"
         let sum = remote?.expectedSHA512 != nil ? "sha512✓" : "—"

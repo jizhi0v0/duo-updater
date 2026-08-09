@@ -1,0 +1,109 @@
+# Sweep every hand-written detection and changelog recipe against its live
+# endpoint, and open one issue per recipe that stopped working.
+#
+# This exists because recipe breakage is silent by construction: a vendor
+# rewrites their download page, the probe returns nil, the app degrades that row
+# to "unknown", and nobody notices. Three such fixes shipped on 2026-08-08 and
+# all three were found by accident.
+#
+# Runs on the self-hosted Mac mini. That is not a cost decision — the sweep links
+# DuoUpdaterCore, which needs CryptoKit/Security/AppKit and so cannot build on a
+# Linux runner, and keeping it on hardware you own means no repository secret has
+# to exist for it at all.
+name: recipe-verify
+
+on:
+  schedule:
+    # 04:17 UTC daily. Off the hour on purpose: GitHub's scheduler is heavily
+    # contended at :00 and delays runs by tens of minutes.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Restrict to recipes whose bundle id contains this (comma-separated)"
+        required: false
+      dry_run:
+        description: "Report findings but never touch issues"
+        type: boolean
+        default: false
+
+# Never cancel a run in flight: the baseline is written near the end, and a
+# half-written one loses every issue number it holds.
+concurrency:
+  group: recipe-verify
+  cancel-in-progress: false
+
+permissions:
+  # Issues live in this same repository, so the per-job GITHUB_TOKEN is enough —
+  # it is scoped to this repo regardless of visibility. A PAT would only be
+  # needed to file into a different repo, which this never does.
+  issues: write
+  # For committing the updated baseline back.
+  contents: write
+
+jobs:
+  verify:
+    runs-on: [self-hosted, macOS, ARM64, duo-mini]
+    timeout-minutes: 30
+    env:
+      # The runner runs as the same user as the menu-bar app. Without this the
+      # sweep writes into the live ChangelogDiskCache and traffic store that the
+      # running app is using.
+      DUO_STATE_DIR: ${{ runner.temp }}/duo-state
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Build the verifier
+        run: swift build -c release --package-path CLI --product duo
+
+      - name: Sweep
+        id: sweep
+        # A broken recipe must not fail the job — the sweep finding something is
+        # the system working, and a red run here would train everyone to ignore
+        # it. Genuine failures (build, reconcile) still fail below.
+        continue-on-error: true
+        run: |
+          ./CLI/.build/release/duo verify \
+            --baseline verify/baseline.json \
+            --report   verify/report.json \
+            --markdown verify/report.md \
+            ${{ inputs.only && format('--only {0}', inputs.only) || '' }}
+        # The installed-copy cross-check is left ON even though a runner usually
+        # has nothing installed: if the mini does happen to have some of these
+        # apps, that check is free signal, and if it doesn't, it simply finds
+        # nothing. It can only fire when the vendor feed is *behind* the local
+        # copy, so a stale install can't produce a false positive.
+
+      - name: File and close issues
+        if: hashFiles('verify/report.json') != ''
+        run: |
+          ./CLI/.build/release/duo reconcile \
+            --report   verify/report.json \
+            --baseline verify/baseline.json \
+            ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-report
+          path: verify/report.*
+          retention-days: 30
+
+      - name: Persist the baseline
+        # Carries next run's failure streaks and issue numbers. Also keeps the
+        # repository "active" — GitHub disables scheduled workflows after 60 days
+        # of no activity.
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name  "duo-verify"
+          git config user.email "duo-verify@users.noreply.github.com"
+          git add verify/baseline.json
+          git diff --staged --quiet || {
+            git commit -m "verify: update recipe baseline [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          }

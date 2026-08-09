@@ -213,10 +213,16 @@ public enum Install {
             // the alternative is discovering the safety net is gone only when a
             // later rollback finds nothing.
             if keepBackups, InstallCoordinator.wantsBackup(item.route) {
-                if await InstallCoordinator.backUp(item.result.app) {
+                switch await InstallCoordinator.backUp(item.result.app, route: item.route) {
+                case .saved:
                     if !json { print("   backed up \(item.result.app.shortVersion ?? "current")") }
-                } else if !json {
-                    print("   could not back up — installing without a rollback point")
+                case .unreadable(let path):
+                    if !json {
+                        print("   no rollback point: \(path) is not readable by you")
+                        print("   (common for .pkg apps, which are often root-owned)")
+                    }
+                case .failed:
+                    if !json { print("   could not back up — installing without a rollback point") }
                 }
             }
             do {

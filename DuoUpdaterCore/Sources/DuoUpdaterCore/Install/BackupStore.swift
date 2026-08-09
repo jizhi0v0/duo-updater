@@ -33,6 +33,15 @@ public enum BackupStore {
         public let version: String?
         public let bundlePath: URL
         public let savedAt: Date
+        /// Whether the update this backup was taken for was applied by a `.pkg`
+        /// through the system installer.
+        ///
+        /// It matters at restore time: a pkg can install helpers, daemons and
+        /// launch items alongside the `.app`, and we only ever copy the bundle.
+        /// Restoring one therefore gives an older app beside newer components,
+        /// which is worth saying out loud rather than presenting as a clean
+        /// rollback. Nil for backups written before this was recorded.
+        public let fromPackageInstall: Bool?
     }
 
     /// JSON sidecar persisted next to a backed-up bundle.
@@ -42,6 +51,10 @@ public enum BackupStore {
         let originalPath: String
         let bundleName: String
         let savedAt: Date
+        /// Optional so sidecars written before this field decode unchanged —
+        /// a stricter decoder would make every existing backup unreadable, and
+        /// `backup(forKey:)` returns nil without a readable sidecar.
+        var fromPackageInstall: Bool?
     }
 
     /// A filesystem-safe directory name for one installed copy of an app. It keeps
@@ -87,13 +100,41 @@ public enum BackupStore {
 
     // MARK: - Save
 
+    /// The first path inside `appPath` we cannot read, or nil when the whole
+    /// bundle is copyable.
+    ///
+    /// Worth checking before `save` because `ditto` fails *late*: it copies what
+    /// it can and only then exits non-zero, so a bundle with one unreadable file
+    /// costs a full-size copy that is thrown away. A `.pkg`-installed app is the
+    /// common case — those are frequently root-owned and keep runtime state
+    /// inside their own bundle (ToDesk writes an mmkv database and log caches
+    /// under `Contents/`, root-owned and unreadable by the user), so this is the
+    /// difference between "no rollback point, and here is why" and 300 MB of
+    /// pointless copying on every install.
+    ///
+    /// A stat per file, so cheap next to the copy it guards.
+    public static func firstUnreadablePath(in appPath: URL) -> String? {
+        let fm = FileManager.default
+        guard let walker = fm.enumerator(
+            at: appPath, includingPropertiesForKeys: [.isRegularFileKey],
+            options: [])
+        else { return appPath.path }
+        for case let url as URL in walker {
+            let isRegular = (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile
+            guard isRegular == true else { continue }
+            if !fm.isReadableFile(atPath: url.path) { return url.path }
+        }
+        return nil
+    }
+
     /// Copy the bundle currently at `appPath` into the backup store as the
     /// rollback point for `key`, replacing any previous backup (retention = 1).
     /// Returns the stored backup. Throws if the copy fails — the caller should
     /// treat that as "no rollback point" but must NOT block the update on it.
     @discardableResult
     public static func save(
-        appPath: URL, key: String, version: String?, bundleID: String?
+        appPath: URL, key: String, version: String?, bundleID: String?,
+        fromPackageInstall: Bool = false
     ) throws -> Backup {
         let fm = FileManager.default
         let dir = root.appendingPathComponent(key, isDirectory: true)
@@ -121,7 +162,8 @@ public enum BackupStore {
         let savedAt = Date()
         let meta = Meta(
             version: version, bundleID: bundleID,
-            originalPath: appPath.path, bundleName: name, savedAt: savedAt)
+            originalPath: appPath.path, bundleName: name, savedAt: savedAt,
+            fromPackageInstall: fromPackageInstall)
         // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
         // without it), so a backup whose sidecar didn't write is unusable. Fail the
         // save (leaving the prior backup intact) rather than leave an invisible bundle.
@@ -153,7 +195,9 @@ public enum BackupStore {
         // of leaking a whole stale bundle per migrated app.
         let legacy = legacyKey(bundleID: bundleID, path: appPath)
         if legacy != key { remove(forKey: legacy) }
-        return Backup(key: key, version: version, bundlePath: dest, savedAt: savedAt)
+        return Backup(
+            key: key, version: version, bundlePath: dest, savedAt: savedAt,
+            fromPackageInstall: fromPackageInstall)
     }
 
     // MARK: - Query
@@ -166,7 +210,9 @@ public enum BackupStore {
               let meta = try? JSONDecoder().decode(Meta.self, from: data) else { return nil }
         let bundle = dir.appendingPathComponent(meta.bundleName)
         guard FileManager.default.fileExists(atPath: bundle.path) else { return nil }
-        return Backup(key: key, version: meta.version, bundlePath: bundle, savedAt: meta.savedAt)
+        return Backup(
+            key: key, version: meta.version, bundlePath: bundle, savedAt: meta.savedAt,
+            fromPackageInstall: meta.fromPackageInstall)
     }
 
     // MARK: - Restore

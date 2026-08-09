@@ -310,4 +310,80 @@ struct BackupStoreTests {
             #expect(BackupStore.totalSize() > 0)
         }
     }
+
+    // MARK: - Package provenance
+
+    /// `.pkg` installs take a rollback point too (they had none until
+    /// 2026-08-09), but restoring one only puts the app bundle back — a package
+    /// can lay down helpers and daemons beside it. The store records which kind
+    /// it was so the restore path can say so.
+    @Test func aPackageBackupRemembersHowItWasInstalled() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "v1")
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            try BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp",
+                fromPackageInstall: true)
+            #expect(BackupStore.backup(forKey: key)?.fromPackageInstall == true)
+        }
+    }
+
+    @Test func anInPlaceBackupIsNotMarkedAsAPackage() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "v1")
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            try BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+            #expect(BackupStore.backup(forKey: key)?.fromPackageInstall == false)
+        }
+    }
+
+    /// Sidecars written before the field existed must still decode. A backup whose
+    /// sidecar cannot be read is treated as absent, so a stricter decoder would
+    /// have made every pre-existing rollback point silently vanish.
+    @Test func aSidecarWithoutTheFieldStillReads() throws {
+        try withScratchRoot { root in
+            let key = "com.example.legacy-0000"
+            let dir = root.appendingPathComponent(key, isDirectory: true)
+            try makeApp(named: "Legacy.app", in: dir, marker: "old")
+            let sidecar = """
+            {"version":"1.0","bundleID":"com.example.legacy",\
+            "originalPath":"/Applications/Legacy.app","bundleName":"Legacy.app",\
+            "savedAt":\(Date().timeIntervalSinceReferenceDate)}
+            """
+            try Data(sidecar.utf8).write(to: dir.appendingPathComponent("backup.json"))
+
+            let backup = BackupStore.backup(forKey: key)
+            #expect(backup != nil, "an older sidecar must still be readable")
+            #expect(backup?.fromPackageInstall == nil, "unknown, not false")
+        }
+    }
+
+    /// `ditto` fails *late* — it copies what it can and only then exits
+    /// non-zero — so a bundle with one unreadable file costs a full-size copy
+    /// that is thrown away, and (when the unreadable files are root-owned) the
+    /// staging cleanup cannot remove its own leftovers either. The pre-check is
+    /// what keeps a `.pkg` app from paying that on every install.
+    @Test func anUnreadableFileIsFoundBeforeAnythingIsCopied() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "v1")
+            #expect(BackupStore.firstUnreadablePath(in: app) == nil)
+
+            let secret = app.appendingPathComponent("Contents/secret.db")
+            try Data("x".utf8).write(to: secret)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o000], ofItemAtPath: secret.path)
+            defer {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o644], ofItemAtPath: secret.path)
+            }
+            // Compared through `resolvingSymlinksInPath`: the enumerator hands
+            // back resolved URLs, and the scratch root lives under /tmp, which is
+            // a symlink to /private/tmp. Identical for a real /Applications path.
+            let found = BackupStore.firstUnreadablePath(in: app).map {
+                URL(fileURLWithPath: $0).resolvingSymlinksInPath().path
+            }
+            #expect(found == secret.resolvingSymlinksInPath().path)
+        }
+    }
 }

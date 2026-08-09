@@ -1765,10 +1765,10 @@ final class AppListModel {
         // shared so `duo install` cannot quietly skip the safety net the app
         // provides — it did, until a real install through the CLI showed the
         // backup timestamp hadn't moved.
-        if prefs.keepBackups,
-           InstallCoordinator.wantsBackup(
-            InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))) {
-            await backupCurrent(result)
+        let backupRoute = InstallCoordinator.route(
+            for: result, requiresInstaller: requiresInstaller(result))
+        if prefs.keepBackups, InstallCoordinator.wantsBackup(backupRoute) {
+            await backupCurrent(result, route: backupRoute)
         }
 
         do {
@@ -2743,9 +2743,14 @@ final class AppListModel {
     /// Copy the app's current bundle into the backup store before we replace it,
     /// so the update can be undone. Best-effort: a failed backup logs and proceeds
     /// (the user opted into the update; a missing safety net mustn't block it).
-    private func backupCurrent(_ result: UpdateResult) async {
-        let ok = await InstallCoordinator.backUp(result.app)
-        if !ok {
+    private func backupCurrent(_ result: UpdateResult, route: InstallCoordinator.Route) async {
+        let outcome = await InstallCoordinator.backUp(result.app, route: route)
+        if case .unreadable(let path) = outcome {
+            Log.install.notice("backup skipped: \(result.app.name, privacy: .public) — \(path, privacy: .public) unreadable")
+            installNotes[result.id] =
+                "No rollback point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned)."
+        }
+        if outcome == .failed {
             Log.install.error("backup failed: \(result.app.name, privacy: .public) — proceeding without a rollback point")
             // Tell the user their safety net is gone for this update, rather than
             // discovering it only when they later try to roll back and find nothing.

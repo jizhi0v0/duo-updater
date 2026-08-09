@@ -152,12 +152,24 @@ public enum Backups {
                 "duo: no backup stored for \(app.name)\n".utf8))
             return 1
         }
-        let previousVersion = BackupStore.backup(forKey: key)?.version
+        let stored = BackupStore.backup(forKey: key)
+        let previousVersion = stored?.version
 
         if !json {
             print("Will restore \(app.name)  \(app.shortVersion ?? "?")"
                 + "  →  \(previousVersion ?? "?")")
             print("  \(app.path.path)")
+            // Said before the confirmation, not after: a pkg lays down helpers,
+            // daemons and launch items beside the .app and we only copy the
+            // bundle, so this particular rollback is partial and the user should
+            // know that while deciding.
+            if stored?.fromPackageInstall == true {
+                print("""
+                  Note: this version was installed by a .pkg. Only the app bundle
+                  is restored — any helper, daemon or launch item the package
+                  installed stays at its newer version.
+                """)
+            }
         }
         guard assumeYes || confirm(app: app.name) else {
             print("Cancelled.")

@@ -71,3 +71,21 @@ import Foundation
         after.release()
     }
 }
+
+/// Which routes get a rollback point, and whether the store remembers that a
+/// backup came from a `.pkg` — the restore path words itself differently for
+/// those, because only the app bundle comes back.
+@Suite struct BackupProvenanceTests {
+
+    @Test func everyRouteWeApplyOurselvesGetsABackup() {
+        #expect(InstallCoordinator.wantsBackup(.vendor))
+        #expect(InstallCoordinator.wantsBackup(.sparkle))
+        #expect(InstallCoordinator.wantsBackup(.homebrew))
+        // Included as of 2026-08-09: these had no rollback point at all, which is
+        // the case where one is most wanted.
+        #expect(InstallCoordinator.wantsBackup(.installer))
+        // The store re-downloads a prior build on demand, so a local copy of a
+        // multi-gigabyte bundle would be dead weight.
+        #expect(!InstallCoordinator.wantsBackup(.appStore))
+    }
+}

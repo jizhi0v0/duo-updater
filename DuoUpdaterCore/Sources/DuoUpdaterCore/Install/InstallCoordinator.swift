@@ -98,33 +98,53 @@ public actor InstallCoordinator {
         }
     }
 
-    /// Whether a route replaces the bundle in a way we can undo, and so should
-    /// take a rollback point first.
+    /// Whether to take a rollback point before this route runs.
     ///
-    /// `.installer` is excluded because the system installer owns the change and
-    /// we never see it land; `.appStore` because the store can always re-fetch a
-    /// prior build, making a local copy of a multi-gigabyte bundle dead weight.
+    /// `.appStore` is excluded because the store can always re-fetch a prior
+    /// build, so a local copy of a multi-gigabyte bundle is dead weight.
+    ///
+    /// `.installer` is included, with a caveat the restore path surfaces: a
+    /// `.pkg` can lay down helpers, daemons and launch items beside the `.app`,
+    /// and we only ever copy the bundle — so restoring gives an older app next
+    /// to newer components rather than a clean rollback. It is still worth
+    /// having. Before this, pkg-route apps had no rollback point *at all*, which
+    /// is the case where you most want one: the system installer's change is the
+    /// one we cannot watch land or undo ourselves.
     public static func wantsBackup(_ route: Route) -> Bool {
         switch route {
-        case .homebrew, .vendor, .sparkle: return true
-        case .installer, .appStore:        return false
+        case .homebrew, .vendor, .sparkle, .installer: return true
+        case .appStore:                                return false
         }
     }
 
-    /// Store a rollback point for `app`, returning false if it could not be
-    /// taken. A failure is deliberately **not** fatal — the caller decides
-    /// whether to proceed without a safety net — but it must be surfaced, not
-    /// swallowed, or the user finds out only when a rollback later finds
-    /// nothing.
-    public static func backUp(_ app: InstalledApp) async -> Bool {
+    /// What taking a rollback point did. Never fatal — the caller decides
+    /// whether to proceed without a safety net — but never swallowed either, or
+    /// the user finds out only when a rollback later finds nothing.
+    public enum BackupOutcome: Sendable, Equatable {
+        case saved
+        /// The bundle is not fully readable by us, so no copy was attempted.
+        /// `path` is the first file that stopped it.
+        case unreadable(path: String)
+        case failed
+    }
+
+    /// Store a rollback point for `app`.
+    public static func backUp(_ app: InstalledApp, route: Route) async -> BackupOutcome {
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
         let version = app.shortVersion ?? app.buildVersion
-        return await Task.detached(priority: .userInitiated) { () -> Bool in
+        let fromPackage = (route == .installer)
+        let path = app.path
+        let bundleID = app.bundleID
+        return await Task.detached(priority: .userInitiated) { () -> BackupOutcome in
+            if let blocked = BackupStore.firstUnreadablePath(in: path) {
+                return .unreadable(path: blocked)
+            }
             do {
                 try BackupStore.save(
-                    appPath: app.path, key: key, version: version, bundleID: app.bundleID)
-                return true
-            } catch { return false }
+                    appPath: path, key: key, version: version, bundleID: bundleID,
+                    fromPackageInstall: fromPackage)
+                return .saved
+            } catch { return .failed }
         }.value
     }
 

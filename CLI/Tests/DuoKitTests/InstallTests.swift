@@ -41,7 +41,7 @@ import DuoUpdaterCore
             updateSettings: UpdateSettings(
                 appStoreUpdateStrategy: .full, vendorInstallPolicy: vendorPolicy),
             ignoredKeys: [], skippedVersions: [:], customScanPaths: [],
-            maxConcurrency: 12, githubToken: nil, alcove: nil)
+            maxConcurrency: 12, keepBackups: true, githubToken: nil, alcove: nil)
     }
 
     private func environment(running: Bool = false) -> InstallEnvironment {

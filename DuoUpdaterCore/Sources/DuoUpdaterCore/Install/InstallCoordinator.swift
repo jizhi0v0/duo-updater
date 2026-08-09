@@ -98,6 +98,36 @@ public actor InstallCoordinator {
         }
     }
 
+    /// Whether a route replaces the bundle in a way we can undo, and so should
+    /// take a rollback point first.
+    ///
+    /// `.installer` is excluded because the system installer owns the change and
+    /// we never see it land; `.appStore` because the store can always re-fetch a
+    /// prior build, making a local copy of a multi-gigabyte bundle dead weight.
+    public static func wantsBackup(_ route: Route) -> Bool {
+        switch route {
+        case .homebrew, .vendor, .sparkle: return true
+        case .installer, .appStore:        return false
+        }
+    }
+
+    /// Store a rollback point for `app`, returning false if it could not be
+    /// taken. A failure is deliberately **not** fatal — the caller decides
+    /// whether to proceed without a safety net — but it must be surfaced, not
+    /// swallowed, or the user finds out only when a rollback later finds
+    /// nothing.
+    public static func backUp(_ app: InstalledApp) async -> Bool {
+        let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
+        let version = app.shortVersion ?? app.buildVersion
+        return await Task.detached(priority: .userInitiated) { () -> Bool in
+            do {
+                try BackupStore.save(
+                    appPath: app.path, key: key, version: version, bundleID: app.bundleID)
+                return true
+            } catch { return false }
+        }.value
+    }
+
     /// Fetch and apply `result` by `route`.
     ///
     /// - Parameter releaseAfterDownload: called once, as soon as the bytes are

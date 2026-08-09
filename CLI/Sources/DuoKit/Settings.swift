@@ -28,6 +28,10 @@ public struct Settings: Sendable {
     public var skippedVersions: [String: String]
     public var customScanPaths: [String]
     public var maxConcurrency: Int
+    /// Whether to store a rollback point before replacing a bundle. Defaults to
+    /// true when unset, matching the app — a CLI that defaulted the other way
+    /// would silently install without the safety net the user believes they have.
+    public var keepBackups: Bool
     public var githubToken: String?
     public var alcove: AlcoveUpdateSource.Credentials?
 
@@ -51,6 +55,7 @@ public struct Settings: Sendable {
             // 0 means "never set"; the app's own default is 12.
             maxConcurrency: max(1, defaults.integer(forKey: "MaxConcurrency") == 0
                 ? 12 : defaults.integer(forKey: "MaxConcurrency")),
+            keepBackups: defaults.object(forKey: "KeepBackups") as? Bool ?? true,
             // Same ladder as the app: the token the user entered, else the
             // environment, else whatever `gh` is logged in as.
             githubToken: GitHubToken.resolve(

@@ -123,7 +123,7 @@ public enum Install {
         // process exits immediately after this, and a detached release may never
         // run. (The kernel drops the flock on exit either way — this keeps the
         // reference count honest for anything that runs in between.)
-        let code = await apply(plan, json: options.json)
+        let code = await apply(plan, json: options.json, keepBackups: settings.keepBackups)
         await ProcessInstallLock.shared.release()
         return code
     }
@@ -201,13 +201,24 @@ public enum Install {
 
     // MARK: - Applying
 
-    static func apply(_ plan: [Planned], json: Bool) async -> Int32 {
+    static func apply(_ plan: [Planned], json: Bool, keepBackups: Bool) async -> Int32 {
         if json { NDJSON.begin("install") }
         let coordinator = InstallCoordinator()
         var failed = 0
         for item in plan {
             let name = item.result.app.name
             if !json { print("→ \(name)") }
+            // The same rollback point the menu-bar app takes, honouring the same
+            // preference. Not fatal when it fails — but said out loud, because
+            // the alternative is discovering the safety net is gone only when a
+            // later rollback finds nothing.
+            if keepBackups, InstallCoordinator.wantsBackup(item.route) {
+                if await InstallCoordinator.backUp(item.result.app) {
+                    if !json { print("   backed up \(item.result.app.shortVersion ?? "current")") }
+                } else if !json {
+                    print("   could not back up — installing without a rollback point")
+                }
+            }
             do {
                 let outcome = try await coordinator.perform(
                     item.result, route: item.route,
@@ -233,6 +244,19 @@ public enum Install {
         let installed = plan.count - failed
         if !json {
             print("\n\(installed) installed, \(failed) failed.")
+            // The bundle on disk is new; the process still running is not. The
+            // menu-bar app restarts these itself per the user's preference; the
+            // CLI does not quit your apps behind your back, but it must not leave
+            // you believing the update is already live either. Sampled after the
+            // batch, so an app that exited during it is not named.
+            let running = Check.runningBundlePaths()
+            let stale = plan
+                .filter { running.contains(UpdatePolicy.runtimeBundlePath($0.result.app.path)) }
+                .map(\.result.app.name)
+            if !stale.isEmpty {
+                print("\nStill running the old code: \(stale.joined(separator: ", "))")
+                print("  duo restart \(stale.joined(separator: " "))")
+            }
         }
         return failed == 0 ? 0 : 1
     }

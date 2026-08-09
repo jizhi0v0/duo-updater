@@ -1761,8 +1761,13 @@ final class AppListModel {
         // pkg installs go through their own tools and manage their own state.
         // App Store apps are excluded: mas re-downloads through the store, which
         // can always re-fetch the prior build, so a local backup is dead weight.
-        if prefs.keepBackups, canAutoInstall(result), !requiresInstaller(result),
-           result.remote?.sourceName != "App Store" {
+        // Which routes are worth a rollback point is `InstallCoordinator`'s call,
+        // shared so `duo install` cannot quietly skip the safety net the app
+        // provides — it did, until a real install through the CLI showed the
+        // backup timestamp hadn't moved.
+        if prefs.keepBackups,
+           InstallCoordinator.wantsBackup(
+            InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))) {
             await backupCurrent(result)
         }
 
@@ -2739,16 +2744,7 @@ final class AppListModel {
     /// so the update can be undone. Best-effort: a failed backup logs and proceeds
     /// (the user opted into the update; a missing safety net mustn't block it).
     private func backupCurrent(_ result: UpdateResult) async {
-        let path = result.app.path
-        let bundleID = result.app.bundleID
-        let key = BackupStore.key(bundleID: bundleID, path: path)
-        let version = result.app.shortVersion ?? result.app.buildVersion
-        let ok = await Task.detached(priority: .userInitiated) { () -> Bool in
-            do {
-                try BackupStore.save(appPath: path, key: key, version: version, bundleID: bundleID)
-                return true
-            } catch { return false }
-        }.value
+        let ok = await InstallCoordinator.backUp(result.app)
         if !ok {
             Log.install.error("backup failed: \(result.app.name, privacy: .public) — proceeding without a rollback point")
             // Tell the user their safety net is gone for this update, rather than

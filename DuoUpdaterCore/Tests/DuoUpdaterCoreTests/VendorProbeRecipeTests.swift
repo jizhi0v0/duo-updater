@@ -49,6 +49,109 @@ import Foundation
     #expect(recipe?.install?.kind == .pkg)
 }
 
+// MARK: - Signal
+
+/// Real `beta-mac.yml` / `latest-mac.yml` bodies, 2026-08-09 (sha512 values
+/// truncated — nothing reads them, see `signalRecipesCarryNoChecksum`).
+private enum SignalFeedFixture {
+    static let beta = """
+        version: 8.23.0-beta.1
+        files:
+          - url: signal-desktop-beta-mac-x64-8.23.0-beta.1.zip
+            sha512: +eoIsBwXULOiZGrNqFahggIyL9N/9ku+qr/1d6B5jmpUu+QZ1q9f
+            size: 149001180
+          - url: signal-desktop-beta-mac-arm64-8.23.0-beta.1.zip
+            sha512: TX5BDJafhAthnojxnyraqXlhAuIz9+B84u0Eara4vH6R4+p0DkKc
+            size: 144039668
+          - url: signal-desktop-beta-mac-universal-8.23.0-beta.1.dmg
+            sha512: nQpe7uU/zhXzXmrkTBaaijVw3VEzJ7V0RLB5IzBzhrDXYyRhNQRP
+            size: 263191264
+        path: signal-desktop-beta-mac-x64-8.23.0-beta.1.zip
+        sha512: +eoIsBwXULOiZGrNqFahggIyL9N/9ku+qr/1d6B5jmpUu+QZ1q9f
+        vendor:
+          minOSVersion: 21.0.1
+        releaseDate: '2026-08-05T23:09:31.413Z'
+        """
+
+    static let stable = """
+        version: 8.22.0
+        files:
+          - url: signal-desktop-mac-x64-8.22.0.zip
+            sha512: fX3AK4YIeoHrl30iB3hc4YsBaImssX8NGg0Zoma+DJDdeJL6Y9NV
+            size: 148929566
+          - url: signal-desktop-mac-arm64-8.22.0.zip
+            sha512: 0yLqy1+k93lqmITMfxmTC8QlZlVaD+9vZT7pfyeH+IB18lMn4Xhw
+            size: 143982985
+          - url: signal-desktop-mac-universal-8.22.0.dmg
+            sha512: tnwYvOYmHj0U5V/Xdta4qsfhDzSg+Fxffry731Dk7HVShbxoCt6C
+            size: 263091467
+        path: signal-desktop-mac-x64-8.22.0.zip
+        sha512: fX3AK4YIeoHrl30iB3hc4YsBaImssX8NGg0Zoma+DJDdeJL6Y9NV
+        vendor:
+          minOSVersion: 21.0.1
+        releaseDate: '2026-08-05T21:53:25.563Z'
+        """
+}
+
+/// Mirrors `VendorProbeSource.resolveInstall`'s `.bodyPatternRelative` branch,
+/// which is private: capture group 1 is a filename, resolved against `base`.
+private func resolveRelativeInstallURL(
+    _ recipe: VendorProbeRecipe, body: String
+) -> URL? {
+    guard case .bodyPatternRelative(let pattern, let base)? = recipe.install?.urlSource,
+          let raw = VendorProbeRecipe.extractVersion(from: body, pattern: pattern)
+    else { return nil }
+    return URL(string: raw, relativeTo: base)?.absoluteURL
+}
+
+private func signalRecipe(_ bundleID: String) -> VendorProbeRecipe {
+    VendorProbeRegistry.recipes.first { $0.bundleID == bundleID }!
+}
+
+/// Signal names the beta dmg `signal-desktop-beta-mac-universal-…`, with a
+/// `beta-` segment stable doesn't have. The beta spec reused stable's pattern, so
+/// it matched nothing: the version still resolved, one-click just vanished into
+/// detection-only with no error anywhere. Each channel's pattern is pinned to its
+/// own spelling, and must NOT match the other channel's feed — a cross-match would
+/// hand a beta install a stable build (or vice versa).
+@Test func signalInstallPatternsAreChannelSpecific() {
+    let stable = signalRecipe("org.whispersystems.signal-desktop")
+    let beta = signalRecipe("org.whispersystems.signal-desktop-beta")
+    #expect(beta.channel == .beta)
+
+    #expect(
+        resolveRelativeInstallURL(beta, body: SignalFeedFixture.beta)?.absoluteString
+            == "https://updates.signal.org/desktop/signal-desktop-beta-mac-universal-8.23.0-beta.1.dmg")
+    #expect(
+        resolveRelativeInstallURL(stable, body: SignalFeedFixture.stable)?.absoluteString
+            == "https://updates.signal.org/desktop/signal-desktop-mac-universal-8.22.0.dmg")
+
+    // The regression itself: stable's pattern is blind to the beta filename.
+    #expect(resolveRelativeInstallURL(stable, body: SignalFeedFixture.beta) == nil)
+    // And the fix stays one-way — beta's pattern must not claim a stable build.
+    #expect(resolveRelativeInstallURL(beta, body: SignalFeedFixture.stable) == nil)
+
+    // Only the universal dmg is installable; the per-arch zips must never win.
+    for (recipe, body) in [(stable, SignalFeedFixture.stable), (beta, SignalFeedFixture.beta)] {
+        let url = resolveRelativeInstallURL(recipe, body: body)?.absoluteString ?? ""
+        #expect(url.hasSuffix(".dmg"))
+        #expect(url.contains("-universal-"))
+    }
+}
+
+/// Signal's CI signs + staples the dmg AFTER electron-builder writes the yml, so
+/// the feed's sha512 covers 2563 fewer bytes than the CDN serves. A checksum gate
+/// built from that hash aborts every install (`VendorInstaller` gate 1 throws), so
+/// both recipes deliberately ship without one and lean on the signature/Team/
+/// bundle-id gates instead.
+@Test func signalRecipesCarryNoChecksum() {
+    for id in ["org.whispersystems.signal-desktop", "org.whispersystems.signal-desktop-beta"] {
+        let spec = try! #require(signalRecipe(id).install)
+        #expect(spec.kind == .dmg)
+        #expect(spec.checksumPattern == nil)
+    }
+}
+
 @Test func whatsAppAndUURemoteInstallFromTheirLatestRedirect() {
     // The install must re-resolve the redirect at download time rather than pin the
     // version that was current when the recipe was written — these endpoints always

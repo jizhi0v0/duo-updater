@@ -386,4 +386,77 @@ struct BackupStoreTests {
             #expect(found == secret.resolvingSymlinksInPath().path)
         }
     }
+
+    // MARK: - Self-verifying backups
+
+    /// The gate that matters: a backup is restorable when it is byte-for-byte
+    /// what we stored, regardless of whether the vendor's seal still validates.
+    /// Several real apps (ToDesk, EasyConnect) break their own signature by
+    /// writing state inside their bundle, and the old gate refused a perfect
+    /// copy of what the user was running.
+    @Test func aBackupWithABrokenVendorSealStillRestores() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
+            // Stand in for a vendor that dirties its own bundle: an unsigned
+            // fixture with an extra file is exactly the shape that fails
+            // `codesign` on a signed app.
+            try Data("runtime state".utf8).write(
+                to: app.appendingPathComponent("Contents/state.json"))
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            try BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+
+            try makeApp(named: "Fixture.app", in: root, marker: "new")
+            #expect(try BackupStore.restore(forKey: key, over: app) == "1.0")
+            let restored = try String(
+                contentsOf: app.appendingPathComponent("Contents/marker.txt"), encoding: .utf8)
+            #expect(restored == "old")
+        }
+    }
+
+    /// And the gate still bites: editing the stored copy behind our back must
+    /// stop the restore, which is the whole reason a gate is there.
+    @Test func tamperingWithTheStoredCopyIsRefused() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            let saved = try BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+
+            try Data("tampered".utf8).write(
+                to: saved.bundlePath.appendingPathComponent("Contents/marker.txt"))
+
+            #expect(throws: BackupStore.BackupError.self) {
+                try BackupStore.restore(forKey: key, over: app)
+            }
+        }
+    }
+
+    /// Adding a file to the stored copy is as much a change as editing one —
+    /// a manifest keyed only on the files it knew about would miss it.
+    @Test func anExtraFileInTheStoredCopyIsRefused() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            let saved = try BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+
+            try Data("smuggled".utf8).write(
+                to: saved.bundlePath.appendingPathComponent("Contents/extra.dylib"))
+
+            #expect(throws: BackupStore.BackupError.self) {
+                try BackupStore.restore(forKey: key, over: app)
+            }
+        }
+    }
+
+    @Test func theManifestIsStableAcrossRecomputation() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "x")
+            let first = BackupManifest.compute(for: app)
+            let second = BackupManifest.compute(for: app)
+            #expect(first != nil)
+            #expect(first == second)
+        }
+    }
 }

@@ -55,6 +55,11 @@ public enum BackupStore {
         /// a stricter decoder would make every existing backup unreadable, and
         /// `backup(forKey:)` returns nil without a readable sidecar.
         var fromPackageInstall: Bool?
+        /// What the stored copy hashed to when we wrote it. Optional for the
+        /// same reason; a backup without one falls back to the old
+        /// vendor-signature gate at restore, which is the best that can be said
+        /// about a copy we never fingerprinted.
+        var manifest: BackupManifest?
     }
 
     /// A filesystem-safe directory name for one installed copy of an app. It keeps
@@ -160,10 +165,19 @@ public enum BackupStore {
         }
 
         let savedAt = Date()
+        // Fingerprinted from the staged copy, not the source: what restore has
+        // to be able to trust is that the bytes in the store are the ones that
+        // came out of this copy, and hashing the source would certify something
+        // we did not keep.
+        let manifest = BackupManifest.compute(for: staged)
+        if manifest == nil {
+            Log.install.error(
+                "backup: could not fingerprint \(name, privacy: .public) — restoring it will fall back to the signature gate")
+        }
         let meta = Meta(
             version: version, bundleID: bundleID,
             originalPath: appPath.path, bundleName: name, savedAt: savedAt,
-            fromPackageInstall: fromPackageInstall)
+            fromPackageInstall: fromPackageInstall, manifest: manifest)
         // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
         // without it), so a backup whose sidecar didn't write is unusable. Fail the
         // save (leaving the prior backup intact) rather than leave an invisible bundle.
@@ -238,23 +252,53 @@ public enum BackupStore {
         guard runDitto(from: backup.bundlePath, to: staged) else {
             throw BackupError.copyFailed(backup.bundlePath.path)
         }
-        // Integrity gate before swapping a backup over the live app: a backup whose
-        // present code signature no longer validates has been corrupted or tampered
-        // with, and swapping it in would brick the live app with a broken bundle.
-        // Hard-fail rather than restore it — a rollback that knowingly installs a
-        // damaged bundle is worse than leaving the (working) current app in place,
-        // and the failure tells the user the backup is unusable. A genuinely UNSIGNED
-        // bundle is still allowed (the helper distinguishes that from a failed
-        // present signature) — many legitimate apps ship unsigned. The signed
-        // identifier isn't checked against the target — a rollback may legitimately
-        // cross an identifier/Team change the forward update introduced.
-        guard backupSignatureLooksValid(staged) else {
-            Log.install.error(
-                "rollback: backup for \(key, privacy: .public) failed signature validation — refusing to restore (it may be corrupted)")
+        // Integrity gate before swapping a backup over the live app: a stored copy
+        // that has changed since we wrote it has been corrupted or tampered with,
+        // and swapping it in would brick the live app. Hard-fail rather than
+        // restore it — a rollback that knowingly installs a damaged bundle is worse
+        // than leaving the (working) current app in place. See `integrityHolds` for
+        // why this asks about our own copy rather than the vendor's signature.
+        guard integrityHolds(for: key, staged: staged) else {
             throw BackupError.backupCorrupted(backup.bundlePath.lastPathComponent)
         }
         try InPlaceSwap.replace(newApp: staged, over: target)
         return backup.version
+    }
+
+    /// Whether the staged copy is still what we stored.
+    ///
+    /// Prefers the manifest recorded at save time, which asks the question a
+    /// gate on a *backup* should ask. Falls back to the vendor code signature
+    /// only for backups written before manifests existed — that gate refuses
+    /// apps which break their own seal by writing state inside their bundle
+    /// (ToDesk, EasyConnect), so a faithful copy of what the user was running
+    /// was rejected as "corrupted".
+    private static func integrityHolds(for key: String, staged: URL) -> Bool {
+        let metaURL = root.appendingPathComponent(key, isDirectory: true)
+            .appendingPathComponent("backup.json")
+        let recorded = (try? Data(contentsOf: metaURL))
+            .flatMap { try? JSONDecoder().decode(Meta.self, from: $0) }?.manifest
+
+        if let recorded {
+            guard let current = BackupManifest.compute(for: staged) else {
+                Log.install.error(
+                    "rollback: could not fingerprint the staged backup for \(key, privacy: .public) — refusing to restore")
+                return false
+            }
+            guard current == recorded else {
+                Log.install.error(
+                    "rollback: backup for \(key, privacy: .public) does not match what was stored (\(current.fileCount, privacy: .public) files now, \(recorded.fileCount, privacy: .public) then) — refusing to restore")
+                return false
+            }
+            return true
+        }
+
+        guard backupSignatureLooksValid(staged) else {
+            Log.install.error(
+                "rollback: backup for \(key, privacy: .public) has no stored fingerprint and failed signature validation — refusing to restore")
+            return false
+        }
+        return true
     }
 
     /// True if the staged backup either validates cleanly or is simply unsigned;
@@ -359,7 +403,7 @@ public enum BackupStore {
             case .noBackup(let key):
                 return "There is no backup to roll back to for “\(key)”."
             case .backupCorrupted(let name):
-                return "The backup for “\(name)” appears corrupted (its code signature no longer validates) and was not restored."
+                return "The backup for “\(name)” no longer matches what was stored and was not restored."
             }
         }
     }

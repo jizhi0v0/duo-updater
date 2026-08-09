@@ -1038,7 +1038,7 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"v([0-9.]+)\.preview_[0-9]+""#,
-            changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
+            changelogURL: URL(string: "https://docs.warp.dev/changelog"),
             install: VendorInstallSpec(
                 urlSource: .fixed(
                     URL(string: "https://app.warp.dev/download?package=dmg&channel=preview")!),
@@ -1050,7 +1050,7 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"v([0-9.]+)\.dev_[0-9]+""#,
             downloadURL: URL(string: "https://www.warp.dev/download"),
-            changelogURL: URL(string: "https://docs.warp.dev/getting-started/changelog"),
+            changelogURL: URL(string: "https://docs.warp.dev/changelog"),
             channel: .dev),
 
         // Signal — Stable + Beta. electron-builder feeds (one per channel). Stable
@@ -1468,7 +1468,7 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://versions-prod.lmstudio.ai/update/darwin/arm64/0.0.0")!,
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
-            changelogURL: URL(string: "https://lmstudio.ai/changelog"),
+            changelogURL: URL(string: "https://lmstudio.ai/changelog/lmstudio"),
             // Feed has no link — build the dmg path from version + build, both of
             // which are REQUIRED in the path (…/0.4.15-2/LM-Studio-0.4.15-2-arm64.dmg;
             // dropping the build 404s). Team D65G88RHWN.

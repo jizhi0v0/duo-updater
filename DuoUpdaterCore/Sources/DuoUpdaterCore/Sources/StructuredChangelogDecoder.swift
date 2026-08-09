@@ -126,8 +126,8 @@ public enum StructuredChangelogDecoder {
 
     /// Turn one markdown section body ("* a\n* b ([#1](url))\n") into clean change
     /// lines: split on newlines, drop the leading `*`/`-`/`+` list marker, strip inline
-    /// images, flatten `[text](url)` markdown links to just `text`, and trim. Blank
-    /// lines vanish.
+    /// images and hard-break `<br>` tags, flatten `[text](url)` markdown links to just
+    /// `text`, and trim. Blank lines vanish.
     static func bulletItems(from markdown: String?) -> [String] {
         guard let markdown else { return [] }
         return markdown
@@ -136,6 +136,13 @@ public enum StructuredChangelogDecoder {
                 var s = line.trimmingCharacters(in: .whitespaces)
                 s = s.replacingOccurrences(
                     of: #"^[*+-]\s+"#, with: "", options: .regularExpression)
+                // Markdown allows raw HTML, and Typeless uses `<br>` for the hard break
+                // after a lead-in phrase. We render plain strings, so it would show up
+                // literally ("Dictate the way you think <br>"); the line split already
+                // did the breaking, so just drop it.
+                s = s.replacingOccurrences(
+                    of: #"<br\s*/?>"#, with: " ",
+                    options: [.regularExpression, .caseInsensitive])
                 // Remove inline images outright, BEFORE link-flattening, so `![alt](url)`
                 // doesn't decay to a stray `!alt`.
                 s = s.replacingOccurrences(
@@ -155,10 +162,17 @@ public enum StructuredChangelogDecoder {
 
     /// Typeless's release-notes page is a Next.js SSG page whose entire content is
     /// base64+gzip in `__NEXT_DATA__.props.pageProps.compressedData`. The
-    /// decompressed JSON is a flat map `<version> -> <locale> -> {version, date,
-    /// platform, tags, features:[{title, content}]}` where `content` is markdown
-    /// (a leading `![](url)` illustration then prose paragraphs). Keys are NOT in
-    /// order, so we sort semver-descending. Single channel — no channel arg.
+    /// decompressed JSON has had **two shapes**, and we accept both (`typelessNotes`):
+    ///
+    ///   - v3 (current, `pageProps.dataKey == "typeless-release-notes--v3--macos"`):
+    ///     a flat ARRAY of `{version, date, platform, tags, features:[{title,
+    ///     content}]}`, already one locale (the page is locale-scoped via
+    ///     `pageProps.embeddedLangCode`).
+    ///   - legacy: a MAP `<version> -> <locale> -> {version, date, …}`.
+    ///
+    /// `content` is markdown either way (a leading `![](url)` illustration then
+    /// prose paragraphs). Neither shape guarantees order, so we sort
+    /// semver-descending. Single channel — no channel arg.
     private struct TypelessNote: Decodable {
         let version: String?
         let date: String?
@@ -180,20 +194,11 @@ public enum StructuredChangelogDecoder {
               let compressed = pageProps["compressedData"] as? String,
               let gz = Data(base64Encoded: compressed),
               let json = GzipDecode.decompress(gz),
-              let map = try? JSONDecoder().decode([String: [String: TypelessNote]].self, from: json)
+              let notes = typelessNotes(from: json)
         else { return nil }
 
-        // 2. Newest-first by semver (keys like "1.8.0" / "0.4.5", arbitrary order).
-        let orderedKeys = map.keys.sorted { semverDescending($0, $1) }
-
         var entries: [Changelog.Entry] = []
-        for key in orderedKeys {
-            guard let locales = map[key], !locales.isEmpty else { continue }
-            // English when available; otherwise any locale (deterministically the
-            // alphabetically-first) so a missing `en` never drops the entry.
-            let note = locales["en"] ?? locales[locales.keys.sorted().first!]
-            guard let note else { continue }
-
+        for (key, note) in notes {
             let features = note.features ?? []
             let single = features.count == 1
             var blocks: [Changelog.Entry.Block] = []
@@ -227,6 +232,34 @@ public enum StructuredChangelogDecoder {
             if let cap = maxEntries, entries.count >= cap { break }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    /// The inflated payload as `(fallbackVersion, note)` pairs, newest-first, from
+    /// whichever of Typeless's two shapes it turns out to be. The array form is tried
+    /// first because it's what the site serves today; the map form is kept so an
+    /// older cached/served payload still parses. nil when it's neither.
+    ///
+    /// `fallbackVersion` is the map's key (the array carries no key, so the note's own
+    /// `version` is all there is) — used only when a note omits `version`.
+    private static func typelessNotes(from json: Data) -> [(String, TypelessNote)]? {
+        let decoder = JSONDecoder()
+        if let list = try? decoder.decode([TypelessNote].self, from: json), !list.isEmpty {
+            return list
+                .map { ($0.version ?? "", $0) }
+                .sorted { semverDescending($0.0, $1.0) }
+        }
+        if let map = try? decoder.decode([String: [String: TypelessNote]].self, from: json),
+           !map.isEmpty {
+            return map.keys.sorted { semverDescending($0, $1) }.compactMap { key in
+                guard let locales = map[key], !locales.isEmpty else { return nil }
+                // English when available; otherwise any locale (deterministically the
+                // alphabetically-first) so a missing `en` never drops the entry.
+                guard let note = locales["en"] ?? locales[locales.keys.sorted().first!]
+                else { return nil }
+                return (key, note)
+            }
+        }
+        return nil
     }
 
     /// Extract the JSON text inside `<script id="__NEXT_DATA__" …>…</script>`.

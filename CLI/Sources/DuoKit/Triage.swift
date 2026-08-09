@@ -143,6 +143,16 @@ public enum Triage {
         }
 
         let eligible = actionable.filter { eligibility($0, baseline: baseline) == nil }
+        if !options.dryRun, !eligible.isEmpty, let missing = unavailableReason() {
+            FileHandle.standardError.write(Data("""
+                ⚠︎ cannot reach opencode: \(missing)
+                  Skipping analysis; the findings themselves are unaffected and will still
+                  be filed. opencode installs to ~/.opencode/bin, which is not on a CI
+                  runner's PATH by default.\n
+                """.utf8))
+            try? write(TriageDocument(generatedAt: Date(), suggestions: []), to: options.outPath)
+            return 0
+        }
         for finding in actionable {
             if let why = eligibility(finding, baseline: baseline) {
                 print("  · \(finding.recipeID): skipped — \(why)")
@@ -366,14 +376,26 @@ public enum Triage {
         init(_ description: String) { self.description = description }
     }
 
+    /// nil when opencode is usable; otherwise why it isn't.
+    static func unavailableReason() -> String? {
+        do {
+            _ = try shell(["opencode", "--version"],
+                          cwd: FileManager.default.temporaryDirectory, timeout: 30)
+            return nil
+        } catch {
+            return "\(error)"
+        }
+    }
+
     static func shell(_ arguments: [String], cwd: URL, timeout: TimeInterval) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = arguments
         process.currentDirectoryURL = cwd
         let output = Pipe()
+        let errors = Pipe()
         process.standardOutput = output
-        process.standardError = Pipe()
+        process.standardError = errors
         try process.run()
 
         // Read on a background queue: opencode streams events, and a full pipe
@@ -394,6 +416,17 @@ public enum Triage {
         }
         // Give the reader a moment to drain the tail of the stream.
         Thread.sleep(forTimeInterval: 0.2)
+        // A non-zero exit has to be reported as itself. Letting it fall through
+        // to "produced no answer" is how a missing binary got described as a
+        // model failure — the same mistake, twice, on the same runner's PATH.
+        guard process.terminationStatus == 0 else {
+            let message = String(
+                decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            throw TriageError(
+                "opencode exited \(process.terminationStatus)"
+                    + (message.isEmpty ? "" : ": \(message)"))
+        }
         return String(decoding: collected.withLock { $0 }, as: UTF8.self)
     }
 

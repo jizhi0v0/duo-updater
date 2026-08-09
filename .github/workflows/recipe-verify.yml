@@ -46,10 +46,6 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64, duo-mini]
     timeout-minutes: 30
     env:
-      # The runner runs as the same user as the menu-bar app. Without this the
-      # sweep writes into the live ChangelogDiskCache and traffic store that the
-      # running app is using.
-      DUO_STATE_DIR: ${{ runner.temp }}/duo-state
       GH_TOKEN: ${{ github.token }}
 
     steps:
@@ -66,6 +62,15 @@ jobs:
         # the system working, and a red run here would train everyone to ignore
         # it. Genuine failures (build, reconcile) still fail below.
         continue-on-error: true
+        env:
+          # The runner runs as the same user as the menu-bar app. Without this
+          # the sweep writes into the live ChangelogDiskCache and traffic store
+          # that the running app is using.
+          #
+          # Step-level, not job-level: the `runner` context is not available in
+          # `jobs.<id>.env` (it is in `jobs.<id>.steps.*.env`), and a workflow
+          # that references it there fails to parse rather than warning.
+          DUO_STATE_DIR: ${{ runner.temp }}/duo-state
         run: |
           ./CLI/.build/release/duo verify \
             --baseline verify/baseline.json \

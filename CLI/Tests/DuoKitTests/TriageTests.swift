@@ -208,3 +208,55 @@ import DuoUpdaterCore
         #expect(ResponseSample.condense(body, limit: 4096, pattern: nil) == body)
     }
 }
+
+/// A suggestion in an issue is read weeks later, when the only thing that says
+/// how much weight to give it is which model wrote it. "agent default" is not
+/// that.
+@Suite struct TriageModelAttributionTests {
+
+    @Test func anExplicitModelIsRecordedAsGiven() {
+        var options = TriageOptions(
+            reportPath: URL(fileURLWithPath: "/dev/null"),
+            baselinePath: URL(fileURLWithPath: "/dev/null"),
+            outPath: URL(fileURLWithPath: "/dev/null"),
+            projectDir: URL(fileURLWithPath: "/nonexistent"))
+        options.model = "deepseek/deepseek-v4-pro"
+        #expect(Triage.resolvedModel(options) == "deepseek/deepseek-v4-pro")
+    }
+
+    /// With no override, the value is read back out of the agent's frontmatter —
+    /// the same one opencode resolved, since its event stream doesn't report it.
+    @Test func theAgentsDeclaredModelIsReadBack() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("duo-agent-\(UUID().uuidString)")
+        let agentDir = dir.appendingPathComponent(".opencode/agent")
+        try FileManager.default.createDirectory(at: agentDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try """
+        ---
+        description: test
+        mode: primary
+        model: opencode/deepseek-v4-flash-free
+        ---
+        body
+        """.write(
+            to: agentDir.appendingPathComponent("duo-triage.md"),
+            atomically: true, encoding: .utf8)
+
+        let options = TriageOptions(
+            reportPath: URL(fileURLWithPath: "/dev/null"),
+            baselinePath: URL(fileURLWithPath: "/dev/null"),
+            outPath: URL(fileURLWithPath: "/dev/null"),
+            projectDir: dir)
+        #expect(Triage.resolvedModel(options) == "opencode/deepseek-v4-flash-free")
+    }
+
+    @Test func anUnreadableAgentSaysUnknownRatherThanGuessing() {
+        let options = TriageOptions(
+            reportPath: URL(fileURLWithPath: "/dev/null"),
+            baselinePath: URL(fileURLWithPath: "/dev/null"),
+            outPath: URL(fileURLWithPath: "/dev/null"),
+            projectDir: URL(fileURLWithPath: "/nonexistent"))
+        #expect(Triage.resolvedModel(options).contains("unknown"))
+    }
+}

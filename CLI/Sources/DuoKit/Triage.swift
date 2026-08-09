@@ -252,10 +252,32 @@ public enum Triage {
             let output = try shell(arguments, cwd: sandbox, timeout: callTimeout)
             let reply = try modelText(from: output)
             let parsed = try parse(reply)
-            return .success(verify(parsed, for: finding, model: options.model ?? "agent default"))
+            return .success(verify(parsed, for: finding, model: resolvedModel(options)))
         } catch {
             return .failure(error)
         }
+    }
+
+    /// Which model actually answered.
+    ///
+    /// opencode's event stream doesn't carry the model id, so when `--model`
+    /// isn't given it is read back out of the agent's frontmatter — the same
+    /// value opencode itself resolved. Recording "agent default" in an issue
+    /// would make a suggestion unattributable a month later, which is exactly
+    /// when someone would want to know how much weight to give it.
+    static func resolvedModel(_ options: TriageOptions) -> String {
+        if let model = options.model { return model }
+        let agent = options.projectDir.appendingPathComponent(".opencode/agent/duo-triage.md")
+        guard let text = try? String(contentsOf: agent, encoding: .utf8) else {
+            return "unknown (agent default)"
+        }
+        for line in text.split(separator: "\n") {
+            guard line.hasPrefix("model:") else { continue }
+            let value = line.dropFirst("model:".count)
+                .trimmingCharacters(in: .whitespaces)
+            if !value.isEmpty { return value }
+        }
+        return "unknown (agent default)"
     }
 
     /// Everything the model needs and nothing it doesn't. The body is fenced and

@@ -177,11 +177,6 @@
       "lastGoodVersion" : "2.2.3",
       "sweepsSinceComment" : 0
     },
-    "changelog:dev.warp.Warp-Dev:dev" : {
-      "consecutiveActionable" : 2,
-      "lastSignature" : "noEntriesExtracted",
-      "sweepsSinceComment" : 2
-    },
     "changelog:dev.warp.Warp-Preview:preview" : {
       "consecutiveActionable" : 0,
       "lastGoodAt" : "2026-08-09T07:06:56Z",

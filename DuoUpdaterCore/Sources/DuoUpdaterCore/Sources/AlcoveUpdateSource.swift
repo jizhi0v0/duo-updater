@@ -3,19 +3,30 @@ import Foundation
 /// Authenticated update source for Alcove (`com.henrikruscon.Alcove`).
 ///
 /// Alcove ships a "Reworked update manager" that pushes each new build to its
-/// **licensed** API channel (`api.tryalcove.com`) before it reaches any public
-/// mirror. Every public surface we previously read lags that channel — verified
-/// 2026-06-17, when the app's own updater already offered 1.7.4 while all of:
+/// **licensed** API channel (`api.tryalcove.com`). The public *binaries* trail that
+/// channel — verified 2026-06-17, when the app's own updater already offered 1.7.4
+/// while all of:
 ///   • `update.tryalcove.com` (the old VendorProbe endpoint) → 1.7.3
 ///   • `download.tryalcove.com/Alcove.dmg` (the public CDN build) → 1.7.3 (194)
 ///   • the `henrikruscon/alcove-releases` GitHub mirror → 1.7.2
-/// still served the previous release. A public-mirror probe therefore structurally
-/// misses the window in which updates actually appear (this is the same lag that
-/// retired the GitHub mirror — the mistake was assuming `update.tryalcove.com` was
-/// authoritative when it is merely another trailing mirror).
+/// still served the previous release. That lag retired the GitHub mirror, and
+/// `update.tryalcove.com` has since been decommissioned outright (NXDOMAIN as of
+/// 2026-07-29).
 ///
-/// This source replays the app's own authenticated flow, which is the *only*
-/// authoritative version surface:
+/// Public *metadata*, however, is no longer behind: `download.tryalcove.com/latest`
+/// — the unauthenticated JSON the VendorProbe recipe now reads — reported 1.7.9
+/// (203) on 2026-07-29, matching this licensed channel build-for-build. So the
+/// no-credential path is once again accurate for **detection**. What still requires
+/// a license is everything else this source adds:
+///   • structured release notes (`sections`) — the public endpoint carries none;
+///   • an exact `published_at` for the Release Log timeline;
+///   • a one-click install — the public download is the stale *trial* build
+///     (1.7.7/199 while metadata said 1.7.9), so the public recipe is
+///     detection-only by design.
+/// Don't assume the public metadata will stay in sync; it's one vendor endpoint,
+/// and the binaries beside it demonstrably don't keep pace.
+///
+/// This source replays the app's own authenticated flow:
 ///   1. `POST /license/issue-token  {license_key, instance_id}` → a short-lived
 ///      Bearer JWT (the app re-issues it roughly daily).
 ///   2. `GET  /updates/latest`  (Bearer + app/OS headers) → `{tag_name,
@@ -32,8 +43,9 @@ import Foundation
 /// auto-extracted from Alcove: its own copy is a single AES-GCM-sealed blob whose
 /// key is not derivable from the hardware UUID (it lives in the Secure Enclave /
 /// the app's private Keychain group). When credentials are absent this source
-/// returns nil and the public `VendorProbe` recipe still answers (lagging, but
-/// better than nothing), so it degrades cleanly rather than blanking detection.
+/// returns nil and the public `VendorProbe` recipe answers instead — currently with
+/// the same version, but detection-only and without notes — so it degrades cleanly
+/// rather than blanking detection.
 ///
 /// Wired ahead of `VendorProbeSource` in the stack: the checker takes the first
 /// source that yields a version, so the authoritative answer wins whenever

@@ -1292,27 +1292,15 @@ public enum ChangelogRecipeRegistry {
             stripTags: false,
             channel: .beta),
 
-        // Alcove — same endpoint the VendorProbeRecipe reads (update.tryalcove.com),
-        // a single GitHub-release-shaped JSON object: `tag_name` is the version,
-        // `published_at` an ISO timestamp (date prefix taken), `body` a Markdown
-        // changelog with `## section` headers and `- bullet` lines. We flatten every
-        // bullet across sections into change lines (headers are skipped — they aren't
-        // `- ` items); newlines arrive escaped as `\n`, so the item pattern matches
-        // `\\n` like the chatwise/GitHub Desktop JSON recipes. stripTags/decode off
-        // (plain Markdown, no HTML); the leading emoji on section headers never
-        // reaches an item, so the `\u….` escapes in the body are harmless.
-        ChangelogRecipe(
-            bundleID: "com.henrikruscon.Alcove",
-            source: URL(string: "https://update.tryalcove.com")!,
-            entryPattern:
-                #""tag_name"\s*:\s*"(?<version>[0-9][^"]*)".*?"#
-                + #""published_at"\s*:\s*"(?<date>\d{4}-\d{2}-\d{2})[^"]*".*?"#
-                + #""body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
-            itemPatterns: [#"(?:^|\\n)-\s*(?<item>.*?)\s*(?=\\n-\s|\\n\\n|\\n#|$)"#],
-            mode: .json,
-            stripTags: false,
-            decodeEntities: false,
-            maxEntries: 20),
+        // (No Alcove recipe. It used to parse the `body` of update.tryalcove.com,
+        // which stopped resolving entirely — NXDOMAIN as of 2026-07-29. The public
+        // replacement the VendorProbe now reads, download.tryalcove.com/latest,
+        // carries only version/build/date/assets — no release notes of any kind —
+        // and tryalcove.com serves the same SPA shell on every path, so it has no
+        // scrapable changelog page either. Licensed users still get full structured
+        // notes from `AlcoveUpdateSource`, which reads the `sections` array on the
+        // authenticated api.tryalcove.com/updates/latest. Re-add a recipe here only
+        // if Alcove publishes a public notes page.)
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

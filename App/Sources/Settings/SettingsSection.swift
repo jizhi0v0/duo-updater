@@ -73,7 +73,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .folders:     return "Where Duo Updater looks for installed apps."
         case .updates:     return "Duo Updater's own version."
         case .github:      return "Lift GitHub's anonymous rate limit for apps tracked through Releases."
-        case .alcove:      return "Alcove ships to its licensed channel first — a key makes detection precise."
+        case .alcove:      return "Alcove keeps release notes and installable builds behind its license."
         case .ignored:     return "Apps and versions you've told Duo Updater to leave alone."
         case .diagnostics: return "Permissions, last check, and the health of each detection recipe."
         }

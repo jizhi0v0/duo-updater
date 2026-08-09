@@ -204,6 +204,15 @@ public struct VendorProbeSource: UpdateSource {
             VendorProbeRecipe.extractVersion(from: text, pattern: $0)
         }
 
+        // Optional authoritative publish time, from the same body (first match, so
+        // it belongs to the entry `versionPattern` matched). An unparseable or
+        // missing date is not a failure — it just means the Release Log falls back
+        // to its estimated "≈" window, exactly as for recipes with no pattern.
+        let publishedAt = ReleaseDate.parse(
+            recipe.publishedAtPattern.flatMap {
+                VendorProbeRecipe.extractVersion(from: text, pattern: $0)
+            })
+
         // If this recipe knows how to install in place, resolve the installer URL
         // (and any checksum) now — from the same body we already have. A failure
         // here just falls back to detection-only; it never blocks the version.
@@ -211,12 +220,14 @@ public struct VendorProbeSource: UpdateSource {
            let plan = try? await resolveInstall(spec, body: text) {
             return Self.makeRemoteVersion(
                 recipe: recipe, version: version, install: spec, plan: plan,
-                resolvedDownload: resolvedDownload, display: display)
+                resolvedDownload: resolvedDownload, display: display,
+                publishedAt: publishedAt)
         }
 
         return Self.makeRemoteVersion(
             recipe: recipe, version: version, install: nil, plan: nil,
-            resolvedDownload: resolvedDownload, display: display)
+            resolvedDownload: resolvedDownload, display: display,
+            publishedAt: publishedAt)
     }
 
     /// Assemble the `RemoteVersion` a recipe yields from an already-extracted
@@ -230,7 +241,8 @@ public struct VendorProbeSource: UpdateSource {
         install spec: VendorInstallSpec?,
         plan: (url: URL, checksum: String?)?,
         resolvedDownload: URL?,
-        display: String? = nil
+        display: String? = nil,
+        publishedAt: Date? = nil
     ) -> RemoteVersion {
         // A build-number recipe routes the value into `version` (compared against
         // the installed `CFBundleVersion`); `shortVersion` stays nil so a build
@@ -254,7 +266,8 @@ public struct VendorProbeSource: UpdateSource {
                 vendorInstallerKind: spec.kind,
                 expectedSHA512: plan.checksum,
                 downloadHeaders: spec.requestHeaders,
-                changelogURL: recipe.changelogURL
+                changelogURL: recipe.changelogURL,
+                publishedAt: publishedAt
             )
         }
 
@@ -265,7 +278,8 @@ public struct VendorProbeSource: UpdateSource {
             sourceName: sourceName,
             // No install spec: detection only — the user downloads by hand.
             requiresManualInstaller: true,
-            changelogURL: recipe.changelogURL
+            changelogURL: recipe.changelogURL,
+            publishedAt: publishedAt
         )
     }
 

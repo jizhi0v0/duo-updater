@@ -374,7 +374,8 @@ final class AppListModel {
 
     /// Per-app release history, built up over time from each check's results and
     /// persisted across runs. Only releases that arrive with a trustworthy vendor
-    /// timestamp (Sparkle/GitHub/Alcove) are logged.
+    /// timestamp (Sparkle/GitHub/Alcove, plus any VendorProbe recipe carrying a
+    /// `publishedAtPattern`) are logged.
     private let releaseTimelineStore = ReleaseTimelineStore()
     /// Snapshot of the release timelines for the UI, most-recently-released app
     /// first. Refreshed after each check records new releases.
@@ -584,10 +585,11 @@ final class AppListModel {
             // a rule names an installable asset).
             GitHubReleasesSource(token: token),
         ]
-        // Alcove's authoritative (licensed) update channel, ahead of the vendor
-        // probe: its public mirrors lag the licensed channel, so when the user's
-        // credentials are present this answers first; otherwise it's omitted and the
-        // public VendorProbe recipe handles Alcove (lagging) like before.
+        // Alcove's licensed update channel, ahead of the vendor probe: it's the only
+        // surface carrying release notes, an exact publish time and an installable
+        // (licensed) download, so when the user's credentials are present it answers
+        // first. Otherwise it's omitted and the public VendorProbe recipe handles
+        // Alcove — same version, but detection-only and without notes.
         if let creds = alcoveCredentials() {
             sources.append(AlcoveUpdateSource(credentials: creds))
         }

@@ -186,6 +186,21 @@ public struct VendorProbeRecipe: Sendable {
     /// same (newest-first) entry the build pattern matches, or the two desync.
     public let displayVersionPattern: String?
 
+    /// Optional regex (capture group 1) for the release's publish timestamp, read
+    /// from the same response body and parsed by `ReleaseDate` (ISO8601, RFC822 or
+    /// a bare epoch). Routed into `RemoteVersion.publishedAt`, which is what the
+    /// Release Log timeline uses to place a release *exactly* instead of falling
+    /// back to an estimated "≈" window.
+    ///
+    /// Only set this when the endpoint states the date of the release the
+    /// `versionPattern` matched — it takes the FIRST match, so on a multi-entry
+    /// feed it must live in the same (newest-first) entry, or a version would be
+    /// stamped with another release's date. Nil (the default, and correct for most
+    /// recipes) simply means "no authoritative time", which the timeline records as
+    /// absent. Meaningless for `.redirectFilename`/`.zipEntryPlist`, where the
+    /// probed text is a URL or a single plist value rather than a document.
+    public let publishedAtPattern: String?
+
     /// When present, the app can be updated in place through its own channel: the
     /// source resolves the installer URL (and optional checksum) and hands it to
     /// `VendorInstaller`. Absent → detection only (the user is sent to download
@@ -210,6 +225,7 @@ public struct VendorProbeRecipe: Sendable {
         selectHighest: Bool = false,
         versionIsBuild: Bool = false,
         displayVersionPattern: String? = nil,
+        publishedAtPattern: String? = nil,
         install: VendorInstallSpec? = nil,
         followRedirects: Bool = true,
         channel: ReleaseChannel = .stable
@@ -224,6 +240,7 @@ public struct VendorProbeRecipe: Sendable {
         self.selectHighest = selectHighest
         self.versionIsBuild = versionIsBuild
         self.displayVersionPattern = displayVersionPattern
+        self.publishedAtPattern = publishedAtPattern
         self.install = install
         self.followRedirects = followRedirects
     }
@@ -1896,34 +1913,54 @@ public enum VendorProbeRegistry {
             versionPattern: #"<!--BEGINVERSION-->([0-9.]+)<!--ENDVERSION-->"#,
             changelogURL: URL(string: "https://www.corecode.io/macupdater/history3.html")),
 
-        // Alcove — PUBLIC mirror, kept only as the no-credential fallback. The
-        // authoritative source is `AlcoveUpdateSource` (the licensed api.tryalcove.com
-        // channel the app's own "Reworked update manager" uses), wired ahead of this
-        // probe so it answers first whenever the user's license credentials are seeded.
-        // This endpoint (update.tryalcove.com) is NOT authoritative — like the
-        // henrikruscon/alcove-releases GitHub mirror it lags the licensed channel
-        // (verified 2026-06-17: it served 1.7.3 while the licensed channel — and the
-        // app itself — already offered 1.7.4). So it's best-effort detection for users
-        // who haven't seeded credentials, nothing more. The endpoint returns
-        // GitHub-release-shaped JSON: `tag_name` is the version
-        // (semver == the app's CFBundleShortVersionString — no build trap) and
-        // `assets[].browser_download_url` carries the versioned Alcove.dmg, anchored
-        // on `Alcove\.dmg` so it's picked over the sibling Alcove.zip regardless of
-        // order. One-click installs that dmg, gated by VendorInstaller's same-Team-ID
-        // signature check (287NUTSP69, Henrik Ruscon — notarized Developer ID,
-        // verified 2026-06-06). The download is the "trial" (unlicensed) build: it's
-        // the same binary the licensed install runs, the license lives outside the
-        // app bundle, so swapping it in place keeps the activation. Changelog comes
-        // from the matching ChangelogRecipe parsing this same endpoint's `body`.
+        // Alcove — the PUBLIC, no-credential fallback. The authoritative source is
+        // `AlcoveUpdateSource` (the licensed api.tryalcove.com channel the app's own
+        // "Reworked update manager" uses), wired ahead of this probe so it answers
+        // first whenever the user's license credentials are seeded; this recipe is
+        // what everyone else gets.
+        //
+        // The old endpoint (update.tryalcove.com) is GONE — verified 2026-07-29 it no
+        // longer resolves at all (NXDOMAIN), so the previous recipe silently produced
+        // no version and left uncredentialed users with ZERO Alcove detection (the
+        // henrikruscon/alcove-releases GitHub mirror had already been retired for
+        // lagging; see GitHubReleasesSource). Its replacement is the download host's
+        // own metadata endpoint, `download.tryalcove.com/latest` — a small
+        // unauthenticated JSON doc:
+        //   {"version":"1.7.9","build":203,"published_at":"…","assets":[…],
+        //    "minimum_system_version":"15 Sequoia"}
+        // `version` is the marketing string (== CFBundleShortVersionString — no build
+        // trap; `build` is carried separately and we ignore it). Verified 2026-07-29
+        // it reported exactly 1.7.9 (203), matching the installed licensed build
+        // build-for-build — so unlike every mirror before it, this one is IN SYNC with
+        // the licensed channel rather than trailing it. Single-channel: `?channel=beta`
+        // 404s ("No releases available") and an `X-Channel` header changes nothing.
+        //
+        // The pattern requires `{` or `,` before the key so it can never drift onto
+        // the sibling `minimum_system_version` (whose value, "15 Sequoia", isn't
+        // version-shaped anyway) if the vendor reorders fields.
+        //
+        // DETECTION-ONLY, deliberately — do NOT re-attach an install spec. The public
+        // binaries at download.tryalcove.com/{Alcove.dmg,Alcove.zip} are the *trial*
+        // build and lag this metadata badly: on 2026-07-29 the dmg was 1.7.7 (199)
+        // (`x-alcove-version: 1.7.7`, confirmed by mounting it and reading the
+        // bundle's Info.plist) while /latest already said 1.7.9. Installing it while
+        // claiming 1.7.9 would leave a permanent phantom "update available" that no
+        // install can ever clear. There is no versioned public download path either
+        // (`/1.7.9/Alcove.dmg`, `?version=…` etc. all 404 or serve the same stale
+        // trial build), so users without a license key are sent to the download page
+        // by hand — and Alcove's own updater keeps them current regardless.
         VendorProbeRecipe(
             bundleID: "com.henrikruscon.Alcove",
-            url: URL(string: "https://update.tryalcove.com")!,
+            url: URL(string: "https://download.tryalcove.com/latest")!,
             mode: .responseBody,
-            versionPattern: #""tag_name"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #"(?:^|[{,])\s*"version"\s*:\s*"([0-9]+\.[0-9]+(?:\.[0-9]+)*)""#,
             downloadURL: URL(string: "https://www.tryalcove.com/download")!,
-            install: VendorInstallSpec(
-                urlSource: .bodyPattern(#""browser_download_url"\s*:\s*"([^"]+Alcove\.dmg)""#),
-                kind: .dmg)),
+            // Single-release document, so the first (only) `published_at` is
+            // unambiguously this version's — ISO8601 with fractional seconds
+            // ("2026-06-30T20:57:57.000Z"), which ReleaseDate parses. Gives the
+            // Release Log an exact time instead of an estimated "≈" window, even
+            // without a license key.
+            publishedAtPattern: #""published_at"\s*:\s*"([^"]+)""#),
 
         // (Surge needs no recipe here: it declares a Sparkle SUFeedURL, so the
         // higher-priority SparkleAppcastSource handles it, and `SurgeChannel`

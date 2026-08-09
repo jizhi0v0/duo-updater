@@ -25,6 +25,11 @@ import CryptoKit
         "com.google.android.studio",  // website-install path (Toolbox copies are gated)
         "com.oray.sunlogin.macclient",  // AweSun: pkg → system installer (WAF Referer)
         "com.postmanlabs.mac",          // Postman: zip → in-place (self-updater, same Team)
+        // Outlook: pkg → system installer. Absent from this list, the 2026-08-09
+        // breakage (Microsoft dropped the key the install spec read) showed up
+        // nowhere — the version kept resolving and one-click just stopped
+        // existing. This live check is what makes that loud.
+        "com.microsoft.Outlook",
     ]
     let source = VendorProbeSource()
     log("\n=== vendor install plans ===")
@@ -37,7 +42,11 @@ import CryptoKit
         let remote = try? await source.latestVersion(for: app)
         let kind = remote?.vendorInstallerKind.map { "\($0)" } ?? "nil"
         let sum = remote?.expectedSHA512 != nil ? "sha512✓" : "—"
-        log("• \(bundleID): v\(remote?.shortVersion ?? "?")  [\(kind)] \(sum)")
+        // `versionIsBuild` recipes (Outlook) put the build in `version` and leave
+        // `shortVersion` nil unless they carry a display pattern — fall back so the
+        // sweep never prints a bare "v?" for a recipe that did resolve.
+        let shown = remote?.shortVersion ?? remote?.version ?? "?"
+        log("• \(bundleID): v\(shown)  [\(kind)] \(sum)")
         log("    \(remote?.downloadURL?.absoluteString ?? "NO URL")")
         #expect(remote?.downloadURL != nil)
         #expect(remote?.vendorInstallerKind != nil)
@@ -83,6 +92,39 @@ import CryptoKit
     let without = try await contentType(withReferer: false)
     #expect(withHeader?.contains("application/octet-stream") == true)  // real dmg
     #expect(without?.contains("text/html") == true)                    // WAF challenge
+}
+
+/// Outlook's Office AutoUpdate manifest publishes three `.pkg` URLs per entry and
+/// only one of them is installable: `FullUpdaterLocation` (the 1.29GB standalone
+/// package), never the `_Delta.pkg` / `_BinaryDelta.pkg` patches, whose
+/// `InstallationCheck()` tests nothing but the min OS — run one against a
+/// mismatched baseline and it lays down a partial Outlook without complaint.
+///
+/// The other half is the version-scheme trap: `Update Version` is the BUILD
+/// (16.109.26053122; the pkg's own Distribution declares marketing 16.109.3), so
+/// this pins the resolved pkg to the build the SAME probe reported. A live check,
+/// because the failure it guards against is a vendor-side edit — Microsoft
+/// dropping the `Update Version Location` key is what killed one-click in the
+/// first place, and no fixture would have noticed.
+@Test func microsoftOutlookInstallURLMatchesProbedBuild() async throws {
+    let source = VendorProbeSource()
+    let app = InstalledApp(
+        name: "Microsoft Outlook", bundleID: "com.microsoft.Outlook",
+        shortVersion: "0.0.0", buildVersion: "0",
+        path: URL(fileURLWithPath: "/Applications/Microsoft Outlook.app"),
+        isMASApp: false, sparkleFeedURL: nil)
+
+    guard let remote = try await source.latestVersion(for: app) else {
+        Issue.record("Outlook probe resolved nothing"); return
+    }
+    #expect(remote.vendorInstallerKind == .pkg)
+    #expect(remote.requiresManualInstaller == true)   // → system installer
+    // versionIsBuild routes the build into `version` and leaves `shortVersion` nil.
+    let build = try #require(remote.version)
+    #expect(remote.shortVersion == nil)
+    let url = try #require(remote.downloadURL?.absoluteString)
+    #expect(url.hasSuffix("/Microsoft_Outlook_\(build)_Updater.pkg"))
+    #expect(!url.contains("Delta"))
 }
 
 /// Postman ships a zip we swap in place, even though it self-updates via Squirrel:

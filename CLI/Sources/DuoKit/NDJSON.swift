@@ -23,6 +23,10 @@ enum NDJSON {
     static func row(_ value: some Encodable) {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
+        // ISO-8601 throughout, matching how the Core stores persist dates. The
+        // default is a bare epoch double, which is both ambiguous to read and
+        // inconsistent with every other timestamp this project emits.
+        encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(value) else { return }
         print(String(decoding: data, as: UTF8.self))
     }

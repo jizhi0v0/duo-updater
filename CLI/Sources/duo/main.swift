@@ -15,6 +15,7 @@ commands:
   list          What is installed, without touching the network.
   check         What has an update, and how it would be applied.
   install       Apply updates, through the same engine the menu-bar app uses.
+  backups       List the rollback points, or put one back.
   doctor        Whether this machine can actually install anything, and what
                 is missing if not.
   verify        Sweep the recipes against their live endpoints and report the
@@ -61,6 +62,18 @@ install options:
   helper or the Accessibility API, neither of which a standalone binary has.
   Holds a machine-wide lock, so it exits rather than swapping a bundle while the
   menu-bar app is installing.
+
+backups options:
+  list                Every stored rollback point: app, version, when, size.
+  restore <app>       Put a backed-up bundle back over the installed one.
+  --yes               Don't ask before overwriting.
+  --json              Machine-readable form.
+
+  The signature check, retention and atomic swap all live in BackupStore, which
+  this calls unmodified — nothing here loosens them. Like the app's own
+  rollback, it does not refuse when the target is running; it restores and tells
+  you to restart. A shared bundle id (Android Studio's channels, Thunderbird
+  stable/esr) is ambiguous for a restore and is refused rather than guessed.
 
 doctor options:
   --json              Machine-readable form of the same report.
@@ -155,6 +168,24 @@ case "install":
     case .failure(let failure): die(failure.description, code: 2)
     }
     exit(await Install.run(options))
+
+case "backups":
+    let operation: Backups.Options.Operation
+    switch args.operands.first {
+    case "list", nil:
+        operation = .list
+    case "restore":
+        guard args.operands.count == 2 else {
+            die("backups restore needs exactly one app\n\n\(usage)", code: 2)
+        }
+        operation = .restore(app: args.operands[1])
+    case let other?:
+        die("unknown backups operation '\(other)'; expected list or restore", code: 2)
+    }
+    var options = Backups.Options(operation: operation)
+    options.json = args.has("json")
+    options.assumeYes = args.has("yes")
+    exit(await Backups.run(options))
 
 case "doctor":
     exit(Doctor.run(json: args.has("json")))

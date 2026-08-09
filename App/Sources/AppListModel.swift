@@ -2866,10 +2866,27 @@ final class AppListModel {
         installErrors[id] = nil
         installing[id] = .installing
         Log.install.info("rollback start: \(result.app.name, privacy: .public)")
+        // A rollback replaces a bundle and reads the backup store, so it takes
+        // the same machine-wide claim an install does. Without it, `duo backups
+        // restore` and this could swap the same app at once — the CLI would
+        // stand aside for an install and then walk straight into a rollback.
+        do {
+            try await ProcessInstallLock.shared.claim()
+        } catch {
+            Log.install.error("rollback blocked by the machine install lock: \(result.app.name, privacy: .public)")
+            installErrors[id] = (error as? LocalizedError)?.errorDescription
+                ?? String(describing: error)
+            installing[id] = nil
+            return
+        }
         do {
             let restored = try await Task.detached(priority: .userInitiated) { () -> String? in
                 try BackupStore.restore(forKey: key, over: target)
             }.value
+            // The swap has landed; everything below is bookkeeping and needs no
+            // exclusion, so hand the claim back rather than holding it through a
+            // rescan (same reasoning as the apply permit in `performInstall`).
+            await ProcessInstallLock.shared.release()
             AppIconCache.invalidate(target.path)
             let updated = await recheck(result)
             replaceRow(updated)
@@ -2882,6 +2899,7 @@ final class AppListModel {
                 UpdateNotifier.readyToRestart(app: updated.app.name, version: restored, appID: updated.app.bundleID)
             }
         } catch {
+            await ProcessInstallLock.shared.release()
             Log.install.error("rollback failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             installErrors[id] = error.localizedDescription
             installing[id] = nil

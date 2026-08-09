@@ -1,0 +1,466 @@
+import Foundation
+import DuoUpdaterCore
+
+// Sweep every hand-written recipe against its live endpoint and report the ones
+// that can no longer do their job.
+//
+// This exists because recipe breakage is currently found by accident: a vendor
+// rewrites their download page, the probe quietly returns nil, the app degrades
+// that app to "unknown", and nobody notices until someone happens to look. The
+// existing live tests can't catch it either — they're written network-tolerant
+// (`if let v = try await …`), so the nil a broken pattern produces passes.
+//
+// It runs the production diagnostic paths (`VendorProbeSource.probeDiagnostic`,
+// `GitHubReleasesSource.resolveDiagnostic`, `ChangelogService.loadUncached`) and
+// it NEVER downloads an installer: those resolve installer URLs (a HEAD at most)
+// but never call `Downloader` or `VendorInstaller`.
+
+public struct VerifyOptions: Sendable {
+    public init() {}
+    /// Restrict the sweep to recipes whose bundle id or recipe id contains one
+    /// of these. Spot-checking one app shouldn't cost 150 requests.
+    public var only: [String] = []
+    public var registries: Set<Registry> = Set(Registry.allCases)
+    public var hostConcurrency = 4
+    public var perHostDelay: Duration = .milliseconds(250)
+    public var infraRetries = 2
+    public var showSamples = false
+    /// Cross-check against the locally installed copy where there is one. Off on
+    /// a CI runner, where nothing is installed.
+    public var useInstalled = true
+    public var githubToken: String?
+    public var baselinePath: URL?
+    public var jsonPath: URL?
+    public var markdownPath: URL?
+}
+
+/// The installed version to compare a probe's answer against.
+struct InstalledVersion: Sendable {
+    let marketing: String?
+    let build: String?
+}
+
+public enum Verify {
+
+    public static func run(_ options: VerifyOptions) async -> Int32 {
+        let vendor = filtered(VendorProbeRegistry.recipes, options) { $0.bundleID }
+        let github = filtered(GitHubReleaseRegistry.rules, options) { $0.bundleID }
+        let changelog = filtered(ChangelogRecipeRegistry.recipes, options) { $0.bundleID }
+
+        let total = (options.registries.contains(.vendor) ? vendor.count : 0)
+            + (options.registries.contains(.github) ? github.count : 0)
+            + (options.registries.contains(.changelog) ? changelog.count : 0)
+        guard total > 0 else {
+            die("nothing to verify — no recipe matches \(options.only.joined(separator: ", "))",
+                code: 2)
+        }
+
+        let installed = options.useInstalled ? installedVersions() : [:]
+        print("""
+
+          duo verify
+          \(options.registries.contains(.vendor) ? "\(vendor.count) vendor probes  " : "")\
+        \(options.registries.contains(.github) ? "\(github.count) GitHub rules  " : "")\
+        \(options.registries.contains(.changelog) ? "\(changelog.count) changelogs" : "")
+          ─────────────────────────────────────────────
+        """)
+
+        let started = Date()
+        var findings: [Finding] = []
+
+        // Vendor and GitHub first: their answers are the reference the changelog
+        // sweep compares against, and they resolve the `{version}` that
+        // templated changelog URLs need.
+        if options.registries.contains(.vendor) {
+            findings += await sweepVendor(vendor, options: options, installed: installed)
+        }
+        if options.registries.contains(.github) {
+            findings += await sweepGitHub(github, options: options, installed: installed)
+        }
+        let knownVersions = Dictionary(
+            findings.compactMap { f in f.version.map { (f.bundleID, $0) } },
+            uniquingKeysWith: { a, _ in a })
+        if options.registries.contains(.changelog) {
+            // Fall back to the installed copy's version for templated recipes
+            // when no version source ran this sweep (`--changelog` on its own).
+            var versions = knownVersions
+            for (key, value) in installed {
+                let bundleID = String(key.dropFirst("vendor:".count).prefix { $0 != ":" })
+                if versions[bundleID] == nil, let marketing = value.marketing {
+                    versions[bundleID] = marketing
+                }
+            }
+            findings += await sweepChangelog(changelog, options: options, versions: versions)
+        }
+
+        findings.sort { $0.recipeID < $1.recipeID }
+
+        // Fold in history: version regressions, and the failure streak that
+        // decides whether anything is worth reporting at all.
+        var baseline = options.baselinePath.map(Baseline.load) ?? Baseline()
+        findings = findings.map { finding in
+            guard let complaint = baseline.reconcile(finding) else { return finding }
+            return finding.adding(warning: complaint)
+        }
+        baseline.updatedAt = Date()
+
+        Report.text(findings, elapsed: Int(Date().timeIntervalSince(started)),
+                    baseline: baseline, showSamples: options.showSamples)
+        writeArtifacts(findings, baseline: baseline, options: options)
+
+        // Broken recipes below the streak threshold don't fail the run — a first
+        // bad sweep is information, not a verdict.
+        return findings.contains(where: {
+            $0.status == .warn
+                || ($0.status == .broken && baseline.isReportable($0.recipeID))
+        }) ? 1 : 0
+    }
+
+    private static func filtered<T>(
+        _ items: [T], _ options: VerifyOptions, id: (T) -> String
+    ) -> [T] {
+        guard !options.only.isEmpty else { return items }
+        return items.filter { item in
+            options.only.contains { id(item).localizedCaseInsensitiveContains($0) }
+        }
+    }
+
+    private static func writeArtifacts(
+        _ findings: [Finding], baseline: Baseline, options: VerifyOptions
+    ) {
+        if let path = options.jsonPath {
+            do { try Report.json(findings, to: path) }
+            catch { FileHandle.standardError.write(Data("could not write \(path.path): \(error)\n".utf8)) }
+        }
+        if let path = options.markdownPath {
+            do { try Report.markdown(findings, baseline: baseline, to: path) }
+            catch { FileHandle.standardError.write(Data("could not write \(path.path): \(error)\n".utf8)) }
+        }
+        if let path = options.baselinePath {
+            do { try baseline.save(to: path) }
+            catch { FileHandle.standardError.write(Data("could not write \(path.path): \(error)\n".utf8)) }
+        }
+    }
+
+    // MARK: - vendor probes
+
+    private static func sweepVendor(
+        _ recipes: [VendorProbeRecipe], options: VerifyOptions,
+        installed: [String: InstalledVersion]
+    ) async -> [Finding] {
+        await byHost(recipes, host: { $0.url.host ?? "-" }, options: options) { recipe in
+            // A credential-bearing recipe is never fetched by the sweep: its URL,
+            // headers and body would all flow into a report and possibly an
+            // issue. Reported as skipped so the absence is visible.
+            if RegistrySecurity.isCredentialBearing(bundleID: recipe.bundleID) {
+                return Finding(
+                    recipeID: recipe.recipeID, registry: .vendor, bundleID: recipe.bundleID,
+                    channel: recipe.channel.rawValue, status: .skipped,
+                    failureDetail: "credential-bearing — never swept",
+                    endpointHost: recipe.url.host ?? "-")
+            }
+            let source = VendorProbeSource()
+            var attempt = 0
+            var outcome = await source.probeDiagnostic(recipe)
+            while attempt < options.infraRetries,
+                  outcome.failure?.classification == .infra {
+                attempt += 1
+                try? await Task.sleep(for: .seconds(attempt))
+                outcome = await source.probeDiagnostic(recipe)
+            }
+            var finding = classify(
+                outcome, registry: .vendor, host: recipe.url.host ?? "-",
+                pattern: recipe.versionPattern, attempts: attempt + 1,
+                installed: installed[recipe.recipeID],
+                sanity: { RecipeSanity.complaints(version: $0, recipe: recipe) })
+            if let version = finding.version,
+               let complaint = await brewComplaint(bundleID: recipe.bundleID, version: version) {
+                finding = finding.adding(warning: complaint)
+            }
+            return finding
+        }
+    }
+
+    // MARK: - GitHub rules
+
+    private static func sweepGitHub(
+        _ rules: [GitHubReleaseRule], options: VerifyOptions,
+        installed: [String: InstalledVersion]
+    ) async -> [Finding] {
+        // All 13 rules share api.github.com, so host-grouping would serialize
+        // them anyway. That is the correct behaviour — one shared rate limit.
+        let source = GitHubReleasesSource(token: options.githubToken ?? GitHubToken.resolve())
+        var out: [Finding] = []
+        for (index, rule) in rules.enumerated() {
+            if index > 0 { try? await Task.sleep(for: options.perHostDelay) }
+            var attempt = 0
+            var outcome = await source.resolveDiagnostic(rule)
+            while attempt < options.infraRetries,
+                  outcome.failure?.classification == .infra {
+                attempt += 1
+                try? await Task.sleep(for: .seconds(attempt))
+                outcome = await source.resolveDiagnostic(rule)
+            }
+            out.append(classify(
+                outcome, registry: .github, host: "api.github.com",
+                pattern: rule.versionPattern, attempts: attempt + 1,
+                installed: installed["vendor:\(rule.bundleID):\(rule.channel.rawValue)"],
+                sanity: { _ in [] }))
+        }
+        return out
+    }
+
+    // MARK: - changelog recipes
+
+    /// A changelog recipe fails the same way a probe does — the vendor restyles
+    /// the page and the entry pattern stops matching — but until now it recorded
+    /// nothing at all: the UI just silently fell back to embedding the raw page.
+    private static func sweepChangelog(
+        _ recipes: [ChangelogRecipe], options: VerifyOptions, versions: [String: String]
+    ) async -> [Finding] {
+        await byHost(recipes, host: { $0.source.host ?? "-" }, options: options) { recipe in
+            let id = "changelog:\(recipe.bundleID):\(recipe.channel?.rawValue ?? "-")"
+            let host = recipe.source.host ?? "-"
+            // Templated recipes need a concrete version to resolve their URL —
+            // use the one this run's probe just read, so the sweep checks the
+            // page the app would actually open.
+            let version = versions[recipe.bundleID]
+            // With no version at all, `resolvedSource` silently falls back to the
+            // untemplated `source` — which for these vendors is a generic landing
+            // page that has never parsed. Reporting that as breakage would be a
+            // pure artifact of how the sweep was invoked, so say so instead.
+            if recipe.sourceTemplate != nil, version == nil {
+                return Finding(
+                    recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
+                    channel: recipe.channel?.rawValue ?? "-", status: .skipped,
+                    failureDetail: "version-templated: no version available "
+                        + "(app not installed, and no version source ran this sweep)",
+                    endpointHost: host)
+            }
+            let started = Date()
+            let diagnostic = await ChangelogService.loadDiagnostic(recipe, version: version)
+            let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+
+            guard let changelog = diagnostic.changelog,
+                  let newest = changelog.entries.first else {
+                // A moved page and a restyled page need completely different
+                // fixes, so the report must not lump them together.
+                let kind: String
+                let detail: String
+                let status: FindingStatus
+                if diagnostic.fetchFailed {
+                    if let code = diagnostic.httpStatus {
+                        kind = "httpStatus\(code)"
+                        detail = "HTTP \(code) — the changelog page has moved or gone"
+                        status = (code >= 500 || code == 429) ? .infra : .broken
+                    } else {
+                        kind = "transport"
+                        detail = "could not reach \(host)"
+                        status = .infra
+                    }
+                } else {
+                    kind = "noEntriesExtracted"
+                    detail = "fetched \(host) fine, but the entry pattern matched nothing"
+                    status = .broken
+                }
+                return Finding(
+                    recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
+                    channel: recipe.channel?.rawValue ?? "-", status: status,
+                    failureKind: kind, failureDetail: detail,
+                    endpointHost: host, pattern: recipe.entryPattern, elapsedMs: elapsed,
+                    bodySample: diagnostic.bodySample)
+            }
+
+            // Cross-check against what the version sources said. A changelog
+            // stuck a whole release behind what the app is being offered means
+            // the entry pattern is reading a stale or wrong part of the page.
+            //
+            // Compared on major.minor only, and that is load-bearing: matching on
+            // the full string flagged six recipes, five of them behaving exactly
+            // as intended. JetBrains keys its notes to the major release (`2026.2`
+            // for build `2026.2.0.1`), Toolbox publishes marketing versions
+            // against build-numbered installs, and a vendor being one patch
+            // behind on their own blog is ordinary. Only a divergence bigger than
+            // that says something is actually wrong.
+            var warnings: [String] = []
+            let top = newest.version
+            if let version, let complaint = changelogLagComplaint(entry: top, detected: version) {
+                warnings.append(complaint)
+            }
+            return Finding(
+                recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
+                channel: recipe.channel?.rawValue ?? "-",
+                status: warnings.isEmpty ? .ok : .warn,
+                version: newest.version, warnings: warnings,
+                endpointHost: host, pattern: recipe.entryPattern, elapsedMs: elapsed)
+        }
+    }
+
+    /// Second opinion from Homebrew, for the ~35% of vendor bundle ids the cask
+    /// catalog can resolve (measured against the live catalog, not assumed —
+    /// `byBundleID` is derived from each cask's `uninstall: quit:` field, so
+    /// coverage is partial by construction).
+    ///
+    /// **Deliberately one-directional.** A cask *behind* our probe is the normal
+    /// state of the world: brew lags, and `auto_updates true` casks lag
+    /// indefinitely because nobody bumps them. A cask *ahead* of us by a whole
+    /// release is the interesting direction — it means the vendor shipped and
+    /// our recipe didn't notice.
+    ///
+    /// This is the only cross-check that works on a CI runner, where no apps are
+    /// installed and `remoteBehindInstalled` has nothing to compare against.
+    static func brewComplaint(bundleID: String, version: String) async -> String? {
+        guard let cask = try? await HomebrewCaskCatalog.shared.entry(forBundleID: bundleID),
+              !cask.autoUpdates  // an auto-updating cask's version is decorative
+        else { return nil }
+
+        func majorMinor(_ v: String) -> String {
+            v.split(separator: ".").prefix(2).joined(separator: ".")
+        }
+        let ours = majorMinor(version)
+        let theirs = majorMinor(cask.version)
+        guard ours != theirs, VersionComparator.isNewer(theirs, than: ours) else { return nil }
+        return "Homebrew's cask `\(cask.token)` is at \(cask.version) while this recipe "
+            + "reads \(version) — the probe may be stuck on a stale element"
+    }
+
+    /// Flag a changelog only when it trails the detected version at
+    /// major.minor — see the call site for why the full-string comparison had to
+    /// go.
+    static func changelogLagComplaint(entry: String, detected: String) -> String? {
+        // Plenty of recipes deliberately capture a headline into the `version`
+        // group, because the vendor simply doesn't number their release notes —
+        // Figma and Notion both title entries "AI credit user limits…". Comparing
+        // a sentence to a version number produces confident nonsense, so anything
+        // that isn't version-shaped is out of scope for this check.
+        guard entry.first?.isNumber == true, detected.first?.isNumber == true else {
+            return nil
+        }
+        func majorMinor(_ version: String) -> String {
+            version.split(separator: ".").prefix(2).joined(separator: ".")
+        }
+        let entryMM = majorMinor(entry)
+        let detectedMM = majorMinor(detected)
+        guard entryMM != detectedMM, VersionComparator.isNewer(detectedMM, than: entryMM)
+        else { return nil }
+        return "newest changelog entry (\(entry)) trails the detected version (\(detected)) "
+            + "by a whole release — the entry pattern may be reading a stale section"
+    }
+
+    // MARK: - shared plumbing
+
+    /// One request at a time per host, up to `hostConcurrency` hosts in flight.
+    ///
+    /// Grouping by host gives both politeness constraints at once, and for free:
+    /// recipes that share a host (Mozilla's three channels, JetBrains' many
+    /// tools) are naturally serialized instead of arriving as a burst.
+    private static func byHost<T: Sendable>(
+        _ items: [T], host: @Sendable (T) -> String, options: VerifyOptions,
+        probe: @escaping @Sendable (T) async -> Finding
+    ) async -> [Finding] {
+        let groups = Dictionary(grouping: items, by: host).values.sorted {
+            host($0[0]) < host($1[0])
+        }
+        let delay = options.perHostDelay
+
+        var findings: [Finding] = []
+        var next = 0
+        await withTaskGroup(of: [Finding].self) { group in
+            func addNext() {
+                guard next < groups.count else { return }
+                let batch = groups[next]
+                next += 1
+                group.addTask {
+                    var out: [Finding] = []
+                    for (index, item) in batch.enumerated() {
+                        if index > 0 {
+                            // Jitter so a host serving several recipes doesn't
+                            // see a metronome.
+                            try? await Task.sleep(
+                                for: delay + .milliseconds(Int.random(in: 0...100)))
+                        }
+                        out.append(await probe(item))
+                    }
+                    return out
+                }
+            }
+            for _ in 0..<min(options.hostConcurrency, groups.count) { addNext() }
+            for await produced in group {
+                findings.append(contentsOf: produced)
+                addNext()
+            }
+        }
+        return findings
+    }
+
+    /// Turn a `ProbeOutcome` into a `Finding`. Shared by the vendor and GitHub
+    /// sweeps so both are judged by identical rules.
+    static func classify(
+        _ outcome: ProbeOutcome, registry: Registry, host: String, pattern: String?,
+        attempts: Int, installed: InstalledVersion?,
+        sanity: (String) -> [String]
+    ) -> Finding {
+        func make(
+            _ status: FindingStatus, version: String? = nil, warnings: [String] = []
+        ) -> Finding {
+            Finding(
+                recipeID: outcome.recipeID, registry: registry, bundleID: outcome.bundleID,
+                channel: outcome.channel.rawValue, status: status, version: version,
+                failureKind: outcome.failure?.kind, failureDetail: outcome.failure?.detail,
+                warnings: warnings, endpointHost: host, pattern: pattern,
+                attempts: attempts, elapsedMs: outcome.elapsedMs,
+                bodySample: outcome.bodySample)
+        }
+
+        if let failure = outcome.failure {
+            switch failure.classification {
+            case .recipe: return make(.broken)
+            case .infra: return make(.infra)
+            case .notApplicable: return make(.skipped)
+            }
+        }
+        guard let remote = outcome.remote,
+              let version = remote.shortVersion ?? remote.version else {
+            // Unreachable by construction (remote nil ⇒ failure non-nil), but a
+            // sweep that silently drops a recipe is exactly the bug being fixed.
+            return make(.broken)
+        }
+
+        // The judgment rules live in `RecipeSanity`, in the core next to the
+        // registry they guard — a second copy here would drift from it.
+        var warnings = outcome.warnings.map(\.kind)
+        warnings.append(contentsOf: sanity(version))
+        if let installed, let complaint = RecipeSanity.remoteBehindInstalled(
+            remote: remote, installedMarketing: installed.marketing,
+            installedBuild: installed.build) {
+            warnings.append(complaint)
+        }
+        return make(warnings.isEmpty ? .ok : .warn, version: version, warnings: warnings)
+    }
+
+    /// Index the locally installed apps by the recipe id they'd be checked
+    /// under, so a recipe can find its own installed copy without re-deriving
+    /// the channel gate.
+    private static func installedVersions() -> [String: InstalledVersion] {
+        var out: [String: InstalledVersion] = [:]
+        for app in AppScanner().scan() {
+            guard let bundleID = app.bundleID else { continue }
+            out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] =
+                InstalledVersion(marketing: app.shortVersion, build: app.buildVersion)
+        }
+        return out
+    }
+}
+
+extension Finding {
+    /// Attach a warning discovered after the fact (the baseline's history checks
+    /// run once every finding exists), promoting `ok` to `warn`.
+    public func adding(warning: String) -> Finding {
+        Finding(
+            recipeID: recipeID, registry: registry, bundleID: bundleID, channel: channel,
+            status: status == .ok ? .warn : status, version: version,
+            failureKind: failureKind, failureDetail: failureDetail,
+            warnings: warnings + [warning], endpointHost: endpointHost, pattern: pattern,
+            attempts: attempts, elapsedMs: elapsedMs, bodySample: bodySample)
+    }
+}

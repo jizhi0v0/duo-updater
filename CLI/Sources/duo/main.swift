@@ -99,6 +99,10 @@ backups options:
 doctor options:
   --json              Machine-readable form of the same report.
 
+  Also names apps that cannot be copied into the backup store, so you know
+  before you update them that there is no way back. Walks the bundles of apps
+  you do not own, which takes a couple of seconds.
+
   Exits 3 when App Management is not granted, since that is the permission the
   in-place install routes need and the one nobody guesses.
 
@@ -222,7 +226,7 @@ case "backups":
     exit(await Backups.run(options))
 
 case "doctor":
-    exit(Doctor.run(json: args.has("json")))
+    exit(await Doctor.run(json: args.has("json")))
 
 case "verify":
     var options = VerifyOptions()

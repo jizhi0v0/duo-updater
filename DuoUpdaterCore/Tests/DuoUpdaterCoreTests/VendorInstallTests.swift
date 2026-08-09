@@ -9,17 +9,38 @@ import CryptoKit
 /// and that a downloaded build passes the mandatory code-signature + Team ID gate.
 
 /// Every recipe with an install spec must resolve a concrete download URL + kind
-/// from its live feed. Prints the plan to stderr.
+/// from its live feed — on ITS OWN channel. Prints the plan to stderr.
+///
+/// The stable half is a curated smoke list: `duo verify` sweeps all ~55 stable
+/// install recipes nightly (with per-host throttling, retries and a baseline), so
+/// there is no reason to re-run that breadth on every `swift test`.
+///
+/// The non-stable half is NOT curated — it is derived from the registry, so every
+/// channel recipe is covered and a new one cannot be added without appearing here.
+/// Channels get the stricter treatment for two reasons. They are the ones written
+/// by copying a stable sibling, which is how Signal Beta ended up reusing stable's
+/// dmg filename pattern: the version still resolved, one-click silently degraded
+/// to detection-only, and nothing anywhere reported it. And they are the ones
+/// where "it resolved something" is not enough — resolving the STABLE artifact
+/// for a Beta install passes every other check, including the Team-ID gate, so
+/// each one is held to `ChannelProofRegistry`'s marker for its own train.
+///
+/// The channel is load-bearing in the fixture too: `VendorProbeSource` only picks
+/// a recipe whose channel matches the app's, and `InstalledApp.releaseChannel`
+/// defaults to `.stable` — a bundleID-only list exercised nothing but stable.
+/// Setting it directly deliberately bypasses scan-time detection (Mozilla's
+/// `RemotingName`, Android Studio's channel-marked bundle filename, Tailscale's
+/// `UnstableUpdatesEnabled`); `ChannelGuardTests` covers that half. It also leaves
+/// `isToolboxManaged` false, so JetBrains/Android Studio are exercised on their
+/// website-install path — the Toolbox gate is pinned separately in
+/// `toolboxManagedCopiesResolveDetectionOnly`.
 @Test func vendorResolvesInstallPlans() async {
     let err = FileHandle.standardError
     func log(_ s: String) { err.write((s + "\n").data(using: .utf8)!) }
 
-    // The bundles we've enabled for one-click install (zip/dmg/tarGz swap, or
-    // pkg → system installer). The channel is load-bearing: `VendorProbeSource`
-    // only picks a recipe whose channel matches the app's, and `InstalledApp`
-    // defaults to `.stable` — so a non-stable recipe must be asked for by channel
-    // or it silently resolves nothing.
-    let targets: [(id: String, channel: ReleaseChannel)] = [
+    // The stable bundles we've enabled for one-click install (zip/dmg/tarGz swap,
+    // or pkg → system installer).
+    let stable: [(id: String, channel: ReleaseChannel)] = [
         ("com.microsoft.VSCode", .stable), ("app.chatwise", .stable),
         ("com.openai.codex", .stable), ("com.conductor.app", .stable),
         ("org.videolan.vlc", .stable), ("dev.kdrag0n.MacVirt", .stable),
@@ -28,39 +49,128 @@ import CryptoKit
         ("com.google.android.studio", .stable),  // website-install path (Toolbox copies are gated)
         ("com.oray.sunlogin.macclient", .stable),  // AweSun: pkg → system installer (WAF Referer)
         ("com.postmanlabs.mac", .stable),          // Postman: zip → in-place (self-updater, same Team)
-        // Both Signal channels: the per-channel dmg filenames differ (beta carries
-        // an extra `beta-` segment) and a vendor rename silently drops one-click to
-        // detection-only, so each channel has to be resolved live, not just offline.
+        // Signal stable's sibling is derived below; keep stable here so the pair is
+        // always resolved together — the two feeds are what got confused.
         ("org.whispersystems.signal-desktop", .stable),
-        ("org.whispersystems.signal-desktop-beta", .beta),
         // Outlook: pkg → system installer. Absent from this list, the 2026-08-09
         // breakage (Microsoft dropped the key the install spec read) showed up
         // nowhere — the version kept resolving and one-click just stopped
         // existing. This live check is what makes that loud.
         ("com.microsoft.Outlook", .stable),
     ]
+    let targets =
+        stable.map { ChannelProofKey($0.id, $0.channel) }
+        + ChannelProofRegistry.channelRecipesWithInstall.sorted {
+            ($0.bundleID, $0.channel.rawValue) < ($1.bundleID, $1.channel.rawValue)
+        }
+    let byKey = Dictionary(
+        VendorProbeRegistry.recipes.filter { $0.install != nil }
+            .map { (ChannelProofKey($0.bundleID, $0.channel), $0) },
+        uniquingKeysWith: { a, _ in a })
+
     let source = VendorProbeSource()
-    log("\n=== vendor install plans ===")
-    for (bundleID, channel) in targets {
+    func probe(_ key: ChannelProofKey) async -> RemoteVersion? {
         let app = InstalledApp(
-            name: bundleID, bundleID: bundleID,
+            name: key.bundleID, bundleID: key.bundleID,
             shortVersion: "0.0.0", buildVersion: "0",
-            path: URL(fileURLWithPath: "/Applications/\(bundleID).app"),
+            path: URL(fileURLWithPath: "/Applications/\(key.bundleID).app"),
             isMASApp: false, sparkleFeedURL: nil,
-            releaseChannel: channel)
-        let remote = try? await source.latestVersion(for: app)
+            releaseChannel: key.channel)
+        return (try? await source.latestVersion(for: app)) ?? nil
+    }
+
+    // Bounded fan-out: firing all ~45 feed fetches at once is both rude to the
+    // vendors and enough contention to time a probe out while the rest of this
+    // suite is downloading, which showed up as a spurious "resolved no URL". A
+    // miss is retried ONCE and the retry is logged — the breakage this guards
+    // against is deterministic and fails both attempts; a network blip does not.
+    var results: [ChannelProofKey: RemoteVersion?] = [:]
+    for chunk in stride(from: 0, to: targets.count, by: 12).map({
+        Array(targets[$0..<min($0 + 12, targets.count)])
+    }) {
+        await withTaskGroup(of: (ChannelProofKey, RemoteVersion?).self) { group in
+            for key in chunk { group.addTask { (key, await probe(key)) } }
+            for await (key, remote) in group { results[key] = remote }
+        }
+    }
+    var retried: [ChannelProofKey] = []
+    for key in targets where (results[key] ?? nil)?.downloadURL == nil {
+        retried.append(key)
+        results[key] = await probe(key)
+    }
+
+    log("\n=== vendor install plans (\(targets.count) recipes) ===")
+    if !retried.isEmpty {
+        log("↻ retried after a first-pass miss: \(retried.map(\.description).joined(separator: ", "))")
+    }
+    for key in targets {
+        let remote = results[key] ?? nil
         let kind = remote?.vendorInstallerKind.map { "\($0)" } ?? "nil"
         let sum = remote?.expectedSHA512 != nil ? "sha512✓" : "—"
         // `versionIsBuild` recipes (Outlook) put the build in `version` and leave
         // `shortVersion` nil unless they carry a display pattern — fall back so the
         // sweep never prints a bare "v?" for a recipe that did resolve.
         let shown = remote?.shortVersion ?? remote?.version ?? "?"
-        log("• \(bundleID): v\(shown)  [\(kind)] \(sum)")
+        log("• \(key): v\(shown)  [\(kind)] \(sum)")
         log("    \(remote?.downloadURL?.absoluteString ?? "NO URL")")
-        #expect(remote?.downloadURL != nil)
-        #expect(remote?.vendorInstallerKind != nil)
+        #expect(remote?.downloadURL != nil, "\(key) resolved no installer URL")
+        #expect(remote?.vendorInstallerKind != nil, "\(key) resolved no installer kind")
         // pkg → manual installer (system installer); archives → in-place swap.
-        #expect(remote?.requiresManualInstaller == (remote?.vendorInstallerKind == .pkg))
+        #expect(remote?.requiresManualInstaller == (remote?.vendorInstallerKind == .pkg),
+                "\(key) install routing disagrees with its kind")
+        // …and that the build came off this channel's train. Same rule the nightly
+        // `duo verify` sweep applies, read from the core registry so the two can't
+        // drift (see `RecipeSanity.crossChannelArtifact`).
+        if let recipe = byKey[key], let remote {
+            let complaint = RecipeSanity.crossChannelArtifact(recipe: recipe, remote: remote)
+            #expect(complaint == nil, "\(key): \(complaint ?? "")")
+        }
+    }
+}
+
+/// `ChannelProofRegistry.proofs` must cover every non-stable install recipe, and
+/// must not carry entries for recipes that no longer exist.
+///
+/// Offline and instant, unlike the live sweep above — this is the half that has to
+/// fail in a PR, so someone adding a channel recipe is forced to say how they know
+/// it isn't crossing trains rather than discovering it from a nightly warning.
+@Test func channelProofsCoverEveryChannelRecipe() {
+    let needed = Set(ChannelProofRegistry.channelRecipesWithInstall)
+    let have = Set(ChannelProofRegistry.proofs.keys)
+    let unproven = needed.subtracting(have).map(\.description).sorted()
+    let orphaned = have.subtracting(needed).map(\.description).sorted()
+    #expect(unproven.isEmpty, "channel recipes with an install spec but no ChannelProof: \(unproven)")
+    #expect(orphaned.isEmpty, "ChannelProof entries for recipes that no longer carry a channel install spec: \(orphaned)")
+    // A duplicate (bundleID, channel) is an unreachable recipe: `latestVersion`
+    // takes the FIRST match for the app's channel, so the second copy never runs.
+    let keys = VendorProbeRegistry.recipes.map { ChannelProofKey($0.bundleID, $0.channel) }
+    #expect(Set(keys).count == keys.count, "duplicate (bundleID, channel) in the registry")
+}
+
+/// The install half of a vendor probe must stay OFF for a Toolbox-managed copy.
+///
+/// Android Studio's Canary/Beta are the one case where a Toolbox-managed app is
+/// still routed through its `VendorProbeRecipe` (Toolbox's local verdict is flaky
+/// there — see `InstalledApp.prefersVendorProbeOverToolbox`). We borrow the probe
+/// for the VERSION only: installing must still go through Toolbox, never an
+/// in-place bundle swap that would desync Toolbox's state. Same recipe and channel
+/// the sweep above resolves, so the only difference is the Toolbox flag — this
+/// pins the gate, not the recipe.
+@Test func toolboxManagedCopiesResolveDetectionOnly() async throws {
+    let source = VendorProbeSource()
+    for channel in [ReleaseChannel.canary, .beta] {
+        let app = InstalledApp(
+            name: "Android Studio", bundleID: "com.google.android.studio",
+            shortVersion: "0.0.0", buildVersion: "AI-000.0.0",
+            path: URL(fileURLWithPath: "/Applications/Android Studio Preview.app"),
+            isMASApp: false, isToolboxManaged: true, sparkleFeedURL: nil,
+            releaseChannel: channel)
+        #expect(app.prefersVendorProbeOverToolbox)  // linchpin for the branch below
+        let remote = try await source.latestVersion(for: app)
+        #expect(remote?.version != nil, "Toolbox-managed \(channel.rawValue) lost its version")
+        #expect(remote?.vendorInstallerKind == nil,
+                "Toolbox-managed \(channel.rawValue) offered an in-place install")
+        #expect(remote?.requiresManualInstaller == true)
     }
 }
 
@@ -205,7 +315,13 @@ private func checkGate(_ app: InstalledApp, log: (String) -> Void) async throws 
     log("download: \(url.absoluteString)  [\(kind)]")
 
     let workDir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("vendor-gate-test-\(app.id)")
+        // `scratchSlug`, not `app.id`: the id is the full bundle PATH, so the work
+        // dir came out as `…/T/vendor-gate-test-/Applications/VLC.app` — a directory
+        // whose last component ends in `.app`. Unpacking into it produced
+        // `VLC.app/VLC.app` and made the extract/move fail intermittently.
+        // `scratchSlug` is the filesystem-safe token the real installers use for
+        // exactly this.
+        .appendingPathComponent("vendor-gate-test-\(app.scratchSlug)")
     try? FileManager.default.removeItem(at: workDir)
     try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: workDir) }

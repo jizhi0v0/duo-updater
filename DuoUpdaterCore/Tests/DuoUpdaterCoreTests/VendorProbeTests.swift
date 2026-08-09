@@ -498,26 +498,98 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     #expect(VendorProbeRecipe.extractVersion(from: location, pattern: pattern) == "16.109.26053122")
 }
 
+/// A trimmed slice of the REAL Office AutoUpdate manifest (0409OPIM2019.xml,
+/// fetched 2026-08-09): one delta entry (the first dict, keys alphabetical as
+/// plist serialization emits them) plus the no-baseline full-updater entry that
+/// follows the 24 delta entries. The previous fixture here was invented rather
+/// than trimmed from the wire, which is exactly how the retired
+/// `Update Version Location` key went unnoticed after Microsoft dropped it.
+private let outlookManifestFixture = #"""
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+<dict>
+    <key>Application ID</key>
+    <string>OPIM2019</string>
+    <key>Baseline Version</key>
+    <string>16.107.26030937</string>
+    <key>BinaryUpdaterLocation</key>
+    <string>https://res.public.onecdn.static.microsoft/mro1cdnstorage/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Outlook_16.107.26030937_to_16.109.26053122_BinaryDelta.pkg</string>
+    <key>BinaryUpdaterSize</key>
+    <integer>216560</integer>
+    <key>FullUpdaterLocation</key>
+    <string>https://res.public.onecdn.static.microsoft/mro1cdnstorage/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Outlook_16.109.26053122_Updater.pkg</string>
+    <key>FullUpdaterSize</key>
+    <integer>1318143</integer>
+    <key>Location</key>
+    <string>https://res.public.onecdn.static.microsoft/mro1cdnstorage/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Outlook_16.107.26030937_to_16.109.26053122_Delta.pkg</string>
+    <key>Payload</key>
+    <string>Outlook_16.107.26030937_to_16.109.26053122_Delta.pkg</string>
+    <key>Title</key>
+    <string>Microsoft Outlook Update 16.109.3 (26053122)</string>
+    <key>Update Version</key>
+    <string>16.109.26053122</string>
+</dict>
+<dict>
+    <key>Application ID</key>
+    <string>OPIM2019</string>
+    <key>Location</key>
+    <string>https://res.public.onecdn.static.microsoft/mro1cdnstorage/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Outlook_16.109.26053122_Updater.pkg</string>
+    <key>Payload</key>
+    <string>Microsoft_Outlook_16.109.26053122_Updater.pkg</string>
+    <key>Update Version</key>
+    <string>16.109.26053122</string>
+</dict>
+</array>
+</plist>
+"""#
+
 @Test func microsoftOutlookProbeExtractsVersionFromXML() {
     // Outlook uses the Office AutoUpdate XML manifest which carries the version
-    // in <key>Update Version</key><string>...</string>.
-    let fixture = #"""
-    <?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-    <plist version="1.0">
-    <dict>
-      <key>Payload</key>
-      <dict>
-        <key>Update Version</key>
-        <string>16.109.26053122</string>
-        <key>Update Version Location</key>
-        <string>https://officecdn.microsoft.com/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Outlook_16.109.26053122_Installer.pkg</string>
-      </dict>
-    </dict>
-    </plist>
-    """#
-    let pattern = #"<key>Update Version</key>\s*<string>([0-9]+\.[0-9]+\.[0-9]+)</string>"#
-    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: pattern) == "16.109.26053122")
+    // in <key>Update Version</key><string>...</string> — the BUILD, not the
+    // marketing string (the pkg declares CFBundleShortVersionString 16.109.3),
+    // which is what `versionIsBuild` on the recipe is for.
+    let recipe = try! #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.microsoft.Outlook" })
+    #expect(recipe.versionIsBuild)
+    #expect(VendorProbeRecipe.extractVersion(
+        from: outlookManifestFixture, pattern: recipe.versionPattern) == "16.109.26053122")
+}
+
+// Regression for the 2026-08-09 silent one-click death: Microsoft removed the
+// `Update Version Location` key the install spec read, so the version still
+// resolved while the installer URL didn't — the row degraded to detection-only
+// with no signal. The replacement templates the pkg off the same `Update Version`
+// capture detection uses, so install can't break while detection survives.
+@Test func microsoftOutlookOneClickTemplatesFullUpdaterNotADelta() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.microsoft.Outlook" })
+    // The retired key is really gone from the wire format — the old pattern is dead.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: outlookManifestFixture,
+        pattern: #"<key>Update Version Location</key>\s*<string>([^<]+\.pkg)</string>"#) == nil)
+
+    let install = try #require(recipe.install)
+    #expect(install.kind == .pkg)
+    guard case let .bodyPattern(pattern) = install.urlSource else {
+        Issue.record("expected bodyPattern install source"); return
+    }
+    let resolved = try #require(
+        VendorProbeRecipe.extractVersion(from: outlookManifestFixture, pattern: pattern))
+    // The 1.29GB standalone package, signed by Team UBF8T346G9 (same as the
+    // installed app) — NOT either patch form.
+    #expect(resolved == "https://res.public.onecdn.static.microsoft/mro1cdnstorage/"
+        + "C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/"
+        + "Microsoft_Outlook_16.109.26053122_Updater.pkg")
+    // The guard that matters. Both deltas sit in the same dict and the same CDN
+    // directory, and alphabetical key order puts BinaryUpdaterLocation ahead of
+    // FullUpdaterLocation — so a pattern that leaned on ordering alone would be
+    // one manifest reshuffle away from installing a partial payload.
+    #expect(!resolved.contains("Delta"))
+    // …and the pkg carries the very build the probe reports (no scheme drift).
+    #expect(resolved.contains(try #require(VendorProbeRecipe.extractVersion(
+        from: outlookManifestFixture, pattern: recipe.versionPattern))))
 }
 
 // MARK: - Self-updaters with public Sparkle appcasts (safety-net probes)

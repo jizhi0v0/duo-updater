@@ -174,14 +174,67 @@ public struct GitHubReleasesSource: UpdateSource {
         // A rule exists: let a fetch failure throw, so the checker turns it into
         // a retryable `.error` row rather than swallowing it into a nil that's
         // indistinguishable from "no source for this app".
-        return try await resolve(rule)
+        return try await resolve(rule).remote
     }
 
-    private func resolve(_ rule: GitHubReleaseRule) async throws -> RemoteVersion? {
+    /// Run one rule and report everything that happened — the counterpart to
+    /// `VendorProbeSource.probeDiagnostic`, so an automated sweep can judge
+    /// GitHub rules by the same taxonomy as vendor recipes.
+    ///
+    /// Kept on the source, not in the sweeping tool, so it shares this type's
+    /// endpoint construction, token handling and cache policy. The "body sample"
+    /// is the tag list — for a GitHub rule the tags *are* the surface a version
+    /// pattern is written against, and they're what you need to repair one.
+    public func resolveDiagnostic(_ rule: GitHubReleaseRule) async -> ProbeOutcome {
+        let started = DispatchTime.now()
+        func elapsed() -> Int {
+            Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
+        }
+        func outcome(
+            remote: RemoteVersion?, failure: ProbeFailure?, tags: [String] = [], status: Int? = nil
+        ) -> ProbeOutcome {
+            ProbeOutcome(
+                recipeID: "github:\(rule.slug):\(rule.channel.rawValue)",
+                bundleID: rule.bundleID, channel: rule.channel,
+                remote: remote, failure: failure, httpStatus: status,
+                bodySample: tags.isEmpty ? nil : tags.joined(separator: "\n"),
+                elapsedMs: elapsed())
+        }
+
+        do {
+            let resolved = try await resolve(rule)
+            if let remote = resolved.remote {
+                return outcome(remote: remote, failure: nil, tags: resolved.tags)
+            }
+            // Fetched fine, no tag matched — the shape a tag-format change makes.
+            return outcome(
+                remote: nil,
+                failure: .versionPatternNoMatch(
+                    sampleBytes: resolved.tags.joined(separator: "\n").utf8.count),
+                tags: resolved.tags)
+        } catch GitHubError.badStatus(let code) {
+            return outcome(remote: nil, failure: .httpStatus(code), status: code)
+        } catch {
+            return outcome(remote: nil, failure: Self.transportFailure(error))
+        }
+    }
+
+    private static func transportFailure(_ error: Error) -> ProbeFailure {
+        let urlError = error as? URLError
+        return .transport(
+            urlErrorCode: urlError?.errorCode ?? (error as NSError).code,
+            urlError?.localizedDescription ?? error.localizedDescription)
+    }
+
+    /// Also returns the tags it examined: on a pattern miss those are the only
+    /// evidence of *why*, and `resolveDiagnostic` has no other way to see them.
+    private func resolve(
+        _ rule: GitHubReleaseRule
+    ) async throws -> (remote: RemoteVersion?, tags: [String]) {
         let endpoint = rule.usePrereleases
             ? "https://api.github.com/repos/\(rule.slug)/releases?per_page=20"
             : "https://api.github.com/repos/\(rule.slug)/releases/latest"
-        guard let url = URL(string: endpoint) else { return nil }
+        guard let url = URL(string: endpoint) else { return (nil, []) }
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
@@ -193,7 +246,7 @@ public struct GitHubReleasesSource: UpdateSource {
 
         Log.source.debug("GitHub GET \(endpoint, privacy: .public) (auth=\(self.token != nil, privacy: .public))")
         let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { return nil }
+        guard let http = response as? HTTPURLResponse else { return (nil, []) }
         guard (200..<300).contains(http.statusCode) else {
             let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "?"
             Log.source.error("GitHub \(rule.slug, privacy: .public): HTTP \(http.statusCode, privacy: .public) (ratelimit-remaining=\(remaining, privacy: .public))")
@@ -231,7 +284,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 let installable = asset?.url != nil && rule.installerKind != nil
 
                 await RecipeHealth.shared.recordSuccess(id: rule.slug, source: name)
-                return RemoteVersion(
+                return (RemoteVersion(
                     shortVersion: version,
                     version: nil,
                     downloadURL: asset?.url
@@ -245,7 +298,7 @@ public struct GitHubReleasesSource: UpdateSource {
                     changelogURL: page,
                     publishedAt: ReleaseDate.parse(release.publishedAt),
                     releaseHistory: history
-                )
+                ), releases.map(\.tag))
             }
         }
         Log.source.error("GitHub \(rule.slug, privacy: .public): \(releases.count, privacy: .public) releases fetched, none matched /\(rule.versionPattern, privacy: .public)/")
@@ -254,7 +307,7 @@ public struct GitHubReleasesSource: UpdateSource {
         await RecipeHealth.shared.recordMiss(
             id: rule.slug, source: name,
             detail: "\(releases.count) releases fetched, none matched the version pattern")
-        return nil
+        return (nil, releases.map(\.tag))
     }
 
     /// A GitHub release reduced to the fields we use: tag, notes body, page URL,

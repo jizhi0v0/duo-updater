@@ -23,3 +23,8 @@ scripts/icon/out/
 
 # Scheduled-tasks runtime lock — transient, not source
 .claude/scheduled_tasks.lock
+
+# Recipe-verify run artifacts. The baseline IS committed (it carries failure
+# streaks and issue numbers); the per-run report is not.
+verify/report.json
+verify/report.md

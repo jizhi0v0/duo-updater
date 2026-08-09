@@ -46,17 +46,10 @@ public enum ChangelogService {
         return await ChangelogCache.shared.load(for: cacheURL) {
             Log.source.debug(
                 "changelog cache miss: \(resolved.host ?? "?", privacy: .public)")
-            let parsed: Changelog?
-            if let format = recipe.structuredFormat {
-                guard let text = await fetchBody(resolved, session: session) else { return nil }
-                parsed = StructuredChangelogDecoder.decode(
-                    text, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries)
-            } else {
-                guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session),
-                      let text = await fetchBody(pageURL, session: session)
-                else { return nil }
-                parsed = ChangelogExtractor.extract(from: text, using: recipe)
-            }
+            let parsed = await fetchAndParse(recipe, resolved: resolved, session: session)
+            // Recipe health is recorded here, inside the cache-miss closure, so an
+            // in-memory hit doesn't re-assert an outcome it never re-tested.
+            await recordHealth(recipe, parsed: parsed)
             // Persist to the cross-launch disk cache, keyed by version (immutable
             // notes), so the next launch paints instantly and the periodic pre-warm
             // can skip the network for versions we already hold. This lives INSIDE the
@@ -66,6 +59,88 @@ public enum ChangelogService {
                 await ChangelogDiskCache.shared.set(parsed, for: diskCacheKey)
             }
             return parsed
+        }
+    }
+
+    /// Fetch and parse with **both** caches bypassed, for verification sweeps.
+    ///
+    /// `load` is the right entry point for the UI and the wrong one for a
+    /// checker: a warm in-memory slot or a disk-cached entry would let a recipe
+    /// that has been broken for weeks keep reporting success without a single
+    /// request leaving the machine.
+    public static func loadUncached(
+        _ recipe: ChangelogRecipe, version: String? = nil, session: URLSession = .updates
+    ) async -> Changelog? {
+        await loadDiagnostic(recipe, version: version, session: session).changelog
+    }
+
+    /// What a changelog load actually did, for a verifier that has to decide
+    /// whether a human should be paged.
+    ///
+    /// Without this every failure looks like "the pattern stopped matching",
+    /// because that's the only shape `load` can express. The first sweep flagged
+    /// Typeless as a pattern failure when in fact `www.typeless.com/changelog`
+    /// now returns 404 — a completely different fix, and one the report was
+    /// actively pointing away from.
+    public struct ChangelogDiagnostic: Sendable {
+        public let changelog: Changelog?
+        /// The page actually requested, after `{version}` templating.
+        public let resolvedURL: URL
+        /// Non-nil when the request completed; nil when it never got that far.
+        public let httpStatus: Int?
+        public let fetchFailed: Bool
+        /// Present on a parse failure — the evidence needed to repair a pattern.
+        public let bodySample: String?
+    }
+
+    public static func loadDiagnostic(
+        _ recipe: ChangelogRecipe, version: String? = nil, session: URLSession = .updates
+    ) async -> ChangelogDiagnostic {
+        let resolved = recipe.resolvedSource(forVersion: version)
+        // Fetch the entry page directly so a transport/status failure is
+        // distinguishable; `fetchAndParse` collapses both into nil.
+        let fetched = await fetch(resolved, session: session)
+        guard fetched.body != nil else {
+            await recordHealth(recipe, parsed: nil)
+            return ChangelogDiagnostic(
+                changelog: nil, resolvedURL: resolved, httpStatus: fetched.status,
+                fetchFailed: true, bodySample: nil)
+        }
+        let parsed = await fetchAndParse(recipe, resolved: resolved, session: session)
+        await recordHealth(recipe, parsed: parsed)
+        return ChangelogDiagnostic(
+            changelog: parsed, resolvedURL: resolved, httpStatus: fetched.status,
+            fetchFailed: false, bodySample: parsed == nil ? fetched.body : nil)
+    }
+
+    /// The fetch + parse half, shared by the cached and uncached entry points so
+    /// a sweep exercises exactly the path the app does.
+    private static func fetchAndParse(
+        _ recipe: ChangelogRecipe, resolved: URL, session: URLSession
+    ) async -> Changelog? {
+        if let format = recipe.structuredFormat {
+            guard let text = await fetchBody(resolved, session: session) else { return nil }
+            return StructuredChangelogDecoder.decode(
+                text, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries)
+        }
+        guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session),
+              let text = await fetchBody(pageURL, session: session)
+        else { return nil }
+        return ChangelogExtractor.extract(from: text, using: recipe)
+    }
+
+    /// A changelog recipe is as fragile as a probe recipe and, until now,
+    /// recorded nothing at all: a vendor restyling their release-notes page made
+    /// `extract` return nil, the UI quietly fell back to embedding the raw page
+    /// in a web view, and no diagnostic anywhere said the recipe had died.
+    private static func recordHealth(_ recipe: ChangelogRecipe, parsed: Changelog?) async {
+        let id = "changelog:\(recipe.bundleID):\(recipe.channel?.rawValue ?? "-")"
+        if parsed != nil {
+            await RecipeHealth.shared.recordSuccess(id: id, source: "Changelog")
+        } else {
+            await RecipeHealth.shared.recordMiss(
+                id: id, source: "Changelog",
+                detail: "fetched \(recipe.source.host ?? "?") but extracted no entries")
         }
     }
 
@@ -150,6 +225,14 @@ public enum ChangelogService {
     /// Fetch a URL with the browser-like UA and return its body as a string, or
     /// nil on network error / non-2xx. Shared by the index and detail fetches.
     private static func fetchBody(_ url: URL, session: URLSession) async -> String? {
+        await fetch(url, session: session).body
+    }
+
+    /// The same request, but keeping the status code so a verifier can tell a
+    /// moved page from a restyled one.
+    private static func fetch(
+        _ url: URL, session: URLSession
+    ) async -> (body: String?, status: Int?) {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         // Same reason as a version feed: a changelog *index* page gains its newest
@@ -158,12 +241,12 @@ public enum ChangelogService {
         // and just 304 here.)
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        guard
-            let (data, response) = try? await session.data(for: request),
-            let http = response as? HTTPURLResponse,
-            (200..<300).contains(http.statusCode)
-        else { return nil }
-        return String(decoding: data, as: UTF8.self)
+        guard let (data, response) = try? await session.data(for: request) else {
+            return (nil, nil)
+        }
+        guard let http = response as? HTTPURLResponse else { return (nil, nil) }
+        guard (200..<300).contains(http.statusCode) else { return (nil, http.statusCode) }
+        return (String(decoding: data, as: UTF8.self), http.statusCode)
     }
 
     /// Convenience: look up a recipe by bundle id (and channel, for apps whose

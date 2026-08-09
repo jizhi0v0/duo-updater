@@ -1,15 +1,15 @@
 import Foundation
 
 /// One cask's relevant fields.
-struct CaskEntry: Sendable {
-    let token: String
-    let version: String
-    let url: URL?
-    let autoUpdates: Bool
+public struct CaskEntry: Sendable {
+    public let token: String
+    public let version: String
+    public let url: URL?
+    public let autoUpdates: Bool
     /// True when the cask installs via a `pkg`/`installer` artifact rather than
     /// dragging a `.app`. These need admin rights, so we can't run them through
     /// non-interactive brew — we download the official package and open it.
-    let isPkg: Bool
+    public let isPkg: Bool
 }
 
 /// Two lookup tables over the cask catalog: by `.app` filename (the primary,
@@ -68,12 +68,12 @@ public actor HomebrewCaskCatalog {
     }
 
     /// Look up the cask that installs an app with the given bundle filename.
-    func entry(forAppFilename filename: String) async throws -> CaskEntry? {
+    public func entry(forAppFilename filename: String) async throws -> CaskEntry? {
         try await loadedIndex().byAppFilename[filename.lowercased()]
     }
 
     /// Fallback lookup by bundle identifier, for casks with no `.app` artifact.
-    func entry(forBundleID bundleID: String) async throws -> CaskEntry? {
+    public func entry(forBundleID bundleID: String) async throws -> CaskEntry? {
         try await loadedIndex().byBundleID[bundleID.lowercased()]
     }
 

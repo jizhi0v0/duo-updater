@@ -8,6 +8,11 @@ options:
 packages:
   DuoUpdaterCore:
     path: ../DuoUpdaterCore
+  # The CLI's library half. Built here as well as by SwiftPM because the
+  # shipping `duo` needs a Developer ID signature to hold its own App Management
+  # grant — `swift build` produces an ad-hoc one, which cannot.
+  duo:
+    path: ../CLI
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     exactVersion: 2.9.3
@@ -124,6 +129,37 @@ targets:
         CODE_SIGNING_REQUIRED: YES
         CODE_SIGN_IDENTITY: "Developer ID Application"
         DEVELOPMENT_TEAM: RS59HDH7Y3
+
+  # The shipping `duo` binary. Same settings as the helper and the spike: a
+  # Developer ID signature with an identity-based designated requirement, which
+  # is what lets a TCC grant survive a rebuild. Not built by `make install` —
+  # `make cli` builds and deploys it, because its App Management grant is bound
+  # to its install path as well as its identity.
+  duo-cli:
+    type: tool
+    platform: macOS
+    sources:
+      - path: ../CLI/Sources/duo
+    dependencies:
+      - package: duo
+        product: DuoKit
+    settings:
+      base:
+        # The product filename is the target name, so the deployed binary is
+        # renamed to `duo` by scripts/build-cli.sh. A target literally named
+        # `duo` would collide with the package of that name.
+        PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.cli
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        SKIP_INSTALL: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: RS59HDH7Y3
+      configs:
+        Release:
+          OTHER_CODE_SIGN_FLAGS: "--options runtime"
 
   DuoUpdaterHelper:
     type: tool

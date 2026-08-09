@@ -47,21 +47,10 @@ identity="$(codesign -dvv "$PRODUCT" 2>&1 | sed -n 's/^Authority=//p' | head -n 
 # --- Verification gate: refuse to ship an ad-hoc / wrong-identity binary. ---
 # An ad-hoc signature is exactly the regression this whole script guards against,
 # so fail loudly here rather than silently deploying something whose TCC grant
-# will break on the next rebuild.
-#
-# Capture codesign output into variables and grep those, rather than piping
-# `codesign | grep -q`: under `set -o pipefail`, grep -q exits early on a match
-# and codesign takes SIGPIPE mid-write, which pipefail then reports as a failed
-# pipeline — a timing-dependent false negative.
+# will break on the next rebuild. Shared with scripts/build-cli.sh — see there
+# for why `duo` is held to the same bar.
 say "Verifying signature identity"
-sig="$(codesign -dvv "$PRODUCT" 2>&1)"
-req="$(codesign -d -r- "$PRODUCT" 2>&1)"
-case "$sig" in *"adhoc"*) die "product is AD-HOC signed — check CODE_SIGN_IDENTITY in App/project.yml";; esac
-case "$sig" in *"TeamIdentifier=$TEAM"*) ;; *) die "product is not signed by team $TEAM";; esac
-# The designated requirement must be identity-based (anchor apple generic + team
-# OU), NOT a bare cdhash — that identity-form is what makes grants survive rebuilds.
-case "$req" in *"anchor apple generic"*) ;; *) die "designated requirement is not identity-based (cdhash-pinned?) — grants won't persist";; esac
-printf '   %s\n' "$(printf '%s\n' "$req" | sed -n 's/^designated => /designated => /p')"
+"$REPO/scripts/verify-signature.sh" "$PRODUCT" "$TEAM"
 
 say "Quitting any running instance"
 osascript -e 'tell application "DuoUpdater" to quit' 2>/dev/null || true

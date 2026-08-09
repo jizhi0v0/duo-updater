@@ -1,9 +1,14 @@
-.PHONY: install build test notarize release
+.PHONY: install cli build test notarize release
 
 # Build with a stable Developer ID signature and deploy the canonical copy to
 # /Applications. See scripts/install.sh for why the identity matters (TCC grants).
 install:
 	@scripts/install.sh
+
+# Build `duo` with the same Developer ID identity and install it to a fixed
+# path — an App Management grant is bound to both. See scripts/build-cli.sh.
+cli:
+	@scripts/build-cli.sh
 
 # Core package build + tests (some tests hit the network).
 build:
@@ -11,6 +16,7 @@ build:
 
 test:
 	cd DuoUpdaterCore && swift test
+	swift test --package-path CLI
 
 # Build a notarization-ready Release app, submit it with notarytool, staple it,
 # and emit dist/DuoUpdater-notarized.zip.

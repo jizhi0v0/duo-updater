@@ -20,6 +20,14 @@ import PackageDescription
 let package = Package(
     name: "duo",
     platforms: [.macOS(.v14)],
+    // Declared explicitly because the XcodeGen target that builds the *shipping*
+    // (Developer ID signed) `duo` links `DuoKit` as a package product, and a
+    // library target with no product declaration is not one — SwiftPM
+    // synthesises products for executables only.
+    products: [
+        .library(name: "DuoKit", targets: ["DuoKit"]),
+        .executable(name: "duo", targets: ["duo"]),
+    ],
     dependencies: [
         .package(path: "../DuoUpdaterCore")
     ],

@@ -13,6 +13,7 @@ usage: duo <command> [options]
 commands:
   list          What is installed, without touching the network.
   check         What has an update, and how it would be applied.
+  install       Apply updates, through the same engine the menu-bar app uses.
   doctor        Whether this machine can actually install anything, and what
                 is missing if not.
   verify        Sweep the recipes against their live endpoints and report the
@@ -35,6 +36,20 @@ list / check options:
   ignore and skip lists — so a disagreement between duo and the app is a bug.
   `check` exits 1 when anything has an update, so `duo check && …` is usable in
   a script.
+
+install options:
+  [<app>…] | --all    Which apps. Resolved like check's. --all means every
+                      update you would see in the app; a named app is installed
+                      even if you had hidden it.
+  --dry-run           Print the plan and stop. Exits 1 if there is work.
+  --yes               Don't ask. Required when stdin isn't a terminal, so a
+                      script never has consent assumed for it.
+  --json              One JSON object per installed app.
+
+  App Store updates are refused, not attempted: that route needs the privileged
+  helper or the Accessibility API, neither of which a standalone binary has.
+  Holds a machine-wide lock, so it exits rather than swapping a bundle while the
+  menu-bar app is installing.
 
 doctor options:
   --json              Machine-readable form of the same report.
@@ -109,6 +124,15 @@ case "list", "check":
     options.checkForUpdates = (args.subcommand == "check")
     options.all = args.has("all") || args.subcommand == "list"
     exit(await Check.run(options))
+
+case "install":
+    var options = Install.Options()
+    options.queries = args.operands
+    options.all = args.has("all")
+    options.dryRun = args.has("dry-run")
+    options.assumeYes = args.has("yes")
+    options.json = args.has("json")
+    exit(await Install.run(options))
 
 case "doctor":
     exit(Doctor.run(json: args.has("json")))

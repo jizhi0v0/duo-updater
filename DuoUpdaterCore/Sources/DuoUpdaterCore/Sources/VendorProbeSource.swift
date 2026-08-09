@@ -70,6 +70,35 @@ public struct VendorProbeSource: UpdateSource {
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+        // Swallow every failure: a probe that can't answer must look like "this
+        // source doesn't apply", not like an error or a confident result.
+        guard let bundleID = app.bundleID,
+              let outcome = await probeDiagnostic(for: app) else { return nil }
+        // Record recipe health so a vendor changing their page surfaces in
+        // diagnostics rather than silently degrading the app to "unknown". A
+        // transient miss is cleared by the next successful check (success/miss are
+        // compared by recency), so this only flags consistently-broken recipes.
+        if outcome.remote != nil {
+            await RecipeHealth.shared.recordSuccess(id: bundleID, source: name)
+        } else {
+            await RecipeHealth.shared.recordMiss(
+                id: bundleID, source: name,
+                detail: outcome.failure.map { "\($0.kind): \($0.detail)" }
+                    ?? "probe resolved no version")
+        }
+        return outcome.remote
+    }
+
+    /// Everything that happened probing `app`, or nil when this source does not
+    /// apply to it at all — no recipe for its bundle id, no recipe for its
+    /// channel, or it is Toolbox-managed.
+    ///
+    /// The distinction nil carries is the point: `latestVersion(for:)` collapses
+    /// "no recipe matched your channel" and "the vendor rewrote their page" into
+    /// the same nil, which is exactly how a broken recipe hides. A caller that
+    /// needs to tell those apart — the live channel tests, `duo verify` — asks
+    /// here instead.
+    public func probeDiagnostic(for app: InstalledApp) async -> ProbeOutcome? {
         // A Toolbox-managed JetBrains IDE updates through Toolbox. Probing the
         // vendor endpoint here would offer a cross-channel install — exactly what
         // we forbid — so defer to Toolbox even when a recipe matches the bundle.
@@ -94,29 +123,12 @@ public struct VendorProbeSource: UpdateSource {
                 "vendor probe skip \(bundleID, privacy: .public): no recipe for app channel \(app.releaseChannel.rawValue, privacy: .public)")
             return nil
         }
-        // Swallow every failure: a probe that can't answer must look like "this
-        // source doesn't apply", not like an error or a confident result.
-        //
         // For a Toolbox-managed app we only borrowed the probe to learn the version
         // RELIABLY (Toolbox's cache is flaky — see `prefersVendorProbeOverToolbox`);
         // the INSTALL must still go through Toolbox, never an in-place bundle swap
         // that would desync Toolbox's state and (for Android Studio) drag a ~1.5 GB
         // dmg off a drop-prone CDN. So resolve detection-only here.
-        let outcome = await probeOutcome(
-            recipe, allowInstall: !app.prefersVendorProbeOverToolbox)
-        // Record recipe health so a vendor changing their page surfaces in
-        // diagnostics rather than silently degrading the app to "unknown". A
-        // transient miss is cleared by the next successful check (success/miss are
-        // compared by recency), so this only flags consistently-broken recipes.
-        if outcome.remote != nil {
-            await RecipeHealth.shared.recordSuccess(id: bundleID, source: name)
-        } else {
-            await RecipeHealth.shared.recordMiss(
-                id: bundleID, source: name,
-                detail: outcome.failure.map { "\($0.kind): \($0.detail)" }
-                    ?? "probe resolved no version")
-        }
-        return outcome.remote
+        return await probeOutcome(recipe, allowInstall: !app.prefersVendorProbeOverToolbox)
     }
 
     /// Run one recipe and report everything that happened, including the parts

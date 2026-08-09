@@ -188,9 +188,7 @@ import CryptoKit
         path: URL(fileURLWithPath: "/Applications/AweSun.app"),
         isMASApp: false, sparkleFeedURL: nil)
 
-    guard let remote = try await source.latestVersion(for: app) else {
-        Issue.record("AweSun probe resolved nothing"); return
-    }
+    guard let remote = await LiveProbe.remote(app, source: source, "AweSun") else { return }
     #expect(remote.vendorInstallerKind == .pkg)
     #expect(remote.requiresManualInstaller == true)             // → system installer
     #expect(remote.downloadURL?.pathExtension.lowercased() == "dmg")
@@ -233,9 +231,7 @@ import CryptoKit
         path: URL(fileURLWithPath: "/Applications/Microsoft Outlook.app"),
         isMASApp: false, sparkleFeedURL: nil)
 
-    guard let remote = try await source.latestVersion(for: app) else {
-        Issue.record("Outlook probe resolved nothing"); return
-    }
+    guard let remote = await LiveProbe.remote(app, source: source, "Outlook") else { return }
     #expect(remote.vendorInstallerKind == .pkg)
     #expect(remote.requiresManualInstaller == true)   // → system installer
     // versionIsBuild routes the build into `version` and leaves `shortVersion` nil.
@@ -259,10 +255,9 @@ import CryptoKit
         path: URL(fileURLWithPath: "/Applications/Postman.app"),
         isMASApp: false, sparkleFeedURL: nil)
 
-    guard let remote = try await source.latestVersion(for: app),
-          let url = remote.downloadURL, let version = remote.shortVersion else {
-        Issue.record("Postman probe resolved no install plan"); return
-    }
+    guard let remote = await LiveProbe.remote(app, source: source, "Postman") else { return }
+    let url = try #require(remote.downloadURL)
+    let version = try #require(remote.shortVersion)
     #expect(remote.vendorInstallerKind == .zip)
     #expect(remote.requiresManualInstaller == false)            // → in-place swap
     #expect(remote.downloadHeaders.isEmpty)                     // no WAF, no headers
@@ -305,11 +300,9 @@ import CryptoKit
 private func checkGate(_ app: InstalledApp, log: (String) -> Void) async throws {
     log("\n=== signature-gate check: \(app.name) (\(app.bundleID ?? "?")) ===")
 
-    let source = VendorProbeSource()
-    guard let remote = try await source.latestVersion(for: app),
-          let url = remote.downloadURL,
-          let kind = remote.vendorInstallerKind else {
-        Issue.record("probe did not resolve an install plan for \(app.name)")
+    guard let remote = await LiveProbe.remote(app, "\(app.name) gate") else { return }
+    guard let url = remote.downloadURL, let kind = remote.vendorInstallerKind else {
+        Issue.record(Comment(rawValue: "\(app.name): resolved a version but no install plan"))
         return
     }
     log("download: \(url.absoluteString)  [\(kind)]")

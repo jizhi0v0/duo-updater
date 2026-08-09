@@ -354,25 +354,23 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
 
     var resolved: [ReleaseChannel: String] = [:]
     for c in channels {
-        let app = InstalledApp(
-            name: "Google Chrome \(c.channel.rawValue)", bundleID: c.bundleID,
-            shortVersion: "1.0.0.0", buildVersion: nil,
-            path: URL(fileURLWithPath: "/Applications/Chrome-\(c.channel.rawValue).app"),
-            isMASApp: false, sparkleFeedURL: nil, releaseChannel: c.channel)
-        let remote = try await source.latestVersion(for: app)
-        if let v = remote?.shortVersion {
+        let app = LiveProbe.app(
+            "Chrome-\(c.channel.rawValue)", c.bundleID, channel: c.channel,
+            installedVersion: "1.0.0.0")
+        await LiveProbe.check(app, source: source, "Chrome \(c.channel.rawValue)") {
             // 4-part Chrome version (e.g. 150.0.7871.0).
-            #expect(v.split(separator: ".").count == 4, "unexpected version for \(c.channel): \(v)")
-            resolved[c.channel] = v
+            #expect($0.split(separator: ".").count == 4,
+                    "unexpected version for \(c.channel.rawValue): \($0)")
+            resolved[c.channel] = $0
         }
     }
 
-    // Network-tolerant: only assert routing when the feeds answered at all.
-    if !resolved.isEmpty {
-        // Each channel that answered produced its OWN version independently — the
-        // gate didn't collapse them onto one recipe.
-        #expect(resolved.count >= 1)
-    }
+    // Each channel that answered produced its OWN version — the gate didn't
+    // collapse them onto one recipe. Only the network can shrink this set now:
+    // a missing recipe or a broken pattern is already a recorded failure.
+    let distinct = Set(resolved.values)
+    #expect(distinct.count == resolved.count,
+            "two Chrome channels resolved the same version: \(resolved)")
 }
 
 // MARK: - Edge per-channel recipes (live)
@@ -385,13 +383,11 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         ("com.microsoft.edgemac.Dev", .dev),
     ]
     for (bundleID, channel) in channels {
-        let app = InstalledApp(
-            name: "Microsoft Edge \(channel.rawValue)", bundleID: bundleID,
-            shortVersion: "1.0.0.0", buildVersion: nil,
-            path: URL(fileURLWithPath: "/Applications/Edge-\(channel.rawValue).app"),
-            isMASApp: false, sparkleFeedURL: nil, releaseChannel: channel)
-        if let v = try await source.latestVersion(for: app)?.shortVersion {
-            #expect(v.split(separator: ".").count == 4, "Edge \(channel): \(v)")
+        let app = LiveProbe.app(
+            "Edge-\(channel.rawValue)", bundleID, channel: channel,
+            installedVersion: "1.0.0.0")
+        await LiveProbe.check(app, source: source, "Edge \(channel.rawValue)") {
+            #expect($0.split(separator: ".").count == 4, "Edge \(channel.rawValue): \($0)")
         }
     }
 }
@@ -402,20 +398,22 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     // Release, Beta and ESR all carry `org.mozilla.firefox`. The multi-recipe
     // routing must hand each its OWN feed value — the whole point of the change.
     let source = VendorProbeSource()
-    func resolve(_ channel: ReleaseChannel, version: String) async throws -> String? {
-        let app = InstalledApp(
-            name: "Firefox", bundleID: "org.mozilla.firefox",
-            shortVersion: version, buildVersion: nil,
-            path: URL(fileURLWithPath: "/Applications/Firefox-\(channel.rawValue).app"),
-            isMASApp: false, sparkleFeedURL: nil, releaseChannel: channel)
-        return try await source.latestVersion(for: app)?.shortVersion
+    func resolve(_ channel: ReleaseChannel, version: String) async -> String? {
+        // All three carry `org.mozilla.firefox`; the channel is what must pick
+        // the recipe, which is the whole point of the test.
+        let app = LiveProbe.app(
+            "Firefox-\(channel.rawValue)", "org.mozilla.firefox",
+            channel: channel, installedVersion: version)
+        return await LiveProbe.version(app, source: source, "Firefox \(channel.rawValue)")
     }
 
-    let stable = try await resolve(.stable, version: "100.0")
-    let beta = try await resolve(.beta, version: "100.0b1")
-    let esr = try await resolve(.esr, version: "100.0esr")
+    let stable = await resolve(.stable, version: "100.0")
+    let beta = await resolve(.beta, version: "100.0b1")
+    let esr = await resolve(.esr, version: "100.0esr")
 
-    // Network-tolerant: assert distinctness only among the ones that answered.
+    // A missing value here means the vendor's server was unreachable — a broken
+    // recipe or a vanished channel gate has already been recorded as a failure
+    // by `LiveProbe`, so the remaining tolerance is only for the network.
     if let s = stable, let b = beta {
         #expect(s != b, "Release \(s) and Beta \(b) must differ — not the same recipe")
         #expect(b.contains("b"), "Beta version should carry a b-suffix: \(b)")
@@ -438,13 +436,9 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         ("Element Nightly", "im.riot.nightly", .nightly, { $0.count >= 8 && $0.allSatisfy(\.isNumber) }),
     ]
     for c in cases {
-        let app = InstalledApp(
-            name: c.name, bundleID: c.bundleID,
-            shortVersion: "0.0.0", buildVersion: nil,
-            path: URL(fileURLWithPath: "/Applications/\(c.name).app"),
-            isMASApp: false, sparkleFeedURL: nil, releaseChannel: c.channel)
-        if let v = try await source.latestVersion(for: app)?.shortVersion {
-            #expect(c.expect(v), "\(c.name) resolved unexpected version: \(v)")
+        let app = LiveProbe.app(c.name, c.bundleID, channel: c.channel)
+        await LiveProbe.check(app, source: source, c.name) {
+            #expect(c.expect($0), "\(c.name) resolved unexpected version: \($0)")
         }
     }
 }
@@ -487,15 +481,10 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
         ("LibreWolf", "net.librewolf.librewolf"),
     ]
     for c in cases {
-        let app = InstalledApp(
-            name: c.name, bundleID: c.bundleID,
-            shortVersion: "0.0.0", buildVersion: nil,
-            path: URL(fileURLWithPath: "/Applications/\(c.name).app"),
-            isMASApp: false, sparkleFeedURL: nil)
-        if let v = try await source.latestVersion(for: app)?.shortVersion {
+        await LiveProbe.check(LiveProbe.app(c.name, c.bundleID), source: source, c.name) {
             // A clean dotted numeric version, no packaging/build suffix.
-            #expect(v.range(of: #"^[0-9]+(\.[0-9]+)+$"#, options: .regularExpression) != nil,
-                    "\(c.name) resolved a non-clean version: \(v)")
+            #expect($0.range(of: #"^[0-9]+(\.[0-9]+)+$"#, options: .regularExpression) != nil,
+                    "\(c.name) resolved a non-clean version: \($0)")
         }
     }
 }

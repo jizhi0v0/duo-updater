@@ -27,6 +27,99 @@ public struct BackupManifest: Codable, Equatable, Sendable {
     /// or only the contents.
     public let fileCount: Int
 
+    /// Files a bundle contains that we cannot read, split by whether the code
+    /// signature seals them.
+    ///
+    /// The split is what decides whether a backup is possible at all. An app
+    /// that writes runtime state inside its own bundle leaves files the seal
+    /// never covered — ToDesk's mmkv database and log caches, root-owned and
+    /// unreadable — and omitting those still yields a bundle that runs; the app
+    /// recreates them. A file the seal *does* cover is shipped payload
+    /// (EasyConnect's setuid helpers), and a copy without it is a broken app, so
+    /// there is nothing honest to store.
+    public struct UnreadableFiles: Sendable {
+        /// Relative to the bundle root, e.g. `Contents/mmkv.default`.
+        public let sealed: [String]
+        public let unsealed: [String]
+        public var isEmpty: Bool { sealed.isEmpty && unsealed.isEmpty }
+    }
+
+    public static func unreadableFiles(in bundle: URL) -> UnreadableFiles {
+        let fm = FileManager.default
+        // nil means there was no seal to consult; then every unreadable file
+        // counts as payload, because we cannot tell payload from droppings.
+        let sealedPaths = sealedEntries(of: bundle)
+        let base = bundle.standardizedFileURL.path
+        var sealed: [String] = []
+        var unsealed: [String] = []
+        guard let walker = fm.enumerator(
+            at: bundle, includingPropertiesForKeys: [.isRegularFileKey], options: [])
+        else { return UnreadableFiles(sealed: [], unsealed: []) }
+        for case let item as URL in walker {
+            let values = try? item.resourceValues(forKeys: [.isRegularFileKey])
+            guard values?.isRegularFile == true,
+                  !fm.isReadableFile(atPath: item.path) else { continue }
+            let relative = String(item.standardizedFileURL.path.dropFirst(base.count + 1))
+            // `CodeResources` keys are relative to `Contents/`, the tree we walk
+            // is relative to the bundle root.
+            let sealKey = relative.hasPrefix("Contents/")
+                ? String(relative.dropFirst("Contents/".count)) : relative
+            guard let sealedPaths else { sealed.append(relative); continue }
+            if sealedPaths.contains(sealKey) { sealed.append(relative) } else { unsealed.append(relative) }
+        }
+        return UnreadableFiles(sealed: sealed.sorted(), unsealed: unsealed.sorted())
+    }
+
+    /// Paths listed in the bundle's `_CodeSignature/CodeResources`, relative to
+    /// `Contents/`, or **nil when there is no seal to read**. The distinction
+    /// matters: an empty set would classify every unreadable file as droppings
+    /// and quietly store a partial copy of an unsigned app, which is the
+    /// opposite of the cautious reading.
+    private static func sealedEntries(of bundle: URL) -> Set<String>? {
+        let url = bundle.appendingPathComponent("Contents/_CodeSignature/CodeResources")
+        guard let data = try? Data(contentsOf: url),
+              let plist = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any]
+        else { return nil }
+        var out: Set<String> = []
+        for key in ["files", "files2"] {
+            if let entries = plist[key] as? [String: Any] { out.formUnion(entries.keys) }
+        }
+        return out
+    }
+
+    /// Files present and readable in `source` but absent from `copy`, ignoring
+    /// `expected`. Non-empty means the copy lost something we meant to keep, so
+    /// the caller must not store it as a rollback point.
+    ///
+    /// Needed because `ditto` reports one exit status for the whole run: a copy
+    /// that skipped only the runtime droppings and a copy that ran out of disk
+    /// look identical from the outside.
+    public static func unexpectedOmissions(
+        source: URL, copy: URL, expected: [String]
+    ) -> [String] {
+        let fm = FileManager.default
+        let base = source.standardizedFileURL.path
+        let allowed = Set(expected)
+        var missing: [String] = []
+        guard let walker = fm.enumerator(
+            at: source, includingPropertiesForKeys: [.isRegularFileKey], options: [])
+        else { return ["<could not enumerate \(source.path)>"] }
+        for case let item as URL in walker {
+            let values = try? item.resourceValues(forKeys: [.isRegularFileKey])
+            guard values?.isRegularFile == true else { continue }
+            let relative = String(item.standardizedFileURL.path.dropFirst(base.count + 1))
+            if allowed.contains(relative) { continue }
+            // Unreadable and unexpected: we could not have copied it either, and
+            // the classification above should have caught it.
+            if !fm.isReadableFile(atPath: item.path) { missing.append(relative); continue }
+            if !fm.fileExists(atPath: copy.appendingPathComponent(relative).path) {
+                missing.append(relative)
+            }
+        }
+        return missing
+    }
+
     /// Compute the manifest for the bundle at `url`.
     ///
     /// Symlinks are recorded by their destination rather than followed: a bundle

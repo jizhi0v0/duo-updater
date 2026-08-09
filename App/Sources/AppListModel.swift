@@ -2745,6 +2745,9 @@ final class AppListModel {
     /// (the user opted into the update; a missing safety net mustn't block it).
     private func backupCurrent(_ result: UpdateResult, route: InstallCoordinator.Route) async {
         let outcome = await InstallCoordinator.backUp(result.app, route: route)
+        if case .savedWithoutRuntimeState(let omitted) = outcome {
+            Log.install.notice("backup: \(result.app.name, privacy: .public) stored without \(omitted, privacy: .public) runtime file(s)")
+        }
         if case .unreadable(let path) = outcome {
             Log.install.notice("backup skipped: \(result.app.name, privacy: .public) — \(path, privacy: .public) unreadable")
             installNotes[result.id] =

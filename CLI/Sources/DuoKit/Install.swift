@@ -216,6 +216,12 @@ public enum Install {
                 switch await InstallCoordinator.backUp(item.result.app, route: item.route) {
                 case .saved:
                     if !json { print("   backed up \(item.result.app.shortVersion ?? "current")") }
+                case .savedWithoutRuntimeState(let omitted):
+                    if !json {
+                        print("   backed up \(item.result.app.shortVersion ?? "current")"
+                            + " — without \(omitted) file(s) the app wrote inside its own"
+                            + " bundle, which it will recreate")
+                    }
                 case .unreadable(let path):
                     if !json {
                         print("   no rollback point: \(path) is not readable by you")

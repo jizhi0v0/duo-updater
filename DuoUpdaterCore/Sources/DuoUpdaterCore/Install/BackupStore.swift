@@ -55,6 +55,12 @@ public enum BackupStore {
         /// a stricter decoder would make every existing backup unreadable, and
         /// `backup(forKey:)` returns nil without a readable sidecar.
         var fromPackageInstall: Bool?
+        /// Files deliberately left out of the copy: unreadable, and not covered
+        /// by the code signature, so they are the app's own runtime state rather
+        /// than shipped payload. Restoring without them is fine — the app writes
+        /// them again — but the user is told, because it means losing whatever
+        /// state lived there.
+        var omittedFiles: [String]?
         /// What the stored copy hashed to when we wrote it. Optional for the
         /// same reason; a backup without one falls back to the old
         /// vendor-signature gate at restore, which is the best that can be said
@@ -157,11 +163,40 @@ public enum BackupStore {
 
         let name = appPath.lastPathComponent
         let staged = staging.appendingPathComponent(name)
-        // `ditto` preserves the bundle's symlinks, xattrs, and (importantly) its
-        // code signature exactly — a plain copy can mangle them.
-        guard runDitto(from: appPath, to: staged) else {
+
+        // An app that keeps runtime state inside its own bundle (ToDesk writes an
+        // mmkv database and log caches under Contents/, root-owned) leaves files
+        // we cannot read. Those are not payload — the seal never covered them and
+        // the app rewrites them — so the copy may skip them. A file the seal DOES
+        // cover is payload, and a bundle without it is broken, so there is
+        // nothing worth storing.
+        let unreadable = BackupManifest.unreadableFiles(in: appPath)
+        guard unreadable.sealed.isEmpty else {
             try? fm.removeItem(at: staging)
-            throw BackupError.copyFailed(appPath.path)
+            throw BackupError.payloadUnreadable(unreadable.sealed.first ?? appPath.path)
+        }
+
+        // `ditto` preserves the bundle's symlinks, xattrs, and (importantly) its
+        // code signature exactly — a plain copy can mangle them. It reports one
+        // status for the whole run, so a non-zero exit is only acceptable once we
+        // have confirmed the ONLY things it dropped are the ones we meant to drop.
+        if !runDitto(from: appPath, to: staged) {
+            // No expected omissions means the copy failed for some other reason
+            // (a missing source, a full disk) and there is nothing to forgive.
+            // Without this, a source that does not exist produced an empty copy
+            // that passed the omission check and got stored as a backup.
+            guard !unreadable.unsealed.isEmpty else {
+                try? fm.removeItem(at: staging)
+                throw BackupError.copyFailed(appPath.path)
+            }
+            let unexpected = BackupManifest.unexpectedOmissions(
+                source: appPath, copy: staged, expected: unreadable.unsealed)
+            guard unexpected.isEmpty else {
+                Log.install.error(
+                    "backup: copy of \(name, privacy: .public) lost \(unexpected.count, privacy: .public) file(s) it should have kept")
+                try? fm.removeItem(at: staging)
+                throw BackupError.copyFailed(appPath.path)
+            }
         }
 
         let savedAt = Date()
@@ -177,7 +212,9 @@ public enum BackupStore {
         let meta = Meta(
             version: version, bundleID: bundleID,
             originalPath: appPath.path, bundleName: name, savedAt: savedAt,
-            fromPackageInstall: fromPackageInstall, manifest: manifest)
+            fromPackageInstall: fromPackageInstall,
+            omittedFiles: unreadable.unsealed.isEmpty ? nil : unreadable.unsealed,
+            manifest: manifest)
         // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
         // without it), so a backup whose sidecar didn't write is unusable. Fail the
         // save (leaving the prior backup intact) rather than leave an invisible bundle.
@@ -395,6 +432,7 @@ public enum BackupStore {
         case copyFailed(String)
         case noBackup(String)
         case backupCorrupted(String)
+        case payloadUnreadable(String)
 
         public var errorDescription: String? {
             switch self {
@@ -402,6 +440,9 @@ public enum BackupStore {
                 return "Could not copy the app bundle at “\(path)”."
             case .noBackup(let key):
                 return "There is no backup to roll back to for “\(key)”."
+            case .payloadUnreadable(let path):
+                return "“\(path)” is part of the app's signed payload and is not readable "
+                    + "by you, so no rollback point could be stored."
             case .backupCorrupted(let name):
                 return "The backup for “\(name)” no longer matches what was stored and was not restored."
             }

@@ -125,6 +125,9 @@ public actor InstallCoordinator {
         /// The bundle is not fully readable by us, so no copy was attempted.
         /// `path` is the first file that stopped it.
         case unreadable(path: String)
+        /// Stored, but without files the app had written into its own bundle.
+        /// It restores; whatever state lived in them is lost.
+        case savedWithoutRuntimeState(omitted: Int)
         case failed
     }
 
@@ -136,14 +139,19 @@ public actor InstallCoordinator {
         let path = app.path
         let bundleID = app.bundleID
         return await Task.detached(priority: .userInitiated) { () -> BackupOutcome in
-            if let blocked = BackupStore.firstUnreadablePath(in: path) {
-                return .unreadable(path: blocked)
+            // Only *sealed* unreadable files stop a backup. Unsealed ones are the
+            // app's own runtime droppings; the copy skips them and still restores.
+            let unreadable = BackupManifest.unreadableFiles(in: path)
+            if let blocked = unreadable.sealed.first {
+                return .unreadable(path: path.appendingPathComponent(blocked).path)
             }
             do {
                 try BackupStore.save(
                     appPath: path, key: key, version: version, bundleID: bundleID,
                     fromPackageInstall: fromPackage)
-                return .saved
+                return unreadable.unsealed.isEmpty
+                    ? .saved
+                    : .savedWithoutRuntimeState(omitted: unreadable.unsealed.count)
             } catch { return .failed }
         }.value
     }

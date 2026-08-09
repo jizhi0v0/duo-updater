@@ -116,9 +116,10 @@ public enum Doctor {
                 print("      \(entry.app) — \(entry.blockedBy) is not readable by you")
             }
             print("""
-                    Typical of apps installed by a .pkg: they run as root and keep
-                    state inside their own bundle. Nothing is broken — the update
-                    still installs, it just cannot be rolled back.
+                    These are files the app's signature covers, so a copy without
+                    them would be a broken app — there is nothing honest to store.
+                    Nothing else is wrong: the update still installs, it just
+                    cannot be rolled back.
                 """)
         }
         print("""
@@ -157,8 +158,11 @@ public enum Doctor {
                 let name = app.name
                 let path = app.path
                 group.addTask {
-                    BackupStore.firstUnreadablePath(in: path)
-                        .map { Unbackupable(app: name, blockedBy: $0) }
+                    // Only a file the code signature seals blocks a backup: an
+                    // unsealed one is the app's own runtime state, which the copy
+                    // skips and the app rewrites.
+                    BackupManifest.unreadableFiles(in: path).sealed.first
+                        .map { Unbackupable(app: name, blockedBy: path.appendingPathComponent($0).path) }
                 }
             }
             var out: [Unbackupable] = []

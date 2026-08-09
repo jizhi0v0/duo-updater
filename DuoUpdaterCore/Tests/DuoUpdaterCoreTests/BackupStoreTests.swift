@@ -23,6 +23,18 @@ struct BackupStoreTests {
         try body(root)
     }
 
+    /// Write a `_CodeSignature/CodeResources` naming `sealing` (paths relative to
+    /// `Contents/`), so the payload/droppings classification has a seal to read.
+    /// Not a real signature — only the resource list is consulted.
+    private func sealFixture(_ app: URL, sealing: [String]) throws {
+        let dir = app.appendingPathComponent("Contents/_CodeSignature")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let files2 = Dictionary(uniqueKeysWithValues: sealing.map { ($0, ["hash2": Data()]) })
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: ["files2": files2], format: .xml, options: 0)
+        try data.write(to: dir.appendingPathComponent("CodeResources"))
+    }
+
     /// Build a minimal `.app` bundle with a marker file we can check survived a
     /// restore. Includes a real `Info.plist` so the bundle is *structurally valid*
     /// but unsigned: `restore` now hard-fails a backup whose present code signature
@@ -457,6 +469,89 @@ struct BackupStoreTests {
             let second = BackupManifest.compute(for: app)
             #expect(first != nil)
             #expect(first == second)
+        }
+    }
+
+    // MARK: - Apps that write inside their own bundle
+
+    /// An unreadable file the signature does NOT cover is the app's own runtime
+    /// state (ToDesk keeps an mmkv database and log caches under Contents/).
+    /// Skipping it still yields a bundle that runs, so the backup proceeds.
+    @Test func runtimeStateIsSkippedAndTheBackupStillRestores() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
+            // A seal is what makes the payload/droppings distinction possible, so
+            // this fixture needs one — an unsigned bundle is deliberately treated
+            // as all-payload (see the test below).
+            try sealFixture(app, sealing: ["marker.txt", "Info.plist"])
+            let dropping = app.appendingPathComponent("Contents/mmkv.default")
+            try Data("state".utf8).write(to: dropping)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o000], ofItemAtPath: dropping.path)
+            defer {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o644], ofItemAtPath: dropping.path)
+            }
+
+            let classified = BackupManifest.unreadableFiles(in: app)
+            #expect(classified.sealed.isEmpty)
+            #expect(classified.unsealed == ["Contents/mmkv.default"])
+
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            let saved = try BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+            #expect(!FileManager.default.fileExists(
+                atPath: saved.bundlePath.appendingPathComponent("Contents/mmkv.default").path),
+                "the unreadable dropping must not be in the stored copy")
+
+            try makeApp(named: "Fixture.app", in: root, marker: "new")
+            #expect(try BackupStore.restore(forKey: key, over: app) == "1.0")
+            #expect(try String(
+                contentsOf: app.appendingPathComponent("Contents/marker.txt"),
+                encoding: .utf8) == "old")
+        }
+    }
+
+    /// Without a `_CodeSignature` to consult we cannot tell payload from
+    /// droppings, so everything unreadable counts as payload and the backup is
+    /// refused rather than silently partial.
+    @Test func withoutASealEveryUnreadableFileCountsAsPayload() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
+            let file = app.appendingPathComponent("Contents/opaque.bin")
+            try Data("x".utf8).write(to: file)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o000], ofItemAtPath: file.path)
+            defer {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o644], ofItemAtPath: file.path)
+            }
+            #expect(BackupManifest.unreadableFiles(in: app).sealed == ["Contents/opaque.bin"])
+
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            #expect(throws: BackupStore.BackupError.self) {
+                try BackupStore.save(
+                    appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
+            }
+        }
+    }
+
+    /// The copy must be rejected when it lost something we meant to keep — a
+    /// single exit status cannot distinguish "skipped the droppings" from "ran
+    /// out of disk".
+    @Test func anUnexpectedOmissionIsDetected() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "old")
+            let copy = root.appendingPathComponent("Copy.app")
+            try FileManager.default.copyItem(at: app, to: copy)
+            try FileManager.default.removeItem(
+                at: copy.appendingPathComponent("Contents/marker.txt"))
+
+            let missed = BackupManifest.unexpectedOmissions(
+                source: app, copy: copy, expected: [])
+            #expect(missed == ["Contents/marker.txt"])
+            #expect(BackupManifest.unexpectedOmissions(
+                source: app, copy: copy, expected: ["Contents/marker.txt"]).isEmpty)
         }
     }
 }

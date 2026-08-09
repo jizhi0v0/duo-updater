@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.16
+
+**Apps installed by a `.pkg` can now be rolled back.** DuoUpdater keeps a copy of the previous version before it updates an app, so a bad update can be undone. Apps that install through macOS's own installer — Microsoft Office, AweSun, ToDesk and the like — never got that copy: the rollback was skipped for them entirely, so the one kind of update DuoUpdater can't watch land was also the one you couldn't back out of. They're now backed up like everything else.
+
+**Rollback no longer refuses apps that write inside their own bundle.** Some apps keep working files in amongst their own program files — ToDesk stores its settings database and logs there, and doing so breaks the seal Apple puts on an app. DuoUpdater checked that seal before restoring a backup, so for those apps it declared a perfectly good backup damaged and refused to put it back. It now checks the copy against a fingerprint taken when the copy was made, which is the thing that actually matters: that what's being restored is exactly what was saved. Tampering with a stored backup is still caught, and still refused.
+
+**When a backup isn't possible, it says so instead of failing quietly.** A few apps keep program files that your account simply can't read — EasyConnect is one — and no copy of those can be made. Rather than attempting it and reporting a failure part-way through an update, DuoUpdater now checks first, tells you which file is in the way, and updates anyway; you just don't get a rollback point for that one app.
+
 ## 0.3.15
 
 **The same app no longer appears several times over.** Some apps leave a dated copy of themselves behind every time they update — DuoPaste, for one, parks a `DuoPaste.backup-20260716-183428.app` next to the real thing on each self-update. Those copies are complete, working app bundles as far as anything on disk can tell, so DuoUpdater listed each one as its own app: three identical DuoPaste rows, each offering the same update. Worse, taking one of those offers would have installed the new version *into the backup*, leaving the app you actually use untouched and creating another stray copy. Backup and duplicate bundles are now recognised for what they are and left out of the list, as are exact clones of an app found in two places. Genuinely separate installs that happen to share an identity — Firefox alongside Firefox Beta, two versions of Android Studio kept side by side — still each get their own row.

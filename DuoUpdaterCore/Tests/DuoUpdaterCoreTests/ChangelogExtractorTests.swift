@@ -48,13 +48,15 @@ private let tablePlusFixture = """
 </ul>
 """
 
-// A trimmed fixture mirroring LM Studio's real Next.js /changelog index markup:
-// the version lives in a `sr-only` span on the entry's anchor, the notes are in a
-// `markdown-body` div closed by three nested </div>, there is no per-entry date,
-// and items use nested <ul> for sub-bullets (the second item below) plus a `&gt;`
-// entity to prove decoding. Two entries, the second with a single item.
+// A trimmed fixture mirroring LM Studio's real Next.js /changelog/lmstudio index
+// markup: the version lives in a `sr-only` span on the entry's anchor, the notes
+// are in a `markdown-body` div closed by three nested </div>, there is no per-entry
+// date, and items use nested <ul> for sub-bullets (the second item below) plus a
+// `&gt;` entity to prove decoding. Two entries, the second with a single item.
+// Note the per-version slug is nested (`/changelog/lmstudio/lmstudio-v…`) since the
+// 2026-08 Bionic rebrand took over the bare `/changelog` root.
 private let lmStudioFixture = """
-<a class="absolute inset-0 z-0" href="/changelog/lmstudio-v0.4.15"><span class="sr-only">LM Studio 0.4.15</span></a>\
+<a class="absolute inset-0 z-0" href="/changelog/lmstudio/lmstudio-v0.4.15"><span class="sr-only">LM Studio 0.4.15</span></a>\
 <div class="pointer-events-none relative z-10"><div class="flex flex-col gap-2">\
 <h2 class="text-base font-semibold"><span class="rounded-sm underline">LM Studio 0.4.15</span></h2>\
 <div class="relative h-40 overflow-hidden md:h-44">\
@@ -69,7 +71,7 @@ private let lmStudioFixture = """
 </li>
 </ul>
 </div></div></div>\
-<a class="absolute inset-0 z-0" href="/changelog/lmstudio-v0.4.14"><span class="sr-only">LM Studio 0.4.14</span></a>\
+<a class="absolute inset-0 z-0" href="/changelog/lmstudio/lmstudio-v0.4.14"><span class="sr-only">LM Studio 0.4.14</span></a>\
 <div class="pointer-events-none relative z-10"><div class="flex flex-col gap-2">\
 <h2 class="text-base font-semibold"><span class="rounded-sm underline">LM Studio 0.4.14</span></h2>\
 <div class="relative h-40 overflow-hidden md:h-44">\
@@ -478,6 +480,37 @@ private let ghosttyFixture = """
 
     // &gt; → > and the nested sub-bullet is folded into its parent line.
     #expect(changelog.entries[0].items[1].contains("Turn it on in Settings > Developer"))
+}
+
+// The recipe must read /changelog/lmstudio, NOT the bare /changelog root — that root
+// now serves the changelog of **Bionic**, a different Element Labs product on a 1.0.x
+// train, while `ai.elementlabs.lmstudio` is still 0.4.x. Pinning the URL in a test
+// because the failure mode of getting this wrong is silent and wrong-looking-right:
+// Bionic notes rendered under an LM Studio version.
+@Test func lmStudioRecipeReadsTheLMStudioSubpageNotTheBionicRoot() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "ai.elementlabs.lmstudio"))
+    #expect(recipe.source.absoluteString == "https://lmstudio.ai/changelog/lmstudio")
+}
+
+// Real shape of a Bionic entry on the rebranded /changelog root: identical markup,
+// only the product name in the `sr-only` span and the `bionic-v…` slug differ. The
+// `LM Studio ` literal in the entry pattern is what keeps it out, so a Bionic-only
+// body must extract nothing at all (→ nil → fall back to the embedded page).
+private let bionicFixture = """
+<a class="absolute inset-0 z-0" href="/changelog/bionic-v1.0.6"><span class="sr-only">Bionic 1.0.6</span></a>\
+<div class="pointer-events-none relative z-10"><div class="flex flex-col gap-2">\
+<h2 class="text-base font-semibold"><span class="rounded-sm underline">Bionic 1.0.6</span></h2>\
+<div class="relative h-40 overflow-hidden md:h-44">\
+<div class="markdown-body blog-markdown-body text-sm leading-6">\
+<ul class="list-disc">
+<li>Bionic-only change that must never appear under LM Studio</li>
+</ul>
+</div></div></div>
+"""
+
+@Test func lmStudioRecipeRejectsBionicEntries() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "ai.elementlabs.lmstudio"))
+    #expect(ChangelogExtractor.extract(from: bionicFixture, using: recipe) == nil)
 }
 
 @Test func extractsCleanShotEntriesInOrder() throws {
@@ -972,6 +1005,44 @@ private let warpFeedFixture = """
         warpFeedFixture, format: .warpChannelVersions, channel: .preview, maxEntries: 20))
     #expect(preview.entries.count == 1)
     #expect(preview.entries[0].version == "0.2026.06.11.10.00")
+}
+
+// Warp's `changelogs.dev` sub-feed is fixture data, not release notes: one entry
+// whose key tracks the live dev build but whose body is the pre-2022 `sections`
+// shape carrying literal "dev 1"/"dev 2" placeholders under a 2021 date (plus
+// `[TEST]` oz_updates). Two guards, because the failure would be showing that junk
+// under a real installed version:
+//   1. the decoder ignores `sections` entirely, so a dev-shaped feed yields nil;
+//   2. no Warp-Dev recipe is registered, so the workbench never even asks.
+private let warpDevPlaceholderFixture = """
+{
+  "dev": { "version": "v0.2026.08.07.08.31.dev_00" },
+  "changelogs": {
+    "dev": {
+      "v0.2026.08.07.08.31.dev_00": {
+        "date": "2021-11-23T10:07:01-06:00",
+        "sections": [ { "title": "dev", "items": ["dev 1", "dev 2"] } ],
+        "oz_updates": ["[TEST] Testing Oz recent updates!"]
+      }
+    }
+  }
+}
+"""
+
+@Test func warpDevPlaceholderFeedDecodesToNothing() {
+    #expect(StructuredChangelogDecoder.decode(
+        warpDevPlaceholderFixture, format: .warpChannelVersions,
+        channel: .dev, maxEntries: 20) == nil)
+}
+
+@Test func warpDevHasNoChangelogRecipe() {
+    #expect(ChangelogRecipeRegistry.recipe(
+        forBundleID: "dev.warp.Warp-Dev", channel: .dev) == nil)
+    // Stable and Preview still resolve to their own channel's recipe.
+    #expect(ChangelogRecipeRegistry.recipe(
+        forBundleID: "dev.warp.Warp-Preview", channel: .preview)?.channel == .preview)
+    #expect(ChangelogRecipeRegistry.recipe(
+        forBundleID: "dev.warp.Warp-Stable", channel: .stable)?.channel == .stable)
 }
 
 @Test func warpDecodeRespectsMaxEntries() throws {
@@ -1549,35 +1620,65 @@ Wednesday, May 27, 2026
     #expect(cl.entries[1].items[1] == "CVE-2026-9873: Heap buffer overflow in Media & Audio.")
 }
 
-// Trimmed real markup from docs.tablepro.app/changelog (Mintlify): two labeled
-// release blocks with the date/version/content parts the recipe anchors on.
+// Trimmed real text from docs.tablepro.app/changelog.md (the Mintlify markdown
+// twin): the docs-index preamble the file opens with, then two `<Update>` blocks —
+// `label` is the date and `description` the version, the reverse of Claude's
+// Mintlify page. Includes the `###` section headings the recipe must ignore, a
+// `<database>` angle-bracket note that must survive (stripTags is off), and a
+// literal `&` that must stay an ampersand (decodeEntities is off).
 private let tableproFixture = """
-<div data-component-part="update-label">June 2, 2026</div>
-<div data-component-part="update-description">v0.48.0</div>
-<div data-component-part="update-content"><h3 id="new-features"><span>New Features</span></h3>
-<ul>
-<li><strong>JSON Import</strong>: Import a JSON file into a table.</li>
-<li><strong>Export Query Results</strong>: Export any SQL query result to CSV, JSON, SQL, XLSX, or MQL.</li>
-</ul></div>
-<div data-component-part="update-label">June 1, 2026</div>
-<div data-component-part="update-description">v0.47.0</div>
-<div data-component-part="update-content"><h3 id="new-features"><span>New Features</span></h3>
-<ul>
-<li><strong>Favorite Tables</strong>: Star a table in the sidebar to pin it to the top.</li>
-</ul></div>
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.tablepro.app/llms.txt
+
+# Changelog
+
+> Product updates and announcements for TablePro
+
+<Update label="August 5, 2026" description="v0.63.0">
+  ### Improvements
+
+  * **Translations**: Turkish, Vietnamese, and Simplified Chinese now cover the strings that still showed in English
+  * **SQL Server**: `USE <database>` switches databases
+
+  ### Bug Fixes
+
+  * `Cmd+Delete` in the SQL editor deletes to the start of the line again (#2022)
+</Update>
+
+<Update label="August 2, 2026" description="v0.62.0">
+  ### New Features
+
+  * **Users & Roles**: Manage database users, roles, and privileges from the sidebar
+</Update>
 """
 
-@Test func extractsTableProMintlifyReleases() throws {
+@Test func extractsTableProMintlifyMarkdownReleases() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.TablePro"))
     let cl = try #require(ChangelogExtractor.extract(from: tableproFixture, using: recipe))
 
     #expect(cl.entries.count == 2)
-    #expect(cl.entries[0].version == "0.48.0")
-    #expect(cl.entries[0].date == "June 2, 2026")
-    #expect(cl.entries[0].items.count == 2)
-    #expect(cl.entries[0].items[0] == "JSON Import: Import a JSON file into a table.")
-    #expect(cl.entries[1].version == "0.47.0")
-    #expect(cl.entries[1].items[0] == "Favorite Tables: Star a table in the sidebar to pin it to the top.")
+    #expect(cl.entries[0].version == "0.63.0")
+    #expect(cl.entries[0].date == "August 5, 2026")
+    // Three bullets across both `###` sections; the headings themselves don't surface.
+    #expect(cl.entries[0].items.count == 3)
+    #expect(cl.entries[0].items[0]
+        == "**Translations**: Turkish, Vietnamese, and Simplified Chinese now cover the strings that still showed in English")
+    // Angle brackets survive: tag-stripping would have eaten `<database>`.
+    #expect(cl.entries[0].items[1] == "**SQL Server**: `USE <database>` switches databases")
+    #expect(cl.entries[1].version == "0.62.0")
+    #expect(cl.entries[1].date == "August 2, 2026")
+    #expect(cl.entries[1].items == [
+        "**Users & Roles**: Manage database users, roles, and privileges from the sidebar"])
+}
+
+// The recipe must read the `.md` twin, not the rendered HTML page: Mintlify swapped
+// the release label from a `<div>` to a `<button>` in 2026-08 and silently zeroed the
+// HTML scrape. Pin the URL so a future edit doesn't drift back.
+@Test func tableProRecipeReadsTheMarkdownTwin() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.TablePro"))
+    #expect(recipe.source.absoluteString == "https://docs.tablepro.app/changelog.md")
+    #expect(!recipe.stripTags)
+    #expect(!recipe.decodeEntities)
 }
 
 // Trimmed real markup from corecode.io/macupdater/history3.html: two version
@@ -1906,11 +2007,12 @@ private let weChatChangelogFixture = #"""
 
 // MARK: - Typeless (gzip'd __NEXT_DATA__ → structured decoder)
 
-// Synthetic page: `__NEXT_DATA__.props.pageProps.compressedData` is base64(gzip(JSON))
+// Synthetic page in the LEGACY payload shape: `compressedData` is base64(gzip(JSON))
 // of a `<version> -> <locale> -> {date, features:[{title, content}]}` map. Two
 // versions out of semver order ("1.9.0" listed before "1.10.0") to prove the
 // decoder sorts numerically (1.10 > 1.9, not lexically). 1.10.0 also carries a
-// non-en locale that must be ignored in favor of `en`.
+// non-en locale that must be ignored in favor of `en`. Kept alongside the v3 array
+// fixture below because `typelessNotes` still accepts both shapes.
 private let typelessB64 = "H4sIAAAAAAAC/6WQQU+DMBTHv0rl5JIVWnCY7ep9J2/A4YFvo7GUhj62KeG7S9G4RaPJ9NTX37/5v/w6BDJchyLYsCFAMx8H7Jxq/fyRLVnwBIQexCJOuUh5nHhqNdCu7RqfNFC1zkOCvZtAVkzzDoH6Duf7EJAiPbdslUH/tGoNoSGPbrLitiaybhNF9GJRo3PcEZCqwqptIogOkq+5CI9Y2kVucuNLGGhbA7PQwb4DW4efQYl0yYOxGMelF5LiF9s5/KZ7z4X8j+7jtOoPtlJc6k4lZx92VFQzYJlW5vlcdQrxBI3VGNnFrDxtfa35w/Za0x9E8n6V3MkvLu8w79OyXOV9IkQ8f/b4Bok9TtBaAgAA"
 
 private let typelessFixture = """
@@ -1973,6 +2075,91 @@ private let typelessFixture = """
     #expect(StructuredChangelogDecoder.decode(
         "<html>no next data here</html>", format: .typelessReleaseNotes,
         channel: nil, maxEntries: 12) == nil)
+}
+
+// The CURRENT payload shape (`pageProps.dataKey == "typeless-release-notes--v3--macos"`,
+// seen 2026-08-09): the inflated JSON is a flat ARRAY of notes with no locale nesting
+// — the page is locale-scoped via `pageProps.embeddedLangCode` instead. The old
+// map-only decode returned nil against this, which is why the page went to zero
+// entries while still fetching 200. Ordering is not guaranteed, so "2.0.0" is listed
+// before "2.2.0" here to prove the semver sort still runs.
+private let typelessV3B64 = "H4sIAAAAAAAC/51QPW/CMBT8K66nIuXD8tBWzCwdmJpOaYZH8ogtHDuyH0kR4r/XrpBQBBPydPfO9+5efeYT+qCd5WsuC1EInvEOCBMU8i0X77n4iNxogPbOD5EfoHUhUgR94Ou6yfgegY4eEzpz0mTS92p2UdQ6S2gp4pdaoXfNqyIaw7os6TSiwRDyQEC6LVo3lFBOMhe5KGbcjasfm170YSN46D2Mis2aFANWG20P917/Jr+rIi42CN5unU9R+KW5ZMum8lFT+VzTT0vedcdW255twB/Y1nX4XHe57P4dkFVXLYuimItgZ05MW2bcnBvdK2JoJ+2dHeKucF89uwX9whipY5WKSRf5rgNKg9uxH52x+QNXCkU6MgIAAA=="
+
+private let typelessV3Fixture = """
+<!doctype html><html><body>
+<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"platform":"macos","dataKey":"typeless-release-notes--v3--macos","embeddedLangCode":"en","compressedData":"\(typelessV3B64)"}},"page":"/help/release-notes/[platform]"}</script>
+</body></html>
+"""
+
+@Test func decodesTypelessV3ArrayPayload() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        typelessV3Fixture, format: .typelessReleaseNotes, channel: nil, maxEntries: 12))
+
+    #expect(changelog.entries.count == 2)
+
+    // 2.2.0 sorts ahead of 2.0.0 despite being listed second. Two features, so each
+    // title folds in as a heading note and none rides on the entry.
+    let latest = changelog.entries[0]
+    #expect(latest.version == "2.2.0")
+    #expect(latest.date == "2026-07-28")
+    #expect(latest.title == nil)
+    #expect(latest.items == [
+        "Introducing Dark Mode",
+        "Use Typeless comfortably in low-light environments.",
+        "Second Thing",
+        "Second thing paragraph.",
+    ])
+    #expect(latest.content == [
+        .note("Introducing Dark Mode"),
+        .image(URL(string: "https://typeless-static.com/a/v2-2-0.webp")!),
+        .note("Use Typeless comfortably in low-light environments."),
+        .note("Second Thing"),
+        .note("Second thing paragraph."),
+    ])
+
+    // Single feature → its title rides the entry, and the markdown link flattens.
+    let prior = changelog.entries[1]
+    #expect(prior.version == "2.0.0")
+    #expect(prior.title == "Two")
+    #expect(prior.items == ["Two paragraph with a link."])
+    #expect(prior.content == [
+        .image(URL(string: "https://typeless-static.com/a/v2-0-0.webp")!),
+        .note("Two paragraph with a link."),
+    ])
+}
+
+// Markdown permits raw HTML and Typeless writes a `<br>` hard break after a lead-in
+// phrase ("**Dictate the way you think** <br>"). We render plain strings, so it has
+// to be dropped rather than shown literally. Exercised through the Warp path because
+// both formats share `bulletItems`.
+@Test func bulletItemsDropRawHTMLLineBreaks() throws {
+    let feed = """
+    {
+      "changelogs": {
+        "stable": {
+          "v0.2026.06.10.09.27.stable_01": {
+            "date": "2026-06-10T09:27:00+0000",
+            "markdown_sections": [
+              { "title": "Notes", "markdown": "* Dictate the way you think <br>\\n* Second line<br/>after the break" }
+            ]
+          }
+        }
+      }
+    }
+    """
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        feed, format: .warpChannelVersions, channel: .stable, maxEntries: 20))
+    #expect(changelog.entries[0].items == [
+        "Dictate the way you think",
+        "Second line after the break",
+    ])
+}
+
+@Test func typelessV3DecodeRespectsMaxEntries() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        typelessV3Fixture, format: .typelessReleaseNotes, channel: nil, maxEntries: 1))
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "2.2.0")
 }
 
 // A trimmed fixture mirroring Claude Desktop's docs `.md` changelog: two

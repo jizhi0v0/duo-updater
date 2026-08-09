@@ -706,23 +706,35 @@ public enum ChangelogRecipeRegistry {
                 + #"<ul>(?<body>.*?)</ul>"#,
             itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
 
-        // LM Studio — Next.js changelog index. The /changelog index page already
-        // carries the *full* release notes for the latest ~10 versions inline
-        // (the visible truncation is a CSS mask only; the markup is complete), so
-        // we parse it directly rather than the per-version pages. Each entry is:
-        //   <a href="/changelog/lmstudio-v0.4.15">
-        //     <span class="sr-only">LM Studio 0.4.15</span></a>
-        //   …<div class="markdown-body …"><p><strong>Build 2</strong></p>
+        // LM Studio — Next.js changelog index. The index page already carries the
+        // *full* release notes for the latest ~10 versions inline (the visible
+        // truncation is a CSS mask only; the markup is complete), so we parse it
+        // directly rather than the per-version pages. Each entry is:
+        //   <a href="/changelog/lmstudio/lmstudio-v0.4.20">
+        //     <span class="sr-only">LM Studio 0.4.20</span></a>
+        //   …<div class="markdown-body …"><p><strong>Build 1</strong></p>
         //     <ul class="list-disc"><li>…</li>…</ul>…</div></div></div>
         // No per-entry date is printed on the index, so `date` is omitted. Notes
         // use nested <ul> for sub-bullets; the <li> pattern folds a sub-list into
         // its parent line — cosmetically fine, and a miss just falls back to the
         // embedded page.
+        //
+        // 2026-08-09: the bare `/changelog` root is NOT this app's changelog any
+        // more — Element Labs repurposed it for **Bionic**, a different product
+        // ("Bionic Changelog | LM Studio", entries `bionic-v1.0.6` /
+        // `<span class="sr-only">Bionic 1.0.6</span>`). LM Studio itself is still on
+        // the 0.4.x train (`versions-prod.lmstudio.ai` says 0.4.20) and its notes
+        // moved to `/changelog/lmstudio`, with the per-version slug nested one level
+        // deeper. Chasing the rebrand by matching `bionic-v` would have shown Bionic
+        // 1.0.x notes to an LM Studio 0.4.x install, so the fix is the new URL plus
+        // an href that tolerates both the nested and the old flat slug. The literal
+        // `LM Studio ` in the sr-only span is the guard that keeps Bionic entries
+        // out: a Bionic block simply doesn't match, and zero entries falls back.
         ChangelogRecipe(
             bundleID: "ai.elementlabs.lmstudio",
-            source: URL(string: "https://lmstudio.ai/changelog")!,
+            source: URL(string: "https://lmstudio.ai/changelog/lmstudio")!,
             entryPattern:
-                #"href="/changelog/lmstudio-v[^"]*">\s*"#
+                #"href="/changelog/(?:lmstudio/)?lmstudio-v[^"]*">\s*"#
                 + #"<span class="sr-only">LM Studio (?<version>[^<]+)</span></a>"#
                 + #".*?"#
                 + #"<div class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>\s*</div>"#,
@@ -752,11 +764,27 @@ public enum ChangelogRecipeRegistry {
         // dark. `releases.warp.dev/channel_versions.json` is the same ungated
         // endpoint the vendor probe already uses and carries a full per-channel,
         // per-version `changelogs` map (date + markdown sections) — richer and far
-        // more stable than scraping rendered HTML. One recipe per channel; all three
+        // more stable than scraping rendered HTML. One recipe per channel; both
         // point at the same JSON but the `channel` selects the sub-feed (and gives
         // each its own cache slot — see `ChangelogService`). The entries are NOT in
         // newest-first document order in the JSON, so the structured decoder sorts
         // by the (lexically-chronological) version key — hence not a regex recipe.
+        //
+        // Stable and Preview only. There is deliberately **no Dev recipe**: Warp
+        // ships a real `dev.warp.Warp-Dev` build and the probe tracks its version
+        // fine, but the vendor publishes no notes for that track. `changelogs.dev`
+        // holds exactly one entry — and it is fixture data, unchanged for years
+        // (verified 2026-08-09):
+        //   "v0.2026.08.07.08.31.dev_00": { "date": "2021-11-23T10:07:01-06:00",
+        //     "sections": [ { "title": "dev", "items": ["dev 1", "dev 2"] } ],
+        //     "oz_updates": ["[TEST] Testing Oz recent updates!", …] }
+        // The version key tracks the live dev build, but the body is placeholder
+        // text under a 2021 date, and it uses the pre-2022 `sections` shape rather
+        // than the `markdown_sections` every real entry has had since. Surfacing
+        // "dev 1 / dev 2" under the installed dev version would be worse than
+        // nothing, so Warp-Dev carries no recipe and falls back to embedding
+        // docs.warp.dev/changelog — same call, and the same reasoning, as the
+        // VendorProbe declining to probe the abandoned beta/canary tracks.
         ChangelogRecipe(
             bundleID: "dev.warp.Warp-Stable",
             source: URL(string: "https://releases.warp.dev/channel_versions.json")!,
@@ -768,12 +796,6 @@ public enum ChangelogRecipeRegistry {
             source: URL(string: "https://releases.warp.dev/channel_versions.json")!,
             maxEntries: 20,
             channel: .preview,
-            structuredFormat: .warpChannelVersions),
-        ChangelogRecipe(
-            bundleID: "dev.warp.Warp-Dev",
-            source: URL(string: "https://releases.warp.dev/channel_versions.json")!,
-            maxEntries: 20,
-            channel: .dev,
             structuredFormat: .warpChannelVersions),
 
         // Typeless — the release-notes page ships every version's notes (with a
@@ -1064,25 +1086,41 @@ public enum ChangelogRecipeRegistry {
             ],
             minItemLength: 8),
 
-        // TablePro — docs.tablepro.app/changelog is a Mintlify changelog page,
-        // fully server-rendered with every release inline (newest-first). Each
-        // release is a labeled block:
-        //   <div … data-component-part="update-label">June 2, 2026</div>
-        //   <div … data-component-part="update-description">v0.48.0</div>
-        //   <div … data-component-part="update-content"><h3>New Features</h3>
-        //     <ul><li><strong>JSON Import</strong>: …</li>…</ul>…</div>
-        // The label div is the date, the description div the version (leading "v"
-        // dropped), the content div the body. The <h3> section headings are
-        // ignored; only <li> items surface. Body bounds on the next update-label.
+        // TablePro — the Mintlify `.md` twin of docs.tablepro.app/changelog (the
+        // page advertises it as `<link rel="alternate" type="text/markdown">`), the
+        // same trick the Claude Desktop recipe above uses. Every release is one
+        // block, newest-first:
+        //   <Update label="August 5, 2026" description="v0.63.0">
+        //     ### Improvements
+        //     * **Translations**: …
+        //     ### Bug Fixes
+        //     * `Cmd+Delete` … (#2022)
+        //   </Update>
+        // Note the fields are the OPPOSITE way round from Claude's Mintlify page:
+        // here `label` is the date and `description` the version (leading "v"
+        // dropped). The `###` section headings are ignored; only `* ` bullets
+        // surface. stripTags/decodeEntities are off because the source is markdown
+        // — a couple of notes carry literal angle brackets (``USE <database>``) that
+        // tag-stripping would eat, and `&` is always a literal ampersand ("Users &
+        // Roles"), never an entity. Inline `**bold**`/backticks stay as written,
+        // same as the Claude recipe.
+        //
+        // 2026-08-09: this replaces a scrape of the rendered HTML, which went to
+        // zero entries when Mintlify swapped the label element from
+        // `<div … data-component-part="update-label">June 2, 2026</div>` to a
+        // `<button …>` — the old pattern required the closing `</div>`. All three
+        // `data-component-part` hooks are still in the HTML, so this was pure
+        // rendered-markup churn; the `.md` form carries the same date + version +
+        // body with far less of it to churn.
         ChangelogRecipe(
             bundleID: "com.TablePro",
-            source: URL(string: "https://docs.tablepro.app/changelog")!,
+            source: URL(string: "https://docs.tablepro.app/changelog.md")!,
             entryPattern:
-                #"data-component-part="update-label"[^>]*>(?<date>[^<]+)</div>"#
-                + #".*?data-component-part="update-description"[^>]*>v?(?<version>[\d.]+)</div>"#
-                + #".*?data-component-part="update-content"[^>]*>(?<body>.*?)"#
-                + #"(?=<div[^>]*data-component-part="update-label"|$)"#,
-            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+                #"<Update label="(?<date>[^"]*)"\s+description="v?(?<version>[\d.]+)"[^>]*>"#
+                + #"(?<body>.*?)</Update>"#,
+            itemPatterns: [#"\n[ \t]*\*[ \t]+(?<item>[^\n]+)"#],
+            stripTags: false,
+            decodeEntities: false,
             maxEntries: 20),
 
         // MacUpdater — corecode.io/macupdater/history3.html is a single static

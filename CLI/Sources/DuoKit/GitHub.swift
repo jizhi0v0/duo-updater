@@ -13,6 +13,17 @@ enum GitHub {
         let description: String
     }
 
+    /// nil when `gh` is usable; otherwise why it isn't, phrased for someone
+    /// reading a CI log.
+    static func unavailableReason() -> String? {
+        do {
+            _ = try run(["--version"])
+            return nil
+        } catch {
+            return "\(error)"
+        }
+    }
+
     @discardableResult
     static func run(_ arguments: [String], stdin: String? = nil) throws -> String {
         let process = Process()

@@ -53,6 +53,13 @@ jobs:
         with:
           clean: true
 
+      # The runner's PATH is not a login shell's: Homebrew's prefix is missing,
+      # so `gh` — which the reconcile step shells out to — is simply not found.
+      # It fails at the point of creating the first issue, i.e. after a full
+      # sweep has already run.
+      - name: Put Homebrew on PATH
+        run: echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+
       - name: Build the verifier
         run: swift build -c release --package-path CLI --product duo
 

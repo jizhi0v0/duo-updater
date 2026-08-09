@@ -289,6 +289,21 @@ public enum Reconcile {
         }
         var baseline = Baseline.load(from: options.baselinePath)
 
+        // Check the one external dependency before deciding anything. Without
+        // this the run dies at the first `gh issue create` with a bare exit 127
+        // — after a full 46-second sweep, in a step whose name says "File and
+        // close issues", pointing at everything except the actual cause.
+        if !options.dryRun, let missing = GitHub.unavailableReason() {
+            die("""
+                cannot reach the GitHub CLI: \(missing)
+
+                `duo reconcile` shells out to `gh` so it authenticates the same way
+                you do locally and picks up GITHUB_TOKEN on a runner. A CI runner's
+                PATH is not a login shell's — on this machine Homebrew's prefix has
+                to be added explicitly.
+                """, code: 2)
+        }
+
         // Decide everything first, then apply — so the circuit breaker sees the
         // whole picture before a single issue is opened.
         var decisions: [(Finding, IssueAction)] = []

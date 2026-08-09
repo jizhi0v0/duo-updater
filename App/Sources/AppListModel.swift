@@ -1215,10 +1215,10 @@ final class AppListModel {
                 "Opened \(result.app.name) — its own updater is applying the update."
         } else {
             // Detached from this call so a slow LaunchServices activation doesn't
-            // block the main actor (see `launchApp`); the note below is what the
-            // user actually waits on, and it lands immediately either way.
+            // block the main actor (see `AppRestarter.launchApp`); the note below
+            // is what the user actually waits on, and it lands immediately either way.
             let path = result.app.path
-            Task { await Self.launchApp(path) }
+            Task { await AppRestarter.launchApp(path) }
             installNotes[result.id] =
                 "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly."
         }
@@ -2433,40 +2433,15 @@ final class AppListModel {
         return String(rest[..<end])
     }
 
-    /// The running instances launched from *this exact .app*, not just any app
-    /// sharing its bundle id. Channel siblings (Android Studio Preview/Stable,
-    /// etc.) share one bundle id, so terminating "all with this bundle id" would
-    /// also kill the sibling we never meant to touch — and the quit-wait below
-    /// would never see the set empty (the sibling stays up), stranding the spinner.
-    private func runningInstances(of result: UpdateResult) -> [NSRunningApplication] {
-        let target = UpdatePolicy.runtimeBundlePath(result.app.path)
-        let candidates = result.app.bundleID.map {
-            NSRunningApplication.runningApplications(withBundleIdentifier: $0)
-        } ?? NSWorkspace.shared.runningApplications
-        return candidates.filter { app in
-            guard let bundleURL = app.bundleURL else { return false }
-            return UpdatePolicy.runtimeBundlePath(bundleURL) == target
-        }
-    }
-
-    /// Was one of these instances the app the user is actually looking at?
-    ///
-    /// Read *before* we quit anything, and it decides whether the relaunch takes
-    /// the foreground. An app the user had in front should come back in front —
-    /// that's their working context. An app that was buried (or that we're
-    /// updating from the menu bar while they work in something else entirely)
-    /// must come back buried: an update is not a reason to shove a window in
-    /// front of what someone is typing into.
-    private static func isFrontmost(_ instances: [NSRunningApplication]) -> Bool {
-        guard let front = NSWorkspace.shared.frontmostApplication else { return false }
-        return instances.contains { $0.processIdentifier == front.processIdentifier }
-    }
-
     /// Quit the stale running instance and relaunch it so the new version takes
     /// effect. Graceful only — if it won't quit (unsaved work), we leave it and
     /// keep the Restart prompt for the user to retry. An app that isn't running
     /// at all never reaches here — it has no `needsRestart` entry (the swap is
     /// already fully in effect on disk), so updating it never starts it up.
+    ///
+    /// The quit/wait/relaunch mechanism itself lives in `AppRestarter` (shared
+    /// with `duo restart`); this keeps only the UI-facing state around it — the
+    /// in-flight spinner and the badge that clears once it's done.
     func restart(_ result: UpdateResult) async {
         guard let bundleID = result.app.bundleID else { return }
         // Block re-entry and show the in-flight spinner (the `relaunching`
@@ -2477,30 +2452,18 @@ final class AppListModel {
         relaunching.insert(result.id)
         defer { relaunching.remove(result.id) }
         Log.app.info("restart: \(result.app.name, privacy: .public) [\(bundleID, privacy: .public)]")
-        let running = runningInstances(of: result)
-        guard !running.isEmpty else { needsRestart.remove(result.id); return }
-        // Sample the foreground *before* the quit — once it's gone, so is the answer.
-        let wasFrontmost = Self.isFrontmost(running)
-        for app in running { app.terminate() }
-        // Wait up to ~30s for a graceful quit. A heavy app (large workspace) can take
-        // well over the old 6s to actually exit; bailing early would leave it
-        // terminated-but-not-relaunched — i.e. we asked it to quit and then never
-        // brought it back. The only case we intentionally give up on is a genuine
-        // hang/save-prompt, where the app stays *up* (so it's never stranded down).
-        for _ in 0..<150 {
-            if runningInstances(of: result).isEmpty { break }
-            try? await Task.sleep(for: .milliseconds(200))
-        }
-        guard runningInstances(of: result).isEmpty else {
-            Log.app.error("restart: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving badge")
-            return  // still up (likely a save prompt) — leave the badge
-        }
-        let relaunched = await Self.launchApp(result.app.path, activates: wasFrontmost)
-        needsRestart.remove(result.id)
-        runningVersionByID[result.id] = nil
-        Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
-        if relaunched {
-            UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion, appID: result.app.bundleID)
+        switch await AppRestarter.restart(result.app) {
+        case .noBundleID, .notRunning:
+            needsRestart.remove(result.id)
+        case .stillRunning:
+            break  // still up (likely a save prompt) — leave the badge
+        case .relaunched(let relaunched):
+            needsRestart.remove(result.id)
+            runningVersionByID[result.id] = nil
+            Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
+            if relaunched {
+                UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion, appID: result.app.bundleID)
+            }
         }
     }
 
@@ -2525,7 +2488,7 @@ final class AppListModel {
         }
         relaunching.insert(result.id)
         defer { relaunching.remove(result.id) }
-        let running = runningInstances(of: result)
+        let running = AppRestarter.runningInstances(of: result.app)
         guard !running.isEmpty else {
             // Not running: the staged swap applies on the app's own next quit, not
             // on demand from us. Leave the badge; a later check clears it once the
@@ -2533,7 +2496,7 @@ final class AppListModel {
             Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) not running — ShipIt applies on its own next quit")
             return
         }
-        let wasFrontmost = Self.isFrontmost(running)
+        let wasFrontmost = AppRestarter.isFrontmost(running)
         let old = result.app.shortVersion ?? result.app.buildVersion
         Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old ?? "?", privacy: .public)) — letting its own updater swap & relaunch (no reopen)")
         for app in running { app.terminate() }
@@ -2560,7 +2523,7 @@ final class AppListModel {
                 applied = true
                 break
             }
-            if runningInstances(of: result).isEmpty {
+            if AppRestarter.runningInstances(of: result.app).isEmpty {
                 everQuit = true  // quit succeeded — now we're waiting on the swap
             } else if !everQuit && tick >= quitGraceTicks {
                 // Never quit → a save prompt (or similar) is keeping it up; the swap
@@ -2572,8 +2535,8 @@ final class AppListModel {
         // Fallback: if ShipIt swapped but didn't relaunch (or never ran), bring the
         // app back so the user isn't left without it — in the background unless it
         // was the app in front when we quit it.
-        if runningInstances(of: result).isEmpty {
-            await Self.launchApp(result.app.path, activates: wasFrontmost)
+        if AppRestarter.runningInstances(of: result.app).isEmpty {
+            await AppRestarter.launchApp(result.app.path, activates: wasFrontmost)
         }
         Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public)")
         // Re-read disk: clears the staged flag + reminder banner if the swap landed
@@ -2586,37 +2549,6 @@ final class AppListModel {
         if applied {
             let version = await Self.readShortVersionOffMain(result.app.path)
             UpdateNotifier.restarted(app: result.app.name, version: version, appID: result.app.bundleID)
-        }
-    }
-
-    /// Launch an app bundle **without wedging the main actor**.
-    ///
-    /// `NSWorkspace.open(_:)` is synchronous: it doesn't return until
-    /// LaunchServices has actually launched the app. For a big bundle — worse,
-    /// one just rewritten by its own updater, so nothing is in the page cache —
-    /// that's hundreds of milliseconds to a few seconds of blocked main thread,
-    /// during which every other row's button is dead and the pointer spins
-    /// (the "clicking another Update mid-relaunch beachballs" report).
-    /// `openApplication(at:configuration:)` does the same work off-main and
-    /// suspends instead.
-    ///
-    /// `activates` decides whether the launched app takes the foreground. It
-    /// defaults to true (matching `open(_:)`) for launches the user explicitly
-    /// asked for — the "Open" menu item, handing off to an app's own updater —
-    /// but every *restart-after-update* path passes the app's own pre-quit
-    /// foreground state instead, so an app that was in the background comes back
-    /// in the background rather than jumping in front of whatever the user is
-    /// actually doing (see `wasFrontmost`).
-    @discardableResult
-    nonisolated static func launchApp(_ bundle: URL, activates: Bool = true) async -> Bool {
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = activates
-        do {
-            _ = try await NSWorkspace.shared.openApplication(at: bundle, configuration: config)
-            return true
-        } catch {
-            Log.app.error("launch failed: \(bundle.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
-            return false
         }
     }
 

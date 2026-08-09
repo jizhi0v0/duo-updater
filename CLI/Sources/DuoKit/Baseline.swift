@@ -29,6 +29,19 @@ public struct Baseline: Codable, Sendable {
         /// Warnings count: `installURLUnresolved` is how both of the real
         /// one-click failures were found, and neither ever produced a `broken`.
         public var consecutiveActionable = 0
+        /// Consecutive sweeps in which the endpoint could not be reached at all.
+        ///
+        /// Tracked separately from `consecutiveActionable` because the two mean
+        /// opposite things about urgency: one bad *parse* is suspicious
+        /// immediately, one bad *connection* is almost always the network. But a
+        /// connection that fails every night for a week is not the network — it
+        /// is a host that no longer exists, and that is exactly as fatal to a
+        /// recipe as a pattern that stopped matching.
+        public var consecutiveInfra = 0
+        /// When the current unreachable run began. Carried into the issue because
+        /// "unreachable since 2026-08-04" is the fact that settles whether a host
+        /// is having a bad week or has been retired.
+        public var infraSince: Date?
         /// What was wrong last time — a failure kind, or the set of warnings.
         /// A *change* in this is new information and worth speaking up about
         /// immediately, where a repeat is not.
@@ -56,6 +69,8 @@ public struct Baseline: Codable, Sendable {
             lastGoodAt = try c.decodeIfPresent(Date.self, forKey: .lastGoodAt)
             consecutiveActionable =
                 try c.decodeIfPresent(Int.self, forKey: .consecutiveActionable) ?? 0
+            consecutiveInfra = try c.decodeIfPresent(Int.self, forKey: .consecutiveInfra) ?? 0
+            infraSince = try c.decodeIfPresent(Date.self, forKey: .infraSince)
             lastSignature = try c.decodeIfPresent(String.self, forKey: .lastSignature)
             issueNumber = try c.decodeIfPresent(Int.self, forKey: .issueNumber)
             closedAt = try c.decodeIfPresent(Date.self, forKey: .closedAt)
@@ -67,6 +82,16 @@ public struct Baseline: Codable, Sendable {
     /// Actionable sweeps below this never produce an issue. One sweep of trouble
     /// is noise; two consecutive sweeps a day apart is a pattern.
     public static let actionableThreshold = 2
+
+    /// Consecutive *unreachable* sweeps before an endpoint is reported as gone.
+    ///
+    /// Much higher than `actionableThreshold` on purpose. Unreachability is the
+    /// one signal that is routinely someone else's fault — a vendor's bad night,
+    /// the runner's flaky uplink — so the bar has to be high enough that none of
+    /// those clear it. At one sweep a night, five is the better part of a week:
+    /// no CDN incident lasts that long, and no DNS record is missing that long
+    /// by accident.
+    public static let infraThreshold = 5
 
     public init() {}
 
@@ -127,6 +152,14 @@ public struct Baseline: Codable, Sendable {
             entry.lastGoodAt = Date()
         }
 
+        // Any status other than `infra` means we got an answer out of the host,
+        // which is proof it is still there — whatever else is wrong with the
+        // recipe. Only `skipped` proves nothing, because we never looked.
+        if finding.status != .infra, finding.status != .skipped {
+            entry.consecutiveInfra = 0
+            entry.infraSince = nil
+        }
+
         switch finding.status {
         case .ok:
             entry.consecutiveActionable = 0
@@ -138,11 +171,29 @@ public struct Baseline: Codable, Sendable {
             entry.lastSignature = finding.signature
             entry.sweepsSinceComment += 1
 
-        case .infra, .skipped:
-            // Deliberately no state change: an unreachable host must neither
-            // count towards the threshold nor reset a real streak that is still
-            // running. Getting the second half wrong would make a genuinely
-            // broken recipe unreportable forever on a flaky network.
+        case .infra:
+            // `consecutiveActionable` is deliberately untouched in BOTH
+            // directions: an unreachable host must not push a recipe over the
+            // parse-failure threshold, and must not reset a real streak that is
+            // still running — the latter would make a genuinely broken recipe
+            // unreportable forever on a flaky network.
+            //
+            // What is new is that unreachability now accumulates on its own
+            // counter. Before this, a host that was retired outright — the
+            // vendor deletes the DNS record — produced `infra` on every sweep
+            // forever and changed no state at all, so the sweep built to end
+            // silent degradation was itself silent about the most total
+            // degradation there is.
+            entry.consecutiveInfra += 1
+            if entry.infraSince == nil { entry.infraSince = Date() }
+            // Counted so the every-Nth-sweep comment limit still applies while a
+            // host is down. `lastSignature` is left alone on purpose: it belongs
+            // to the actionable streak, and overwriting it with a transport error
+            // would make the next real failure look like it "changed shape".
+            entry.sweepsSinceComment += 1
+
+        case .skipped:
+            // We didn't look. Nothing learned, nothing recorded.
             break
         }
 
@@ -158,6 +209,16 @@ public struct Baseline: Codable, Sendable {
 
     public func streak(_ recipeID: String) -> Int {
         entries[recipeID]?.consecutiveActionable ?? 0
+    }
+
+    /// Whether this recipe's endpoint has been unreachable long enough that the
+    /// network is no longer a plausible explanation.
+    public func isInfraReportable(_ recipeID: String) -> Bool {
+        (entries[recipeID]?.consecutiveInfra ?? 0) >= Self.infraThreshold
+    }
+
+    public func infraStreak(_ recipeID: String) -> Int {
+        entries[recipeID]?.consecutiveInfra ?? 0
     }
 }
 

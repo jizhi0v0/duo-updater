@@ -21,7 +21,8 @@ import Foundation
 
     private func entry(
         issue: Int? = nil, streak: Int = 0, signature: String? = nil,
-        closedAt: Date? = nil, sweepsSinceComment: Int = 0, lastGood: String? = nil
+        closedAt: Date? = nil, sweepsSinceComment: Int = 0, lastGood: String? = nil,
+        infra: Int = 0
     ) -> Baseline.Entry {
         var e = Baseline.Entry()
         e.issueNumber = issue
@@ -30,19 +31,104 @@ import Foundation
         e.closedAt = closedAt
         e.sweepsSinceComment = sweepsSinceComment
         e.lastGoodVersion = lastGood
+        e.consecutiveInfra = infra
+        if infra > 0 { e.infraSince = Date(timeIntervalSinceNow: -Double(infra) * 86_400) }
         return e
     }
 
     // MARK: - what never files
 
     /// The single most important rule. A sweep that opens issues for dropped
-    /// connections gets muted within a week, and then it catches nothing.
+    /// connections gets muted within a week, and then it catches nothing. Note
+    /// `reportable: true` here — the actionable streak must not smuggle an infra
+    /// finding past this gate.
     @Test func infrastructureTroubleNeverFilesAnything() {
         for status in [FindingStatus.infra, .skipped] {
             let action = Reconcile.decide(
                 finding(status: status), entry: entry(), reportable: true)
             #expect(!action.isWrite, "\(status.rawValue) must never write to GitHub")
         }
+    }
+
+    /// …with exactly one exception, and it is the reason the exception exists: a
+    /// host that answers on no sweep for the better part of a week has been
+    /// retired, not congested. Before this, a vendor deleting a DNS record was
+    /// the one kind of total breakage the sweep could never see.
+    @Test func anEndpointUnreachableForAWeekIsReported() {
+        let action = Reconcile.decide(
+            finding(status: .infra, failureKind: "transport"),
+            entry: entry(infra: Baseline.infraThreshold), reportable: false)
+        guard case .create(let title, let body) = action else {
+            Issue.record("expected an issue to be created, got \(action)")
+            return
+        }
+        #expect(title.contains("unreachable"))
+        #expect(title.contains("example.invalid"))
+        // The fix is never in the regex, so the body must not send anyone there.
+        #expect(!title.contains("Recipe broken"))
+        #expect(body.contains("dig +short example.invalid"))
+    }
+
+    /// `skipped` never files no matter how long it persists: credential-bearing
+    /// recipes are skipped on every single sweep by design, and reporting those
+    /// as dead hosts would file an issue for each one within a week.
+    @Test func skippedNeverFilesHoweverLongItPersists() {
+        let action = Reconcile.decide(
+            finding(status: .skipped), entry: entry(infra: Baseline.infraThreshold * 5),
+            reportable: true)
+        #expect(!action.isWrite)
+    }
+
+    /// Below the threshold it stays silent, and says why.
+    @Test func aBriefOutageIsCountedButNotFiled() {
+        let action = Reconcile.decide(
+            finding(status: .infra, failureKind: "transport"),
+            entry: entry(infra: Baseline.infraThreshold - 1), reportable: true)
+        #expect(!action.isWrite)
+        if case .none(let reason) = action {
+            #expect(reason.contains("\(Baseline.infraThreshold - 1)/\(Baseline.infraThreshold)"))
+        } else {
+            Issue.record("expected no action")
+        }
+    }
+
+    /// A dead host has no shape to change, so it must not take the
+    /// "failure changed shape" path — transport errors flap between "no route"
+    /// and "TLS failed" for reasons that mean nothing, and each flap would be a
+    /// comment. It goes through the ordinary every-Nth-sweep nudge instead.
+    @Test func aStillDeadHostIsRateLimitedNotRecommentedOnEveryFlap() {
+        let quiet = Reconcile.decide(
+            finding(status: .infra, failureKind: "tlsFailure"),
+            entry: entry(issue: 7, signature: "transport",
+                         sweepsSinceComment: 1, infra: Baseline.infraThreshold + 3),
+            reportable: true)
+        #expect(!quiet.isWrite, "a changed transport error is not news")
+
+        let nudge = Reconcile.decide(
+            finding(status: .infra, failureKind: "tlsFailure"),
+            entry: entry(issue: 7, signature: "transport",
+                         sweepsSinceComment: Reconcile.commentEverySweeps,
+                         infra: Baseline.infraThreshold + 3),
+            reportable: true)
+        guard case .comment(let issue, let body) = nudge else {
+            Issue.record("expected a nudge comment, got \(nudge)")
+            return
+        }
+        #expect(issue == 7)
+        #expect(body.contains("still unreachable"))
+    }
+
+    /// The healing path is shared: once the host answers again the finding is no
+    /// longer `infra`, and the ordinary `ok` branch closes the issue.
+    @Test func anEndpointThatComesBackClosesItsIssue() {
+        let action = Reconcile.decide(
+            finding(status: .ok, version: "1.7.9"),
+            entry: entry(issue: 7, infra: 0), reportable: false)
+        guard case .close(let issue, _) = action else {
+            Issue.record("expected a close, got \(action)")
+            return
+        }
+        #expect(issue == 7)
     }
 
     /// One bad sweep is information, not a verdict. Vendors have brief outages;

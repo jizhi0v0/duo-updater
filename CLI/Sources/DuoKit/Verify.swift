@@ -109,10 +109,13 @@ public enum Verify {
         writeArtifacts(findings, baseline: baseline, options: options)
 
         // Broken recipes below the streak threshold don't fail the run — a first
-        // bad sweep is information, not a verdict.
+        // bad sweep is information, not a verdict. An endpoint that has been
+        // unreachable for a week does fail it: at that point it is a dead recipe
+        // wearing a network error's clothes.
         return findings.contains(where: {
             $0.status == .warn
                 || ($0.status == .broken && baseline.isReportable($0.recipeID))
+                || ($0.status == .infra && baseline.isInfraReportable($0.recipeID))
         }) ? 1 : 0
     }
 

@@ -45,10 +45,19 @@ public enum Report {
 
         let infra = findings.filter { $0.status == .infra }
         if !infra.isEmpty {
-            print("\n  ~ INFRA (not actionable, never reported)")
+            print("\n  ~ INFRA (transient by default — reported once persistent)")
             for finding in infra {
+                let streak = baseline.infraStreak(finding.recipeID)
+                let note: String
+                if baseline.isInfraReportable(finding.recipeID) {
+                    note = "   ← unreachable \(streak) sweeps running; treated as GONE"
+                } else if streak > 1 {
+                    note = "   (unreachable \(streak)/\(Baseline.infraThreshold) sweeps)"
+                } else {
+                    note = ""
+                }
                 print("      \(finding.recipeID) — \(finding.failureDetail ?? "?") "
-                    + "(\(finding.attempts) attempt\(finding.attempts == 1 ? "" : "s"))")
+                    + "(\(finding.attempts) attempt\(finding.attempts == 1 ? "" : "s"))\(note)")
             }
         }
         let skipped = findings.filter { $0.status == .skipped }
@@ -108,7 +117,13 @@ public enum Report {
                 + "| \(n(.infra)) | \(n(.skipped)) |\n"
         }
 
-        let actionable = findings.filter(\.status.isActionable)
+        // Persistently-unreachable endpoints belong in the artifact for the same
+        // reason they belong in the tracker: by the time a host has been gone a
+        // week, "infra" is a description of the cause, not a reason to stay quiet.
+        let actionable = findings.filter {
+            $0.status.isActionable
+                || ($0.status == .infra && baseline.isInfraReportable($0.recipeID))
+        }
         if actionable.isEmpty {
             out += "\nNothing actionable.\n"
         }
@@ -132,6 +147,13 @@ public enum Report {
             let streak = baseline.streak(finding.recipeID)
             if streak > 0 {
                 out += "- **consecutive sweeps**: \(streak)\n"
+            }
+            let infraStreak = baseline.infraStreak(finding.recipeID)
+            if infraStreak > 0 {
+                out += "- **consecutive sweeps unreachable**: \(infraStreak)"
+                out += baseline.entries[finding.recipeID]?.infraSince
+                    .map { " (since \(ISO8601DateFormatter().string(from: $0).prefix(10)))" } ?? ""
+                out += "\n"
             }
             for warning in finding.warnings {
                 out += "- ⚠ \(warning)\n"

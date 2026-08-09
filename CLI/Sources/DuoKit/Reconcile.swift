@@ -49,10 +49,56 @@ public enum Reconcile {
     public static func decide(
         _ finding: Finding, entry: Baseline.Entry, reportable: Bool, now: Date = Date()
     ) -> IssueAction {
-        // Infrastructure is never anyone's to fix and never files. Skipped means
-        // we didn't look.
-        guard finding.status != .infra, finding.status != .skipped else {
-            return .none("\(finding.status.rawValue) — never reported")
+        // Skipped means we didn't look — there is nothing to say either way.
+        guard finding.status != .skipped else {
+            return .none("skipped — never reported")
+        }
+
+        // Unreachable is *usually* nobody's fault and files nothing. But a host
+        // that is unreachable on every sweep for the better part of a week has
+        // been retired, and a retired endpoint kills a recipe just as dead as a
+        // pattern that stopped matching. Filing at that point is the difference
+        // between the sweep noticing a vendor shutting a host down and never
+        // noticing it at all.
+        if finding.status == .infra {
+            guard entry.consecutiveInfra >= Baseline.infraThreshold else {
+                return .none(
+                    "infra — unreachable \(entry.consecutiveInfra)/"
+                        + "\(Baseline.infraThreshold) sweeps, still assuming the network")
+            }
+            guard let issue = entry.issueNumber else {
+                return .create(
+                    title: unreachableTitle(for: finding, entry: entry),
+                    body: unreachableBody(for: finding, entry: entry, now: now))
+            }
+            if let closedAt = entry.closedAt {
+                let days = now.timeIntervalSince(closedAt) / 86_400
+                guard days <= Double(reopenWindowDays) else {
+                    return .create(
+                        title: unreachableTitle(for: finding, entry: entry),
+                        body: unreachableBody(for: finding, entry: entry, now: now))
+                }
+                return .reopen(
+                    issue: issue,
+                    comment: "The endpoint went unreachable again on \(Self.day(now)).\n\n"
+                        + unreachableBody(for: finding, entry: entry, now: now))
+            }
+            // An issue is already open — either this same outage, or a parse
+            // failure from before the host went away. Either way the only news
+            // is that it is still down, so it goes through the same nudge limit
+            // as everything else. No signature comparison: a dead host has no
+            // shape to change, and transport errors flap between "no route" and
+            // "TLS failed" for reasons that mean nothing.
+            guard entry.sweepsSinceComment >= commentEverySweeps else {
+                return .none(
+                    "unreachable and already open (\(entry.sweepsSinceComment)/"
+                        + "\(commentEverySweeps) sweeps since last comment)")
+            }
+            return .comment(
+                issue: issue,
+                body: "`\(finding.endpointHost)` is still unreachable as of "
+                    + "\(Self.day(now)) — \(entry.consecutiveInfra) consecutive sweeps"
+                    + (entry.infraSince.map { ", since \(Self.day($0))" } ?? "") + ".")
         }
 
         if finding.status == .ok {
@@ -117,6 +163,46 @@ public enum Reconcile {
     static func title(for finding: Finding) -> String {
         let what = finding.status == .broken ? "Recipe broken" : "Recipe degraded"
         return "\(what): \(finding.bundleID) (\(finding.registry.label)) — \(reason(for: finding))"
+    }
+
+    /// Deliberately a different headline from `title(for:)`. "Recipe broken"
+    /// sends someone to read a regex; the fix here is almost never in the
+    /// pattern, it's that the endpoint has to be replaced.
+    static func unreachableTitle(for finding: Finding, entry: Baseline.Entry) -> String {
+        "Endpoint unreachable: \(finding.bundleID) (\(finding.registry.label)) — "
+            + "`\(finding.endpointHost)` on \(entry.consecutiveInfra) consecutive sweeps"
+    }
+
+    static func unreachableBody(
+        for finding: Finding, entry: Baseline.Entry, now: Date
+    ) -> String {
+        var out = "<!-- duo-verify-id: \(finding.recipeID) -->\n\n"
+        out += "`\(finding.endpointHost)` has not answered on "
+        out += "**\(entry.consecutiveInfra) consecutive sweeps**"
+        out += entry.infraSince.map { ", starting \(Self.day($0))" } ?? ""
+        out += ". A single unreachable sweep is suppressed as ordinary network trouble; "
+        out += "this many in a row is not the network. The usual cause is that the vendor "
+        out += "retired the host.\n\n"
+        out += "| | |\n|---|---|\n"
+        out += "| recipe | `\(finding.recipeID)` |\n"
+        out += "| registry | \(finding.registry.label) |\n"
+        out += "| endpoint host | `\(finding.endpointHost)` |\n"
+        if let kind = finding.failureKind, let detail = finding.failureDetail {
+            out += "| last error | `\(kind)` — \(detail) |\n"
+        }
+        if let previous = entry.lastGoodVersion {
+            out += "| last version read | `\(previous)`"
+            out += entry.lastGoodAt.map { " on \(Self.day($0))" } ?? ""
+            out += " |\n"
+        }
+        out += "\nFirst thing to check — whether the name still resolves at all, which "
+        out += "separates a retired host from a reachable one that is merely refusing us:\n\n"
+        out += "```bash\ndig +short \(finding.endpointHost) @1.1.1.1\n```\n\n"
+        out += "If that comes back empty, the endpoint is gone and the recipe needs a new "
+        out += "source or needs deleting — it cannot be fixed in place.\n\n"
+        out += "Reproduce the sweep's own view:\n\n```bash\nswift run --package-path CLI duo verify "
+        out += "--\(finding.registry.rawValue) --only \(finding.bundleID)\n```\n"
+        return out
     }
 
     /// A short, readable cause for the title. Not `signature`: that is keyed for
@@ -229,7 +315,13 @@ public enum Reconcile {
         var failures = 0
         for (finding, action) in decisions {
             guard action.isWrite else {
-                if case .none(let reason) = action, finding.status.isActionable {
+                // Infra reasons print too once the streak has started: the whole
+                // point is that a host quietly going away should be visible in
+                // the log on the way to being visible in the tracker.
+                let entry = baseline.entries[finding.recipeID] ?? Baseline.Entry()
+                let worthSaying = finding.status.isActionable
+                    || (finding.status == .infra && entry.consecutiveInfra > 1)
+                if case .none(let reason) = action, worthSaying {
                     print("  · \(finding.recipeID): \(reason)")
                 }
                 continue

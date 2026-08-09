@@ -43,11 +43,12 @@ import Foundation
         #expect(!baseline.isReportable("vendor:com.example.app:stable"))
     }
 
-    /// Infrastructure trouble must be inert in both directions: it can't push a
-    /// recipe over the threshold, and it can't reset a real failure streak that
-    /// is still running. Getting the second half wrong would make a genuinely
-    /// broken recipe unreportable forever on a flaky network.
-    @Test func infraOutcomesNeitherAccumulateNorResetTheStreak() {
+    /// Infrastructure trouble must be inert against the *actionable* streak in
+    /// both directions: it can't push a recipe over the threshold, and it can't
+    /// reset a real failure streak that is still running. Getting the second half
+    /// wrong would make a genuinely broken recipe unreportable forever on a flaky
+    /// network.
+    @Test func infraOutcomesNeitherAccumulateNorResetTheActionableStreak() {
         var baseline = Baseline()
         _ = baseline.reconcile(finding(status: .infra))
         _ = baseline.reconcile(finding(status: .infra))
@@ -58,6 +59,69 @@ import Foundation
         _ = baseline.reconcile(finding(status: .infra))
         _ = baseline.reconcile(finding(status: .broken, failureKind: "versionPatternNoMatch"))
         #expect(baseline.streak("vendor:com.example.app:stable") == 2)
+    }
+
+    /// …but it is no longer inert against everything. A host that answers on no
+    /// sweep at all, night after night, has been retired, and before this counter
+    /// existed that case changed no state and so was invisible forever — the
+    /// exact silent degradation the sweep was built to end.
+    @Test func unreachabilityAccumulatesOnItsOwnCounter() {
+        var baseline = Baseline()
+        let id = "vendor:com.example.app:stable"
+        for _ in 1...(Baseline.infraThreshold - 1) {
+            _ = baseline.reconcile(finding(status: .infra, failureKind: "transport"))
+        }
+        #expect(!baseline.isInfraReportable(id), "a few bad nights is still the network")
+
+        _ = baseline.reconcile(finding(status: .infra, failureKind: "transport"))
+        #expect(baseline.isInfraReportable(id))
+        #expect(baseline.infraStreak(id) == Baseline.infraThreshold)
+        #expect(baseline.entries[id]?.infraSince != nil)
+    }
+
+    /// Any answer at all — even a broken one — is proof the host is still there,
+    /// so it clears the unreachable streak. Without this a recipe that failed to
+    /// parse once every few nights would eventually be reported as a dead host.
+    @Test func reachingTheHostAtAllClearsTheUnreachableStreak() {
+        let id = "vendor:com.example.app:stable"
+        for reachable in [FindingStatus.ok, .broken, .warn] {
+            var baseline = Baseline()
+            for _ in 1...Baseline.infraThreshold {
+                _ = baseline.reconcile(finding(status: .infra))
+            }
+            #expect(baseline.isInfraReportable(id))
+
+            _ = baseline.reconcile(finding(status: reachable, version: "1.0.0",
+                                           failureKind: "versionPatternNoMatch"))
+            #expect(!baseline.isInfraReportable(id), "\(reachable.rawValue) proves the host is up")
+            #expect(baseline.infraStreak(id) == 0)
+            #expect(baseline.entries[id]?.infraSince == nil)
+        }
+    }
+
+    /// `skipped` means we never looked, which is not evidence of anything. A
+    /// credential-bearing recipe is skipped on every single sweep, so counting
+    /// those would report every one of them as a dead host within a week.
+    @Test func skippedSweepsAreNotEvidenceOfADeadHost() {
+        var baseline = Baseline()
+        for _ in 1...(Baseline.infraThreshold * 3) {
+            _ = baseline.reconcile(finding(status: .skipped))
+        }
+        #expect(baseline.infraStreak("vendor:com.example.app:stable") == 0)
+        #expect(!baseline.isInfraReportable("vendor:com.example.app:stable"))
+    }
+
+    /// An unreachable sweep in the middle of a broken streak must not make the
+    /// next broken sweep look like the failure "changed shape" — that comparison
+    /// drives a comment, and a comment per network blip is the noise this whole
+    /// design exists to avoid.
+    @Test func anInfraSweepDoesNotDisturbTheActionableSignature() {
+        var baseline = Baseline()
+        let id = "vendor:com.example.app:stable"
+        _ = baseline.reconcile(finding(status: .broken, failureKind: "versionPatternNoMatch"))
+        let signature = baseline.entries[id]?.lastSignature
+        _ = baseline.reconcile(finding(status: .infra, failureKind: "transport"))
+        #expect(baseline.entries[id]?.lastSignature == signature)
     }
 
     /// A version going backwards is the fingerprint of a pattern that started

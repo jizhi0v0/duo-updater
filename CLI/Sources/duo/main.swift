@@ -47,7 +47,8 @@ reconcile options:
 
 exit codes:
   0  no recipe-level problems
-  1  at least one recipe is degraded, or broken for 2+ consecutive sweeps
+  1  at least one recipe is degraded, broken for 2+ consecutive sweeps, or
+     pointed at an endpoint that has been unreachable for 5+ consecutive sweeps
   2  usage error
 """
 

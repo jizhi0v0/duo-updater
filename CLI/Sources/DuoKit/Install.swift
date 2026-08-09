@@ -21,7 +21,35 @@ public enum Install {
         public var dryRun = false
         public var assumeYes = false
         public var json = false
+        /// Narrow the batch to updates that would take these routes. Empty means
+        /// all of them.
+        ///
+        /// A filter, deliberately not an override. The route is derived from the
+        /// source, and forcing a different one is how you install a build from
+        /// the wrong channel — the single thing the whole source/channel design
+        /// exists to prevent. "Only do the Homebrew ones tonight" is the real
+        /// use; "install this vendor app through brew instead" is not something
+        /// we should make possible.
+        public var routes: Set<InstallCoordinator.Route> = []
         public init() {}
+    }
+
+    /// Resolve `--route` names to routes, or report the first unknown one.
+    /// Matched case-insensitively so `appstore` works as well as `appStore` —
+    /// the raw values are camelCase, which nobody types.
+    public static func routes(named names: Set<String>) -> Result<Set<InstallCoordinator.Route>, UsageError> {
+        var resolved: Set<InstallCoordinator.Route> = []
+        for name in names {
+            guard let route = InstallCoordinator.Route.allCases.first(
+                where: { $0.rawValue.lowercased() == name.lowercased() })
+            else {
+                let known = InstallCoordinator.Route.allCases
+                    .map { $0.rawValue.lowercased() }.sorted().joined(separator: ", ")
+                return .failure(UsageError("unknown --route '\(name)'; expected one of: \(known)"))
+            }
+            resolved.insert(route)
+        }
+        return .success(resolved)
     }
 
     public static func run(_ options: Options) async -> Int32 {
@@ -58,8 +86,13 @@ public enum Install {
             // means "the updates I would see", which excludes them.
             if settings.isHidden(result), options.queries.isEmpty { continue }
             switch classify(result, settings: settings, environment: environment) {
-            case .install(let route): plan.append(Planned(result: result, route: route))
-            case .refuse(let why):    refusals.append((result, why))
+            case .install(let route):
+                // Narrowed, not refused: an app excluded by --route was never
+                // asked for, so listing it under "Skipping" would be noise.
+                guard options.routes.isEmpty || options.routes.contains(route) else { continue }
+                plan.append(Planned(result: result, route: route))
+            case .refuse(let why):
+                refusals.append((result, why))
             }
         }
 
@@ -169,6 +202,7 @@ public enum Install {
     // MARK: - Applying
 
     static func apply(_ plan: [Planned], json: Bool) async -> Int32 {
+        if json { NDJSON.begin("install") }
         let coordinator = InstallCoordinator()
         var failed = 0
         for item in plan {
@@ -208,15 +242,16 @@ public enum Install {
         outcome: InstallCoordinator.Outcome, json: Bool
     ) {
         if json {
-            let payload: [String: Any] = [
+            var payload: [String: Any] = [
                 "app": name, "route": route.rawValue,
                 "bytesDownloaded": outcome.bytesDownloaded,
                 "applied": outcome.applied,
-                "stagedPackage": outcome.stagedPackageURL?.path as Any,
             ]
-            if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) {
-                print(String(decoding: data, as: UTF8.self))
-            }
+            // Omitted rather than null when there is no staged package: a `.pkg`
+            // is the only route that produces one, and `NSNull` in a stream of
+            // otherwise-typed values trips naive readers.
+            if let staged = outcome.stagedPackageURL { payload["stagedPackage"] = staged.path }
+            NDJSON.emit(payload)
         } else if let package = outcome.stagedPackageURL {
             print("   opened the installer for you: \(package.lastPathComponent)")
             print("   finish it in the window macOS just opened.")

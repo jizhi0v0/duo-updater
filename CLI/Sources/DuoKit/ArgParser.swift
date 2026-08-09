@@ -28,6 +28,15 @@ public struct Args {
         "model", "variant",
     ]
 
+    /// A repeatable comma-separated flag, lowercased and de-duplicated.
+    /// `--source vendor,github` and an absent flag both do the obvious thing.
+    public func list(_ name: String) -> Set<String> {
+        Set((value(name) ?? "")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            .filter { !$0.isEmpty })
+    }
+
     public init?(_ argv: [String]) {
         var rest = Array(argv.dropFirst())
         guard let first = rest.first, !first.hasPrefix("-") else { return nil }
@@ -61,6 +70,13 @@ public struct Args {
         return raw
     }
     public func int(_ name: String) -> Int? { value(name).flatMap(Int.init) }
+}
+
+/// A malformed invocation, carried back to `main.swift` so the message and the
+/// exit code live together instead of each call site inventing both.
+public struct UsageError: Error, CustomStringConvertible {
+    public let description: String
+    public init(_ description: String) { self.description = description }
 }
 
 public func die(_ message: String, code: Int32) -> Never {

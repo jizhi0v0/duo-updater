@@ -4,8 +4,9 @@ import DuoKit
 // duo — the command line face of DuoUpdater.
 //
 // Links the real `DuoUpdaterCore`, so every command runs the same code the
-// menu-bar app does. Subcommands are added as the CLI grows; today only
-// `verify` is wired.
+// menu-bar app does — the same sources in the same order, the same install
+// policy, the same ignore and skip rules. A disagreement between `duo` and the
+// app is a bug, not a difference of opinion.
 
 let usage = """
 usage: duo <command> [options]
@@ -28,9 +29,14 @@ list / check options:
   [<app>…]            Which apps, resolved as an install path, then a bundle id,
                       then a name prefix. An ambiguous prefix is an error, never
                       a guess. Omit for all of them.
-  --json              One JSON object per line, so a slow check streams.
+  --json              One JSON object per line, so a slow check streams. The
+                      first line names the schema version.
   --all               Include apps that are already up to date (implied by list).
   --include-hidden    Include apps you ignored or whose version you skipped.
+  --source <names>    Only apps answered by these sources, comma-separated:
+                      sparkle, homebrew, vendor, github, "app store", toolbox,
+                      testflight. `check` only — `list` asks no source, so it has
+                      nothing to filter on.
 
   Both read the menu-bar app's own settings — same sources, same order, same
   ignore and skip lists — so a disagreement between duo and the app is a bug.
@@ -44,7 +50,12 @@ install options:
   --dry-run           Print the plan and stop. Exits 1 if there is work.
   --yes               Don't ask. Required when stdin isn't a terminal, so a
                       script never has consent assumed for it.
-  --json              One JSON object per installed app.
+  --route <names>     Only updates that would take these routes, comma-separated:
+                      homebrew, installer, vendor, sparkle. A filter, NOT an
+                      override — the route follows from the source, and forcing a
+                      different one is how you install a build from the wrong
+                      channel.
+  --json              One JSON object per installed app, after a schema line.
 
   App Store updates are refused, not attempted: that route needs the privileged
   helper or the Accessibility API, neither of which a standalone binary has.
@@ -123,6 +134,13 @@ case "list", "check":
     // default; `check` shows what needs doing unless asked for the rest.
     options.checkForUpdates = (args.subcommand == "check")
     options.all = args.has("all") || args.subcommand == "list"
+    options.sources = args.list("source")
+    // `list` never asks a source anything, so every row's source is unknown and
+    // the filter would silently match nothing. Rejected rather than quietly
+    // returning an empty list, which reads as "you have no Sparkle apps".
+    if !options.sources.isEmpty && !options.checkForUpdates {
+        die("--source needs a source to have answered; use `duo check --source …`", code: 2)
+    }
     exit(await Check.run(options))
 
 case "install":
@@ -132,6 +150,10 @@ case "install":
     options.dryRun = args.has("dry-run")
     options.assumeYes = args.has("yes")
     options.json = args.has("json")
+    switch Install.routes(named: args.list("route")) {
+    case .success(let routes): options.routes = routes
+    case .failure(let failure): die(failure.description, code: 2)
+    }
     exit(await Install.run(options))
 
 case "doctor":

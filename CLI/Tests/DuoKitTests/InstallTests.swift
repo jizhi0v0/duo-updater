@@ -141,3 +141,25 @@ import DuoUpdaterCore
         #expect(InstallCoordinator.route(for: brew, requiresInstaller: true) == .installer)
     }
 }
+
+@Suite struct RouteFilterParsingTests {
+
+    @Test func namesResolveCaseInsensitively() throws {
+        // The raw values are camelCase; nobody types `appStore` on a shell.
+        #expect(try Install.routes(named: ["appstore"]).get() == [.appStore])
+        #expect(try Install.routes(named: ["homebrew", "VENDOR"]).get() == [.homebrew, .vendor])
+    }
+
+    @Test func anUnknownNameIsRefusedAndListsTheValidOnes() {
+        guard case .failure(let failure) = Install.routes(named: ["brew"]) else {
+            Issue.record("expected a refusal for 'brew'")
+            return
+        }
+        #expect(failure.description.contains("homebrew"),
+                "the error has to say what to type instead")
+    }
+
+    @Test func noNamesMeansNoFilter() throws {
+        #expect(try Install.routes(named: []).get().isEmpty)
+    }
+}

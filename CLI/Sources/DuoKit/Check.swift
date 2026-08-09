@@ -15,6 +15,10 @@ public enum Check {
         /// Include apps the user ignored or whose offered version they skipped.
         public var includeHidden = false
         public var checkForUpdates = true
+        /// Keep only apps answered by these sources, matched case-insensitively
+        /// against `RemoteVersion.sourceName` ("Sparkle", "Homebrew", "Vendor",
+        /// "GitHub", "App Store", …). Empty means every source.
+        public var sources: Set<String> = []
         public init() {}
     }
 
@@ -68,6 +72,12 @@ public enum Check {
             let hidden = settings.isHidden(result)
             if hidden && !options.includeHidden { continue }
             if !options.all && !result.hasUpdate { continue }
+            if !options.sources.isEmpty {
+                // An app no source answered for has no source to match, so a
+                // `--source` filter excludes it rather than letting it through.
+                let source = result.remote?.sourceName.lowercased() ?? ""
+                guard options.sources.contains(source) else { continue }
+            }
             rows.append(Row(
                 name: result.app.name,
                 bundleID: result.app.bundleID,
@@ -84,7 +94,11 @@ public enum Check {
                     : nil))
         }
 
-        options.json ? emitJSON(rows) : emitText(rows, checked: options.checkForUpdates)
+        if options.json {
+            emitJSON(rows, command: options.checkForUpdates ? "check" : "list")
+        } else {
+            emitText(rows, checked: options.checkForUpdates)
+        }
         // Exit 1 signals "there is something to do", so `duo check && echo clean`
         // works. A hidden row is by definition not something to do.
         return rows.contains(where: isActionable) ? 1 : 0
@@ -136,13 +150,9 @@ public enum Check {
 
     // MARK: - Output
 
-    static func emitJSON(_ rows: [Row]) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        for row in rows {
-            guard let data = try? encoder.encode(row) else { continue }
-            print(String(decoding: data, as: UTF8.self))
-        }
+    static func emitJSON(_ rows: [Row], command: String) {
+        NDJSON.begin(command)
+        for row in rows { NDJSON.row(row) }
     }
 
     static func emitText(_ rows: [Row], checked: Bool) {

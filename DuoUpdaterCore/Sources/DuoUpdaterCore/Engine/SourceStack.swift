@@ -1,0 +1,43 @@
+import Foundation
+
+/// The ordered list of update sources a check runs an app through, and the one
+/// place that order is decided.
+///
+/// Order is load-bearing, not alphabetical: `UpdateChecker` takes the first
+/// source that answers, so a source placed too early silently shadows a better
+/// one for every app it happens to match. Keeping the list here means the CLI
+/// and the menu bar cannot answer differently for the same app — which is the
+/// only way `duo check` is worth trusting.
+public enum SourceStack {
+
+    /// - Parameters:
+    ///   - githubToken: raises the rate limit from 60/hour to 5000 and is what
+    ///     makes short check intervals viable; nil is supported and just means
+    ///     the unauthenticated budget.
+    ///   - alcove: the user's Alcove licence, when they have entered one.
+    public static func make(
+        githubToken: String?,
+        alcove: AlcoveUpdateSource.Credentials? = nil
+    ) -> [any UpdateSource] {
+        var sources: [any UpdateSource] = [
+            MacAppStoreSource(),
+            SparkleAppcastSource(),
+            HomebrewCaskSource(),
+            // GitHub Releases for apps distributed that way (detection only unless
+            // a rule names an installable asset).
+            GitHubReleasesSource(token: githubToken),
+        ]
+        // Alcove's licensed update channel, ahead of the vendor probe: it's the only
+        // surface carrying release notes, an exact publish time and an installable
+        // (licensed) download, so when the user's credentials are present it answers
+        // first. Otherwise it's omitted and the public VendorProbe recipe handles
+        // Alcove — same version, but detection-only and without notes.
+        if let alcove {
+            sources.append(AlcoveUpdateSource(credentials: alcove))
+        }
+        // Last resort: bespoke per-vendor version endpoints. Only fires when
+        // the earlier sources all miss and a recipe exists.
+        sources.append(VendorProbeSource())
+        return sources
+    }
+}

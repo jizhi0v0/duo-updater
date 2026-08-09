@@ -23,10 +23,8 @@ public enum BackupStore {
 
     public static var root: URL {
         if let rootOverride { return rootOverride }
-        let base = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("DuoUpdater/Backups", isDirectory: true)
+        return DuoStateDirectory.base
+            .appendingPathComponent("DuoUpdater/Backups", isDirectory: true)
     }
 
     /// A stored backup: the bundle on disk plus the metadata we show in the UI.

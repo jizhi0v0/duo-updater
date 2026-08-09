@@ -282,10 +282,8 @@ public actor ReleaseTimelineStore {
         return (try? decoder.decode([String: Observation].self, from: data)) ?? [:]
     }
 
-    private static func defaultFileURL() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return base
+    static func defaultFileURL() -> URL {   // internal: asserted by DuoStateDirectoryTests
+        DuoStateDirectory.base
             .appendingPathComponent("com.duoupdater.app", isDirectory: true)
             .appendingPathComponent("releases.json")
     }

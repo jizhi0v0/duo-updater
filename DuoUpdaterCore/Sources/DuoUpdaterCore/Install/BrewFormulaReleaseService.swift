@@ -39,10 +39,7 @@ public actor BrewFormulaReleaseService {
         if let cacheDirectory {
             self.directory = cacheDirectory
         } else {
-            let base = FileManager.default.urls(
-                for: .applicationSupportDirectory, in: .userDomainMask).first
-                ?? FileManager.default.temporaryDirectory
-            self.directory = base
+            self.directory = DuoStateDirectory.base
                 .appendingPathComponent("com.duoupdater.app", isDirectory: true)
                 .appendingPathComponent("formula-releases", isDirectory: true)
         }

@@ -386,7 +386,7 @@ final class Preferences {
     // MARK: - Ignore
 
     func isIgnored(_ app: InstalledApp) -> Bool {
-        ignoredKeys.contains(key(for: app)) || ignoredKeys.contains(legacyKey(for: app))
+        VisibilityRules.isIgnored(app, ignoredKeys: ignoredKeys)
     }
 
     func setIgnored(_ ignored: Bool, _ app: InstalledApp) {
@@ -402,9 +402,7 @@ final class Preferences {
     // MARK: - Skip version
 
     func isVersionSkipped(_ app: InstalledApp, version: String?) -> Bool {
-        guard let version else { return false }
-        let skipped = skippedVersions[key(for: app)] ?? skippedVersions[legacyKey(for: app)]
-        return skipped == version
+        VisibilityRules.isVersionSkipped(app, version: version, skippedVersions: skippedVersions)
     }
 
     func skipVersion(_ version: String, _ app: InstalledApp) {

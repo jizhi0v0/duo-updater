@@ -32,6 +32,26 @@ public enum TCCPreflight {
         status(for: "kTCCServiceSystemPolicyAppBundles")
     }
 
+    /// Whether the status above describes *this* binary, or one it inherited.
+    ///
+    /// macOS attributes a TCC decision to the **responsible** process, and a
+    /// program started from a terminal is normally the terminal's
+    /// responsibility. So a CLI can preflight `granted` while holding no grant
+    /// of its own, and then fail the moment the same binary runs from launchd or
+    /// a cron job. The 2026-08-09 spike measured exactly this: `granted` from a
+    /// shell, `notDetermined` and EPERM from launchd, same binary.
+    ///
+    /// Returns nil when the SPI is unavailable — "can't tell", never a guess.
+    public static func isResponsibleForItself() -> Bool? {
+        guard let responsible = Self.responsibleForPID else { return nil }
+        let me = getpid()
+        let owner = responsible(me)
+        // A negative result means the SPI could not answer (a race with an
+        // exiting ancestor, typically); that is not evidence of either case.
+        guard owner > 0 else { return nil }
+        return owner == me
+    }
+
     /// Generic preflight for any TCC service constant.
     public static func status(for service: String) -> TCCAuthStatus {
         guard let preflight = Self.preflight else { return .unknown }
@@ -52,6 +72,18 @@ public enum TCCPreflight {
         guard let handle = dlopen("/System/Library/PrivateFrameworks/TCC.framework/TCC", RTLD_NOW),
               let symbol = dlsym(handle, "TCCAccessPreflight") else { return nil }
         return unsafeBitCast(symbol, to: PreflightFn.self)
+    }()
+
+    /// `pid_t responsibility_get_pid_responsible_for_pid(pid_t)` — libsystem SPI,
+    /// resolved from the global namespace (it is not in a framework of its own).
+    /// Same progressive-enhancement contract as `preflight`: absent means nil,
+    /// never a fabricated answer.
+    private typealias ResponsibleForPIDFn = @convention(c) (pid_t) -> pid_t
+    private static let responsibleForPID: ResponsibleForPIDFn? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2),  // RTLD_DEFAULT
+                                 "responsibility_get_pid_responsible_for_pid")
+        else { return nil }
+        return unsafeBitCast(symbol, to: ResponsibleForPIDFn.self)
     }()
 }
 #endif

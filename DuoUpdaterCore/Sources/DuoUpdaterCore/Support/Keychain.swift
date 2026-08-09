@@ -7,11 +7,18 @@ import Security
 /// process running as the user and swept into unencrypted backups. Stored as a
 /// generic password, `AfterFirstUnlockThisDeviceOnly` (available to background
 /// refreshes after the first unlock, never synced off the device).
-enum Keychain {
+///
+/// The service name is the app's, and it is shared with the `duo` CLI on
+/// purpose: one token entered once, honoured by both. macOS scopes a generic
+/// password's ACL to the program that created it, so the *first* read from a
+/// different binary raises the system "wants to access" prompt — expected, and
+/// answered once with Always Allow. `duo doctor` says so rather than letting it
+/// arrive unexplained during a check.
+public enum Keychain {
     private static let service = "com.duoupdater.app"
 
     /// The stored secret for `account`, or nil if absent.
-    static func string(account: String) -> String? {
+    public static func string(account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -29,7 +36,7 @@ enum Keychain {
 
     /// Store `value` for `account`, replacing any existing entry. An empty value
     /// deletes the entry (so "clear the token" leaves nothing behind).
-    static func set(_ value: String, account: String) {
+    public static func set(_ value: String, account: String) {
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

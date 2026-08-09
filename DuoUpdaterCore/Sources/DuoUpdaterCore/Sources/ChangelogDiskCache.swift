@@ -42,7 +42,7 @@ public actor ChangelogDiskCache {
         let fetchedAt: Date
     }
 
-    private let directory: URL
+    let directory: URL   // internal: asserted by DuoStateDirectoryTests
     /// In-memory mirror so repeated opens within a session don't re-read the file.
     private var memory: [Key: Changelog] = [:]
 
@@ -52,10 +52,7 @@ public actor ChangelogDiskCache {
         if let directory {
             self.directory = directory
         } else {
-            let base = FileManager.default.urls(
-                for: .applicationSupportDirectory, in: .userDomainMask).first
-                ?? FileManager.default.temporaryDirectory
-            self.directory = base
+            self.directory = DuoStateDirectory.base
                 .appendingPathComponent("com.duoupdater.app", isDirectory: true)
                 .appendingPathComponent("changelogs", isDirectory: true)
         }

@@ -121,10 +121,8 @@ public actor TrafficStore {
         return decoded
     }
 
-    private static func defaultFileURL() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return base
+    static func defaultFileURL() -> URL {   // internal: asserted by DuoStateDirectoryTests
+        DuoStateDirectory.base
             .appendingPathComponent("com.duoupdater.app", isDirectory: true)
             .appendingPathComponent("traffic.json")
     }

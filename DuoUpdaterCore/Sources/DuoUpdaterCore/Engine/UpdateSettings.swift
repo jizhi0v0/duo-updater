@@ -126,3 +126,26 @@ public enum InstallPreferenceKey {
         return joined.isEmpty || joined.allSatisfy { $0 == "." } ? "app" : joined
     }
 }
+
+/// Whether the user has told us to stop showing an update. Shared because the
+/// legacy-key fallbacks are not symmetric between the two rules, and a
+/// re-derived copy gets them subtly wrong: skip falls back to the legacy key
+/// only when the per-path key is **absent**, so an app skipped at 2.0 and then
+/// skipped again at 3.0 must not stay hidden via a stale legacy entry — while
+/// ignore matches either key, so un-ignoring has to clear both.
+public enum VisibilityRules {
+
+    public static func isIgnored(_ app: InstalledApp, ignoredKeys: Set<String>) -> Bool {
+        ignoredKeys.contains(InstallPreferenceKey.key(for: app))
+            || ignoredKeys.contains(InstallPreferenceKey.legacyKey(for: app))
+    }
+
+    public static func isVersionSkipped(
+        _ app: InstalledApp, version: String?, skippedVersions: [String: String]
+    ) -> Bool {
+        guard let version else { return false }
+        let skipped = skippedVersions[InstallPreferenceKey.key(for: app)]
+            ?? skippedVersions[InstallPreferenceKey.legacyKey(for: app)]
+        return skipped == version
+    }
+}

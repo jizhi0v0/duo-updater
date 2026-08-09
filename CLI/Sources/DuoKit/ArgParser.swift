@@ -12,15 +12,20 @@ public struct Args {
     /// `--flag` (value `""`) and `--flag value` / `--flag=value`.
     private(set) var flags: [String: String] = [:]
     /// Everything that isn't a flag or a flag's value.
-    private(set) var operands: [String] = []
+    public private(set) var operands: [String] = []
 
     /// Flags that take a following value. Anything not listed is a boolean, so
     /// `duo verify --json --only foo` parses the way you'd expect rather than
     /// swallowing `--only` as `--json`'s value.
+    /// Adding a flag to the parser and forgetting it here fails quietly: the
+    /// flag reads as a bare boolean and its value lands in `operands`, so
+    /// `--model deepseek` silently runs the default model. `--model=deepseek`
+    /// keeps working either way, which is what makes it hard to notice.
     static let valueFlags: Set<String> = [
         "triage", "budget",
         "only", "route", "max-concurrency", "timeout", "source",
         "baseline", "report", "markdown", "out", "max-calls",
+        "model", "variant",
     ]
 
     public init?(_ argv: [String]) {

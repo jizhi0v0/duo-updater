@@ -583,26 +583,7 @@ final class AppListModel {
     /// and the App Store source re-reads the signed-in storefront region.
     private func makeSources(token: String?) -> [any UpdateSource] {
         hasGitHubToken = (token != nil)
-        var sources: [any UpdateSource] = [
-            MacAppStoreSource(),
-            SparkleAppcastSource(),
-            HomebrewCaskSource(),
-            // GitHub Releases for apps distributed that way (detection only unless
-            // a rule names an installable asset).
-            GitHubReleasesSource(token: token),
-        ]
-        // Alcove's licensed update channel, ahead of the vendor probe: it's the only
-        // surface carrying release notes, an exact publish time and an installable
-        // (licensed) download, so when the user's credentials are present it answers
-        // first. Otherwise it's omitted and the public VendorProbe recipe handles
-        // Alcove — same version, but detection-only and without notes.
-        if let creds = alcoveCredentials() {
-            sources.append(AlcoveUpdateSource(credentials: creds))
-        }
-        // Last resort: bespoke per-vendor version endpoints. Only fires when
-        // the earlier sources all miss and a recipe exists.
-        sources.append(VendorProbeSource())
-        return sources
+        return SourceStack.make(githubToken: token, alcove: alcoveCredentials())
     }
 
     /// Alcove's licensed-update credentials, or nil if either secret is missing

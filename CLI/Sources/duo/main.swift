@@ -11,6 +11,10 @@ let usage = """
 usage: duo <command> [options]
 
 commands:
+  list          What is installed, without touching the network.
+  check         What has an update, and how it would be applied.
+  doctor        Whether this machine can actually install anything, and what
+                is missing if not.
   verify        Sweep the recipes against their live endpoints and report the
                 ones that can no longer do their job.
   triage        Ask a model why the flagged recipes broke, and check its answer
@@ -18,6 +22,25 @@ commands:
   reconcile     Turn a verify report into GitHub issues — one per broken recipe,
                 closed automatically when it heals.
   help          Show this message.
+
+list / check options:
+  [<app>…]            Which apps, resolved as an install path, then a bundle id,
+                      then a name prefix. An ambiguous prefix is an error, never
+                      a guess. Omit for all of them.
+  --json              One JSON object per line, so a slow check streams.
+  --all               Include apps that are already up to date (implied by list).
+  --include-hidden    Include apps you ignored or whose version you skipped.
+
+  Both read the menu-bar app's own settings — same sources, same order, same
+  ignore and skip lists — so a disagreement between duo and the app is a bug.
+  `check` exits 1 when anything has an update, so `duo check && …` is usable in
+  a script.
+
+doctor options:
+  --json              Machine-readable form of the same report.
+
+  Exits 3 when App Management is not granted, since that is the permission the
+  in-place install routes need and the one nobody guesses.
 
 verify options:
   --only <text>       Restrict to recipes whose bundle id contains <text>.
@@ -76,6 +99,20 @@ guard let args = Args(CommandLine.arguments) else {
 }
 
 switch args.subcommand {
+case "list", "check":
+    var options = Check.Options()
+    options.queries = args.operands
+    options.json = args.has("json")
+    options.includeHidden = args.has("include-hidden")
+    // `list` is the offline inventory, so "everything" is the only sensible
+    // default; `check` shows what needs doing unless asked for the rest.
+    options.checkForUpdates = (args.subcommand == "check")
+    options.all = args.has("all") || args.subcommand == "list"
+    exit(await Check.run(options))
+
+case "doctor":
+    exit(Doctor.run(json: args.has("json")))
+
 case "verify":
     var options = VerifyOptions()
     options.only = (args.value("only") ?? "")

@@ -78,6 +78,46 @@ import Foundation
     #expect(recipe.install?.kind == .dmg)
 }
 
+// Alcove — the vendor retired `update.tryalcove.com` (NXDOMAIN, 2026-08-09), so
+// the public fallback reads the `/latest` metadata document instead, the first
+// public surface that keeps pace with the licensed channel.
+@Test func alcoveProbesTheLiveMetadataEndpointAndStaysDetectionOnly() {
+    let recipe = try! #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.henrikruscon.Alcove" })
+    // The dead host must not survive anywhere in the recipe.
+    #expect(!recipe.url.absoluteString.contains("update.tryalcove.com"))
+    #expect(recipe.url.absoluteString == "https://download.tryalcove.com/latest")
+
+    // A real response, verbatim. `minimum_system_version` is the trap: it also
+    // ends in `version`, so an unanchored pattern reads "15 Sequoia" — or worse,
+    // silently matches it the day the key order changes.
+    let body = #"{"version":"1.7.9","build":203,"published_at":"2026-06-30T20:57:57.000Z""#
+        + #","assets":[{"name":"Alcove.zip","size_bytes":15269999}]"#
+        + #","minimum_system_version":"15 Sequoia"}"#
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "1.7.9")
+    #expect(VendorProbeRecipe.extractVersion(
+        from: #"{"minimum_system_version":"15 Sequoia"}"#,
+        pattern: recipe.versionPattern) == nil)
+    // Segment count isn't pinned, so a future 1.8 or 1.8.0.1 still reads.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: #"{"version":"1.8","build":210}"#, pattern: recipe.versionPattern) == "1.8")
+    #expect(VendorProbeRecipe.extractVersion(
+        from: #"{"version":"1.8.0.1"}"#, pattern: recipe.versionPattern) == "1.8.0.1")
+
+    // DETECTION ONLY, deliberately. The dmg on this same host is the trial build
+    // and trails this metadata (1.7.9 here vs 1.7.7 in the bundle on 2026-08-09),
+    // so an install spec would install 1.7.7, keep reporting 1.7.9, and re-offer
+    // the update forever.
+    #expect(recipe.install == nil,
+            "the public dmg lags this metadata — installing it would be a phantom update")
+
+    // Notes come from the vendor's page in a WebView: the retired host took the
+    // parseable feed with it and this endpoint carries no release notes.
+    #expect(recipe.changelogURL?.absoluteString == "https://www.tryalcove.com/changelog")
+    #expect(ChangelogRecipeRegistry.recipe(forBundleID: "com.henrikruscon.Alcove") == nil,
+            "the changelog recipe pointed at the dead host and was removed")
+}
+
 @Test func extractsClaudeVersionFromRedirectLocationPath() {
     // Claude's `dmg/latest/redirect` 307s here; the version is a path segment,
     // not the filename (the filename is a content hash). The pattern must read

@@ -2240,34 +2240,54 @@ public enum VendorProbeRegistry {
                     URL(string: "https://www.corecode.io/downloads/macupdater_latest.dmg")!),
                 kind: .dmg)),
 
-        // Alcove — PUBLIC mirror, kept only as the no-credential fallback. The
+        // Alcove — PUBLIC trial build, kept only as the no-credential fallback. The
         // authoritative source is `AlcoveUpdateSource` (the licensed api.tryalcove.com
         // channel the app's own "Reworked update manager" uses), wired ahead of this
         // probe so it answers first whenever the user's license credentials are seeded.
-        // This endpoint (update.tryalcove.com) is NOT authoritative — like the
-        // henrikruscon/alcove-releases GitHub mirror it lags the licensed channel
-        // (verified 2026-06-17: it served 1.7.3 while the licensed channel — and the
-        // app itself — already offered 1.7.4). So it's best-effort detection for users
-        // who haven't seeded credentials, nothing more. The endpoint returns
-        // GitHub-release-shaped JSON: `tag_name` is the version
-        // (semver == the app's CFBundleShortVersionString — no build trap) and
-        // `assets[].browser_download_url` carries the versioned Alcove.dmg, anchored
-        // on `Alcove\.dmg` so it's picked over the sibling Alcove.zip regardless of
-        // order. One-click installs that dmg, gated by VendorInstaller's same-Team-ID
-        // signature check (287NUTSP69, Henrik Ruscon — notarized Developer ID,
-        // verified 2026-06-06). The download is the "trial" (unlicensed) build: it's
-        // the same binary the licensed install runs, the license lives outside the
-        // app bundle, so swapping it in place keeps the activation. Changelog comes
-        // from the matching ChangelogRecipe parsing this same endpoint's `body`.
+        //
+        // This used to read `update.tryalcove.com`, which went NXDOMAIN — verified
+        // 2026-08-09 against the system resolver, 8.8.8.8 and 1.1.1.1, while
+        // `tryalcove.com` and `api.tryalcove.com` still resolve. Of the surviving
+        // public surfaces:
+        //   • `henrikruscon/alcove-releases` (GitHub) — abandoned. Newest release is
+        //     1.7.2 from 2026-04-07, seven releases and four months stale. Pointing
+        //     here would report a version OLDER than this recipe's own last-good
+        //     (1.7.3), tripping the sweep's version-regression check forever, and
+        //     would cost an unauthenticated api.github.com rate-limit slot to do it.
+        //   • `download.tryalcove.com/latest` — this one. A 210-byte JSON metadata
+        //     document, and the first public surface that does NOT lag: it served
+        //     1.7.9 build 203 on 2026-08-09, matching both the licensed channel and
+        //     a licensed install, where every earlier "public" endpoint trailed by
+        //     a release or more.
+        //
+        // DETECTION ONLY — do not attach an install spec here, however tempting the
+        // sibling download on the same host looks. `download.tryalcove.com/Alcove.dmg`
+        // is the *trial* build and it lags this metadata: on 2026-08-09 `/latest`
+        // said 1.7.9 while the dmg's `x-alcove-version` header said 1.7.7 and the
+        // mounted bundle's CFBundleShortVersionString confirmed 1.7.7. Installing it
+        // while reporting 1.7.9 is a phantom update that reinstalls forever without
+        // the number ever moving. There is no versioned public download path either
+        // (`/1.7.9/Alcove.dmg`, `?version=` → 404 or the same stale trial), so
+        // one-click stays with the licensed `AlcoveUpdateSource`, which resolves a
+        // versioned asset behind its Bearer.
+        //
+        // No ChangelogRecipe any more — its notes came from the dead host, and this
+        // endpoint carries no release notes at all. `changelogURL` points at the
+        // vendor's own changelog page so the workbench renders it in a WebView: that
+        // page server-renders versions and dates but keeps its bullet text inside a
+        // content-hashed minified JS chunk (`/assets/ChangelogPage-<hash>.js`) whose
+        // filename changes on every deploy, which is three fragilities deep for
+        // notes the licensed source already returns as `structuredChangelog`.
         VendorProbeRecipe(
             bundleID: "com.henrikruscon.Alcove",
-            url: URL(string: "https://update.tryalcove.com")!,
+            url: URL(string: "https://download.tryalcove.com/latest")!,
             mode: .responseBody,
-            versionPattern: #""tag_name"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            // Anchored on start-of-string, `{` or `,` so it cannot drift onto the
+            // sibling `minimum_system_version` key, which also ends in `version`.
+            // Trailing segments are optional so a future 1.8 or 1.8.0.1 still reads.
+            versionPattern: #"(?:^|[{,])\s*"version"\s*:\s*"([0-9]+\.[0-9]+(?:\.[0-9]+)*)""#,
             downloadURL: URL(string: "https://www.tryalcove.com/download")!,
-            install: VendorInstallSpec(
-                urlSource: .bodyPattern(#""browser_download_url"\s*:\s*"([^"]+Alcove\.dmg)""#),
-                kind: .dmg)),
+            changelogURL: URL(string: "https://www.tryalcove.com/changelog")),
 
         // (Surge needs no recipe here: it declares a Sparkle SUFeedURL, so the
         // higher-priority SparkleAppcastSource handles it, and `SurgeChannel`

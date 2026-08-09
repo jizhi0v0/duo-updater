@@ -1330,27 +1330,20 @@ public enum ChangelogRecipeRegistry {
             stripTags: false,
             channel: .beta),
 
-        // Alcove — same endpoint the VendorProbeRecipe reads (update.tryalcove.com),
-        // a single GitHub-release-shaped JSON object: `tag_name` is the version,
-        // `published_at` an ISO timestamp (date prefix taken), `body` a Markdown
-        // changelog with `## section` headers and `- bullet` lines. We flatten every
-        // bullet across sections into change lines (headers are skipped — they aren't
-        // `- ` items); newlines arrive escaped as `\n`, so the item pattern matches
-        // `\\n` like the chatwise/GitHub Desktop JSON recipes. stripTags/decode off
-        // (plain Markdown, no HTML); the leading emoji on section headers never
-        // reaches an item, so the `\u….` escapes in the body are harmless.
-        ChangelogRecipe(
-            bundleID: "com.henrikruscon.Alcove",
-            source: URL(string: "https://update.tryalcove.com")!,
-            entryPattern:
-                #""tag_name"\s*:\s*"(?<version>[0-9][^"]*)".*?"#
-                + #""published_at"\s*:\s*"(?<date>\d{4}-\d{2}-\d{2})[^"]*".*?"#
-                + #""body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
-            itemPatterns: [#"(?:^|\\n)-\s*(?<item>.*?)\s*(?=\\n-\s|\\n\\n|\\n#|$)"#],
-            mode: .json,
-            stripTags: false,
-            decodeEntities: false,
-            maxEntries: 20),
+        // (No Alcove recipe. It parsed `update.tryalcove.com`, which the vendor
+        // retired — NXDOMAIN as of 2026-08-09. The only public surface still
+        // carrying Alcove's bullet text is `www.tryalcove.com/changelog`, and it
+        // carries it in the wrong shape: the page server-renders version numbers
+        // and dates but leaves each entry's body an empty placeholder, with the
+        // actual `features[]`/`fixes[]` arrays inlined in a content-hashed,
+        // minified route chunk (`/assets/ChangelogPage-<hash>.js`). Parsing that
+        // would mean a two-hop fetch, discovering the hash from the page on every
+        // run because it changes on every site deploy, and anchoring on minifier
+        // output — three fragilities stacked, for notes that the licensed
+        // `AlcoveUpdateSource` already returns as `structuredChangelog` for anyone
+        // with credentials. The VendorProbe's `changelogURL` points at that same
+        // page so the workbench embeds it in a WebView, which renders it correctly
+        // with none of the fragility.)
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

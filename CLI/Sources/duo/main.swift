@@ -15,6 +15,7 @@ commands:
   list          What is installed, without touching the network.
   check         What has an update, and how it would be applied.
   install       Apply updates, through the same engine the menu-bar app uses.
+  restart       Quit and relaunch apps whose running copy is stale.
   backups       List the rollback points, or put one back.
   doctor        Whether this machine can actually install anything, and what
                 is missing if not.
@@ -62,6 +63,15 @@ install options:
   helper or the Accessibility API, neither of which a standalone binary has.
   Holds a machine-wide lock, so it exits rather than swapping a bundle while the
   menu-bar app is installing.
+
+restart options:
+  <app>…              Which apps. Resolved like check's. There is no --all: most
+                      installed apps are not running, and "restart everything"
+                      has no safe meaning.
+
+  Quits gracefully — an app with unsaved work stays up and is reported rather
+  than forced. An app that was in the foreground comes back to the foreground;
+  one that was buried stays buried.
 
 backups options:
   list                Every stored rollback point: app, version, when, size.
@@ -168,6 +178,11 @@ case "install":
     case .failure(let failure): die(failure.description, code: 2)
     }
     exit(await Install.run(options))
+
+case "restart":
+    var options = Restart.Options()
+    options.queries = args.operands
+    exit(await Restart.run(options))
 
 case "backups":
     let operation: Backups.Options.Operation

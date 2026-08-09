@@ -99,6 +99,32 @@ targets:
   # once (the one-time Login-Items approval), never per install. Same Developer ID
   # team as the app, which both XPC peers pin to. The post-build script above
   # embeds + re-signs it into the app bundle.
+  # Phase-0 experiment, not shipped. A standalone Developer ID-signed executable
+  # whose only job is to report whether it can hold its own App Management grant
+  # — the answer decides how much of `duo install` can exist outside the app
+  # bundle. Settings cloned from DuoUpdaterHelper because that is the working
+  # recipe in this repo for a signed, non-bundled Mach-O; `swift build` produces
+  # an ad-hoc signature, which cannot hold a TCC grant across rebuilds at all.
+  duo-tcc-spike:
+    type: tool
+    platform: macOS
+    sources:
+      - Spike
+    dependencies:
+      - package: DuoUpdaterCore
+        product: DuoUpdaterCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.tcc-spike
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        SKIP_INSTALL: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: RS59HDH7Y3
+
   DuoUpdaterHelper:
     type: tool
     platform: macOS

@@ -365,7 +365,15 @@ public enum Triage {
                 answer = text
             }
         }
-        guard let answer else { throw TriageError("opencode produced no answer") }
+        guard let answer else {
+            // Say what did arrive. "No answer" on its own is indistinguishable
+            // between a model that said nothing, a stream that was truncated,
+            // and a binary that never ran.
+            let head = output.prefix(400).replacingOccurrences(of: "\n", with: " ")
+            throw TriageError(
+                "opencode produced no answer; \(output.utf8.count) bytes received"
+                    + (head.isEmpty ? " (empty)" : ": \(head)"))
+        }
         return answer
     }
 
@@ -399,11 +407,16 @@ public enum Triage {
         try process.run()
 
         // Read on a background queue: opencode streams events, and a full pipe
-        // buffer would deadlock a wait-then-read.
+        // buffer would deadlock a wait-then-read. The semaphore is what makes
+        // the read *complete* — a fixed sleep after exit looked fine locally and
+        // silently returned an empty buffer on the slower runner, which arrived
+        // downstream as "the model produced no answer".
         let collected = Locked(Data())
+        let drained = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
             let data = output.fileHandleForReading.readDataToEndOfFile()
             collected.withLock { $0.append(data) }
+            drained.signal()
         }
 
         let deadline = Date().addingTimeInterval(timeout)
@@ -414,8 +427,9 @@ public enum Triage {
             process.terminate()
             throw TriageError("timed out after \(Int(timeout))s")
         }
-        // Give the reader a moment to drain the tail of the stream.
-        Thread.sleep(forTimeInterval: 0.2)
+        // Wait for the pipe to actually close, not for a guess at how long that
+        // takes.
+        _ = drained.wait(timeout: .now() + 30)
         // A non-zero exit has to be reported as itself. Letting it fall through
         // to "produced no answer" is how a missing binary got described as a
         // model failure — the same mistake, twice, on the same runner's PATH.

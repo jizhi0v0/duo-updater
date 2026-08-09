@@ -93,7 +93,8 @@ public struct Finding: Codable, Sendable {
         // nobody can act on.
         self.bodySample = status.isActionable
             ? bodySample.map {
-                Redactor.text(ResponseSample.condense($0, limit: ProbeOutcome.maxSampleBytes))
+                Redactor.text(ResponseSample.condense(
+                    $0, limit: ProbeOutcome.maxSampleBytes, pattern: pattern))
             }
             : nil
     }

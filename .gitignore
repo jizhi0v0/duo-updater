@@ -28,3 +28,4 @@ scripts/icon/out/
 # streaks and issue numbers); the per-run report is not.
 verify/report.json
 verify/report.md
+verify/triage.json

@@ -52,6 +52,10 @@ public struct Baseline: Codable, Sendable {
         /// Sweeps since the last comment on the open issue, for the rate limit
         /// that keeps a daily job from producing a daily comment.
         public var sweepsSinceComment = 0
+        /// The failure signature the last LLM suggestion was written about, so
+        /// a suggestion is posted once per distinct problem rather than every
+        /// sweep, and is never shown against a failure it doesn't describe.
+        public var triagedSignature: String?
 
         public init() {}
 
@@ -76,6 +80,7 @@ public struct Baseline: Codable, Sendable {
             closedAt = try c.decodeIfPresent(Date.self, forKey: .closedAt)
             sweepsSinceComment =
                 try c.decodeIfPresent(Int.self, forKey: .sweepsSinceComment) ?? 0
+            triagedSignature = try c.decodeIfPresent(String.self, forKey: .triagedSignature)
         }
     }
 

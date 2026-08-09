@@ -299,7 +299,8 @@ public enum Verify {
                 channel: recipe.channel?.rawValue ?? "-",
                 status: warnings.isEmpty ? .ok : .warn,
                 version: newest.version, warnings: warnings,
-                endpointHost: host, pattern: recipe.entryPattern, elapsedMs: elapsed)
+                endpointHost: host, pattern: recipe.entryPattern, elapsedMs: elapsed,
+                bodySample: diagnostic.bodySample)
         }
     }
 

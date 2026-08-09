@@ -110,7 +110,13 @@ public enum ChangelogService {
         await recordHealth(recipe, parsed: parsed)
         return ChangelogDiagnostic(
             changelog: parsed, resolvedURL: resolved, httpStatus: fetched.status,
-            fetchFailed: false, bodySample: parsed == nil ? fetched.body : nil)
+            // The body is returned even when parsing succeeded. "Extracted
+            // entries, but the newest one trails the version the app is being
+            // offered" is a real finding about *this page*, and answering it
+            // needs the page — without it the report says a recipe is reading a
+            // stale section and then withholds the section. Callers keep the
+            // sample only for findings worth acting on.
+            fetchFailed: false, bodySample: fetched.body)
     }
 
     /// The fetch + parse half, shared by the cached and uncached entry points so

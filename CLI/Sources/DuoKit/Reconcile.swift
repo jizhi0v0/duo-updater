@@ -47,7 +47,8 @@ public enum Reconcile {
     // MARK: - the decision
 
     public static func decide(
-        _ finding: Finding, entry: Baseline.Entry, reportable: Bool, now: Date = Date()
+        _ finding: Finding, entry: Baseline.Entry, reportable: Bool,
+        suggestion: TriageSuggestion? = nil, now: Date = Date()
     ) -> IssueAction {
         // Skipped means we didn't look — there is nothing to say either way.
         guard finding.status != .skipped else {
@@ -121,7 +122,7 @@ public enum Reconcile {
         }
 
         guard let issue = entry.issueNumber else {
-            return .create(title: title(for: finding), body: body(for: finding, entry: entry))
+            return .create(title: title(for: finding), body: body(for: finding, entry: entry, suggestion: suggestion))
         }
 
         // A closed issue coming back: reopen rather than duplicate, but only
@@ -130,12 +131,12 @@ public enum Reconcile {
             let days = now.timeIntervalSince(closedAt) / 86_400
             guard days <= Double(reopenWindowDays) else {
                 return .create(
-                    title: title(for: finding), body: body(for: finding, entry: entry))
+                    title: title(for: finding), body: body(for: finding, entry: entry, suggestion: suggestion))
             }
             return .reopen(
                 issue: issue,
                 comment: "Broke again on \(Self.day(now)), \(Int(days)) day(s) after it "
-                    + "healed.\n\n\(body(for: finding, entry: entry))")
+                    + "healed.\n\n\(body(for: finding, entry: entry, suggestion: suggestion))")
         }
 
         // Open issue, still broken. Speak up only if something changed, or if
@@ -145,7 +146,17 @@ public enum Reconcile {
                 issue: issue,
                 body: "The failure changed shape on \(Self.day(now)) — was "
                     + "`\(entry.lastSignature ?? "unknown")`, now "
-                    + "`\(finding.signature)`.\n\n\(body(for: finding, entry: entry))")
+                    + "`\(finding.signature)`.\n\n\(body(for: finding, entry: entry, suggestion: suggestion))")
+        }
+        // A suggestion the issue doesn't have yet is genuinely new information,
+        // and `triagedSignature` means it arrives exactly once per distinct
+        // failure rather than every sweep.
+        if let suggestion, suggestion.signature == finding.signature,
+           entry.triagedSignature != finding.signature {
+            return .comment(
+                issue: issue,
+                body: "An automated analysis of the captured response is available.\n\n"
+                    + suggestionBlock(suggestion))
         }
         guard entry.sweepsSinceComment >= commentEverySweeps else {
             return .none(
@@ -222,7 +233,10 @@ public enum Reconcile {
 
     /// The body carries the marker comment so an issue can be re-associated with
     /// its recipe even if the baseline file is lost or rewritten.
-    static func body(for finding: Finding, entry: Baseline.Entry) -> String {
+    static func body(
+        for finding: Finding, entry: Baseline.Entry,
+        suggestion: TriageSuggestion? = nil
+    ) -> String {
         var out = "<!-- duo-verify-id: \(finding.recipeID) -->\n\n"
         out += "Found by the scheduled `duo verify` sweep. "
         out += "The version check and the app both keep working in the cases marked "
@@ -253,8 +267,36 @@ public enum Reconcile {
             out += "\n<details><summary>Captured response (redacted, truncated)</summary>\n\n"
             out += "```\n\(sample)\n```\n\n</details>\n"
         }
+        // After the captured response, so a reader has seen the evidence before
+        // the interpretation of it.
+        if let suggestion, suggestion.signature == finding.signature {
+            out += "\n" + suggestionBlock(suggestion)
+        }
         out += "\nReproduce locally:\n\n```bash\nswift run --package-path CLI duo verify "
         out += "--\(finding.registry.rawValue) --only \(finding.bundleID) --samples\n```\n"
+        return out
+    }
+
+    /// The model's answer, with the one checkable fact first and the prose
+    /// folded away behind it.
+    ///
+    /// The order is the point. `verificationLine` is produced by re-running the
+    /// proposal through the same extractor the app uses, so it is true or false
+    /// on its own terms; the diagnosis is a guess about someone else's website.
+    /// Putting the guess first would invite applying it unread.
+    static func suggestionBlock(_ suggestion: TriageSuggestion) -> String {
+        var out = "### Automated analysis\n\n"
+        out += suggestion.verificationLine + "\n\n"
+        out += "<details><summary>Unverified suggestion — do not apply without testing"
+        out += " (model: `\(suggestion.model)`, self-reported confidence "
+        out += "\(String(format: "%.2f", suggestion.confidence)))</summary>\n\n"
+        out += "\(suggestion.diagnosis)\n\n"
+        if let pattern = suggestion.proposedVersionPattern {
+            out += "Proposed pattern:\n\n```\n\(pattern)\n```\n\n"
+        }
+        out += "Produced by a model with no tools, in an empty directory, from the "
+        out += "captured response above. That response is third-party content and may "
+        out += "be hostile; nothing here has been applied to any file.\n\n</details>\n"
         return out
     }
 
@@ -270,10 +312,15 @@ public enum Reconcile {
     public struct Options: Sendable {
         public var reportPath: URL
         public var baselinePath: URL
+        /// Optional: suggestions from `duo triage`, embedded into issue bodies.
+        public var triagePath: URL?
         public var dryRun: Bool
-        public init(reportPath: URL, baselinePath: URL, dryRun: Bool) {
+        public init(
+            reportPath: URL, baselinePath: URL, triagePath: URL? = nil, dryRun: Bool
+        ) {
             self.reportPath = reportPath
             self.baselinePath = baselinePath
+            self.triagePath = triagePath
             self.dryRun = dryRun
         }
     }
@@ -288,6 +335,7 @@ public enum Reconcile {
             die("cannot parse report at \(options.reportPath.path)", code: 2)
         }
         var baseline = Baseline.load(from: options.baselinePath)
+        let suggestions = loadSuggestions(options.triagePath)
 
         // Check the one external dependency before deciding anything. Without
         // this the run dies at the first `gh issue create` with a bare exit 127
@@ -311,7 +359,8 @@ public enum Reconcile {
             let entry = baseline.entries[finding.recipeID] ?? Baseline.Entry()
             decisions.append((finding, decide(
                 finding, entry: entry,
-                reportable: baseline.isReportable(finding.recipeID))))
+                reportable: baseline.isReportable(finding.recipeID),
+                suggestion: suggestions[finding.recipeID])))
         }
 
         let creations = decisions.filter { if case .create = $0.1 { return true } else { return false } }
@@ -347,6 +396,10 @@ public enum Reconcile {
             }
             do {
                 try apply(action, to: &baseline, recipeID: finding.recipeID)
+                if let suggestion = suggestions[finding.recipeID],
+                   suggestion.signature == finding.signature {
+                    baseline.entries[finding.recipeID]?.triagedSignature = suggestion.signature
+                }
                 print("  ✓ \(finding.recipeID): \(describe(action))")
             } catch {
                 FileHandle.standardError.write(
@@ -360,6 +413,22 @@ public enum Reconcile {
             try? baseline.save(to: options.baselinePath)
         }
         return failures == 0 ? 0 : 1
+    }
+
+    /// Suggestions are optional throughout: triage may have been skipped, may
+    /// have been rate-limited, or may have failed. None of that should stop a
+    /// breakage being filed.
+    static func loadSuggestions(_ path: URL?) -> [String: TriageSuggestion] {
+        guard let path, let data = try? Data(contentsOf: path) else { return [:] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let document = try? decoder.decode(TriageDocument.self, from: data) else {
+            FileHandle.standardError.write(
+                Data("⚠︎ could not read triage suggestions at \(path.path); continuing without them\n".utf8))
+            return [:]
+        }
+        return Dictionary(
+            document.suggestions.map { ($0.recipeID, $0) }, uniquingKeysWith: { a, _ in a })
     }
 
     private static func describe(_ action: IssueAction) -> String {

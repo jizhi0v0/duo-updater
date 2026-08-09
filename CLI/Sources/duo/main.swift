@@ -13,6 +13,8 @@ usage: duo <command> [options]
 commands:
   verify        Sweep the recipes against their live endpoints and report the
                 ones that can no longer do their job.
+  triage        Ask a model why the flagged recipes broke, and check its answer
+                against the captured response before anyone reads it.
   reconcile     Turn a verify report into GitHub issues — one per broken recipe,
                 closed automatically when it heals.
   help          Show this message.
@@ -36,10 +38,26 @@ verify options:
   --max-concurrency N Hosts probed in parallel (default 4). One request at a
                       time per host regardless.
 
+triage options:
+  --report <path>     The JSON written by `duo verify --report`. Required.
+  --baseline <path>   Used only to read failure streaks — never written.
+  --out <path>        Where to write the suggestions. Required.
+  --model <id>        Overrides the agent's model (default is declared in
+                      .opencode/agent/duo-triage.md).
+  --variant <effort>  Provider reasoning effort, e.g. max, high, minimal.
+  --max-calls N       Hard cap on model calls in one run (default 20).
+  --dry-run           List what would be asked about, call nothing.
+
+  Runs opencode with no tools, in an empty temporary directory, and re-runs every
+  proposed pattern through the app's own extractor before reporting it. A sweep
+  with more than 30 actionable findings is treated as an outage and skipped.
+
 reconcile options:
   --report <path>     The JSON written by `duo verify --report`. Required.
   --baseline <path>   The same baseline `verify` updated. Required — it holds the
                       issue numbers, so without it every run opens duplicates.
+  --triage <path>     Optional suggestions from `duo triage`, folded into issue
+                      bodies behind a collapsed, clearly-labelled block.
   --dry-run           Print what would happen and touch nothing.
 
   Uses the `gh` CLI, so it authenticates the same way you do locally and picks
@@ -77,6 +95,22 @@ case "verify":
     options.markdownPath = args.value("markdown").map { URL(fileURLWithPath: $0) }
     exit(await Verify.run(options))
 
+case "triage":
+    guard let report = args.value("report"), let out = args.value("out") else {
+        die("triage needs --report <path> and --out <path>\n\n\(usage)", code: 2)
+    }
+    var triage = TriageOptions(
+        reportPath: URL(fileURLWithPath: report),
+        baselinePath: URL(fileURLWithPath: args.value("baseline") ?? "verify/baseline.json"),
+        outPath: URL(fileURLWithPath: out),
+        projectDir: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
+    triage.model = args.value("model")
+    if let variant = args.value("variant") { triage.variant = variant }
+    if let cap = args.int("max-calls") { triage.maxCalls = max(0, cap) }
+    if let budget = args.int("budget") { triage.budget = TimeInterval(budget) }
+    triage.dryRun = args.has("dry-run")
+    exit(Triage.run(triage))
+
 case "reconcile":
     guard let report = args.value("report"), let baseline = args.value("baseline") else {
         die("reconcile needs --report <path> and --baseline <path>\n\n\(usage)", code: 2)
@@ -84,6 +118,7 @@ case "reconcile":
     exit(Reconcile.run(Reconcile.Options(
         reportPath: URL(fileURLWithPath: report),
         baselinePath: URL(fileURLWithPath: baseline),
+        triagePath: args.value("triage").map { URL(fileURLWithPath: $0) },
         dryRun: args.has("dry-run"))))
 
 case "help", "--help", "-h":

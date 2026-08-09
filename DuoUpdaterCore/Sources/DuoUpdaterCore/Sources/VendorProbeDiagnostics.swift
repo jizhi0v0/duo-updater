@@ -175,12 +175,79 @@ public enum ResponseSample {
     /// is deliberately **kept**: several recipes read their version out of an
     /// inlined `__NEXT_DATA__` or channel JSON blob, so stripping scripts would
     /// delete the evidence for the very recipes hardest to debug.
-    public static func condense(_ text: String, limit: Int) -> String {
+    ///
+    /// Pass `pattern` whenever the caller knows which expression failed. Head and
+    /// tail are a reasonable guess for a 4 KB JSON feed and worthless for a 1.6 MB
+    /// changelog page, where the interesting markup is neither at the start nor
+    /// the end: a first attempt at this handed a model 4 KB of page furniture and
+    /// got back, correctly, "the entire list is inside the elided region."
+    public static func condense(_ text: String, limit: Int, pattern: String? = nil) -> String {
         let trimmed = stripBoilerplate(text)
         guard trimmed.utf8.count > limit else { return trimmed }
-        let head = String(trimmed.prefix(limit * 3 / 4))
-        let tail = String(trimmed.suffix(limit / 4))
-        return head + "\n…[\(trimmed.utf8.count - limit) bytes elided]…\n" + tail
+        let elided = trimmed.utf8.count - limit
+
+        if let pattern, let window = windowAroundAnchor(in: trimmed, pattern: pattern, limit: limit) {
+            return window
+        }
+        // No pattern, or none of its literal anchors survive in the body. The
+        // second case is itself worth stating — it means the markup the recipe
+        // was written against is gone entirely, not merely rearranged.
+        let note = pattern == nil
+            ? "\n…[\(elided) bytes elided]…\n"
+            : "\n…[\(elided) bytes elided; none of the pattern's literal anchors "
+                + "appear anywhere in the body]…\n"
+        return String(trimmed.prefix(limit * 3 / 4)) + note + String(trimmed.suffix(limit / 4))
+    }
+
+    /// Centre the sample on the most distinctive literal the pattern expects to
+    /// find. If `<li id="codex-` still exists somewhere in a megabyte of HTML,
+    /// that neighbourhood is the only part worth reading.
+    static func windowAroundAnchor(in text: String, pattern: String, limit: Int) -> String? {
+        let anchors = literalAnchors(in: pattern)
+        guard !anchors.isEmpty else { return nil }
+        for anchor in anchors {
+            guard let range = text.range(of: anchor) else { continue }
+            let before = limit / 3
+            let after = limit - before
+            let start = text.index(range.lowerBound, offsetBy: -before, limitedBy: text.startIndex)
+                ?? text.startIndex
+            let end = text.index(range.upperBound, offsetBy: after, limitedBy: text.endIndex)
+                ?? text.endIndex
+            return "…[sample centred on the pattern's anchor '\(anchor)']…\n"
+                + String(text[start..<end]) + "\n…[truncated]…"
+        }
+        return nil
+    }
+
+    /// The literal runs a regex requires verbatim, longest first — the parts a
+    /// vendor's rewrite would have had to preserve for the pattern to still work.
+    public static func literalAnchors(in pattern: String) -> [String] {
+        var runs: [String] = []
+        var current = ""
+        var iterator = pattern.makeIterator()
+        var pending: Character?
+        while let character = pending ?? iterator.next() {
+            pending = nil
+            if character == "\\" {
+                // An escaped metacharacter is a literal; anything else ends the run.
+                if let next = iterator.next() {
+                    if "\\^$.|?*+()[]{}/-".contains(next) { current.append(next) }
+                    else { runs.append(current); current = "" }
+                }
+                continue
+            }
+            if "^$.|?*+()[]{}".contains(character) {
+                runs.append(current)
+                current = ""
+                continue
+            }
+            current.append(character)
+        }
+        runs.append(current)
+        return runs
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.count >= 6 }
+            .sorted { $0.count > $1.count }
     }
 
     static func stripBoilerplate(_ text: String) -> String {

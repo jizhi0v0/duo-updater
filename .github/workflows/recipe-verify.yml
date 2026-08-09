@@ -26,6 +26,10 @@ on:
         description: "Report findings but never touch issues"
         type: boolean
         default: false
+      skip_triage:
+        description: "Skip the model analysis step"
+        type: boolean
+        default: false
 
 # Never cancel a run in flight: the baseline is written near the end, and a
 # half-written one loses every issue number it holds.
@@ -90,12 +94,25 @@ jobs:
         # nothing. It can only fire when the vendor feed is *behind* the local
         # copy, so a stale install can't produce a false positive.
 
+      # Optional and deliberately fenced off: it shells out to a model, which is
+      # slow and can fail for reasons that have nothing to do with the sweep.
+      # A breakage must still get filed when this step does not run.
+      - name: Analyse what broke
+        if: ${{ !inputs.skip_triage }}
+        continue-on-error: true
+        run: |
+          ./CLI/.build/release/duo triage \
+            --report   verify/report.json \
+            --baseline verify/baseline.json \
+            --out      verify/triage.json
+
       - name: File and close issues
         if: hashFiles('verify/report.json') != ''
         run: |
           ./CLI/.build/release/duo reconcile \
             --report   verify/report.json \
             --baseline verify/baseline.json \
+            --triage   verify/triage.json \
             ${{ inputs.dry_run && '--dry-run' || '' }}
 
       - name: Upload the report
@@ -103,7 +120,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: verify-report
-          path: verify/report.*
+          path: |
+            verify/report.*
+            verify/triage.json
           retention-days: 30
 
       - name: Persist the baseline

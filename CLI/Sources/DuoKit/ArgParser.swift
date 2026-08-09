@@ -18,6 +18,7 @@ public struct Args {
     /// `duo verify --json --only foo` parses the way you'd expect rather than
     /// swallowing `--only` as `--json`'s value.
     static let valueFlags: Set<String> = [
+        "triage", "budget",
         "only", "route", "max-concurrency", "timeout", "source",
         "baseline", "report", "markdown", "out", "max-calls",
     ]

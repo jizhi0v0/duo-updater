@@ -206,7 +206,30 @@ import Foundation
 
     /// …but a changelog a whole release behind still is.
     @Test func aChangelogAWholeReleaseBehindIsFlagged() {
-        let complaint = Verify.changelogLagComplaint(entry: "26.727", detected: "26.803.41515")
+        let complaint = Verify.changelogLagComplaint(entry: "1.85", detected: "1.123.4")
         #expect(complaint?.contains("trails") == true)
+    }
+
+    /// Codex numbers builds and notes alike as `YY.MDD`, so the date lands in the
+    /// slot the major.minor comparison uses and one publishing cycle looks like a
+    /// whole release. 26.727 → 26.803 is seven days: their notes come out weekly.
+    @Test func aDateNumberedChangelogIsJudgedInDaysNotReleases() {
+        #expect(Verify.changelogLagComplaint(entry: "26.727", detected: "26.803.41515") == nil)
+        #expect(Verify.changelogLagComplaint(entry: "25.1215", detected: "26.103") == nil)
+        // Only a gap no publishing cadence explains still counts.
+        let complaint = Verify.changelogLagComplaint(entry: "26.115", detected: "26.803.41515")
+        #expect(complaint?.contains("200 days") == true)
+    }
+
+    /// The date reading has to be sure of itself: a two-digit major with a
+    /// three-digit minor is not a date when the minor is not a valid `MDD`.
+    @Test func versionsThatOnlyLookLikeDatesAreNotReadAsDates() {
+        #expect(Verify.buildDate("26.803") != nil)
+        #expect(Verify.buildDate("26.1215") != nil)
+        #expect(Verify.buildDate("26.099") == nil)     // month 0
+        #expect(Verify.buildDate("26.1332") == nil)    // month 13
+        #expect(Verify.buildDate("26.845") == nil)     // day 45
+        #expect(Verify.buildDate("2026.2") == nil)     // JetBrains major.minor
+        #expect(Verify.buildDate("3.6.4") == nil)
     }
 }

@@ -344,6 +344,19 @@ public enum Verify {
         guard entry.first?.isNumber == true, detected.first?.isNumber == true else {
             return nil
         }
+        // Date-encoded schemes need a different yardstick. Codex numbers both its
+        // builds and its release notes `YY.MDD` (`26.803` is 2026-08-03), which
+        // puts the date in the very slot this check compares on: every build cut
+        // after the newest published note reads as a whole release behind, and the
+        // notes are published weekly against builds that ship more often. Measured
+        // in days instead, the same signal survives — a pattern stuck on a stale
+        // section lands months out, not one publishing cycle.
+        if let entryDay = buildDate(entry), let detectedDay = buildDate(detected) {
+            let days = gmtCalendar.dateComponents([.day], from: entryDay, to: detectedDay).day ?? 0
+            guard days > staleNotesDays else { return nil }
+            return "newest changelog entry (\(entry)) trails the detected version (\(detected)) "
+                + "by \(days) days — the entry pattern may be reading a stale section"
+        }
         func majorMinor(_ version: String) -> String {
             version.split(separator: ".").prefix(2).joined(separator: ".")
         }
@@ -353,6 +366,40 @@ public enum Verify {
         else { return nil }
         return "newest changelog entry (\(entry)) trails the detected version (\(detected)) "
             + "by a whole release — the entry pattern may be reading a stale section"
+    }
+
+    /// How far a date-numbered changelog may fall behind the shipped build before
+    /// it counts as stale. Codex's app notes come out weekly-to-fortnightly (the
+    /// widest gap on their page as of 2026-08-10 is 14 days), so this leaves the
+    /// normal cadence four times over.
+    static let staleNotesDays = 60
+
+    /// Fixed to UTC: these versions carry a calendar date, not a local instant,
+    /// and the runner's zone must not shift the day count.
+    static let gmtCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }()
+
+    /// `26.803` → 2026-08-03, `26.1215` → 2026-12-15. Nil for anything that isn't
+    /// a two-digit year followed by a valid `MDD`/`MMDD`.
+    ///
+    /// A version can of course be shaped like a date without being one. That
+    /// misreading is one-directional and safe: it only ever widens the tolerance,
+    /// so the cost is a warning that arrives late, never one that fires wrongly.
+    static func buildDate(_ version: String) -> Date? {
+        let parts = version.split(separator: ".")
+        guard parts.count >= 2,
+            parts[0].count == 2, parts[0].allSatisfy(\.isNumber), let year = Int(parts[0]),
+            (3...4).contains(parts[1].count), parts[1].allSatisfy(\.isNumber),
+            let monthDay = Int(parts[1])
+        else { return nil }
+        let components = DateComponents(
+            year: 2000 + year, month: monthDay / 100, day: monthDay % 100)
+        guard (1...12).contains(components.month!), (1...31).contains(components.day!)
+        else { return nil }
+        return gmtCalendar.date(from: components)
     }
 
     // MARK: - shared plumbing

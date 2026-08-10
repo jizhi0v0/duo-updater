@@ -367,9 +367,14 @@ public enum ChangelogRecipeRegistry {
         // Capture the human title separately from the optional trailing build
         // number (`<span class="text-tertiary">26.527</span>`), which some app
         // posts have and some do not.
+        //
+        // The page moved to learn.chatgpt.com in August 2026; the old
+        // developers.openai.com/codex/changelog address still 308s here, but a
+        // permanent redirect is the vendor's to withdraw, so we follow it once in
+        // the registry rather than on every fetch.
         ChangelogRecipe(
             bundleID: "com.openai.codex",
-            source: URL(string: "https://developers.openai.com/codex/changelog?type=codex-app")!,
+            source: URL(string: "https://learn.chatgpt.com/docs/changelog?type=codex-app")!,
             entryPattern:
                 #"<li id="codex-[^"]*"[^>]*data-codex-topics="[^"]*codex-app[^"]*"[^>]*>.*?"#
                 + #"<time[^>]*>(?<date>[^<]+)</time>.*?"#

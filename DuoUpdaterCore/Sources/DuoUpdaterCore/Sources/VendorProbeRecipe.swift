@@ -255,12 +255,30 @@ public struct VendorProbeRecipe: Sendable {
         guard let match = regex.firstMatch(in: text, options: [], range: range) else {
             return nil
         }
-        // Prefer the first capture group; fall back to the whole match.
-        let target = match.numberOfRanges > 1 ? match.range(at: 1) : match.range(at: 0)
-        guard target.location != NSNotFound, let r = Range(target, in: text) else {
-            return nil
+        return version(of: match, in: text)
+    }
+
+    /// The version a match stands for: capture group 1, the whole match when the
+    /// pattern captures nothing, or — when it captures more than once — every
+    /// group joined with `.`.
+    ///
+    /// The joining case exists for versions a vendor won't let us capture in one
+    /// span. Warp's feed says `v0.2026.08.05.09.03.stable_01` while the app it
+    /// installs reports `0.2026.08.05.09.03.01`: the build counter sits behind the
+    /// channel name, so a single group has to stop before it. Dropping the counter
+    /// isn't cosmetic — two builds cut from the same timestamp then read as one
+    /// version, and the second one is invisible.
+    private static func version(of match: NSTextCheckingResult, in text: String) -> String? {
+        guard match.numberOfRanges > 1 else {
+            guard let whole = Range(match.range(at: 0), in: text) else { return nil }
+            return String(text[whole])
         }
-        return String(text[r])
+        let groups = (1..<match.numberOfRanges).compactMap { index -> String? in
+            let group = match.range(at: index)
+            guard group.location != NSNotFound, let r = Range(group, in: text) else { return nil }
+            return String(text[r])
+        }
+        return groups.isEmpty ? nil : groups.joined(separator: ".")
     }
 
     /// Like `extractVersion`, but returns capture group 1 of the LAST match —
@@ -271,9 +289,7 @@ public struct VendorProbeRecipe: Sendable {
         let range = NSRange(text.startIndex..., in: text)
         let matches = regex.matches(in: text, options: [], range: range)
         guard let match = matches.last else { return nil }
-        let target = match.numberOfRanges > 1 ? match.range(at: 1) : match.range(at: 0)
-        guard target.location != NSNotFound, let r = Range(target, in: text) else { return nil }
-        return String(text[r])
+        return version(of: match, in: text)
     }
 
     /// Like `extractVersion`, but when the pattern matches several times (an
@@ -286,9 +302,7 @@ public struct VendorProbeRecipe: Sendable {
         let range = NSRange(text.startIndex..., in: text)
         var best: String?
         for match in regex.matches(in: text, options: [], range: range) {
-            let g = match.numberOfRanges > 1 ? match.range(at: 1) : match.range(at: 0)
-            guard g.location != NSNotFound, let r = Range(g, in: text) else { continue }
-            let candidate = String(text[r])
+            guard let candidate = version(of: match, in: text) else { continue }
             if best == nil || VersionComparator.isNewer(candidate, than: best!) {
                 best = candidate
             }
@@ -1079,9 +1093,12 @@ public enum VendorProbeRegistry {
         // with the channel name in its suffix (`…preview_01`), so a per-channel
         // pattern is unambiguous. Channels ship as separate bundle ids
         // (`dev.warp.Warp-Preview`, …) — the Stable build is the existing
-        // `dev.warp.Warp-Stable` recipe above. We extract the bare date-version
-        // (dropping the `v` prefix and `.<channel>_NN` suffix) to match the form
-        // Stable already compares against.
+        // `dev.warp.Warp-Stable` recipe above. Both capture groups matter: the app
+        // reports the feed's `v<stamp>.<channel>_NN` as `<stamp>.NN`, so the
+        // counter is joined back on (see `VendorProbeRecipe.version(of:in:)`).
+        // Confirmed against real bundles on all three tracks in
+        // `application-test/records/dev-warp-Warp-Stable.md` — including dev's
+        // `_00`, which the app does spell out as a trailing `.00`.
         //
         // PREVIEW installs one-click; DEV deliberately does not. `app.warp.dev/
         // download?package=dmg&channel=preview` really does serve WarpPreview.app
@@ -1102,7 +1119,7 @@ public enum VendorProbeRegistry {
             bundleID: "dev.warp.Warp-Preview",
             url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.preview_[0-9]+""#,
+            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.preview_([0-9]+)""#,
             changelogURL: URL(string: "https://docs.warp.dev/changelog"),
             install: VendorInstallSpec(
                 urlSource: .fixed(
@@ -1113,7 +1130,7 @@ public enum VendorProbeRegistry {
             bundleID: "dev.warp.Warp-Dev",
             url: URL(string: "https://releases.warp.dev/channel_versions.json")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.dev_[0-9]+""#,
+            versionPattern: #""version"\s*:\s*"v([0-9.]+)\.dev_([0-9]+)""#,
             downloadURL: URL(string: "https://www.warp.dev/download"),
             changelogURL: URL(string: "https://docs.warp.dev/changelog"),
             channel: .dev),
@@ -1729,7 +1746,7 @@ public enum VendorProbeRegistry {
             bundleID: "dev.warp.Warp-Stable",
             url: URL(string: "https://app.warp.dev/download?package=dmg")!,
             mode: .responseBody,
-            versionPattern: #"releases\.warp\.dev/stable/v([0-9.]+)\.stable"#,
+            versionPattern: #"releases\.warp\.dev/stable/v([0-9.]+)\.stable_([0-9]+)"#,
             changelogURL: URL(string: "https://docs.warp.dev/changelog/2026/"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"(https://releases\.warp\.dev/stable/[^"]+\.dmg)"#),

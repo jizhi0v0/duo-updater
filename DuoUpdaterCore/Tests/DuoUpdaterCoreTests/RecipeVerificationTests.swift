@@ -257,6 +257,9 @@ import Network
             ("com.sublimetext.4", "Build 4200"),
             ("com.microsoft.Outlook", "16.109.26053122"),
             ("com.jetbrains.intellij", "2026.2.0.1"),
+            // Seven segments, all of them the app's own: 0.YYYY.MM.DD.HH.MM.NN.
+            ("dev.warp.Warp-Stable", "0.2026.08.05.09.03.01"),
+            ("dev.warp.Warp-Dev", "0.2026.08.07.08.31.00"),
         ]
         for (bundleID, version) in cases {
             let recipe = try! #require(

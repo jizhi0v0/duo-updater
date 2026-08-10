@@ -30,7 +30,10 @@ public enum RecipeSanity {
             complaints.append("version starts with punctuation: '\(version)'")
         }
         let components = version.split(separator: ".")
-        if components.count > 6 {
+        // Seven is a real version, not a runaway pattern: Warp stamps
+        // `0.YYYY.MM.DD.HH.MM.NN` and the app reports every one of those segments.
+        // Eight has never been seen on a healthy recipe.
+        if components.count > 7 {
             complaints.append("version has \(components.count) dot-components: '\(version)'")
         }
         if version.count > 40 {

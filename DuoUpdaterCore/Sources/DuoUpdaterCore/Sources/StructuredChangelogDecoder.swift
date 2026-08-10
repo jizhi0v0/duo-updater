@@ -93,14 +93,15 @@ public enum StructuredChangelogDecoder {
         return (stamp, build)
     }
 
-    /// `v0.2026.06.10.09.27.stable_01` → `0.2026.06.10.09.27` — drop the leading `v`
-    /// and the trailing `.<channel>_NN` build suffix, matching the form the vendor
-    /// probe reports (and the docs site's old `(v…)` heading) so the rail label lines
-    /// up with the version shown elsewhere in the app.
+    /// `v0.2026.06.10.09.27.stable_01` → `0.2026.06.10.09.27.01` — drop the leading
+    /// `v` and fold the trailing `.<channel>_NN` into a plain `.NN`, which is how
+    /// the app itself spells its version and therefore what the vendor probe
+    /// reports. The rail label has to line up with the version on the row next to
+    /// it; a key with no `_NN` suffix keeps its bare timestamp.
     static func displayVersion(fromKey key: String) -> String {
         var v = key.hasPrefix("v") ? String(key.dropFirst()) : key
         v = v.replacingOccurrences(
-            of: #"\.[a-z]+_\d+$"#, with: "", options: .regularExpression)
+            of: #"\.[a-z]+_(\d+)$"#, with: ".$1", options: .regularExpression)
         return v
     }
 

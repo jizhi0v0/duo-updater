@@ -982,7 +982,7 @@ private let warpFeedFixture = """
     // The empty-`markdown_sections` April entry is dropped; the remaining two are
     // ordered newest-first despite the June build being listed second in the JSON.
     #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "0.2026.06.10.09.27")
+    #expect(changelog.entries[0].version == "0.2026.06.10.09.27.01")
     #expect(changelog.entries[0].date == "2026-06-10")
     // Sections flatten into one ordered list: 1 (New features) + 2 (Bug fixes).
     #expect(changelog.entries[0].items.count == 3)
@@ -990,7 +990,7 @@ private let warpFeedFixture = """
     #expect(changelog.entries[0].items[0] == "Git operations are now supported on remote sessions (#12230)")
     #expect(changelog.entries[0].items[1] == "Fixed a crash that could occur after clearing a terminal. (#12085)")
     #expect(changelog.entries[0].items[2] == "Applied the latest security patches.")
-    #expect(changelog.entries[1].version == "0.2026.05.20.09.21")
+    #expect(changelog.entries[1].version == "0.2026.05.20.09.21.03")
     #expect(changelog.entries[1].date == "2026-05-20")
     #expect(changelog.entries[1].items == ["Added support for double-clicking pane dividers to evenly redistribute panes."])
 }
@@ -1004,7 +1004,7 @@ private let warpFeedFixture = """
     let preview = try #require(StructuredChangelogDecoder.decode(
         warpFeedFixture, format: .warpChannelVersions, channel: .preview, maxEntries: 20))
     #expect(preview.entries.count == 1)
-    #expect(preview.entries[0].version == "0.2026.06.11.10.00")
+    #expect(preview.entries[0].version == "0.2026.06.11.10.00.00")
 }
 
 // Warp's `changelogs.dev` sub-feed is fixture data, not release notes: one entry
@@ -1049,7 +1049,7 @@ private let warpDevPlaceholderFixture = """
     let changelog = try #require(StructuredChangelogDecoder.decode(
         warpFeedFixture, format: .warpChannelVersions, channel: .stable, maxEntries: 1))
     #expect(changelog.entries.count == 1)
-    #expect(changelog.entries[0].version == "0.2026.06.10.09.27")
+    #expect(changelog.entries[0].version == "0.2026.06.10.09.27.01")
 }
 
 // Two builds in the SAME minute-timestamp whose `_NN` counter has crossed into two

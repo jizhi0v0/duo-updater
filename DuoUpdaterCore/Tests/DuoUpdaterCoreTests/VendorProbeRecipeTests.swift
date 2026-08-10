@@ -166,3 +166,57 @@ private func signalRecipe(_ bundleID: String) -> VendorProbeRecipe {
         #expect(url == recipe.url)
     }
 }
+
+// Real strings from the two Warp endpoints, 2026-08-10: the stable redirect body
+// and the three channel entries of `releases.warp.dev/channel_versions.json`. Kept
+// as one document so a pattern that leaks across channels fails here.
+private let warpEndpointFixture = #"""
+<a href="https://releases.warp.dev/stable/v0.2026.08.05.09.03.stable_01/Warp.dmg">Found</a>.
+{"beta":{"version":"v0.2024.12.18.08.02.beta_00"},
+ "canary":{"version":"v0.2022.09.29.08.08.canary_00"},
+ "dev":{"last_prominent_update":"v0.2025.03.05.08.02.dev_00","version":"v0.2026.08.07.08.31.dev_00"},
+ "preview":{"soft_cutoff":"v0.2026.06.03.09.49.preview_04","version":"v0.2026.08.05.09.03.preview_01"},
+ "stable":{"soft_cutoff":"v0.2026.06.24.09.19.stable_03","version":"v0.2026.08.05.09.03.stable_01"}}
+"""#
+
+@Test func warpPatternsKeepTheBuildCounterTheAppReports() {
+    // Warp's feed hides the build counter behind the channel name
+    // (`v0.2026.08.05.09.03.stable_01`) while the app reports it as a plain
+    // trailing segment (`0.2026.08.05.09.03.01`). Truncating it made the remote
+    // read as BEHIND every installed copy, and — worse than the warning that
+    // exposed it — a rebuild of the same timestamp was invisible, because both
+    // builds resolved to the identical string.
+    //
+    // Expectations come from real bundles on all three tracks, recorded in
+    // application-test/records/dev-warp-Warp-Stable.md. Dev's `_00` is not a
+    // special case: that app reports a literal trailing `.00`.
+    let expected: [ReleaseChannel: String] = [
+        .stable: "0.2026.08.05.09.03.01",
+        .preview: "0.2026.08.05.09.03.01",
+        .dev: "0.2026.08.07.08.31.00",
+    ]
+    // Derived from the registry, so a fourth Warp channel can't quietly skip this.
+    let warp = VendorProbeRegistry.recipes.filter { $0.bundleID.hasPrefix("dev.warp.Warp-") }
+    #expect(Set(warp.map(\.channel)) == Set(expected.keys))
+
+    for recipe in warp {
+        let want = try! #require(expected[recipe.channel])
+        let got = VendorProbeRecipe.extractVersion(
+            from: warpEndpointFixture, pattern: recipe.versionPattern)
+        #expect(got == want, "\(recipe.bundleID) read \(got ?? "nil")")
+    }
+
+    // The shape of the bug, spelled out: the truncated form loses to the install.
+    #expect(VersionComparator.isNewer("0.2026.08.05.09.03.01", than: "0.2026.08.05.09.03"))
+}
+
+@Test func warpAbandonedTracksStayUnprobed() {
+    // beta froze at 2024-12 and canary at 2022-09; both are still in the feed, so
+    // a recipe for either would report a years-stale "latest" as current.
+    let channels = Set(
+        VendorProbeRegistry.recipes
+            .filter { $0.bundleID.hasPrefix("dev.warp.Warp-") }
+            .map(\.channel))
+    #expect(!channels.contains(.beta))
+    #expect(!channels.contains(.canary))
+}

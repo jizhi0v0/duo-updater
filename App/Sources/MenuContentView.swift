@@ -75,6 +75,7 @@ struct MenuContentView: View {
         return showAll ? model.results
             : model.results.filter {
                 model.isActionableUpdate($0) || model.needsRestart.contains($0.id)
+                    || model.pendingBatchRestart[$0.id] != nil
                     || model.actionableStaged($0) != nil
                     // Hold a just-completed row for its brief "Updated ✓" beat, even
                     // though it's no longer an actionable update, before it drops out.
@@ -606,6 +607,11 @@ private struct AppRow: View {
             // Vendor's latest is *older* than what's installed — show it muted with a
             // down-arrow (only reachable under "Show all", since the row is upToDate).
             downgradeVersionLine(older)
+        } else if let from = model.pendingBatchRestart[result.id] {
+            // Update All has landed the new bundle but intentionally postpones its
+            // process-version sweep/restarts until every installer is finished.
+            // Keep the row concrete instead of flashing a false completion.
+            restartVersionLine(from)
         } else if model.needsRestart.contains(result.id),
                   let from = model.restartFromVersion(result.id) {
             // Self-updated on disk, restart pending. Show the running version → the
@@ -734,6 +740,8 @@ private struct AppRow: View {
             // pressed App Store's Continue. A spinner here both signals progress and
             // (because it replaces the button) prevents a second click firing again.
             relaunchingIndicator
+        } else if model.pendingBatchRestart[result.id] != nil {
+            pendingBatchRestartButton
         } else if model.justUpdated.contains(result.id) {
             // Just landed and fully in effect — a brief confirmation so the row reads
             // as "done", not as a progress bar that vanished. It clears itself after a
@@ -882,6 +890,17 @@ private struct AppRow: View {
             .buttonStyle(.bordered)
             .tint(.orange)
             .help(restartHelp)
+    }
+
+    /// The bundle is current, but Update All is still busy with other apps and has
+    /// not reached its deferred restart phase. Keep an explicit action available so
+    /// a slow unrelated installer never makes this completed download look lost.
+    private var pendingBatchRestartButton: some View {
+        Button("Restart now") { Task { await model.restart(result) } }
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .tint(.orange)
+            .help("Installed \(result.app.shortVersion ?? "the new version") — waiting for Update All to finish before restarting; click to restart now")
     }
 
     /// The app self-downloaded a newer build (Squirrel/ShipIt staged it); a

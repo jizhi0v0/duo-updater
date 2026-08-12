@@ -568,6 +568,11 @@ private struct WorkbenchActionView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)
                 .help("Quit the app to finish installing the update, then reopen it")
+        } else if model.pendingBatchRestart[result.id] != nil {
+            Button("Restart now") { Task { await model.restart(result) } }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .help("The update is installed; Update All is waiting to restart apps until the batch finishes")
         } else if let staged = model.actionableStaged(result) {
             Button("Relaunch") { Task { await model.relaunchStagedUpdate(result) } }
                 .buttonStyle(.bordered)

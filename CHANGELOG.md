@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.17
+
+**Update All no longer says a running app is finished before its restart.** When an update had already replaced an app on disk but Update All was still busy with other installers, the row briefly showed a green checkmark and disappeared even though the old version was still running. The app now stays visible with its running and installed versions, explains that it is waiting for the batch restart, and offers **Restart now**. The completion checkmark appears only when the update is actually in effect.
+
 ## 0.3.16
 
 **Apps installed by a `.pkg` can now be rolled back.** DuoUpdater keeps a copy of the previous version before it updates an app, so a bad update can be undone. Apps that install through macOS's own installer — Microsoft Office, AweSun, ToDesk and the like — never got that copy: the rollback was skipped for them entirely, so the one kind of update DuoUpdater can't watch land was also the one you couldn't back out of. They're now backed up like everything else.

@@ -44,6 +44,12 @@ final class AppListModel {
     /// process launched with — i.e. updated (by us, the app's own updater, or
     /// brew) but not yet relaunched, so still executing old code.
     private(set) var needsRestart: Set<String> = []
+    /// Running apps whose bundle was replaced during Update All, before the batch's
+    /// deferred `lsappinfo` sweep can promote them into `needsRestart`. Keep these
+    /// rows visible as “Installed · waiting to restart”; a checkmark would falsely
+    /// imply the old running process had already been replaced. The value is the
+    /// pre-install display version used for the running → installed line.
+    private(set) var pendingBatchRestart: [String: String] = [:]
     /// App ids whose own Squirrel updater has already downloaded and staged a
     /// newer build (in the ShipIt cache) but not yet swapped it in — the app's
     /// "Relaunch to update" state. We surface a Relaunch action for these instead
@@ -1749,6 +1755,7 @@ final class AppListModel {
         // leave the set stale and make `isRunning` (and thus this defer) lie. This is
         // a consequential decision, so base it on the live process list, not a cache.
         refreshRunningApps()
+        let wasRunningBeforeInstall = isRunning(result)
         if defersToSelfUpdater(result) {
             Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
             openSelfUpdater(result)
@@ -1989,7 +1996,18 @@ final class AppListModel {
             // the Restart action. Otherwise the in-place swap is already fully in
             // effect and there's nothing left to do.
             let version = updated.app.shortVersion
-            if needsRestart.contains(updated.id) {
+            let disposition = PostInstallDisposition.resolve(
+                defersBookkeeping: deferBookkeeping,
+                wasRunningBeforeInstall: wasRunningBeforeInstall,
+                needsRestartAfterRescan: needsRestart.contains(updated.id)
+            )
+            switch disposition {
+            case .awaitingBatchRestart:
+                let from = result.app.shortVersion ?? result.app.buildVersion ?? "?"
+                pendingBatchRestart[updated.id] = from
+                Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, waiting for batch restart")
+
+            case .awaitingRestart:
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
                 if notify { UpdateNotifier.readyToRestart(app: updated.app.name, version: version, appID: updated.app.bundleID) }
                 // Finish the job the user started: a one-click Update shouldn't leave
@@ -2001,7 +2019,7 @@ final class AppListModel {
                 if prefs.autoRestartAfterUpdate, !deferBookkeeping {
                     await restart(updated)
                 }
-            } else {
+            case .complete:
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public)")
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
                 // The swap is fully in effect and nothing is left to do, so this row is
@@ -2460,10 +2478,12 @@ final class AppListModel {
         switch await AppRestarter.restart(result.app) {
         case .noBundleID, .notRunning:
             needsRestart.remove(result.id)
+            pendingBatchRestart[result.id] = nil
         case .stillRunning:
             break  // still up (likely a save prompt) — leave the badge
         case .relaunched(let relaunched):
             needsRestart.remove(result.id)
+            pendingBatchRestart[result.id] = nil
             runningVersionByID[result.id] = nil
             Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
             if relaunched {
@@ -3086,6 +3106,10 @@ final class AppListModel {
         // keeping its stale "update available" row until the next backstop tick. Safe
         // here: every install in the batch has finished, so there's no spinner to churn.
         await performLocalRescan()
+        // The authoritative process-version sweep inside `performLocalRescan` has
+        // now converted these provisional states into `needsRestart` (or proved the
+        // app stopped meanwhile). From here the normal Restart state owns the row.
+        pendingBatchRestart.removeAll()
         // Auto-restart the apps this batch just updated and left awaiting a restart,
         // so "Update All" doesn't leave a pile of "Restart" buttons (the per-app
         // path defers to here in a batch). Only the apps we actually touched — not

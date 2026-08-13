@@ -3,105 +3,105 @@
     "changelog:ai.elementlabs.lmstudio:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.4.21",
       "sweepsSinceComment" : 0
     },
     "changelog:ai.opencode.desktop:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.18.16",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.18.18",
       "sweepsSinceComment" : 0
     },
     "changelog:app.chatwise:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "26.7.8",
       "sweepsSinceComment" : 0
     },
     "changelog:com.1password.1password:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "8.12.32",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "8.12.33",
       "sweepsSinceComment" : 0
     },
     "changelog:com.DanPristupov.Fork:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2.69",
       "sweepsSinceComment" : 0
     },
     "changelog:com.TablePro:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.64.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.anthropic.claudefordesktop:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.28929.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.carriez.rustdesk:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.4.9",
       "sweepsSinceComment" : 0
     },
     "changelog:com.conductor.app:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.80.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.corecode.MacUpdater:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.5.0",
       "sweepsSinceComment" : 0
     },
     "changelog:com.electron.ollama:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "0.32.9",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "0.32.10",
       "sweepsSinceComment" : 0
     },
     "changelog:com.figma.Desktop:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "Figma MCP: Run Weave tools, right from your favorite agent.",
       "sweepsSinceComment" : 0
     },
     "changelog:com.github.GitHubClient:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.6.4-beta2",
       "sweepsSinceComment" : 0
     },
     "changelog:com.github.GitHubClient:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.6.4",
       "sweepsSinceComment" : 0
     },
     "changelog:com.google.Chrome:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "151.0.7922.137",
       "sweepsSinceComment" : 0
     },
@@ -113,35 +113,35 @@
     "changelog:com.jetbrains.air:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "262.132.29",
       "sweepsSinceComment" : 0
     },
     "changelog:com.jetbrains.intellij:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2026.2.1",
       "sweepsSinceComment" : 0
     },
     "changelog:com.jetbrains.toolbox:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.6.4",
       "sweepsSinceComment" : 0
     },
     "changelog:com.microsoft.VSCode:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.132",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.133",
       "sweepsSinceComment" : 0
     },
     "changelog:com.mitchellh.ghostty:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.3.1",
       "sweepsSinceComment" : 0
     },
@@ -150,7 +150,7 @@
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "issueNumber" : 7,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "26.727",
       "sweepsSinceComment" : 0,
       "triagedSignature" : "newest changelog entry (26.727) trails t"
@@ -158,907 +158,907 @@
     "changelog:com.oray.sunlogin.macclient:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "V16.6.0.32198",
       "sweepsSinceComment" : 0
     },
     "changelog:com.postmanlabs.mac:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "12.23.1",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "12.23.2",
       "sweepsSinceComment" : 0
     },
     "changelog:com.sublimetext.4:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "4200",
       "sweepsSinceComment" : 0
     },
     "changelog:com.tencent.inputmethod.wetype:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2.2.2",
       "sweepsSinceComment" : 0
     },
     "changelog:com.tencent.xinWeChat:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "4.1.12",
       "sweepsSinceComment" : 0
     },
     "changelog:com.tinyapp.tableplus:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "26.9.6",
       "sweepsSinceComment" : 0
     },
     "changelog:com.tinyspeck.slackmacgap:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "4.51.185",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.kdrag0n.MacVirt:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2.2.3",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.warp.Warp-Preview:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.2026.08.05.09.03.01",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.warp.Warp-Stable:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.2026.08.05.09.03.01",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.zed.Zed-Preview:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.15.0",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.16.0",
       "sweepsSinceComment" : 0
     },
     "changelog:dev.zed.Zed:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.14.2",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.15.0",
       "sweepsSinceComment" : 0
     },
     "changelog:io.dcloud.HBuilderX:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "5.23.2026080626",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "5.24.2026081301",
       "sweepsSinceComment" : 0
     },
     "changelog:io.dcloud.HBuilderXAlpha:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "5.23.2026080313-alpha",
       "sweepsSinceComment" : 0
     },
     "changelog:io.tailscale.ipn.macsys:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.102.2",
       "sweepsSinceComment" : 0
     },
     "changelog:md.obsidian:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.13.7",
       "sweepsSinceComment" : 0
     },
     "changelog:net.freemacsoft.AppCleaner:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.6.8",
       "sweepsSinceComment" : 0
     },
     "changelog:net.kovidgoyal.calibre:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "9.13",
       "sweepsSinceComment" : 0
     },
     "changelog:notion.id:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "Share context with Custom Agents from the Share menu",
       "sweepsSinceComment" : 0
     },
     "changelog:now.typeless.desktop:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2.3.0",
       "sweepsSinceComment" : 0
     },
     "changelog:org.audacityteam.audacity:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.7.8",
       "sweepsSinceComment" : 0
     },
     "changelog:org.blenderfoundation.blender:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "5.1",
       "sweepsSinceComment" : 0
     },
     "changelog:org.mozilla.thunderbird:esr" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "153.0.3esr",
       "sweepsSinceComment" : 0
     },
     "changelog:org.mozilla.thunderbird:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "153.0.3",
       "sweepsSinceComment" : 0
     },
     "changelog:org.mozilla.thunderbirdbeta:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "154.0beta",
       "sweepsSinceComment" : 0
     },
     "changelog:org.videolan.vlc:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.0.23",
       "sweepsSinceComment" : 0
     },
     "changelog:pl.maketheweb.cleanshotx:-" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "4.8.10",
       "sweepsSinceComment" : 0
     },
     "github:Kong\/insomnia:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "13.1.0",
       "sweepsSinceComment" : 0
     },
     "github:alienator88\/Pearcleaner:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "5.4.3",
       "sweepsSinceComment" : 0
     },
     "github:beekeeper-studio\/beekeeper-studio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "6.0.0",
       "sweepsSinceComment" : 0
     },
     "github:crystalidea\/macs-fan-control:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.5.21",
       "sweepsSinceComment" : 0
     },
     "github:dbeaver\/dbeaver:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "26.1.4",
       "sweepsSinceComment" : 0
     },
     "github:desktop\/desktop:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.6.4-beta2",
       "sweepsSinceComment" : 0
     },
     "github:desktop\/desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.6.3",
       "sweepsSinceComment" : 0
     },
     "github:exelban\/stats:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.0.11",
       "sweepsSinceComment" : 0
     },
     "github:ollama\/ollama:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.32.9",
       "sweepsSinceComment" : 0
     },
     "github:rustdesk\/rustdesk:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.4.9",
       "sweepsSinceComment" : 0
     },
     "github:zed-industries\/zed:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.15.0",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.16.0",
       "sweepsSinceComment" : 0
     },
     "github:zed-industries\/zed:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.14.2",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.15.0",
       "sweepsSinceComment" : 0
     },
     "github:zen-browser\/desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.21.13b",
       "sweepsSinceComment" : 0
     },
     "vendor:ai.elementlabs.lmstudio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.4.21",
       "sweepsSinceComment" : 0
     },
     "vendor:app.chatwise:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "26.7.8",
       "sweepsSinceComment" : 0
     },
     "vendor:cc.ffitch.shottr:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.9.1",
       "sweepsSinceComment" : 0
     },
     "vendor:com.1password.1password:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "8.12.32",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "8.12.33",
       "sweepsSinceComment" : 0
     },
     "vendor:com.anthropic.claudefordesktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.28929.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.brave.Browser.beta:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.94.104.0",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.94.108.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.brave.Browser.nightly:nightly" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.95.47.0",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.95.65.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.conductor.app:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "0.80.0",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "0.80.1",
       "sweepsSinceComment" : 0
     },
     "vendor:com.corecode.MacUpdater:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.5.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.docker.docker:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "4.86.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.figma.Desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "126.7.10",
       "sweepsSinceComment" : 0
     },
     "vendor:com.figma.DesktopBeta:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "126.8.11",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "126.9.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.getdropbox.dropbox:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "264.4.3421",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.Chrome.beta:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "152.0.7977.30",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "152.0.7977.42",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.Chrome.canary:canary" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "153.0.8002.0",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "153.0.8004.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.Chrome.dev:dev" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "153.0.7993.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.Chrome:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "151.0.7922.138",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.android.studio:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2026.1.3 RC 2",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.android.studio:canary" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2026.1.4 Canary 4",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.android.studio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2026.1.3",
       "sweepsSinceComment" : 0
     },
     "vendor:com.henrikruscon.Alcove:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.7.9",
       "sweepsSinceComment" : 0
     },
     "vendor:com.hnc.Discord:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.0.407",
       "sweepsSinceComment" : 0
     },
     "vendor:com.hnc.DiscordCanary:canary" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.0.1263",
       "sweepsSinceComment" : 0
     },
     "vendor:com.hnc.DiscordPTB:ptb" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.0.252",
       "sweepsSinceComment" : 0
     },
     "vendor:com.jetbrains.intellij-EAP:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "262.9437.22",
       "sweepsSinceComment" : 0
     },
     "vendor:com.jetbrains.intellij:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2026.2.1",
       "sweepsSinceComment" : 0
     },
     "vendor:com.jetbrains.toolbox:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.6.4.86641",
       "sweepsSinceComment" : 0
     },
     "vendor:com.kagi.kagimacOS:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.1.1",
       "sweepsSinceComment" : 0
     },
     "vendor:com.macpaw.site.theunarchiver:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "4.3.9",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.Excel:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "16.112.26081010",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.OneDrive:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "26.134.0713",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.Outlook:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "16.109.26053122",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.Powerpoint:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "16.112.26081010",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.VSCode:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.132.1",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.133.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.VSCodeInsiders:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.133.0-insider",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.134.0-insider",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.Word:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "16.112.26081010",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.edgemac.Beta:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "152.0.4191.19",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.edgemac.Dev:dev" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "153.0.4210.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.edgemac:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "151.0.4129.78",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.onenote.mac:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "16.112.26081010",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.teams2:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "26198.202.4929.7171",
       "sweepsSinceComment" : 0
     },
     "vendor:com.netease.uuremote:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "4.35.0",
       "sweepsSinceComment" : 0
     },
     "vendor:com.openai.codex:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "26.803.81509",
       "sweepsSinceComment" : 0
     },
     "vendor:com.oray.sunlogin.macclient:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "16.6.0.32198",
       "sweepsSinceComment" : 0
     },
     "vendor:com.postmanlabs.mac:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "12.23.1",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "12.23.2",
       "sweepsSinceComment" : 0
     },
     "vendor:com.raycast.macos:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.104.24",
       "sweepsSinceComment" : 0
     },
     "vendor:com.runningwithcrayons.Alfred:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "5.7.3",
       "sweepsSinceComment" : 0
     },
     "vendor:com.runningwithcrayons.Alfred:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "5.7.3",
       "sweepsSinceComment" : 0
     },
     "vendor:com.spotify.client:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.2.95.453",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.2.96.518",
       "sweepsSinceComment" : 0
     },
     "vendor:com.sublimemerge:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "Build 2125",
       "sweepsSinceComment" : 0
     },
     "vendor:com.sublimetext.4:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "Build 4200",
       "sweepsSinceComment" : 0
     },
     "vendor:com.surteesstudios.Bartender:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "6.6.2",
       "sweepsSinceComment" : 0
     },
     "vendor:com.tencent.inputmethod.wetype:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2.2.2",
       "sweepsSinceComment" : 0
     },
     "vendor:com.tencent.xinWeChat:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "4.1.12",
       "sweepsSinceComment" : 0
     },
     "vendor:com.tinyspeck.slackmacgap:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "4.51.185",
       "sweepsSinceComment" : 0
     },
     "vendor:com.todesktop.230313mzl4w4u92:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.15.19",
       "sweepsSinceComment" : 0
     },
     "vendor:com.vivaldi.Vivaldi.snapshot:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "8.2.4129.3",
       "sweepsSinceComment" : 0
     },
     "vendor:com.youqu.todesk.mac:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "4.9.9.1",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "4.9.9.2",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.kdrag0n.MacVirt:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2.2.3",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.kdrag0n.MacVirt:canary" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2.2.3",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.kdrag0n.MacVirt:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2.2.3",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.warp.Warp-Dev:dev" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "0.2026.08.11.08.27.00",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "0.2026.08.12.21.54.00",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.warp.Warp-Preview:preview" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.2026.08.05.09.03.01",
       "sweepsSinceComment" : 0
     },
     "vendor:dev.warp.Warp-Stable:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "0.2026.08.05.09.03.01",
       "sweepsSinceComment" : 0
     },
     "vendor:im.riot.app:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.12.25",
       "sweepsSinceComment" : 0
     },
     "vendor:im.riot.nightly:nightly" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "2026081101",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "2026081201",
       "sweepsSinceComment" : 0
     },
     "vendor:io.dcloud.HBuilderX:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "5.23.2026080626",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "5.24.2026081301",
       "sweepsSinceComment" : 0
     },
     "vendor:io.dcloud.HBuilderXAlpha:alpha" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "5.23.2026080313-alpha",
       "sweepsSinceComment" : 0
     },
     "vendor:io.tailscale.ipn.macsys:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.102.2",
       "sweepsSinceComment" : 0
     },
     "vendor:io.tailscale.ipn.macsys:unstable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.103.85",
       "sweepsSinceComment" : 0
     },
     "vendor:md.obsidian:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "1.13.6",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "1.13.7",
       "sweepsSinceComment" : 0
     },
     "vendor:net.librewolf.librewolf:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "153.0.3",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "153.0.4",
       "sweepsSinceComment" : 0
     },
     "vendor:net.pornel.ImageOptim:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.9.3",
       "sweepsSinceComment" : 0
     },
     "vendor:net.whatsapp.WhatsApp:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "26.32.15",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "26.32.17",
       "sweepsSinceComment" : 0
     },
     "vendor:notion.id:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "7.30.0",
       "sweepsSinceComment" : 0
     },
     "vendor:now.typeless.desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "2.3.0",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.firefox:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "154.0b9",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "154.0b10",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.firefox:esr" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "140.13.0esr",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.firefox:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "153.0.4",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.firefoxdeveloperedition:dev" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "154.0b9",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "154.0b10",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.nightly:nightly" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "155.0a1",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.thunderbird-daily:nightly" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "155.0a1",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.thunderbird:esr" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "140.13.0esr",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.thunderbird:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "153.0.3",
       "sweepsSinceComment" : 0
     },
     "vendor:org.mozilla.thunderbirdbeta:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
-      "lastGoodVersion" : "154.0b3",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
+      "lastGoodVersion" : "154.0b4",
       "sweepsSinceComment" : 0
     },
     "vendor:org.videolan.vlc:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "3.0.23",
       "sweepsSinceComment" : 0
     },
     "vendor:org.whispersystems.signal-desktop-beta:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "8.23.0-beta.1",
       "sweepsSinceComment" : 0
     },
     "vendor:org.whispersystems.signal-desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "8.22.0",
       "sweepsSinceComment" : 0
     },
     "vendor:tv.plex.desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
-      "lastGoodAt" : "2026-08-12T05:48:51Z",
+      "lastGoodAt" : "2026-08-13T05:51:01Z",
       "lastGoodVersion" : "1.112.0",
       "sweepsSinceComment" : 0
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-08-12T05:48:52Z"
+  "updatedAt" : "2026-08-13T05:51:01Z"
 }

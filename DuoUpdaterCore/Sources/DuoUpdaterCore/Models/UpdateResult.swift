@@ -218,6 +218,31 @@ extension UpdateResult {
         remote?.installedDisplayVersion ?? app.shortVersion
     }
 
+    /// Drop a leading product-code run like "IU-"/"AI-" from a build number; plain
+    /// builds ("11270", "262.7132.23", "1.2.3-beta") pass through untouched — only a
+    /// pure-letter segment before the first hyphen is treated as a prefix. JetBrains
+    /// stamps CFBundleVersion as "IU-262.6653.22" while the Toolbox/API build id has
+    /// no prefix, so this aligns the two sides into one namespace.
+    public static func strippingBuildPrefix(_ build: String) -> String {
+        guard let dash = build.firstIndex(of: "-"), dash != build.startIndex,
+              build[..<dash].allSatisfy(\.isLetter) else { return build }
+        return String(build[build.index(after: dash)...])
+    }
+
+    /// When an update keeps the same marketing version but bumps the build — Surge
+    /// "6.6.0 (11270)" over "6.6.0 (11260)", or a JetBrains EAP "2026.2 → 2026.2"
+    /// that's really 262.6653.22 → 262.7132.23 — return the cleaned (installed,
+    /// latest) build pair so the UI can surface what actually changed. nil when the
+    /// marketing version itself moved (the normal case) or there's no build to show.
+    public func buildBump(latest: String) -> (installed: String, remote: String)? {
+        guard latest == app.shortVersion,
+              let installedBuild = app.buildVersion,
+              let remoteBuild = remote?.version else { return nil }
+        let installed = UpdateResult.strippingBuildPrefix(installedBuild)
+        let remoteClean = UpdateResult.strippingBuildPrefix(remoteBuild)
+        guard installed != remoteClean else { return nil }
+        return (installed, remoteClean)
+    }
 
 }
 

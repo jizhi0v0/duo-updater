@@ -31,6 +31,9 @@ public enum Check {
         let installedVersion: String?
         let installedBuild: String?
         let latestVersion: String?
+        /// The build behind `latestVersion`, when the source reports one. Only
+        /// interesting when the marketing version doesn't move — see `emitText`.
+        var latestBuild: String? = nil
         let source: String?
         let status: String
         /// Whether the source reports something newer — NOT `latestVersion !=
@@ -43,6 +46,17 @@ public enum Check {
 
     /// A row worth acting on: an update the user has not hidden.
     static func isActionable(_ row: Row) -> Bool { row.hasUpdate && !row.hidden }
+
+    /// The (installed, latest) build pair to show when the marketing version stays
+    /// put, mirroring `UpdateResult.buildBump` on the row shape this command emits.
+    static func buildBump(_ row: Row) -> (installed: String, remote: String)? {
+        guard row.latestVersion == row.installedVersion,
+              let installed = row.installedBuild.map(UpdateResult.strippingBuildPrefix),
+              let remote = row.latestBuild.map(UpdateResult.strippingBuildPrefix),
+              installed != remote
+        else { return nil }
+        return (installed, remote)
+    }
 
     public static func run(_ options: Options) async -> Int32 {
         let settings = Settings.load()
@@ -82,9 +96,10 @@ public enum Check {
                 name: result.app.name,
                 bundleID: result.app.bundleID,
                 path: result.app.path.path,
-                installedVersion: result.app.shortVersion,
+                installedVersion: result.installedDisplay,
                 installedBuild: result.app.buildVersion,
                 latestVersion: result.remote?.displayVersion,
+                latestBuild: result.remote?.version,
                 source: result.remote?.sourceName,
                 status: describe(result.status),
                 hasUpdate: result.hasUpdate,
@@ -165,8 +180,17 @@ public enum Check {
             let name = row.name.count > nameWidth
                 ? String(row.name.prefix(nameWidth - 1)) + "…"
                 : row.name.padding(toLength: nameWidth, withPad: " ", startingAt: 0)
-            var line = "  \(name)  \(row.installedVersion ?? "?")"
-            if let latest = row.latestVersion {
+            // Same marketing version on both sides (Surge 6.9.0 → 6.9.0, a
+            // JetBrains EAP) reads as a no-op unless the builds are shown — the
+            // build is what actually moved. Same rule the menu bar applies via
+            // `UpdateResult.buildBump`; the two must not describe an update
+            // differently.
+            let bump = Self.buildBump(row)
+            let installed = bump.map { "\(row.installedVersion ?? "?") (\($0.installed))" }
+                ?? (row.installedVersion ?? "?")
+            var line = "  \(name)  \(installed)"
+            if let latestRaw = row.latestVersion {
+                let latest = bump.map { "\(latestRaw) (\($0.remote))" } ?? latestRaw
                 line += row.hasUpdate ? "  →  \(latest)" : "  (latest \(latest))"
             }
             var tags: [String] = []

@@ -220,12 +220,48 @@ specifically, not just alerts.
 Store installs to the GUI route in Settings; the default route uses a full
 download and asks for nothing extra.
 
+## `duo`, the command line
+
+The same engine has a CLI. It links the real `DuoUpdaterCore`, so it uses the
+same sources in the same order, the same install policy and the same ignore and
+skip rules as the menu bar — a disagreement between the two is a bug, not a
+difference of opinion.
+
+```sh
+make cli          # → ~/.local/libexec/duo, symlinked at ~/.local/bin/duo
+
+duo list                     # what's installed, without touching the network
+duo check --json             # what has an update, one JSON object per line
+duo install Cursor           # apply one, or --all
+duo doctor                   # whether this machine can actually install anything
+duo backups                  # list rollback points, or put one back
+```
+
+`duo check` and `duo list` also take `--source sparkle,github,…` and
+`--include-hidden`; `duo ignore` / `duo skip` write the same preferences the app
+reads, so hiding something in one hides it in the other.
+
+Two things it deliberately refuses rather than half-doing:
+
+- **App Store updates.** That route needs either the privileged helper — whose
+  `SMAppService` registration requires an app bundle — or the Accessibility API
+  driving App Store.app. A CLI has neither, so it says so instead of failing
+  part-way.
+- **Taking the install lock by force.** If the menu-bar app is mid-install, `duo`
+  exits and names the holder rather than swapping a bundle underneath it.
+
+`duo verify`, `duo triage` and `duo reconcile` are the maintenance side: they
+sweep every hand-written recipe against its live endpoint, ask a model why a
+broken one broke, and turn the result into issues. That is what the nightly
+check runs; they are not needed for ordinary use.
+
 ## Project layout
 
 - `DuoUpdaterCore/` — Swift Package with the detection engine and install
   pipeline (no UI). Buildable and testable on its own.
 - `App/` — the SwiftUI `MenuBarExtra` app, generated with
   [XcodeGen](https://github.com/yonaskolb/XcodeGen) from `App/project.yml`.
+- `CLI/` — the `duo` executable and `DuoKit`, its command implementations.
 
 ## Build
 

@@ -201,6 +201,25 @@ fi
 
 [ -f "$RELEASE_NOTES_FILE" ] || die "release notes file not found: $RELEASE_NOTES_FILE"
 
+# The GitHub release page is where someone downloads DuoUpdater for the FIRST
+# time, so it's the one place that has to state what it runs on: an Intel Mac
+# would otherwise download, unzip, and get "cannot be opened" with no
+# explanation. Appended into a separate file rather than onto $RELEASE_NOTES_FILE
+# — that same file becomes the Sparkle release notes shown inside the app, where
+# a requirements line is pure noise (anyone reading it is already running us on
+# a supported Mac). Keeping the two bodies distinct also means a hand-supplied
+# --notes-file is never modified on disk.
+GITHUB_NOTES_FILE="$DIST_DIR/release-notes-$TAG-github.md"
+{
+    cat "$RELEASE_NOTES_FILE"
+    cat <<'EOF'
+
+---
+
+**Requires macOS 14 or later on an Apple Silicon Mac.** Intel Macs are not supported.
+EOF
+} > "$GITHUB_NOTES_FILE"
+
 release_exists=0
 if gh release view "$TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1; then
     release_exists=1
@@ -216,7 +235,7 @@ if [ "$release_exists" = "1" ]; then
     gh release edit "$TAG" \
         --repo "$RELEASE_REPO" \
         --title "$TITLE" \
-        --notes-file "$RELEASE_NOTES_FILE"
+        --notes-file "$GITHUB_NOTES_FILE"
     gh release upload "$TAG" "$ASSET_ZIP" \
         --repo "$RELEASE_REPO" \
         --clobber
@@ -225,7 +244,7 @@ else
     gh release create "$TAG" "$ASSET_ZIP" \
         --repo "$RELEASE_REPO" \
         --title "$TITLE" \
-        --notes-file "$RELEASE_NOTES_FILE" \
+        --notes-file "$GITHUB_NOTES_FILE" \
         "${extra_flags[@]}"
 fi
 
@@ -239,6 +258,6 @@ $(printf '\033[1;32m✓ Published successfully.\033[0m')
    title    : $TITLE
    asset    : $ASSET_ZIP
    appcast  : https://raw.githubusercontent.com/$RELEASE_REPO/main/appcast.xml
-   notes    : $RELEASE_NOTES_FILE
+   notes    : $RELEASE_NOTES_FILE (in-app) / $GITHUB_NOTES_FILE (release page)
    sha256   : $checksum
 EOF

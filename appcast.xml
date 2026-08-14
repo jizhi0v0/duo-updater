@@ -17,6 +17,18 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.19</title>
+            <pubDate>Fri, 14 Aug 2026 15:54:50 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.19</link>
+            <sparkle:version>31</sparkle:version>
+            <sparkle:shortVersionString>0.3.19</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Apps that ship their own updater are now updated directly by default.** These are the ones like Chrome, VS Code, Cursor and the Electron apps — and because they are also the apps you tend to leave running all day, the old default of stepping aside while they were open meant they were almost never updated at all: the row offered to open the app and left the rest to you. DuoUpdater now downloads the vendor's own installer and applies it whether or not the app is running, then quits and relaunches it so the new version takes effect. Anything that installs background components alongside the app — Tailscale, Office — ships a package that macOS's own installer handles, so those pieces are still put in place properly. If you would rather nothing was touched while an app is open, **Settings → General → Self-updating apps** still has the old behaviour, and changing it back does not affect anything already installed.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.19/DuoUpdater-0.3.19-macos.zip" length="10347233" type="application/octet-stream" sparkle:edSignature="6YTeZwYg+V2g+9MwBku8Cm/pY7NX6J6rhNyQp+NSGM0JM7OSNK26NpmSpALGuftpjr5Nbtqpe3enuA4Oth2uCQ=="/>
+        </item>
+        <item>
             <title>0.3.18</title>
             <pubDate>Fri, 14 Aug 2026 13:55:24 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.18</link>

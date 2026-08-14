@@ -818,8 +818,8 @@ private struct WorkbenchSidebarRow: View {
             // Same-marketing build bump (JetBrains EAP, Surge): show the builds so it
             // doesn't read as a no-op "2026.2 → 2026.2".
             let bump = result.buildBump(latest: latest)
-            let from = bump.map { "\(result.app.shortVersion ?? "?") (\($0.installed))" }
-                ?? (result.app.shortVersion ?? "?")
+            let from = bump.map { "\(result.installedDisplay ?? "?") (\($0.installed))" }
+                ?? (result.installedDisplay ?? "?")
             let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
             Text("\(from) → \(to)")
                 .font(.caption)
@@ -839,7 +839,7 @@ private struct WorkbenchSidebarRow: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         } else {
-            Text("v\(result.app.shortVersion ?? "?")")
+            Text("v\(result.installedDisplay ?? "?")")
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
     }
@@ -1105,13 +1105,13 @@ private struct DetailHeader: View {
     private var versionLine: some View {
         if case .updateAvailable(let latest) = result.status {
             let bump = result.buildBump(latest: latest)
-            let from = bump.map { "\(result.app.shortVersion ?? "?") (\($0.installed))" }
-                ?? (result.app.shortVersion ?? "?")
+            let from = bump.map { "\(result.installedDisplay ?? "?") (\($0.installed))" }
+                ?? (result.installedDisplay ?? "?")
             let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
             Text("\(from)  →  \(to)")
                 .font(.callout).foregroundStyle(.tint)
         } else {
-            Text("v\(result.app.shortVersion ?? "?") · up to date")
+            Text("v\(result.installedDisplay ?? "?") · up to date")
                 .font(.callout).foregroundStyle(.secondary)
         }
     }

@@ -643,7 +643,7 @@ private struct AppRow: View {
             .lineLimit(1)
             .minimumScaleFactor(0.75)
             default:
-                Text("v\(result.app.shortVersion ?? "?")")
+                Text("v\(result.installedDisplay ?? "?")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -703,7 +703,7 @@ private struct AppRow: View {
     /// The installed-version side of the "from → to" line.
     @ViewBuilder
     private func fromVersion(latest: String) -> some View {
-        let marketing = result.app.shortVersion ?? "?"
+        let marketing = result.installedDisplay ?? "?"
         if let bump = result.buildBump(latest: latest) {
             // Marketing version is just context; the build is what changed.
             Text(marketing).foregroundStyle(.secondary)

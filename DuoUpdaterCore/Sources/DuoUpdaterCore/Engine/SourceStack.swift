@@ -21,6 +21,10 @@ public enum SourceStack {
     ) -> [any UpdateSource] {
         var sources: [any UpdateSource] = [
             MacAppStoreSource(),
+            // Xcode, right after the App Store: a store-installed Xcode is answered
+            // above (the store can actually update it), and everything else — every
+            // beta and RC, which only exist behind an Apple ID — lands here.
+            XcodeReleasesSource(),
             SparkleAppcastSource(),
             HomebrewCaskSource(),
             // GitHub Releases for apps distributed that way (detection only unless

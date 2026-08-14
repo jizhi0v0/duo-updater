@@ -296,8 +296,19 @@ public struct AppScanner: Sendable {
         // installed patch (.15) vanishes and .17 reads as appended. Show the
         // installed BUILD (262.43.15, from Toolbox `state.json`, already in the feed
         // namespace) so from→to stay in one namespace: "262.43.15 → 262.43.17".
+        // Xcode's published build (`27A5237l`), which is neither `CFBundleVersion`
+        // nor `DTXcodeBuild` — see `effectiveBuildVersion`. nil for everything else.
+        let xcodeBuild = (bundleID == "com.apple.dt.Xcode")
+            ? Self.productBuildVersion(in: bundleURL) : nil
+
         let toolboxTool = toolbox.tool(forApp: bundleURL)
         let displayShortVersion: String = {
+            // Two Xcodes side by side are indistinguishable by marketing version —
+            // 27.0 beta 1, 27.0 beta 5 and eventually 27.0 release all say "27.0",
+            // and they share a bundle id and a CFBundleName too. The build is the
+            // only thing that separates them without asking the network, so it rides
+            // along in the row: "27.0 (27A5194q)".
+            if let xcodeBuild { return "\(shortVersion) (\(xcodeBuild))" }
             guard let tool = toolboxTool else {
                 return Self.cleanedJetBrainsVersion(shortVersion, bundleID: bundleID)
             }
@@ -355,7 +366,7 @@ public struct AppScanner: Sendable {
             name: displayName,
             bundleID: bundleID,
             shortVersion: displayShortVersion,
-            buildVersion: buildVersion,
+            buildVersion: xcodeBuild ?? buildVersion,
             path: bundleURL,
             isMASApp: isMAS,
             isiOSAppOnMac: isiOSAppOnMac,
@@ -399,6 +410,27 @@ public struct AppScanner: Sendable {
     /// (`firefox-esr`, `thunderbird-beta`, `firefox`, …) — the authoritative
     /// channel marker. `application.ini` is a small INI file; we scan it for the
     /// `RemotingName=` line rather than pulling in a parser. Nil when absent.
+    /// Xcode is why `CFBundleVersion` isn't always the build to compare on: its
+    /// `CFBundleVersion` is an internal serial (`25183.74.15`) and its `DTXcodeBuild`
+    /// (`27A5237k`) is a *different* string again — neither is what Apple publishes.
+    /// The published build lives in `Contents/version.plist` as `ProductBuildVersion`
+    /// (`27A5237l`), which is also what `xcodebuild -version` prints. Verified on two
+    /// installed copies: only `ProductBuildVersion` matched the released beta 1 /
+    /// beta 5 builds, so comparing on either of the others would mean a permanent
+    /// phantom update.
+    /// `ProductBuildVersion` from an app's `Contents/version.plist`, if it has one.
+    static func productBuildVersion(in bundleURL: URL) -> String? {
+        let url = bundleURL.appendingPathComponent("Contents/version.plist")
+        guard let data = try? Data(contentsOf: url),
+              let plist = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any],
+              let build = (plist["ProductBuildVersion"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !build.isEmpty
+        else { return nil }
+        return build
+    }
+
     public static func mozillaRemotingName(in bundleURL: URL) -> String? {
         let iniURL = bundleURL.appendingPathComponent("Contents/Resources/application.ini")
         guard let text = try? String(contentsOf: iniURL, encoding: .utf8) else { return nil }

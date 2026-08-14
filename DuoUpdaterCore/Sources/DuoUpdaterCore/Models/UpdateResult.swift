@@ -205,6 +205,22 @@ public struct RemoteVersion: Sendable, Hashable {
     public var displayVersion: String? { shortVersion ?? version }
 }
 
+extension UpdateResult {
+    /// What to call the INSTALLED build in any UI — the menu bar, the workbench row,
+    /// `duo check`.
+    ///
+    /// Normally the app's own marketing version. It defers to
+    /// ``RemoteVersion/installedDisplayVersion`` when a source can name the installed
+    /// build better than the bundle can: Xcode on disk says only "27.0", and which
+    /// beta that is exists nowhere in it. Lives here rather than in the app so the
+    /// CLI and the menu bar cannot describe the same install differently.
+    public var installedDisplay: String? {
+        remote?.installedDisplayVersion ?? app.shortVersion
+    }
+
+
+}
+
 public enum UpdateStatus: Sendable, Equatable {
     /// Installed version is current.
     case upToDate

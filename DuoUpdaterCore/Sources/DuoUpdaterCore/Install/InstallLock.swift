@@ -35,7 +35,10 @@ public final class InstallLock: @unchecked Sendable {
         }
     }
 
-    private let descriptor: Int32
+    /// -1 once released. Guarded by `state` because `release()` can arrive from a
+    /// caller and from `deinit` on different threads.
+    private var descriptor: Int32
+    private let state = NSLock()
     private let url: URL
 
     private init(descriptor: Int32, url: URL) {
@@ -63,10 +66,15 @@ public final class InstallLock: @unchecked Sendable {
             throw Failure.unavailable("open \(url.path): \(String(cString: strerror(errno)))")
         }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            // Capture errno before anything else runs: `holderPID` reads a file and
+            // `close` is a syscall, either of which can overwrite it. Reading it
+            // afterwards turned the common "another process has it" case into the
+            // generic failure, losing the pid the message exists to report.
+            let reason = errno
             let holder = holderPID(at: url)
             close(descriptor)
-            if errno == EWOULDBLOCK { throw Failure.heldByAnother(pid: holder) }
-            throw Failure.unavailable(String(cString: strerror(errno)))
+            if reason == EWOULDBLOCK { throw Failure.heldByAnother(pid: holder) }
+            throw Failure.unavailable(String(cString: strerror(reason)))
         }
 
         // Record who we are, for the next process's error message. Truncate
@@ -100,9 +108,22 @@ public final class InstallLock: @unchecked Sendable {
         return holderPID(at: url)
     }
 
+    /// Idempotent, and it has to be: `deinit` calls this too, and every real caller
+    /// releases explicitly first (`ProcessInstallLock.release` does `lock?.release()`
+    /// then `lock = nil`). Closing twice does not just waste a syscall — by the
+    /// second call the number has usually been handed to whatever the process opened
+    /// next, so `close` shuts a descriptor we do not own and `flock(LOCK_UN)` unlocks
+    /// a lock that is not ours. In an app running several downloads at once that is
+    /// somebody else's socket.
     public func release() {
-        flock(descriptor, LOCK_UN)
-        close(descriptor)
+        state.lock()
+        let fd = descriptor
+        descriptor = -1
+        state.unlock()
+
+        guard fd >= 0 else { return }
+        flock(fd, LOCK_UN)
+        close(fd)
     }
 
     deinit { release() }

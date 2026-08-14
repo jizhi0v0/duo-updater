@@ -289,6 +289,8 @@ public struct GitHubReleasesSource: UpdateSource {
                     version: nil,
                     downloadURL: asset?.url
                         ?? URL(string: "https://github.com/\(rule.slug)/releases"),
+                    // The release page — an asset URL would download the archive.
+                    pageURL: page,
                     downloadSize: asset?.size,
                     sourceName: name,
                     requiresManualInstaller: !installable,

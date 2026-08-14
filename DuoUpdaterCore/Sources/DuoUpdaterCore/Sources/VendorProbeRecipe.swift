@@ -393,6 +393,10 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://api.nrd.nie.163.com/api/v1/release/dl/4?channel=gwqd")!,
             mode: .redirectFilename,
             versionPattern: #"uuyc_([0-9]+(?:\.[0-9]+)+)\.pkg"#,
+            // The probe endpoint above 302s straight to the pkg, so it must never
+            // be what a "download page" link opens — that just downloads a file.
+            // uuyc.163.com is the product's own site (网易UU远程官网).
+            downloadURL: URL(string: "https://uuyc.163.com/"),
             install: VendorInstallSpec(
                 urlSource: .redirect(
                     URL(string: "https://api.nrd.nie.163.com/api/v1/release/dl/4?channel=gwqd")!),

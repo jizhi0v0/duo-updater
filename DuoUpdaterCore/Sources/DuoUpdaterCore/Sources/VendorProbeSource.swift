@@ -389,6 +389,12 @@ public struct VendorProbeSource: UpdateSource {
                 shortVersion: shortVersion,
                 version: buildVersion,
                 downloadURL: plan.url,
+                // The install plan's URL is the artifact we fetch — handing it to
+                // a browser downloads a pkg instead of opening a page. The recipe's
+                // own `downloadURL` is the vendor's human-facing download page, and
+                // it used to be dropped entirely on this branch, so "Open page"
+                // silently started a download (ToDesk, UU Remote).
+                pageURL: recipe.downloadURL,
                 sourceName: sourceName,
                 // pkg → hand to the system installer; archives → in-place swap.
                 requiresManualInstaller: spec.kind == .pkg,
@@ -404,6 +410,10 @@ public struct VendorProbeSource: UpdateSource {
             shortVersion: shortVersion,
             version: buildVersion,
             downloadURL: recipe.downloadURL ?? resolvedDownload,
+            // Only the curated `downloadURL` is a page. `resolvedDownload` falls
+            // back to the probe endpoint, which is an API/redirect that serves a
+            // file — never something to open in a browser.
+            pageURL: recipe.downloadURL,
             sourceName: sourceName,
             // No install spec: detection only — the user downloads by hand.
             requiresManualInstaller: true,

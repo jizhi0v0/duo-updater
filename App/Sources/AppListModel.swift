@@ -1212,7 +1212,7 @@ final class AppListModel {
     /// (MAU, a daemon, Sparkle) applies the update on its own schedule.
     func openSelfUpdater(_ result: UpdateResult, activating: Bool = true) {
         installErrors[result.id] = nil
-        if let url = result.remote?.downloadURL, let scheme = url.scheme,
+        if let url = result.remote?.pageURL, let scheme = url.scheme,
            scheme != "http", scheme != "https" {
             NSWorkspace.shared.open(
                 [url], withApplicationAt: result.app.path,

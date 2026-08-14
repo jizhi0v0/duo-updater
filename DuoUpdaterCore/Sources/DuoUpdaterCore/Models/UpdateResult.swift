@@ -62,8 +62,24 @@ public struct RemoteVersion: Sendable, Hashable {
     /// Build version, e.g. "1.96.0" or "45830" (`sparkle:version`). This is
     /// Sparkle's canonical comparison key.
     public let version: String?
-    /// Where to download the new build (Sparkle `enclosure url`).
+    /// Where to download the new build (Sparkle `enclosure url`). This is the
+    /// ARTIFACT — a .dmg/.pkg/.zip the installer fetches. Never surface it as a
+    /// link for the user to click: opening it in a browser starts a download
+    /// instead of showing a page. Use ``pageURL`` for that.
     public let downloadURL: URL?
+    /// A human-facing web page for this app: the vendor's official download page,
+    /// a GitHub release page, an App Store product page. This — not
+    /// ``downloadURL`` — is what an "Open page" affordance opens. Nil for sources
+    /// that only ever resolve an artifact (a bare Sparkle appcast has no page), in
+    /// which case the UI shows no such link rather than handing the user a file.
+    public let pageURL: URL?
+    /// What the INSTALLED build should be called, when the source is the only thing
+    /// that can name it. Xcode is the case that needs it: on disk a beta says only
+    /// "27.0" and its build (`27A5194q`) is opaque — that it is *beta 1* is a fact
+    /// that lives in the release index, not in the bundle. Nil for every source
+    /// whose apps can name themselves, and the UI falls back to the installed
+    /// marketing version as before.
+    public let installedDisplayVersion: String?
     /// Declared size of the download in bytes (Sparkle `<enclosure length>`,
     /// GitHub asset `size`), when the source publishes one — lets "Update All"
     /// order the batch smallest-first instead of alphabetically. Nil when the
@@ -143,6 +159,8 @@ public struct RemoteVersion: Sendable, Hashable {
         shortVersion: String?,
         version: String?,
         downloadURL: URL?,
+        pageURL: URL? = nil,
+        installedDisplayVersion: String? = nil,
         downloadSize: Int64? = nil,
         edSignature: String? = nil,
         minimumSystemVersion: String? = nil,
@@ -163,6 +181,8 @@ public struct RemoteVersion: Sendable, Hashable {
         self.shortVersion = shortVersion
         self.version = version
         self.downloadURL = downloadURL
+        self.pageURL = pageURL
+        self.installedDisplayVersion = installedDisplayVersion
         self.downloadSize = downloadSize
         self.edSignature = edSignature
         self.minimumSystemVersion = minimumSystemVersion

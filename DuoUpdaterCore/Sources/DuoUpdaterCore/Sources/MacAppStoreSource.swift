@@ -115,6 +115,9 @@ public struct MacAppStoreSource: UpdateSource {
             shortVersion: version,
             version: nil,
             downloadURL: result.trackViewUrl.flatMap { URL(string: $0) },
+            // The App Store product page — for MAS the "download URL" already is
+            // a page, so both fields point at it.
+            pageURL: result.trackViewUrl.flatMap { URL(string: $0) },
             sourceName: name,
             appStore: availability,
             releaseNotesHTML: (cleanNotes?.isEmpty == false) ? cleanNotes : nil,
@@ -147,6 +150,9 @@ public struct MacAppStoreSource: UpdateSource {
             shortVersion: info.version,
             version: nil,
             downloadURL: lookupResult.trackViewUrl.flatMap { URL(string: $0) },
+            // Prefer the Mac-specific product page over the lookup's generic
+            // trackViewUrl, which lands on the iOS listing for wrapped apps.
+            pageURL: pageURL ?? lookupResult.trackViewUrl.flatMap { URL(string: $0) },
             sourceName: name,
             appStore: availability,
             releaseNotesHTML: (notes?.isEmpty == false) ? notes : nil,
@@ -310,6 +316,9 @@ public struct MacAppStoreSource: UpdateSource {
             shortVersion: version,
             version: nil,
             downloadURL: result.trackViewUrl.flatMap { URL(string: $0) },
+            // The App Store product page — for MAS the "download URL" already is
+            // a page, so both fields point at it.
+            pageURL: result.trackViewUrl.flatMap { URL(string: $0) },
             sourceName: name,
             appStore: availability,
             releaseNotesHTML: (notes?.isEmpty == false) ? notes : nil

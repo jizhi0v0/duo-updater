@@ -1035,7 +1035,7 @@ private struct AppRow: View {
     }
 
     private func openAction() {
-        guard let url = result.remote?.downloadURL else {
+        guard let url = result.remote?.pageURL else {
             NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
             return
         }
@@ -1085,7 +1085,7 @@ private struct AppRow: View {
     }
 
     private var openHelp: String {
-        guard let url = result.remote?.downloadURL else { return "Reveal in Finder" }
+        guard let url = result.remote?.pageURL else { return "Reveal in Finder" }
         if let scheme = url.scheme, scheme != "http", scheme != "https" {
             return "Open \(result.app.name)’s built-in updater (it updates itself)"
         }
@@ -1139,7 +1139,7 @@ private struct AppRow: View {
     }
 
     private func openInAppStore(_ info: AppStoreAvailability) {
-        if let url = info.deepLink ?? result.remote?.downloadURL {
+        if let url = info.deepLink ?? result.remote?.pageURL {
             NSWorkspace.shared.open(url)
         }
     }

@@ -626,13 +626,13 @@ private struct WorkbenchActionView: View {
             // AX is unreliable), so this is a redirect to the store rather than a
             // one-click. A not-yet-installed App Store app stays a plain "Get".
             Button(result.app.isiOSAppOnMac ? "App Store" : "Get") {
-                if let url = info.deepLink ?? result.remote?.downloadURL { NSWorkspace.shared.open(url) }
+                if let url = info.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
             }
             .buttonStyle(.bordered)
             .help(result.app.isiOSAppOnMac
                   ? "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here"
                   : "Open in the App Store")
-        } else if let url = result.remote?.downloadURL {
+        } else if let url = result.remote?.pageURL {
             Button("Open page") { NSWorkspace.shared.open(url) }
                 .buttonStyle(.bordered)
                 .help("Open the official download page")
@@ -1160,7 +1160,7 @@ private struct ReleaseNotesPane: View {
         } description: {
             Text("\(result.remote?.sourceName ?? "This source") doesn’t publish a changelog we can read.")
         } actions: {
-            if let dl = result.remote?.downloadURL {
+            if let dl = result.remote?.pageURL {
                 Link("Open download page", destination: dl)
             }
         }

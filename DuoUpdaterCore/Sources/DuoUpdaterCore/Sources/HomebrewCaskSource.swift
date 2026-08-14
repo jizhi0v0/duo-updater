@@ -74,6 +74,9 @@ public struct HomebrewCaskSource: UpdateSource {
             shortVersion: marketing,
             version: nil,
             downloadURL: entry.url,
+            // `entry.url` is the cask's artifact (a dmg/pkg on the vendor's CDN),
+            // so the user-facing page is the cask's own listing instead.
+            pageURL: URL(string: "https://formulae.brew.sh/cask/\(entry.token)"),
             sourceName: name,
             sourceIdentifier: entry.token,
             requiresManualInstaller: entry.isPkg

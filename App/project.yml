@@ -5,6 +5,18 @@ options:
     macOS: "14.0"
   createIntermediateGroups: true
 
+# Apple Silicon only, stated explicitly rather than inherited from whatever the
+# build machine happens to be. This is a product decision, not a build detail:
+# the vendor recipe registry pins arm64 endpoints and arm64 install assets
+# throughout (VendorProbeRecipe's arm64 feed URLs, GitHubReleasesSource's
+# `-aarch64`/`-arm64` asset patterns). A universal DuoUpdater would run on an
+# Intel Mac and then hand that Mac arm64-only builds of every app it updates —
+# the install would "succeed" and leave an app that cannot launch. Shipping
+# arm64-only makes the machine that can't be served also the machine that can't
+# run us. Do not widen this without giving the registry a second set of URLs.
+settings:
+  ARCHS: arm64
+
 packages:
   DuoUpdaterCore:
     path: ../DuoUpdaterCore

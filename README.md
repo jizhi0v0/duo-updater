@@ -278,6 +278,16 @@ packages. Newer-only surfaces — Liquid Glass, and the App Store install route'
 system changes — sit behind `#available` checks, so 14 builds and runs; it is
 just not where this gets exercised day to day.
 
+**Apple Silicon only** (`ARCHS: arm64` in `App/project.yml`). This is a product
+decision, not an oversight. The vendor recipe registry pins arm64 throughout —
+arm64 feed URLs in `VendorProbeRecipe`, `-aarch64`/`-arm64` asset patterns in
+`GitHubReleasesSource` — so a universal build would run on an Intel Mac and then
+hand it arm64-only builds of every app it updates: the install reports success
+and leaves behind an app that will not launch. Serving Intel properly means a
+second set of URLs for every recipe, each verified against the real endpoint, not
+an architecture switch. Until that exists, shipping arm64-only keeps the machine
+we can't serve and the machine that can't run us the same machine.
+
 **Building needs a toolchain new enough for the macOS 26 SDK**, because some of
 those guarded paths reference macOS 26 APIs. Swift 6 language mode throughout
 (`swift-tools-version: 6.0`, `SWIFT_VERSION: 6.0`). Developed against Xcode 27.

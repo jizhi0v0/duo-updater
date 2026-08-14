@@ -124,19 +124,48 @@ public actor SparkleInstaller {
         // 2. Gate 1 — EdDSA signature over the exact bytes we downloaded. Skipped
         // for an unsigned feed (no key); the code-signature + Team gate below then
         // carries the trust on its own. See the note above.
+        //
+        // A `edSignatureInvalid` failure is held rather than thrown: it may be a
+        // vendor key rotation, which we can only tell apart after extracting the
+        // new bundle (step 3b).
+        var heldEdFailure: Error?
+        var archiveData: Data?
         if verifiesWithEdDSA {
             onStage(.verifyingSignature)
             let fileData = try Data(contentsOf: download.archiveURL, options: .mappedIfSafe)
-            try SignatureVerifier.verifyEdSignature(
-                fileData: fileData,
-                signatureBase64: remote.edSignature,
-                publicKeyBase64: publicKey!
-            )
+            do {
+                try SignatureVerifier.verifyEdSignature(
+                    fileData: fileData,
+                    signatureBase64: remote.edSignature,
+                    publicKeyBase64: publicKey!
+                )
+            } catch SignatureVerifier.VerifyError.edSignatureInvalid {
+                heldEdFailure = SignatureVerifier.VerifyError.edSignatureInvalid
+                archiveData = fileData
+            }
         }
 
         // 3. Extract the .app
         onStage(.extracting)
         let newApp = try ArchiveExtractor.extractApp(from: download.archiveURL, workDir: download.workDir)
+
+        // 3b. The signature didn't match the key we hold. If the download ships a
+        // DIFFERENT `SUPublicEDKey` and the feed's signature verifies against it,
+        // the vendor rotated its Sparkle key without a transition release — the
+        // app's own Sparkle is equally stuck. Fall through to the Vendor/GitHub
+        // gate below (code signature + Team ID + bundle id, fails closed) instead
+        // of blocking a legitimate update forever. Anything else — a wrong key
+        // with no rotation, a tampered archive — throws the original failure.
+        // Note `edSignatureMissing` is NOT recoverable here: a key'd feed that
+        // drops its signature is suspicious and never reaches this branch.
+        if let heldEdFailure {
+            guard SignatureVerifier.isEdKeyRotation(
+                fileData: archiveData!,
+                signatureBase64: remote.edSignature,
+                installedKeyBase64: publicKey!,
+                downloadedApp: newApp
+            ) else { throw heldEdFailure }
+        }
 
         // 4. Gate 2 + 3 + 4 — code signature valid, same Team ID, AND same signed
         // bundle identifier as installed (pins the swap to this exact app, not

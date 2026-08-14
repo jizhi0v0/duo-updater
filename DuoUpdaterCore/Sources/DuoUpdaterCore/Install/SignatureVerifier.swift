@@ -59,6 +59,65 @@ public enum SignatureVerifier {
         }
     }
 
+    // MARK: Gate 1b — vendor rotated its Sparkle signing key
+
+    /// True when an `edSignatureInvalid` failure is explained by the vendor
+    /// having rotated its Sparkle key: the downloaded bundle ships a DIFFERENT
+    /// `SUPublicEDKey` than the installed one, and the feed's signature verifies
+    /// against that new key.
+    ///
+    /// This happens when a vendor generates a fresh Ed25519 keypair without
+    /// shipping a transition release signed by the old key — the installed app's
+    /// own Sparkle rejects the update just as we do, so the update chain is
+    /// broken until the user installs by hand. (Observed 2026-08: Mirage Beacon
+    /// 1.2.0 → 1.3.0.)
+    ///
+    /// Verifying against a key that came out of the same download is
+    /// deliberately NOT a trust claim — it is circular, and proves only that the
+    /// appcast entry and the bundle were minted by the same key holder (so a
+    /// stale or mismatched feed entry still fails). ALL of the trust in this path
+    /// comes from Gates 2/3/4 running afterwards — valid Developer ID code
+    /// signature, same Team ID, same signed bundle id as installed — exactly the
+    /// gate the Vendor/GitHub paths carry on their own, and it fails closed.
+    /// Callers must therefore treat a `true` here as "keep going and let Gates
+    /// 2/3/4 decide", never as "this download is verified".
+    public static func isEdKeyRotation(
+        fileData: Data,
+        signatureBase64: String?,
+        installedKeyBase64: String,
+        downloadedApp: URL
+    ) -> Bool {
+        guard
+            let newKey = embeddedEdPublicKey(at: downloadedApp),
+            newKey != installedKeyBase64
+        else { return false }
+        do {
+            try verifyEdSignature(
+                fileData: fileData,
+                signatureBase64: signatureBase64,
+                publicKeyBase64: newKey
+            )
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// The `SUPublicEDKey` an app bundle ships in its `Info.plist`, or nil when
+    /// it has none (an unsigned Sparkle feed).
+    public static func embeddedEdPublicKey(at appURL: URL) -> String? {
+        let plistURL = appURL.appendingPathComponent("Contents/Info.plist")
+        guard
+            let data = try? Data(contentsOf: plistURL),
+            let plist = try? PropertyListSerialization
+                .propertyList(from: data, format: nil) as? [String: Any],
+            let key = (plist["SUPublicEDKey"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !key.isEmpty
+        else { return nil }
+        return key
+    }
+
     // MARK: Gate 2 — code signature validity of the extracted app
 
     /// Run the equivalent of `codesign --verify --deep --strict` against the app

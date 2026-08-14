@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.18
+
+**An app whose developer changed its update signing key can be updated again.** Apps that update through Sparkle sign each release with a key, and the copy you already have carries the matching public key to check it against. If a developer generates a new key and ships it without a hand-over release signed by the old one, that check fails for everybody — the app's own updater is just as stuck as DuoUpdater was, and the update sits there refusing to install with a signature error. DuoUpdater now recognises that specific situation: when the new download carries a different key of its own and the release was signed with it, it stops trusting the signature and falls back to the same checks it uses for apps that publish no signature at all — the download must be validly signed by Apple's developer certificates, and by the *same* developer as the app it is replacing, for the *same* app. A download that fails any of that is still refused, as is a bad signature that isn't explained by a key change. Mirage Beacon 1.3.0 was the first to hit this.
+
 ## 0.3.17
 
 **Update All no longer says a running app is finished before its restart.** When an update had already replaced an app on disk but Update All was still busy with other installers, the row briefly showed a green checkmark and disappeared even though the old version was still running. The app now stays visible with its running and installed versions, explains that it is waiting for the batch restart, and offers **Restart now**. The completion checkmark appears only when the update is actually in effect.

@@ -2221,3 +2221,68 @@ private let claudeFixture = """
     #expect(prev.items == ["Fixed installed extensions failing to load."])
 }
 
+
+// MARK: - Cursor
+
+/// Trimmed real response from cursor.com/changelog: one post, **repeated**, then a
+/// footer. Both of those are what the live page actually does — it ships its whole
+/// `<main>` twice (two `</html>` tags, a Next.js streaming artifact) and ends with
+/// chrome that contains `<li>` and `<p>` elements of its own. A recipe that handles
+/// only the pretty middle produces every release twice and then swallows the footer
+/// into the last entry.
+@Suite struct CursorChangelogTests {
+
+    static func recipe() throws -> ChangelogRecipe {
+        try #require(ChangelogRecipeRegistry.recipe(
+            forBundleID: "com.todesktop.230313mzl4w4u92"))
+    }
+
+    /// Cursor publishes no version numbers at all — the changelog is dated posts —
+    /// so the date takes the version column and the headline becomes the title.
+    @Test func readsDatedPostsAsEntries() throws {
+        let log = try #require(
+            ChangelogExtractor.extract(from: cursorFixture, using: try Self.recipe()))
+        let entry = try #require(log.entries.first)
+        #expect(entry.version == "Aug 3, 2026")
+        #expect(entry.title == "Google Workspace Plugins")
+        #expect(entry.items.contains { $0.hasPrefix("Google Drive: search files") })
+    }
+
+    /// The page carries its own content twice; the reader must not see each release
+    /// listed two rows apart.
+    @Test func theDuplicatedDocumentYieldsOneEntry() throws {
+        let log = try #require(
+            ChangelogExtractor.extract(from: cursorFixture, using: try Self.recipe()))
+        #expect(log.entries.count == 1)
+    }
+
+    /// The last post has no next post to stop at. Without `<footer` closing the body
+    /// the entry ran to the end of the document and adopted the page chrome.
+    @Test func theFooterIsNotReadAsChanges() throws {
+        let log = try #require(
+            ChangelogExtractor.extract(from: cursorFixture, using: try Self.recipe()))
+        let items = log.entries.flatMap(\.items)
+        #expect(!items.contains { $0.contains("registered trademark") })
+        #expect(!items.contains { $0.contains("nav item") })
+    }
+}
+
+private let cursorFixture = #"""
+p)] left-[-1px] inline-flex items-center"><a class="hover:text-theme-text inline-flex items-center" href="/changelog/google-workspace-plugins"><time dateTime="2026-08-03T00:00:00.000Z" class="type-base">Aug 3, 2026</time></a><span class="xl:hidden"> · </span><a class="text-theme-text-sec hover:text-theme-text active:text-theme-text xl:hidden" href="/changelog">Changelog</a></p></div><div class="col-span-full xl:col-start-7 xl:col-end-19"><div class="mx-auto w-full max-w-[48rem]"><header class="mb-v1 relative"><h1 class="type-lg text-balance" id="google-workspace-plugins"><a class="active:text-theme-text hover:opacity-90" href="/changelog/google-workspace-plugins">Google Workspace Plugins</a></h1></header><div class="prose prose--block"><p>Cursor can now read, write, and act across your Google Workspace.</p>
+<p>New plugins give coding agents direct access to Gmail, Google Drive, and Calendar, so you can pull context, draft and update files, and manage your inbox and calendar without leaving Cursor.</p>
+<p>Install plugins to connect:</p>
+<ul>
+<li><strong><a href="https://cursor.com/marketplace/cursor/google-drive" rel="noopener noreferrer" target="_blank">Google Drive</a>:</strong> search files and folders, open and download content, create and organize files</li>
+<li><strong><a href="https://cursor.com/marketplace/cursor/gmail" rel="noopener noreferrer" target="_blank">Gmail</a>:</strong> search and read mail, draft and send messages, apply labels and manage threads</li>
+<li><strong><a href="https://cursor.com/marketplace/cursor/google-calendar" rel="noopener noreferrer" target="_blank">Google Calendar</a>:</strong> read schedules, create and update events, find free time</li>
+</ul>
+<p>Browse the new plugins in the <a href="https://cursor.com/marketplace" rel="noopener noreferrer" target="_blank">Cursor Marketplace</a> or install them from the Customize page in Cursor. Learn more in our <a href="https://cursor.com/docs/plugins" rel="noopener noreferrer" target="_blank">docs</a>.</p></div></div></div></div></article><article><div class="grid-cursor gap-y-0 pb-v5 mb-v5 border-theme-border-02 border-b"><div class="mb-v2/12 col-span-full max-xl:mx-auto max-xl:w-full max-xl:max-w-[48rem] xl:col-end-7"><p class="text-theme-text-sec sticky top-[var(--site-sticky-top)] left-[-1px] inline-flex items-center"><a class="hover:text-theme-text inline-flex items-center" href="/changelog/google-workspace-plugins"><time dateTime="2026-08-03T00:00:00.000Z" class="type-base">Aug 3, 2026</time></a><span class="xl:hidden"> · </span><a class="text-theme-text-sec hover:text-theme-text active:text-theme-text xl:hidden" href="/changelog">Changelog</a></p></div><div class="col-span-full xl:col-start-7 xl:col-end-19"><div class="mx-auto w-full max-w-[48rem]"><header class="mb-v1 relative"><h1 class="type-lg text-balance" id="google-workspace-plugins"><a class="active:text-theme-text hover:opacity-90" href="/changelog/google-workspace-plugins">Google Workspace Plugins</a></h1></header><div class="prose prose--block"><p>Cursor can now read, write, and act across your Google Workspace.</p>
+<p>New plugins give coding agents direct access to Gmail, Google Drive, and Calendar, so you can pull context, draft and update files, and manage your inbox and calendar without leaving Cursor.</p>
+<p>Install plugins to connect:</p>
+<ul>
+<li><strong><a href="https://cursor.com/marketplace/cursor/google-drive" rel="noopener noreferrer" target="_blank">Google Drive</a>:</strong> search files and folders, open and download content, create and organize files</li>
+<li><strong><a href="https://cursor.com/marketplace/cursor/gmail" rel="noopener noreferrer" target="_blank">Gmail</a>:</strong> search and read mail, draft and send messages, apply labels and manage threads</li>
+<li><strong><a href="https://cursor.com/marketplace/cursor/google-calendar" rel="noopener noreferrer" target="_blank">Google Calendar</a>:</strong> read schedules, create and update events, find free time</li>
+</ul>
+<p>Browse the new plugins in the <a href="https://cursor.com/marketplace" rel="noopener noreferrer" target="_blank">Cursor Marketplace</a> or install them from the Customize page in Cursor. Learn more in our <a href="https://cursor.com/docs/plugins" rel="noopener noreferrer" target="_blank">docs</a>.</p></div></div></div></div></article><article><div class="grid-cursor gap-y-0 pb-v5 mb-v5 border-theme-border-02 border-b"><div class="mb-v2/12 col-span-full max-xl:mx-auto max-xl:w-full max-xl:max-w-[48rem] xl:col-end-7"><p class="text-theme-text-sec sticky top-[var(--site-sticky-to<footer class="site-footer"><p>Cursor is a registered trademark.</p><li>nav item that is not a change</li></footer>
+"""#

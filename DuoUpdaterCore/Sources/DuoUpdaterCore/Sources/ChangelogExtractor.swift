@@ -20,6 +20,13 @@ public enum ChangelogExtractor {
 
         let whole = NSRange(text.startIndex..., in: text)
         var entries: [Changelog.Entry] = []
+        // Some pages contain their own content twice. Cursor's changelog is one:
+        // the streamed document carries the whole `<main>` (and a second `</html>`)
+        // a second time, so every post matches twice and the pane would list each
+        // release two rows apart. Keyed on version+title because that pair is what
+        // identifies a release to a reader — two entries the user cannot tell apart
+        // are a duplicate whatever produced them.
+        var seen: Set<String> = []
 
         // `enumerateMatches` lets us stop scanning the moment we've collected
         // `maxEntries`, rather than `matches(in:)` eagerly finding every block in
@@ -60,6 +67,7 @@ public enum ChangelogExtractor {
                     .sorted { $0.0 < $1.0 }
                     .map(\.1)
 
+            guard seen.insert("\(version)\u{1}\(title ?? "")").inserted else { return }
             entries.append(.init(
                 title: title, version: version, date: date,
                 items: items, content: content))

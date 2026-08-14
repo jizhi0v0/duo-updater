@@ -400,6 +400,36 @@ public enum ChangelogRecipeRegistry {
                 + #"<ul[^>]*class="changes"[^>]*>(?<body>.*?)</ul>"#,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
 
+        // Cursor — the changelog is organised as dated POSTS, not versions: nothing
+        // on the page carries a "3.16.17" anywhere, so the date takes the version
+        // column and the post's headline becomes the entry title (same shape as
+        // Codex above). Structure per post:
+        //   <a href="/changelog/08-13-26"><time dateTime="2026-08-13T…">Aug 13, 2026</time></a>
+        //   … <h1 class="type-lg" id="…"><a href="/changelog/08-13-26">Title</a></h1>
+        //   … <div class="prose prose--block"><p>…</p><ul><li>…</li></ul></div>
+        //
+        // Two things the real response teaches that the markup doesn't:
+        //  • The document contains its whole `<main>` TWICE (it has two `</html>`
+        //    tags — a Next.js streaming artifact), so every post matches twice.
+        //    `ChangelogExtractor` de-duplicates on version+title; without that the
+        //    pane listed each release two rows apart.
+        //  • The last post has no following post to stop at, so `<footer` closes the
+        //    body — otherwise it swallowed 26KB of page chrome as "items".
+        // `www.cursor.com` 308s to the apex domain; followed once here rather than
+        // on every fetch.
+        ChangelogRecipe(
+            bundleID: "com.todesktop.230313mzl4w4u92",
+            source: URL(string: "https://cursor.com/changelog")!,
+            entryPattern:
+                #"href="/changelog/[^"]+"><time[^>]*>(?<version>[^<]+)</time>.*?"#
+                + #"<h1[^>]*>\s*<a[^>]*href="/changelog/[^"]+"[^>]*>(?<title>.*?)</a>\s*</h1>.*?"#
+                + #"<div class="prose[^"]*">(?<body>.*?)(?=<p class="text-theme-text-sec|<footer|\z)"#,
+            itemPatterns: [
+                #"<li[^>]*>(?<item>.*?)</li>"#,
+                #"<p>(?<item>.*?)</p>"#
+            ],
+            maxEntries: 20),
+
         // Conductor — Next.js page, each version is an <article> element. Version
         // lives in a font-mono <div>; date in a text-muted-foreground <span>;
         // items in <li class="text-base text-foreground"> (same class throughout).

@@ -273,7 +273,18 @@ cd DuoUpdaterCore && swift build && swift test   # some tests hit the network
 cd App && xcodegen generate && open DuoUpdater.xcodeproj
 ```
 
-Requires macOS 14+, Swift 6, and `xcodegen` (`brew install xcodegen`).
+**Runs on macOS 14+.** That is the deployment target for the app and both
+packages. Newer-only surfaces — Liquid Glass, and the App Store install route's
+system changes — sit behind `#available` checks, so 14 builds and runs; it is
+just not where this gets exercised day to day.
+
+**Building needs a toolchain new enough for the macOS 26 SDK**, because some of
+those guarded paths reference macOS 26 APIs. Swift 6 language mode throughout
+(`swift-tools-version: 6.0`, `SWIFT_VERSION: 6.0`). Developed against Xcode 27.
+
+`xcodegen` is needed **only for the app** — `App/DuoUpdater.xcodeproj` is
+generated from `App/project.yml` and not checked in. `DuoUpdaterCore/` and `CLI/`
+are plain Swift packages: `swift build` and `swift test` need nothing extra.
 
 ### Building under your own Developer ID
 

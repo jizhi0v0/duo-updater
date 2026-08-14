@@ -79,6 +79,39 @@ but author defensively. If you can't verify that, ship **detection-only** (no
 - `checksumPattern`: optional regex (group 1) for a base64 SHA-512 in the same
   body, verified before unpacking — defense in depth on top of the signature gate
 
+### `kind` is a safety decision, not just an unpacking hint
+
+Since the default install policy became `.alwaysOverwrite` (2026-08-14), a running
+app gets its bundle replaced and is then restarted. The argument that this is safe
+rests on one invariant:
+
+> **An app that installs anything outside its own `.app` bundle — a daemon, a
+> launch item, a system extension, a helper in `/Library` — must be `kind: .pkg`.**
+
+`.pkg` goes to macOS's own installer, which places those siblings properly.
+`.zip` / `.dmg` / `.tarGz` are unpacked and the bundle is swapped **and nothing
+else** — so choosing one of those for an app with sibling components ships an
+updated `.app` next to stale daemons, with no error and nothing to notice.
+
+Nothing in the code enforces this; it is a property of the recipes as written.
+When authoring:
+
+- Mount/expand the artifact and look at what is actually in it. If the vendor
+  ships a `.pkg`, that is usually a signal in itself — check with
+  `xar -tf <pkg>` whether the payload extends beyond the app.
+- Look for a `LaunchDaemons` / `LaunchAgents` / `PrivilegedHelperTools` entry, a
+  bundled system extension, or a `Contents/Library/LoginItems` the vendor also
+  registers globally.
+- If the vendor offers both a dmg and a pkg, prefer the **pkg** for anything that
+  isn't a self-contained app.
+- Existing examples: Tailscale (`kind: .pkg`, network extension + daemon), the
+  Office suite and OneDrive (`.pkg`, MAU), Edge (`.pkg`). Chrome is `.dmg` and
+  that is correct — Keystone lives inside the bundle.
+
+If you cannot tell, ship **detection-only**. A missing one-click is a small loss;
+a half-updated app with mismatched components is the kind of breakage that gets
+blamed on the updater and is hard to diagnose.
+
 ## Validating against the real endpoint (do this before landing)
 
 1. Note the **installed** version: `mdls -name kMDItemVersion "/Applications/<App>.app"`.

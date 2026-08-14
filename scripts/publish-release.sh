@@ -75,7 +75,7 @@ find_generate_appcast() {
 }
 
 publish_sparkle_appcast() {
-    local generate_appcast clone_dir archives_dir sparkle_notes
+    local generate_appcast clone_dir archives_dir sparkle_notes setting value
 
     generate_appcast="$(find_generate_appcast)" \
         || die "Sparkle generate_appcast not found under $DERIVED_DATA/SourcePackages. Re-run without SKIP_NOTARIZE so dependencies are built first."
@@ -91,6 +91,16 @@ publish_sparkle_appcast() {
     # the state of your checkout.
     say "Cloning $RELEASE_REPO to update Sparkle appcast"
     gh repo clone "$RELEASE_REPO" "$clone_dir" -- --depth 1 >/dev/null
+
+    # Carry this repo's commit identity into the clone. A fresh clone otherwise
+    # falls back to the global config, which is how the 0.3.18 appcast push was
+    # rejected by GitHub's "block pushes that expose my email" setting while the
+    # release itself had already gone out: the working repo used a noreply
+    # address, the throwaway clone did not.
+    for setting in user.name user.email; do
+        value="$(git -C "$REPO_ROOT" config --get "$setting" || true)"
+        [ -n "$value" ] && git -C "$clone_dir" config "$setting" "$value"
+    done
 
     cp "$ASSET_ZIP" "$archives_dir/"
     sparkle_notes="$archives_dir/$(basename "${ASSET_ZIP%.*}").md"

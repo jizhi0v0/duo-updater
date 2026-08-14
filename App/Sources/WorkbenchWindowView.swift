@@ -40,13 +40,27 @@ struct WorkbenchWindowView: View {
     @State private var detailSelection: String?
     /// The pending debounce, cancelled and restarted on each selection change.
     @State private var detailSettleTask: Task<Void, Never>?
+    /// Whether the Apps list holds the keyboard, so ↑/↓ scrub the selection without
+    /// having to click a row first.
+    ///
+    /// It has to be claimed explicitly. Measured on the shipping window: it opened
+    /// with `AXFocusedUIElement` on the search field (the sidebar's first AppKit
+    /// view, which AppKit auto-focuses) or on nothing at all — either way the arrow
+    /// keys had no destination. `defaultFocus` alone did not move it; setting this
+    /// once the first results land does.
+    @FocusState private var appsListFocused: Bool
     @State private var mode: DetailMode = .releaseNotes
     /// Sidebar filter text. Empty shows every app; otherwise the list narrows to
     /// apps whose name (or bundle id) contains the query, case/diacritic-insensitively.
     @State private var searchText = ""
-    /// Collapsed/expanded state for the sidebar trees. All open by default.
+    /// Collapsed/expanded state for the sidebar trees.
     @State private var appsExpanded = true
-    @State private var brewExpanded = true
+    /// The Brew tree starts collapsed and then remembers whatever you last left it
+    /// as — `@AppStorage`, not `@State`, so the choice survives closing the window.
+    /// Collapsed is only the first-run default: brew casks and formulae are a
+    /// secondary channel, and having them expanded pushed the Apps tree up every
+    /// time the window opened.
+    @AppStorage("workbenchBrewExpanded") private var brewExpanded = false
     /// The Rollback section (apps with a restorable backup) — its own collapse state.
     /// Collapsed by default: it's a recovery surface that can list many apps, so the
     /// always-visible header (with its count pill) is the discovery cue, and expanding
@@ -216,6 +230,9 @@ struct WorkbenchWindowView: View {
                 selection = apps.first?.id
                 detailSelection = selection   // first show is immediate, no debounce
             }
+            // Claim the keyboard only now: before the rows exist there is no list to
+            // focus, and the search field has already taken it by default.
+            appsListFocused = true
         }
         // Brew tree data (formulae + the cask set derives from results above).
         .task { await model.refreshBrewFormulae() }
@@ -226,6 +243,13 @@ struct WorkbenchWindowView: View {
         // the workbench.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
             guard Self.isWorkbenchWindow(note.object) else { return }
+            // Re-claim the keyboard. Focusing the list once on open isn't enough:
+            // becoming key again hands the first responder back to whatever AppKit
+            // picks by default — the search field, being the sidebar's first key
+            // view — so ↑/↓ went dead again after any trip away from the window
+            // (measured: AXFocusedUIElement back on the search text field).
+            // Skipped mid-search, where the caret is where the user wants it.
+            if searchText.isEmpty { appsListFocused = true }
             Task { await model.refreshLocal() }
         }
         // Stationary stay (never lose focus) → the backstop timer keeps versions
@@ -244,6 +268,10 @@ struct WorkbenchWindowView: View {
         // — only catches up once the selection holds still for ~160ms. Scrubbing
         // through 40 apps then fires one detail build instead of 40.
         .onChange(of: selection) { _, newValue in
+            // A selection change means the user is working in the list — by arrow
+            // key (already focused) or by clicking a row after the detail pane took
+            // the keyboard, which is the case that left arrows dead until now.
+            appsListFocused = true
             let name = model.results.first { $0.id == newValue }?.app.name
             Log.changelog.info("perf selection → \(name ?? newValue ?? "nil", privacy: .public) [mode=\(mode.rawValue, privacy: .public)]")
             detailSettleTask?.cancel()
@@ -477,6 +505,7 @@ struct WorkbenchWindowView: View {
             }
         }
         .listStyle(.sidebar)
+        .focused($appsListFocused)
         .overlay {
             if filteredApps.isEmpty {
                 ContentUnavailableView.search(text: searchText)

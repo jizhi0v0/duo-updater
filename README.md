@@ -73,6 +73,45 @@ It **respects each app's own update channel**:
 - **Restart detection**: if an app was updated on disk but is still running an
   older build (compared via LaunchServices), it's surfaced with a Restart action.
 
+## How this compares to Latest
+
+[MacUpdater](https://www.corecode.io/macupdater/) was discontinued on 1 January
+2026 — for financial rather than technical reasons, per its author — which is why
+this exists. The obvious open-source option is
+[Latest](https://github.com/mangerlahn/latest), and it is a good app. The two
+make opposite bets, so it is worth knowing which one you want.
+
+**Latest delegates the install.** For Sparkle apps it runs `SPUUpdater` inside
+its own process with the *target* app as the host bundle, acting as the user
+driver and auto-answering the prompts; for App Store apps it drives Apple's
+private CommerceKit. It never replaces a bundle itself. That is an elegant bet:
+almost no trusted code of its own, and each install is performed by the machinery
+that app already ships with. The cost is reach — Sparkle and the App Store are
+the two paths it can take, its Homebrew support is detection-only (it opens the
+app and lets that app update itself, and says so in the UI), and when Apple
+changes a private framework the App Store path has to be rebuilt.
+
+**This one owns the install.** It downloads, verifies and swaps the bundle
+itself, which is what lets it also cover vendors that ship neither a Sparkle feed
+nor an App Store listing — per-app recipes against a vendor's own endpoint,
+GitHub releases, Homebrew casks, JetBrains Toolbox. Owning the install is what
+makes the checks in [Install safety](#install-safety) possible: EdDSA where a
+feed provides it, then a Developer ID signature, Team ID and bundle id that must
+match the app being replaced, plus a backup you can roll back to. Latest inherits
+whatever Sparkle and CommerceKit check and adds none of its own, and keeps no
+backup.
+
+The trade is maintenance. Per-app recipes break whenever a vendor rewrites a
+download page, which is a real running cost — the same cost that a 100,000-app
+database turned out not to be able to carry commercially. This project answers
+that with a nightly sweep that re-checks every recipe against its live endpoint
+and files an issue for each one that stopped working, and by covering a few dozen
+apps properly rather than every app approximately.
+
+Pick Latest if your apps are Sparkle and App Store apps and you would rather
+trust less code. Pick this if you have apps neither of those reaches, or you want
+the update chain to verify who signed the thing replacing your app.
+
 ## Privacy
 
 There is no telemetry, no analytics SDK, and no server of ours. Every network

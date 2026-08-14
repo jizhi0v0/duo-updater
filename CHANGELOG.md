@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## Unreleased
+
+**`duo` says which copy is which when two apps share a name.** Naming an app that is installed twice — two Xcode betas, say — printed both candidates as a bare "Xcode" and told you to name one exactly, which matches both again. The listing now carries each copy's version, and when the matches genuinely share a name it asks for the path instead of repeating advice that cannot work.
+
 ## 0.3.20
 
 **"Open download page" no longer downloads a file.** On apps whose page DuoUpdater knows — ToDesk and UU Remote among them — that button handed your browser the installer package instead of opening anything: the link it used was the same one the updater downloads from, so clicking it started a download you didn't ask for. The page and the package are now kept apart, and the button opens the vendor's actual download page. Where a source only ever publishes a package and no page at all — a bare Sparkle feed — there is now no button rather than one that downloads something.

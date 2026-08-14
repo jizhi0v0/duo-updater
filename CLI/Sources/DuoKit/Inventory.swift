@@ -80,10 +80,20 @@ public enum Inventory {
             case 1:
                 selected.append(byName[0])
             default:
-                let names = byName.map { "  \($0.name) — \($0.path.path)" }.joined(separator: "\n")
+                // Version included because the name alone often can't separate the
+                // candidates: two Xcode betas are both called "Xcode" and both report
+                // 27.0, and it is the build that says which is which.
+                let names = byName.map { app in
+                    let version = app.shortVersion.map { " \($0)" } ?? ""
+                    return "  \(app.name)\(version) — \(app.path.path)"
+                }.joined(separator: "\n")
+                // "Name one exactly" is not advice that can work when the matches
+                // share a name — naming it exactly matches all of them again.
+                let hint = Set(byName.map(\.name)).count == 1
+                    ? "They share a name, so pass the path of the one you mean."
+                    : "Name one exactly, or pass its path."
                 return .failure(SelectionFailure(description:
-                    "'\(query)' matches \(byName.count) apps:\n\(names)\n"
-                    + "Name one exactly, or pass its path."))
+                    "'\(query)' matches \(byName.count) apps:\n\(names)\n" + hint))
             }
         }
         // Same app named twice (by path and by id) should be acted on once.

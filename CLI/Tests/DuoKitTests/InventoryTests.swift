@@ -3,9 +3,11 @@ import Foundation
 @testable import DuoKit
 import DuoUpdaterCore
 
-private func app(_ name: String, _ bundleID: String?, _ path: String) -> InstalledApp {
+private func app(
+    _ name: String, _ bundleID: String?, _ path: String, version: String = "1.0"
+) -> InstalledApp {
     InstalledApp(
-        name: name, bundleID: bundleID, shortVersion: "1.0", buildVersion: "1",
+        name: name, bundleID: bundleID, shortVersion: version, buildVersion: "1",
         path: URL(fileURLWithPath: path), isMASApp: false, sparkleFeedURL: nil)
 }
 
@@ -14,6 +16,12 @@ private let installed = [
     app("HBuilderX", "com.dcloud.HBuilderX", "/Applications/HBuilderX.app"),
     app("HBuilderX-Alpha", "com.dcloud.HBuilderX", "/Applications/HBuilderX-Alpha.app"),
     app("Code", "com.microsoft.VSCode", "/Applications/Code.app"),
+    // Two Xcodes: same name, same bundle id, same marketing version — only the
+    // build and the path separate them. This is the case the listing has to serve.
+    app("Xcode", "com.apple.dt.Xcode", "/Applications/Xcode-27b1.app",
+        version: "27.0 (27A5194q)"),
+    app("Xcode", "com.apple.dt.Xcode", "/Applications/Xcode-beta.app",
+        version: "27.0 (27A5237l)"),
 ]
 
 @Suite struct InventorySelectionTests {
@@ -50,6 +58,32 @@ private let installed = [
         }
         #expect(failure.description.contains("/Applications/HBuilderX.app"))
         #expect(failure.description.contains("/Applications/HBuilderX-Alpha.app"))
+    }
+
+    /// Two installs of the same app: the listing has to say something that tells
+    /// them apart, and the advice has to be advice the user can act on — "name one
+    /// exactly" matches both again.
+    @Test func candidatesSharingANameAreSeparatedByVersionAndPath() {
+        let result = Inventory.select(installed, matching: ["Xcode"])
+        guard case .failure(let failure) = result else {
+            Issue.record("expected a refusal, got \(result)")
+            return
+        }
+        #expect(failure.description.contains("Xcode 27.0 (27A5194q) — /Applications/Xcode-27b1.app"))
+        #expect(failure.description.contains("Xcode 27.0 (27A5237l) — /Applications/Xcode-beta.app"))
+        #expect(failure.description.contains("pass the path"))
+        #expect(!failure.description.contains("Name one exactly"))
+    }
+
+    /// Different names, so naming one exactly IS the fix — the hint must not tell
+    /// everyone to type a path.
+    @Test func candidatesWithDistinctNamesAreToldToNameOne() {
+        let result = Inventory.select(installed, matching: ["HBuilderX"])
+        guard case .failure(let failure) = result else {
+            Issue.record("expected a refusal, got \(result)")
+            return
+        }
+        #expect(failure.description.contains("Name one exactly"))
     }
 
     @Test func anUnknownNameIsAnError() {

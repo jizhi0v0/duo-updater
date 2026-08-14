@@ -5,7 +5,7 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
-## Unreleased
+## 0.3.21
 
 **`duo` says which copy is which when two apps share a name.** Naming an app that is installed twice — two Xcode betas, say — printed both candidates as a bare "Xcode" and told you to name one exactly, which matches both again. The listing now carries each copy's version, and when the matches genuinely share a name it asks for the path instead of repeating advice that cannot work.
 

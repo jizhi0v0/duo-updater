@@ -1641,10 +1641,16 @@ private enum WebViewCache {
         // main actor — a prime suspect for the freeze when switching to a
         // web-backed changelog app. Time it.
         let start = Date()
-        let view = WKWebView()
+        // Ephemeral data store: these panes render third-party release-notes pages
+        // purely to be read, so there is no reason for a vendor's cookies,
+        // localStorage or embedded analytics to survive into the next launch inside
+        // our container. The default store would persist all of it.
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        let view = WKWebView(frame: .zero, configuration: configuration)
         // Set the delegate before loading so the guardian sees the very first
         // navigation start and arms its watchdog on it.
-        let guardian = WebGuardian()
+        let guardian = WebGuardian(origin: url)
         view.navigationDelegate = guardian
         view.load(URLRequest(url: url))
         let ms = Date().timeIntervalSince(start) * 1000
@@ -1676,6 +1682,46 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     private var autoReloads = 0
     private let maxAutoReloads = 2
     private let timeout: Duration = .seconds(20)
+
+    /// The host this pane was opened on. Navigation that leaves it is handed to the
+    /// browser instead of being followed in-pane — the pane is a changelog reader,
+    /// not a browser, and a vendor page that redirects itself (or a link the user
+    /// taps) should not be able to point it anywhere it likes.
+    private let originHost: String?
+
+    init(origin: URL) {
+        self.originHost = origin.host
+        super.init()
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        // Only a link the *user* clicked in the *main* frame is redirected. Everything
+        // else is left alone on purpose:
+        //   • sub-frames — `decidePolicyFor` fires for iframes too, and a changelog
+        //     page that embeds a video or a third-party widget would otherwise have
+        //     every frame cancelled and thrown at the browser, one window each;
+        //   • server-side redirects and SPA routing — a vendor moving
+        //     docs.x.com → x.com/docs is normal, and cancelling it just blanks the
+        //     pane. The URL we start from comes from our own recipe registry, not
+        //     from the page, so this is a usability boundary, not a trust boundary.
+        guard navigationAction.navigationType == .linkActivated,
+              navigationAction.targetFrame?.isMainFrame ?? true,
+              let url = navigationAction.request.url,
+              url.host != originHost,
+              url.scheme == "https" || url.scheme == "http"
+        else {
+            decisionHandler(.allow); return
+        }
+        // An outbound link the user chose: give it a real browser, with history,
+        // tabs and their own extensions, instead of trapping it in a chrome-less
+        // reader pane.
+        decisionHandler(.cancel)
+        NSWorkspace.shared.open(url)
+    }
 
     func cancel() {
         watchdog?.cancel()

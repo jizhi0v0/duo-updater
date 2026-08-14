@@ -20,6 +20,18 @@ running, so you know before you click whether something is about to be quit and
 reopened.
 
 <p align="center">
+  <img src="assets/changelog.png" alt="The workbench window: a sidebar listing every scanned app, and the release notes for the selected one rendered as native text — version heading, date, and one bullet per change." width="760">
+</p>
+
+Opening the window gives you everything it scanned, and the release notes for
+whatever you select. Where a vendor publishes notes in a form worth parsing,
+they are pulled apart and rendered as native text — version, date, one bullet per
+change — instead of an embedded web page. Sparkle appcasts and GitHub releases
+carry their notes inline; for the rest there is a per-app recipe, and vendors
+whose page resists parsing fall back to the page itself in a `WKWebView`. Some
+app names are blurred here; they are only this machine's library.
+
+<p align="center">
   <img src="assets/settings.png" alt="Duo Updater's General settings: check interval, post-update behaviour including automatic restart and rollback backups, concurrency, and install routing for App Store and self-updating apps." width="760">
 </p>
 

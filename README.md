@@ -162,7 +162,8 @@ Privacy & Security) — the script prints the reminder.
 
 Notarized builds are published as GitHub Releases on this repository, and
 `appcast.xml` at the repository root is the Sparkle feed the app updates itself
-from. Set `RELEASE_REPO` to publish somewhere else.
+from — it starts empty and each release appends to it. Set `RELEASE_REPO` to
+publish somewhere else.
 
 The script never commits into your working tree: it makes a shallow throwaway
 clone to update the appcast, so a release does not depend on which branch you

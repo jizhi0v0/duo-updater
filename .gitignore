@@ -21,11 +21,28 @@ xcuserdata/
 # candidates, intermediate PNGs, the standalone .iconset/.icns) is not source.
 scripts/icon/out/
 
-# Scheduled-tasks runtime lock — transient, not source
+# Agent scratch: worktrees are checkouts, and local settings carry per-machine
+# paths and permissions. The committed `.claude/skills/` are the exception —
+# those are project knowledge and stay tracked.
 .claude/scheduled_tasks.lock
+.claude/worktrees/
+.claude/settings.local.json
+.mcp.json
+
+# Working notes, not source. These accumulate real scan output from whichever
+# machine ran them — installed-app inventories, per-app versions, licence and
+# beta-channel state — so they are kept local rather than published.
+/STATUS.md
+/plans/
+/docs/
+/application-test/records/
 
 # Recipe-verify run artifacts. The baseline IS committed (it carries failure
 # streaks and issue numbers); the per-run report is not.
 verify/report.json
 verify/report.md
 verify/triage.json
+
+# Nightly recipe sweep. Kept local: it targets a self-hosted runner that runs as
+# the desktop user, which is not a safe thing to expose from a public repo.
+/.github/workflows/recipe-verify.yml

@@ -17,26 +17,16 @@
           private, and are not carried over.
         -->
         <item>
-            <title>0.3.20</title>
-            <pubDate>Fri, 14 Aug 2026 20:09:40 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.20</link>
+            <title>0.3.21</title>
+            <pubDate>Fri, 14 Aug 2026 20:21:02 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.21</link>
             <sparkle:version>31</sparkle:version>
-            <sparkle:shortVersionString>0.3.20</sparkle:shortVersionString>
+            <sparkle:shortVersionString>0.3.21</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**"Open download page" no longer downloads a file.** On apps whose page DuoUpdater knows — ToDesk and UU Remote among them — that button handed your browser the installer package instead of opening anything: the link it used was the same one the updater downloads from, so clicking it started a download you didn't ask for. The page and the package are now kept apart, and the button opens the vendor's actual download page. Where a source only ever publishes a package and no page at all — a bare Sparkle feed — there is now no button rather than one that downloads something.
-
-**The app list responds to the arrow keys again.** Opening the workbench window left the keyboard focus nowhere in particular, so ↑ and ↓ did nothing until you clicked a row — and after clicking into the release notes on the right, or switching to another app and back, they stopped working again. The list now takes the keyboard when it opens and takes it back at the points it used to lose it. Typing in the search box is untouched: a search you've started keeps the caret.
-
-**The Brew section starts collapsed.** Casks and command-line formulae are a side channel for most people, and having that tree open by default pushed your actual apps up the sidebar every time the window opened. It now starts closed and remembers however you leave it.
-
-**Xcode betas and release candidates are now detected, and two copies can be told apart.** Xcode was a grey "v27.0" with no update information at all, and if you keep more than one build around — a current beta beside the previous one — they were indistinguishable: same name, same version, same icon. Each row now reads its real build, so an update shows as "27.0 beta 1 (27A5194q) → 27.0 beta 5 (27A5237l)". Which track a copy belongs to is worked out from Apple's published builds rather than guessed from what you named the folder, and you'll only ever be pointed at something at least as finished as what you have — a beta can be superseded by a beta, a release candidate or the finished release, never the other way round. Updating still means going to Apple: the downloads need you signed in with your Apple ID, so the row links to Apple's download page and its release notes.
-
-**Cursor's release notes are shown properly instead of an embedded web page.** Cursor writes its changelog as dated posts rather than numbered releases, so the notes pane fell back to loading the website. Each post is now shown as its own entry — its date, its headline and its changes — the same as every other app with readable notes.
-
-**`duo check` now shows what changed when the version number doesn't.** Updates that keep the same version and only move the build — Surge, the JetBrains previews — printed as "6.9.0 → 6.9.0" on the command line, which was accurate and told you nothing. It now shows the builds, matching what the menu bar has always shown.
+            <description sparkle:format="markdown"><![CDATA[**`duo` says which copy is which when two apps share a name.** Naming an app that is installed twice — two Xcode betas, say — printed both candidates as a bare "Xcode" and told you to name one exactly, which matches both again. The listing now carries each copy's version, and when the matches genuinely share a name it asks for the path instead of repeating advice that cannot work.
 ]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.20/DuoUpdater-0.3.20-macos.zip" length="10361107" type="application/octet-stream" sparkle:edSignature="bxy4iqHxq8NRhMB50rTvjjYGzBHOt+09kv/5QP5Whgs0XaDNcvwlWPkBazyBR5gLU+GQgt6ZZGBCz+vT/wJJAg=="/>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.21/DuoUpdater-0.3.21-macos.zip" length="10361085" type="application/octet-stream" sparkle:edSignature="CW8Fy/94MNv+s4yFXb04/T1BmP0I8x71lo/HibG1z3XYWtG91UipNDb4ieWsAjkOrKVBrS42Scd2BAQXy6c8Aw=="/>
         </item>
         <item>
             <title>0.3.18</title>

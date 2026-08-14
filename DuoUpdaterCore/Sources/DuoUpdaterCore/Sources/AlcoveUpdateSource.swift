@@ -169,10 +169,16 @@ public struct AlcoveUpdateSource: UpdateSource {
 
     // MARK: - Headers
 
-    /// Mirror the app's own client identity. The endpoint doesn't pin a build, but
-    /// a recognizable agent keeps us indistinguishable from the real client.
-    private static let userAgent =
-        "Alcove/194 CFNetwork/3886.100.1 Darwin/\(osVersion)"
+    /// Identify honestly, like every other source here.
+    ///
+    /// This used to send `Alcove/194 CFNetwork/… Darwin/…` so the request would be
+    /// indistinguishable from Alcove's own client. That is not something to ship in
+    /// public source: the vendor should be able to see who is calling their licensed
+    /// API and decide how they feel about it. Verified 2026-08-14 that the endpoint
+    /// does not gate on the header — `POST /license/issue-token` with a deliberately
+    /// invalid key returns the same `422 {"message":"License is invalid."}` under
+    /// both agents, i.e. it reaches licence validation either way.
+    private static let userAgent = "DuoUpdater/0.1"
 
     private static let osVersion: String = {
         let v = ProcessInfo.processInfo.operatingSystemVersion

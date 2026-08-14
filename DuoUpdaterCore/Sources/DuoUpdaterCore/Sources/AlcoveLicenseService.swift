@@ -31,10 +31,9 @@ import Foundation
 /// HTTPS in a POST body — the same destination Alcove itself uses, no third party.
 public struct AlcoveLicenseService: Sendable {
     private static let base = URL(string: "https://api.tryalcove.com")!
-    private static let userAgent: String = {
-        let v = ProcessInfo.processInfo.operatingSystemVersion
-        return "Alcove/194 CFNetwork/3886.100.1 Darwin/\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
-    }()
+    /// Identify honestly — see the note on `AlcoveUpdateSource.userAgent` for why
+    /// this no longer impersonates Alcove's own client.
+    private static let userAgent = "DuoUpdater/0.1"
 
     private let session: URLSession
     public init(session: URLSession = .updates) { self.session = session }

@@ -23,7 +23,11 @@ SUBMIT_ZIP="$STAGE_DIR/DuoUpdater-notary-upload.zip"
 FINAL_ZIP="${FINAL_ZIP:-$REPO/dist/DuoUpdater-notarized.zip}"
 RESULT_JSON="$STAGE_DIR/notary-result.json"
 LOG_JSON="$STAGE_DIR/notary-log.json"
-TEAM="RS59HDH7Y3"
+# The Developer ID team the build signs with, and the identity every gate in
+# this script checks against. A fork must set DUO_TEAM_ID to its own team --
+# see README "Building from source". Exported so App/project.yml picks it up.
+TEAM="${DUO_TEAM_ID:-RS59HDH7Y3}"
+export DUO_TEAM_ID="$TEAM"
 PROFILE="${NOTARYTOOL_PROFILE:-${NOTARY_PROFILE:-}}"
 
 say() { printf '\033[1;34m→ %s\033[0m\n' "$*"; }

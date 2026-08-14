@@ -25,7 +25,11 @@ LIBEXEC="$HOME/.local/libexec"
 BIN="$HOME/.local/bin"
 DEST="$LIBEXEC/duo"
 LINK="$BIN/duo"
-TEAM="RS59HDH7Y3"
+# The Developer ID team the build signs with, and the identity every gate in
+# this script checks against. A fork must set DUO_TEAM_ID to its own team --
+# see README "Building from source". Exported so App/project.yml picks it up.
+TEAM="${DUO_TEAM_ID:-RS59HDH7Y3}"
+export DUO_TEAM_ID="$TEAM"
 
 say() { printf '\033[1;34m→ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }

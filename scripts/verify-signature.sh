@@ -16,7 +16,7 @@
 set -euo pipefail
 
 TARGET="${1:?usage: verify-signature.sh <path> [team]}"
-TEAM="${2:-RS59HDH7Y3}"
+TEAM="${2:-${DUO_TEAM_ID:-RS59HDH7Y3}}"
 
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 

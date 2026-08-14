@@ -25,7 +25,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/jizhi0v0/duo-updater-releases/main/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/jizhi0v0/duo-updater/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>zfu9N69fMyLmg5tmeU6PpT+SImFDYAhaVfR1yERIQCE=</string>
 	<key>SUScheduledCheckInterval</key>

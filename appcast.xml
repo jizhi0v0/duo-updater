@@ -1,0 +1,48 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>DuoUpdater</title>
+        <item>
+            <title>0.3.17</title>
+            <pubDate>Wed, 12 Aug 2026 10:27:41 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater-releases/releases/tag/v0.3.17</link>
+            <sparkle:version>29</sparkle:version>
+            <sparkle:shortVersionString>0.3.17</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Update All no longer says a running app is finished before its restart.** When an update had already replaced an app on disk but Update All was still busy with other installers, the row briefly showed a green checkmark and disappeared even though the old version was still running. The app now stays visible with its running and installed versions, explains that it is waiting for the batch restart, and offers **Restart now**. The completion checkmark appears only when the update is actually in effect.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater-releases/releases/download/v0.3.17/DuoUpdater-0.3.17-macos.zip" length="10339159" type="application/octet-stream" sparkle:edSignature="2hVeYRfnQdGXpfi72TOhrwU/KmYk90ilYBsfx2k9nfEjkuUaOI7GtW30BqkwMTAkltSorzDMDwPZ+Zh77U14Bg=="/>
+        </item>
+        <item>
+            <title>0.3.16</title>
+            <pubDate>Sun, 09 Aug 2026 22:16:38 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater-releases/releases/tag/v0.3.16</link>
+            <sparkle:version>28</sparkle:version>
+            <sparkle:shortVersionString>0.3.16</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Apps installed by a `.pkg` can now be rolled back.** DuoUpdater keeps a copy of the previous version before it updates an app, so a bad update can be undone. Apps that install through macOS's own installer — Microsoft Office, AweSun, ToDesk and the like — never got that copy: the rollback was skipped for them entirely, so the one kind of update DuoUpdater can't watch land was also the one you couldn't back out of. They're now backed up like everything else.
+
+**Rollback no longer refuses apps that write inside their own bundle.** Some apps keep working files in amongst their own program files — ToDesk stores its settings database and logs there, and doing so breaks the seal Apple puts on an app. DuoUpdater checked that seal before restoring a backup, so for those apps it declared a perfectly good backup damaged and refused to put it back. It now checks the copy against a fingerprint taken when the copy was made, which is the thing that actually matters: that what's being restored is exactly what was saved. Tampering with a stored backup is still caught, and still refused.
+
+**When a backup isn't possible, it says so instead of failing quietly.** A few apps keep program files that your account simply can't read — EasyConnect is one — and no copy of those can be made. Rather than attempting it and reporting a failure part-way through an update, DuoUpdater now checks first, tells you which file is in the way, and updates anyway; you just don't get a rollback point for that one app.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater-releases/releases/download/v0.3.16/DuoUpdater-0.3.16-macos.zip" length="10335486" type="application/octet-stream" sparkle:edSignature="AtrlMOwCJOyvaTPla9hJwfYXiVcXmpQ/kXPmPFAlHjEAIeeCDm/WxxePLlMNuvpV8QaCN3GXq+f9tJte+lB1Dg=="/>
+        </item>
+        <item>
+            <title>0.3.15</title>
+            <pubDate>Sat, 08 Aug 2026 19:22:47 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater-releases/releases/tag/v0.3.15</link>
+            <sparkle:version>27</sparkle:version>
+            <sparkle:shortVersionString>0.3.15</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**The same app no longer appears several times over.** Some apps leave a dated copy of themselves behind every time they update — DuoPaste, for one, parks a `DuoPaste.backup-20260716-183428.app` next to the real thing on each self-update. Those copies are complete, working app bundles as far as anything on disk can tell, so DuoUpdater listed each one as its own app: three identical DuoPaste rows, each offering the same update. Worse, taking one of those offers would have installed the new version *into the backup*, leaving the app you actually use untouched and creating another stray copy. Backup and duplicate bundles are now recognised for what they are and left out of the list, as are exact clones of an app found in two places. Genuinely separate installs that happen to share an identity — Firefox alongside Firefox Beta, two versions of Android Studio kept side by side — still each get their own row.
+
+**The list now reliably notices apps appearing and disappearing.** DuoUpdater watches your Applications folders so that an app updating itself in the background, or one you drag to the Trash, is reflected within a few seconds. That watch could quietly stop working — nothing crashed, nothing was reported, it simply stopped hearing about changes, and the list then went stale until you reopened the window. It's now rebuilt periodically and after your Mac wakes from sleep, with a fresh scan each time, so a watch that dies recovers on its own instead of staying dead for the rest of the session.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater-releases/releases/download/v0.3.15/DuoUpdater-0.3.15-macos.zip" length="10274555" type="application/octet-stream" sparkle:edSignature="2I+PNYESGguBz9H6W6o077UMRyccaRJmDnCg92zOmyo7agyvzOVnu3YFYTlcr37reI97/CBzJgZb+66uXJboAw=="/>
+        </item>
+    </channel>
+</rss>

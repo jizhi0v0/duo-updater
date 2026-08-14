@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #
-# Build, notarize, and publish a release into the public binary-only GitHub repo.
+# Build, notarize, and publish a GitHub Release, and update the Sparkle appcast
+# the app updates itself from.
+#
+# Both live in this repository. They used to live in a separate binary-only repo,
+# which existed only because the source was private; RELEASE_REPO still overrides
+# the target if you want them somewhere else.
 #
 # Usage:
 #   NOTARYTOOL_PROFILE=duoupdater-notary make release
@@ -11,7 +16,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_YML="$REPO_ROOT/App/project.yml"
 DIST_DIR="${DIST_DIR:-$REPO_ROOT/dist}"
-RELEASE_REPO="${RELEASE_REPO:-jizhi0v0/duo-updater-releases}"
+RELEASE_REPO="${RELEASE_REPO:-jizhi0v0/duo-updater}"
 FINAL_ZIP="${FINAL_ZIP:-$DIST_DIR/DuoUpdater-notarized.zip}"
 DERIVED_DATA="${DERIVED_DATA:-/tmp/duo-notary-dd}"
 SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
@@ -70,17 +75,22 @@ find_generate_appcast() {
 }
 
 publish_sparkle_appcast() {
-    local generate_appcast clone_dir archives_dir sparkle_notes release_repo_name
+    local generate_appcast clone_dir archives_dir sparkle_notes
 
     generate_appcast="$(find_generate_appcast)" \
         || die "Sparkle generate_appcast not found under $DERIVED_DATA/SourcePackages. Re-run without SKIP_NOTARIZE so dependencies are built first."
 
-    clone_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-updater-releases.XXXXXX")"
+    clone_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-updater-appcast-clone.XXXXXX")"
     archives_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-updater-appcast.XXXXXX")"
     trap 'rm -rf "$clone_dir" "$archives_dir"' RETURN
 
+    # A throwaway shallow clone, even though this is now the same repository the
+    # script is running from. Committing the appcast into the working tree would
+    # mean the release touches whatever branch happens to be checked out and
+    # whatever is uncommitted beside it; a clone keeps publishing independent of
+    # the state of your checkout.
     say "Cloning $RELEASE_REPO to update Sparkle appcast"
-    gh repo clone "$RELEASE_REPO" "$clone_dir" >/dev/null
+    gh repo clone "$RELEASE_REPO" "$clone_dir" -- --depth 1 >/dev/null
 
     cp "$ASSET_ZIP" "$archives_dir/"
     sparkle_notes="$archives_dir/$(basename "${ASSET_ZIP%.*}").md"
@@ -112,11 +122,6 @@ PY
         "$archives_dir" >/dev/null
 
     cp "$archives_dir/appcast.xml" "$clone_dir/appcast.xml"
-
-    release_repo_name="${RELEASE_REPO#*/}"
-    if [ -d "$REPO_ROOT/../$release_repo_name/.git" ]; then
-        cp "$archives_dir/appcast.xml" "$REPO_ROOT/../$release_repo_name/appcast.xml"
-    fi
 
     if [ -n "$(git -C "$clone_dir" status --short -- appcast.xml)" ]; then
         say "Publishing Sparkle appcast to $RELEASE_REPO"

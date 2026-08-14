@@ -148,10 +148,13 @@ Privacy & Security) — the script prints the reminder.
 
 ### Public distribution
 
-Notarized binaries are published to a separate release-only repo
-([`jizhi0v0/duo-updater-releases`](https://github.com/jizhi0v0/duo-updater-releases)),
-which carries the `.zip` artifacts, the release notes, and the Sparkle appcast
-this app updates itself from — no source code. Override it with `RELEASE_REPO`.
+Notarized builds are published as GitHub Releases on this repository, and
+`appcast.xml` at the repository root is the Sparkle feed the app updates itself
+from. Set `RELEASE_REPO` to publish somewhere else.
+
+The script never commits into your working tree: it makes a shallow throwaway
+clone to update the appcast, so a release does not depend on which branch you
+have checked out or what is uncommitted beside it.
 
 ```sh
 # One-time local setup
@@ -166,7 +169,7 @@ NOTARYTOOL_PROFILE=duoupdater-notary make release
 
 Useful overrides:
 
-- `RELEASE_REPO=jizhi0v0/duo-updater-releases` to target a different binary repo
+- `RELEASE_REPO=owner/repo` to publish the release and appcast elsewhere
 - `TAG=v0.1.0` / `TITLE="DuoUpdater 0.1.0"` to override the generated release name
 - `RELEASE_NOTES_FILE=/path/to/notes.md` to publish custom notes
 

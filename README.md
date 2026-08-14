@@ -1,8 +1,31 @@
 # Duo Updater
 
-A personal macOS menu-bar app that checks installed apps for updates and installs
-them with one click — a lightweight, source-respecting take on the
-MacUpdater idea, built in pure Swift.
+A macOS menu-bar app that finds updates for the apps you already have, and
+installs them the way each app expects to be updated.
+
+Most updaters pick one mechanism and push every app through it. This one reads
+each app's own release channel — its Sparkle appcast, its App Store listing, its
+Homebrew cask, its vendor's release feed — and uses that. When an app ships its
+own updater, it hands over instead of fighting it; when it can't do something
+safely, it says so rather than guessing. Pure Swift, no telemetry, no server.
+
+<p align="center">
+  <img src="assets/menu-bar.png" alt="The Duo Updater menu bar popover, listing apps with an update available: each row shows the installed version, the new version, and either an Update or a Relaunch button." width="420">
+</p>
+
+Each row says what you are going from and to, and the button says what will
+actually happen: **Update** installs, **Relaunch** means it is already updated on
+disk and only the running copy is stale. A green dot marks an app that is
+running, so you know before you click whether something is about to be quit and
+reopened.
+
+<p align="center">
+  <img src="assets/settings.png" alt="Duo Updater's General settings: check interval, post-update behaviour including automatic restart and rollback backups, concurrency, and install routing for App Store and self-updating apps." width="760">
+</p>
+
+Most of the settings are about how much autonomy you want to give it — whether
+to restart apps for you, whether to keep a rollback backup, and how to route the
+two awkward cases: Mac App Store apps, and apps that ship their own updater.
 
 ## How it works
 

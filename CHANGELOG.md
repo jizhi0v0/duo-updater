@@ -5,6 +5,20 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.20
+
+**"Open download page" no longer downloads a file.** On apps whose page DuoUpdater knows — ToDesk and UU Remote among them — that button handed your browser the installer package instead of opening anything: the link it used was the same one the updater downloads from, so clicking it started a download you didn't ask for. The page and the package are now kept apart, and the button opens the vendor's actual download page. Where a source only ever publishes a package and no page at all — a bare Sparkle feed — there is now no button rather than one that downloads something.
+
+**The app list responds to the arrow keys again.** Opening the workbench window left the keyboard focus nowhere in particular, so ↑ and ↓ did nothing until you clicked a row — and after clicking into the release notes on the right, or switching to another app and back, they stopped working again. The list now takes the keyboard when it opens and takes it back at the points it used to lose it. Typing in the search box is untouched: a search you've started keeps the caret.
+
+**The Brew section starts collapsed.** Casks and command-line formulae are a side channel for most people, and having that tree open by default pushed your actual apps up the sidebar every time the window opened. It now starts closed and remembers however you leave it.
+
+**Xcode betas and release candidates are now detected, and two copies can be told apart.** Xcode was a grey "v27.0" with no update information at all, and if you keep more than one build around — a current beta beside the previous one — they were indistinguishable: same name, same version, same icon. Each row now reads its real build, so an update shows as "27.0 beta 1 (27A5194q) → 27.0 beta 5 (27A5237l)". Which track a copy belongs to is worked out from Apple's published builds rather than guessed from what you named the folder, and you'll only ever be pointed at something at least as finished as what you have — a beta can be superseded by a beta, a release candidate or the finished release, never the other way round. Updating still means going to Apple: the downloads need you signed in with your Apple ID, so the row links to Apple's download page and its release notes.
+
+**Cursor's release notes are shown properly instead of an embedded web page.** Cursor writes its changelog as dated posts rather than numbered releases, so the notes pane fell back to loading the website. Each post is now shown as its own entry — its date, its headline and its changes — the same as every other app with readable notes.
+
+**`duo check` now shows what changed when the version number doesn't.** Updates that keep the same version and only move the build — Surge, the JetBrains previews — printed as "6.9.0 → 6.9.0" on the command line, which was accurate and told you nothing. It now shows the builds, matching what the menu bar has always shown.
+
 ## 0.3.19
 
 **Apps that ship their own updater are now updated directly by default.** These are the ones like Chrome, VS Code, Cursor and the Electron apps — and because they are also the apps you tend to leave running all day, the old default of stepping aside while they were open meant they were almost never updated at all: the row offered to open the app and left the rest to you. DuoUpdater now downloads the vendor's own installer and applies it whether or not the app is running, then quits and relaunches it so the new version takes effect. Anything that installs background components alongside the app — Tailscale, Office — ships a package that macOS's own installer handles, so those pieces are still put in place properly. If you would rather nothing was touched while an app is open, **Settings → General → Self-updating apps** still has the old behaviour, and changing it back does not affect anything already installed.

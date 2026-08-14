@@ -63,12 +63,10 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
     private func withScratchRoot(_ body: (URL) throws -> Void) throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("DuoKitBackupsTest-\(UUID().uuidString)")
-        BackupStore.rootOverride = root
-        defer {
-            BackupStore.rootOverride = nil
-            try? FileManager.default.removeItem(at: root)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try BackupStore.$rootOverride.withValue(root) {
+            try body(root)
         }
-        try body(root)
     }
 
     @discardableResult

@@ -10,17 +10,16 @@ import Foundation
 @Suite(.serialized)
 struct BackupStoreTests {
 
-    /// Run `body` with `rootOverride` pointed at a fresh scratch dir, cleaned up
-    /// (and the override cleared) afterwards.
+    /// Run `body` with `rootOverride` bound to a fresh scratch dir, removed
+    /// afterwards. The binding is scoped to this task, so it is invisible to suites
+    /// running in parallel with this one.
     private func withScratchRoot(_ body: (URL) throws -> Void) throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("DuoUpdaterBackupTest-\(UUID().uuidString)")
-        BackupStore.rootOverride = root
-        defer {
-            BackupStore.rootOverride = nil
-            try? FileManager.default.removeItem(at: root)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try BackupStore.$rootOverride.withValue(root) {
+            try body(root)
         }
-        try body(root)
     }
 
     /// Write a `_CodeSignature/CodeResources` naming `sealing` (paths relative to

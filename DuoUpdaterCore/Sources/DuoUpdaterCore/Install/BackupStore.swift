@@ -17,9 +17,20 @@ import Security
 /// tests exercise the retention/path logic against a scratch directory.
 public enum BackupStore {
 
-    /// Test seam: when set, backups read/write here instead of Application Support.
-    /// Mutated only by tests (single-threaded), hence `nonisolated(unsafe)`.
-    nonisolated(unsafe) public static var rootOverride: URL?
+    /// Test seam: when bound, backups read/write here instead of Application Support.
+    ///
+    /// Task-local rather than a plain global. It used to be
+    /// `nonisolated(unsafe) static var`, justified as "mutated only by tests
+    /// (single-threaded)" — but Swift Testing runs *suites* in parallel, and
+    /// `.serialized` only orders tests within one suite, never across them. So
+    /// `BackupStoreTests` could be holding its scratch root at the moment another
+    /// suite read `root`, which is exactly how `DuoStateDirectoryTests` failed
+    /// intermittently (~1 run in 5).
+    ///
+    /// Binding it to the task instead makes the override invisible outside the test
+    /// that set it, so the two suites cannot see each other's value no matter how
+    /// they interleave. Production never binds it and always gets nil.
+    @TaskLocal public static var rootOverride: URL?
 
     public static var root: URL {
         if let rootOverride { return rootOverride }

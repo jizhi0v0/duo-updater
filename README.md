@@ -38,6 +38,34 @@ It **respects each app's own update channel**:
 - **Restart detection**: if an app was updated on disk but is still running an
   older build (compared via LaunchServices), it's surfaced with a Restart action.
 
+## Privacy
+
+There is no telemetry, no analytics SDK, and no server of ours. Every network
+request goes straight to the vendor whose app is being checked (or to
+`api.github.com` / `formulae.brew.sh`), and carries nothing about you beyond what
+that request needs: the app's own version, so a vendor feed can answer for the
+right channel.
+
+Three things are worth calling out explicitly, because they involve reading
+outside our own container:
+
+- **CleanShot X** — if it is installed, its `activationKey` is read from its
+  preferences and used to request the personalised appcast that its own updater
+  uses. Without it, CleanShot's feed reports the trial channel. The key is sent
+  only to `legit.maketheweb.io`, is never logged, and is excluded from the HTTP
+  disk cache.
+- **TablePlus** — its `IsReceiveBetaBuild` preference is read so we detect on the
+  same channel the app itself is set to.
+- **GitHub** — to raise the API rate limit from 60/hour to 5000/hour, a token is
+  taken from `GITHUB_TOKEN`/`GH_TOKEN` or, failing that, from `gh auth token`.
+  It is sent only to `api.github.com`, and is stripped from any redirect that
+  leaves that host.
+
+Credentials you enter yourself (a GitHub token, an Alcove licence) are stored in
+the login Keychain as `AfterFirstUnlockThisDeviceOnly` — not synced, not in a
+plist. Changelog panes render vendor pages in a `WKWebView` with a non-persistent
+data store, so vendor cookies do not survive a relaunch.
+
 ## Project layout
 
 - `DuoUpdaterCore/` — Swift Package with the detection engine and install
@@ -57,6 +85,28 @@ cd App && xcodegen generate && open DuoUpdater.xcodeproj
 
 Requires macOS 14+, Swift 6, and `xcodegen` (`brew install xcodegen`).
 
+### Building under your own Developer ID
+
+The build signs with the author's team by default. To build a fork, set your own
+team once — the build scripts and `App/project.yml` both read it:
+
+```sh
+export DUO_TEAM_ID=YOURTEAMID
+make install
+```
+
+That is the only change required. The privileged helper and the app pin each
+other with code-signing requirements, but each derives the team from **its own
+signature** at runtime (`App/Shared/OwnTeamIdentifier.swift`), so the pin follows
+whatever identity you built with — no source edit, and no way to end up with an
+app and helper that disagree.
+
+The requirement stays "same team as me", never "no team": a build with no
+resolvable team identifier (unsigned, or ad-hoc) refuses to connect at all rather
+than talking to an unpinned root daemon. If you are hacking on this with an
+ad-hoc signature, expect Mac App Store installs to be unavailable — everything
+else works.
+
 ### Install
 
 ```sh
@@ -75,15 +125,16 @@ Privacy & Security) — the script prints the reminder.
 
 ### Public distribution
 
-The source repo can stay private. Public binaries are published to the separate
-release-only repo [`jizhi0v0/duo-updater-releases`](https://github.com/jizhi0v0/duo-updater-releases),
-which contains notarized `.zip` artifacts and release notes, but no source code.
+Notarized binaries are published to a separate release-only repo
+([`jizhi0v0/duo-updater-releases`](https://github.com/jizhi0v0/duo-updater-releases)),
+which carries the `.zip` artifacts, the release notes, and the Sparkle appcast
+this app updates itself from — no source code. Override it with `RELEASE_REPO`.
 
 ```sh
 # One-time local setup
 xcrun notarytool store-credentials "duoupdater-notary" \
   --apple-id "YOUR_APPLE_ID" \
-  --team-id "RS59HDH7Y3" \
+  --team-id "YOUR_TEAM_ID" \
   --password "YOUR_APP_SPECIFIC_PASSWORD"
 
 # Build + notarize + publish a GitHub Release to the public repo
@@ -95,3 +146,16 @@ Useful overrides:
 - `RELEASE_REPO=jizhi0v0/duo-updater-releases` to target a different binary repo
 - `TAG=v0.1.0` / `TITLE="DuoUpdater 0.1.0"` to override the generated release name
 - `RELEASE_NOTES_FILE=/path/to/notes.md` to publish custom notes
+
+## Third-party components
+
+| Component | Where | Licence |
+| --- | --- | --- |
+| [Sparkle](https://github.com/sparkle-project/Sparkle) 2.9.3 | SPM dependency, used to install other apps' Sparkle updates and to update this app | MIT |
+| [`mas`](https://github.com/mas-cli/mas) | `App/Resources/mas`, a prebuilt universal binary invoked for Mac App Store installs | MIT |
+| PermissionFlow | `App/Sources/Vendor/PermissionFlow/` (vendored source) | MIT — see the `LICENSE` and `NOTICE.md` in that directory |
+
+`App/Resources/mas` is checked in as a binary because it has to be embedded and
+re-signed with the app's own identity for the privileged helper to invoke it.
+If you would rather not trust a committed binary, build `mas` from source and
+replace the file — `scripts/install.sh` re-signs whatever is there.

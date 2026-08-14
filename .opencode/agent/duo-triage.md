@@ -3,10 +3,11 @@ description: >-
   Re-derives a broken extraction pattern from a captured vendor response. Used
   only by `duo triage`; never for editing this repository.
 mode: primary
-# `opencode-go/deepseek-v4-flash` is the same model but 403s without a
-# China-region opt-in on the workspace; the direct `deepseek/` provider needs a
-# credential the mini does not have. This one is reachable from both machines
-# and bills nothing. `duo triage --model` overrides it.
+# Chosen because it is reachable without a provider credential of its own and
+# bills nothing; the sibling `opencode-go/` and direct `deepseek/` routes both
+# need account-level access that not every checkout will have. Triage only ever
+# reads a captured response body, so a small model is enough.
+# `duo triage --model` overrides it.
 model: opencode/deepseek-v4-flash-free
 temperature: 0.1
 permission:

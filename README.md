@@ -82,6 +82,29 @@ It **respects each app's own update channel**:
 - **Restart detection**: if an app was updated on disk but is still running an
   older build (compared via LaunchServices), it's surfaced with a Restart action.
 
+## Release Log
+
+Every version it sees gets recorded, so over time you get a log of when the
+software you use actually ships — and, in aggregate, when its developers tend to
+release.
+
+<p align="center">
+  <img src="assets/release-log-timeline.png" alt="The Release Log timeline: releases grouped by day, each showing the app, version, source, and either an exact publish time or an approximate window." width="380">
+  <img src="assets/release-log-patterns.png" alt="The Release Log patterns view: a day-by-hour heatmap of release times, with a headline reading 'Most often ships Friday, around 6 PM.'" width="380">
+</p>
+
+The interesting part is what it refuses to claim. A release time is only exact
+when the vendor's own feed timestamps it — Sparkle, GitHub and Alcove do. Every
+other source tells us a version exists but not when it appeared, so all we
+honestly know is that it happened between the last check that saw the old version
+and the first that saw the new one. Those are shown as a window with a `≈`, and a
+wide window is visibly low confidence rather than a precise-looking lie.
+
+The heatmap then uses only the exact tier. That is why the window above says 525
+releases while the pattern reads from 226: the other 299 are real releases whose
+timing is an inference, and an inference has no business shaping a claim about
+when somebody ships.
+
 ## How this compares to Latest
 
 [MacUpdater](https://www.corecode.io/macupdater/) was discontinued on 1 January

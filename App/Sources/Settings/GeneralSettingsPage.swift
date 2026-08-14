@@ -128,7 +128,7 @@ struct GeneralSettingsPage: View {
             }
 
             SettingsCard(
-                footer: "For apps that ship their own updater (Office, Teams, OneDrive, Edge, Chrome, VS Code, …). “Defer while running” installs over them only when they’re closed; while running it opens the app so its own updater applies the update. “Always replace” downloads and swaps in place either way, then prompts a restart."
+                footer: "For apps that ship their own updater (Office, Teams, OneDrive, Edge, Chrome, VS Code, …). “Always replace” — the default — downloads the vendor’s own installer and applies it whether or not the app is running, quitting and relaunching it afterwards. Switch to “Defer while running” if you would rather nothing touched an app while it is open: it then installs only when the app is closed, and offers an Open button instead while it is running, leaving the update to the app itself."
             ) {
                 Picker("Self-updating apps", selection: $prefs.vendorInstallPolicy) {
                     ForEach(Preferences.VendorInstallPolicy.allCases) { policy in

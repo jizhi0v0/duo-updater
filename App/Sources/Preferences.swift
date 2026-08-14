@@ -324,7 +324,7 @@ final class Preferences {
             defaults.set(AppStoreUpdateStrategy.full.rawValue, forKey: Key.appStoreUpdateStrategy)
         }
         self.vendorInstallPolicy = VendorInstallPolicy(
-            rawValue: defaults.string(forKey: Key.vendorInstallPolicy) ?? "") ?? .deferWhenRunning
+            rawValue: defaults.string(forKey: Key.vendorInstallPolicy) ?? "") ?? UpdateSettings.vendorInstallPolicyDefault
         self.customScanPaths = defaults.stringArray(forKey: Key.customScanPaths) ?? []
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]

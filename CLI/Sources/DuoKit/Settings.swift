@@ -41,7 +41,7 @@ public struct Settings: Sendable {
         let strategy = defaults.string(forKey: UpdateSettings.appStoreUpdateStrategyKey)
             .flatMap(AppStoreUpdateStrategy.init(rawValue:)) ?? .full
         let vendorPolicy = defaults.string(forKey: UpdateSettings.vendorInstallPolicyKey)
-            .flatMap(VendorInstallPolicy.init(rawValue:)) ?? .deferWhenRunning
+            .flatMap(VendorInstallPolicy.init(rawValue:)) ?? UpdateSettings.vendorInstallPolicyDefault
 
         let licenseKey = Keychain.string(account: "alcove-license-key") ?? ""
         let instanceID = Keychain.string(account: "alcove-instance-id") ?? ""

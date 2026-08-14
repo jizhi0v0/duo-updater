@@ -496,3 +496,35 @@ private func storeAvailability(
     #expect(path("Fixture.app.duoupdater-old") == "/Applications/Fixture.app")
     #expect(path("Fixture.app.duoupdater-new") == "/Applications/Fixture.app")
 }
+
+/// The shipped default for self-updating apps, pinned as behaviour rather than as
+/// a constant.
+///
+/// It is worth a test because nothing else would notice it changing: both the app
+/// and the CLI resolve it from `UserDefaults` with a fallback, so a value that
+/// drifted — or a fallback that drifted between the two — would just quietly route
+/// installs differently, and both outcomes look individually reasonable in the UI.
+@Suite struct VendorInstallPolicyDefaultTests {
+
+    @Test func defaultOverwritesRatherThanDeferring() {
+        #expect(UpdateSettings.vendorInstallPolicyDefault == .alwaysOverwrite)
+    }
+
+    /// The case the default exists for: a self-updating app that is running.
+    /// Under the default it must install, not hand off.
+    @Test func aRunningVendorAppInstallsUnderTheDefault() {
+        #expect(!UpdatePolicy.defersToSelfUpdater(
+            fixtureResult(source: "Vendor", vendorInstallerKind: .zip),
+            settings: defaultSettings(policy: UpdateSettings.vendorInstallPolicyDefault),
+            environment: environment(running: [fixturePath])),
+            "the default must not hand a running self-updating app back to its own updater")
+    }
+
+    /// And the opt-out still works, so the setting remains a real choice.
+    @Test func deferringIsStillAvailable() {
+        #expect(UpdatePolicy.defersToSelfUpdater(
+            fixtureResult(source: "Vendor", vendorInstallerKind: .zip),
+            settings: defaultSettings(policy: .deferWhenRunning),
+            environment: environment(running: [fixturePath])))
+    }
+}

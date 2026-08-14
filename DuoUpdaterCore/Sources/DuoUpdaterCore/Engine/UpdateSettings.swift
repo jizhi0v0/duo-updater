@@ -43,7 +43,23 @@ public enum AppStoreUpdateStrategy: String, CaseIterable, Identifiable, Sendable
 ///     built-in updater takes over).
 ///   • `.alwaysOverwrite` — always download and replace in place regardless of
 ///     whether it's running, then surface a Restart/Relaunch prompt.
-/// Default `.deferWhenRunning`: never fight a running app's own updater.
+///
+/// Default `.alwaysOverwrite`, changed from `.deferWhenRunning`. Deferring reads
+/// as the cautious choice, but the apps it applies to — Chrome, VS Code, Cursor,
+/// the Electron ones — are the apps that are *always* running, so deferring meant
+/// the common case never installed anything: the row offered "Open" forever and
+/// the tool only ever reported. The reasons it is safe to overwrite instead:
+///   • anything with sibling components to install (daemons, launch items) ships
+///     a `.pkg` — Tailscale, all of Office — and a pkg goes to the system
+///     installer, which places those components properly. Bundle replacement
+///     only ever happens for dmg/zip apps, where the bundle *is* the product.
+///   • the artifact is the vendor's own official installer, so this does what a
+///     user doing it by hand would do.
+///   • the quit is graceful and aborts if the app refuses, and auto-restart is
+///     on by default, so the window where a live process runs beside a replaced
+///     bundle is short.
+/// `.deferWhenRunning` remains for anyone who would rather we never touch a
+/// running app.
 public enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
     case deferWhenRunning
     case alwaysOverwrite
@@ -75,6 +91,14 @@ public struct UpdateSettings: Sendable {
     public static let appStoreUpdateStrategyKey = "AppStoreUpdateStrategy"
     /// The UserDefaults key the app persists `vendorInstallPolicy` under.
     public static let vendorInstallPolicyKey = "VendorInstallPolicy"
+
+    /// What `vendorInstallPolicy` resolves to when the key is absent.
+    ///
+    /// Shared for the same reason the key names are: the app and the CLI each
+    /// resolve this independently, and a default that drifted between them would
+    /// mean `duo install` and the menu bar routing the same app differently — a
+    /// difference nothing would report, since both answers are individually valid.
+    public static let vendorInstallPolicyDefault: VendorInstallPolicy = .alwaysOverwrite
 
     /// Where the ignore list and the per-app skipped version live. Shared
     /// because `duo ignore` and `duo skip` **write** these: a name that drifted

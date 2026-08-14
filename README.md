@@ -10,14 +10,23 @@ own updater, it hands over instead of fighting it; when it can't do something
 safely, it says so rather than guessing. Pure Swift, no telemetry, no server.
 
 <p align="center">
-  <img src="assets/menu-bar.png" alt="The Duo Updater menu bar popover, listing apps with an update available: each row shows the installed version, the new version, and either an Update or a Relaunch button." width="420">
+  <img src="assets/menu-bar.png" alt="The Duo Updater menu bar popover, listing apps with an update available: each row shows the installed version, the new version, and either an Update or a Relaunch button. A row at the bottom offers to upgrade outdated Homebrew packages." width="420">
 </p>
 
 Each row says what you are going from and to, and the button says what will
 actually happen: **Update** installs, **Relaunch** means it is already updated on
 disk and only the running copy is stale. A green dot marks an app that is
 running, so you know before you click whether something is about to be quit and
-reopened.
+reopened, and a channel tag appears where an app is not on its default track —
+the Surge row here is a beta, so it compares build numbers rather than the
+marketing version they share.
+
+The single row at the bottom is everything Homebrew installs that **isn't an
+app**: command-line formulae, and casks that install no `.app` at all — a CLI, a
+font, a driver. None of those need a per-app decision, and they have no bundle to
+scan, so without that row they would be invisible entirely. A cask that *does*
+install an app gets an ordinary row like anything else, and is never touched by
+the upgrade here, so nothing is counted twice.
 
 <p align="center">
   <img src="assets/changelog.png" alt="The workbench window: a sidebar listing every scanned app, and the release notes for the selected one rendered as native text — version heading, date, and one bullet per change." width="760">

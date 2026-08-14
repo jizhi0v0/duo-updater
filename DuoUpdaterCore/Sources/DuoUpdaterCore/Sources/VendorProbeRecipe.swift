@@ -532,8 +532,9 @@ public enum VendorProbeRegistry {
         // Chrome self-updates through Keystone, which is NOT a reason to withhold
         // one-click — that is what `vendorInstallPolicy` is for, and its own settings
         // copy names Chrome. Keystone keeps managing whatever bundle is on disk; a
-        // swap to a newer build does not confuse it. Under the default "defer while
-        // running", a running Chrome is brought forward to update itself instead.
+        // swap to a newer build does not confuse it. Under the default we install
+        // over a running Chrome and restart it; picking "defer while running"
+        // instead brings it forward to update itself.
         VendorProbeRecipe(
             bundleID: "com.google.Chrome",
             url: URL(string: "https://versionhistory.googleapis.com/v1/chrome/platforms/mac/channels/stable/versions/all/releases?filter=endtime%3Dnone&order_by=version%20desc")!,

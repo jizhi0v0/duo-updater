@@ -1210,7 +1210,7 @@ final class AppListModel {
     /// `chrome://settings/help` makes Keystone check+download) when the recipe
     /// carries one, otherwise just bring the app forward so its built-in updater
     /// (MAU, a daemon, Sparkle) applies the update on its own schedule.
-    func openSelfUpdater(_ result: UpdateResult) {
+    func openSelfUpdater(_ result: UpdateResult, activating: Bool = true) {
         installErrors[result.id] = nil
         if let url = result.remote?.downloadURL, let scheme = url.scheme,
            scheme != "http", scheme != "https" {
@@ -1224,7 +1224,7 @@ final class AppListModel {
             // block the main actor (see `AppRestarter.launchApp`); the note below
             // is what the user actually waits on, and it lands immediately either way.
             let path = result.app.path
-            Task { await AppRestarter.launchApp(path) }
+            Task { await AppRestarter.launchApp(path, activates: activating) }
             installNotes[result.id] =
                 "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly."
         }
@@ -1758,7 +1758,13 @@ final class AppListModel {
         let wasRunningBeforeInstall = isRunning(result)
         if defersToSelfUpdater(result) {
             Log.install.info("install deferred to self-updater: \(result.app.name, privacy: .public) (running, policy=deferWhenRunning)")
-            openSelfUpdater(result)
+            // Don't pull the app forward when this deferral came from Update All.
+            // A single row's Open is something the user just asked for, so the
+            // foreground is what they want; a batch can hit this branch for every
+            // remaining self-updating app in turn — most easily by switching the
+            // policy mid-batch — and activating each one would fight the user for
+            // focus repeatedly.
+            openSelfUpdater(result, activating: !deferBookkeeping)
             installing[id] = nil
             return false
         }
@@ -3037,6 +3043,14 @@ final class AppListModel {
     func installAll() async {
         guard !isInstallingAll, !isScanning, !isChecking, installing.isEmpty else { return }
         refreshPermissionStatus()
+        // The filter below consults `defersToSelfUpdater`, which reads the running
+        // set. That set is only maintained by NSWorkspace launch/terminate
+        // notifications, which this menu-bar app misses while App-Napped — so a
+        // stale "still running" under `.deferWhenRunning` would drop an app from the
+        // batch here, before it ever reaches the live re-check in `performInstall`,
+        // and the result would be no install and no diagnostic. Refresh first so the
+        // pre-filter and the per-install decision are made on the same facts.
+        refreshRunningApps()
         let targets = installAllTargets()
         guard !targets.isEmpty else { return }
         isInstallingAll = true

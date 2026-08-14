@@ -55,9 +55,14 @@ public enum AppStoreUpdateStrategy: String, CaseIterable, Identifiable, Sendable
 ///     only ever happens for dmg/zip apps, where the bundle *is* the product.
 ///   • the artifact is the vendor's own official installer, so this does what a
 ///     user doing it by hand would do.
-///   • the quit is graceful and aborts if the app refuses, and auto-restart is
-///     on by default, so the window where a live process runs beside a replaced
-///     bundle is short.
+///   • the quit is graceful — `terminate()`, never a force-kill, so save prompts
+///     still run — and auto-restart is on by default, so in the normal case the
+///     window where a live process runs beside a replaced bundle is short.
+///     Be precise about the failure case though: the restart happens *after* the
+///     swap, so an app that refuses to quit is left running old code beside a new
+///     bundle until the user relaunches it. Nothing is lost and the row keeps a
+///     Restart button, but the install is not rolled back and never was — there
+///     is no pre-install quit to abort.
 /// `.deferWhenRunning` remains for anyone who would rather we never touch a
 /// running app.
 public enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {

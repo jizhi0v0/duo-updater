@@ -366,6 +366,20 @@ private func storeAvailability(
             expected: false
         ),
         (
+            name: "GitHub source defers while running — those apps self-update too",
+            result: fixtureResult(source: "GitHub", vendorInstallerKind: .dmg),
+            settings: defaultSettings(policy: .deferWhenRunning),
+            environment: environment(running: [fixturePath]),
+            expected: true
+        ),
+        (
+            name: "GitHub source still installs under alwaysOverwrite",
+            result: fixtureResult(source: "GitHub", vendorInstallerKind: .dmg),
+            settings: defaultSettings(policy: .alwaysOverwrite),
+            environment: environment(running: [fixturePath]),
+            expected: false
+        ),
+        (
             name: "defer policy ignores a not-running app",
             result: fixtureResult(source: "Vendor", vendorInstallerKind: .zip),
             settings: defaultSettings(policy: .deferWhenRunning),

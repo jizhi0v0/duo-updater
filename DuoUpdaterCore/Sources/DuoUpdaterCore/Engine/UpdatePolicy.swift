@@ -161,7 +161,20 @@ public enum UpdatePolicy {
             return true
         case "Sparkle":
             return result.app.sparkleFeedURL != nil
+        case "GitHub":
+            // GitHub-sourced apps ship their own updaters just as much as the
+            // vendor-probed ones do — the recipes say so themselves (Zed: "has a
+            // robust built-in updater, so this is a fallback"; Zen: "a Firefox
+            // fork with its own updater"; GitHub Desktop: Squirrel; Ollama:
+            // "ships its own updater"). They were absent from this switch, so
+            // they fell to `default: false` and had their bundles swapped under
+            // them while running even when the user had explicitly asked us not
+            // to — the one thing this setting exists to promise.
+            return true
         default:
+            // Homebrew (auto_updates casks are excluded upstream), App Store and
+            // Toolbox all hand the install to something that manages the app
+            // itself, so there is no bundle of ours to defer.
             return false
         }
     }

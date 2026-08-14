@@ -109,6 +109,33 @@ public enum Install {
             return 0
         }
 
+        // `confirm` blocks on stdin, so the running-app snapshot taken before the
+        // plan was printed may be arbitrarily old by now — and under
+        // `.deferWhenRunning` that is the difference between skipping an app and
+        // replacing the bundle of one the user launched while reading the prompt.
+        // Re-derive and drop anything that would now defer. Only ever removes work,
+        // so a plan the user approved can never grow behind their back.
+        if settings.updateSettings.vendorInstallPolicy == .deferWhenRunning {
+            let live = InstallEnvironment(
+                isHelperEnabled: false,
+                runningAppPaths: Check.runningBundlePaths(),
+                stagedSelfUpdates: [:])
+            let started = plan.filter {
+                UpdatePolicy.defersToSelfUpdater(
+                    $0.result, settings: settings.updateSettings, environment: live)
+            }
+            if !started.isEmpty {
+                for planned in started {
+                    print("Skipping \(planned.result.app.name): started while waiting for confirmation, "
+                          + "and your vendor policy defers to its own updater.")
+                }
+                plan.removeAll { planned in
+                    started.contains { $0.result.app.path == planned.result.app.path }
+                }
+                guard !plan.isEmpty else { return 0 }
+            }
+        }
+
         // One process at a time, machine-wide — the menu-bar app takes the same
         // claim around each of its installs. Refused rather than queued: the
         // holder may be part-way through a 400 MB download, and a CLI that looks

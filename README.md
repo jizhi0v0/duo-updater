@@ -72,9 +72,13 @@ It **respects each app's own update channel**:
 
 ## Install safety
 
-- **Never force-quits** a running app. It quits gracefully (so the app can run
-  its own save prompts) and aborts the install if it won't quit — your unsaved
-  work is never at risk.
+- **Never force-quits** a running app. When an update needs the app restarted to
+  take effect, the quit is a plain `terminate()` — the app runs its own save
+  prompts and can refuse. One that refuses is left running and keeps a
+  **Restart** button, so unsaved work is never at risk from a forced exit. Note
+  the restart happens *after* the new version is on disk, so a refusal leaves an
+  updated bundle beside a process still running the old code until you relaunch
+  it yourself.
 - **Major version upgrades** are gated behind a warning (a commercial app may
   need a new license) instead of a one-click button.
 - **Defensive re-check** before installing, so a stale list never triggers a

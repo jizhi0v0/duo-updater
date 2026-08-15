@@ -63,4 +63,38 @@ struct PackageInstallerTests {
         #expect(first.lastPathComponent.hasPrefix("DuoUpdater-pkg-Example-App-"))
         #expect(second.lastPathComponent.hasPrefix("DuoUpdater-pkg-Example-App-"))
     }
+
+    @Test func discardsOnlyOurOwnScratchDirectories() throws {
+        let fm = FileManager.default
+        let app = URL(fileURLWithPath: "/Applications/Example App.app", isDirectory: true)
+
+        let ours = PackageInstaller.workDirectory(forInstalledApp: app)
+        try fm.createDirectory(at: ours, withIntermediateDirectories: true)
+        let pkg = ours.appendingPathComponent("Example.pkg")
+        try Data("pkg".utf8).write(to: pkg)
+        #expect(PackageInstaller.discardWorkDirectory(containing: pkg))
+        #expect(!fm.fileExists(atPath: ours.path))
+
+        // Wrong name: someone else's temp directory is never removed.
+        let foreign = fm.temporaryDirectory
+            .appendingPathComponent("Other-pkg-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: foreign, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: foreign) }
+        let foreignPkg = foreign.appendingPathComponent("Example.pkg")
+        try Data("pkg".utf8).write(to: foreignPkg)
+        #expect(!PackageInstaller.discardWorkDirectory(containing: foreignPkg))
+        #expect(fm.fileExists(atPath: foreignPkg.path))
+
+        // Right name, wrong place: a persisted path pointing outside the temp
+        // directory must not turn into a recursive delete there.
+        let outside = fm.temporaryDirectory
+            .appendingPathComponent("elsewhere-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("DuoUpdater-pkg-Example-App-x", isDirectory: true)
+        try fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: outside.deletingLastPathComponent()) }
+        let outsidePkg = outside.appendingPathComponent("Example.pkg")
+        try Data("pkg".utf8).write(to: outsidePkg)
+        #expect(!PackageInstaller.discardWorkDirectory(containing: outsidePkg))
+        #expect(fm.fileExists(atPath: outsidePkg.path))
+    }
 }

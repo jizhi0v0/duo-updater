@@ -2263,9 +2263,29 @@ final class AppListModel {
 
     private func recordStagedPackage(_ result: UpdateResult, packageURL: URL) {
         guard let version = result.remote?.displayVersion else { return }
+        let superseded = stagedPackages[result.id]
         stagedPackages[result.id] = StagedPackage(version: version, url: packageURL)
         persistStagedPackages()
         Log.install.info("package staged: \(result.app.name, privacy: .public) \(version, privacy: .public) → \(packageURL.lastPathComponent, privacy: .public)")
+        if let superseded, superseded.url != packageURL {
+            retireSupersededPackage(superseded)
+        }
+    }
+
+    /// A package we staged earlier for this same row is now obsolete: we just opened
+    /// a newer one. Close its Installer window so the two don't pile up (a pkg update
+    /// waits on the user, so an ignored one stays on screen indefinitely), and only
+    /// then delete its download — while the window is open, Installer is still
+    /// reading the file.
+    ///
+    /// Everything here is best-effort and off the install path: without Accessibility
+    /// trust, or when the window is busy installing, we simply leave both alone and
+    /// the 24-hour sweep reclaims the disk.
+    private func retireSupersededPackage(_ superseded: StagedPackage) {
+        Task {
+            guard await InstallerWindowCloser.closeWindow(showing: superseded.url) else { return }
+            PackageInstaller.discardWorkDirectory(containing: superseded.url)
+        }
     }
 
     private func persistStagedPackages() {

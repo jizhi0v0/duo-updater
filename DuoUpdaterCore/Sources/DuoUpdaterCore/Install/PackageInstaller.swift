@@ -211,6 +211,34 @@ public actor PackageInstaller {
         }
     }
 
+    /// Drop the scratch directory holding `package`, ahead of the 24-hour sweep.
+    ///
+    /// Only for a package nothing is reading any more — the caller must have
+    /// confirmed the Installer window for it is closed (`InstallerWindowCloser`).
+    /// Pulling the file out from under an open Installer window breaks the install
+    /// in progress, so this is deliberately not called on a best-effort basis.
+    ///
+    /// Refuses anything that isn't one of our own `DuoUpdater-pkg-…` directories
+    /// under the temp directory: the path travels through preferences, and a
+    /// recursive delete driven by persisted state gets a hard shape check.
+    @discardableResult
+    public static func discardWorkDirectory(containing package: URL) -> Bool {
+        let fm = FileManager.default
+        let dir = package.deletingLastPathComponent().standardizedFileURL
+        guard dir.lastPathComponent.hasPrefix("DuoUpdater-pkg-") else { return false }
+        let tempBase = fm.temporaryDirectory.resolvingSymlinksInPath()
+            .standardizedFileURL.path
+        let parent = dir.deletingLastPathComponent().resolvingSymlinksInPath()
+            .standardizedFileURL.path
+        guard parent == tempBase else { return false }
+        do {
+            try fm.removeItem(at: dir)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private static func safePathComponent(_ raw: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
         let scalars = raw.unicodeScalars.map { allowed.contains($0) ? Character($0) : "-" }

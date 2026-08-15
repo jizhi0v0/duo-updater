@@ -7,6 +7,10 @@ release and the Sparkle appcast, so this file is the single source of truth for
 
 ## Unreleased
 
+**44 more apps now report their updates.** Apps that publish on GitHub but ship no update feed of their own used to sit in the list as a grey "unknown" — DuoUpdater could see them installed and had nothing to say about them. Bruno, UTM, kitty, KeePassXC, Godot, Bitwarden, VSCodium, draw.io, Podman Desktop, Anki, Raspberry Pi Imager, LuLu, MarkEdit, Clash Verge, Freelens, Tabby, Espanso, Moonlight, SwiftBar, Sequel Ace, balenaEtcher, DB Browser for SQLite, OpenLens, Headlamp, OpenMTP, Goose, Caffeine, noTunes, KeepingYouAwake, MiddleClick and a dozen more now show a real version, and 36 of them install with one click like any other app. Which ones was decided by downloading each vendor's actual build and reading the identity out of it, so a one-click only appears where the download is signed by the same developer as the copy you already have. Seven — Alacritty, Flameshot, MarkText, darktable, OWASP ZAP, BlueBubbles and Wine — publish builds Apple hasn't notarised, so those report their version and send you to the vendor rather than installing anything.
+
+Apps that already carry a Sparkle feed needed nothing: they were checked as part of this sweep and were already working, which is why names like Rectangle, Maccy, iTerm2 and Telegram aren't in the list above.
+
 **An unanswered permission prompt no longer leaves the update check hanging.** To tell a TestFlight build apart from an App Store one, DuoUpdater reads TestFlight's own database, and macOS keeps that behind the "access data from other apps" permission. Until that was answered the read didn't fail — it waited, indefinitely, for a prompt that might be sitting behind another window or might never be answered at all, and the scan behind it simply never finished. Nothing timed out and nothing said why. It now waits a few seconds and then carries on without TestFlight's side of the story; the only thing missing in the meantime is whether those particular apps came from TestFlight, and it sorts itself out on the next scan once the permission is granted.
 
 ## 0.3.22

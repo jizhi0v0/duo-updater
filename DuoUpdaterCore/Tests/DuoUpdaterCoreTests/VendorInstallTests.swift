@@ -141,10 +141,30 @@ import CryptoKit
     let orphaned = have.subtracting(needed).map(\.description).sorted()
     #expect(unproven.isEmpty, "channel recipes with an install spec but no ChannelProof: \(unproven)")
     #expect(orphaned.isEmpty, "ChannelProof entries for recipes that no longer carry a channel install spec: \(orphaned)")
-    // A duplicate (bundleID, channel) is an unreachable recipe: `latestVersion`
-    // takes the FIRST match for the app's channel, so the second copy never runs.
-    let keys = VendorProbeRegistry.recipes.map { ChannelProofKey($0.bundleID, $0.channel) }
-    #expect(Set(keys).count == keys.count, "duplicate (bundleID, channel) in the registry")
+    // A duplicate (bundleID, channel) used to mean an unreachable recipe, because
+    // `latestVersion` took the FIRST match for the app's channel. It now probes
+    // every match and answers with the highest (`VendorProbeSource.best`), so a
+    // duplicate is legal — but only when it is deliberate. The `variant` is that
+    // declaration: it also splits the two recipes' `recipeID`s, without which they
+    // would share one verify baseline entry and one issue history.
+    let grouped = Dictionary(grouping: VendorProbeRegistry.recipes) {
+        ChannelProofKey($0.bundleID, $0.channel)
+    }
+    for (key, group) in grouped where group.count > 1 {
+        #expect(
+            group.allSatisfy { $0.variant != nil },
+            "\(key.description) has \(group.count) recipes; each needs a `variant`, else it is an accidental duplicate that doubles the requests and shares a baseline key")
+        #expect(
+            Set(group.map(\.recipeID)).count == group.count,
+            "\(key.description) has recipes with the same variant")
+        // `best(of:)` ranks one string per outcome, and `versionIsBuild` decides
+        // whether that string is a build or a marketing version. Mixing the two
+        // within a channel would compare e.g. 26053122 against 16.109.3 — the
+        // phantom-update bug `versionIsBuild` exists to prevent.
+        #expect(
+            Set(group.map(\.versionIsBuild)).count == 1,
+            "\(key.description) mixes versionIsBuild across endpoints that get compared")
+    }
 }
 
 /// The install half of a vendor probe must stay OFF for a Toolbox-managed copy.

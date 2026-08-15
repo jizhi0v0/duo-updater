@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## Unreleased
+
+**An unanswered permission prompt no longer leaves the update check hanging.** To tell a TestFlight build apart from an App Store one, DuoUpdater reads TestFlight's own database, and macOS keeps that behind the "access data from other apps" permission. Until that was answered the read didn't fail — it waited, indefinitely, for a prompt that might be sitting behind another window or might never be answered at all, and the scan behind it simply never finished. Nothing timed out and nothing said why. It now waits a few seconds and then carries on without TestFlight's side of the story; the only thing missing in the meantime is whether those particular apps came from TestFlight, and it sorts itself out on the next scan once the permission is granted.
+
 ## 0.3.22
 
 **Claude's updates now show up while they're still rolling out.** Anthropic releases Claude in stages: a build goes to a fraction of Macs at a time, and the public download page only catches up at the end. DuoUpdater was reading that public page, so for the whole of a rollout — most of a day, in the case of 1.30096.5 — it told you Claude was up to date while Claude itself had already quietly downloaded the new version and was waiting for a relaunch. It now also asks the same endpoint Claude's own updater asks, which answers for *your* Mac specifically, and offers whichever of the two is further ahead. Nothing about which build you're offered has changed: it is either the public release or the one your Mac was already allocated. Claude also gains real publication times, so its releases now appear in the Release Log with the moment Anthropic shipped them rather than an estimate.

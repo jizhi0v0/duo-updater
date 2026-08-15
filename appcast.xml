@@ -17,6 +17,20 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.22</title>
+            <pubDate>Sat, 15 Aug 2026 13:45:05 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.22</link>
+            <sparkle:version>32</sparkle:version>
+            <sparkle:shortVersionString>0.3.22</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Claude's updates now show up while they're still rolling out.** Anthropic releases Claude in stages: a build goes to a fraction of Macs at a time, and the public download page only catches up at the end. DuoUpdater was reading that public page, so for the whole of a rollout — most of a day, in the case of 1.30096.5 — it told you Claude was up to date while Claude itself had already quietly downloaded the new version and was waiting for a relaunch. It now also asks the same endpoint Claude's own updater asks, which answers for *your* Mac specifically, and offers whichever of the two is further ahead. Nothing about which build you're offered has changed: it is either the public release or the one your Mac was already allocated. Claude also gains real publication times, so its releases now appear in the Release Log with the moment Anthropic shipped them rather than an estimate.
+
+**A superseded package update no longer leaves its window sitting there.** Updates that go through macOS's own installer — Microsoft Office, AweSun, ToDesk — open an Installer window and then wait for you. If you left one open and a newer release came along, installing that one opened a second window, and they stacked up. The older window is now closed once its replacement is ready, and its download cleaned up with it. A window that's mid-install, or asking for your password, is left strictly alone.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.22/DuoUpdater-0.3.22-macos.zip" length="10374848" type="application/octet-stream" sparkle:edSignature="tymn7ipTAEQPF/I82ecC2QdzhOuTBMfmKtCJ5FeXol4fP5edXZ+xq6z0gomYfs2X5FalnUnvq7I+9sg5yX/ODQ=="/>
+        </item>
+        <item>
             <title>0.3.21</title>
             <pubDate>Fri, 14 Aug 2026 20:21:02 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.21</link>

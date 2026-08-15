@@ -622,5 +622,543 @@ public enum GitHubReleaseRegistry {
             owner: "ollama", repo: "ollama",
             installAssetPattern: #"^Ollama-darwin\.zip$"#,
             installerKind: .zip),
+
+        // MARK: - 2026-08-16 coverage batch
+        //
+        // Candidates came from the Homebrew 365-day cask install ranking crossed
+        // against this registry, then triaged by DOWNLOADING each real artifact,
+        // mounting it read-only and reading its Info.plist + `codesign`/`spctl`.
+        // (The sweep's raw evidence lives outside the repo — `docs/` is gitignored —
+        // so each rule below carries its own findings inline instead of citing it.)
+        // Every rule below therefore states a bundle id, Team ID and notarization
+        // status read off the very asset its `installAssetPattern` selects — not off
+        // the vendor's download page. Apps that turned out to ship a usable
+        // `SUFeedURL` are deliberately absent: `SparkleAppcastSource` already covers
+        // them with no rule at all.
+        //
+        // One shared caveat, repeated on the two rules it reaches. When an app's
+        // `CFBundleShortVersionString` has no patch component AND its
+        // `CFBundleVersion` is a small dotless counter, `UpdateChecker.evaluate`'s
+        // "the vendor folded the build into the version" fallback rebuilds the
+        // installed side as short + "." + build — "3.5" + "1" = "3.5.1" — and can
+        // read a genuine x.y.1 release as already installed. Of the artifacts
+        // inspected for this batch only Anki and noTunes have that shape. The others
+        // are safe for one of two DIFFERENT reasons, worth keeping straight: a dotted
+        // `CFBundleVersion` skips the fallback outright (that is the only thing the
+        // guard tests), while a three-component short version still RUNS it — the
+        // rebuilt string is simply four components, which is very unlikely to match
+        // a real release. The second group is practically safe, not structurally
+        // immune: four-component versions do exist in this batch (OpenLens reports
+        // 6.5.2-366), and there it is the dotted build that keeps it off this path.
+
+        // CC Switch — Claude Code / Codex profile switcher, no Sparkle, ships one
+        // macOS dmg per release (`CC-Switch-v<ver>-macOS.dmg`, beside a .zip and a
+        // .tar.gz of the same build). Tags are `vX.Y.Z` → default pattern. One-click:
+        // that dmg's `CC Switch.app` is com.ccswitch.desktop, Team R8UR22V2F9,
+        // notarized — same identity as the install, so the swap passes the gate.
+        GitHubReleaseRule(
+            bundleID: "com.ccswitch.desktop",
+            owner: "farion1231", repo: "cc-switch",
+            installAssetPattern: #"^CC-Switch-v[0-9.]+-macOS\.dmg$"#,
+            installerKind: .dmg),
+
+        // Bruno — API client, Electron, no Sparkle. Each release ships BOTH
+        // `bruno_<ver>_arm64_mac.dmg` and `bruno_<ver>_x64_mac.dmg`, so the pattern
+        // pins arm64 rather than relying on ordering. One-click verified: the arm64
+        // dmg holds com.usebruno.app, Team W7LPPWA48L, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.usebruno.app",
+            owner: "usebruno", repo: "bruno",
+            installAssetPattern: #"^bruno_[0-9.]+_arm64_mac\.dmg$"#,
+            installerKind: .dmg),
+
+        // LocalSend — detection only, on purpose. The newest release (v1.18.1)
+        // carries ONLY Android artifacts (four .apk files); the macOS dmg was last
+        // attached to v1.18.0, so there is no dmg on the tag we read and no install
+        // URL to resolve. Detection is still right (tag → 1.18.1 vs the installed
+        // 1.18.0), so we surface the version and link out. Revisit the one-click when
+        // upstream attaches a macOS dmg to the tag it marks latest — not merely when
+        // it attaches assets. (The v1.18.0 dmg is org.localsend.localsendApp,
+        // Team 3W7H4PYMCV, notarized — the gate would pass, the URL is what's missing.)
+        GitHubReleaseRule(
+            bundleID: "org.localsend.localsendApp",
+            owner: "localsend", repo: "localsend"),
+
+        // UTM — virtualiser. The repo publishes v5.x as PRERELEASES while stable
+        // sits at v4.7.5, so `usePrereleases` stays false: `/releases/latest` is
+        // exactly the stable train, and a v5 prerelease can never be pushed at a
+        // stable install. The asset name is constant (`UTM.dmg`, universal).
+        // One-click: com.utmapp.UTM, Team WDNLXAD4W8, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.utmapp.UTM",
+            owner: "utmapp", repo: "UTM",
+            installAssetPattern: #"^UTM\.dmg$"#,
+            installerKind: .dmg),
+
+        // kitty — terminal. The repo carries a rolling `nightly` prerelease tag, so
+        // again `/releases/latest` (not the list) is what keeps a stable install on
+        // stable. One dmg per release, `kitty-<ver>.dmg`, universal.
+        // One-click: net.kovidgoyal.kitty, Team NTY7FVCEKP, notarized.
+        GitHubReleaseRule(
+            bundleID: "net.kovidgoyal.kitty",
+            owner: "kovidgoyal", repo: "kitty",
+            installAssetPattern: #"^kitty-[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+
+        // DB Browser for SQLite — the repo also publishes rolling `nightly` and
+        // `continuous` prereleases, both excluded by `/releases/latest`. The release
+        // carries Windows/Linux artifacts too, so the pattern anchors the single
+        // macOS dmg and, importantly, the `SQLite` product: a `…for.SQLCipher…dmg`
+        // (a different app) ships from the same builds.
+        // One-click: net.sourceforge.sqlitebrowser, Team C34AV33YLK, notarized.
+        GitHubReleaseRule(
+            bundleID: "net.sourceforge.sqlitebrowser",
+            owner: "sqlitebrowser", repo: "sqlitebrowser",
+            installAssetPattern: #"^DB\.Browser\.for\.SQLite-v[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+
+        // draw.io desktop — each release ships arm64/x64/universal dmgs, arm64 and
+        // x64 zips and a Windows zip; the pattern pins the arm64 dmg (the universal
+        // one is 100 MB larger for no benefit here). One-click: com.jgraph.drawio.desktop,
+        // Team UZEUFB4N53, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.jgraph.drawio.desktop",
+            owner: "jgraph", repo: "drawio-desktop",
+            installAssetPattern: #"^draw\.io-arm64-[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+
+        // Podman Desktop — the release also carries `podman-desktop-airgap-<ver>-
+        // arm64.dmg`, a 1.1 GB bundle-everything build. The `^podman-desktop-<ver>-`
+        // anchor keeps the airgap variant out; without it a substring match would
+        // hand the user a gigabyte download for the same app.
+        // One-click: io.podmandesktop.PodmanDesktop, Team HYSCB8KRL2, notarized.
+        GitHubReleaseRule(
+            bundleID: "io.podmandesktop.PodmanDesktop",
+            owner: "containers", repo: "podman-desktop",
+            installAssetPattern: #"^podman-desktop-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Bitwarden — the ONLY rule here that can't read `/releases/latest`: the
+        // monorepo tags every client, and the newest release is usually `web-…` or
+        // `cli-…`, not the desktop app (on 2026-08-16 `/releases/latest` was
+        // `web-v2026.7.1` while the desktop app sat at `desktop-v2026.7.0`). Reading
+        // the list and taking the first tag matching `desktop-v` is what keeps the
+        // desktop version from tracking the web client's. The `$` anchor is
+        // defensive rather than observed: every `desktop-v` tag in the newest 100
+        // releases is bare and non-prerelease, and the anchor keeps a future
+        // suffixed one (a release candidate, say) from reading as stable.
+        //
+        // Depends on a window the rule doesn't control: the list request is one page
+        // (`per_page=20`, set by the source above, not by the rule). Measured over
+        // the newest 100
+        // releases, consecutive `desktop-v` tags are at most 7 apart, so the desktop
+        // tag sits well inside that page today — but a long burst of web/cli/browser
+        // releases would push it off the page, and the rule would then resolve
+        // nothing, which surfaces as the row going quiet rather than as an error.
+        //
+        // One-click: the universal dmg is com.bitwarden.desktop, Team LTZ2PFU5D6,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "com.bitwarden.desktop",
+            owner: "bitwarden", repo: "clients",
+            usePrereleases: true,
+            versionPattern: #"desktop-v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Bitwarden-[0-9.]+-universal\.dmg$"#,
+            installerKind: .dmg),
+
+        // VSCodium — VS Code without the Microsoft build. Tags are bare
+        // `1.126.04524` (the trailing group is VSCodium's own build stamp and IS
+        // part of the installed CFBundleShortVersionString, so the default pattern's
+        // multi-dot capture keeps it). The release carries every platform plus a
+        // `vscodium-cli-darwin-arm64-…tar.gz`; the pattern picks the app zip.
+        // One-click: com.vscodium, Team VC39D2VNQ7, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.vscodium",
+            owner: "VSCodium", repo: "vscodium",
+            installAssetPattern: #"^VSCodium-darwin-arm64-[0-9.]+\.zip$"#,
+            installerKind: .zip),
+
+        // balenaEtcher — an arm64 and an x64 dmg ship together (plus darwin zips of
+        // the same builds), so the pattern pins the arm64 dmg.
+        // One-click: io.balena.etcher, Team 66H43P8FRG, notarized.
+        GitHubReleaseRule(
+            bundleID: "io.balena.etcher",
+            owner: "balena-io", repo: "etcher",
+            installAssetPattern: #"^balenaEtcher-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Caffeine — one constant `Caffeine.dmg` per release, tags are bare `1.1.4`.
+        // One-click: com.intelliscapesolutions.caffeine, Team YD6LEYT6WZ, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.intelliscapesolutions.caffeine",
+            owner: "IntelliScape", repo: "caffeine",
+            installAssetPattern: #"^Caffeine\.dmg$"#,
+            installerKind: .dmg),
+
+        // Godot — tags are `4.7.1-stable` (and `4.7-stable` for a .0 release), which
+        // the default pattern reduces to what the app reports. The release is a wall
+        // of platform artifacts; the pattern must exclude `…_mono_macos.universal.zip`,
+        // the .NET-enabled build, which is a DIFFERENT distribution of the same
+        // bundle id — installing it over a plain install would silently switch the
+        // user's editor flavour. One-click: org.godotengine.godot, Team 6K46PWY5DM,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "org.godotengine.godot",
+            owner: "godotengine", repo: "godot",
+            installAssetPattern: #"^Godot_v[0-9.]+-stable_macos\.universal\.zip$"#,
+            installerKind: .zip),
+
+        // KeePassXC — arm64 and x86_64 dmgs ship together; pin arm64. Patch respins
+        // append a revision to the FILENAME but not the tag (`KeePassXC-2.7.11-1-
+        // arm64.dmg` under tag `2.7.11`), so the version part of the pattern stays
+        // loose while the arch stays anchored.
+        //
+        // Caveat, stated plainly because the tests cannot close it: a respun release
+        // keeps BOTH files (tag 2.7.11 ships `-2.7.11-1-arm64.dmg` AND
+        // `-2.7.11-arm64.dmg`), so the pattern matches more than one asset and
+        // `installableAsset` — first arch-native match wins — is settled by whatever
+        // order GitHub happens to return. That order is undocumented (the Releases
+        // API states no sort for assets); what this repo's listings actually show,
+        // observed 2026-08-16, is case-insensitive by filename — `keepassxc-2.7.12-
+        // src.tar.xz` comes back ahead of `KeePassXC-2.7.12-Win64…`, which plain
+        // byte order could never produce. Under both that order and byte order the
+        // digit sorts ahead of a letter, so `-1-` comes before the plain name and the
+        // respin is what installs — which is what we want, but by observation, not by
+        // contract. The same ordering means a SECOND respin would LOSE: `-1-` also
+        // sorts before `-2-`, so `-2` would be passed over.
+        // `keepassxcRespinIsTheAssetSelected` pins the selection semantics on the
+        // real 2.7.11 asset list and records the `-2` case as a known issue, so the
+        // gap stays visible instead of looking closed. The blast radius is small and
+        // bounded: every candidate is the same version, same Team G2S7P7J672 and
+        // notarized, so the worst case is a superseded packaging of the version the
+        // user was going to get anyway — never a cross-train swap.
+        // One-click: org.keepassxc.keepassxc, Team G2S7P7J672, notarized.
+        GitHubReleaseRule(
+            bundleID: "org.keepassxc.keepassxc",
+            owner: "keepassxreboot", repo: "keepassxc",
+            installAssetPattern: #"^KeePassXC-[0-9.\-]+-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Sequel Ace — tags are `production/5.4.0-20109` (marketing version plus the
+        // build number); the default pattern's first match is the marketing version,
+        // which is what the app reports. `beta/…` tags and some respun `production/…`
+        // tags are published as prereleases, so `/releases/latest` is what keeps a
+        // stable install on the production train.
+        // One-click: com.sequel-ace.sequel-ace, Team NKQ4HJ66PX, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.sequel-ace.sequel-ace",
+            owner: "Sequel-Ace", repo: "Sequel-Ace",
+            installAssetPattern: #"^Sequel-Ace-[0-9.]+\.zip$"#,
+            installerKind: .zip),
+
+        // SwiftBar — the newest release is often a beta prerelease (`v2.1.2-beta-3`),
+        // so `/releases/latest` is what pins the rule to stable. The asset carries
+        // the build number (`SwiftBar.v2.1.1.b597.zip`) that the tag doesn't, so the
+        // pattern matches the version-plus-build shape rather than the tag.
+        // One-click: com.ameba.SwiftBar, Team X93LWC49WV, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.ameba.SwiftBar",
+            owner: "swiftbar", repo: "SwiftBar",
+            installAssetPattern: #"^SwiftBar\.v[0-9.]+\.b[0-9]+\.zip$"#,
+            installerKind: .zip),
+
+        // OpenMTP — Android file transfer. arm64/x64 dmgs and zips of the same build
+        // ship together; pin the arm64 dmg.
+        // One-click: io.ganeshrvel.openmtp, Team 6UR4H85SA2, notarized.
+        GitHubReleaseRule(
+            bundleID: "io.ganeshrvel.openmtp",
+            owner: "ganeshrvel", repo: "openmtp",
+            installAssetPattern: #"^openmtp-[0-9.]+-mac-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Headlamp — the repo interleaves `headlamp-helm-<ver>` and
+        // `headlamp-plugin-<ver>` tags with the app's own `v<ver>`, and those chart
+        // releases can be published after the app's, which would make GitHub's
+        // "latest" a chart. Reading the LIST and anchoring `^v…$` takes the newest
+        // APP tag instead. (No prereleases in this repo, so the list can't hand back
+        // a preview build.) One-click: com.microsoft.Headlamp, Team 5N2JF58U87,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "com.microsoft.Headlamp",
+            owner: "headlamp-k8s", repo: "headlamp",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Headlamp-[0-9.]+-mac-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // LuLu — Objective-See's firewall. One universal dmg per release,
+        // `LuLu_<ver>.dmg`. One-click: com.objective-see.lulu.app, Team VBG97UB4TA,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "com.objective-see.lulu.app",
+            owner: "objective-see", repo: "LuLu",
+            installAssetPattern: #"^LuLu_[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+
+        // noTunes — tags are `vX.Y` (two components), which the default pattern
+        // handles. One-click: digital.twisted.noTunes, Team JP6WW46Y42, notarized.
+        //
+        // Carries the same latent shape as Anki (see the batch header): the app
+        // reports `CFBundleShortVersionString` 3.5 with `CFBundleVersion` 1, so if
+        // upstream ever tags a three-component `v3.5.1`, `evaluate`'s folded-build
+        // fallback would rebuild the installed side as "3.5.1" and call it current.
+        // Not reachable today — every tag this repo has published (v1.0 through
+        // v3.5) is two-component — but it is the same trap, not a different one.
+        GitHubReleaseRule(
+            bundleID: "digital.twisted.noTunes",
+            owner: "tombonez", repo: "noTunes",
+            installAssetPattern: #"^noTunes-[0-9.]+\.zip$"#,
+            installerKind: .zip),
+
+        // MarkEdit — ships an Apple-silicon dmg beside a universal one, plus
+        // `UpdateArchive*.zip` payloads for its own updater. The pattern takes the
+        // apple-silicon dmg; matching `UpdateArchive.zip` would hand the installer
+        // an artifact meant for a different install path.
+        // One-click: app.cyan.markedit, Team TCKG8FBVG6, notarized.
+        GitHubReleaseRule(
+            bundleID: "app.cyan.markedit",
+            owner: "MarkEdit-app", repo: "MarkEdit",
+            installAssetPattern: #"^MarkEdit-[0-9.]+-apple-silicon\.dmg$"#,
+            installerKind: .dmg),
+
+        // Clash Verge Rev — aarch64 and x64 dmgs ship together; pin aarch64.
+        // One-click: io.github.clash-verge-rev.clash-verge-rev, Team JPH3Z7PPBB,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "io.github.clash-verge-rev.clash-verge-rev",
+            owner: "clash-verge-rev", repo: "clash-verge-rev",
+            installAssetPattern: #"^Clash\.Verge_[0-9.]+_aarch64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Freelens — the OpenLens fork. `-macos-amd64` and `-macos-arm64` dmgs ship
+        // together; pin arm64. One-click: app.freelens.Freelens, Team TFR6NT55MB,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "app.freelens.Freelens",
+            owner: "freelensapp", repo: "freelens",
+            installAssetPattern: #"^Freelens-[0-9.]+-macos-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // KeepingYouAwake — tags are bare `1.6.8`, one zip per release.
+        // One-click: info.marcel-dierkes.KeepingYouAwake, Team 5KESHV9W85, notarized.
+        GitHubReleaseRule(
+            bundleID: "info.marcel-dierkes.KeepingYouAwake",
+            owner: "newmarcel", repo: "KeepingYouAwake",
+            installAssetPattern: #"^KeepingYouAwake-[0-9.]+\.zip$"#,
+            installerKind: .zip),
+
+        // Espanso — text expander. The macOS asset name carries NO version
+        // (`Espanso-Mac-Universal.dmg`), so the pattern is a literal. Older releases
+        // shipped the same name as a .zip; if upstream flips back, the install URL
+        // simply resolves nothing (a warning) instead of grabbing a wrong artifact.
+        // One-click: com.federicoterzi.espanso, Team 6424323YUH, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.federicoterzi.espanso",
+            owner: "espanso", repo: "espanso",
+            installAssetPattern: #"^Espanso-Mac-Universal\.dmg$"#,
+            installerKind: .dmg),
+
+        // Tabby — terminal. macOS arm64/x86_64 dmgs and zips plus "portable" zips
+        // ship together; pin the arm64 dmg.
+        // One-click: org.tabby, Team V4JSMC46SY, notarized.
+        GitHubReleaseRule(
+            bundleID: "org.tabby",
+            owner: "Eugeny", repo: "tabby",
+            installAssetPattern: #"^tabby-[0-9.]+-macos-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Moonlight — game streaming client. The release also carries
+        // `Moonlight-SteamLink-<ver>.zip` and `MoonlightPortable-*` builds, which are
+        // different targets; the `^Moonlight-<ver>.dmg$` anchor takes only the Mac app.
+        // One-click: com.moonlight-stream.Moonlight, Team 45U78722YL, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.moonlight-stream.Moonlight",
+            owner: "moonlight-stream", repo: "moonlight-qt",
+            installAssetPattern: #"^Moonlight-[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+
+        // Handy — aarch64 and x64 dmgs ship together; pin aarch64.
+        // One-click: com.pais.handy, Team UWFLB4GC25, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.pais.handy",
+            owner: "cjpais", repo: "Handy",
+            installAssetPattern: #"^Handy_[0-9.]+_aarch64\.dmg$"#,
+            installerKind: .dmg),
+
+        // battery — CLI-plus-menu-bar battery limiter. Recent releases ship an
+        // arm64 dmg and zip; pin the dmg.
+        // One-click: co.palokaj.battery, Team CAWM399GFD, notarized.
+        GitHubReleaseRule(
+            bundleID: "co.palokaj.battery",
+            owner: "actuallymentor", repo: "battery",
+            installAssetPattern: #"^battery-[0-9.]+-mac-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Another Redis Desktop Manager — mac arm64/x64 dmgs plus Windows/Linux
+        // artifacts; pin the mac arm64 dmg.
+        // One-click: me.qii404.another-redis-desktop-manager, Team 68JN8DV835,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "me.qii404.another-redis-desktop-manager",
+            owner: "qishibo", repo: "AnotherRedisDesktopManager",
+            installAssetPattern: #"^Another-Redis-Desktop-Manager-mac-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Goose (block/goose) — the desktop app ships as `Goose.zip`; the
+        // `goose-*-apple-darwin.tar.gz` assets beside it are the CLI, and
+        // `goose-source-*.zip` is a source drop, so the literal name is the anchor.
+        // One-click: com.electron.goose, Team 5N2JF58U87, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.electron.goose",
+            owner: "block", repo: "goose",
+            installAssetPattern: #"^Goose\.zip$"#,
+            installerKind: .zip),
+
+        // PureMac — a dmg and a zip of the same build ship together; take the dmg.
+        // One-click: com.puremac.app, Team H3WXHVTP97, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.puremac.app",
+            owner: "momenbasel", repo: "PureMac",
+            installAssetPattern: #"^PureMac-[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+
+        // MiddleClick — the asset name carries no version (`MiddleClick.zip`).
+        // One-click: art.ginzburg.MiddleClick, Team R2294BC6J8, notarized.
+        GitHubReleaseRule(
+            bundleID: "art.ginzburg.MiddleClick",
+            owner: "artginzburg", repo: "MiddleClick",
+            installAssetPattern: #"^MiddleClick\.zip$"#,
+            installerKind: .zip),
+
+        // UnnaturalScrollWheels — bare tags, one dmg per release.
+        // One-click: com.theron.UnnaturalScrollWheels, Team VH8UL6UKQL, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.theron.UnnaturalScrollWheels",
+            owner: "ther0n", repo: "UnnaturalScrollWheels",
+            installAssetPattern: #"^UnnaturalScrollWheels-[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+
+        // Anki — tags are date-shaped with a zero-padded month (`26.08.1`) while the
+        // app reports `26.8.1`. That is NOT a mismatch for us: `VersionComparator`
+        // compares digit runs numerically, so 08 == 8 and the two read as the same
+        // version — no phantom update. Apple-silicon and Intel dmgs ship together.
+        //
+        // KNOWN GAP (verified on this machine 2026-08-16, not a rule bug): Anki
+        // stamps `CFBundleVersion` as a literal "1" for every build. When the
+        // installed short version has no patch component (26.08 → app reports
+        // "26.8"), `UpdateChecker.evaluate`'s "vendor folded the build into the
+        // version" fallback rebuilds it as "26.8" + "1" = "26.8.1" and concludes the
+        // app is already current — hiding exactly the x.y → x.y.1 patch. Every other
+        // step (26.8.1 → 26.9) reports normally. Fixing it means tightening that
+        // fallback (it exists for Oray-style 5-digit builds), which is a change to
+        // shared logic, not to this rule.
+        // One-click: net.ankiweb.anki, Team ZL66D3NMZM, notarized.
+        GitHubReleaseRule(
+            bundleID: "net.ankiweb.anki",
+            owner: "ankitects", repo: "anki",
+            installAssetPattern: #"^anki-[0-9.]+-mac-apple\.dmg$"#,
+            installerKind: .dmg),
+
+        // Raspberry Pi Imager — the ONE app here whose own
+        // `CFBundleShortVersionString` keeps the `v` (`v2.0.11`), so the pattern
+        // captures the `v` too; stripping it (the default) would leave every
+        // comparison against a string the app never reports. `-rc` tags are
+        // published as prereleases, and `/releases/latest` skips them.
+        // One-click: com.raspberrypi.rpi-imager, Team 8RDZTRXE62, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.raspberrypi.rpi-imager",
+            owner: "raspberrypi", repo: "rpi-imager",
+            versionPattern: #"^(v[0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^rpi-imager-v[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+
+        // OpenLens — the build number after the dash IS part of the installed
+        // version (`6.5.2-366`), so the pattern captures it; the default would stop
+        // at 6.5.2 and read every release as a downgrade. arm64 dmg out of the four
+        // macOS artifacts. One-click: com.electron.open-lens, Team HGC72W36QJ,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "com.electron.open-lens",
+            owner: "MuhammedKalkan", repo: "OpenLens",
+            versionPattern: #"v([0-9]+(?:\.[0-9]+)+-[0-9]+)"#,
+            installAssetPattern: #"^OpenLens-[0-9.\-]+-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // MARK: Detection-only — the published build can't pass the install gate
+        //
+        // Each of these resolves a correct version, but its macOS artifact is NOT a
+        // notarized Developer ID build (ad-hoc signed or unsigned), so
+        // `VendorInstaller` would refuse the swap anyway. Leaving
+        // `installAssetPattern` nil states that up front: we surface the version and
+        // send the user to the releases page. Verified 2026-08-16 by running
+        // `codesign`/`spctl` on the downloaded artifact.
+
+        // Alacritty — ad-hoc signed, no Team ID.
+        GitHubReleaseRule(
+            bundleID: "org.alacritty",
+            owner: "alacritty", repo: "alacritty"),
+
+        // Flameshot — ad-hoc signed, no Team ID.
+        GitHubReleaseRule(
+            bundleID: "org.flameshot.Flameshot",
+            owner: "flameshot-org", repo: "flameshot"),
+
+        // MarkText — ad-hoc signed, no Team ID.
+        GitHubReleaseRule(
+            bundleID: "com.github.marktext.marktext",
+            owner: "marktext", repo: "marktext"),
+
+        // darktable — ad-hoc signed. Tags are `release-5.6.0`; the default pattern
+        // takes the version out of them.
+        GitHubReleaseRule(
+            bundleID: "org.darktable",
+            owner: "darktable-org", repo: "darktable"),
+
+        // OWASP ZAP — unsigned.
+        GitHubReleaseRule(
+            bundleID: "org.zaproxy.zap.ZAP",
+            owner: "zaproxy", repo: "zaproxy"),
+
+        // BlueBubbles server — Developer ID signed (Team WPV275H8W7) but NOT
+        // notarized, so the gate rejects it.
+        GitHubReleaseRule(
+            bundleID: "com.BlueBubbles.BlueBubbles-Server",
+            owner: "BlueBubblesApp", repo: "bluebubbles-server"),
+
+        // Wine (staging) — Gcenx's macOS builds are unsigned, and ship as `.tar.xz`,
+        // which the installer doesn't unpack. Detection only. Each release tags one
+        // upstream version and carries BOTH a `wine-devel-` and a `wine-staging-`
+        // tarball, so this rule is safe for the staging bundle id — see the note
+        // below for why the stable bundle id gets no rule.
+        GitHubReleaseRule(
+            bundleID: "org.winehq.wine-staging.wine",
+            owner: "Gcenx", repo: "macOS_Wine_builds"),
+
+        // Deliberately NOT covered — Wine (stable), `org.winehq.wine-stable.wine`.
+        // The same repo's releases are the devel/staging train (11.15 on
+        // 2026-08-16) while a stable install sits on its own much older line
+        // (11.0_1). A rule keyed on `/releases/latest` would tell every stable user
+        // that a devel build is their update. Distinguishing the trains needs
+        // per-asset filtering (`wine-stable-*`), which a release rule can't express.
+
+        // Deliberately NOT covered — WezTerm (`com.github.wez.wezterm`). Its
+        // Info.plist reports a placeholder `0.1.0` for every build while releases are
+        // tagged by timestamp (`20240203-110809-5046fc22`). There is no pair of
+        // strings to compare, so any rule here would either be silent or permanently
+        // claim an update.
+
+        // Deliberately NOT covered — Maestro (`com.maestro.app`). The repo's recent
+        // releases are all `cli-<ver>` (the CLI, now at 2.x) while the desktop app's
+        // last `v<ver>` tag is 0.17.3 and no longer appears in the newest 60
+        // releases. `/releases/latest` today resolves to `cli-2.8.0`, so a rule keyed
+        // on this repo would report the CLI's version as the app's. Revisit if the
+        // desktop app resumes its own release train.
+
+        // Deliberately NOT covered — ungoogled-chromium. Its builds carry the SAME
+        // bundle id as upstream Chromium (`org.chromium.Chromium`) and a version
+        // string in the same shape, so a rule keyed on that id would offer
+        // ungoogled builds to a plain Chromium install (and vice versa) with nothing
+        // in the version to tell the two trains apart. Revisit only with a signal
+        // that distinguishes the builds on disk.
     ]
 }

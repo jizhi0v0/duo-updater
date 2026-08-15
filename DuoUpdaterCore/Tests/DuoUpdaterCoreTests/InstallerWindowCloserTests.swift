@@ -34,6 +34,20 @@ struct InstallerWindowCloserTests {
             document: "file:///private/tmp/DuoUpdater-pkg-Example-1/Example%20App.pkg", as: pkg))
     }
 
+    /// The AX reads are synchronous cross-process round trips and the caller is
+    /// `@MainActor`, so running them inline would hand a hung Installer the power to
+    /// freeze DuoUpdater's UI — one was caught wedged for 43 hours in a CacheDelete
+    /// XPC. Called from the main actor, the work must still land somewhere else.
+    @MainActor
+    @Test func theAccessibilityConversationNeverRunsOnTheMainThread() async {
+        let ranOnMain = await InstallerWindowCloser.closeWindow(
+            showing: URL(fileURLWithPath: "/private/tmp/DuoUpdater-pkg-Example-1/Example.pkg"),
+            // `Thread.isMainThread` is unavailable from an async context; this is the
+            // same question asked of the OS directly.
+            using: { _ in pthread_main_np() != 0 })
+        #expect(!ranOnMain)
+    }
+
     @Test func ignoresWindowsWithoutAUsableDocument() {
         let pkg = URL(fileURLWithPath: "/private/tmp/DuoUpdater-pkg-Example-1/Example.pkg")
         #expect(!InstallerWindowCloser.isSamePackage(document: nil, as: pkg))

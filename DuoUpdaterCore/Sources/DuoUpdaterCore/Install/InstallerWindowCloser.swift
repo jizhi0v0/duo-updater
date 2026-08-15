@@ -25,20 +25,56 @@ public enum InstallerWindowCloser {
 
     static let installerBundleID = "com.apple.installer"
 
+    /// How long any one AX request to Installer may take before we give up on it.
+    ///
+    /// The default is 6 seconds *per request*, and this talks to an app that
+    /// demonstrably hangs: the crash report behind this file's ordering rule caught
+    /// an Installer stuck for 43 hours in a synchronous XPC to CacheDelete while
+    /// sizing a volume. Against that, the default would park us for half a minute
+    /// across the handful of reads below. A healthy Installer answers in
+    /// milliseconds, so a short ceiling costs nothing and bounds the bad case.
+    private static let messagingTimeout: Float = 2
+
     /// Ask Installer.app to close the window showing `package`.
     ///
     /// Returns `true` only when the window was found *and* is gone afterwards, so
     /// the caller can treat a `true` as "nothing is reading that file any more".
     /// Returns `false` for every other outcome — Installer isn't running, we don't
     /// hold Accessibility trust, no window matches, or the window declined to close.
+    ///
+    /// Every `AXUIElementCopyAttributeValue` below is a *synchronous* round trip to
+    /// another process. Callers are `@MainActor` (the install path runs there), and
+    /// an `async` function without its own executor would run all of that on the
+    /// main thread — one wedged Installer would then freeze DuoUpdater's UI, not
+    /// just its cleanup. Hence the detached task: the AX conversation never touches
+    /// the main thread, and `messagingTimeout` bounds it even so.
     @discardableResult
     public static func closeWindow(showing package: URL) async -> Bool {
+        await closeWindow(showing: package, using: press(closing:))
+    }
+
+    /// The detachment itself, with the AX conversation injectable so a test can
+    /// stand where it stands and check which thread it got.
+    static func closeWindow(
+        showing package: URL, using work: @escaping @Sendable (URL) async -> Bool
+    ) async -> Bool {
+        await Task.detached(priority: .utility) { await work(package) }.value
+    }
+
+    private static func press(closing package: URL) async -> Bool {
         guard AXIsProcessTrusted() else { return false }
         let running = NSRunningApplication.runningApplications(
             withBundleIdentifier: installerBundleID)
         guard !running.isEmpty else { return false }
 
-        let apps = running.map { AXUIElementCreateApplication($0.processIdentifier) }
+        let apps = running.map { app -> AXUIElement in
+            let element = AXUIElementCreateApplication(app.processIdentifier)
+            // Set on the application element, which applies the ceiling to every
+            // message sent to that application — including the window and button
+            // elements we read out of it below.
+            AXUIElementSetMessagingTimeout(element, messagingTimeout)
+            return element
+        }
         guard let (axApp, window) = locate(package, in: apps) else { return false }
         guard let closeButton = attribute(window, "AXCloseButton") else { return false }
 

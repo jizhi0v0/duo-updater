@@ -32,6 +32,18 @@ public enum ReleaseDate {
         if let date = isoWithFraction.date(from: trimmed) { return date }
         if let date = isoPlain.date(from: trimmed) { return date }
 
+        // ISO8601 shape with NO zone at all, e.g. "2026-08-14T22:50:24.042387" —
+        // what a `datetime.utcnow().isoformat()` backend emits. `ISO8601DateFormatter`
+        // rejects these outright, so they used to read as "no release time".
+        // Read as UTC: for the endpoint that prompted this (Claude's rollout API)
+        // the stamp sits 39s after the artifact's `Last-Modified: ... GMT`, which
+        // only lines up if the clock is UTC. A vendor that meant local time would
+        // land the release up to a day off in the timeline — so only feed
+        // zone-less stamps in from sources where that has been checked.
+        for formatter in zonelessISOFormatters {
+            if let date = formatter.date(from: trimmed) { return date }
+        }
+
         // RFC822, the RSS pubDate standard. Try the common spellings vendors use.
         for formatter in rfc822Formatters {
             if let date = formatter.date(from: trimmed) { return date }
@@ -55,6 +67,18 @@ public enum ReleaseDate {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
+    }()
+
+    /// Zone-less ISO8601, with and without fractional seconds. `SSSSSS` covers
+    /// Python's 6-digit microseconds; `DateFormatter` tolerates fewer digits.
+    private nonisolated(unsafe) static let zonelessISOFormatters: [DateFormatter] = {
+        ["yyyy-MM-dd'T'HH:mm:ss.SSSSSS", "yyyy-MM-dd'T'HH:mm:ss"].map { pattern in
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = TimeZone(secondsFromGMT: 0)
+            f.dateFormat = pattern
+            return f
+        }
     }()
 
     /// RFC822 spellings seen in the wild: with and without leading weekday, and

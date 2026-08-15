@@ -118,7 +118,8 @@ public struct VendorProbeSource: UpdateSource {
         // Beta/Canary install finds no match and is skipped rather than offered —
         // and one-click installed — a cross-channel build. Better "unknown" than
         // crossing channels.
-        guard let recipe = candidates.first(where: { $0.channel == app.releaseChannel }) else {
+        let matching = candidates.filter { $0.channel == app.releaseChannel }
+        guard !matching.isEmpty else {
             Log.source.info(
                 "vendor probe skip \(bundleID, privacy: .public): no recipe for app channel \(app.releaseChannel.rawValue, privacy: .public)")
             return nil
@@ -128,7 +129,91 @@ public struct VendorProbeSource: UpdateSource {
         // the INSTALL must still go through Toolbox, never an in-place bundle swap
         // that would desync Toolbox's state and (for Android Studio) drag a ~1.5 GB
         // dmg off a drop-prone CDN. So resolve detection-only here.
-        return await probeOutcome(recipe, allowInstall: !app.prefersVendorProbeOverToolbox)
+        let allowInstall = !app.prefersVendorProbeOverToolbox
+
+        guard matching.count > 1 else {
+            return await probeOutcome(matching[0], allowInstall: allowInstall)
+        }
+        // One channel, several endpoints: probe them all and answer with the
+        // highest version any of them stands behind. See `Self.best`.
+        var outcomes: [ProbeOutcome] = []
+        for recipe in matching {
+            outcomes.append(await probeOutcome(recipe, allowInstall: allowInstall))
+        }
+        return Self.best(of: outcomes)
+    }
+
+    /// Pick the answer when a channel has more than one endpoint.
+    ///
+    /// This exists because a vendor can publish two *equally legitimate* views of
+    /// "latest" that disagree, and neither is a fallback for the other. Claude is
+    /// the case in hand: a public GA redirect (what the download button serves)
+    /// and a staged-rollout endpoint keyed by this machine's device id (what the
+    /// app's own updater acts on). Which is ahead flips over the life of a
+    /// release — the rollout endpoint leads while a build ramps, the GA pointer
+    /// catches up at the end — so "prefer endpoint A" is wrong half the time.
+    ///
+    /// Taking the highest is only sound because of a precondition the recipe
+    /// author must uphold: **every endpoint listed for one channel must serve a
+    /// build this machine may legitimately install.** Under that rule the highest
+    /// is a real, current release, and the loser is simply the staler view. It
+    /// would NOT be sound for endpoints that see different audiences (a beta feed
+    /// next to a stable one) — that is what `channel` is for.
+    ///
+    /// A failing endpoint doesn't suppress a working one: failures only win when
+    /// every endpoint failed, and then the first is reported so the health record
+    /// and log still name a concrete reason. Each recipe is additionally swept on
+    /// its own by `duo verify`, which is where a silently-broken loser surfaces.
+    ///
+    /// **Ties go to the richer answer, not to registry order.** Two endpoints
+    /// naming the same version are not interchangeable: for Claude only the
+    /// rollout endpoint states a `pub_date`, and the whole ramp is exactly the
+    /// window in which that date is obtainable. Ranking by position let the
+    /// bare GA answer win the moment GA caught up, and since
+    /// `ReleaseTimelineStore.record` logs each version once at first sighting,
+    /// a version that converged before we looked loses its real publish time
+    /// permanently — it lands in the timeline as an estimated "≈" window with no
+    /// way to correct it later. (1.30096.5 was lost this way on 2026-08-15.)
+    static func best(of outcomes: [ProbeOutcome]) -> ProbeOutcome? {
+        guard let first = outcomes.first else { return nil }
+        var winner: ProbeOutcome?
+        for outcome in outcomes {
+            guard let candidate = Self.comparable(outcome.remote) else { continue }
+            guard let incumbent = Self.comparable(winner?.remote) else {
+                winner = outcome
+                continue
+            }
+            if VersionComparator.isNewer(candidate, than: incumbent) {
+                winner = outcome
+            } else if candidate == incumbent, Self.isRicher(outcome, than: winner) {
+                winner = outcome
+            }
+        }
+        return winner ?? first
+    }
+
+    /// Tie-break between two outcomes naming the same version: keep the one that
+    /// carries facts the other doesn't. An authoritative publish time first (it
+    /// is the one that expires — see `best(of:)`), then a resolved installer, so
+    /// a detection-only endpoint can't displace an installable one.
+    private static func isRicher(_ candidate: ProbeOutcome, than incumbent: ProbeOutcome?) -> Bool {
+        guard let incumbent else { return true }
+        let gained = { (keep: (RemoteVersion) -> Bool) in
+            candidate.remote.map(keep) == true && incumbent.remote.map(keep) != true
+        }
+        if gained({ $0.publishedAt != nil }) { return true }
+        if incumbent.remote?.publishedAt != nil { return false }
+        return gained({ $0.downloadURL != nil })
+    }
+
+    /// The string `best(of:)` ranks by. `makeRemoteVersion` puts a build-number
+    /// recipe's value in `version` and a marketing recipe's in `shortVersion`, so
+    /// this reads whichever the recipe filled — which is also why endpoints
+    /// sharing a channel must agree on `versionIsBuild` (a build compared against
+    /// a marketing string is the phantom-update bug that flag exists to prevent).
+    /// `VendorProbeRegistryTests` enforces that agreement.
+    private static func comparable(_ remote: RemoteVersion?) -> String? {
+        remote.flatMap { $0.version ?? $0.shortVersion }
     }
 
     /// Run one recipe and report everything that happened, including the parts
@@ -261,9 +346,24 @@ public struct VendorProbeSource: UpdateSource {
     /// The per-mode fetch half of a probe, with each `return nil` in the original
     /// replaced by the specific reason it happened.
     private func fetchBody(_ recipe: VendorProbeRecipe) async -> Result<FetchedBody, ProbeFailure> {
+        // The one place a `ProbeIdentity` is expanded. `endpoint` stays local to
+        // this function so the machine's identifier reaches the request and
+        // nothing else — `recipe.url` (the placeholder) is what every log line,
+        // finding and outcome keeps carrying.
+        let endpoint: URL
+        if let identity = recipe.identity {
+            guard let resolved = identity.resolve(recipe.url) else {
+                return .failure(.notApplicable(
+                    "no device identity at ~/Library/Application Support/\(identity.applicationSupportPath)"))
+            }
+            endpoint = resolved
+        } else {
+            endpoint = recipe.url
+        }
+
         switch recipe.mode {
         case .redirectFilename:
-            var request = URLRequest(url: recipe.url)
+            var request = URLRequest(url: endpoint)
             request.timeoutInterval = 15
             request.cachePolicy = URLRequest.versionFeedCachePolicy
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
@@ -306,7 +406,7 @@ public struct VendorProbeSource: UpdateSource {
                 guard let location = http.value(forHTTPHeaderField: "Location") else {
                     return .failure(.redirectMissingLocation)
                 }
-                guard let finalURL = URL(string: location, relativeTo: recipe.url)?.absoluteURL
+                guard let finalURL = URL(string: location, relativeTo: endpoint)?.absoluteURL
                 else { return .failure(.malformedResolvedURL(location)) }
                 return .success(FetchedBody(
                     text: finalURL.absoluteString, resolvedDownload: finalURL,
@@ -314,7 +414,7 @@ public struct VendorProbeSource: UpdateSource {
             }
 
         case .responseBody:
-            var request = URLRequest(url: recipe.url)
+            var request = URLRequest(url: endpoint)
             request.timeoutInterval = 15
             request.cachePolicy = URLRequest.versionFeedCachePolicy
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
@@ -343,7 +443,7 @@ public struct VendorProbeSource: UpdateSource {
             // see `Mode.zipEntryPlist`. We extract the one entry and read `key`;
             // `text` becomes that value so the shared `versionPattern` validates
             // it exactly like any other mode.
-            return await zipEntryPlistValue(url: recipe.url, entry: entry, key: key)
+            return await zipEntryPlistValue(url: endpoint, entry: entry, key: key)
                 .map { FetchedBody(
                     text: $0, resolvedDownload: recipe.downloadURL ?? recipe.url,
                     status: nil) }

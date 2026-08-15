@@ -265,6 +265,11 @@ public enum ResponseSample {
 }
 
 public extension VendorProbeRecipe {
-    /// Stable sweep key for this recipe.
-    var recipeID: String { "vendor:\(bundleID):\(channel.rawValue)" }
+    /// Stable sweep key for this recipe. A `variant` (only set when one channel
+    /// has several endpoints) is appended, so the extra recipe gets its own
+    /// baseline entry and every existing recipe's key is untouched.
+    var recipeID: String {
+        let base = "vendor:\(bundleID):\(channel.rawValue)"
+        return variant.map { "\(base):\($0)" } ?? base
+    }
 }

@@ -8,7 +8,19 @@ import AppKit
 /// for admin itself. The user confirms the install in a trusted, native UI.
 public actor PackageInstaller {
 
-    public init() {}
+    /// How a package reaches the system Installer. Injectable so tests can observe
+    /// the hand-over without a live Installer window; production always opens.
+    private let opener: @Sendable (URL) async -> Void
+
+    public init() {
+        self.opener = { url in
+            await MainActor.run { _ = NSWorkspace.shared.open(url) }
+        }
+    }
+
+    init(opener: @escaping @Sendable (URL) async -> Void) {
+        self.opener = opener
+    }
 
     public enum PackageError: LocalizedError {
         case noURL
@@ -59,12 +71,18 @@ public actor PackageInstaller {
     /// Download `url` and open the resulting installer (or the disk image that
     /// contains it). Returns once the installer has been launched — the actual
     /// install happens in macOS's installer, under the user's control.
+    /// - Parameter beforeOpen: runs after the package has passed the gate and
+    ///   immediately *before* it reaches Installer, so a caller retiring the window
+    ///   this package supersedes does it while Installer is idle rather than while
+    ///   it is opening a new document (see `handOver`). Not called at all when the
+    ///   download or the gate fails.
     @discardableResult
     public func downloadAndOpen(
         url: URL?,
         installedApp: URL,
         headers: [String: String] = [:],
-        onStage: @Sendable @escaping (InstallStage) -> Void
+        onStage: @Sendable @escaping (InstallStage) -> Void,
+        beforeOpen: @Sendable () async -> Void = {}
     ) async throws -> OpenedPackage {
         guard let url else { throw PackageError.noURL }
 
@@ -90,9 +108,7 @@ public actor PackageInstaller {
 
         onStage(.installing)
         let toOpen = try resolveInstaller(from: file, workDir: workDir, installedApp: installedApp)
-        // Gate (fail closed) — see `verifyOpenable`.
-        try verifyOpenable(toOpen, installedApp: installedApp)
-        await open(toOpen)
+        try await handOver(toOpen, installedApp: installedApp, beforeOpen: beforeOpen)
         onStage(.done)
         return OpenedPackage(
             bytesDownloaded: bytesDownloaded,
@@ -118,8 +134,29 @@ public actor PackageInstaller {
         guard FileManager.default.fileExists(atPath: package.path) else {
             throw PackageError.noInstallablePackage
         }
-        try verifyOpenable(package, installedApp: installedApp)
-        await open(package)
+        try await handOver(package, installedApp: installedApp)
+    }
+
+    /// Gate the package, let the caller settle whatever this open supersedes, then
+    /// hand it to Installer — strictly in that order.
+    ///
+    /// The order is the point. `beforeOpen` is where the caller closes the stale
+    /// Installer window this package replaces, and both neighbours matter:
+    ///
+    /// - *After* the gate, so a package that fails verification never costs the user
+    ///   the window they already have open.
+    /// - *Before* the open, so the close lands while Installer is idle. Doing it the
+    ///   other way round put an AX press into the exact window in which Installer is
+    ///   opening a new document — the state its own `AXDocument` reads go blank in,
+    ///   and the state a macOS 26.6 Installer crashed in (`_volumeAppeared:` messaging
+    ///   a dead object one second after we opened a third package into it).
+    private func handOver(
+        _ toOpen: URL, installedApp: URL, beforeOpen: @Sendable () async -> Void = {}
+    ) async throws {
+        // Gate (fail closed) — see `verifyOpenable`.
+        try verifyOpenable(toOpen, installedApp: installedApp)
+        await beforeOpen()
+        await opener(toOpen)
     }
 
     /// The fail-closed gate: only a signed `.pkg`/`.mpkg` whose Team ID matches the
@@ -293,11 +330,6 @@ public actor PackageInstaller {
         guard vals?.isDirectory == true || vals?.isRegularFile == true else { return false }
         let resolved = url.resolvingSymlinksInPath().standardizedFileURL.path
         return resolved == dirBase || resolved.hasPrefix(dirBase + "/")
-    }
-
-    @MainActor
-    private func open(_ url: URL) {
-        NSWorkspace.shared.open(url)
     }
 
     @discardableResult

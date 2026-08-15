@@ -163,11 +163,16 @@ public actor InstallCoordinator {
     ///   per-host gate the caller holds can be handed to the next app rather
     ///   than spanning the extract and swap too. Must be idempotent — it is not
     ///   called at all on paths that never reach a download.
+    /// - Parameter beforeInstallerOpen: `.installer` route only — runs after the
+    ///   package passes the gate and before it reaches macOS's Installer, so the
+    ///   caller can retire the window this package supersedes while Installer is
+    ///   idle. See `PackageInstaller.handOver`.
     public func perform(
         _ result: UpdateResult,
         route: Route,
         progress: @Sendable @escaping (InstallStage) -> Void,
-        releaseAfterDownload: @Sendable () async -> Void = {}
+        releaseAfterDownload: @Sendable () async -> Void = {},
+        beforeInstallerOpen: @Sendable () async -> Void = {}
     ) async throws -> Outcome {
         switch route {
         case .appStore:
@@ -182,7 +187,8 @@ public actor InstallCoordinator {
                     url: result.remote?.downloadURL,
                     installedApp: result.app.path,
                     headers: result.remote?.downloadHeaders ?? [:],
-                    onStage: progress)
+                    onStage: progress,
+                    beforeOpen: beforeInstallerOpen)
             }
             await releaseAfterDownload()
             return Outcome(

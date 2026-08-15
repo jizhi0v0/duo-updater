@@ -64,6 +64,34 @@ struct PackageInstallerTests {
         #expect(second.lastPathComponent.hasPrefix("DuoUpdater-pkg-Example-App-"))
     }
 
+    /// The hand-over retires the *previous* Installer window for this app, so a
+    /// package that fails the Developer-ID/Team-ID gate must not cost the user the
+    /// window they already have open — nothing is closed and nothing is opened.
+    @Test func aPackageThatFailsTheGateNeitherOpensNorRetiresAnything() async throws {
+        let fm = FileManager.default
+        let dir = PackageInstaller.workDirectory(forInstalledApp:
+            URL(fileURLWithPath: "/Applications/Example App.app", isDirectory: true))
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+        // Unsigned, so `pkgutil --check-signature` rejects it whatever else is true.
+        let pkg = dir.appendingPathComponent("Example.pkg")
+        try Data("not really a package".utf8).write(to: pkg)
+
+        let opened = Recorder()
+        let installer = PackageInstaller(opener: { await opened.record($0) })
+        await #expect(throws: (any Error).self) {
+            try await installer.reopen(
+                package: pkg,
+                installedApp: URL(fileURLWithPath: "/Applications/Example App.app", isDirectory: true))
+        }
+        #expect(await opened.urls.isEmpty)
+    }
+
+    private actor Recorder {
+        private(set) var urls: [URL] = []
+        func record(_ url: URL) { urls.append(url) }
+    }
+
     @Test func discardsOnlyOurOwnScratchDirectories() throws {
         let fm = FileManager.default
         let app = URL(fileURLWithPath: "/Applications/Example App.app", isDirectory: true)

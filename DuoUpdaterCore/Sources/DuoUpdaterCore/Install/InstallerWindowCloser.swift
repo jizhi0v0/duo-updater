@@ -39,7 +39,7 @@ public enum InstallerWindowCloser {
         guard !running.isEmpty else { return false }
 
         let apps = running.map { AXUIElementCreateApplication($0.processIdentifier) }
-        guard let (axApp, window) = await locate(package, in: apps) else { return false }
+        guard let (axApp, window) = locate(package, in: apps) else { return false }
         guard let closeButton = attribute(window, "AXCloseButton") else { return false }
 
         // Don't touch a window the user is actually using. Both checks are
@@ -70,23 +70,22 @@ public enum InstallerWindowCloser {
         return true
     }
 
-    /// Find the window showing `package`, retrying briefly before giving up.
+    /// Find the window showing `package`, across every running Installer.
     ///
-    /// The retry is load-bearing, not defensive padding: while Installer is busy
-    /// opening a document, `AXDocument` reads come back empty for *every* one of its
-    /// windows, so a single-shot lookup right after we opened the new package finds
-    /// nothing and the stale window survives. Measured on macOS 27 — a probe that
-    /// looked once failed 8/8 in a tight open-then-close loop, while the same
-    /// windows read back correctly moments later.
+    /// This used to retry six times over two seconds, because while Installer is busy
+    /// opening a document `AXDocument` reads come back empty for *every* one of its
+    /// windows — measured on macOS 27, a single-shot probe failed 8/8 in a tight
+    /// open-then-close loop. That was a symptom of calling this at the wrong moment:
+    /// callers now close the stale window *before* opening its replacement, when
+    /// Installer is idle and reads back its documents first time. Nothing is retried,
+    /// so a genuinely unmatched package fails fast instead of blocking on an app that
+    /// may itself be wedged.
     private static func locate(
         _ package: URL, in apps: [AXUIElement]
-    ) async -> (AXUIElement, AXUIElement)? {
-        for attempt in 0..<6 {
-            if attempt > 0 { try? await Task.sleep(nanoseconds: 400_000_000) }
-            for axApp in apps {
-                if let window = window(in: axApp, showing: package) {
-                    return (axApp, window)
-                }
+    ) -> (AXUIElement, AXUIElement)? {
+        for axApp in apps {
+            if let window = window(in: axApp, showing: package) {
+                return (axApp, window)
             }
         }
         return nil

@@ -1817,7 +1817,8 @@ final class AppListModel {
                 let outcome = try await Self.installCoordinator.perform(
                     result, route: route,
                     progress: { stage in Task { @MainActor in self.setStage(id, stage) } },
-                    releaseAfterDownload: { await releaseAfterDownload?.release() })
+                    releaseAfterDownload: { await releaseAfterDownload?.release() },
+                    beforeInstallerOpen: { await self.retireStagedPackage(for: id) })
                 recordEffectiveHost(result, finalHost: outcome.finalHost)
                 await recordTraffic(result, bytes: outcome.bytesDownloaded)
                 if let packageURL = outcome.stagedPackageURL {
@@ -2263,28 +2264,35 @@ final class AppListModel {
 
     private func recordStagedPackage(_ result: UpdateResult, packageURL: URL) {
         guard let version = result.remote?.displayVersion else { return }
-        let superseded = stagedPackages[result.id]
         stagedPackages[result.id] = StagedPackage(version: version, url: packageURL)
         persistStagedPackages()
         Log.install.info("package staged: \(result.app.name, privacy: .public) \(version, privacy: .public) → \(packageURL.lastPathComponent, privacy: .public)")
-        if let superseded, superseded.url != packageURL {
-            retireSupersededPackage(superseded)
-        }
     }
 
-    /// A package we staged earlier for this same row is now obsolete: we just opened
-    /// a newer one. Close its Installer window so the two don't pile up (a pkg update
+    /// The package staged for this row is about to be superseded: a newer one has
+    /// been downloaded, has passed the gate, and is one statement away from being
+    /// opened. Close the old Installer window so the two don't pile up (a pkg update
     /// waits on the user, so an ignored one stays on screen indefinitely), and only
     /// then delete its download — while the window is open, Installer is still
     /// reading the file.
     ///
-    /// Everything here is best-effort and off the install path: without Accessibility
-    /// trust, or when the window is busy installing, we simply leave both alone and
+    /// Runs *before* the new package is opened, not after: an AX press that lands
+    /// while Installer is opening a document reads blank `AXDocument`s at best, and
+    /// at worst joins the race a macOS 26.6 Installer died in (`_volumeAppeared:`
+    /// messaging a dead object a second after we opened a third package into it).
+    ///
+    /// Everything here is best-effort. Without Accessibility trust, or when the
+    /// window is busy installing, we leave both the window and the file alone and
     /// the 24-hour sweep reclaims the disk.
-    private func retireSupersededPackage(_ superseded: StagedPackage) {
-        Task {
-            guard await InstallerWindowCloser.closeWindow(showing: superseded.url) else { return }
-            PackageInstaller.discardWorkDirectory(containing: superseded.url)
+    private func retireStagedPackage(for id: String) async {
+        guard let superseded = stagedPackages[id] else { return }
+        guard await InstallerWindowCloser.closeWindow(showing: superseded.url) else { return }
+        guard PackageInstaller.discardWorkDirectory(containing: superseded.url) else { return }
+        // The download is gone, so nothing may offer to re-open it; the caller
+        // records the replacement the moment its open returns.
+        if stagedPackages[id]?.url == superseded.url {
+            stagedPackages[id] = nil
+            persistStagedPackages()
         }
     }
 

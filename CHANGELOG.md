@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.23
+
+**Homebrew updates work behind a proxy.** If your Mac reaches the internet through a proxy, upgrading brew packages failed with `curl: (28) Failed to connect` while every other update went through fine. Homebrew shells out to `curl`, which — unlike the rest of DuoUpdater's networking — doesn't read the proxy you configured in System Settings; it only reads proxy environment variables, and an app launched from the Dock or at login has none. DuoUpdater now passes your system proxy settings down to Homebrew itself. Nothing changes on a machine with no proxy configured, and a proxy you've already exported in your own shell still wins.
+
 ## 0.3.22
 
 **Claude's updates now show up while they're still rolling out.** Anthropic releases Claude in stages: a build goes to a fraction of Macs at a time, and the public download page only catches up at the end. DuoUpdater was reading that public page, so for the whole of a rollout — most of a day, in the case of 1.30096.5 — it told you Claude was up to date while Claude itself had already quietly downloaded the new version and was waiting for a relaunch. It now also asks the same endpoint Claude's own updater asks, which answers for *your* Mac specifically, and offers whichever of the two is further ahead. Nothing about which build you're offered has changed: it is either the public release or the one your Mac was already allocated. Claude also gains real publication times, so its releases now appear in the Release Log with the moment Anthropic shipped them rather than an estimate.

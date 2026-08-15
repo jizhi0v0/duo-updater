@@ -509,36 +509,67 @@ public enum Verify {
     /// `guarded_open_np` until the job timed out.
     ///
     /// The blocked thread can't be cancelled — it is stuck in a syscall — so
-    /// this races it instead and moves on. The cross-check is a bonus signal;
+    /// this abandons it instead and moves on. The cross-check is a bonus signal;
     /// losing it costs one class of finding, while waiting for it costs the
     /// entire sweep.
+    ///
+    /// The scan runs on a plain `Thread`, not in a task group. A group looks
+    /// like it would work — race the scan against a sleep, take whichever lands
+    /// first — but `withTaskGroup` does not return until *every* child has
+    /// finished, and `cancelAll()` cannot touch a thread parked in
+    /// `guarded_open_np`. The warning printed on time and the sweep hung anyway;
+    /// 2026-08-15 it sat there for ten minutes at 0.03s of CPU.
+    ///
+    /// `TestFlightInventory` now bounds that open itself, so this should no
+    /// longer be reachable through TestFlight. It stays because it is the last
+    /// guard around everything *else* `scan()` touches — other apps' containers,
+    /// network volumes, a stalled automount.
     static func installedVersions() async -> [String: InstalledVersion] {
-        await withTaskGroup(of: [String: InstalledVersion]?.self) { group in
-            group.addTask {
-                var out: [String: InstalledVersion] = [:]
-                for app in AppScanner().scan() {
-                    guard let bundleID = app.bundleID else { continue }
-                    out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] =
-                        InstalledVersion(marketing: app.shortVersion, build: app.buildVersion)
-                }
-                return out
+        let box = ScanBox()
+        let done = DispatchSemaphore(value: 0)
+        let worker = Thread {
+            var out: [String: InstalledVersion] = [:]
+            for app in AppScanner().scan() {
+                guard let bundleID = app.bundleID else { continue }
+                out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] =
+                    InstalledVersion(marketing: app.shortVersion, build: app.buildVersion)
             }
-            group.addTask {
-                try? await Task.sleep(for: scanTimeout)
-                return nil
+            box.set(out)
+            done.signal()
+        }
+        worker.start()
+
+        // Wait off the cooperative pool so a stuck scan can never starve it.
+        let timedOut = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            DispatchQueue.global().async {
+                let seconds = Double(scanTimeout.components.seconds)
+                cont.resume(returning: done.wait(timeout: .now() + seconds) == .timedOut)
             }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            guard let first else {
-                FileHandle.standardError.write(Data("""
-                    ⚠︎ the local app scan did not finish within \(scanTimeout) — continuing \
-                    without the installed-copy cross-check.
-                      Usually means a privacy prompt nobody can answer (TestFlight's \
-                    database is behind the app-data gate).\n
-                    """.utf8))
-                return [:]
-            }
-            return first
+        }
+        guard !timedOut, let scanned = box.take() else {
+            FileHandle.standardError.write(Data("""
+                ⚠︎ the local app scan did not finish within \(scanTimeout) — continuing \
+                without the installed-copy cross-check.
+                  Usually means a privacy prompt nobody can answer (TestFlight's \
+                database is behind the app-data gate).\n
+                """.utf8))
+            return [:]
+        }
+        return scanned
+    }
+
+    /// A slot the scan thread fills and the caller reads, for the case where the
+    /// caller has already given up.
+    private final class ScanBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: [String: InstalledVersion]?
+        func set(_ v: [String: InstalledVersion]) {
+            lock.lock(); defer { lock.unlock() }
+            value = v
+        }
+        func take() -> [String: InstalledVersion]? {
+            lock.lock(); defer { lock.unlock() }
+            return value
         }
     }
 }

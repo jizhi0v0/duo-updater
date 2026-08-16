@@ -29,10 +29,18 @@ public enum HostArch: Sendable, Equatable {
     /// architecture (e.g. `rustdesk-1.4.6-aarch64.dmg`). Kept conservative — only
     /// tokens that appear as real arch markers in release asset names — so they
     /// don't false-match unrelated words.
+    /// `x64`/`x86` are here because they are the most common Intel marker in the
+    /// registry's real asset names (`bruno_…_x64_mac.dmg`, `draw.io-x64-….dmg`,
+    /// `VSCodium.x64.….dmg`, `openmtp-…-mac-x64.dmg`). Leaving them out did not
+    /// merely lose a preference — it made those artifacts read as arch-NEUTRAL,
+    /// i.e. as safe for either Mac, which is the one classification an Intel-only
+    /// build must never get. `apple-silicon` is the mirror case on the arm side
+    /// (`MarkEdit-…-apple-silicon.dmg`); the hyphenated form is deliberate, so it
+    /// cannot fire on the unrelated `…-apple-darwin.tar.gz` CLI tarballs.
     public var assetTokens: [String] {
         switch self {
-        case .arm64:  return ["aarch64", "arm64"]
-        case .x86_64: return ["x86_64", "x86-64", "amd64", "intel"]
+        case .arm64:  return ["aarch64", "arm64", "apple-silicon"]
+        case .x86_64: return ["x86_64", "x86-64", "x64", "x86", "amd64", "intel"]
         }
     }
 

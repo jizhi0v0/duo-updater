@@ -1415,6 +1415,31 @@ public enum ChangelogRecipeRegistry {
         // `…5960.0` shapes). That is fine and deliberate: entries are listed
         // newest-first and the workbench shows the ones at the top; pinning to a
         // single build would need a per-build page, which Opera doesn't publish.
+        // Inkscape — the project's own wiki carries one release-notes page per
+        // version: `wiki.inkscape.org/wiki/Release_notes/1.4.4`. inkscape.org's
+        // release page has no notes at all (it is a download page), and the news
+        // feed mixes releases with everything else, so the wiki is the only
+        // per-version source. Version-templated for the same reason as
+        // Thunderbird: each page is exactly one release, so `maxEntries: 1`.
+        //
+        // The item pattern matches a BARE `<li>` on purpose. MediaWiki's table of
+        // contents is a nested list whose items all carry
+        // `class="toclevel-N tocsection-N"`, and the page footer's are
+        // `<li id="footer-info-…">` — allowing attributes would turn the whole
+        // navigation into "changes" (35 TOC entries against 116 real ones on the
+        // 1.4.4 page, captured 2026-08-16).
+        ChangelogRecipe(
+            bundleID: "org.inkscape.Inkscape",
+            source: URL(string: "https://wiki.inkscape.org/wiki/Release_notes/1.4")!,
+            entryPattern:
+                #"<h1 id="firstHeading"[^>]*>Release notes/(?<version>[0-9]+(?:\.[0-9]+)*)</h1>"#
+                + #".*?<h2[^>]*>\s*<span[^>]*id="Changes_and_Bug_Fixes""#
+                + #"(?<body>.*?)<h2[^>]*>\s*<span[^>]*id="Other_releases""#,
+            itemPatterns: [#"<li>(?<item>.*?)</li>"#],
+            maxEntries: 1,
+            channel: .stable,
+            sourceTemplate: "https://wiki.inkscape.org/wiki/Release_notes/{version}"),
+
         ChangelogRecipe(
             bundleID: "com.operasoftware.Opera",
             source: URL(string: "https://blogs.opera.com/desktop/changelog-for-134/")!,

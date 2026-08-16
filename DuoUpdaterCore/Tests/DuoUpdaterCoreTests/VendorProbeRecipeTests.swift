@@ -282,12 +282,21 @@ private func batchVersion(_ bundleID: String, in body: String) -> String? {
     #expect(batchVersion("com.bjango.istatmenus", in: location) == "7.30")
 }
 
-/// Inkscape resolves a version but deliberately ships no install spec — the dmg
-/// is only reachable through a per-release gallery id handed out by an HTML meta
-/// refresh, so nothing can be templated from the version.
-@Test func inkscapeResolvesAVersionAndStaysDetectionOnly() {
+/// Inkscape reads its version from the `/release/` redirect, and installs from
+/// the media host's plain version-named path. The download PAGE is a dead end —
+/// it hands the dmg out through an HTML meta refresh to a per-release gallery id
+/// (59498 for 1.4.4_arm64) that nothing can template — so the install URL must
+/// keep pointing at `media.inkscape.org`, which needs only the version.
+@Test func inkscapeInstallsFromTheMediaHostNotTheGalleryID() throws {
     #expect(batchVersion("org.inkscape.Inkscape", in: "/release/inkscape-1.4.4/") == "1.4.4")
-    #expect(batchRecipe("org.inkscape.Inkscape")?.install == nil)
+    let spec = try #require(batchRecipe("org.inkscape.Inkscape")?.install)
+    #expect(spec.kind == .dmg)
+    guard case .versionTemplate(let template) = spec.urlSource else {
+        Issue.record("expected a version template"); return
+    }
+    #expect(!template.contains("gallery"))
+    #expect(template.replacingOccurrences(of: "{version}", with: "1.4.4")
+        == "https://media.inkscape.org/dl/resources/file/Inkscape-1.4.4_arm64.dmg")
 }
 
 /// The five that DO install must keep an install spec and the artifact kind that

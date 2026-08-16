@@ -2235,20 +2235,40 @@ public enum VendorProbeRegistry {
         // an API; refresh if it stops matching. The same page is also the
         // ChangelogRecipe(com.1password.1password) source.
         //
-        // DETECTION ONLY, deliberately. `downloads.1password.com/mac/1Password.zip`
-        // looks like a perfect one-click target — stable URL, Developer ID
-        // (2BUA8C4S2C), notarized — but what it actually contains is
-        // `1Password Installer.app` (`com.1password.1password-installer`), a stub
-        // that fetches the real app. Swapping that over `/Applications/1Password.app`
-        // would replace the password manager with its installer. Checked 2026-08-09;
-        // don't wire this without a payload that IS the app.
+        // ONE-CLICK — but NOT from the URL the download page hands out.
+        // `downloads.1password.com/mac/1Password.zip` looks perfect (stable URL,
+        // Developer ID 2BUA8C4S2C, notarized) and is a trap: it contains
+        // `1Password Installer.app` (`com.1password.1password-installer`, 21 MB), a
+        // stub that fetches the real app. Swapping THAT over
+        // `/Applications/1Password.app` would replace the password manager with its
+        // own installer — and every signature gate would pass, because the stub is
+        // genuinely signed by AgileBits. Only the bundle-id gate stands between
+        // that URL and a broken install.
+        //
+        // The payload the stub itself downloads is per-architecture and public
+        // (read out of the installer binary's own strings, 2026-08-16):
+        //   downloads.1password.com/mac/1Password-latest-{aarch64,x86_64}.zip
+        // plus `.BETA-` / `.NIGHTLY-` variants for the other channels. Verified by
+        // downloading the aarch64 one (214,254,924 B): it unzips to `1Password.app`
+        // itself — com.1password.1password, 8.12.33, Team 2BUA8C4S2C, notarized
+        // Developer ID, spctl accepted, arm64.
+        //
+        // A "latest" URL rather than a version template: 1Password publishes no
+        // versioned artifact path, so this can in principle serve a build newer
+        // than the page reported. That is the same shape as the other `latest`
+        // installs here (Termius, iStat Menus) and the gates still apply; what it
+        // must never become is the stub URL above.
         VendorProbeRecipe(
             bundleID: "com.1password.1password",
             url: URL(string: "https://releases.1password.com/mac/stable/")!,
             mode: .responseBody,
             versionPattern: #"1Password for Mac\s+([0-9]+\.[0-9]+\.[0-9]+)"#,
             downloadURL: URL(string: "https://1password.com/downloads/mac/"),
-            changelogURL: URL(string: "https://releases.1password.com/mac/stable/")),
+            changelogURL: URL(string: "https://releases.1password.com/mac/stable/"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://downloads.1password.com/mac/1Password-latest-aarch64.zip")!),
+                kind: .zip)),
 
         // Sublime Text 4 — self-updates, so it reaches us here. NOTE: HTML scrape
         // (no usable API: the /updates/.../updatecheck endpoint 404s and the cask
@@ -2775,13 +2795,30 @@ public enum VendorProbeRegistry {
                     URL(string: "https://download.istatmenus.app/istatmenus7/download/")!),
                 kind: .zip)),
 
-        // Inkscape — detection only. `/release/` 302s to `/release/inkscape-1.4.4/`,
-        // which is a clean version signal, but the actual dmg is NOT reachable
-        // from it: the per-architecture download page hands out the file through
-        // an HTML `<meta http-equiv="Refresh">` to `/gallery/item/<id>/…`, and
-        // that id is minted per release (59498 for 1.4.4_arm64), so no template
-        // built from the version can reach the artifact. Revisit if Inkscape ever
-        // exposes a stable versioned URL.
+        // Inkscape — `/release/` 302s to `/release/inkscape-1.4.4/`, a clean
+        // version signal.
+        //
+        // ONE-CLICK via `.versionTemplate`. An earlier note here said the dmg was
+        // unreachable, because the download PAGE hands the file out through an
+        // HTML `<meta http-equiv="Refresh">` to `/gallery/item/<id>/…` with a
+        // per-release id (59498 for 1.4.4_arm64) that no template can predict.
+        // That was the wrong place to look: the same file also sits at a plain
+        // version-named path on the media host, no gallery id involved —
+        // `media.inkscape.org/dl/resources/file/Inkscape-<ver>_arm64.dmg`
+        // (2026-08-16: 1.4.4 → 200, 156,920,591 B; 1.4.3 → 200).
+        //
+        // The naming does NOT reach back forever — 1.4.2 is a 404 under every
+        // variant tried — but that costs nothing here: the URL is only ever built
+        // for the version the probe just resolved, i.e. the current release. A
+        // future rename fails the download loudly (the row stays red) rather than
+        // installing something else.
+        //
+        // Verified 2026-08-16 by mounting the 1.4.4 dmg: `Inkscape.app`,
+        // org.inkscape.Inkscape, CFBundleShortVersionString `1.4.4` — same scheme
+        // the redirect publishes — Team SW3D6BB6A6 (Rene de Hesselle, who also
+        // signs Meld above), notarized Developer ID, spctl accepted. arm64-only
+        // artifact, so an Intel Mac is refused by the runnable-arch gate rather
+        // than handed a build it can't run.
         VendorProbeRecipe(
             bundleID: "org.inkscape.Inkscape",
             url: URL(string: "https://inkscape.org/release/")!,
@@ -2789,6 +2826,10 @@ public enum VendorProbeRegistry {
             versionPattern: #"inkscape-([0-9]+\.[0-9]+(?:\.[0-9]+)?)"#,
             downloadURL: URL(string: "https://inkscape.org/release/"),
             changelogURL: URL(string: "https://inkscape.org/news/"),
+            install: VendorInstallSpec(
+                urlSource: .versionTemplate(
+                    "https://media.inkscape.org/dl/resources/file/Inkscape-{version}_arm64.dmg"),
+                kind: .dmg),
             followRedirects: false),
 
         // Deliberately NOT covered — Android File Transfer

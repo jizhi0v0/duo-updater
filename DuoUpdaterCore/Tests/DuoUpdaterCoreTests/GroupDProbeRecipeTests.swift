@@ -82,11 +82,19 @@ struct GroupDProbeRecipeTests {
         #expect(recipe.versionIsBuild)
     }
 
-    /// Detection-only: no safe way to build an install URL from a page whose
-    /// ordering can't be trusted (see the type-level doc comment above).
-    @Test func operaIsDetectionOnly() throws {
+    /// The dmg is named `..._Setup.dmg` but is NOT a downloader stub — mounted
+    /// 2026-08-16, it carries `Opera.app` itself (560 MB, universal, Team
+    /// A2P9LX4JPN, notarized). Pinned because the filename alone would suggest
+    /// the opposite, and a stub is the one thing that must never be swapped in
+    /// over a real installed app.
+    @Test func operaInstallsTheRealBundleNotASetupStub() throws {
         let recipe = try #require(opera)
-        #expect(recipe.install == nil)
+        let spec = try #require(recipe.install)
+        guard case .versionTemplate(let template) = spec.urlSource else {
+            Issue.record("expected a version template"); return
+        }
+        #expect(template.hasSuffix("/mac/Opera_{version}_Setup.dmg"))
+        #expect(spec.kind == .dmg)
     }
 
     // MARK: - LibreOffice
@@ -257,18 +265,31 @@ struct GroupDProbeRecipeTests {
             from: pgAdminIndexFixture, pattern: recipe.versionPattern) == "1.6")
     }
 
-    @Test func pgAdminIsDetectionOnly() throws {
+    /// The install URL is built from the marketing version (`9.17`), which is the
+    /// field the mounted bundle agrees with — its `CFBundleVersion` is an
+    /// unrelated `4280.88`, so a build-based template would 404.
+    @Test func pgAdminInstallURLUsesTheMarketingVersion() throws {
         let recipe = try #require(pgAdmin)
-        #expect(recipe.install == nil)
+        #expect(!recipe.versionIsBuild)
+        let spec = try #require(recipe.install)
+        guard case .versionTemplate(let template) = spec.urlSource else {
+            Issue.record("expected a version template"); return
+        }
+        #expect(template.contains("/v{version}/macos/pgadmin4-{version}-arm64.dmg"))
     }
 
     // MARK: - Cross-cutting
 
-    /// Opera and pgAdmin stay detection-only: their artifacts are not at a path
-    /// the matched version alone determines. LibreOffice's are (see below), so it
-    /// is deliberately excluded here.
-    @Test func operaAndPgAdminAreStableChannelDetectionOnly() {
-        let bundleIDs = ["com.operasoftware.Opera", "org.pgadmin.pgadmin4"]
+    /// All three install, and all three MUST do it through `.versionTemplate`.
+    /// These indexes are sorted alphabetically, so the first `href` in the
+    /// document is not the release `selectHighest` picks — a `.bodyTemplate`
+    /// (first-match regexes) would build a URL for an older version than the one
+    /// being reported, which is the one failure mode a signature gate cannot
+    /// catch: an older build of the *right* app, correctly signed.
+    @Test func allThreeInstallFromTheResolvedVersion() {
+        let bundleIDs = [
+            "com.operasoftware.Opera", "org.libreoffice.script", "org.pgadmin.pgadmin4",
+        ]
         for id in bundleIDs {
             guard let recipe = VendorProbeRegistry.recipes.first(where: { $0.bundleID == id })
             else {
@@ -276,10 +297,45 @@ struct GroupDProbeRecipeTests {
                 continue
             }
             #expect(recipe.channel == .stable)
-            #expect(recipe.install == nil)
             #expect(recipe.selectHighest)
+            guard let spec = recipe.install else {
+                Issue.record("\(id) lost its install spec")
+                continue
+            }
+            #expect(spec.kind == .dmg)
+            guard case .versionTemplate(let template) = spec.urlSource else {
+                Issue.record("\(id) must not template off first-match body regexes")
+                continue
+            }
+            #expect(template.contains("{version}"))
         }
     }
+
+    /// The exact URLs the resolved versions build, each HEAD-checked live on
+    /// 2026-08-16 (200, `application/octet-stream`, 260,530,261 B and
+    /// 233,075,920 B respectively) and each mounted to confirm it carries the real
+    /// app rather than a downloader stub.
+    @Test func operaAndPgAdminBuildTheVerifiedArtifactURLs() throws {
+        func template(_ id: String) throws -> String {
+            let recipe = try #require(
+                VendorProbeRegistry.recipes.first(where: { $0.bundleID == id }))
+            let spec = try #require(recipe.install)
+            guard case .versionTemplate(let t) = spec.urlSource else {
+                throw VersionTemplateMissing()
+            }
+            return t
+        }
+        #expect(try template("com.operasoftware.Opera")
+            .replacingOccurrences(of: "{version}", with: "134.0.5954.56")
+            == "https://get.geo.opera.com/pub/opera/desktop/134.0.5954.56/mac/"
+            + "Opera_134.0.5954.56_Setup.dmg")
+        #expect(try template("org.pgadmin.pgadmin4")
+            .replacingOccurrences(of: "{version}", with: "9.17")
+            == "https://ftp.postgresql.org/pub/pgadmin/pgadmin4/v9.17/macos/"
+            + "pgadmin4-9.17-arm64.dmg")
+    }
+
+    private struct VersionTemplateMissing: Error {}
 
     /// LibreOffice's dmg lives at a path fully determined by the version, so it
     /// installs — but ONLY through `.versionTemplate`. On this alphabetically

@@ -2933,7 +2933,24 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://www.opera.com/download"),
             changelogURL: URL(string: "https://blogs.opera.com/desktop/"),
             selectHighest: true,
-            versionIsBuild: true),
+            versionIsBuild: true,
+            // ONE-CLICK via `.versionTemplate` — see LibreOffice below for why the
+            // template must fill the RESOLVED version and not a first-match regex
+            // on this alphabetically-sorted index.
+            //
+            // Despite the "Setup" in the filename this dmg is NOT a stub
+            // downloader (the 1Password trap): verified 2026-08-16 by mounting
+            // `Opera_134.0.5954.56_Setup.dmg` (260,530,261 B) — it carries
+            // `Opera.app` itself, 560 MB on disk, com.operasoftware.Opera,
+            // universal (x86_64 + arm64), Team A2P9LX4JPN (Opera Software AS),
+            // notarized Developer ID, spctl accepted. Its `CFBundleVersion` is
+            // `134.0.5954.56`, i.e. exactly the folder name this recipe compares,
+            // which is what makes the template safe as well as the comparison.
+            install: VendorInstallSpec(
+                urlSource: .versionTemplate(
+                    "https://get.geo.opera.com/pub/opera/desktop/"
+                    + "{version}/mac/Opera_{version}_Setup.dmg"),
+                kind: .dmg)),
 
         // LibreOffice — `download.documentfoundation.org/libreoffice/stable/` is a
         // MirrorBrain index of version folders (`26.2.5/`). `href="X.Y.Z/"` matches
@@ -3003,7 +3020,28 @@ public enum VendorProbeRegistry {
             versionPattern: #"href="v([0-9]+\.[0-9]+)/""#,
             downloadURL: URL(string: "https://www.pgadmin.org/download/pgadmin-4-macos/"),
             changelogURL: URL(string: "https://www.pgadmin.org/docs/pgadmin4/latest/release_notes.html"),
-            selectHighest: true),
+            selectHighest: true,
+            // ONE-CLICK via `.versionTemplate` (same reasoning as Opera and
+            // LibreOffice: the resolved version, never a first-match regex, on an
+            // index whose ordering is alphabetical — `v10.0` will one day sort
+            // before `v9.17`, and that day this template still builds the right
+            // URL because it is handed the number that won the comparison).
+            //
+            // Verified 2026-08-16 by mounting `pgadmin4-9.17-arm64.dmg`
+            // (233,075,920 B): `pgAdmin 4.app`, org.pgadmin.pgadmin4,
+            // CFBundleShortVersionString `9.17` — exactly what the index publishes,
+            // so no scheme mismatch — Team TCHGL2R7C5 (David Page), notarized
+            // Developer ID, spctl accepted. (`CFBundleVersion` is an unrelated
+            // `4280.88`; the recipe compares marketing, which is the field that
+            // agrees.) arm64-only artifact, like the other arm64-pinned recipes
+            // here; an Intel Mac is refused by the runnable-arch gate rather than
+            // given a build it can't run.
+            install: VendorInstallSpec(
+                urlSource: .versionTemplate(
+                    "https://ftp.postgresql.org/pub/pgadmin/pgadmin4/"
+                    + "v{version}/macos/pgadmin4-{version}-arm64.dmg"),
+                kind: .dmg)),
+
         // MARK: - 2026-08-16 group A (GIMP, Compass, Meld)
 
         // GIMP — the project's own `gimp_versions.json` (served from gimp.org,

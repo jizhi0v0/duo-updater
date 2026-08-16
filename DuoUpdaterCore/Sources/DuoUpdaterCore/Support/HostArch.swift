@@ -41,4 +41,31 @@ public enum HostArch: Sendable, Equatable {
     public var foreignTokens: [String] {
         (self == .arm64 ? HostArch.x86_64 : HostArch.arm64).assetTokens
     }
+
+    /// Whether an Intel build can still be *run* on this Mac — the one case where
+    /// offering a foreign-architecture download is better than offering nothing.
+    ///
+    /// Three conditions, all required:
+    ///  - the machine is Apple silicon (translation only ever went x86 → arm; an
+    ///    arm64 build has never run on an Intel Mac, so that direction is never
+    ///    offered regardless of anything below),
+    ///  - macOS is 27 or earlier. Apple documents Rosetta as available "through
+    ///    the forthcoming macOS 27" and, from macOS 28, only for certain older
+    ///    unmaintained games that depend on Intel frameworks — so from 28 an Intel
+    ///    app is one that will not launch, not one that runs slowly.
+    ///    https://support.apple.com/en-us/102527
+    ///  - the Rosetta runtime is actually installed. It is an optional install, so
+    ///    its absence means the same thing as its removal: the download would not
+    ///    run. The path is not API and may change; that is deliberate here, because
+    ///    a path that stops resolving makes us offer LESS, never more.
+    public static var canRunIntelBuilds: Bool { translationAvailable }
+
+    private static let translationAvailable: Bool = {
+        guard current == .arm64 else { return false }
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion <= 27 else {
+            return false
+        }
+        return FileManager.default.fileExists(
+            atPath: "/Library/Apple/usr/libexec/oah/libRosettaRuntime")
+    }()
 }

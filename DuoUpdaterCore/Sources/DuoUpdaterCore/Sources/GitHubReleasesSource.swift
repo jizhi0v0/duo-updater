@@ -74,7 +74,8 @@ public struct GitHubReleaseRule: Sendable {
     static func installableAsset(
         from assets: [(name: String, url: URL, size: Int64?)],
         matching pattern: String,
-        preferring arch: HostArch
+        preferring arch: HostArch,
+        allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds
     ) -> (url: URL, size: Int64?)? {
         let matches = assets.filter {
             $0.name.range(of: pattern, options: .regularExpression) != nil
@@ -97,8 +98,15 @@ public struct GitHubReleaseRule: Sendable {
             !has(arch.assetTokens, $0.name) && !has(arch.foreignTokens, $0.name)
         }) { return (neutral.url, neutral.size) }
 
-        // 3. Nothing native or neutral matched — fall back to the first match
-        //    (best effort; the pattern author constrained the set deliberately).
+        // 3. Everything that matched is built for the OTHER architecture. Offering
+        //    it is only better than offering nothing while the machine can still
+        //    RUN it — an Intel build on Apple silicon, and only for as long as
+        //    Rosetta covers apps (see `HostArch.canRunIntelBuilds`). Otherwise
+        //    resolve nothing: the row stays detection-only, showing the version and
+        //    linking to the releases page, instead of swapping in a bundle that
+        //    will not launch. The reverse direction is never offered — an arm64
+        //    build has never run on an Intel Mac.
+        guard arch == .arm64, canRunIntel else { return nil }
         return matches.first.map { ($0.url, $0.size) }
     }
 

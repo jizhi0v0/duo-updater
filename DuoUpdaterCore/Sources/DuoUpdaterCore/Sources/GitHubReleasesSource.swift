@@ -1223,9 +1223,12 @@ public enum GitHubReleaseRegistry {
             installerKind: .dmg),
 
         // RedisInsight — org.RedisLabs.RedisInsight-V2, Team UUK47G4BAZ, notarized.
-        // Tagged WITHOUT a leading `v` (`3.8.0`). Reached here from the vendor pile:
-        // its S3 download host publishes no readable manifest (every `latest*`
-        // path 403s), but the app is plain GitHub Releases, so no vendor recipe.
+        // Tagged WITHOUT a leading `v` (`3.8.0`). Reached here from the vendor
+        // pile: its S3 host does publish an electron-builder manifest, but only
+        // under a path that embeds the major version
+        // (`…/public/upgrades-v3/latest-mac.yml`), so a probe would have to know
+        // the answer to ask the question — and the release lives on plain GitHub
+        // Releases regardless, which needs no recipe at all.
         GitHubReleaseRule(
             bundleID: "org.RedisLabs.RedisInsight-V2",
             owner: "redis", repo: "RedisInsight",
@@ -1264,5 +1267,12 @@ public enum GitHubReleaseRegistry {
         // items) out of the list — so FreeCAD never reaches a source at all and a
         // rule here would be dead code. Fixing it means changing what the scanner
         // admits, which is a much larger call than one app.
+        //
+        // Re-audit trigger: the empty string comes from the conda bundler's
+        // `Info.plist.template`. The project's newer rattler-build path fills the
+        // short version in, so the day a rattler-built dmg ships, FreeCAD becomes
+        // ordinary — tag `1.1.3` (no `v`), asset
+        // `FreeCAD_<ver>-macOS-arm64-py<n>.dmg`. Check the shipped plist, not the
+        // release notes.
     ]
 }

@@ -2416,6 +2416,124 @@ public enum VendorProbeRegistry {
         // (Surge needs no recipe here: it declares a Sparkle SUFeedURL, so the
         // higher-priority SparkleAppcastSource handles it, and `SurgeChannel`
         // retargets that feed to the release/beta appcast per the user's choice.)
+
+        // MARK: - 2026-08-16 vendor batch
+        //
+        // Mainstream Homebrew casks with no Sparkle feed of their own. Every line
+        // states what was read off the artifact the install spec actually
+        // resolves to, on a mounted/expanded copy of the real download — bundle
+        // id, `CFBundleShortVersionString` and `codesign`/`spctl` — because the
+        // trap in this batch is never "no version anywhere", it is a version that
+        // is not the same KIND of string the installed bundle reports.
+
+        // Wave Terminal — electron-builder feed. Verified 2026-08-16: the zip
+        // holds `Wave.app`, dev.commandline.waveterm, 0.14.5, Team M4LA8V687Y,
+        // notarized — the same string the feed's `version:` carries.
+        VendorProbeRecipe(
+            bundleID: "dev.commandline.waveterm",
+            url: URL(string: "https://dl.waveterm.dev/releases-w2/latest-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"^version:\s*([0-9][^\s]*)"#,
+            downloadURL: URL(string: "https://waveterm.dev/download"),
+            changelogURL: URL(string: "https://github.com/wavetermdev/waveterm/releases"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #"(Wave-darwin-arm64-[^\s]+\.zip)"#,
+                    base: URL(string: "https://dl.waveterm.dev/releases-w2/")!),
+                kind: .zip)),
+
+        // Lens — electron-builder feed. The version carries a literal `-latest`
+        // suffix (`2026.6.260931-latest`) and so does the shipped bundle's own
+        // `CFBundleShortVersionString`, verified on the mounted dmg
+        // (com.electron.kontena-lens, Team JJ22T2W355, notarized). Both sides
+        // therefore compare like-for-like; do NOT "clean up" the suffix here,
+        // that would make every check report a phantom update.
+        VendorProbeRecipe(
+            bundleID: "com.electron.kontena-lens",
+            url: URL(string: "https://api.k8slens.dev/binaries/latest-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"^version:\s*([0-9][^\s]*)"#,
+            downloadURL: URL(string: "https://k8slens.dev/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #"(Lens-[^\s]+-arm64\.dmg)"#,
+                    base: URL(string: "https://api.k8slens.dev/binaries/")!),
+                kind: .dmg)),
+
+        // Termius — electron-builder feed, one per architecture. The artifacts
+        // are unversioned (`Termius.dmg`), so the install URL is fixed and the
+        // version comes from the feed. Verified 2026-08-16 on the arm64 dmg:
+        // com.termius-dmg.mac, 9.43.1, Team 6KN952WR85, notarized.
+        VendorProbeRecipe(
+            bundleID: "com.termius-dmg.mac",
+            url: URL(string: "https://autoupdate.termius.com/mac-arm64/latest-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"^version:\s*([0-9][^\s]*)"#,
+            downloadURL: URL(string: "https://termius.com/download/macos"),
+            changelogURL: URL(string: "https://termius.com/release-notes"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://autoupdate.termius.com/mac-arm64/Termius.dmg")!),
+                kind: .dmg)),
+
+        // Unity Hub — electron-builder feed. Despite the "Setup" in the asset
+        // name this zip is NOT a stub installer: it expands to `Unity Hub.app`
+        // itself (com.unity3d.unityhub, 3.20.1, Team 9QW8UQUTAA, notarized),
+        // which is what makes one-click safe here and not the 1Password trap.
+        VendorProbeRecipe(
+            bundleID: "com.unity3d.unityhub",
+            url: URL(string: "https://public-cdn.cloud.unity3d.com/hub/prod/latest-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"^version:\s*([0-9][^\s]*)"#,
+            downloadURL: URL(string: "https://unity.com/unity-hub"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #"([0-9][^\s/]*/UnityHubSetup-[^\s]+-arm64\.zip)"#,
+                    base: URL(string: "https://public-cdn.cloud.unity3d.com/hub/prod/")!),
+                kind: .zip)),
+
+        // iStat Menus — a "latest" link that 302s straight to the versioned zip
+        // (`…/versions/iStatMenus7.30.zip`), so the redirect target is both the
+        // version signal and the download. Verified 2026-08-16: the zip holds
+        // `iStat Menus.app`, com.bjango.istatmenus, 7.30, Team Y93TK974AT,
+        // notarized. The pattern skips the `7` in the product name and takes the
+        // version that follows it.
+        VendorProbeRecipe(
+            bundleID: "com.bjango.istatmenus",
+            url: URL(string: "https://download.istatmenus.app/istatmenus7/download/")!,
+            mode: .redirectFilename,
+            versionPattern: #"iStatMenus([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.zip"#,
+            downloadURL: URL(string: "https://bjango.com/mac/istatmenus/"),
+            changelogURL: URL(string: "https://bjango.com/mac/istatmenus/versionhistory/"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(
+                    URL(string: "https://download.istatmenus.app/istatmenus7/download/")!),
+                kind: .zip)),
+
+        // Inkscape — detection only. `/release/` 302s to `/release/inkscape-1.4.4/`,
+        // which is a clean version signal, but the actual dmg is NOT reachable
+        // from it: the per-architecture download page hands out the file through
+        // an HTML `<meta http-equiv="Refresh">` to `/gallery/item/<id>/…`, and
+        // that id is minted per release (59498 for 1.4.4_arm64), so no template
+        // built from the version can reach the artifact. Revisit if Inkscape ever
+        // exposes a stable versioned URL.
+        VendorProbeRecipe(
+            bundleID: "org.inkscape.Inkscape",
+            url: URL(string: "https://inkscape.org/release/")!,
+            mode: .redirectFilename,
+            versionPattern: #"inkscape-([0-9]+\.[0-9]+(?:\.[0-9]+)?)"#,
+            downloadURL: URL(string: "https://inkscape.org/release/"),
+            changelogURL: URL(string: "https://inkscape.org/news/"),
+            followRedirects: false),
+
+        // Deliberately NOT covered — Android File Transfer
+        // (`com.google.android.mtpviewer`). `…/mtp/current/AndroidFileTransfer.dmg`
+        // does 302 to a versioned path, but the number there is `5071136` while the
+        // shipped bundle reports `1.0.12` (build `1.0.507.1136`) — the redirect
+        // squashes the build's last two segments together. Neither string can be
+        // compared with the other, so a recipe would report a permanent update.
+        // (Homebrew's cask uses 5071136 as its own bookkeeping version, which is
+        // what makes this look workable from the outside.)
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

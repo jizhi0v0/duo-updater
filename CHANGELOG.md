@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## Unreleased
+
+**Thirteen more apps now report their updates.** GIMP, MongoDB Compass, Meld, Emacs, Tor Browser, Zotero, GrandPerspective, TigerVNC, qBittorrent, Opera, LibreOffice, pgAdmin 4 and Telegram Desktop were all sitting in the list as a grey "unknown". Each was worked out by downloading the vendor's actual build and reading its identity, so a one-click only appears where the download is signed by the same developer as the copy you already have — seven of the thirteen install that way, and the rest report their version and send you to the vendor. qBittorrent's own build isn't signed by an identified developer at all, and Opera, LibreOffice and pgAdmin publish only a directory listing whose ordering can't be trusted to still point at the newest release next year, so those four stay report-only on purpose.
+
+**微信输入法 (WeType) now installs with one click.** It lives in a folder only an administrator can write to, which is why it used to only report its version. It now goes through the same administrator prompt as any other app in a protected location.
+
+**Discord's version check works again.** Discord moved its downloads to a different server, and the check was looking for the old address — so DuoUpdater quietly reported "no version" for Discord Stable while everything else kept working. It now keys off the part of the address that identifies the release channel, which is the part that actually has to be right.
+
 ## 0.3.24
 
 **Fifteen more apps now report their updates, and all but one install with one click.** Rancher Desktop, Cherry Studio, RedisInsight, Upscayl, WailBrew, Wave Terminal, Lens, Termius, Unity Hub, iStat Menus, Inkscape, Google Gemini, Antigravity, AnyDesk and Kiro were all showing as a grey "unknown" — installed, with nothing to say about them. Each one was worked out by reading the vendor's own build rather than trusting a download page: the version now comes from wherever that app's own updater looks, and a one-click only appears where the download is signed by the same developer as the copy you already have. Three of them (Google Gemini, Antigravity, Kiro) publish nothing a download page can be scraped for; their real update services answer the same questions their own updaters ask, so that is what DuoUpdater asks too.

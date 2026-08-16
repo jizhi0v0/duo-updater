@@ -367,6 +367,7 @@ public struct VendorProbeSource: UpdateSource {
             request.timeoutInterval = 15
             request.cachePolicy = URLRequest.versionFeedCachePolicy
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+            Self.apply(recipe.requestHeaders, to: &request)
 
             if recipe.followRedirects {
                 // HEAD + follow: the version lives in the final resolved URL's
@@ -418,6 +419,7 @@ public struct VendorProbeSource: UpdateSource {
             request.timeoutInterval = 15
             request.cachePolicy = URLRequest.versionFeedCachePolicy
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+            Self.apply(recipe.requestHeaders, to: &request)
             // An update service that only answers a POST (Omaha). The body is
             // fixed by the recipe — nothing about this machine goes into it.
             if let body = recipe.requestBody {
@@ -454,6 +456,15 @@ public struct VendorProbeSource: UpdateSource {
                 .map { FetchedBody(
                     text: $0, resolvedDownload: recipe.downloadURL ?? recipe.url,
                     status: nil) }
+        }
+    }
+
+    /// Layer a recipe's own headers over the defaults set just above, so a recipe
+    /// can override even `User-Agent` (SourceForge 403s the browser-like default
+    /// — see `VendorProbeRecipe.requestHeaders`).
+    private static func apply(_ headers: [String: String], to request: inout URLRequest) {
+        for (field, value) in headers {
+            request.setValue(value, forHTTPHeaderField: field)
         }
     }
 

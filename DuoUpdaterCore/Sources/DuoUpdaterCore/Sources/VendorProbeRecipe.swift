@@ -259,6 +259,18 @@ public struct VendorProbeRecipe: Sendable {
     /// which only redirects on GET).
     public let followRedirects: Bool
 
+    /// Request headers layered on top of the probe's defaults (they win on a key
+    /// collision, `User-Agent` included).
+    ///
+    /// The default UA is deliberately browser-like because several vendor sites
+    /// reject unfamiliar agents — but a few WAFs invert that test and refuse a
+    /// browser UA arriving without the rest of a browser's fingerprint.
+    /// SourceForge is the measured case: `sourceforge.net/projects/<p>/best_release.json`
+    /// answers 200 to `curl`'s own UA and to `DuoUpdater/0.1`, and **403** to the
+    /// exact Safari UA this probe otherwise sends (2026-08-16, same second, same
+    /// host — the only variable was the UA string).
+    public let requestHeaders: [String: String]
+
     public init(
         bundleID: String,
         url: URL,
@@ -272,6 +284,7 @@ public struct VendorProbeRecipe: Sendable {
         publishedAtPattern: String? = nil,
         install: VendorInstallSpec? = nil,
         requestBody: RequestBody? = nil,
+        requestHeaders: [String: String] = [:],
         followRedirects: Bool = true,
         channel: ReleaseChannel = .stable,
         identity: ProbeIdentity? = nil,
@@ -292,6 +305,7 @@ public struct VendorProbeRecipe: Sendable {
         self.publishedAtPattern = publishedAtPattern
         self.install = install
         self.requestBody = requestBody
+        self.requestHeaders = requestHeaders
         self.followRedirects = followRedirects
     }
 
@@ -3187,6 +3201,12 @@ public enum VendorProbeRegistry {
                         "https://sourceforge.net/projects/\(project)/files{0}/download",
                         fields: [filenameCapture]),
                     kind: kind)
-            })
+            },
+            // SourceForge's edge answers 200 to a plain tool UA and 403 to the
+            // browser-like default this probe otherwise sends (measured
+            // 2026-08-16: same URL, same second, UA the only variable). Curl-based
+            // spot checks never see this — only the production path does, which is
+            // how `duo verify` caught all three of these at once.
+            requestHeaders: ["User-Agent": "DuoUpdater/0.1"])
     }
 }

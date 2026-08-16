@@ -144,4 +144,22 @@ struct GroupCProbeRecipeTests {
         let recipe = try recipe("org.qbittorrent.qBittorrent")
         #expect(recipe.install == nil)
     }
+
+    // MARK: - The UA override these three depend on
+
+    /// SourceForge's edge 403s the browser-like UA `VendorProbeSource` sends by
+    /// default: measured 2026-08-16 on `best_release.json` with the UA as the only
+    /// variable (curl's own UA → 200, `DuoUpdater/0.1` → 200, the Safari string →
+    /// 403). All three recipes here went red in `duo verify` for exactly that
+    /// reason and only came back with this header, so drop it and they break.
+    @Test func sourceForgeRecipesOverrideTheBrowserUserAgent() throws {
+        for id in ["net.sourceforge.grandperspectiv",
+                   "com.tigervnc.tigervnc",
+                   "org.qbittorrent.qBittorrent"] {
+            let recipe = try recipe(id)
+            let ua = recipe.requestHeaders["User-Agent"]
+            #expect(ua != nil, "\(id) must send its own User-Agent")
+            #expect(ua?.contains("Mozilla") == false, "\(id) must not send a browser UA")
+        }
+    }
 }

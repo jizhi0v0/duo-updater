@@ -1316,25 +1316,47 @@ public enum VendorProbeRegistry {
         // (e.g. iOS) object. Without that gate, a bare/highest version pattern would
         // grab a higher non-macOS version (iOS is at 3.4.0) → a phantom update.
         // `content_html` carries no raw `"` (quotes are `&quot;`-encoded), so the
-        // `[^"]*` field bounds hold. selectHighest because the page lists releases
-        // ascending (oldest-first) and the pattern matches NOTHING BUT macOS
-        // versions. DETECTION-ONLY, re-checked 2026-08-09: the page DOES now expose
-        // download links (`WeTypeInstaller_2.2.2_647_[d-g].zip`), but each contains
-        // `WeTypeInstaller.app` (`com.tencent.wetype.InstallerApp`, 3 MB, notarized
-        // under Team 88L2Q4487U) — a stub that fetches and installs the real thing.
-        // The input method itself lives at `/Library/Input Methods/WeType.app`, not
-        // in `/Applications`, so there is nothing here for an in-place swap to
-        // replace even if the payload were the app. WeType self-updates in-app. changelogURL is the same page (the `/macos`
-        // route filters to macOS client-side) — also parsed natively by a
-        // ChangelogRecipe; this is the webview fallback if that parse misses.
+        // `[^"]*` field bounds hold.
+        //
+        // We compare BUILDS, not the marketing version: the page names the current
+        // installer as `WeTypeInstaller_2.2.2_647_<letter>.zip`, and the installed
+        // bundle's `CFBundleVersion` is that same `647`, so both sides speak the
+        // same scheme. Those installer links exist only for the CURRENT release
+        // (verified 2026-08-16: the whole page yields exactly one version/build
+        // pair). `displayVersionPattern` keeps the row reading `2.2.2` rather than a
+        // bare `647`, and it reads that string out of the SAME filename — which
+        // matters twice over: display extraction is first-match with no
+        // `selectHighest`, and this page lists releases oldest-first, so the
+        // `"platform":3`-gated object pattern would have shown the very first
+        // macOS release ever published beside the current build.
+        //
+        // If a future page ever drops the installer links, the build pattern misses
+        // and the probe degrades to "unknown" — never to a wrong version.
+        //
+        // DETECTION-ONLY, and the reason is now permissions, not information.
+        // Earlier notes said the download was only a stub and no real package URL
+        // was known; both are obsolete. The app's own updater fetches a Sparkle
+        // appcast at `download.weread.qq.com/app/wxkb/mac/<ver>/updates_<ver>_<build>.xml`
+        // (captured 2026-08-16), which carries the REAL 319 MB `WeType_<ver>_<build>.zip`
+        // and an EdDSA signature — and with the build in hand that URL is now
+        // constructible. What blocks an install is where the input method lives:
+        // `/Library/Input Methods/WeType.app` is root-owned and that directory is
+        // not writable by the user we run as, so an in-place swap cannot land
+        // without a privileged helper. (Two more traps if this is ever revisited:
+        // the generic `mac/updates.xml` is a frozen first-generation file, still
+        // advertising 1.4.1/519 from 2025-07; and a per-version appcast is never
+        // rewritten when a newer release ships — 2.2.1's still describes 2.2.1 —
+        // so it states a release, it does not point at the latest one.)
         VendorProbeRecipe(
             bundleID: "com.tencent.inputmethod.wetype",
             url: URL(string: "https://z.weixin.qq.com/web/change-log/macos")!,
             mode: .responseBody,
-            versionPattern: #""version":"([0-9][^"]*)","content":"[^"]*","content_html":"[^"]*","platform":3"#,
+            versionPattern: #"WeTypeInstaller_[0-9.]+_([0-9]+)_[a-z]\.zip"#,
             downloadURL: URL(string: "https://z.weixin.qq.com/"),
             changelogURL: URL(string: "https://z.weixin.qq.com/web/change-log/macos"),
-            selectHighest: true),
+            selectHighest: true,
+            versionIsBuild: true,
+            displayVersionPattern: #"WeTypeInstaller_([0-9.]+)_[0-9]+_[a-z]\.zip"#),
 
         // WeChat (微信, 官网版) — Tencent's flagship messenger, installed from the
         // official site (Developer ID, no MAS receipt, no SUFeedURL in Info.plist).

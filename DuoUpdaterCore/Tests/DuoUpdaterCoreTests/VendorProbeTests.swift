@@ -1258,25 +1258,28 @@ private let weChatFeed = #"""
 }
 
 // WeType (微信输入法) — the changelog page lists releases for ALL platforms in one
-// flat list (`"platform":1`=iOS … `3`=macOS). The recipe's pattern anchors the
-// version to its own object's `"platform":3`, and selectHighest picks the newest
-// MACOS release — it must NOT grab a higher-versioned non-macOS entry (here iOS
-// 3.4.0 > macOS 2.2.0), which an unanchored highest-version pattern would, causing
-// a phantom "update available".
-@Test func weTypeProbeSelectsHighestMacOSVersionNotHigherIOS() throws {
+// flat list (`"platform":1`=iOS … `3`=macOS), so a naive highest-version pattern
+// grabs a higher non-macOS entry (iOS is at 3.4.0) and reports a phantom update.
+// The recipe sidesteps that entirely by reading the macOS installer's filename,
+// which carries the build the installed bundle's `CFBundleVersion` also reports,
+// and exists only for the current release.
+@Test func weTypeProbeReadsTheMacInstallerBuildNotAHigherIOSVersion() throws {
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.tencent.inputmethod.wetype" })
-    #expect(recipe.selectHighest)  // page lists macOS releases ascending → take highest
-    #expect(recipe.install == nil) // detection-only (no download_url / build number)
+    #expect(recipe.versionIsBuild)  // compared against CFBundleVersion, not 2.2.2
+    #expect(recipe.install == nil)  // detection-only: see the recipe's note (permissions)
 
     let body = """
     [{"id":120,"title":"x for iOS","release_date":1,"version":"3.4.0","content":"","content_html":"<h2>iOS</h2>","platform":1,"download_url":""},\
     {"id":121,"title":"x for Mac","release_date":2,"version":"2.1.0","content":"","content_html":"<h2>old</h2>","platform":3,"download_url":""},\
-    {"id":152,"title":"x for Mac","release_date":3,"version":"2.2.0","content":"","content_html":"<h2>new &quot;v&quot;</h2>","platform":3,"download_url":""}]
+    {"id":152,"title":"x for Mac","release_date":3,"version":"2.2.2","content":"","content_html":"<h2>new &quot;v&quot; WeTypeInstaller_2.2.2_647_d.zip</h2>","platform":3,"download_url":""}]
     """
-    // selectHighest path used by the source for this recipe.
-    #expect(VendorProbeRecipe.highestVersion(from: body, pattern: recipe.versionPattern) == "2.2.0")
-    // The trap, documented: an unanchored highest pattern grabs the iOS version.
+    #expect(VendorProbeRecipe.highestVersion(from: body, pattern: recipe.versionPattern) == "647")
+    let display = try #require(recipe.displayVersionPattern)
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: display) == "2.2.2")
+
+    // The trap this replaced, kept so it stays documented: an unanchored
+    // highest-version pattern over the same body takes iOS's 3.4.0.
     #expect(VendorProbeRecipe.highestVersion(
         from: body, pattern: #""version":"([0-9][^"]*)""#) == "3.4.0")
 }

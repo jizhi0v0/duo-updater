@@ -17,6 +17,24 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.24</title>
+            <pubDate>Sun, 16 Aug 2026 19:00:41 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.24</link>
+            <sparkle:version>34</sparkle:version>
+            <sparkle:shortVersionString>0.3.24</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Fifteen more apps now report their updates, and all but one install with one click.** Rancher Desktop, Cherry Studio, RedisInsight, Upscayl, WailBrew, Wave Terminal, Lens, Termius, Unity Hub, iStat Menus, Inkscape, Google Gemini, Antigravity, AnyDesk and Kiro were all showing as a grey "unknown" — installed, with nothing to say about them. Each one was worked out by reading the vendor's own build rather than trusting a download page: the version now comes from wherever that app's own updater looks, and a one-click only appears where the download is signed by the same developer as the copy you already have. Three of them (Google Gemini, Antigravity, Kiro) publish nothing a download page can be scraped for; their real update services answer the same questions their own updaters ask, so that is what DuoUpdater asks too.
+
+**AnyDesk in particular was written off and shouldn't have been.** Its download and changelog pages both refuse anything that isn't a person with a browser, so an earlier sweep concluded the app was unreachable. The plain-text changelog on the same server answers fine — and it is what AnyDesk's own Homebrew entry has always read.
+
+**Updating an app in a location that needs an administrator password now asks, once.** Most apps live in /Applications, which you can write to; a few — input methods, for one — live where only an administrator can. Those used to show an Update button that could never work. Now the button asks for the password, and if you dismiss that prompt DuoUpdater takes the hint: the row switches to Open and stops asking on every release. "Ask for administrator access again" in the row's right-click menu brings the button back. The choice is remembered for that copy of the app specifically, so declining for one install doesn't silence another.
+
+**An up-to-date Xcode beta no longer claims the vendor is behind it.** Under "Show all", a row whose vendor has fallen behind what you have installed shows a muted note saying so — you're ahead, nothing to do. Xcode was getting that note while sitting on exactly the build Apple was offering: it publishes a build number plus a human label ("27.0 beta 5"), and comparing that label against the plain "27.0" the bundle reports made a release look newer than its own beta. The note now settles on the build whenever both sides have one, so the same release is recognised as the same release however it is labelled. A vendor that has genuinely fallen behind is still called out.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.24/DuoUpdater-0.3.24-macos.zip" length="10407758" type="application/octet-stream" sparkle:edSignature="A1IVNjgjJgZtLs5SU6Dzqn5tmhftpFVDf7w2AGBMPpuaztZAsOhmzEOxkMFmNYc3y43HtUw4RJmuLAIfj4CrCQ=="/>
+        </item>
+        <item>
             <title>0.3.23</title>
             <pubDate>Sun, 16 Aug 2026 15:21:42 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.23</link>
@@ -49,18 +67,6 @@ Apps that already carry a Sparkle feed needed nothing: they were checked as part
 **A superseded package update no longer leaves its window sitting there.** Updates that go through macOS's own installer — Microsoft Office, AweSun, ToDesk — open an Installer window and then wait for you. If you left one open and a newer release came along, installing that one opened a second window, and they stacked up. The older window is now closed once its replacement is ready, and its download cleaned up with it. A window that's mid-install, or asking for your password, is left strictly alone.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.22/DuoUpdater-0.3.22-macos.zip" length="10374848" type="application/octet-stream" sparkle:edSignature="tymn7ipTAEQPF/I82ecC2QdzhOuTBMfmKtCJ5FeXol4fP5edXZ+xq6z0gomYfs2X5FalnUnvq7I+9sg5yX/ODQ=="/>
-        </item>
-        <item>
-            <title>0.3.21</title>
-            <pubDate>Fri, 14 Aug 2026 20:21:02 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.21</link>
-            <sparkle:version>31</sparkle:version>
-            <sparkle:shortVersionString>0.3.21</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**`duo` says which copy is which when two apps share a name.** Naming an app that is installed twice — two Xcode betas, say — printed both candidates as a bare "Xcode" and told you to name one exactly, which matches both again. The listing now carries each copy's version, and when the matches genuinely share a name it asks for the path instead of repeating advice that cannot work.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.21/DuoUpdater-0.3.21-macos.zip" length="10361085" type="application/octet-stream" sparkle:edSignature="CW8Fy/94MNv+s4yFXb04/T1BmP0I8x71lo/HibG1z3XYWtG91UipNDb4ieWsAjkOrKVBrS42Scd2BAQXy6c8Aw=="/>
         </item>
     </channel>
 </rss>

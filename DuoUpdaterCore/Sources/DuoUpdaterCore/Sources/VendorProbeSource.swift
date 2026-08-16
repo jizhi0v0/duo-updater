@@ -310,7 +310,7 @@ public struct VendorProbeSource: UpdateSource {
         // (and any checksum) now — from the same body we already have. A failure
         // here just falls back to detection-only; it never blocks the version.
         if allowInstall, let spec = recipe.install {
-            if let plan = try? await resolveInstall(spec, body: body.text) {
+            if let plan = try? await resolveInstall(spec, body: body.text, version: version) {
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: spec, plan: plan,
                     resolvedDownload: body.resolvedDownload, display: display,
@@ -543,7 +543,7 @@ public struct VendorProbeSource: UpdateSource {
     /// Resolve an install spec into a concrete (url, checksum) pair. The body is
     /// the probe response we already fetched, reused for `bodyPattern` extraction.
     private func resolveInstall(
-        _ spec: VendorInstallSpec, body: String
+        _ spec: VendorInstallSpec, body: String, version: String
     ) async throws -> (url: URL, checksum: String?)? {
         let checksum = spec.checksumPattern.flatMap {
             VendorProbeRecipe.extractVersion(from: body, pattern: $0)
@@ -551,6 +551,13 @@ public struct VendorProbeSource: UpdateSource {
 
         switch spec.urlSource {
         case .fixed(let url):
+            return (Self.preferHTTPS(url), checksum)
+
+        case .versionTemplate(let template):
+            // `version` is what the probe resolved (after `selectHighest`), so the
+            // URL always names the release that was actually compared.
+            let filled = template.replacingOccurrences(of: "{version}", with: version)
+            guard let url = URL(string: filled) else { return nil }
             return (Self.preferHTTPS(url), checksum)
 
         case .bodyPattern(let pattern):

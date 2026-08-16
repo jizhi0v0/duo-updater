@@ -49,6 +49,19 @@ public struct VendorInstallSpec: Sendable {
         /// applied to the body. For feeds that publish the pieces but no link —
         /// e.g. LM Studio gives `version` + `build` and the dmg path needs both.
         case bodyTemplate(String, fields: [String])
+        /// Build the URL from a template whose `{version}` placeholders are filled
+        /// with the version the probe RESOLVED — not with a fresh first-match over
+        /// the body.
+        ///
+        /// That distinction is the whole point. `bodyTemplate` re-runs its regexes
+        /// and takes the first match, which agrees with the resolved version only
+        /// when the body lists the newest release first. A vendor directory index
+        /// is sorted ALPHABETICALLY (`"100.0" < "99.0"`, and `"v10.0" < "v9.17"`),
+        /// so `selectHighest` deliberately picks a different entry than the first
+        /// one — and a `bodyTemplate` there would quietly build a URL for an OLDER
+        /// release than the one being reported. This case cannot drift that way:
+        /// the string that was compared is the string that gets downloaded.
+        case versionTemplate(String)
         /// A stable "latest" link that 302-redirects to the real installer; we
         /// HEAD-follow it to the final URL (e.g. VS Code's `/latest/...`).
         case redirect(URL)
@@ -2873,6 +2886,7 @@ public enum VendorProbeRegistry {
                     "https://download.zotero.org/client/release/{0}/Zotero-{0}.dmg",
                     fields: [#""standaloneVersions"\s*:\s*\{\s*"mac"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#]),
                 kind: .dmg)),
+
         // MARK: - 2026-08-16 group D (directory indexes)
         //
         // All three below are the same shape: a vendor's plain Apache/MirrorBrain
@@ -2922,12 +2936,27 @@ public enum VendorProbeRegistry {
             versionIsBuild: true),
 
         // LibreOffice — `download.documentfoundation.org/libreoffice/stable/` is a
-        // MirrorBrain index of version folders (`26.2.5/`), the mac artifact sitting
-        // two levels deeper (`26.2.5/mac/aarch64/LibreOffice_26.2.5_MacOS_aarch64.dmg`)
-        // — a second-level fetch this recipe shape can't reach, which is the other
-        // half of why this stays detection-only (see the group note above for the
-        // ordering half). `href="X.Y.Z/"` matches only version folders; the page
-        // carries no other dotted-numeric hrefs.
+        // MirrorBrain index of version folders (`26.2.5/`). `href="X.Y.Z/"` matches
+        // only version folders; the page carries no other dotted-numeric hrefs.
+        //
+        // ONE-CLICK, via `.versionTemplate`. The mac artifact sits two levels below
+        // the index, at a path that is fully determined by the version:
+        // `<ver>/mac/aarch64/LibreOffice_<ver>_MacOS_aarch64.dmg` (HEAD 2026-08-16:
+        // 302 to a MirrorBrain mirror, e.g. `mirror.usi.edu` / `mirror.fcix.net` —
+        // the mirror changes per request, which is why the URL is built from the
+        // canonical host and never cached). An earlier note here called the deeper
+        // path a blocker; it isn't — what would have been a blocker is
+        // `.bodyTemplate`, whose regexes take the FIRST match while this index is
+        // sorted alphabetically and `selectHighest` deliberately picks a different
+        // entry, so the URL could name an older release than the one reported.
+        // `.versionTemplate` fills the resolved version instead, which is exactly
+        // the string that was compared.
+        //
+        // aarch64 only, like the other arm64-pinned recipes here (GIMP, pgAdmin,
+        // Meld). On an Intel Mac the download is refused by the runnable-arch gate
+        // rather than installed — the fail-safe direction; LibreOffice does publish
+        // an x86-64 dmg, and picking between them needs arch-aware plumbing the
+        // vendor path doesn't have yet (only the GitHub rules do).
         //
         // VERSION SCHEME TRAP (the one flagged in the brief): the index publishes
         // 3-segment versions (`26.2.5`) but the installed bundle reports 4
@@ -2947,7 +2976,12 @@ public enum VendorProbeRegistry {
             versionPattern: #"href="([0-9]+\.[0-9]+\.[0-9]+)/""#,
             downloadURL: URL(string: "https://www.libreoffice.org/download/download-libreoffice/"),
             changelogURL: URL(string: "https://www.libreoffice.org/release-notes/"),
-            selectHighest: true),
+            selectHighest: true,
+            install: VendorInstallSpec(
+                urlSource: .versionTemplate(
+                    "https://download.documentfoundation.org/libreoffice/stable/"
+                    + "{version}/mac/aarch64/LibreOffice_{version}_MacOS_aarch64.dmg"),
+                kind: .dmg)),
 
         // pgAdmin4 — `ftp.postgresql.org/pub/pgadmin/pgadmin4/` lists both version
         // folders (`v9.17/`) and non-version siblings (`apt/`, `autoupdate/`,

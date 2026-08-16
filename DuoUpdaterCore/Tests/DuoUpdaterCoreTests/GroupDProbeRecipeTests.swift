@@ -168,9 +168,20 @@ struct GroupDProbeRecipeTests {
         #expect(!VersionComparator.isNewer("26.2.5", than: "26.2.5.2"))
     }
 
-    @Test func libreOfficeIsDetectionOnly() throws {
+    /// A 3-segment feed version against a 4-segment installed one is safe to
+    /// COMPARE (above) but must not be pasted into a download URL blindly: the
+    /// artifact is published under the 3-segment folder, which is exactly what the
+    /// version template uses. Pinned so a later "let's make the pattern capture
+    /// all four segments" change fails here instead of 404-ing at install time.
+    @Test func libreOfficeInstallURLUsesTheThreeSegmentFolder() throws {
         let recipe = try #require(libreOffice)
-        #expect(recipe.install == nil)
+        let spec = try #require(recipe.install)
+        guard case .versionTemplate(let template) = spec.urlSource else {
+            Issue.record("expected a version template"); return
+        }
+        #expect(!template.contains("26.2.5.2"))
+        #expect(template.replacingOccurrences(of: "{version}", with: "26.2.5")
+            .hasSuffix("/26.2.5/mac/aarch64/LibreOffice_26.2.5_MacOS_aarch64.dmg"))
     }
 
     // MARK: - pgAdmin4
@@ -253,14 +264,11 @@ struct GroupDProbeRecipeTests {
 
     // MARK: - Cross-cutting
 
-    /// All three recipes target Stable and carry no `install` spec — every
-    /// assertion above should be read together with this one: `selectHighest`
-    /// alone is what keeps detection correct on an alphabetically-sorted index;
-    /// nothing in this file claims it's also safe to drive an install from.
-    @Test func allThreeAreStableChannelDetectionOnly() {
-        let bundleIDs = [
-            "com.operasoftware.Opera", "org.libreoffice.script", "org.pgadmin.pgadmin4",
-        ]
+    /// Opera and pgAdmin stay detection-only: their artifacts are not at a path
+    /// the matched version alone determines. LibreOffice's are (see below), so it
+    /// is deliberately excluded here.
+    @Test func operaAndPgAdminAreStableChannelDetectionOnly() {
+        let bundleIDs = ["com.operasoftware.Opera", "org.pgadmin.pgadmin4"]
         for id in bundleIDs {
             guard let recipe = VendorProbeRegistry.recipes.first(where: { $0.bundleID == id })
             else {
@@ -271,5 +279,36 @@ struct GroupDProbeRecipeTests {
             #expect(recipe.install == nil)
             #expect(recipe.selectHighest)
         }
+    }
+
+    /// LibreOffice's dmg lives at a path fully determined by the version, so it
+    /// installs — but ONLY through `.versionTemplate`. On this alphabetically
+    /// sorted index the first `href="X.Y.Z/"` in the document is NOT the release
+    /// `selectHighest` picks, so a `.bodyTemplate` (first-match regexes) would
+    /// build a URL for an older version than the one being reported. This test
+    /// pins both halves: the source case, and the fact that they really do differ
+    /// on the real page.
+    @Test func libreOfficeInstallsFromTheResolvedVersionNotTheFirstMatch() throws {
+        let recipe = try #require(libreOffice)
+        let spec = try #require(recipe.install)
+        #expect(spec.kind == .dmg)
+        guard case .versionTemplate(let template) = spec.urlSource else {
+            Issue.record("LibreOffice must not template off first-match body regexes")
+            return
+        }
+        #expect(template.contains("{version}"))
+        #expect(recipe.selectHighest)
+
+        // The trap, on the captured index: first match ≠ highest.
+        let first = VendorProbeRecipe.extractVersion(
+            from: libreOfficeIndexFixture, pattern: recipe.versionPattern)
+        #expect(first != nil)
+        #expect(first != "26.2.5", "fixture no longer exercises the ordering trap")
+
+        // What the resolved version actually builds. Verified live 2026-08-16:
+        // this URL 302s to a MirrorBrain mirror carrying the real dmg.
+        let url = template.replacingOccurrences(of: "{version}", with: "26.2.5")
+        #expect(url == "https://download.documentfoundation.org/libreoffice/stable/"
+            + "26.2.5/mac/aarch64/LibreOffice_26.2.5_MacOS_aarch64.dmg")
     }
 }

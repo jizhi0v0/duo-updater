@@ -418,6 +418,13 @@ public struct VendorProbeSource: UpdateSource {
             request.timeoutInterval = 15
             request.cachePolicy = URLRequest.versionFeedCachePolicy
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+            // An update service that only answers a POST (Omaha). The body is
+            // fixed by the recipe — nothing about this machine goes into it.
+            if let body = recipe.requestBody {
+                request.httpMethod = "POST"
+                request.httpBody = Data(body.json.utf8)
+                request.setValue(body.contentType, forHTTPHeaderField: "Content-Type")
+            }
 
             // When not following redirects we want the 3xx itself (its small body
             // / Location), so widen the accepted range and use the blocking session.

@@ -225,6 +225,33 @@ public struct VendorProbeRecipe: Sendable {
     /// download is the *same* channel the app came from (no cross-channel mixing).
     public let install: VendorInstallSpec?
 
+    /// A request body to POST instead of issuing a plain GET. Only meaningful
+    /// with `.responseBody`.
+    ///
+    /// Exists for update services that answer nothing at all to a GET — Google's
+    /// Omaha (`update.googleapis.com/service/update2/json`) wants a JSON document
+    /// naming the app, the platform and the version you already have, and replies
+    /// with either "noupdate" or the full manifest for the newest build. Asking
+    /// with a deliberately ancient version (`0.0.0.0`) is what turns a
+    /// "should I update?" service into a "what is the latest?" one, so the body
+    /// each recipe carries is a fixed document, not one built from the install.
+    ///
+    /// The reply is prefixed with Google's anti-JSON-hijacking `)]}'` line; no
+    /// stripping is needed because `versionPattern` is a regex over the raw text,
+    /// which simply skips it.
+    public let requestBody: RequestBody?
+
+    /// A fixed request body and its content type.
+    public struct RequestBody: Sendable, Hashable {
+        public let contentType: String
+        public let json: String
+
+        public init(contentType: String = "application/json", json: String) {
+            self.contentType = contentType
+            self.json = json
+        }
+    }
+
     /// When false, the probe does NOT follow HTTP redirects: it reads the
     /// redirect response itself (status 3xx, its small body / `Location`). Needed
     /// for endpoints that 302 to a huge binary — following would download the
@@ -244,6 +271,7 @@ public struct VendorProbeRecipe: Sendable {
         displayVersionPattern: String? = nil,
         publishedAtPattern: String? = nil,
         install: VendorInstallSpec? = nil,
+        requestBody: RequestBody? = nil,
         followRedirects: Bool = true,
         channel: ReleaseChannel = .stable,
         identity: ProbeIdentity? = nil,
@@ -263,6 +291,7 @@ public struct VendorProbeRecipe: Sendable {
         self.displayVersionPattern = displayVersionPattern
         self.publishedAtPattern = publishedAtPattern
         self.install = install
+        self.requestBody = requestBody
         self.followRedirects = followRedirects
     }
 
@@ -2416,6 +2445,68 @@ public enum VendorProbeRegistry {
         // (Surge needs no recipe here: it declares a Sparkle SUFeedURL, so the
         // higher-priority SparkleAppcastSource handles it, and `SurgeChannel`
         // retargets that feed to the release/beta appcast per the user's choice.)
+
+        // MARK: - 2026-08-16 Google desktop apps
+
+        // Gemini — Google's Omaha update service, which answers only a POST. The
+        // download URL is permanently unversioned (`.../release2/Gemini.dmg`) and
+        // every page carrying a version sits behind Google's bot challenge, so
+        // this service is the ONLY version surface; it was found by reading the
+        // app's own update request. Asking as version `0.0.0.0` makes it answer
+        // with the manifest for the newest build rather than "noupdate".
+        //
+        // Verified 2026-08-16 on the installed copy: manifest `1.94.11.734`
+        // against `CFBundleShortVersionString` 1.94.11.734 — the same scheme, so
+        // no build-vs-marketing trap here. The reply is prefixed with Google's
+        // `)]}'` anti-hijacking line, which the regex simply skips.
+        //
+        // The manifest publishes a sha256, but `checksumPattern` verifies a
+        // base64 SHA-512, so it goes unused; the signature gate still applies.
+        VendorProbeRecipe(
+            bundleID: "com.google.GeminiMacOS",
+            url: URL(string: "https://update.googleapis.com/service/update2/json")!,
+            mode: .responseBody,
+            versionPattern: #""manifest":\{"version":"([0-9][0-9.]*)""#,
+            downloadURL: URL(string: "https://gemini.google.com/download"),
+            install: VendorInstallSpec(
+                // The manifest splits the download in two: a list of CDN bases
+                // and the package name. Join Google's own host with the name.
+                urlSource: .bodyTemplate("{0}{1}", fields: [
+                    #""codebase":"(https://dl\.google\.com/[^"]+)""#,
+                    #""name":"(Gemini-[0-9.]+\.dmg)""#,
+                ]),
+                kind: .dmg),
+            requestBody: .init(json: """
+                {"request":{"protocol":"3.0","os":{"platform":"mac","arch":"arm64"},\
+                "app":[{"appid":"com.google.GeminiMacOS","tag":"m1-prod",\
+                "version":"0.0.0.0","updatecheck":{}}]}}
+                """)),
+
+        // Antigravity — no Omaha entry (six plausible appids all answered
+        // `error-unknownApplication` while Gemini's returned `ok`, 2026-08-16),
+        // so the download page is the version surface.
+        //
+        // TWO traps live on that page. It lists two products — the IDE, under
+        // `edgedl.me.gvt1.com/.../antigravity/stable/`, and this app (the hub),
+        // under `antigravity-public/antigravity-hub/` — and they carry different
+        // versions (2.5.5 vs 2.8.1), so the pattern is anchored to the hub path.
+        // And the page's version reads `2.8.1-6512087774658560` while the shipped
+        // bundle reports a plain `2.8.1` (read off the mounted dmg, 2026-08-16,
+        // com.google.antigravity, Team EQHXZ8M8AV, notarized, no SUFeedURL) — so
+        // the pattern deliberately stops before the build suffix. Capturing it
+        // would report an update that installing can never clear.
+        VendorProbeRecipe(
+            bundleID: "com.google.antigravity",
+            url: URL(string: "https://antigravity.google/download")!,
+            mode: .responseBody,
+            versionPattern: #"antigravity-hub/([0-9]+(?:\.[0-9]+)+)-[0-9]{6,}/darwin-arm/"#,
+            changelogURL: URL(string: "https://antigravity.google/changelog"),
+            install: VendorInstallSpec(
+                // The full URL needs the build suffix the version pattern drops,
+                // so take the whole link rather than rebuilding it.
+                urlSource: .bodyPattern(
+                    #"(https://storage\.googleapis\.com/antigravity-public/antigravity-hub/[^"'\\]+/darwin-arm/Antigravity\.dmg)"#),
+                kind: .dmg)),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

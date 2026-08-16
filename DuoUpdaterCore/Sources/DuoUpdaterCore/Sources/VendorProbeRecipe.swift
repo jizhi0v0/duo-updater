@@ -3052,6 +3052,40 @@ public enum VendorProbeRegistry {
                 urlSource: .bodyPattern(
                     #""name"\s*:\s*"Meld-[0-9.+]+_arm64\.dmg"[^}]*"direct_asset_url"\s*:\s*"([^"]+)""#),
                 kind: .dmg)),
+
+        // MARK: - 2026-08-16 Telegram Desktop
+
+        // Telegram Desktop (com.tdesktop.Telegram — NOT the App Store's Telegram
+        // for macOS, ru.keepcoder.Telegram, which is a different app entirely and
+        // stays on the MAS channel). The official download link 302s straight to
+        // the versioned dmg — `telegram.org/dl/desktop/mac` →
+        // `td.telegram.org/tmac/tsetup.7.0.9.dmg` — so the redirect filename is
+        // both the version signal and the download.
+        //
+        // NOT `td.telegram.org/current4`, which is what the app's own updater
+        // reads: that JSON states versions as PACKED INTEGERS (`"armac": {"stable":
+        // {"released": "7000009"}}` = 7.0.9, major*10^6 + minor*10^3 + patch).
+        // Decoding it needs arithmetic, and every recipe here is regex-only — a
+        // pattern could only ever carry `7000009` forward, which compares against
+        // nothing the bundle reports. The redirect states the same release in the
+        // scheme the app actually uses.
+        //
+        // Verified 2026-08-16 by downloading and mounting the 7.0.9 dmg:
+        // `Telegram.app`, com.tdesktop.Telegram, CFBundleShortVersionString AND
+        // CFBundleVersion both exactly `7.0.9` (no build/marketing split to work
+        // around), Team C67CF9S4VU (Telegram FZ-LLC), notarized Developer ID
+        // (`spctl`: source=Notarized Developer ID), universal (x86_64 + arm64).
+        VendorProbeRecipe(
+            bundleID: "com.tdesktop.Telegram",
+            url: URL(string: "https://telegram.org/dl/desktop/mac")!,
+            mode: .redirectFilename,
+            versionPattern: #"tsetup\.([0-9]+(?:\.[0-9]+)+)\.dmg"#,
+            downloadURL: URL(string: "https://desktop.telegram.org/"),
+            changelogURL: URL(string: "https://telegram.org/blog"),
+            install: VendorInstallSpec(
+                urlSource: .redirect(URL(string: "https://telegram.org/dl/desktop/mac")!),
+                kind: .dmg),
+            followRedirects: false),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

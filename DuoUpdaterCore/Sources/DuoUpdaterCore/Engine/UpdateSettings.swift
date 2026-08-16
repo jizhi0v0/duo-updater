@@ -89,6 +89,10 @@ public struct UpdateSettings: Sendable {
     public var appStoreUpdateStrategy: AppStoreUpdateStrategy
     /// How to apply self-updating vendor-app updates. See `VendorInstallPolicy`.
     public var vendorInstallPolicy: VendorInstallPolicy
+    /// Installs whose administrator prompt the user dismissed, keyed by
+    /// `InstallPreferenceKey.key(for:)` — an install PATH, never a bundle id.
+    /// See `ElevationRules` for why this is remembered at all.
+    public var declinedElevationKeys: Set<String>
 
     /// The UserDefaults key the app persists `appStoreUpdateStrategy` under.
     /// Shared here (not in the app) so a CLI reading the same suite can never
@@ -111,13 +115,20 @@ public struct UpdateSettings: Sendable {
     /// ignore list while the app kept using the first.
     public static let ignoredKeysKey = "IgnoredApps"
     public static let skippedVersionsKey = "SkippedVersions"
+    /// Where the declined administrator prompts live. Shared for the same reason
+    /// as the two above: the CLI resolves this independently, and a drifted name
+    /// would not read as empty — it would silently keep offering a one-click the
+    /// user already refused in the menu bar.
+    public static let declinedElevationKeysKey = "DeclinedElevatedInstalls"
 
     public init(
         appStoreUpdateStrategy: AppStoreUpdateStrategy,
-        vendorInstallPolicy: VendorInstallPolicy
+        vendorInstallPolicy: VendorInstallPolicy,
+        declinedElevationKeys: Set<String> = []
     ) {
         self.appStoreUpdateStrategy = appStoreUpdateStrategy
         self.vendorInstallPolicy = vendorInstallPolicy
+        self.declinedElevationKeys = declinedElevationKeys
     }
 }
 
@@ -183,5 +194,30 @@ public enum VisibilityRules {
         let skipped = skippedVersions[InstallPreferenceKey.key(for: app)]
             ?? skippedVersions[InstallPreferenceKey.legacyKey(for: app)]
         return skipped == version
+    }
+}
+
+/// Whether the user has refused to let us install into a location we cannot
+/// write, and so should stop being offered a one-click Update for it.
+///
+/// This is remembered rather than re-asked because the alternative is worse in
+/// both directions: an app in `/Library/Input Methods` or an admin-owned
+/// `/Applications` needs a password on *every* install, so a row that keeps its
+/// Update button turns one refusal into a password panel on every future
+/// release — while pre-emptively demoting such a row to "Open" would deny the
+/// user a working one-click they never said no to. Hence a tri-state: never
+/// asked keeps Update, declined falls back to Open, and the user can retire the
+/// refusal from the row's context menu.
+///
+/// Keyed exactly like ignore, and matched against **either** key form for the
+/// same reason: several installed apps legitimately share a bundle id (the
+/// Toolbox-managed Android Studio channels, Thunderbird stable/esr), so a
+/// bundle-id key would silence a channel the user never declined. Clearing must
+/// therefore drop both forms — see `Preferences.setElevationDeclined`.
+public enum ElevationRules {
+
+    public static func isDeclined(_ app: InstalledApp, declinedKeys: Set<String>) -> Bool {
+        declinedKeys.contains(InstallPreferenceKey.key(for: app))
+            || declinedKeys.contains(InstallPreferenceKey.legacyKey(for: app))
     }
 }

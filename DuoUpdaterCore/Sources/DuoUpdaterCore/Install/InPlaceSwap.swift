@@ -15,6 +15,22 @@ public struct AppManagementRequiredError: LocalizedError {
     }
 }
 
+/// Thrown when the elevated swap was offered and the user **dismissed the
+/// administrator prompt**. Distinct from every other swap failure on purpose:
+/// nothing is broken and retrying identically would just re-prompt, so the UI
+/// records the refusal against this install path and stops offering a one-click
+/// Update for it until the user asks again. `osascript` reports the dismissal as
+/// AppleScript error `-128` ("User canceled"), which is what `replace` matches.
+public struct AuthorizationDeclinedError: LocalizedError {
+    /// The app bundle whose replacement was declined — the identity the caller
+    /// remembers the refusal under (an install PATH, never a bundle id).
+    public let targetPath: String
+
+    public var errorDescription: String? {
+        "The update needs an administrator to replace this app, and the request was declined."
+    }
+}
+
 /// The final, destructive step shared by `SparkleInstaller` and `VendorInstaller`:
 /// replace the verified `newApp` bundle over the installed `target` bundle.
 ///
@@ -113,10 +129,9 @@ public enum InPlaceSwap {
         try validateTarget(target)
         stripQuarantine(newApp)
 
-        let fm = FileManager.default
-        let parent = target.deletingLastPathComponent()
-
-        if fm.isWritableFile(atPath: parent.path) {
+        if !needsElevatedReplace(target: target) {
+            let fm = FileManager.default
+            let parent = target.deletingLastPathComponent()
             // Stage the new bundle beside the target (same volume), then atomically
             // exchange it in. `replaceItemAt` renames on success and leaves the
             // original untouched on failure — no window where the app is missing.
@@ -140,6 +155,46 @@ public enum InPlaceSwap {
         }
 
         try privilegedReplace(newApp: newApp, target: target)
+    }
+
+    /// Whether replacing `target` has to go through the administrator prompt.
+    ///
+    /// The test is the **parent directory**, not the bundle: `replaceItemAt`
+    /// stages its exchange as a sibling, so a bundle we could write into but whose
+    /// enclosing directory we cannot (`/Library/Input Methods` is `root:wheel`
+    /// 755, while `WeType.app` inside it is `root:staff` 775) still cannot be
+    /// swapped unprivileged. Sparkle reaches the same conclusion the same way, in
+    /// `SPUSystemNeedsAuthorizationAccessForBundlePath` — it requires writability
+    /// of the bundle *and* of its parent before it will skip escalation.
+    ///
+    /// Exposed so the UI can answer "will clicking Update raise a password
+    /// prompt?" from the same predicate the swap itself branches on. A separately
+    /// derived copy would drift, and the two disagreeing means either a prompt the
+    /// row promised wouldn't appear, or one it never warned about.
+    public static func needsElevatedReplace(target: URL) -> Bool {
+        !FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path)
+    }
+
+    /// `InstallEnvironment.elevationRequiredPaths` for a set of installed bundles,
+    /// normalized the same way running paths are. Lives here, beside the predicate
+    /// and the swap that branches on it, so the app and the CLI cannot answer this
+    /// question differently — the one disagreement that would be invisible, since
+    /// each answer is individually plausible.
+    public static func elevationRequiredPaths(for bundles: some Sequence<URL>) -> Set<String> {
+        var paths: Set<String> = []
+        for bundle in bundles where needsElevatedReplace(target: bundle) {
+            paths.insert(UpdatePolicy.runtimeBundlePath(bundle))
+        }
+        return paths
+    }
+
+    /// Whether an `osascript … with administrator privileges` failure is the user
+    /// dismissing the prompt rather than the script going wrong. AppleScript
+    /// reports a cancelled authentication as error `-128`; the accompanying text
+    /// is localized, so the code is what we match on and the English phrasing is
+    /// only a fallback.
+    static func isAuthorizationDeclined(_ stderr: String) -> Bool {
+        stderr.contains("-128") || stderr.localizedCaseInsensitiveContains("User canceled")
     }
 
     /// `target` must be an absolute path to an existing, non-symlink `.app`
@@ -207,6 +262,13 @@ public enum InPlaceSwap {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
             let msg = String(data: errData, encoding: .utf8) ?? "unknown error"
+            // Dismissing the password panel is a decision, not a fault: nothing was
+            // touched (the shell never ran), and the honest response is to stop
+            // offering the one-click rather than to show a red failure the user
+            // caused deliberately and would keep re-triggering.
+            if isAuthorizationDeclined(msg) {
+                throw AuthorizationDeclinedError(targetPath: target.path)
+            }
             throw SwapError.notReplaceable(msg)
         }
     }

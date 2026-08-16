@@ -19,15 +19,23 @@ public struct InstallEnvironment: Sendable {
     /// "actionable" itself: only a staged build that IS the latest is
     /// relaunch-only; one that trails it still gets a normal Update.
     public var stagedSelfUpdates: [String: StagedSelfUpdate]
+    /// Bundle paths (normalized through `runtimeBundlePath`, like
+    /// `runningAppPaths`) whose install location we cannot write, so replacing
+    /// them raises an administrator prompt. A filesystem fact, so it is observed
+    /// by the host — via `InPlaceSwap.needsElevatedReplace`, the same predicate
+    /// the swap itself branches on — and handed in, keeping the policy pure.
+    public var elevationRequiredPaths: Set<String>
 
     public init(
         isHelperEnabled: Bool,
         runningAppPaths: Set<String>,
-        stagedSelfUpdates: [String: StagedSelfUpdate]
+        stagedSelfUpdates: [String: StagedSelfUpdate],
+        elevationRequiredPaths: Set<String> = []
     ) {
         self.isHelperEnabled = isHelperEnabled
         self.runningAppPaths = runningAppPaths
         self.stagedSelfUpdates = stagedSelfUpdates
+        self.elevationRequiredPaths = elevationRequiredPaths
     }
 }
 
@@ -51,6 +59,11 @@ public enum UpdatePolicy {
         settings: UpdateSettings,
         environment: InstallEnvironment
     ) -> Bool {
+        // The user was asked for an administrator password for this exact install
+        // and said no. Keeping the Update button would re-raise that panel on every
+        // release; this is the only branch here that turns a *previously offered*
+        // one-click off, and only the user can turn it back on (row context menu).
+        if elevationDeclined(result, settings: settings, environment: environment) { return false }
         // The app's own updater already staged *the latest* for relaunch — installing
         // it ourselves would re-download the same bytes and collide with the pending
         // ShipIt swap. Defer to Relaunch. (A staged build that *trails* the latest
@@ -112,6 +125,37 @@ public enum UpdatePolicy {
         default:
             return false
         }
+    }
+
+    /// Whether installing over *this exact install* has to go through an
+    /// administrator prompt, because its enclosing directory is not ours to write
+    /// (`/Library/Input Methods`, a root-owned `/Applications`). Matched on the
+    /// bundle path, like `isRunning`, so a second copy of the same app elsewhere
+    /// doesn't inherit the answer.
+    public static func requiresElevatedInstall(
+        _ result: UpdateResult,
+        environment: InstallEnvironment
+    ) -> Bool {
+        environment.elevationRequiredPaths.contains(runtimeBundlePath(result.app.path))
+    }
+
+    /// The declined leg of the tri-state: this install needs an administrator
+    /// prompt **and** the user has already refused one for it. Never asked and
+    /// authorized both read false here, so the row keeps its Update button — we
+    /// only ever demote a row the user personally said no to.
+    ///
+    /// Both halves are required. Without the first, a stale decline recorded when
+    /// an app lived somewhere unwritable would keep suppressing its one-click
+    /// after it moved somewhere we can write, with nothing in the UI explaining
+    /// why. Without the second, this is just "needs a password", which is not a
+    /// reason to withhold anything.
+    public static func elevationDeclined(
+        _ result: UpdateResult,
+        settings: UpdateSettings,
+        environment: InstallEnvironment
+    ) -> Bool {
+        requiresElevatedInstall(result, environment: environment)
+            && ElevationRules.isDeclined(result.app, declinedKeys: settings.declinedElevationKeys)
     }
 
     /// True when this update is a `pkg` (a `pkg` cask, or a vendor pkg): we

@@ -2723,6 +2723,93 @@ public enum VendorProbeRegistry {
         // compared with the other, so a recipe would report a permanent update.
         // (Homebrew's cask uses 5071136 as its own bookkeeping version, which is
         // what makes this look workable from the outside.)
+
+        // MARK: - 2026-08-16 group B (Emacs, Tor Browser, Zotero)
+
+        // Emacs for Mac OS X — the maintainer's own Atom feed, newest entry first.
+        // `<title>Emacs Version 30.2-2</title>`.
+        //
+        // VERSION SCHEME TRAP: some entries carry a `-N` repack suffix (`30.2-2`,
+        // `30.2-1`) for a re-signed rebuild of the SAME release, but the shipped
+        // app does not: mounting the 30.2-2 dmg and reading Info.plist gives
+        // `CFBundleShortVersionString = 30.2` (no suffix at all; `CFBundleVersion`
+        // is an unrelated `9.0`, not usable either). Capturing the suffix would
+        // make the probe report `30.2-2 > 30.2` forever — a phantom update that can
+        // never clear. The pattern anchors to the `<title>` tag (skipping the
+        // duplicate plain-text title inside `<content>`) and captures only the two
+        // numeric segments, dropping any `-N` tail.
+        //
+        // One-click verified 2026-08-16 by mounting the 30.2-2 dmg: Emacs.app is
+        // org.gnu.Emacs, CFBundleShortVersionString 30.2, Team 5BRAQAFB8B
+        // (Galvanix), notarized Developer ID. The install pattern reuses the same
+        // `<title>`-scoped entry's `<link type="binary/octet-stream">` href, so it
+        // always fetches the dmg for the version just matched (suffix included,
+        // since that's the real filename) rather than a template that would guess
+        // wrong when a repack bumps only the suffix.
+        VendorProbeRecipe(
+            bundleID: "org.gnu.Emacs",
+            url: URL(string: "https://emacsformacosx.com/atom/release")!,
+            mode: .responseBody,
+            versionPattern: #"<title>Emacs Version ([0-9]+\.[0-9]+)(?:-[0-9]+)?</title>"#,
+            downloadURL: URL(string: "https://emacsformacosx.com/"),
+            changelogURL: URL(string: "https://www.gnu.org/software/emacs/news/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<link type="binary/octet-stream" href="(https://emacsformacosx\.com/emacs-builds/Emacs-[^"]+-universal\.dmg)""#),
+                kind: .dmg)),
+
+        // Tor Browser — the official Tor Project update-check JSON
+        // (`aus1.torproject.org`, the same host the browser's own updater
+        // consults). Single small object: `{"binary": "...", "version": "15.0.19",
+        // ...}`, no other version-shaped numbers nearby, so a bare `"version"` key
+        // match is safe here.
+        //
+        // Verified against the real install, not assumed: mounting the 15.0.19 dmg
+        // gives CFBundleShortVersionString exactly `15.0.19` — same three-segment
+        // scheme as the feed, no build/marketing mismatch to work around (unlike
+        // Emacs above). org.torproject.torbrowser, Team MADPSAYN6T (The Tor
+        // Project, Inc), notarized Developer ID, ticket stapled. `"binary"` is the
+        // exact dmg URL for this version, so the install spec reads it straight
+        // from the same response rather than templating one.
+        VendorProbeRecipe(
+            bundleID: "org.torproject.torbrowser",
+            url: URL(string: "https://aus1.torproject.org/torbrowser/update_3/release/download-macos.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://www.torproject.org/download/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""binary"\s*:\s*"(https://[^"]+\.dmg)""#),
+                kind: .dmg)),
+
+        // Zotero — no version API at all: `update.xml` and every `manifests/*.json`
+        // path 404, and `dl.php` merely echoes back whatever version is passed to
+        // it (not a source of truth). The one stable anchor is an inline JS literal
+        // on the download page, `www.zotero.org/download/`:
+        // `"standaloneVersions":{"mac":"9.0.6","win32":"9.0.6",...}`. The pattern
+        // is scoped to the `standaloneVersions` object and its `"mac"` key
+        // specifically, so it can't drift onto a Windows/Linux number in the same
+        // literal.
+        //
+        // One-click verified 2026-08-16 by mounting
+        // `download.zotero.org/client/release/9.0.6/Zotero-9.0.6.dmg`:
+        // CFBundleShortVersionString is exactly `9.0.6` (matches the page verbatim,
+        // no scheme mismatch), org.zotero.zotero, Team 8LAYR367YV (Corporation for
+        // Digital Scholarship), notarized Developer ID, universal binary. Zotero
+        // publishes every release at that exact path/filename shape, so the
+        // install URL is templated from the matched version rather than scraped
+        // (there is no link to scrape — the download button is client-rendered).
+        VendorProbeRecipe(
+            bundleID: "org.zotero.zotero",
+            url: URL(string: "https://www.zotero.org/download/")!,
+            mode: .responseBody,
+            versionPattern: #""standaloneVersions"\s*:\s*\{\s*"mac"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            downloadURL: URL(string: "https://www.zotero.org/download/"),
+            changelogURL: URL(string: "https://www.zotero.org/support/changelog"),
+            install: VendorInstallSpec(
+                urlSource: .bodyTemplate(
+                    "https://download.zotero.org/client/release/{0}/Zotero-{0}.dmg",
+                    fields: [#""standaloneVersions"\s*:\s*\{\s*"mac"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#]),
+                kind: .dmg)),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

@@ -553,6 +553,12 @@ private struct AppRow: View {
             : "Ignore \(result.app.name)") {
             model.toggleIgnore(result)
         }
+        // The way back out of a dismissed administrator prompt. Shown only while
+        // that is actually why the row reads "Open", so it never appears as a
+        // mysterious no-op on an app that was never asked about.
+        if model.isElevationDeclined(result) {
+            Button("Ask for administrator access again") { model.allowElevatedInstall(result) }
+        }
         if let version = model.backupVersion(result.id) {
             Divider()
             Button("Roll back to \(version)") { Task { await model.rollback(result) } }

@@ -1147,13 +1147,24 @@ final class AppListModel {
     private var policySettings: UpdateSettings {
         UpdateSettings(
             appStoreUpdateStrategy: prefs.appStoreUpdateStrategy,
-            vendorInstallPolicy: prefs.vendorInstallPolicy)
+            vendorInstallPolicy: prefs.vendorInstallPolicy,
+            declinedElevationKeys: prefs.declinedElevationKeys)
     }
     private var policyEnvironment: InstallEnvironment {
         InstallEnvironment(
             isHelperEnabled: helperEnabled,
             runningAppPaths: runningAppPaths,
-            stagedSelfUpdates: pendingSelfUpdate)
+            stagedSelfUpdates: pendingSelfUpdate,
+            elevationRequiredPaths: elevationRequiredPaths)
+    }
+
+    /// The install paths that need an administrator prompt to replace, recomputed
+    /// from the current list. Cheap — one `access(2)`-class check per app, on the
+    /// parent directory — and deliberately *not* cached: an app moved between
+    /// `~/Applications` and a root-owned location changes the answer, and a stale
+    /// yes would suppress a one-click that now works perfectly well.
+    private var elevationRequiredPaths: Set<String> {
+        InPlaceSwap.elevationRequiredPaths(for: results.map(\.app.path))
     }
 
     /// True when this update installs seamlessly in place (Sparkle EdDSA, or a
@@ -2039,6 +2050,16 @@ final class AppListModel {
             Log.install.error("install blocked by App Management: \(result.app.name, privacy: .public)")
             installErrors[id] = error.errorDescription
             presentAppManagementPermissionFlowForInstallFailure()
+        } catch is AuthorizationDeclinedError {
+            // The user dismissed the administrator panel. Nothing failed and nothing
+            // was touched, so this leaves no red error — it records the refusal
+            // against this install PATH, which drops the row to "Open" (via
+            // `UpdatePolicy.elevationDeclined`) instead of re-raising that panel on
+            // every future release. "Ask for administrator access" in the row's
+            // context menu is the way back.
+            Log.install.notice("install: administrator access declined for \(result.app.name, privacy: .public) — no longer offering a one-click for this copy")
+            installErrors[id] = nil
+            prefs.setElevationDeclined(true, result.app)
         } catch let error as MASInstaller.MASError where error.isHelperApproval {
             // The App Store route needs the background helper and it isn't usable.
             // Left as a red note this dead-ends a normal user: the fix lives in a
@@ -3181,6 +3202,22 @@ final class AppListModel {
         prefs.setIgnored(nowIgnored, result.app)
         syncDockBadge()
         Log.app.info("\(nowIgnored ? "ignore" : "unignore", privacy: .public): \(result.app.name, privacy: .public)")
+    }
+
+    /// Whether this row is demoted to "Open" purely because the user dismissed its
+    /// administrator prompt — the only state the context-menu item below can undo.
+    func isElevationDeclined(_ result: UpdateResult) -> Bool {
+        UpdatePolicy.elevationDeclined(result, settings: policySettings, environment: policyEnvironment)
+    }
+
+    /// Retire a declined administrator prompt, so the row offers Update again and
+    /// the next click re-asks. The way back out of the declined state: without it,
+    /// one dismissed panel would permanently and silently downgrade the app to
+    /// detection-only, with nothing in the UI saying why or how to undo it.
+    func allowElevatedInstall(_ result: UpdateResult) {
+        prefs.setElevationDeclined(false, result.app)
+        installErrors[result.id] = nil
+        Log.app.info("re-allowing administrator installs for \(result.app.name, privacy: .public)")
     }
 
     /// Decline the currently-offered version for this app; a newer one still shows.

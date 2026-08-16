@@ -75,7 +75,9 @@ public enum Install {
         let environment = InstallEnvironment(
             isHelperEnabled: false,
             runningAppPaths: Check.runningBundlePaths(),
-            stagedSelfUpdates: [:])
+            stagedSelfUpdates: [:],
+            elevationRequiredPaths: InPlaceSwap.elevationRequiredPaths(
+                for: results.map(\.app.path)))
 
         var plan: [Planned] = []
         var refusals: [(UpdateResult, String)] = []
@@ -119,7 +121,8 @@ public enum Install {
             let live = InstallEnvironment(
                 isHelperEnabled: false,
                 runningAppPaths: Check.runningBundlePaths(),
-                stagedSelfUpdates: [:])
+                stagedSelfUpdates: [:],
+                elevationRequiredPaths: environment.elevationRequiredPaths)
             let started = plan.filter {
                 UpdatePolicy.defersToSelfUpdater(
                     $0.result, settings: settings.updateSettings, environment: live)
@@ -266,6 +269,18 @@ public enum Install {
                         if let text = describe(stage) { print("   \(text)") }
                     })
                 emit(name: name, route: item.route, outcome: outcome, json: json)
+            } catch is AuthorizationDeclinedError {
+                // Dismissing the password panel is a decision, not a failure — it
+                // does not count toward `failed`, and it is remembered so neither
+                // `duo` nor the menu bar re-raises the panel for this copy until
+                // the user asks. Written to the same suite the app reads.
+                Settings.recordDeclinedElevation(item.result.app)
+                FileHandle.standardError.write(Data("""
+                       skipped: administrator access was declined, so \(name) will no \
+                    longer be offered as a one-click. Undo it from the app's row menu, \
+                    or with `defaults delete com.duoupdater.app \
+                    \(UpdateSettings.declinedElevationKeysKey)`.\n
+                    """.utf8))
             } catch {
                 failed += 1
                 let message = (error as? LocalizedError)?.errorDescription

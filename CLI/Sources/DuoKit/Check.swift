@@ -79,7 +79,9 @@ public enum Check {
         let environment = InstallEnvironment(
             isHelperEnabled: false,
             runningAppPaths: runningBundlePaths(),
-            stagedSelfUpdates: [:])
+            stagedSelfUpdates: [:],
+            elevationRequiredPaths: InPlaceSwap.elevationRequiredPaths(
+                for: results.map(\.app.path)))
 
         var rows: [Row] = []
         for result in results.sorted(by: { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }) {

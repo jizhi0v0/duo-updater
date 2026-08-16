@@ -81,6 +81,7 @@ final class Preferences {
         static let vendorInstallPolicy = UpdateSettings.vendorInstallPolicyKey
         static let customScanPaths = "CustomScanPaths"
         static let ignoredKeys = UpdateSettings.ignoredKeysKey
+        static let declinedElevationKeys = UpdateSettings.declinedElevationKeysKey
         static let skippedVersions = UpdateSettings.skippedVersionsKey
         static let lastCheckDate = "LastCheckDate"
         static let notifiedVersions = "NotifiedVersions"
@@ -209,6 +210,13 @@ final class Preferences {
         didSet { defaults.set(Array(ignoredKeys), forKey: Key.ignoredKeys) }
     }
 
+    /// Installs whose administrator prompt the user dismissed, keyed by
+    /// `key(for:)`. Persisted so one refusal isn't re-asked on every release; see
+    /// `ElevationRules` for why it is a sticky flag rather than a per-version one.
+    private(set) var declinedElevationKeys: Set<String> {
+        didSet { defaults.set(Array(declinedElevationKeys), forKey: Key.declinedElevationKeys) }
+    }
+
     /// Per-app version the user chose to skip (key → the version string they were
     /// offered and declined). A newer version than the skipped one still surfaces.
     private(set) var skippedVersions: [String: String] {
@@ -327,6 +335,7 @@ final class Preferences {
             rawValue: defaults.string(forKey: Key.vendorInstallPolicy) ?? "") ?? UpdateSettings.vendorInstallPolicyDefault
         self.customScanPaths = defaults.stringArray(forKey: Key.customScanPaths) ?? []
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
+        self.declinedElevationKeys = Set(defaults.stringArray(forKey: Key.declinedElevationKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
         self.lastCheckDate = defaults.object(forKey: Key.lastCheckDate) as? Date
         self.notifiedVersions = defaults.dictionary(forKey: Key.notifiedVersions) as? [String: String] ?? [:]
@@ -445,6 +454,24 @@ final class Preferences {
             // Drop both forms so unignoring clears any legacy (possibly shared) entry too.
             ignoredKeys.remove(key(for: app))
             ignoredKeys.remove(legacyKey(for: app))
+        }
+    }
+
+    // MARK: - Declined administrator prompts
+
+    func isElevationDeclined(_ app: InstalledApp) -> Bool {
+        ElevationRules.isDeclined(app, declinedKeys: declinedElevationKeys)
+    }
+
+    func setElevationDeclined(_ declined: Bool, _ app: InstalledApp) {
+        if declined {
+            declinedElevationKeys.insert(key(for: app))
+        } else {
+            // Drop both forms, exactly as un-ignoring does: a legacy bundle-id
+            // entry left behind would keep the row demoted to "Open" with no way
+            // left in the UI to clear it.
+            declinedElevationKeys.remove(key(for: app))
+            declinedElevationKeys.remove(legacyKey(for: app))
         }
     }
 

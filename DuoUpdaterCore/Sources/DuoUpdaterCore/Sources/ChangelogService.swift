@@ -91,6 +91,34 @@ public enum ChangelogService {
         public let fetchFailed: Bool
         /// Present on a parse failure — the evidence needed to repair a pattern.
         public let bodySample: String?
+        /// For a two-stage recipe (`indexLinkPattern`), the per-release page the
+        /// index pointed at — the request the patterns actually run against. Nil
+        /// for a one-stage recipe, and nil when the index yielded no link.
+        public let detailURL: URL?
+        /// True when that second request failed outright. Without this a stalled
+        /// or moved detail page is indistinguishable from a pattern that stopped
+        /// matching: `resolvedURL` fetched fine, so the report blamed the entry
+        /// pattern and quoted a regex that was never even run. (HBuilderX Alpha,
+        /// 2026-08-16: a 15 s timeout on a 632 KB detail page, reported as
+        /// `noEntriesExtracted` against a pattern that still matched the page.)
+        public let detailFetchFailed: Bool
+        /// Status of that second request, when it completed with a non-2xx.
+        public let detailHTTPStatus: Int?
+
+        public init(
+            changelog: Changelog?, resolvedURL: URL, httpStatus: Int?, fetchFailed: Bool,
+            bodySample: String?, detailURL: URL? = nil, detailFetchFailed: Bool = false,
+            detailHTTPStatus: Int? = nil
+        ) {
+            self.changelog = changelog
+            self.resolvedURL = resolvedURL
+            self.httpStatus = httpStatus
+            self.fetchFailed = fetchFailed
+            self.bodySample = bodySample
+            self.detailURL = detailURL
+            self.detailFetchFailed = detailFetchFailed
+            self.detailHTTPStatus = detailHTTPStatus
+        }
     }
 
     public static func loadDiagnostic(
@@ -106,7 +134,22 @@ public enum ChangelogService {
                 changelog: nil, resolvedURL: resolved, httpStatus: fetched.status,
                 fetchFailed: true, bodySample: nil)
         }
-        let parsed = await fetchAndParse(recipe, resolved: resolved, session: session)
+        // Reuse the body already in hand and run the second stage here, so its
+        // outcome survives into the diagnostic instead of collapsing to nil.
+        let indexBody = fetched.body ?? ""
+        var detailURL: URL?
+        var detailFetch: (body: String?, status: Int?) = (indexBody, fetched.status)
+        if recipe.structuredFormat == nil, let linkPattern = recipe.indexLinkPattern {
+            detailURL = firstLink(in: indexBody, pattern: linkPattern, base: resolved)
+            if let detailURL {
+                detailFetch = await fetch(detailURL, session: session)
+            } else {
+                // The index fetched but carried no link: a real pattern failure,
+                // and one about the INDEX pattern rather than the entry pattern.
+                detailFetch = (nil, nil)
+            }
+        }
+        let parsed = parse(recipe, body: detailFetch.body)
         await recordHealth(recipe, parsed: parsed)
         return ChangelogDiagnostic(
             changelog: parsed, resolvedURL: resolved, httpStatus: fetched.status,
@@ -116,7 +159,10 @@ public enum ChangelogService {
             // needs the page — without it the report says a recipe is reading a
             // stale section and then withholds the section. Callers keep the
             // sample only for findings worth acting on.
-            fetchFailed: false, bodySample: fetched.body)
+            fetchFailed: false, bodySample: detailFetch.body ?? fetched.body,
+            detailURL: detailURL,
+            detailFetchFailed: detailURL != nil && detailFetch.body == nil,
+            detailHTTPStatus: detailURL == nil ? nil : detailFetch.status)
     }
 
     /// The fetch + parse half, shared by the cached and uncached entry points so
@@ -124,15 +170,24 @@ public enum ChangelogService {
     private static func fetchAndParse(
         _ recipe: ChangelogRecipe, resolved: URL, session: URLSession
     ) async -> Changelog? {
-        if let format = recipe.structuredFormat {
-            guard let text = await fetchBody(resolved, session: session) else { return nil }
-            return StructuredChangelogDecoder.decode(
-                text, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries)
+        if recipe.structuredFormat != nil {
+            return parse(recipe, body: await fetchBody(resolved, session: session))
         }
-        guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session),
-              let text = await fetchBody(pageURL, session: session)
+        guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session)
         else { return nil }
-        return ChangelogExtractor.extract(from: text, using: recipe)
+        return parse(recipe, body: await fetchBody(pageURL, session: session))
+    }
+
+    /// Turn a fetched page into entries, by whichever route the recipe declares.
+    /// Pure: both the cached path and the diagnostic path go through it, so a
+    /// sweep can never parse differently from the app.
+    private static func parse(_ recipe: ChangelogRecipe, body: String?) -> Changelog? {
+        guard let body else { return nil }
+        if let format = recipe.structuredFormat {
+            return StructuredChangelogDecoder.decode(
+                body, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries)
+        }
+        return ChangelogExtractor.extract(from: body, using: recipe)
     }
 
     /// A changelog recipe is as fragile as a probe recipe and, until now,

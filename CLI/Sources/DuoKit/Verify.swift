@@ -145,6 +145,56 @@ public enum Verify {
         }
     }
 
+    /// Why a changelog recipe produced no entries, as the report should say it.
+    ///
+    /// Split out of the sweep so it can be tested: a wrong answer here does not
+    /// break the app, it sends whoever reads the report to the wrong place. The
+    /// distinction that matters is WHICH request failed. A two-stage recipe
+    /// (`indexLinkPattern`) fetches an index and then the per-release page it
+    /// points at; before this existed, a failure of that second request surfaced
+    /// as `noEntriesExtracted` with the entry pattern quoted — a regex that had
+    /// never run. HBuilderX Alpha spent a sweep flagged that way on 2026-08-16
+    /// (elapsed 15131 ms, exactly the fetch timeout) while its pattern still
+    /// matched the page perfectly.
+    static func classifyChangelogFailure(
+        _ diagnostic: ChangelogService.ChangelogDiagnostic,
+        recipe: ChangelogRecipe,
+        host: String
+    ) -> (kind: String, detail: String, status: FindingStatus, pattern: String?) {
+        // Stage 1: the index (or, for a one-stage recipe, the page itself).
+        if diagnostic.fetchFailed {
+            guard let code = diagnostic.httpStatus else {
+                return ("transport", "could not reach \(host)", .infra, recipe.entryPattern)
+            }
+            return ("httpStatus\(code)",
+                    "HTTP \(code) — the changelog page has moved or gone",
+                    (code >= 500 || code == 429) ? .infra : .broken,
+                    recipe.entryPattern)
+        }
+        // Stage 2: the per-release page. No pattern is quoted — none of them ran.
+        if diagnostic.detailFetchFailed {
+            let reached = diagnostic.detailURL?.host ?? host
+            guard let code = diagnostic.detailHTTPStatus else {
+                return ("detailTransport",
+                        "index ok, but could not reach the release page on \(reached)",
+                        .infra, nil)
+            }
+            return ("detailHttpStatus\(code)",
+                    "index ok, but the release page returned HTTP \(code)",
+                    (code >= 500 || code == 429) ? .infra : .broken,
+                    nil)
+        }
+        // The index answered but held no link: the INDEX pattern is the broken one.
+        if diagnostic.detailURL == nil, let indexPattern = recipe.indexLinkPattern {
+            return ("noDetailLink",
+                    "fetched \(host) fine, but the index pattern found no release link",
+                    .broken, indexPattern)
+        }
+        return ("noEntriesExtracted",
+                "fetched \(host) fine, but the entry pattern matched nothing",
+                .broken, recipe.entryPattern)
+    }
+
     // MARK: - vendor probes
 
     private static func sweepVendor(
@@ -250,31 +300,12 @@ public enum Verify {
 
             guard let changelog = diagnostic.changelog,
                   let newest = changelog.entries.first else {
-                // A moved page and a restyled page need completely different
-                // fixes, so the report must not lump them together.
-                let kind: String
-                let detail: String
-                let status: FindingStatus
-                if diagnostic.fetchFailed {
-                    if let code = diagnostic.httpStatus {
-                        kind = "httpStatus\(code)"
-                        detail = "HTTP \(code) — the changelog page has moved or gone"
-                        status = (code >= 500 || code == 429) ? .infra : .broken
-                    } else {
-                        kind = "transport"
-                        detail = "could not reach \(host)"
-                        status = .infra
-                    }
-                } else {
-                    kind = "noEntriesExtracted"
-                    detail = "fetched \(host) fine, but the entry pattern matched nothing"
-                    status = .broken
-                }
+                let failure = classifyChangelogFailure(diagnostic, recipe: recipe, host: host)
                 return Finding(
                     recipeID: id, registry: .changelog, bundleID: recipe.bundleID,
-                    channel: recipe.channel?.rawValue ?? "-", status: status,
-                    failureKind: kind, failureDetail: detail,
-                    endpointHost: host, pattern: recipe.entryPattern, elapsedMs: elapsed,
+                    channel: recipe.channel?.rawValue ?? "-", status: failure.status,
+                    failureKind: failure.kind, failureDetail: failure.detail,
+                    endpointHost: host, pattern: failure.pattern, elapsedMs: elapsed,
                     bodySample: diagnostic.bodySample)
             }
 

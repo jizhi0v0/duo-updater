@@ -2761,6 +2761,7 @@ public enum VendorProbeRegistry {
             project: "qbittorrent",
             versionPattern:
                 #""mac":\s*\{[^}]*?"filename":\s*"/qbittorrent-mac/qbittorrent-[0-9.]+/qbittorrent-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.dmg""#,
+            downloadURL: URL(string: "https://www.qbittorrent.org/download")!,
             changelogURL: URL(string: "https://www.qbittorrent.org/news")!,
             installKind: nil),
     ]
@@ -2806,6 +2807,7 @@ public enum VendorProbeRegistry {
         bundleID: String,
         project: String,
         versionPattern: String,
+        downloadURL: URL? = nil,
         changelogURL: URL,
         installKind: VendorInstallerKind?
     ) -> VendorProbeRecipe {
@@ -2815,6 +2817,7 @@ public enum VendorProbeRegistry {
             url: URL(string: "https://sourceforge.net/projects/\(project)/best_release.json")!,
             mode: .responseBody,
             versionPattern: versionPattern,
+            downloadURL: downloadURL,
             changelogURL: changelogURL,
             install: installKind.map { kind in
                 VendorInstallSpec(

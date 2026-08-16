@@ -17,6 +17,24 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.27</title>
+            <pubDate>Sun, 16 Aug 2026 23:41:08 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.27</link>
+            <sparkle:version>37</sparkle:version>
+            <sparkle:shortVersionString>0.3.27</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Release notes show their formatting instead of its punctuation.** Notes that come from a project's GitHub release were rendered exactly as written — `**bold**` with the asterisks, links as `[text](url)`. Bold is now bold and links are links. This affected every app whose updates come from GitHub, which is most of the open-source ones.
+
+**Arrow-keying down the app list no longer crawls.** Holding an arrow key felt like moving one row at a time through mud, and long release notes made it worse. Three things were doing it: a permission check on every app in the list ran again for every row drawn; the notes for whichever app you passed through were re-parsed on each keypress; and a long set of notes — one project's runs to 54,000 characters — was laid out in a single pass, which froze the window for about two seconds. The check is now computed once per list, parsed notes are kept, and long notes are laid out only as far as you have scrolled. Worst measured stall went from ~2.1 s to under 0.6 s, and what remains is the deliberate pause before the detail pane catches up rather than a freeze.
+
+**Input methods are never updated by replacing the app, and 微信输入法 (WeType)'s one-click from 0.3.25 is withdrawn.** Settings were lost on a Mac during the work that added it. What we can show is that the copy in the protected system folder was never actually replaced by DuoUpdater — but an older copy of the input method was installed and launched elsewhere on that machine while testing, inside the window where the settings were rewritten. Nothing here is proven, and an input method's dictionary is not something to test a theory on: WeType now reports its version and sends you to the vendor's installer, which registers the input source with the system — a step that replacing the app bundle skips, and the likely reason that Mac then appeared twice in WeType's own device list.
+
+The refusal is not specific to WeType: DuoUpdater no longer offers a one-click for anything installed as an input method, whichever vendor it comes from. Those apps still report their versions and link out.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.27/DuoUpdater-0.3.27-macos.zip" length="10426224" type="application/octet-stream" sparkle:edSignature="VuRql3lKbSMqDciwlLg0o3+7xCf/9LZZoYpOBWAIPoyzmRq2LZ6tFsIRl7Jy0Eq7uWPCfCMbgUhKR8WGbJAeAg=="/>
+        </item>
+        <item>
             <title>0.3.26</title>
             <pubDate>Sun, 16 Aug 2026 22:36:10 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.26</link>
@@ -53,24 +71,6 @@ Opera, LibreOffice and pgAdmin 4 nearly joined that exception. All three publish
 **Discord's version check works again.** Discord moved its downloads to a different server and the check was still looking at the old address, so DuoUpdater quietly reported "no version" for Discord Stable while everything else kept working. It now keys off the part of the address that names the release channel, which is the part that actually has to be right.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.25/DuoUpdater-0.3.25-macos.zip" length="10413816" type="application/octet-stream" sparkle:edSignature="dp+qUYpWCWrHbWLD2bqrIw3NotWaXp+JtV55IvZXTNOfL2ysMSjE54ezcZkxUI8DdQIyAyHbrUq240v+4oyICg=="/>
-        </item>
-        <item>
-            <title>0.3.24</title>
-            <pubDate>Sun, 16 Aug 2026 19:00:41 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.24</link>
-            <sparkle:version>34</sparkle:version>
-            <sparkle:shortVersionString>0.3.24</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Fifteen more apps now report their updates, and all but one install with one click.** Rancher Desktop, Cherry Studio, RedisInsight, Upscayl, WailBrew, Wave Terminal, Lens, Termius, Unity Hub, iStat Menus, Inkscape, Google Gemini, Antigravity, AnyDesk and Kiro were all showing as a grey "unknown" — installed, with nothing to say about them. Each one was worked out by reading the vendor's own build rather than trusting a download page: the version now comes from wherever that app's own updater looks, and a one-click only appears where the download is signed by the same developer as the copy you already have. Three of them (Google Gemini, Antigravity, Kiro) publish nothing a download page can be scraped for; their real update services answer the same questions their own updaters ask, so that is what DuoUpdater asks too.
-
-**AnyDesk in particular was written off and shouldn't have been.** Its download and changelog pages both refuse anything that isn't a person with a browser, so an earlier sweep concluded the app was unreachable. The plain-text changelog on the same server answers fine — and it is what AnyDesk's own Homebrew entry has always read.
-
-**Updating an app in a location that needs an administrator password now asks, once.** Most apps live in /Applications, which you can write to; a few — input methods, for one — live where only an administrator can. Those used to show an Update button that could never work. Now the button asks for the password, and if you dismiss that prompt DuoUpdater takes the hint: the row switches to Open and stops asking on every release. "Ask for administrator access again" in the row's right-click menu brings the button back. The choice is remembered for that copy of the app specifically, so declining for one install doesn't silence another.
-
-**An up-to-date Xcode beta no longer claims the vendor is behind it.** Under "Show all", a row whose vendor has fallen behind what you have installed shows a muted note saying so — you're ahead, nothing to do. Xcode was getting that note while sitting on exactly the build Apple was offering: it publishes a build number plus a human label ("27.0 beta 5"), and comparing that label against the plain "27.0" the bundle reports made a release look newer than its own beta. The note now settles on the build whenever both sides have one, so the same release is recognised as the same release however it is labelled. A vendor that has genuinely fallen behind is still called out.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.24/DuoUpdater-0.3.24-macos.zip" length="10407758" type="application/octet-stream" sparkle:edSignature="A1IVNjgjJgZtLs5SU6Dzqn5tmhftpFVDf7w2AGBMPpuaztZAsOhmzEOxkMFmNYc3y43HtUw4RJmuLAIfj4CrCQ=="/>
         </item>
     </channel>
 </rss>

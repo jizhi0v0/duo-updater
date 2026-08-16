@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// Performs the fetch-and-apply half of an install, for every route that does
 /// not need a GUI.
@@ -180,7 +181,7 @@ public actor InstallCoordinator {
 
         case .installer:
             progress(.downloading(fraction: 0))
-            let verifyDownload: @Sendable (URL) throws -> Void = { file in
+            let verifyDownload: @Sendable (URL) throws -> Data? = { file in
                 try Self.verifyInstallerDownload(file, for: result, progress: progress)
             }
             let opened = try await permits.withDownloadPermit {
@@ -243,8 +244,8 @@ public actor InstallCoordinator {
         _ file: URL,
         for result: UpdateResult,
         progress: @Sendable (InstallStage) -> Void
-    ) throws {
-        guard result.remote?.sourceName == "Sparkle" else { return }
+    ) throws -> Data? {
+        guard result.remote?.sourceName == "Sparkle" else { return nil }
         guard let key = result.app.sparkleEdPublicKey, !key.isEmpty else {
             throw SignatureVerifier.VerifyError.edSignatureMissing
         }
@@ -254,6 +255,11 @@ public actor InstallCoordinator {
             fileData: data,
             signatureBase64: result.remote?.edSignature,
             publicKeyBase64: key)
+        // Return the digest of the exact Data instance whose EdDSA proof passed.
+        // PackageInstaller compares this with the path before it parses or mounts
+        // the enclosure, so source authentication and later package pinning stay
+        // separate rather than pretending the Team-ID gate proves both.
+        return Data(SHA256.hash(data: data))
     }
 
     /// The shape both archive routes share: download under a download permit,

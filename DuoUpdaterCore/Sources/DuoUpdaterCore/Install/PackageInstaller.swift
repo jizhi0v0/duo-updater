@@ -1,5 +1,7 @@
 import Foundation
 import AppKit
+import CryptoKit
+import Darwin
 
 /// Handles updates that ship as an installer package (`pkg` casks like AweSun,
 /// Tailscale). We can't swap those in place, and a non-interactive `brew` can't
@@ -8,18 +10,37 @@ import AppKit
 /// for admin itself. The user confirms the install in a trusted, native UI.
 public actor PackageInstaller {
 
-    /// How a package reaches the system Installer. Injectable so tests can observe
-    /// the hand-over without a live Installer window; production always opens.
-    private let opener: @Sendable (URL) async -> Void
+    /// The final hand-over keeps its integrity check and `NSWorkspace.open` in one
+    /// MainActor turn. Injectable so tests can observe it without a live Installer.
+    private let handOff: @Sendable (
+        URL, @Sendable () throws -> Void
+    ) async throws -> Void
+    /// Test seam for the package gate. Production always uses `verifyOpenable`;
+    /// tests can substitute a deterministic byte-level gate.
+    private let packageGate: (@Sendable (URL, URL) throws -> Void)?
 
     public init() {
-        self.opener = { url in
-            await MainActor.run { _ = NSWorkspace.shared.open(url) }
+        self.handOff = { url, finalIntegrityCheck in
+            try await MainActor.run {
+                // No suspension is allowed between this lightweight metadata
+                // check and LaunchServices consuming the path. Full content hashing
+                // stays off MainActor so a large package cannot freeze the UI.
+                try finalIntegrityCheck()
+                _ = NSWorkspace.shared.open(url)
+            }
         }
+        self.packageGate = nil
     }
 
-    init(opener: @escaping @Sendable (URL) async -> Void) {
-        self.opener = opener
+    init(
+        opener: @escaping @Sendable (URL) async -> Void,
+        packageGate: (@Sendable (URL, URL) throws -> Void)? = nil
+    ) {
+        self.handOff = { url, finalIntegrityCheck in
+            try finalIntegrityCheck()
+            await opener(url)
+        }
+        self.packageGate = packageGate
     }
 
     public enum PackageError: LocalizedError {
@@ -71,18 +92,17 @@ public actor PackageInstaller {
     /// Download `url` and open the resulting installer (or the disk image that
     /// contains it). Returns once the installer has been launched — the actual
     /// install happens in macOS's installer, under the user's control.
-    /// - Parameter beforeOpen: runs after the package has passed the gate and
-    ///   immediately *before* it reaches Installer, so a caller retiring the window
-    ///   this package supersedes does it while Installer is idle rather than while
-    ///   it is opening a new document (see `handOver`). Not called at all when the
-    ///   download or the gate fails.
+    /// - Parameter beforeOpen: runs after a preliminary package gate and immediately
+    ///   before the final gate + Installer hand-over, so a caller retiring the window
+    ///   this package supersedes does it while Installer is idle. Not called when the
+    ///   download or preliminary gate fails.
     @discardableResult
     public func downloadAndOpen(
         url: URL?,
         installedApp: URL,
         headers: [String: String] = [:],
         onStage: @Sendable @escaping (InstallStage) -> Void,
-        verifyDownload: @Sendable (URL) throws -> Void = { _ in },
+        verifyDownload: @Sendable (URL) throws -> Data? = { _ in nil },
         beforeOpen: @Sendable () async -> Void = {}
     ) async throws -> OpenedPackage {
         guard let url else { throw PackageError.noURL }
@@ -100,6 +120,13 @@ public actor PackageInstaller {
         // or remove a package an already-open Installer window is still reading.
         let workDir = Self.workDirectory(forInstalledApp: installedApp)
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        var keepWorkDirectory = false
+        defer {
+            // Installer keeps reading a successfully opened package after this
+            // method returns. Every failure/cancellation path, however, has no
+            // consumer and must release the potentially very large download now.
+            if !keepWorkDirectory { try? FileManager.default.removeItem(at: workDir) }
+        }
 
         let downloader = Downloader(destinationDir: workDir) { fraction in
             onStage(.downloading(fraction: fraction))
@@ -111,11 +138,26 @@ public actor PackageInstaller {
         // any parsing or mounting. Sparkle uses this seam for its enclosure EdDSA;
         // Vendor/Homebrew packages use the no-op default and retain the common pkg
         // signature + Team-ID gate in `handOver` below.
-        try verifyDownload(file)
+        let sourceFingerprint = try verifyDownload(file)
+        // A signed DMG is about to be parsed into a different inner file, so prove
+        // the pathname still holds the exact enclosure whose EdDSA check passed.
+        // A direct pkg carries this proof into `handOver` instead, avoiding an
+        // extra full read of a potentially hundreds-of-megabytes package.
+        if file.pathExtension.lowercased() == "dmg", let sourceFingerprint,
+           try Self.contentFingerprint(of: file) != sourceFingerprint {
+            throw PackageError.downloadFailed(
+                "The download changed after source verification. Nothing was opened.")
+        }
 
         onStage(.installing)
         let toOpen = try resolveInstaller(from: file, workDir: workDir, installedApp: installedApp)
-        try await handOver(toOpen, installedApp: installedApp, beforeOpen: beforeOpen)
+        let directSourceFingerprint = toOpen.standardizedFileURL == file.standardizedFileURL
+            ? sourceFingerprint : nil
+        try await handOver(
+            toOpen, installedApp: installedApp,
+            approvedFingerprint: directSourceFingerprint,
+            beforeOpen: beforeOpen)
+        keepWorkDirectory = true
         onStage(.done)
         return OpenedPackage(
             bytesDownloaded: bytesDownloaded,
@@ -144,26 +186,226 @@ public actor PackageInstaller {
         try await handOver(package, installedApp: installedApp)
     }
 
-    /// Gate the package, let the caller settle whatever this open supersedes, then
-    /// hand it to Installer — strictly in that order.
+    /// Gate and fingerprint the package, let the caller settle whatever this open
+    /// supersedes, then re-establish both properties and hand it to Installer.
     ///
     /// The order is the point. `beforeOpen` is where the caller closes the stale
     /// Installer window this package replaces, and both neighbours matter:
     ///
     /// - *After* the gate, so a package that fails verification never costs the user
     ///   the window they already have open.
-    /// - *Before* the open, so the close lands while Installer is idle. Doing it the
-    ///   other way round put an AX press into the exact window in which Installer is
+    /// - *Before* the final gate + open, so the close lands while Installer is idle.
+    ///   A pinned content fingerprint prevents another valid package from the same
+    ///   Team inheriting the selected enclosure's approval, while the second Team
+    ///   gate re-establishes the package identity after the async callback. Doing
+    ///   the close after opening instead put an AX press into the exact window in
+    ///   which Installer is
     ///   opening a new document — the state its own `AXDocument` reads go blank in,
     ///   and the state a macOS 26.6 Installer crashed in (`_volumeAppeared:` messaging
     ///   a dead object one second after we opened a third package into it).
     private func handOver(
-        _ toOpen: URL, installedApp: URL, beforeOpen: @Sendable () async -> Void = {}
+        _ toOpen: URL,
+        installedApp: URL,
+        approvedFingerprint: Data? = nil,
+        beforeOpen: @Sendable () async -> Void = {}
     ) async throws {
-        // Gate (fail closed) — see `verifyOpenable`.
-        try verifyOpenable(toOpen, installedApp: installedApp)
+        // Preliminary gate: an ordinary bad package must not retire the valid
+        // Installer window it was meant to replace.
+        try applyPackageGate(toOpen, installedApp: installedApp)
+        let preliminarySeal = try Self.contentSeal(of: toOpen)
+        let pinnedFingerprint = approvedFingerprint ?? preliminarySeal.fingerprint
+        if approvedFingerprint != nil,
+           preliminarySeal.fingerprint != pinnedFingerprint {
+            throw PackageError.downloadFailed(
+                "The installer changed after source verification. Nothing was opened.")
+        }
         await beforeOpen()
-        await opener(toOpen)
+        // Final gate: `beforeOpen` is async, so the user-owned temp path may have
+        // changed while it ran. Re-establish every signature/identity invariant
+        // immediately before handing the path to Installer.
+        try applyPackageGate(toOpen, installedApp: installedApp)
+        let finalSeal = try Self.contentSeal(of: toOpen)
+        guard finalSeal.fingerprint == pinnedFingerprint else {
+            throw PackageError.downloadFailed(
+                "The installer changed after verification. Nothing was opened.")
+        }
+        try await handOff(toOpen) {
+            guard try Self.integritySnapshot(of: toOpen) == finalSeal.snapshot else {
+                throw PackageError.downloadFailed(
+                    "The installer changed after verification. Nothing was opened.")
+            }
+        }
+    }
+
+    private struct ContentSeal: Sendable {
+        let fingerprint: Data
+        let snapshot: [FileSnapshot]
+    }
+
+    private struct FileSnapshot: Sendable, Equatable {
+        let relativePath: String
+        let device: UInt64
+        let inode: UInt64
+        let mode: UInt16
+        let size: Int64
+        let modifiedSeconds: Int64
+        let modifiedNanoseconds: Int64
+        let changedSeconds: Int64
+        let changedNanoseconds: Int64
+    }
+
+    /// Hash content off MainActor, bracketing it with kernel metadata snapshots so
+    /// a file changing *during* the read is rejected too. The final hand-off only
+    /// has to repeat the cheap snapshot: inode catches replacement; ctime catches
+    /// in-place writes and chmod even if an attacker restores size and mtime.
+    private static func contentSeal(of file: URL) throws -> ContentSeal {
+        let before = try integritySnapshot(of: file)
+        let fingerprint = try contentFingerprint(of: file)
+        let after = try integritySnapshot(of: file)
+        guard before == after else {
+            throw PackageError.downloadFailed(
+                "The installer changed while it was being verified. Nothing was opened.")
+        }
+        return ContentSeal(fingerprint: fingerprint, snapshot: after)
+    }
+
+    private static func integritySnapshot(of root: URL) throws -> [FileSnapshot] {
+        let values = try root.resourceValues(forKeys: [
+            .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey,
+        ])
+        guard values.isSymbolicLink != true else {
+            throw PackageError.downloadFailed("The installer package is a symbolic link.")
+        }
+        let entries: [URL]
+        if values.isDirectory == true {
+            entries = [root] + (try directoryEntries(in: root))
+        } else if values.isRegularFile == true {
+            entries = [root]
+        } else {
+            throw PackageError.noInstallablePackage
+        }
+        let rootPath = root.standardizedFileURL.path
+        return try entries.map { entry in
+            let path = entry.standardizedFileURL.path
+            let relative = path == rootPath ? "" : String(path.dropFirst(rootPath.count + 1))
+            return try fileSnapshot(entry, relativePath: relative)
+        }
+    }
+
+    private static func fileSnapshot(_ file: URL, relativePath: String) throws -> FileSnapshot {
+        var info = stat()
+        let status = file.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return Int32(-1) }
+            return Darwin.lstat(path, &info)
+        }
+        guard status == 0 else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        return FileSnapshot(
+            relativePath: relativePath,
+            device: UInt64(info.st_dev), inode: UInt64(info.st_ino),
+            mode: UInt16(info.st_mode), size: Int64(info.st_size),
+            modifiedSeconds: Int64(info.st_mtimespec.tv_sec),
+            modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec),
+            changedSeconds: Int64(info.st_ctimespec.tv_sec),
+            changedNanoseconds: Int64(info.st_ctimespec.tv_nsec))
+    }
+
+    static func contentFingerprint(of file: URL) throws -> Data {
+        let values = try file.resourceValues(forKeys: [
+            .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey,
+        ])
+        guard values.isSymbolicLink != true else {
+            throw PackageError.downloadFailed("The installer package is a symbolic link.")
+        }
+
+        var hasher = SHA256()
+        if values.isRegularFile == true {
+            try hashFileContents(file, into: &hasher)
+        } else if values.isDirectory == true {
+            try hashDirectoryTree(file, into: &hasher)
+        } else {
+            throw PackageError.noInstallablePackage
+        }
+        return Data(hasher.finalize())
+    }
+
+    private static func hashDirectoryTree(_ root: URL, into hasher: inout SHA256) throws {
+        let fm = FileManager.default
+        let rootPath = root.standardizedFileURL.path
+        let entries = try directoryEntries(in: root)
+
+        for entry in entries {
+            let path = entry.standardizedFileURL.path
+            guard path.hasPrefix(rootPath + "/") else {
+                throw PackageError.downloadFailed("The installer package escaped its directory.")
+            }
+            let relativePath = String(path.dropFirst(rootPath.count + 1))
+            let values = try entry.resourceValues(forKeys: [
+                .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey,
+            ])
+            let kind: UInt8
+            if values.isDirectory == true { kind = 0x44 }       // D
+            else if values.isRegularFile == true { kind = 0x46 } // F
+            else { throw PackageError.noInstallablePackage }
+
+            hasher.update(data: Data([kind]))
+            hasher.update(data: Data(relativePath.utf8))
+            hasher.update(data: Data([0]))
+            let attributes = try fm.attributesOfItem(atPath: entry.path)
+            let permissions = (attributes[.posixPermissions] as? NSNumber)?.uint16Value ?? 0
+            var bigEndianPermissions = permissions.bigEndian
+            withUnsafeBytes(of: &bigEndianPermissions) { hasher.update(bufferPointer: $0) }
+            // Length-prefix file bytes so two different directory layouts cannot
+            // hash to the same record stream merely by moving a would-be next
+            // entry header into the previous file's contents.
+            let size = kind == 0x46
+                ? (attributes[.size] as? NSNumber)?.uint64Value ?? 0 : 0
+            var bigEndianSize = size.bigEndian
+            withUnsafeBytes(of: &bigEndianSize) { hasher.update(bufferPointer: $0) }
+            if kind == 0x46 { try hashFileContents(entry, into: &hasher) }
+        }
+    }
+
+    private static func directoryEntries(in root: URL) throws -> [URL] {
+        let fm = FileManager.default
+        var entries: [URL] = []
+        var directories = [root]
+        while let directory = directories.popLast() {
+            for entry in try fm.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [
+                    .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey,
+                ]) {
+                let values = try entry.resourceValues(forKeys: [
+                    .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey,
+                ])
+                guard values.isSymbolicLink != true else {
+                    throw PackageError.downloadFailed(
+                        "The installer package contained a symbolic link.")
+                }
+                entries.append(entry)
+                if values.isDirectory == true { directories.append(entry) }
+            }
+        }
+        entries.sort { $0.standardizedFileURL.path < $1.standardizedFileURL.path }
+        return entries
+    }
+
+    private static func hashFileContents(_ file: URL, into hasher: inout SHA256) throws {
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        while let chunk = try handle.read(upToCount: 1024 * 1024), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+    }
+
+    private func applyPackageGate(_ package: URL, installedApp: URL) throws {
+        if let packageGate {
+            try packageGate(package, installedApp)
+        } else {
+            try verifyOpenable(package, installedApp: installedApp)
+        }
     }
 
     /// The fail-closed gate: only a signed `.pkg`/`.mpkg` whose Team ID matches the
@@ -332,14 +574,25 @@ public actor PackageInstaller {
         if exact.count == 1 { return exact[0].0 }
         if exact.count > 1 { return nil }
 
-        let versioned = names.filter { _, candidate in
-            guard candidate.hasPrefix(needle) else { return false }
-            let suffix = candidate.dropFirst(needle.count)
-            guard let first = suffix.first else { return false }
-            if first.isNumber { return true }
-            return first == "v" && suffix.dropFirst().first?.isNumber == true
+        // Preserve separators for version matching. Requiring a boundary before
+        // the version and consuming the *entire* suffix prevents sibling products
+        // such as Foo360, Foo2Helper, and Foov2Agent from winning this gate.
+        let appTokens = appName.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }.map(NSRegularExpression.escapedPattern(for:))
+        guard !appTokens.isEmpty else { return nil }
+        let productPattern = appTokens.joined(separator: #"[\s._-]*"#)
+        // Suffixes are a closed vocabulary: enough for common prerelease and
+        // architecture-qualified installers without reopening the old
+        // "anything after a leading digit" ambiguity.
+        let qualifier = #"(?:alpha\d*|beta\d*|rc\d*|preview\d*|arm64|aarch64|x86_64|universal)"#
+        let versionPattern = #"^"# + productPattern
+            + #"[\s._-]+v?\d+(?:[._-]\d+)*(?:a\d+|b\d+|rc\d+)?(?:[\s._-]+"#
+            + qualifier + #")*$"#
+        let versioned = valid.filter { package in
+            let base = package.deletingPathExtension().lastPathComponent
+            return base.range(of: versionPattern, options: [.regularExpression, .caseInsensitive]) != nil
         }
-        return versioned.count == 1 ? versioned[0].0 : nil
+        return versioned.count == 1 ? versioned[0] : nil
     }
 
     static func isPackageEntry(_ url: URL, insideResolvedPath dirBase: String) -> Bool {

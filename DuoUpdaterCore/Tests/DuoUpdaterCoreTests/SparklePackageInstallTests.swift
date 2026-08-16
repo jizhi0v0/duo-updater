@@ -15,7 +15,9 @@ import Testing
             publicKey: key.publicKey.rawRepresentation.base64EncodedString(),
             signature: signature)
 
-        try InstallCoordinator.verifyInstallerDownload(file, for: result) { _ in }
+        let fingerprint = try InstallCoordinator.verifyInstallerDownload(file, for: result) { _ in }
+        let expected = try PackageInstaller.contentFingerprint(of: file)
+        #expect(fingerprint == expected)
     }
 
     @Test func tamperedPackageIsRejectedBeforeInstaller() throws {

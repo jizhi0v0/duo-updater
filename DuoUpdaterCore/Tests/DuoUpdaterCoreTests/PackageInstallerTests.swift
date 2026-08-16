@@ -87,6 +87,13 @@ struct PackageInstallerTests {
         #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo") == nil,
                 "a helper package must not win by substring")
 
+        for sibling in ["Foo2Helper.pkg", "Foov2Agent.pkg", "Foo360.pkg"] {
+            let misleading = try package(sibling)
+            #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo") == nil,
+                    "a sibling product beginning with digits must not look like a version")
+            try fm.removeItem(at: misleading)
+        }
+
         let versioned = try package("Foo-2.0.pkg")
         #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo")?.lastPathComponent
                     == versioned.lastPathComponent)
@@ -94,6 +101,18 @@ struct PackageInstallerTests {
         _ = try package("Foo-v3.pkg")
         #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo") == nil,
                 "two plausible product packages are ambiguous")
+
+        try fm.removeItem(at: versioned)
+        try fm.removeItem(at: root.appendingPathComponent("Foo-v3.pkg"))
+        for qualified in [
+            "Foo-2.0-beta.pkg", "Foo-2.0-rc1.pkg", "Foo-2.0-arm64.pkg",
+            "Foo-2.0-universal.pkg",
+        ] {
+            let packageURL = try package(qualified)
+            #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo")?.lastPathComponent
+                        == packageURL.lastPathComponent)
+            try fm.removeItem(at: packageURL)
+        }
     }
 
     @Test func aSinglePackageNeedsNoFilenameConvention() throws {
@@ -132,9 +151,129 @@ struct PackageInstallerTests {
         #expect(await opened.urls.isEmpty)
     }
 
+    @Test func replacementDuringBeforeOpenFailsTheFinalGate() async throws {
+        let fm = FileManager.default
+        let source = fm.temporaryDirectory
+            .appendingPathComponent("trusted-\(UUID().uuidString).pkg")
+        let uniqueApp = "Gate-\(UUID().uuidString)"
+        let workPrefix = "DuoUpdater-pkg-\(uniqueApp)-"
+        let tempDirectory = fm.temporaryDirectory
+        let trusted = Data("trusted package".utf8)
+        try trusted.write(to: source)
+        defer { try? fm.removeItem(at: source) }
+
+        let opened = Recorder()
+        let installer = PackageInstaller(
+            opener: { await opened.record($0) },
+            // Simulates two different, valid packages signed by the same Team.
+            // The Team gate accepts both; the pinned content proof must reject B.
+            packageGate: { _, _ in })
+
+        await #expect(throws: PackageInstaller.PackageError.self) {
+            try await installer.downloadAndOpen(
+                url: source,
+                installedApp: URL(fileURLWithPath: "/Applications/\(uniqueApp).app"),
+                onStage: { _ in },
+                beforeOpen: {
+                    // Replaces the exact approved pathname while the async hook is
+                    // suspended, reproducing the original check/use window.
+                    let manager = FileManager.default
+                    let candidates = (try? manager.contentsOfDirectory(
+                        at: tempDirectory, includingPropertiesForKeys: nil)) ?? []
+                    guard let dir = candidates.first(where: {
+                        $0.lastPathComponent.hasPrefix(workPrefix)
+                    }), let pkg = try? manager.contentsOfDirectory(
+                        at: dir, includingPropertiesForKeys: nil).first else { return }
+                    try? Data("replacement package".utf8).write(to: pkg, options: .atomic)
+                })
+        }
+        #expect(await opened.urls.isEmpty)
+    }
+
+    @Test func sourceFingerprintMismatchDoesNotRunBeforeOpen() async throws {
+        let fm = FileManager.default
+        let source = fm.temporaryDirectory
+            .appendingPathComponent("source-proof-\(UUID().uuidString).pkg")
+        try Data("source package A".utf8).write(to: source)
+        defer { try? fm.removeItem(at: source) }
+
+        let opened = Recorder()
+        let retired = Flag()
+        let installer = PackageInstaller(
+            opener: { await opened.record($0) },
+            packageGate: { _, _ in })
+
+        await #expect(throws: PackageInstaller.PackageError.self) {
+            try await installer.downloadAndOpen(
+                url: source,
+                installedApp: URL(fileURLWithPath: "/Applications/SourceProof.app"),
+                onStage: { _ in },
+                verifyDownload: { downloaded in
+                    let fingerprint = try PackageInstaller.contentFingerprint(of: downloaded)
+                    try Data("same-Team package B".utf8).write(to: downloaded, options: .atomic)
+                    return fingerprint
+                },
+                beforeOpen: { await retired.set() })
+        }
+        #expect(!(await retired.value))
+        #expect(await opened.urls.isEmpty)
+    }
+
+    @Test func bundleStylePackageCanBeFingerprintedAndHandedOff() async throws {
+        let fm = FileManager.default
+        let bundle = fm.temporaryDirectory
+            .appendingPathComponent("Bundle-\(UUID().uuidString).pkg", isDirectory: true)
+        try fm.createDirectory(
+            at: bundle.appendingPathComponent("Contents", isDirectory: true),
+            withIntermediateDirectories: true)
+        try Data("legacy package payload".utf8).write(
+            to: bundle.appendingPathComponent("Contents/Archive.pax.gz"))
+        defer { try? fm.removeItem(at: bundle) }
+
+        let opened = Recorder()
+        let installer = PackageInstaller(
+            opener: { await opened.record($0) },
+            packageGate: { _, _ in })
+        try await installer.reopen(
+            package: bundle,
+            installedApp: URL(fileURLWithPath: "/Applications/Fixture.app"))
+
+        #expect(await opened.urls == [bundle])
+    }
+
+    @Test func verifierFailureImmediatelyRemovesTheScratchDirectory() async throws {
+        enum FixtureError: Error { case rejected }
+
+        let fm = FileManager.default
+        let uniqueApp = "Cleanup-\(UUID().uuidString)"
+        let prefix = "DuoUpdater-pkg-\(uniqueApp)-"
+        let source = fm.temporaryDirectory.appendingPathComponent("fixture-\(UUID().uuidString).pkg")
+        try Data(repeating: 0xA5, count: 64 * 1024).write(to: source)
+        defer { try? fm.removeItem(at: source) }
+
+        let installer = PackageInstaller(opener: { _ in })
+        await #expect(throws: FixtureError.self) {
+            try await installer.downloadAndOpen(
+                url: source,
+                installedApp: URL(fileURLWithPath: "/Applications/\(uniqueApp).app"),
+                onStage: { _ in },
+                verifyDownload: { _ in throw FixtureError.rejected })
+        }
+
+        let leftovers = try fm.contentsOfDirectory(
+            at: fm.temporaryDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix(prefix) }
+        #expect(leftovers.isEmpty)
+    }
+
     private actor Recorder {
         private(set) var urls: [URL] = []
         func record(_ url: URL) { urls.append(url) }
+    }
+
+    private actor Flag {
+        private(set) var value = false
+        func set() { value = true }
     }
 
     @Test func discardsOnlyOurOwnScratchDirectories() throws {

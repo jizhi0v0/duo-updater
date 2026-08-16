@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.29
+
+**Installer packages stay the same package from verification to macOS Installer.** DuoUpdater now seals the selected installer before closing or replacing any existing Installer window, checks it again immediately before opening, and refuses the hand-off if another local process changed the file in between. This preserves Sparkle's signature guarantee all the way to the package you see in Installer without making the menu-bar UI pause while large packages are checked.
+
+**Multi-installer disk images handle more real-world package names without guessing.** Versioned beta, release-candidate, Apple Silicon, and universal package names are recognized when they identify one unique product, while similarly named helpers and sibling products remain excluded. Older bundle-style macOS installer packages are supported by the same integrity checks.
+
+**Failed installer downloads are cleaned up immediately.** A bad signature, unreadable disk image, cancelled download, or rejected package no longer leaves a full installer sitting in temporary storage until the next day's cleanup.
+
 ## 0.3.28
 
 **Signed Sparkle updates that arrive as installer packages now work.** A few apps publish a perfectly valid, cryptographically signed `.pkg` instead of an app archive. DuoUpdater offered those updates, downloaded them, and then tried to unpack the package as though it were a zip — an update that could never finish. They now go to macOS's own Installer, after DuoUpdater verifies both the Sparkle signature on the download and the installer identity inside it.

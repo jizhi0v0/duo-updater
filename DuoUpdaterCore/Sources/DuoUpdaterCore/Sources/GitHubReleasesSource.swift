@@ -502,7 +502,9 @@ public enum GitHubReleaseRegistry {
         // (Team 7KK583U8H2, Matthew Rathbone) reporting version 5.8.1 == tag, bundle
         // id io.beekeeperstudio.desktop. Electron app with its own updater, so a
         // fallback. The filename carries the version, so the pattern stays version-
-        // agnostic; arm64 (a universal `…-<ver>.dmg` and `-mac.zip` also ship). Not
+        // agnostic; arm64 (the bare `…-<ver>.dmg` is NOT universal — checked with
+        // `file` on 6.0.1, it is a single x86_64 slice — and a `-mac.zip` also ships,
+        // so the arm64 anchor is what keeps an Intel build off an arm64 Mac). Not
         // installed on the author's machine — the VendorInstaller Team-gate enforces
         // the match against whatever is installed.
         GitHubReleaseRule(
@@ -918,15 +920,21 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^noTunes-[0-9.]+\.zip$"#,
             installerKind: .zip),
 
-        // MarkEdit — ships an Apple-silicon dmg beside a universal one, plus
-        // `UpdateArchive*.zip` payloads for its own updater. The pattern takes the
-        // apple-silicon dmg; matching `UpdateArchive.zip` would hand the installer
-        // an artifact meant for a different install path.
-        // One-click: app.cyan.markedit, Team TCKG8FBVG6, notarized.
+        // MarkEdit — takes the UNIVERSAL dmg (`MarkEdit-<ver>.dmg`), not the
+        // `-apple-silicon` one beside it. Verified with `file`: the plain dmg is a
+        // universal binary (x86_64 + arm64) while `-apple-silicon` is a single arm64
+        // slice — and `apple-silicon` was not a token the asset picker recognised, so
+        // pinning it read as arch-neutral and would have offered an arm64-only build
+        // to an Intel Mac. (The token is recognised now, but the universal dmg is
+        // still the better pin: one artifact that runs everywhere, no arch branch.)
+        // The `[0-9.]+\.dmg$` anchor also keeps `-apple-silicon.dmg` out, and the
+        // `UpdateArchive*.zip` payloads are for MarkEdit's own updater, not for us.
+        // One-click: app.cyan.markedit, Team TCKG8FBVG6, notarized — verified on the
+        // universal dmg.
         GitHubReleaseRule(
             bundleID: "app.cyan.markedit",
             owner: "MarkEdit-app", repo: "MarkEdit",
-            installAssetPattern: #"^MarkEdit-[0-9.]+-apple-silicon\.dmg$"#,
+            installAssetPattern: #"^MarkEdit-[0-9.]+\.dmg$"#,
             installerKind: .dmg),
 
         // Clash Verge Rev — aarch64 and x64 dmgs ship together; pin aarch64.
@@ -1062,7 +1070,7 @@ public enum GitHubReleaseRegistry {
         // version — no phantom update.
         //
         // Apple-silicon and Intel dmgs ship together, and BOTH are in the pattern for
-        // the same reason as Goose below: `-mac-apple` carries no token that
+        // the same reason as Goose further down: `-mac-apple` carries no token that
         // `installableAsset` recognises as an architecture, so pinning it alone would
         // read as arch-neutral and hand an Intel Mac the Apple-silicon build. With
         // both matched, `intel` selects the x86_64 dmg on an Intel Mac and the

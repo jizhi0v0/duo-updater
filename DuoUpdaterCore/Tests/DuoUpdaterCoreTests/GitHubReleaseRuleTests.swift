@@ -8,7 +8,14 @@ import Foundation
 // on each repo, so a future pattern edit that breaks extraction fails loudly.
 
 private func rule(_ bundleID: String) -> GitHubReleaseRule {
-    GitHubReleaseRegistry.rules.first { $0.bundleID == bundleID }!
+    // Reported as a failed expectation rather than a crash: a deleted registry
+    // entry should fail the test that covers it, not take the whole suite down.
+    guard let match = GitHubReleaseRegistry.rules.first(where: { $0.bundleID == bundleID })
+    else {
+        Issue.record("no GitHubReleaseRule for \(bundleID)")
+        return GitHubReleaseRule(bundleID: bundleID, owner: "", repo: "")
+    }
+    return match
 }
 
 private func extract(_ tag: String, _ bundleID: String) -> String? {
@@ -331,12 +338,16 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(VersionComparator.compare("3.5.1", "3.5") == .orderedDescending)
 }
 
-@Test func markEditRuleExcludesUpdateArchive() {
+@Test func markEditRuleTakesTheUniversalDmg() {
     #expect(extract("v1.34.0", "app.cyan.markedit") == "1.34.0")
-    #expect(matches("MarkEdit-1.34.0-apple-silicon.dmg", "app.cyan.markedit"))
-    // The universal dmg and the app's own updater payloads must not be selected.
-    #expect(!matches("MarkEdit-1.34.0.dmg", "app.cyan.markedit"))
+    // The universal dmg (x86_64 + arm64, verified with `file`) is the pin; the
+    // `-apple-silicon` dmg is a single arm64 slice and must NOT match, or an Intel
+    // Mac would be offered a build it cannot run.
+    #expect(matches("MarkEdit-1.34.0.dmg", "app.cyan.markedit"))
+    #expect(!matches("MarkEdit-1.34.0-apple-silicon.dmg", "app.cyan.markedit"))
+    // The app's own updater payloads are for a different install path.
     #expect(!matches("UpdateArchive-arm64.zip", "app.cyan.markedit"))
+    #expect(!matches("UpdateArchive.zip", "app.cyan.markedit"))
 }
 
 @Test func clashVergeRulePinsAarch64() {

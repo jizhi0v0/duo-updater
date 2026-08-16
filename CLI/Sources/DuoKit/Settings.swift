@@ -22,6 +22,17 @@ public struct Settings: Sendable {
     /// it has no bundle), and would read an empty universe without complaint.
     public static let suiteName = "com.duoupdater.app"
 
+    /// Remember that the user dismissed this install's administrator prompt, in
+    /// the suite the menu-bar app reads. Keyed per install PATH via the shared
+    /// `InstallPreferenceKey`, so a decline for one channel of a shared bundle id
+    /// does not silence its siblings.
+    public static func recordDeclinedElevation(_ app: InstalledApp) {
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        var keys = Set(defaults.stringArray(forKey: UpdateSettings.declinedElevationKeysKey) ?? [])
+        keys.insert(InstallPreferenceKey.key(for: app))
+        defaults.set(Array(keys).sorted(), forKey: UpdateSettings.declinedElevationKeysKey)
+    }
+
     public var updateSettings: UpdateSettings
     public var ignoredKeys: Set<String>
     /// App preference key → the version the user chose to skip.
@@ -48,7 +59,12 @@ public struct Settings: Sendable {
 
         return Settings(
             updateSettings: UpdateSettings(
-                appStoreUpdateStrategy: strategy, vendorInstallPolicy: vendorPolicy),
+                appStoreUpdateStrategy: strategy, vendorInstallPolicy: vendorPolicy,
+                // Read from the same suite the app writes: a refusal recorded in
+                // the menu bar has to stop `duo install` re-raising that panel too,
+                // or the two disagree about the same app.
+                declinedElevationKeys: Set(
+                    defaults.stringArray(forKey: UpdateSettings.declinedElevationKeysKey) ?? [])),
             ignoredKeys: Set(defaults.stringArray(forKey: UpdateSettings.ignoredKeysKey) ?? []),
             skippedVersions: defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey)
                 as? [String: String] ?? [:],

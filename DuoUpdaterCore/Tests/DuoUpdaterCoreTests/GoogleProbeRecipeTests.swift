@@ -15,13 +15,26 @@ private let omahaGeminiFixture = #"""
 {"response":{"server":"prod","protocol":"3.0","app":[{"appid":"com.google.GeminiMacOS","cohort":"1:3j3x:","status":"ok","cohortname":"Prod","updatecheck":{"status":"ok","urls":{"url":[{"codebase":"http://edgedl.me.gvt1.com/edgedl/release2/gemini/ca3wnj3nkm3xllpgbrzxdw4xjy_1.94.11.734/"},{"codebase":"https://edgedl.me.gvt1.com/edgedl/release2/gemini/ca3wnj3nkm3xllpgbrzxdw4xjy_1.94.11.734/"},{"codebase":"http://dl.google.com/release2/gemini/ca3wnj3nkm3xllpgbrzxdw4xjy_1.94.11.734/"},{"codebase":"https://dl.google.com/release2/gemini/ca3wnj3nkm3xllpgbrzxdw4xjy_1.94.11.734/"}]},"manifest":{"version":"1.94.11.734","packages":{"package":[{"hash_sha256":"e7d26399d63bee35aeafa0bb0edae3dbbf8cc1ba4451248aa517ae68edb1399e","size":126074911,"name":"Gemini-1.94.11.734.dmg","required":true}]}}}}]}}
 """#
 
-/// The links the Antigravity download page carries side by side, verbatim. The
-/// first belongs to a DIFFERENT product (the IDE, on its own version line); it is
-/// here so the tests can prove the pattern doesn't take it.
+/// Antigravity's electron-builder manifest, captured verbatim on 2026-08-16 from
+/// the Cloud Run service its own updater polls.
+private let antigravityFeedFixture = #"""
+version: 2.8.1
+files:
+- url: https://storage.googleapis.com/antigravity-public/antigravity-hub/2.8.1-6512087774658560/darwin-arm/Antigravity.zip
+  sha512: VtCAAII2RtMdkdZ8CoV4Kg3Qgljkyhze/6P+LJUgLBvIWLBq4WVNgGIEgadaUMxDxzmnxRCS0XVsH/QwOMMIeA==
+  size: 165926585
+path: Antigravity.zip
+sha512: VtCAAII2RtMdkdZ8CoV4Kg3Qgljkyhze/6P+LJUgLBvIWLBq4WVNgGIEgadaUMxDxzmnxRCS0XVsH/QwOMMIeA==
+stagingPercentage: 100
+"""#
+
+/// What the download page prints for the same release — the source this recipe
+/// used first, kept as a fixture because it is what the version must NOT read.
+/// It sells two products at once, and states this one with a build suffix the
+/// shipped bundle does not report.
 private let antigravityPageFixture = #"""
 <a href="https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/2.5.5-4923483625488384/darwin-arm/Antigravity%20IDE.dmg">Download IDE</a>
 <a href="https://storage.googleapis.com/antigravity-public/antigravity-hub/2.8.1-6512087774658560/darwin-arm/Antigravity.dmg">Download</a>
-<a href="https://storage.googleapis.com/antigravity-public/antigravity-hub/2.8.1-6512087774658560/darwin-x64/Antigravity.dmg">Download (Intel)</a>
 """#
 
 private func googleRecipe(_ bundleID: String) -> VendorProbeRecipe? {
@@ -67,39 +80,54 @@ struct GoogleProbeRecipeTests {
             + "ca3wnj3nkm3xllpgbrzxdw4xjy_1.94.11.734/Gemini-1.94.11.734.dmg")
     }
 
-    /// The page's string is `2.8.1-6512087774658560`; the installed bundle reports
-    /// a plain `2.8.1` (read off the mounted dmg, 2026-08-16). Capturing the
-    /// suffix would report an update that installing can never clear.
-    @Test func antigravityStopsBeforeTheBuildSuffix() throws {
+    /// The feed states the bundle's own string — a plain `2.8.1`, the same value
+    /// the mounted artifact reports (2026-08-16).
+    @Test func antigravityReadsTheFeedsMarketingVersion() throws {
         let recipe = try #require(googleRecipe("com.google.antigravity"))
         #expect(VendorProbeRecipe.extractVersion(
-            from: antigravityPageFixture, pattern: recipe.versionPattern) == "2.8.1")
+            from: antigravityFeedFixture, pattern: recipe.versionPattern) == "2.8.1")
     }
 
-    /// The same page advertises the Antigravity *IDE* at 2.5.5. Anchoring to the
-    /// hub path is what keeps one product's version off the other's row.
-    @Test func antigravityIgnoresTheIDEOnTheSamePage() throws {
+    /// Why the feed replaced the download page: on that page the same release
+    /// reads `2.8.1-6512087774658560`, and a second product (the IDE, 2.5.5) sits
+    /// beside it. Both numbers are wrong for this row — the first would report an
+    /// update installing can never clear, the second belongs to another app.
+    @Test func antigravityNoLongerReadsTheAmbiguousDownloadPage() throws {
         let recipe = try #require(googleRecipe("com.google.antigravity"))
-        let ideOnly = antigravityPageFixture
-            .split(separator: "\n")
-            .filter { $0.contains("/antigravity/stable/") }
-            .joined(separator: "\n")
-        #expect(!ideOnly.isEmpty, "fixture must still carry the IDE link")
+        #expect(antigravityPageFixture.contains("2.5.5"))
+        #expect(antigravityPageFixture.contains("2.8.1-6512087774658560"))
         #expect(VendorProbeRecipe.extractVersion(
-            from: ideOnly, pattern: recipe.versionPattern) == nil)
+            from: antigravityPageFixture, pattern: recipe.versionPattern) == nil,
+            "the page must no longer satisfy this pattern at all")
     }
 
-    @Test func antigravityInstallsTheArmHubBuild() throws {
+    @Test func antigravityInstallsTheCheckedZipFromTheFeed() throws {
         let recipe = try #require(googleRecipe("com.google.antigravity"))
         let spec = try #require(recipe.install)
         guard case .bodyPattern(let pattern) = spec.urlSource else {
             Issue.record("expected a body pattern"); return
         }
         #expect(VendorProbeRecipe.extractVersion(
-            from: antigravityPageFixture, pattern: pattern)
+            from: antigravityFeedFixture, pattern: pattern)
             == "https://storage.googleapis.com/antigravity-public/"
-            + "antigravity-hub/2.8.1-6512087774658560/darwin-arm/Antigravity.dmg")
-        #expect(spec.kind == .dmg)
+            + "antigravity-hub/2.8.1-6512087774658560/darwin-arm/Antigravity.zip")
+        #expect(spec.kind == .zip)
+        // The feed publishes a base64 SHA-512 over the bytes actually served, so
+        // the download is checksummed as well as signature-gated.
+        let checksum = try #require(spec.checksumPattern)
+        #expect(VendorProbeRecipe.extractVersion(
+            from: antigravityFeedFixture, pattern: checksum)
+            == "VtCAAII2RtMdkdZ8CoV4Kg3Qgljkyhze/6P+LJUgLBvIWLBq4WVNgGIEgadaUMxDxzmnxRCS0XVsH/QwOMMIeA==")
+    }
+
+    /// The app's updater identifies itself with an `x-user-staging-id` for staged
+    /// rollout. We must not: the feed answers the same manifest without it, and
+    /// that header is a per-machine identifier.
+    @Test func antigravitySendsNoMachineIdentifier() throws {
+        let recipe = try #require(googleRecipe("com.google.antigravity"))
+        #expect(recipe.identity == nil)
+        #expect(recipe.requestBody == nil)
+        #expect(!recipe.url.absoluteString.contains("staging"))
     }
 
     /// A request body is meaningless on the other modes, and every recipe that

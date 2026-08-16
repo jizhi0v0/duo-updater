@@ -2482,31 +2482,42 @@ public enum VendorProbeRegistry {
                 "version":"0.0.0.0","updatecheck":{}}]}}
                 """)),
 
-        // Antigravity — no Omaha entry (six plausible appids all answered
-        // `error-unknownApplication` while Gemini's returned `ok`, 2026-08-16),
-        // so the download page is the version surface.
+        // Antigravity — its own electron-builder feed, on the Cloud Run service the
+        // app's updater polls (found by capturing that request, 2026-08-16; there
+        // is no Omaha entry — six plausible appids answered
+        // `error-unknownApplication` while Gemini's returned `ok`).
         //
-        // TWO traps live on that page. It lists two products — the IDE, under
-        // `edgedl.me.gvt1.com/.../antigravity/stable/`, and this app (the hub),
-        // under `antigravity-public/antigravity-hub/` — and they carry different
-        // versions (2.5.5 vs 2.8.1), so the pattern is anchored to the hub path.
-        // And the page's version reads `2.8.1-6512087774658560` while the shipped
-        // bundle reports a plain `2.8.1` (read off the mounted dmg, 2026-08-16,
-        // com.google.antigravity, Team EQHXZ8M8AV, notarized, no SUFeedURL) — so
-        // the pattern deliberately stops before the build suffix. Capturing it
-        // would report an update that installing can never clear.
+        // Preferred over the download page, which was the first thing that worked
+        // and is a far worse source: it advertises two products at once (the IDE,
+        // under `.../antigravity/stable/`, at its own version) and prints this one
+        // as `2.8.1-6512087774658560` while the shipped bundle reports a plain
+        // `2.8.1`. The feed states the bundle's own string directly.
+        //
+        // Verified 2026-08-16 on the mounted artifact: com.google.antigravity,
+        // `CFBundleShortVersionString` 2.8.1, Team EQHXZ8M8AV, notarized, and no
+        // SUFeedURL (so nothing else covers it). The app sends an
+        // `x-user-staging-id` header for its staged rollout; we deliberately do
+        // not — the feed answers the same manifest without it, and that header is
+        // a per-machine identifier. The consequence is that a release still
+        // rolling out (`stagingPercentage` below 100) would be offered here
+        // before the app itself takes it.
+        //
+        // The feed's `sha512` is verifiable: the served zip's Content-Length is
+        // exactly the `size` it states (165926585 on 2026-08-16), so the hash was
+        // taken on the bytes we will actually download — unlike Signal's feed,
+        // where a size delta gave away a hash computed before stapling.
         VendorProbeRecipe(
             bundleID: "com.google.antigravity",
-            url: URL(string: "https://antigravity.google/download")!,
+            url: URL(string: "https://antigravity-hub-auto-updater-974169037036"
+                + ".us-central1.run.app/manifest/latest-arm64-mac.yml")!,
             mode: .responseBody,
-            versionPattern: #"antigravity-hub/([0-9]+(?:\.[0-9]+)+)-[0-9]{6,}/darwin-arm/"#,
+            versionPattern: #"(?m)^version:\s*([0-9][0-9.]*)\s*$"#,
             changelogURL: URL(string: "https://antigravity.google/changelog"),
             install: VendorInstallSpec(
-                // The full URL needs the build suffix the version pattern drops,
-                // so take the whole link rather than rebuilding it.
                 urlSource: .bodyPattern(
-                    #"(https://storage\.googleapis\.com/antigravity-public/antigravity-hub/[^"'\\]+/darwin-arm/Antigravity\.dmg)"#),
-                kind: .dmg)),
+                    #"url:\s*(https://storage\.googleapis\.com/\S+\.zip)"#),
+                kind: .zip,
+                checksumPattern: #"sha512:\s*([A-Za-z0-9+/=]+)"#)),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

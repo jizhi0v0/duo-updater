@@ -2570,6 +2570,42 @@ public enum VendorProbeRegistry {
             install: VendorInstallSpec(
                 urlSource: .fixed(URL(string: "https://download.anydesk.com/anydesk.dmg")!),
                 kind: .dmg)),
+
+        // Kiro — the Squirrel.Mac metadata its own updater reads (found by
+        // capturing that request, 2026-08-16). One 323-byte JSON, already scoped
+        // to this architecture by its filename, stating `currentRelease` and the
+        // exact artifact for it.
+        //
+        // Preferred over the download page, which was the first thing that worked:
+        // that page carries both architectures' links under the same version and
+        // its version text sits in hash-named utility classes, so reading it meant
+        // naming the architecture in a regex and hoping the markup held. Guessing
+        // at a manifest had failed earlier — every `latest-mac.yml` / `latest.yml`
+        // / `/latest` shape on this host answers 403 — which is why the page was
+        // used at all.
+        //
+        // The metadata offers a zip where the page offers a dmg; the zip is the
+        // same release and unpacks straight into the swap, so it is the better of
+        // the two. `pub_date` is a bare `2026-08-13`, which `ReleaseDate` does not
+        // parse (it wants a time), so no `publishedAtPattern` here.
+        //
+        // Verified 2026-08-16 on the downloaded artifact: Kiro.app 1.0.309,
+        // dev.kiro.desktop, Developer ID `AMZN Mobile LLC (94KV3E626L)`, notarized
+        // and accepted by `spctl`. Not installed on the machine this was written
+        // on, so the comparison against an installed copy's Team is unverified —
+        // the gate performs it at install time regardless.
+        VendorProbeRecipe(
+            bundleID: "dev.kiro.desktop",
+            url: URL(string: "https://prod.download.desktop.kiro.dev"
+                + "/stable/metadata-darwin-arm64-stable.json")!,
+            mode: .responseBody,
+            versionPattern: #""currentRelease":\s*"([0-9][0-9.]*)""#,
+            downloadURL: URL(string: "https://kiro.dev/downloads/"),
+            changelogURL: URL(string: "https://kiro.dev/changelog/ide/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #""url":\s*"(https://prod\.download\.desktop\.kiro\.dev/[^"]+darwin-arm64\.zip)""#),
+                kind: .zip)),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

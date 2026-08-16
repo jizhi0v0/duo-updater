@@ -339,9 +339,19 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     let fixture = #"""
     {"full":{"host_version":[0,0,393],"url":"https://stable.dl2.discordapp.net/distro/app/stable/osx/universal/0.0.393/full.distro"},"deltas":[{"host_version":[0,0,392],"url":"https://stable.dl2.discordapp.net/distro/app/stable/osx/universal/0.0.393/from/0.0.392"}],"required_update":true}
     """#
-    #expect(VendorProbeRecipe.extractVersion(
-        from: fixture,
-        pattern: #"stable\.dl2\.discordapp\.net/distro/app/stable/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#) == "0.0.393")
+    let stable = registryRecipe("com.hnc.Discord")
+    #expect(VendorProbeRecipe.extractVersion(from: fixture, pattern: stable.versionPattern)
+        == "0.0.393")
+
+    // 2026-08-16: the vendor moved stable's CDN host from `stable.dl2.discordapp.net`
+    // to plain `dl.discordapp.net` — captured verbatim from the live manifest, which
+    // is what took this probe red in `duo verify`. The channel segment in the PATH is
+    // the anchor that must carry the recipe, not the hostname.
+    let movedHost = #"""
+    {"full":{"host_version":[0,0,408],"url":"https://dl.discordapp.net/distro/app/stable/osx/universal/0.0.408/full.distro"},"deltas":[{"host_version":[0,0,407],"url":"https://dl.discordapp.net/distro/app/stable/osx/universal/0.0.408/from/0.0.407"}]}
+    """#
+    #expect(VendorProbeRecipe.extractVersion(from: movedHost, pattern: stable.versionPattern)
+        == "0.0.408")
 }
 
 @Test func discordPTBAndCanaryProbesExtractTheirOwnChannelVersion() {

@@ -2058,11 +2058,21 @@ public enum VendorProbeRegistry {
         // `discord.com/api/download?platform=osx&format=dmg` — which 302s to the same
         // version's `…/apps/osx/<ver>/Discord.dmg` (verified 0.0.395 == host_version).
         // ptb/canary stay detection-only for now (their dmg endpoints unverified).
+        //
+        // 2026-08-16: the patterns no longer name the CDN HOST. Discord moved
+        // stable's downloads from `stable.dl2.discordapp.net` to plain
+        // `dl.discordapp.net` and the host-anchored pattern stopped matching —
+        // `duo verify` reported `versionPatternNoMatch` on an 8801-byte body that
+        // was otherwise perfectly well-formed. The channel lives in the URL PATH
+        // (`/distro/app/stable/…`), which is the part that actually has to be
+        // pinned: it is what keeps a channel's recipe off its siblings' numbers.
+        // ptb/canary were still on `*.dl2` when this was written and were moved to
+        // the same host-agnostic shape so the identical break can't repeat there.
         VendorProbeRecipe(
             bundleID: "com.hnc.Discord",
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=osx&arch=x64")!,
             mode: .responseBody,
-            versionPattern: #"stable\.dl2\.discordapp\.net/distro/app/stable/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            versionPattern: #"discordapp\.net/distro/app/stable/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
             downloadURL: URL(string: "https://discord.com/download"),
             changelogURL: URL(string: "https://discord.com/blog"),
             install: VendorInstallSpec(
@@ -2081,7 +2091,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.hnc.DiscordPTB",
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=ptb&platform=osx&arch=x64")!,
             mode: .responseBody,
-            versionPattern: #"ptb\.dl2\.discordapp\.net/distro/app/ptb/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            versionPattern: #"discordapp\.net/distro/app/ptb/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
             changelogURL: URL(string: "https://discord.com/blog"),
             // One-click verified 2026-08-09: `https://discord.com/api/download/ptb`
             // 302s to `…/apps/osx/0.0.252/DiscordPTB.dmg`, holding `Discord PTB.app`
@@ -2097,7 +2107,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.hnc.DiscordCanary",
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=canary&platform=osx&arch=x64")!,
             mode: .responseBody,
-            versionPattern: #"canary\.dl2\.discordapp\.net/distro/app/canary/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            versionPattern: #"discordapp\.net/distro/app/canary/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
             changelogURL: URL(string: "https://discord.com/blog"),
             // Same stable "latest" redirect as PTB, on the canary track (the
             // manifest URL points at a `.dis` distro blob, not an app). Verified

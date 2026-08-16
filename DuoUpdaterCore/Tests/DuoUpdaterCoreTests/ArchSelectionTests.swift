@@ -37,18 +37,39 @@ struct ArchSelectionTests {
         #expect(url?.url.lastPathComponent == "app-1.0-universal.dmg")
     }
 
-    @Test func fallsBackToForeignArchWhenNothingBetter() {
+    @Test func fallsBackToForeignArchWhileRosettaCanRunIt() {
         // Only an Intel build exists for this release — better to offer it than
-        // nothing (the host can run it under Rosetta).
+        // nothing, but ONLY while the machine can still run it.
         let a = assets(["app-1.0-x86_64.dmg"])
         let url = GitHubReleaseRule.installableAsset(
-            from: a, matching: #"app-1\.0-x86_64\.dmg$"#, preferring: .arm64)
+            from: a, matching: #"app-1\.0-x86_64\.dmg$"#, preferring: .arm64,
+            allowingIntelTranslation: true)
         #expect(url?.url.lastPathComponent == "app-1.0-x86_64.dmg")
     }
 
-    @Test func archPinnedPatternIsUnaffected() {
-        // The real RustDesk-style anchored pattern matches exactly one asset, so
-        // arch preference can't change the outcome on either host.
+    @Test func refusesForeignArchOnceTranslationIsGone() {
+        // Same release, same machine, after Rosetta stops covering apps (macOS 28)
+        // or where it was never installed: an Intel build would not launch, so the
+        // row must stay detection-only rather than swap in a broken bundle.
+        let a = assets(["app-1.0-x86_64.dmg"])
+        #expect(GitHubReleaseRule.installableAsset(
+            from: a, matching: #"app-1\.0-x86_64\.dmg$"#, preferring: .arm64,
+            allowingIntelTranslation: false) == nil)
+        // A native or universal build in the same release is unaffected by the gate
+        // — this is also the architecture-upgrade path for a Mac still running the
+        // Intel copy: the arm64 asset wins at step 1, translation never consulted.
+        let both = assets(["app-1.0-x86_64.dmg", "app-1.0-arm64.dmg"])
+        #expect(GitHubReleaseRule.installableAsset(
+            from: both, matching: #"app-1\.0-(x86_64|arm64)\.dmg$"#, preferring: .arm64,
+            allowingIntelTranslation: false)?.url.lastPathComponent == "app-1.0-arm64.dmg")
+        let universal = assets(["app-1.0-x86_64.dmg", "app-1.0-universal.dmg"])
+        #expect(GitHubReleaseRule.installableAsset(
+            from: universal, matching: #"app-1\.0-.*\.dmg$"#, preferring: .arm64,
+            allowingIntelTranslation: false)?.url.lastPathComponent == "app-1.0-universal.dmg")
+    }
+
+    @Test func archPinnedPatternServesItsOwnArchitectureOnly() {
+        // The real RustDesk-style anchored pattern matches exactly one asset.
         let a = assets([
             "rustdesk-1.4.6-aarch64.dmg",
             "rustdesk-1.4.6-x86_64.dmg",
@@ -56,8 +77,13 @@ struct ArchSelectionTests {
         let pattern = #"^rustdesk-[0-9.]+-aarch64\.dmg$"#
         #expect(GitHubReleaseRule.installableAsset(from: a, matching: pattern, preferring: .arm64)?
             .url.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
-        #expect(GitHubReleaseRule.installableAsset(from: a, matching: pattern, preferring: .x86_64)?
-            .url.lastPathComponent == "rustdesk-1.4.6-aarch64.dmg")
+        // On an Intel Mac that same rule now resolves NOTHING rather than handing
+        // over an arm64 bundle. There is no reverse translation — an arm64 build
+        // has never run on Intel — so this was an install that could only fail.
+        // (Unreachable in the shipped app, which is itself arm64-only, but the
+        // registry is public and the semantics should not depend on that.)
+        #expect(GitHubReleaseRule.installableAsset(
+            from: a, matching: pattern, preferring: .x86_64) == nil)
     }
 
     @Test func noMatchStillReturnsNil() {

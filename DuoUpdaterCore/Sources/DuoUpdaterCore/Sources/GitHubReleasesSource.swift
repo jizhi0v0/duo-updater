@@ -1004,14 +1004,24 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^Another-Redis-Desktop-Manager-mac-[0-9.]+-arm64\.dmg$"#,
             installerKind: .dmg),
 
-        // Goose (block/goose) — the desktop app ships as `Goose.zip`; the
-        // `goose-*-apple-darwin.tar.gz` assets beside it are the CLI, and
-        // `goose-source-*.zip` is a source drop, so the literal name is the anchor.
-        // One-click: com.electron.goose, Team 5N2JF58U87, notarized.
+        // Goose (block/goose) — the `goose-*-apple-darwin.tar.gz` assets beside the
+        // app are the CLI and `goose-source-*.zip` is a source drop, so the app is
+        // anchored by literal name. BOTH macOS builds are matched: `Goose.zip` is
+        // arm64-ONLY (checked with `file`: a single arm64 slice, not a universal
+        // binary) and `Goose_intel_mac.zip` is the Intel build. Matching only
+        // `Goose.zip` would look arch-neutral to `installableAsset` — the name
+        // carries no arch token — so an Intel Mac would be handed an arm64 app that
+        // cannot launch, and the install gate would not catch it (it checks
+        // signature, Team and bundle id, never architecture). With both matched the
+        // arch preference resolves it: `intel` is an x86_64 token, so an Intel Mac
+        // takes `Goose_intel_mac.zip` while Apple silicon falls through to the
+        // token-free `Goose.zip`.
+        // One-click: com.electron.goose, Team 5N2JF58U87, notarized — verified on
+        // BOTH assets.
         GitHubReleaseRule(
             bundleID: "com.electron.goose",
             owner: "block", repo: "goose",
-            installAssetPattern: #"^Goose\.zip$"#,
+            installAssetPattern: #"^Goose(_intel_mac)?\.zip$"#,
             installerKind: .zip),
 
         // PureMac — a dmg and a zip of the same build ship together; take the dmg.
@@ -1041,7 +1051,15 @@ public enum GitHubReleaseRegistry {
         // Anki — tags are date-shaped with a zero-padded month (`26.08.1`) while the
         // app reports `26.8.1`. That is NOT a mismatch for us: `VersionComparator`
         // compares digit runs numerically, so 08 == 8 and the two read as the same
-        // version — no phantom update. Apple-silicon and Intel dmgs ship together.
+        // version — no phantom update.
+        //
+        // Apple-silicon and Intel dmgs ship together, and BOTH are in the pattern for
+        // the same reason as Goose below: `-mac-apple` carries no token that
+        // `installableAsset` recognises as an architecture, so pinning it alone would
+        // read as arch-neutral and hand an Intel Mac the Apple-silicon build. With
+        // both matched, `intel` selects the x86_64 dmg on an Intel Mac and the
+        // token-free `-mac-apple` wins on Apple silicon. Team ZL66D3NMZM and
+        // notarization verified on BOTH dmgs.
         //
         // KNOWN GAP (verified on this machine 2026-08-16, not a rule bug): Anki
         // stamps `CFBundleVersion` as a literal "1" for every build. When the
@@ -1056,7 +1074,7 @@ public enum GitHubReleaseRegistry {
         GitHubReleaseRule(
             bundleID: "net.ankiweb.anki",
             owner: "ankitects", repo: "anki",
-            installAssetPattern: #"^anki-[0-9.]+-mac-apple\.dmg$"#,
+            installAssetPattern: #"^anki-[0-9.]+-mac-(apple|intel)\.dmg$"#,
             installerKind: .dmg),
 
         // Raspberry Pi Imager — the ONE app here whose own

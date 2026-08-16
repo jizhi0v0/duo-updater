@@ -252,7 +252,10 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         names.map { (name: $0, url: URL(string: "https://example.invalid/\($0)")!,
                      size: Int64?.none) }
     }
-    let pattern = try! #require(rule("org.keepassxc.keepassxc").installAssetPattern)
+    guard let pattern = rule("org.keepassxc.keepassxc").installAssetPattern else {
+        Issue.record("KeePassXC rule lost its installAssetPattern")
+        return
+    }
     func picked(_ names: [String]) -> String? {
         GitHubReleaseRule.installableAsset(
             from: assets(names), matching: pattern, preferring: .arm64)?
@@ -433,7 +436,12 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         let assets = names.map {
             (name: $0, url: URL(string: "https://example.invalid/\($0)")!, size: Int64?.none)
         }
-        let pattern = try! #require(rule(bundleID).installAssetPattern)
+        // Not `try! #require`: a deleted registry entry should fail this test, not
+        // crash the suite — the same reason `rule()` stopped force-unwrapping.
+        guard let pattern = rule(bundleID).installAssetPattern else {
+            Issue.record("\(bundleID) has no installAssetPattern")
+            return nil
+        }
         return GitHubReleaseRule.installableAsset(
             from: assets, matching: pattern, preferring: arch)?.url.lastPathComponent
     }

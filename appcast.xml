@@ -17,6 +17,22 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.28</title>
+            <pubDate>Mon, 17 Aug 2026 00:26:28 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.28</link>
+            <sparkle:version>38</sparkle:version>
+            <sparkle:shortVersionString>0.3.28</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Signed Sparkle updates that arrive as installer packages now work.** A few apps publish a perfectly valid, cryptographically signed `.pkg` instead of an app archive. DuoUpdater offered those updates, downloaded them, and then tried to unpack the package as though it were a zip — an update that could never finish. They now go to macOS's own Installer, after DuoUpdater verifies both the Sparkle signature on the download and the installer identity inside it.
+
+**A disk image containing several installers is no longer allowed to make a guess.** Some vendors put a main installer, helpers, and sibling products in one image. Matching on a fragment of the filename could pick a helper simply because its name contained the app's name. DuoUpdater now opens a package only when it is the sole choice or can be identified uniquely; otherwise it stops and leaves the decision to you instead of presenting the wrong installer.
+
+**The App Store helper is more tightly scoped to your login session.** The privileged helper now takes the account identity directly from macOS's authenticated XPC connection and refuses a request whose claimed user does not match. Normal App Store updates behave exactly as before; the change closes off a signed client from redirecting the helper into another user's session.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.28/DuoUpdater-0.3.28-macos.zip" length="10429590" type="application/octet-stream" sparkle:edSignature="Mw34kXbJ8/G4KHJDCa/R7+sbJA0PPBLvp6m7YztvAY6clnHlzlwVKCte02IXqIPo5Put4NzdlnqVrobxY66MCQ=="/>
+        </item>
+        <item>
             <title>0.3.27</title>
             <pubDate>Sun, 16 Aug 2026 23:41:08 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.27</link>
@@ -49,28 +65,6 @@ Hidden Bar is the interesting one: it ships with an update feed configured, so f
 XQuartz installs through the system installer rather than by replacing the app, because it is not just an app: it lays down a whole X11 stack, and swapping only the app bundle would leave the rest at the old version. macOS asks for the administrator password itself, as it does for any package.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.26/DuoUpdater-0.3.26-macos.zip" length="10414112" type="application/octet-stream" sparkle:edSignature="QwD13iIciLsXBCfOgjZtDCrBTcGaLWucfbg8gBYK96/x3Cbaw8aMdwFIVrg/M9F3/M7reV4BWk9DOY9k47MfDg=="/>
-        </item>
-        <item>
-            <title>0.3.25</title>
-            <pubDate>Sun, 16 Aug 2026 21:40:35 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.25</link>
-            <sparkle:version>35</sparkle:version>
-            <sparkle:shortVersionString>0.3.25</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Thirteen more apps now report their updates, twelve of them with one click.** GIMP, MongoDB Compass, Meld, Emacs, Tor Browser, Zotero, GrandPerspective, TigerVNC, qBittorrent, Opera, LibreOffice, pgAdmin 4 and Telegram Desktop were all sitting in the list as a grey "unknown" — installed, with nothing to say about them. Each was worked out by downloading the vendor's actual build and reading its identity out of it, so a one-click only appears where the download is signed by the same developer as the copy you already have. The exception is qBittorrent: its own build isn't signed by an identified developer at all, so it reports its version and sends you to the project's page.
-
-Opera, LibreOffice and pgAdmin 4 nearly joined that exception. All three publish nothing but a directory listing, and listings sort alphabetically — "100" comes before "99" — so the newest release is not the first one on the page. Reading the version was never the problem; building a download link was, because the obvious way to build one would have picked whichever release happened to be listed first. They now download the release that was actually compared. That is the one mistake a signature check cannot catch for you: an older build of the right app, signed perfectly.
-
-**1Password and Inkscape now install with one click too, and both were previously written off.** 1Password's official download turns out to be a small installer program rather than the app — signed and notarised by 1Password, so every safety check passes it, and installing it would have replaced your password manager with its own installer. DuoUpdater now fetches the package that installer itself downloads. Inkscape's download page hands out its file through a one-time link that changes with every release; the same file also sits at a plain, predictable address, which is what gets used.
-
-**微信输入法 (WeType) now installs with one click.** It lives in a folder only an administrator can write to, which is why it used to only report its version. It now goes through the same administrator prompt as any other app in a protected location.
-
-**Release notes for Opera, Inkscape and 1Password.** Opera publishes one page per major version, Inkscape one wiki page per release, and 1Password a feed — all three now render as proper change lists in the app instead of a link out. 1Password's version and its notes both come from that feed now, which is a published interface, rather than from scraping the page beside it.
-
-**Discord's version check works again.** Discord moved its downloads to a different server and the check was still looking at the old address, so DuoUpdater quietly reported "no version" for Discord Stable while everything else kept working. It now keys off the part of the address that names the release channel, which is the part that actually has to be right.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.25/DuoUpdater-0.3.25-macos.zip" length="10413816" type="application/octet-stream" sparkle:edSignature="dp+qUYpWCWrHbWLD2bqrIw3NotWaXp+JtV55IvZXTNOfL2ysMSjE54ezcZkxUI8DdQIyAyHbrUq240v+4oyICg=="/>
         </item>
     </channel>
 </rss>

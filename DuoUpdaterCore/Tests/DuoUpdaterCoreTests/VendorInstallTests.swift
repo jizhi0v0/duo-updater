@@ -334,8 +334,22 @@ private func checkGate(_ app: InstalledApp, log: (String) -> Void) async throws 
         // `VLC.app/VLC.app` and made the extract/move fail intermittently.
         // `scratchSlug` is the filesystem-safe token the real installers use for
         // exactly this.
-        .appendingPathComponent("vendor-gate-test-\(app.scratchSlug)")
-    try? FileManager.default.removeItem(at: workDir)
+        //
+        // The UUID is what keeps two test runs off each other. `scratchSlug` is a
+        // digest of the INSTALLED app's path, so it is byte-identical in every
+        // checkout and every process on this machine — and the temp dir is shared
+        // across all of them. This repo routinely has several worktrees open at
+        // once, so a second `swift test` overlapping the first would enter this
+        // function with the same path, wipe the dir out from under the run already
+        // in flight, and fail it in whichever way the timing chose: the finished
+        // `.partial` no longer there to move (NSCocoaError 4), `ditto` writing into
+        // a destination that just vanished, or a half-copied bundle failing the
+        // codesign gate (-67023). Reproduced deterministically by running two test
+        // bundles ~3s apart; green with the UUID. The real installers name their
+        // scratch dir deterministically on purpose — they can, because every
+        // install path holds `InstallLock`, a whole-machine mutex this test does
+        // not take.
+        .appendingPathComponent("vendor-gate-test-\(app.scratchSlug)-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: workDir) }
 

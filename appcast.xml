@@ -17,6 +17,22 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.26</title>
+            <pubDate>Sun, 16 Aug 2026 22:36:10 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.26</link>
+            <sparkle:version>36</sparkle:version>
+            <sparkle:shortVersionString>0.3.26</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Three more apps now report their updates, and all three install with one click.** Hidden Bar, XQuartz and EasyFind were sitting in the list as a grey "unknown".
+
+Hidden Bar is the interesting one: it ships with an update feed configured, so from the outside it looked like it was already covered. The feed answers, and is well-formed, and contains no releases at all — which is indistinguishable from a healthy feed until you look inside it. Its version now comes from its release tags instead. EasyFind ships no updater at all, so a copy installed from the vendor's site had no way to learn about new versions.
+
+XQuartz installs through the system installer rather than by replacing the app, because it is not just an app: it lays down a whole X11 stack, and swapping only the app bundle would leave the rest at the old version. macOS asks for the administrator password itself, as it does for any package.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.26/DuoUpdater-0.3.26-macos.zip" length="10414112" type="application/octet-stream" sparkle:edSignature="QwD13iIciLsXBCfOgjZtDCrBTcGaLWucfbg8gBYK96/x3Cbaw8aMdwFIVrg/M9F3/M7reV4BWk9DOY9k47MfDg=="/>
+        </item>
+        <item>
             <title>0.3.25</title>
             <pubDate>Sun, 16 Aug 2026 21:40:35 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.25</link>
@@ -55,26 +71,6 @@ Opera, LibreOffice and pgAdmin 4 nearly joined that exception. All three publish
 **An up-to-date Xcode beta no longer claims the vendor is behind it.** Under "Show all", a row whose vendor has fallen behind what you have installed shows a muted note saying so — you're ahead, nothing to do. Xcode was getting that note while sitting on exactly the build Apple was offering: it publishes a build number plus a human label ("27.0 beta 5"), and comparing that label against the plain "27.0" the bundle reports made a release look newer than its own beta. The note now settles on the build whenever both sides have one, so the same release is recognised as the same release however it is labelled. A vendor that has genuinely fallen behind is still called out.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.24/DuoUpdater-0.3.24-macos.zip" length="10407758" type="application/octet-stream" sparkle:edSignature="A1IVNjgjJgZtLs5SU6Dzqn5tmhftpFVDf7w2AGBMPpuaztZAsOhmzEOxkMFmNYc3y43HtUw4RJmuLAIfj4CrCQ=="/>
-        </item>
-        <item>
-            <title>0.3.23</title>
-            <pubDate>Sun, 16 Aug 2026 15:21:42 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.23</link>
-            <sparkle:version>33</sparkle:version>
-            <sparkle:shortVersionString>0.3.23</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**44 more apps now report their updates.** Apps that publish on GitHub but ship no update feed of their own used to sit in the list as a grey "unknown" — DuoUpdater could see them installed and had nothing to say about them. Bruno, UTM, kitty, KeePassXC, Godot, Bitwarden, VSCodium, draw.io, Podman Desktop, Anki, Raspberry Pi Imager, LuLu, MarkEdit, Clash Verge, Freelens, Tabby, Espanso, Moonlight, SwiftBar, Sequel Ace, balenaEtcher, DB Browser for SQLite, OpenLens, Headlamp, OpenMTP, Goose, Caffeine, noTunes, KeepingYouAwake, MiddleClick and a dozen more now show a real version, and 36 of them install with one click like any other app. Which ones was decided by downloading each vendor's actual build and reading the identity out of it, so a one-click only appears where the download is signed by the same developer as the copy you already have. Eight — Alacritty, Flameshot, MarkText, darktable, OWASP ZAP, BlueBubbles, LocalSend and Wine — publish builds Apple hasn't notarised, so those report their version and send you to the vendor rather than installing anything.
-
-Apps that already carry a Sparkle feed needed nothing: they were checked as part of this sweep and were already working, which is why names like Rectangle, Maccy, iTerm2 and Telegram aren't in the list above.
-
-**An update that your Mac couldn't run is now refused rather than installed.** Where a developer publishes one download per processor, DuoUpdater picks between them by the file's name — and names are not always honest: three of the apps above ship an Apple silicon build under a name that says nothing about it, or says the opposite. Before an app is replaced, its new version is now checked against the processor in your Mac, read out of the program itself instead of its name. If it can't run here, the update stops and your working copy is left exactly as it was. Nothing about a normal update changes; this is the case that used to end with an app that no longer opened.
-
-**An unanswered permission prompt no longer leaves the update check hanging.** To tell a TestFlight build apart from an App Store one, DuoUpdater reads TestFlight's own database, and macOS keeps that behind the "access data from other apps" permission. Until that was answered the read didn't fail — it waited, indefinitely, for a prompt that might be sitting behind another window or might never be answered at all, and the scan behind it simply never finished. Nothing timed out and nothing said why. It now waits a few seconds and then carries on without TestFlight's side of the story; the only thing missing in the meantime is whether those particular apps came from TestFlight, and it sorts itself out on the next scan once the permission is granted.
-
-**Homebrew updates work behind a proxy.** If your Mac reaches the internet through a proxy, upgrading brew packages failed with `curl: (28) Failed to connect` while every other update went through fine. Homebrew shells out to `curl`, which — unlike the rest of DuoUpdater's networking — doesn't read the proxy you configured in System Settings; it only reads proxy environment variables, and an app launched from the Dock or at login has none. DuoUpdater now passes your system proxy settings down to Homebrew itself. Nothing changes on a machine with no proxy configured, and a proxy you've already exported in your own shell still wins.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.23/DuoUpdater-0.3.23-macos.zip" length="10392890" type="application/octet-stream" sparkle:edSignature="OKOUcLtEg532YZjahiCAM0H1srTrjio9+Y3MFIEZbZF3BZntZPSY9GdMrUHKNmRg1tNJ+O3ALVclvo3lWOS4Bw=="/>
         </item>
     </channel>
 </rss>

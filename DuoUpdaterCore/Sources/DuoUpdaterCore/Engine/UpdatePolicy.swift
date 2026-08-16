@@ -188,6 +188,38 @@ public enum UpdatePolicy {
         environment.runningAppPaths.contains(runtimeBundlePath(result.app.path))
     }
 
+    /// The vendor's advertised version when it is strictly *older* than what is
+    /// installed — the muted "you're ahead, nothing to do" note. Returns the older
+    /// version to show, or nil when there is nothing to say.
+    ///
+    /// Gated to **stable** installs: a beta or canary build is expected to lead the
+    /// stable feed, so flagging it would cry wolf on every beta user. Managed
+    /// sources (App Store, TestFlight, Toolbox) answer through laggy or regional
+    /// lookups where "installed > remote" is routinely just staleness, so they are
+    /// excluded too.
+    ///
+    /// Builds settle it whenever both sides have one. `UpdateChecker.evaluate`
+    /// already prefers the build there, and a source is free to put a human label
+    /// in `shortVersion` — Xcode advertises "27.0 beta 5 (27A5237l)" against an
+    /// installed "27.0", and `27.0` really is newer than `27.0 beta 5` under
+    /// release-versus-prerelease ordering. Comparing those two strings therefore
+    /// announced a downgrade for a copy sitting on the very same build.
+    public static func laggingRemoteVersion(_ result: UpdateResult) -> String? {
+        guard result.app.releaseChannel == .stable, !result.hasUpdate else { return nil }
+        guard !result.app.isMASApp, !result.app.isTestFlightApp, !result.app.isToolboxManaged
+        else { return nil }
+        // Same build on both sides is the same release, whatever the labels read.
+        if let installedBuild = result.app.buildVersion, !installedBuild.isEmpty,
+           let remoteBuild = result.remote?.version, !remoteBuild.isEmpty,
+           installedBuild == remoteBuild {
+            return nil
+        }
+        guard let installed = result.app.shortVersion,
+              let remoteShort = result.remote?.shortVersion,
+              VersionComparator.isNewer(installed, than: remoteShort) else { return nil }
+        return result.remote?.displayVersion ?? remoteShort
+    }
+
     /// The staged self-update to surface as **Relaunch** — but only when the staged
     /// build is actually the version the app's channel now offers. Apps download
     /// releases one at a time, so a staged build can already trail a newer release;

@@ -174,24 +174,10 @@ final class AppListModel {
     /// The vendor's advertised version when it's strictly *older* than what's
     /// installed — surfaced (only under "Show all") as a muted, action-less note.
     /// This is usually benign: you're ahead via a beta channel, a pulled release,
-    /// or a lagging probe — never a prompt to downgrade. Returns that older version
-    /// to display, or nil.
-    ///
-    /// Gated to **stable** installs: a beta/canary build is *expected* to lead the
-    /// stable feed, so flagging it would cry wolf on every beta user. We also stay
-    /// silent when there's a real update (that path wins) or the version is equal.
+    /// or a lagging probe — never a prompt to downgrade. The rule itself lives in
+    /// `UpdatePolicy` so it can be tested; see it for what settles the comparison.
     func downgradeNote(_ result: UpdateResult) -> String? {
-        guard result.app.releaseChannel == .stable, !result.hasUpdate else { return nil }
-        // Managed sources advertise versions through laggy/regional lookups (App
-        // Store iTunes lookup, TestFlight/Toolbox caches), where "installed > remote"
-        // is routinely just staleness — too noisy to flag. Only trust real version
-        // feeds (Sparkle / Vendor / GitHub).
-        guard !result.app.isMASApp, !result.app.isTestFlightApp, !result.app.isToolboxManaged
-        else { return nil }
-        guard let installed = result.app.shortVersion,
-              let remoteShort = result.remote?.shortVersion,
-              VersionComparator.isNewer(installed, than: remoteShort) else { return nil }
-        return result.remote?.displayVersion ?? remoteShort
+        UpdatePolicy.laggingRemoteVersion(result)
     }
 
     /// A pending update the user hasn't ignored or skipped — what the badge counts

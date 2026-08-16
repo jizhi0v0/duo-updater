@@ -5,7 +5,13 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
-## Unreleased
+## 0.3.24
+
+**Fifteen more apps now report their updates, and all but one install with one click.** Rancher Desktop, Cherry Studio, RedisInsight, Upscayl, WailBrew, Wave Terminal, Lens, Termius, Unity Hub, iStat Menus, Inkscape, Google Gemini, Antigravity, AnyDesk and Kiro were all showing as a grey "unknown" — installed, with nothing to say about them. Each one was worked out by reading the vendor's own build rather than trusting a download page: the version now comes from wherever that app's own updater looks, and a one-click only appears where the download is signed by the same developer as the copy you already have. Three of them (Google Gemini, Antigravity, Kiro) publish nothing a download page can be scraped for; their real update services answer the same questions their own updaters ask, so that is what DuoUpdater asks too.
+
+**AnyDesk in particular was written off and shouldn't have been.** Its download and changelog pages both refuse anything that isn't a person with a browser, so an earlier sweep concluded the app was unreachable. The plain-text changelog on the same server answers fine — and it is what AnyDesk's own Homebrew entry has always read.
+
+**Updating an app in a location that needs an administrator password now asks, once.** Most apps live in /Applications, which you can write to; a few — input methods, for one — live where only an administrator can. Those used to show an Update button that could never work. Now the button asks for the password, and if you dismiss that prompt DuoUpdater takes the hint: the row switches to Open and stops asking on every release. "Ask for administrator access again" in the row's right-click menu brings the button back. The choice is remembered for that copy of the app specifically, so declining for one install doesn't silence another.
 
 **An up-to-date Xcode beta no longer claims the vendor is behind it.** Under "Show all", a row whose vendor has fallen behind what you have installed shows a muted note saying so — you're ahead, nothing to do. Xcode was getting that note while sitting on exactly the build Apple was offering: it publishes a build number plus a human label ("27.0 beta 5"), and comparing that label against the plain "27.0" the bundle reports made a release look newer than its own beta. The note now settles on the build whenever both sides have one, so the same release is recognised as the same release however it is labelled. A vendor that has genuinely fallen behind is still called out.
 

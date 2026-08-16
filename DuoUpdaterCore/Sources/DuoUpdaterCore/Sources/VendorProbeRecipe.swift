@@ -2449,11 +2449,12 @@ public enum VendorProbeRegistry {
         // MARK: - 2026-08-16 Google desktop apps
 
         // Gemini — Google's Omaha update service, which answers only a POST. The
-        // download URL is permanently unversioned (`.../release2/Gemini.dmg`) and
-        // every page carrying a version sits behind Google's bot challenge, so
-        // this service is the ONLY version surface; it was found by reading the
-        // app's own update request. Asking as version `0.0.0.0` makes it answer
-        // with the manifest for the newest build rather than "noupdate".
+        // published download URL carries no version (`.../release2/Gemini.dmg`,
+        // unchanged across releases so far) and the download page answers a plain
+        // fetch with Google's bot challenge (302 → /sorry, observed 2026-08-16),
+        // so nothing reachable states a version. This service does; it was found
+        // by reading the app's own update request. Asking as version `0.0.0.0`
+        // makes it answer with the manifest for the newest build, not "noupdate".
         //
         // Verified 2026-08-16 on the installed copy: manifest `1.94.11.734`
         // against `CFBundleShortVersionString` 1.94.11.734 — the same scheme, so

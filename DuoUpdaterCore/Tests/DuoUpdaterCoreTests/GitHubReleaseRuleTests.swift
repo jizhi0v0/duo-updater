@@ -404,9 +404,91 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
 @Test func gooseRuleTakesDesktopZipNotCLI() {
     #expect(extract("v1.46.0", "com.electron.goose") == "1.46.0")
     #expect(matches("Goose.zip", "com.electron.goose"))
-    // The CLI tarballs and the source drop share the release.
+    #expect(matches("Goose_intel_mac.zip", "com.electron.goose"))
+    // The CLI tarballs, the source drop and the Windows builds share the release.
     #expect(!matches("goose-aarch64-apple-darwin.tar.gz", "com.electron.goose"))
     #expect(!matches("goose-source-v1.46.0.zip", "com.electron.goose"))
+    #expect(!matches("Goose-win32-x64.zip", "com.electron.goose"))
+}
+
+/// Two rules pin an Apple-silicon-only artifact whose FILENAME carries no token
+/// `installableAsset` reads as an architecture (`Goose.zip`, `anki-…-mac-apple.dmg`).
+/// Matching only those would classify them as arch-neutral and install an arm64
+/// build on an Intel Mac — which the install gate cannot catch, since it checks
+/// signature, Team and bundle id but never architecture. Both rules therefore match
+/// the Intel sibling too, and these are the assertions that keep it that way.
+@Test func archNeutralNamesStillResolvePerArchitecture() {
+    func picked(_ bundleID: String, _ names: [String], _ arch: HostArch) -> String? {
+        let assets = names.map {
+            (name: $0, url: URL(string: "https://example.invalid/\($0)")!, size: Int64?.none)
+        }
+        let pattern = try! #require(rule(bundleID).installAssetPattern)
+        return GitHubReleaseRule.installableAsset(
+            from: assets, matching: pattern, preferring: arch)?.url.lastPathComponent
+    }
+    // Real v1.46.0 macOS assets.
+    let goose = ["Goose.zip", "Goose_intel_mac.zip"]
+    #expect(picked("com.electron.goose", goose, .arm64) == "Goose.zip")
+    #expect(picked("com.electron.goose", goose, .x86_64) == "Goose_intel_mac.zip")
+    // Real 26.08.1 macOS assets.
+    let anki = ["anki-26.08.1-mac-apple.dmg", "anki-26.08.1-mac-intel.dmg"]
+    #expect(picked("net.ankiweb.anki", anki, .arm64) == "anki-26.08.1-mac-apple.dmg")
+    #expect(picked("net.ankiweb.anki", anki, .x86_64) == "anki-26.08.1-mac-intel.dmg")
+}
+
+/// The repo slug is the one part of a rule no other test touches: a typo or an
+/// upstream rename leaves every pattern fixture green while detection is dead in
+/// production. Pinned against the slugs verified live on 2026-08-16.
+@Test func batchRuleSlugsArePinned() {
+    let expected: [String: String] = [
+        "com.ccswitch.desktop": "farion1231/cc-switch",
+        "com.usebruno.app": "usebruno/bruno",
+        "org.localsend.localsendApp": "localsend/localsend",
+        "com.utmapp.UTM": "utmapp/UTM",
+        "net.kovidgoyal.kitty": "kovidgoyal/kitty",
+        "net.sourceforge.sqlitebrowser": "sqlitebrowser/sqlitebrowser",
+        "com.jgraph.drawio.desktop": "jgraph/drawio-desktop",
+        "io.podmandesktop.PodmanDesktop": "containers/podman-desktop",
+        "com.bitwarden.desktop": "bitwarden/clients",
+        "com.vscodium": "VSCodium/vscodium",
+        "io.balena.etcher": "balena-io/etcher",
+        "com.intelliscapesolutions.caffeine": "IntelliScape/caffeine",
+        "org.godotengine.godot": "godotengine/godot",
+        "org.keepassxc.keepassxc": "keepassxreboot/keepassxc",
+        "com.sequel-ace.sequel-ace": "Sequel-Ace/Sequel-Ace",
+        "com.ameba.SwiftBar": "swiftbar/SwiftBar",
+        "io.ganeshrvel.openmtp": "ganeshrvel/openmtp",
+        "com.microsoft.Headlamp": "headlamp-k8s/headlamp",
+        "com.objective-see.lulu.app": "objective-see/LuLu",
+        "digital.twisted.noTunes": "tombonez/noTunes",
+        "app.cyan.markedit": "MarkEdit-app/MarkEdit",
+        "io.github.clash-verge-rev.clash-verge-rev": "clash-verge-rev/clash-verge-rev",
+        "app.freelens.Freelens": "freelensapp/freelens",
+        "info.marcel-dierkes.KeepingYouAwake": "newmarcel/KeepingYouAwake",
+        "com.federicoterzi.espanso": "espanso/espanso",
+        "org.tabby": "Eugeny/tabby",
+        "com.moonlight-stream.Moonlight": "moonlight-stream/moonlight-qt",
+        "com.pais.handy": "cjpais/Handy",
+        "co.palokaj.battery": "actuallymentor/battery",
+        "me.qii404.another-redis-desktop-manager": "qishibo/AnotherRedisDesktopManager",
+        "com.electron.goose": "block/goose",
+        "com.puremac.app": "momenbasel/PureMac",
+        "art.ginzburg.MiddleClick": "artginzburg/MiddleClick",
+        "com.theron.UnnaturalScrollWheels": "ther0n/UnnaturalScrollWheels",
+        "net.ankiweb.anki": "ankitects/anki",
+        "com.raspberrypi.rpi-imager": "raspberrypi/rpi-imager",
+        "com.electron.open-lens": "MuhammedKalkan/OpenLens",
+        "org.alacritty": "alacritty/alacritty",
+        "org.flameshot.Flameshot": "flameshot-org/flameshot",
+        "com.github.marktext.marktext": "marktext/marktext",
+        "org.darktable": "darktable-org/darktable",
+        "org.zaproxy.zap.ZAP": "zaproxy/zaproxy",
+        "com.BlueBubbles.BlueBubbles-Server": "BlueBubblesApp/bluebubbles-server",
+        "org.winehq.wine-staging.wine": "Gcenx/macOS_Wine_builds",
+    ]
+    for (bundleID, slug) in expected {
+        #expect(rule(bundleID).slug == slug, "slug drifted for \(bundleID)")
+    }
 }
 
 @Test func pureMacRuleTakesDmgOverZip() {
@@ -434,8 +516,12 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     // becoming a permanent phantom update.
     #expect(VersionComparator.compare("26.08.1", "26.8.1") == .orderedSame)
     #expect(!VersionComparator.isNewer("26.08.1", than: "26.8.1"))
+    // BOTH macOS dmgs must match, so the arch preference can do its job: pinning
+    // only `-mac-apple` (a name with no arch token) reads as arch-neutral and would
+    // put the Apple-silicon build on an Intel Mac.
     #expect(matches("anki-26.08.1-mac-apple.dmg", "net.ankiweb.anki"))
-    #expect(!matches("anki-26.08.1-mac-intel.dmg", "net.ankiweb.anki"))
+    #expect(matches("anki-26.08.1-mac-intel.dmg", "net.ankiweb.anki"))
+    #expect(!matches("anki-26.08.1-windows-qt6.exe", "net.ankiweb.anki"))
     // Pins the known gap so it can't be mistaken for a rule bug later: Anki stamps
     // CFBundleVersion "1" on every build, and evaluate()'s folded-build fallback
     // turns installed 26.8 + build 1 into "26.8.1", which equals the real 26.08.1

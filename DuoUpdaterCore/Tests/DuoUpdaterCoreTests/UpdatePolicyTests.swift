@@ -542,3 +542,75 @@ private func storeAvailability(
             environment: environment(running: [fixturePath])))
     }
 }
+
+/// The muted "the vendor's latest is older than yours" note.
+///
+/// A source may put a human label in `shortVersion` rather than a comparable
+/// number, so this note cannot be decided on that string alone. Xcode is the
+/// case that broke: an up-to-date beta was announcing a downgrade to itself.
+struct LaggingRemoteVersionTests {
+
+    private func xcode(
+        installedShort: String,
+        installedBuild: String?,
+        remoteShort: String?,
+        remoteBuild: String?
+    ) -> UpdateResult {
+        let app = InstalledApp(
+            name: "Xcode",
+            bundleID: "com.apple.dt.Xcode",
+            shortVersion: installedShort,
+            buildVersion: installedBuild,
+            path: URL(fileURLWithPath: "/Applications/Xcode-beta.app"),
+            isMASApp: false,
+            sparkleFeedURL: nil)
+        return UpdateResult(
+            app: app,
+            remote: RemoteVersion(
+                shortVersion: remoteShort,
+                version: remoteBuild,
+                downloadURL: nil,
+                sourceName: "Xcode Releases"),
+            status: .upToDate)
+    }
+
+    /// The reported bug, with the exact strings off the machine that showed it:
+    /// installed Xcode-beta 27A5237l against the same build advertised as
+    /// "27.0 beta 5 (27A5237l)". `27.0` genuinely sorts newer than `27.0 beta 5`
+    /// (release beats prerelease), so the string comparison alone said "you're
+    /// ahead" about a copy that was exactly current.
+    @Test func sameBuildIsNeverADowngradeHoweverTheLabelReads() {
+        #expect(VersionComparator.isNewer("27.0", than: "27.0 beta 5"),
+                "precondition: this ordering is why the label cannot decide it")
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "27.0",
+            installedBuild: "27A5237l",
+            remoteShort: "27.0 beta 5 (27A5237l)",
+            remoteBuild: "27A5237l")) == nil)
+    }
+
+    /// A genuinely lagging feed still says so — the fix must not silence the note
+    /// it exists for.
+    @Test func anOlderRemoteBuildIsStillReported() {
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "27.0",
+            installedBuild: "27A5237l",
+            remoteShort: "26.6",
+            remoteBuild: "26F62")) == "26.6")
+    }
+
+    /// With no build on either side the note falls back to the version strings,
+    /// which is how every Sparkle/GitHub app reaches it.
+    @Test func withoutBuildsTheVersionStringsStillDecide() {
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "2.0",
+            installedBuild: nil,
+            remoteShort: "1.9",
+            remoteBuild: nil)) == "1.9")
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "1.9",
+            installedBuild: nil,
+            remoteShort: "2.0",
+            remoteBuild: nil)) == nil)
+    }
+}

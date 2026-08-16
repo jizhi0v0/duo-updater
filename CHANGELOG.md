@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.26
+
+**Three more apps now report their updates, and all three install with one click.** Hidden Bar, XQuartz and EasyFind were sitting in the list as a grey "unknown".
+
+Hidden Bar is the interesting one: it ships with an update feed configured, so from the outside it looked like it was already covered. The feed answers, and is well-formed, and contains no releases at all — which is indistinguishable from a healthy feed until you look inside it. Its version now comes from its release tags instead. EasyFind ships no updater at all, so a copy installed from the vendor's site had no way to learn about new versions.
+
+XQuartz installs through the system installer rather than by replacing the app, because it is not just an app: it lays down a whole X11 stack, and swapping only the app bundle would leave the rest at the old version. macOS asks for the administrator password itself, as it does for any package.
+
 ## 0.3.25
 
 **Thirteen more apps now report their updates, twelve of them with one click.** GIMP, MongoDB Compass, Meld, Emacs, Tor Browser, Zotero, GrandPerspective, TigerVNC, qBittorrent, Opera, LibreOffice, pgAdmin 4 and Telegram Desktop were all sitting in the list as a grey "unknown" — installed, with nothing to say about them. Each was worked out by downloading the vendor's actual build and reading its identity out of it, so a one-click only appears where the download is signed by the same developer as the copy you already have. The exception is qBittorrent: its own build isn't signed by an identified developer at all, so it reports its version and sends you to the project's page.

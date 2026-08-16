@@ -38,6 +38,9 @@ struct WorkbenchWindowView: View {
     /// for every intermediate row while the user holds ↑/↓ is what froze the window.
     /// Debouncing means we render the detail once, after the selection settles.
     @State private var detailSelection: String?
+    /// When the sidebar selection last moved, so the settle below can tell a
+    /// deliberate step from a held arrow key.
+    @State private var lastSelectionChange = Date.distantPast
     /// The pending debounce, cancelled and restarted on each selection change.
     @State private var detailSettleTask: Task<Void, Never>?
     /// Whether the Apps list holds the keyboard, so ↑/↓ scrub the selection without
@@ -274,9 +277,18 @@ struct WorkbenchWindowView: View {
             appsListFocused = true
             let name = model.results.first { $0.id == newValue }?.app.name
             Log.changelog.info("perf selection → \(name ?? newValue ?? "nil", privacy: .public) [mode=\(mode.rawValue, privacy: .public)]")
+            // Adaptive settle. A fixed 160 ms was shorter than a key REPEAT (~240 ms
+            // measured from the perf log while scrubbing), so every press still paid
+            // a full detail build — the debounce only ever helped for bursts faster
+            // than itself. When the previous change was recent we are being
+            // scrubbed through, so wait long enough to outlast the repeat; a
+            // deliberate single step still lands promptly.
+            let now = Date()
+            let scrubbing = now.timeIntervalSince(lastSelectionChange) < 0.5
+            lastSelectionChange = now
             detailSettleTask?.cancel()
             detailSettleTask = Task {
-                try? await Task.sleep(for: .milliseconds(160))
+                try? await Task.sleep(for: .milliseconds(scrubbing ? 400 : 120))
                 guard !Task.isCancelled else { return }
                 detailSelection = newValue
             }
@@ -1159,7 +1171,7 @@ private struct ReleaseNotesPane: View {
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .onAppear { Log.changelog.info("perf pane=inline-html \(result.app.name, privacy: .public) (\(html.count, privacy: .public) chars, src=\(result.remote?.sourceName ?? "?", privacy: .public))") }
+            .onAppear { Log.changelog.info("perf pane=inline-html \(result.app.name, privacy: .public) (\(html.count, privacy: .public) chars, \(ReleaseNotesText.split(html).count, privacy: .public) chunks, src=\(result.remote?.sourceName ?? "?", privacy: .public))") }
         } else if let url = changelogURL {
             CachedWebView(url: url)
                 .onAppear { Log.changelog.info("perf pane=webview \(result.app.name, privacy: .public) \(url.host ?? "?", privacy: .public)") }
@@ -1610,19 +1622,95 @@ private struct ReleaseNotesText: View {
     // path runs NSAttributedString's WebKit-backed parser, and re-running it each
     // render was a UI-freeze source. Seeded with the plain text so the view never
     // renders blank before the parse lands.
-    @State private var rendered: AttributedString
+    //
+    // Held as CHUNKS, not one string, because parsing was only half the cost. A
+    // long body (Headlamp's GitHub notes: 54,584 chars) laid out as a single
+    // `Text` stalled the main thread for ~2 s even with the parse cached —
+    // visible in the perf log as a two-second gap right after
+    // `pane=inline-html Headlamp`. Chunks in a `LazyVStack` mean SwiftUI only
+    // lays out what is on screen. Short notes stay one chunk and behave exactly
+    // as before.
+    @State private var chunks: [AttributedString]
 
     init(text: String, format: Format) {
         self.text = text
         self.format = format
-        _rendered = State(initialValue: AttributedString(text))
+        _chunks = State(initialValue: [AttributedString(text)])
     }
 
     var body: some View {
-        Text(rendered)
-            .textSelection(.enabled)
-            .tint(.accentColor)
-            .task(id: text) { rendered = Self.parse(text, format: format) }
+        Group {
+            if chunks.count == 1 {
+                Text(chunks[0])
+            } else {
+                // Selection is per-chunk here rather than across the whole
+                // document — the cost of not blocking the main thread on a body
+                // this size.
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(chunks.enumerated()), id: \.offset) { _, chunk in
+                        Text(chunk).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+        .textSelection(.enabled)
+        .tint(.accentColor)
+        .task(id: text) { chunks = Self.parsedChunks(text, format: format) }
+    }
+
+    /// Notes short enough to lay out in one pass stay a single chunk; anything
+    /// longer is split at paragraph boundaries so the `LazyVStack` above can skip
+    /// what is off screen.
+    private static let singleChunkLimit = 4_000
+    private static let targetChunkSize = 1_500
+
+    /// Parsed notes, memoized ACROSS view instances.
+    ///
+    /// `.task(id: text)` already avoided re-parsing on every render pass, but a
+    /// new selection builds a NEW `ReleaseNotesText`, so arrow-keying between two
+    /// apps re-parsed both bodies on every keystroke — visible in the log as
+    /// `perf release-notes markdown parse: 8.3ms (54584 chars)` repeating once per
+    /// press. Notes are immutable for a given text, so the result is cacheable;
+    /// `NSCache` evicts under pressure rather than growing with the library.
+    private static let parseCache: NSCache<NSString, ParsedNotes> = {
+        let cache = NSCache<NSString, ParsedNotes>()
+        cache.countLimit = 64
+        return cache
+    }()
+
+    private final class ParsedNotes {
+        let value: [AttributedString]
+        init(_ value: [AttributedString]) { self.value = value }
+    }
+
+    @MainActor
+    private static func parsedChunks(_ text: String, format: Format) -> [AttributedString] {
+        // Length + hash, not the body itself: a 54 KB key would be copied into the
+        // cache on every lookup.
+        let key = "\(format)-\(text.count)-\(text.hashValue)" as NSString
+        if let hit = parseCache.object(forKey: key) { return hit.value }
+        let value = split(text).map { parse($0, format: format) }
+        parseCache.setObject(ParsedNotes(value), forKey: key)
+        return value
+    }
+
+    /// Split a long body at BLANK LINES, accumulating until a chunk is big enough
+    /// to be worth its own `Text`. Breaking only on blank lines keeps a bullet
+    /// list — or a fenced block — inside one chunk, so nothing is re-flowed into
+    /// a different shape than the vendor wrote.
+    static func split(_ text: String) -> [String] {
+        guard text.count > singleChunkLimit else { return [text] }
+        var chunks: [String] = []
+        var current = ""
+        for paragraph in text.components(separatedBy: "\n\n") {
+            current += current.isEmpty ? paragraph : "\n\n" + paragraph
+            if current.count >= targetChunkSize {
+                chunks.append(current)
+                current = ""
+            }
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks.isEmpty ? [text] : chunks
     }
 
     /// NSAttributedString's HTML parser is documented main-thread-only, so this

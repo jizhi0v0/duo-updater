@@ -24,7 +24,15 @@ struct ChangelogCacheKey: Hashable {
 @MainActor
 @Observable
 final class AppListModel {
-    private(set) var results: [UpdateResult] = []
+    private(set) var results: [UpdateResult] = [] {
+        // Drop the elevation memo whenever the list itself is replaced. The memo's
+        // own key (the app paths) already catches a bundle moving to a location
+        // with different permissions; this catches the rarer case where the paths
+        // are identical but the PERMISSIONS changed under them, and bounds any
+        // staleness to one scan cycle — the same window every other derived fact
+        // in this model lives in.
+        didSet { elevationPathsCache = nil }
+    }
     private(set) var isScanning = false
     private(set) var isChecking = false
     private(set) var lastScan: Date?
@@ -1158,14 +1166,32 @@ final class AppListModel {
             elevationRequiredPaths: elevationRequiredPaths)
     }
 
-    /// The install paths that need an administrator prompt to replace, recomputed
-    /// from the current list. Cheap — one `access(2)`-class check per app, on the
-    /// parent directory — and deliberately *not* cached: an app moved between
-    /// `~/Applications` and a root-owned location changes the answer, and a stale
-    /// yes would suppress a one-click that now works perfectly well.
+    /// The install paths that need an administrator prompt to replace.
+    ///
+    /// One `access(2)`-class check per app is cheap in isolation and ruinous at
+    /// this call site: `policyEnvironment` is built fresh by every `isRunning` /
+    /// `canAutoInstall` / `requiresInstaller` query, and the sidebar asks at least
+    /// one of those PER ROW. Measured on this machine with 121 apps: 0.86 ms to
+    /// build the set once, so a single list pass spent ~105 ms in the filesystem
+    /// on the main actor — arrow-key scrubbing crawled and scrolling dropped
+    /// frames. (Regression from `95283bf`, which added the elevation gate.)
+    ///
+    /// Cached against the app paths the set was computed from, so it is rebuilt
+    /// exactly when the list changes — including the case the old comment worried
+    /// about, an app moving between `~/Applications` and a root-owned location:
+    /// that moves its path, which changes the key. What it no longer does is
+    /// recompute for a repaint that changed nothing.
     private var elevationRequiredPaths: Set<String> {
-        InPlaceSwap.elevationRequiredPaths(for: results.map(\.app.path))
+        let key = results.map(\.app.path.path)
+        if let cache = elevationPathsCache, cache.key == key { return cache.value }
+        let value = InPlaceSwap.elevationRequiredPaths(for: results.map(\.app.path))
+        elevationPathsCache = (key, value)
+        return value
     }
+
+    /// Memo for `elevationRequiredPaths`, keyed by the exact paths it was built
+    /// from. Not `@Published`/observed — reading it must not invalidate a view.
+    private var elevationPathsCache: (key: [String], value: Set<String>)?
 
     /// True when this update installs seamlessly in place (Sparkle EdDSA, or a
     /// drag-to-Applications Homebrew cask). Excludes `pkg` casks, which need the

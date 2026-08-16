@@ -11,6 +11,8 @@ release and the Sparkle appcast, so this file is the single source of truth for
 
 Apps that already carry a Sparkle feed needed nothing: they were checked as part of this sweep and were already working, which is why names like Rectangle, Maccy, iTerm2 and Telegram aren't in the list above.
 
+**An update that your Mac couldn't run is now refused rather than installed.** Where a developer publishes one download per processor, DuoUpdater picks between them by the file's name — and names are not always honest: three of the apps above ship an Apple silicon build under a name that says nothing about it, or says the opposite. Before an app is replaced, its new version is now checked against the processor in your Mac, read out of the program itself instead of its name. If it can't run here, the update stops and your working copy is left exactly as it was. Nothing about a normal update changes; this is the case that used to end with an app that no longer opened.
+
 **An unanswered permission prompt no longer leaves the update check hanging.** To tell a TestFlight build apart from an App Store one, DuoUpdater reads TestFlight's own database, and macOS keeps that behind the "access data from other apps" permission. Until that was answered the read didn't fail — it waited, indefinitely, for a prompt that might be sitting behind another window or might never be answered at all, and the scan behind it simply never finished. Nothing timed out and nothing said why. It now waits a few seconds and then carries on without TestFlight's side of the story; the only thing missing in the meantime is whether those particular apps came from TestFlight, and it sorts itself out on the next scan once the permission is granted.
 
 ## 0.3.22

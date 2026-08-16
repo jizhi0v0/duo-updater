@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## Unreleased
+
+**An up-to-date Xcode beta no longer claims the vendor is behind it.** Under "Show all", a row whose vendor has fallen behind what you have installed shows a muted note saying so — you're ahead, nothing to do. Xcode was getting that note while sitting on exactly the build Apple was offering: it publishes a build number plus a human label ("27.0 beta 5"), and comparing that label against the plain "27.0" the bundle reports made a release look newer than its own beta. The note now settles on the build whenever both sides have one, so the same release is recognised as the same release however it is labelled. A vendor that has genuinely fallen behind is still called out.
+
 ## 0.3.23
 
 **44 more apps now report their updates.** Apps that publish on GitHub but ship no update feed of their own used to sit in the list as a grey "unknown" — DuoUpdater could see them installed and had nothing to say about them. Bruno, UTM, kitty, KeePassXC, Godot, Bitwarden, VSCodium, draw.io, Podman Desktop, Anki, Raspberry Pi Imager, LuLu, MarkEdit, Clash Verge, Freelens, Tabby, Espanso, Moonlight, SwiftBar, Sequel Ace, balenaEtcher, DB Browser for SQLite, OpenLens, Headlamp, OpenMTP, Goose, Caffeine, noTunes, KeepingYouAwake, MiddleClick and a dozen more now show a real version, and 36 of them install with one click like any other app. Which ones was decided by downloading each vendor's actual build and reading the identity out of it, so a one-click only appears where the download is signed by the same developer as the copy you already have. Eight — Alacritty, Flameshot, MarkText, darktable, OWASP ZAP, BlueBubbles, LocalSend and Wine — publish builds Apple hasn't notarised, so those report their version and send you to the vendor rather than installing anything.

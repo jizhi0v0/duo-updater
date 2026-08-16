@@ -17,6 +17,28 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.25</title>
+            <pubDate>Sun, 16 Aug 2026 21:40:35 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.25</link>
+            <sparkle:version>35</sparkle:version>
+            <sparkle:shortVersionString>0.3.25</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Thirteen more apps now report their updates, twelve of them with one click.** GIMP, MongoDB Compass, Meld, Emacs, Tor Browser, Zotero, GrandPerspective, TigerVNC, qBittorrent, Opera, LibreOffice, pgAdmin 4 and Telegram Desktop were all sitting in the list as a grey "unknown" — installed, with nothing to say about them. Each was worked out by downloading the vendor's actual build and reading its identity out of it, so a one-click only appears where the download is signed by the same developer as the copy you already have. The exception is qBittorrent: its own build isn't signed by an identified developer at all, so it reports its version and sends you to the project's page.
+
+Opera, LibreOffice and pgAdmin 4 nearly joined that exception. All three publish nothing but a directory listing, and listings sort alphabetically — "100" comes before "99" — so the newest release is not the first one on the page. Reading the version was never the problem; building a download link was, because the obvious way to build one would have picked whichever release happened to be listed first. They now download the release that was actually compared. That is the one mistake a signature check cannot catch for you: an older build of the right app, signed perfectly.
+
+**1Password and Inkscape now install with one click too, and both were previously written off.** 1Password's official download turns out to be a small installer program rather than the app — signed and notarised by 1Password, so every safety check passes it, and installing it would have replaced your password manager with its own installer. DuoUpdater now fetches the package that installer itself downloads. Inkscape's download page hands out its file through a one-time link that changes with every release; the same file also sits at a plain, predictable address, which is what gets used.
+
+**微信输入法 (WeType) now installs with one click.** It lives in a folder only an administrator can write to, which is why it used to only report its version. It now goes through the same administrator prompt as any other app in a protected location.
+
+**Release notes for Opera, Inkscape and 1Password.** Opera publishes one page per major version, Inkscape one wiki page per release, and 1Password a feed — all three now render as proper change lists in the app instead of a link out. 1Password's version and its notes both come from that feed now, which is a published interface, rather than from scraping the page beside it.
+
+**Discord's version check works again.** Discord moved its downloads to a different server and the check was still looking at the old address, so DuoUpdater quietly reported "no version" for Discord Stable while everything else kept working. It now keys off the part of the address that names the release channel, which is the part that actually has to be right.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.25/DuoUpdater-0.3.25-macos.zip" length="10413816" type="application/octet-stream" sparkle:edSignature="dp+qUYpWCWrHbWLD2bqrIw3NotWaXp+JtV55IvZXTNOfL2ysMSjE54ezcZkxUI8DdQIyAyHbrUq240v+4oyICg=="/>
+        </item>
+        <item>
             <title>0.3.24</title>
             <pubDate>Sun, 16 Aug 2026 19:00:41 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.24</link>
@@ -53,20 +75,6 @@ Apps that already carry a Sparkle feed needed nothing: they were checked as part
 **Homebrew updates work behind a proxy.** If your Mac reaches the internet through a proxy, upgrading brew packages failed with `curl: (28) Failed to connect` while every other update went through fine. Homebrew shells out to `curl`, which — unlike the rest of DuoUpdater's networking — doesn't read the proxy you configured in System Settings; it only reads proxy environment variables, and an app launched from the Dock or at login has none. DuoUpdater now passes your system proxy settings down to Homebrew itself. Nothing changes on a machine with no proxy configured, and a proxy you've already exported in your own shell still wins.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.23/DuoUpdater-0.3.23-macos.zip" length="10392890" type="application/octet-stream" sparkle:edSignature="OKOUcLtEg532YZjahiCAM0H1srTrjio9+Y3MFIEZbZF3BZntZPSY9GdMrUHKNmRg1tNJ+O3ALVclvo3lWOS4Bw=="/>
-        </item>
-        <item>
-            <title>0.3.22</title>
-            <pubDate>Sat, 15 Aug 2026 13:45:05 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.22</link>
-            <sparkle:version>32</sparkle:version>
-            <sparkle:shortVersionString>0.3.22</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Claude's updates now show up while they're still rolling out.** Anthropic releases Claude in stages: a build goes to a fraction of Macs at a time, and the public download page only catches up at the end. DuoUpdater was reading that public page, so for the whole of a rollout — most of a day, in the case of 1.30096.5 — it told you Claude was up to date while Claude itself had already quietly downloaded the new version and was waiting for a relaunch. It now also asks the same endpoint Claude's own updater asks, which answers for *your* Mac specifically, and offers whichever of the two is further ahead. Nothing about which build you're offered has changed: it is either the public release or the one your Mac was already allocated. Claude also gains real publication times, so its releases now appear in the Release Log with the moment Anthropic shipped them rather than an estimate.
-
-**A superseded package update no longer leaves its window sitting there.** Updates that go through macOS's own installer — Microsoft Office, AweSun, ToDesk — open an Installer window and then wait for you. If you left one open and a newer release came along, installing that one opened a second window, and they stacked up. The older window is now closed once its replacement is ready, and its download cleaned up with it. A window that's mid-install, or asking for your password, is left strictly alone.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.22/DuoUpdater-0.3.22-macos.zip" length="10374848" type="application/octet-stream" sparkle:edSignature="tymn7ipTAEQPF/I82ecC2QdzhOuTBMfmKtCJ5FeXol4fP5edXZ+xq6z0gomYfs2X5FalnUnvq7I+9sg5yX/ODQ=="/>
         </item>
     </channel>
 </rss>

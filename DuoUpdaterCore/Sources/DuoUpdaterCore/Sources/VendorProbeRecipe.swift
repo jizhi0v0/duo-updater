@@ -3086,6 +3086,46 @@ public enum VendorProbeRegistry {
                 urlSource: .redirect(URL(string: "https://telegram.org/dl/desktop/mac")!),
                 kind: .dmg),
             followRedirects: false),
+        // MARK: - 2026-08-16 group C (SourceForge)
+
+        // GrandPerspective — Developer ID (Erwin Bonsma, 3Z75QZGN66), notarized,
+        // stapled ticket; `spctl -a -t exec` accepts the mounted app. One-click
+        // verified 2026-08-16 against the 3.7.2 dmg: `CFBundleIdentifier` and
+        // `CFBundleShortVersionString` on the mounted app match what the probe
+        // reports.
+        sourceForgeMacRecipe(
+            bundleID: "net.sourceforge.grandperspectiv",
+            project: "grandperspectiv",
+            versionPattern:
+                #""mac":\s*\{[^}]*?"filename":\s*"/grandperspective/([0-9]+\.[0-9]+(?:\.[0-9]+)?)/GrandPerspective-[0-9_]+\.dmg""#,
+            changelogURL: URL(string: "https://sourceforge.net/p/grandperspectiv/news/")!,
+            installKind: .dmg),
+
+        // TigerVNC — Developer ID (Brian Hinz, S5LX88A9BW), notarized; `spctl`
+        // accepts the mounted app. One-click verified 2026-08-16 against the
+        // 1.16.0 dmg the same way.
+        sourceForgeMacRecipe(
+            bundleID: "com.tigervnc.tigervnc",
+            project: "tigervnc",
+            versionPattern:
+                #""mac":\s*\{[^}]*?"filename":\s*"/stable/([0-9]+\.[0-9]+(?:\.[0-9]+)?)/TigerVNC-[0-9.]+\.dmg""#,
+            changelogURL: URL(string: "https://github.com/TigerVNC/tigervnc/releases")!,
+            installKind: .dmg),
+
+        // qBittorrent — DETECTION ONLY. Verified 2026-08-16 against the 5.2.3
+        // dmg: `codesign -dv` shows `Authority=qbittorrent macos` /
+        // `TeamIdentifier=not set` (a self-signed, non-Developer-ID signature),
+        // and `spctl -a -t exec` rejects the mounted app outright. That fails
+        // the mandatory Developer-ID-and-notarized gate in `VendorInstaller`, so
+        // no `installKind` is passed — this recipe only ever powers detection.
+        sourceForgeMacRecipe(
+            bundleID: "org.qbittorrent.qBittorrent",
+            project: "qbittorrent",
+            versionPattern:
+                #""mac":\s*\{[^}]*?"filename":\s*"/qbittorrent-mac/qbittorrent-[0-9.]+/qbittorrent-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.dmg""#,
+            downloadURL: URL(string: "https://www.qbittorrent.org/download")!,
+            changelogURL: URL(string: "https://www.qbittorrent.org/news")!,
+            installKind: nil),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to
@@ -3103,5 +3143,50 @@ public enum VendorProbeRegistry {
                     #"(?s)<sparkle:channel>\#(tag)</sparkle:channel>(?:(?!</item>).)*?<enclosure url="(https://cdn-updates\.orbstack\.dev/arm64/OrbStack_v[0-9.]+_[0-9]+_arm64\.dmg)""#),
                 kind: .dmg),
             channel: channel)
+    }
+
+    /// One recipe for a project on SourceForge's `best_release.json` API — the
+    /// shape GrandPerspective, TigerVNC and qBittorrent all share.
+    ///
+    /// TRAP: the API's TOP-LEVEL `release` key names whichever platform
+    /// SourceForge treats as the project's primary download — often Windows
+    /// (verified on tigervnc and qbittorrent, both of which put a `.exe` there).
+    /// The only field naming THIS project's macOS artifact is
+    /// `platform_releases.mac`, so every regex here is anchored to that one
+    /// block. Even that isn't automatically trustworthy in general — a sibling
+    /// project, gtkwave, points its `mac` entry at a source tarball that was
+    /// never shipped as a macOS app — so `versionPattern` is supplied by the
+    /// caller per project, verified against that project's real filename
+    /// convention, rather than guessed from a shared template.
+    ///
+    /// The API's own `platform_releases.mac.url` is a pre-signed, time-limited
+    /// CDN link (`…?ts=…`), unusable as a stable install source. The install
+    /// spec instead rebuilds SourceForge's documented permanent redirect —
+    /// `sourceforge.net/projects/<project>/files<filename>/download` — from the
+    /// same block's `filename` field, which every project's `mac` entry carries
+    /// in the same generic shape.
+    private static func sourceForgeMacRecipe(
+        bundleID: String,
+        project: String,
+        versionPattern: String,
+        downloadURL: URL? = nil,
+        changelogURL: URL,
+        installKind: VendorInstallerKind?
+    ) -> VendorProbeRecipe {
+        let filenameCapture = #""mac":\s*\{[^}]*?"filename":\s*"([^"]+)""#
+        return VendorProbeRecipe(
+            bundleID: bundleID,
+            url: URL(string: "https://sourceforge.net/projects/\(project)/best_release.json")!,
+            mode: .responseBody,
+            versionPattern: versionPattern,
+            downloadURL: downloadURL,
+            changelogURL: changelogURL,
+            install: installKind.map { kind in
+                VendorInstallSpec(
+                    urlSource: .bodyTemplate(
+                        "https://sourceforge.net/projects/\(project)/files{0}/download",
+                        fields: [filenameCapture]),
+                    kind: kind)
+            })
     }
 }

@@ -3208,20 +3208,13 @@ public enum VendorProbeRegistry {
             changelogURL: URL(string: "https://github.com/TigerVNC/tigervnc/releases")!,
             installKind: .dmg),
 
-        // qBittorrent — DETECTION ONLY. Verified 2026-08-16 against the 5.2.3
-        // dmg: `codesign -dv` shows `Authority=qbittorrent macos` /
-        // `TeamIdentifier=not set` (a self-signed, non-Developer-ID signature),
-        // and `spctl -a -t exec` rejects the mounted app outright. That fails
-        // the mandatory Developer-ID-and-notarized gate in `VendorInstaller`, so
-        // no `installKind` is passed — this recipe only ever powers detection.
-        sourceForgeMacRecipe(
-            bundleID: "org.qbittorrent.qBittorrent",
-            project: "qbittorrent",
-            versionPattern:
-                #""mac":\s*\{[^}]*?"filename":\s*"/qbittorrent-mac/qbittorrent-[0-9.]+/qbittorrent-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.dmg""#,
-            downloadURL: URL(string: "https://www.qbittorrent.org/download")!,
-            changelogURL: URL(string: "https://www.qbittorrent.org/news")!,
-            installKind: nil),
+        // qBittorrent is NOT here — it moved to a GitHub release rule (see
+        // `GitHubReleasesSource`). Upstream publishes the same macOS dmg on both
+        // SourceForge and GitHub Releases, and GitHub is the better read: no WAF
+        // to work around (this file's SourceForge recipes need a UA override),
+        // and the tag is the release itself rather than a "best release" guess.
+        // It stays detection-only either way — that is a property of upstream's
+        // signature, not of the endpoint.
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

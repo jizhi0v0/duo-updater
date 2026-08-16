@@ -125,24 +125,38 @@ struct GroupCProbeRecipeTests {
         #expect(correctValue == "1.16.0")
     }
 
-    // MARK: - qBittorrent — detection-only
+    // MARK: - qBittorrent — moved to a GitHub release rule
 
-    @Test func qBittorrentReadsTheMacVersion() throws {
-        let recipe = try recipe("org.qbittorrent.qBittorrent")
-        #expect(qBittorrentFixture.contains(
-            #""filename": "/qbittorrent-win32/qbittorrent-5.2.3/qbittorrent_5.2.3_x64_setup.exe""#))
+    /// qBittorrent was read from SourceForge until 2026-08-16 and now comes from
+    /// GitHub Releases (the same dmg, published by the same project). Two things
+    /// have to stay true, and neither is obvious from the rule alone.
+    ///
+    /// 1. There must be no leftover SourceForge recipe. Two sources for one bundle
+    ///    id is not a harmless duplicate here — the vendor probe runs LAST, so a
+    ///    stale recipe would sit unused until the GitHub rule missed, then answer
+    ///    with whatever `best_release.json` happens to say.
+    /// 2. It stays detection-only. Upstream signs with its own certificate
+    ///    (`Authority=qbittorrent macos`, `TeamIdentifier=not set`; `spctl` rejects
+    ///    it) — verified 2026-08-16 by mounting BOTH the SourceForge dmg and
+    ///    GitHub's `qbittorrent-5.2.3.dmg`, which are the same build. Changing
+    ///    where we read from cannot change that, so no install asset pattern.
+    @Test func qBittorrentReadsFromGitHubAndStaysDetectionOnly() throws {
+        #expect(VendorProbeRegistry.recipes
+            .first { $0.bundleID == "org.qbittorrent.qBittorrent" } == nil,
+            "the SourceForge recipe must be gone, not merely unused")
+
+        let rule = try #require(GitHubReleaseRegistry.rules
+            .first { $0.bundleID == "org.qbittorrent.qBittorrent" })
+        #expect(rule.owner == "qbittorrent")
+        #expect(rule.repo == "qBittorrent")
+        #expect(rule.installAssetPattern == nil)
+        #expect(rule.installerKind == nil)
+
+        // The real tag shape, and the old `v3.x` tags the anchor exists to reject.
         #expect(VendorProbeRecipe.extractVersion(
-            from: qBittorrentFixture, pattern: recipe.versionPattern) == "5.2.3")
-    }
-
-    /// qBittorrent's dmg is self-signed (`Authority=qbittorrent macos`,
-    /// `TeamIdentifier=not set`; `spctl -a -t exec` rejects it — verified
-    /// 2026-08-16 by mounting the 5.2.3 dmg) so it cannot pass
-    /// `VendorInstaller`'s Developer-ID gate. This recipe must stay
-    /// detection-only.
-    @Test func qBittorrentHasNoInstallSpec() throws {
-        let recipe = try recipe("org.qbittorrent.qBittorrent")
-        #expect(recipe.install == nil)
+            from: "release-5.2.3", pattern: rule.versionPattern) == "5.2.3")
+        #expect(VendorProbeRecipe.extractVersion(
+            from: "v3.3.16", pattern: rule.versionPattern) == nil)
     }
 
     // MARK: - The UA override these three depend on
@@ -154,8 +168,7 @@ struct GroupCProbeRecipeTests {
     /// reason and only came back with this header, so drop it and they break.
     @Test func sourceForgeRecipesOverrideTheBrowserUserAgent() throws {
         for id in ["net.sourceforge.grandperspectiv",
-                   "com.tigervnc.tigervnc",
-                   "org.qbittorrent.qBittorrent"] {
+                   "com.tigervnc.tigervnc"] {
             let recipe = try recipe(id)
             let ua = recipe.requestHeaders["User-Agent"]
             #expect(ua != nil, "\(id) must send its own User-Agent")

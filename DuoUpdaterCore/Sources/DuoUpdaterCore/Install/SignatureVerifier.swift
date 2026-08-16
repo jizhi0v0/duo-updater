@@ -14,6 +14,7 @@ public enum SignatureVerifier {
         case teamIdentifierMismatch(installed: String, downloaded: String)
         case noBundleIdentifier(which: String)
         case bundleIdentifierMismatch(installed: String, downloaded: String)
+        case unrunnableArchitecture(built: String, host: String)
 
         public var errorDescription: String? {
             switch self {
@@ -31,6 +32,8 @@ public enum SignatureVerifier {
                 return "Could not read a signed bundle identifier from the \(which) app."
             case .bundleIdentifierMismatch(let installed, let downloaded):
                 return "Bundle identifier mismatch: installed “\(installed)” vs downloaded “\(downloaded)”. Refusing to install."
+            case .unrunnableArchitecture(let built, let host):
+                return "The download is built for \(built) and this Mac runs \(host). Refusing to install a build it cannot launch."
             }
         }
     }
@@ -210,4 +213,64 @@ public enum SignatureVerifier {
         }
         return staticCode
     }
+    // MARK: Gate 5 — the download is a build this Mac can actually run
+
+    /// Which architectures a bundle's main executable was built for, read from
+    /// the real Mach-O rather than inferred from anything's name.
+    ///
+    /// This exists because the *selection* of a download is necessarily
+    /// name-based — we choose an asset before we have it — and names lie. Real
+    /// cases from the registry: `Goose.zip` and `MarkEdit-<ver>-apple-silicon.dmg`
+    /// are arm64-only but carry no marker the asset picker reads, so they were
+    /// classified as safe for either Mac. This gate makes that class of mistake
+    /// impossible to *install*: whatever the filename said, the bundle either has
+    /// a slice this machine can run or the swap is refused.
+    static func executableArchitectures(ofAppAt url: URL) -> Set<Int> {
+        guard let bundle = Bundle(url: url),
+              let archs = bundle.executableArchitectures else { return [] }
+        return Set(archs.map(\.intValue))
+    }
+
+    /// Whether a bundle built for `architectures` can launch on `host`.
+    ///
+    /// An empty set means "we could not read it" — a bundle whose executable is a
+    /// script, say — and is treated as runnable. This gate exists to catch a build
+    /// we can PROVE is wrong for the machine; it is not a proof of correctness, so
+    /// an unreadable header must not start refusing updates that install fine
+    /// today.
+    static func canRun(architectures: Set<Int>, on host: HostArch, canRunIntel: Bool) -> Bool {
+        guard !architectures.isEmpty else { return true }
+        let arm = architectures.contains(NSBundleExecutableArchitectureARM64)
+        let intel = architectures.contains(NSBundleExecutableArchitectureX86_64)
+        switch host {
+        case .arm64:
+            // Native, or an Intel slice while translation still covers apps.
+            return arm || (intel && canRunIntel)
+        case .x86_64:
+            // No reverse translation has ever existed: an arm64-only build is
+            // simply not startable here.
+            return intel
+        }
+    }
+
+    /// Gate 5, run beside the signature gates on the downloaded bundle.
+    public static func verifyRunnableArchitecture(
+        appAt url: URL,
+        host: HostArch = .current,
+        canRunIntel: Bool = HostArch.canRunIntelBuilds
+    ) throws {
+        let archs = executableArchitectures(ofAppAt: url)
+        guard !canRun(architectures: archs, on: host, canRunIntel: canRunIntel) else { return }
+        let names = archs.map { arch -> String in
+            switch arch {
+            case NSBundleExecutableArchitectureARM64:  return "arm64"
+            case NSBundleExecutableArchitectureX86_64: return "x86_64"
+            default: return "arch \(arch)"
+            }
+        }.sorted().joined(separator: " + ")
+        throw VerifyError.unrunnableArchitecture(
+            built: names.isEmpty ? "an unreadable architecture" : names,
+            host: host == .arm64 ? "arm64" : "x86_64")
+    }
+
 }

@@ -141,6 +141,10 @@ public actor VendorInstaller {
             installedApp: result.app.path,
             downloadedApp: newApp
         )
+        // Gate 5 — and it is a build this Mac can launch. The download was chosen
+        // by filename, which cannot see inside a Mach-O; this reads the real
+        // slices, so a mis-named artifact is refused instead of installed.
+        try SignatureVerifier.verifyRunnableArchitecture(appAt: newApp)
 
         // 5. Swap the bundle into place. We do this even while the app is
         // running: macOS keeps the live process on the code it already mapped,

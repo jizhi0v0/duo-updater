@@ -1194,5 +1194,75 @@ public enum GitHubReleaseRegistry {
         // ungoogled builds to a plain Chromium install (and vice versa) with nothing
         // in the version to tell the two trains apart. Revisit only with a signal
         // that distinguishes the builds on disk.
+
+        // MARK: - 2026-08-16, second pass
+        //
+        // These five reached the earlier sweep's "unclassified" pile only because
+        // their artifact was too big to download that day — nothing about them is
+        // hard. Each line below again states what was read off the very asset the
+        // pattern selects, on a mounted copy of the real download.
+
+        // Rancher Desktop — io.rancherdesktop.app, Team 2Q6FHJR3H3, notarized.
+        // The release also ships a `-mac.aarch64.zip`; the dmg is the cask's choice
+        // and the one verified here.
+        GitHubReleaseRule(
+            bundleID: "io.rancherdesktop.app",
+            owner: "rancher-sandbox", repo: "rancher-desktop",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Rancher\.Desktop-[0-9.]+\.aarch64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Cherry Studio — com.kangfenmao.CherryStudio, Team 87242QY66T, notarized.
+        // The release carries Linux and Windows artifacts with `arm64` in their
+        // names too, so the pattern is anchored on the dmg extension.
+        GitHubReleaseRule(
+            bundleID: "com.kangfenmao.CherryStudio",
+            owner: "CherryHQ", repo: "cherry-studio",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Cherry-Studio-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // RedisInsight — org.RedisLabs.RedisInsight-V2, Team UUK47G4BAZ, notarized.
+        // Tagged WITHOUT a leading `v` (`3.8.0`). Reached here from the vendor pile:
+        // its S3 download host publishes no readable manifest (every `latest*`
+        // path 403s), but the app is plain GitHub Releases, so no vendor recipe.
+        GitHubReleaseRule(
+            bundleID: "org.RedisLabs.RedisInsight-V2",
+            owner: "redis", repo: "RedisInsight",
+            versionPattern: #"^([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Redis-Insight-mac-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Upscayl — org.upscayl.Upscayl, Team W2T4W74X87, notarized. (Homebrew's
+        // cask says `org.upscayl.app`; the mounted bundle says otherwise, and the
+        // bundle wins.) One universal dmg, no per-architecture asset — the name
+        // carries no arch token to match on, and the post-download architecture
+        // gate is what makes that safe.
+        GitHubReleaseRule(
+            bundleID: "org.upscayl.Upscayl",
+            owner: "upscayl", repo: "upscayl",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^upscayl-[0-9.]+-mac\.dmg$"#,
+            installerKind: .dmg),
+
+        // WailBrew — io.github.wickenico.wailbrew, Team 2MC8SWF35Z, notarized.
+        // The cask's zap block lists two candidate ids (a rename left `dev.wailbrew`
+        // behind); the shipped Info.plist settles it. Note the asset is a zip whose
+        // signature only survives `ditto -x -k` — plain `unzip` breaks the seal and
+        // makes a good bundle look tampered with.
+        GitHubReleaseRule(
+            bundleID: "io.github.wickenico.wailbrew",
+            owner: "wickenico", repo: "WailBrew",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^wailbrew-v[0-9.]+\.zip$"#,
+            installerKind: .zip),
+
+        // Deliberately NOT covered — FreeCAD (`org.freecad.FreeCAD`). Its bundle
+        // ships an EMPTY `CFBundleShortVersionString` and puts 1.1.3 in
+        // `CFBundleVersion` alone. `AppScanner` drops any bundle with no marketing
+        // version — that guard is what keeps helper bundles (URL handlers, login
+        // items) out of the list — so FreeCAD never reaches a source at all and a
+        // rule here would be dead code. Fixing it means changing what the scanner
+        // admits, which is a much larger call than one app.
     ]
 }

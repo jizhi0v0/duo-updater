@@ -504,6 +504,12 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         "org.zaproxy.zap.ZAP": "zaproxy/zaproxy",
         "com.BlueBubbles.BlueBubbles-Server": "BlueBubblesApp/bluebubbles-server",
         "org.winehq.wine-staging.wine": "Gcenx/macOS_Wine_builds",
+        // 2026-08-16, second pass.
+        "io.rancherdesktop.app": "rancher-sandbox/rancher-desktop",
+        "com.kangfenmao.CherryStudio": "CherryHQ/cherry-studio",
+        "org.RedisLabs.RedisInsight-V2": "redis/RedisInsight",
+        "org.upscayl.Upscayl": "upscayl/upscayl",
+        "io.github.wickenico.wailbrew": "wickenico/WailBrew",
     ]
     for (bundleID, slug) in expected {
         #expect(rule(bundleID).slug == slug, "slug drifted for \(bundleID)")
@@ -603,5 +609,69 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         let key = "\(r.bundleID)|\(r.channel.rawValue)"
         #expect(!seen.contains(key), "duplicate rule for \(key)")
         seen.insert(key)
+    }
+}
+
+// MARK: - 2026-08-16, second pass
+
+/// RedisInsight tags without a leading `v` — the pattern must not require one,
+/// and must still reject a tag that is only a bare number.
+@Test func redisInsightRuleReadsAnUnprefixedTag() {
+    #expect(extract("3.8.0", "org.RedisLabs.RedisInsight-V2") == "3.8.0")
+    #expect(extract("v3.8.0", "org.RedisLabs.RedisInsight-V2") == nil)
+    #expect(matches("Redis-Insight-mac-arm64.dmg", "org.RedisLabs.RedisInsight-V2"))
+    #expect(!matches("Redis-Insight-mac-x64.dmg", "org.RedisLabs.RedisInsight-V2"))
+}
+
+/// Cherry Studio publishes Linux and Windows artifacts that also carry `arm64`
+/// in their names, so the dmg extension is what separates them.
+@Test func cherryStudioRulePicksTheDmgAmongArm64Siblings() {
+    #expect(extract("v2.0.5", "com.kangfenmao.CherryStudio") == "2.0.5")
+    #expect(matches("Cherry-Studio-2.0.5-arm64.dmg", "com.kangfenmao.CherryStudio"))
+    for sibling in ["Cherry-Studio-2.0.5-arm64.AppImage", "Cherry-Studio-2.0.5-arm64.deb",
+                    "Cherry-Studio-2.0.5-arm64-setup.exe", "Cherry-Studio-2.0.5-aarch64.rpm"] {
+        #expect(!matches(sibling, "com.kangfenmao.CherryStudio"), "\(sibling) is not a Mac app")
+    }
+}
+
+/// Rancher Desktop ships both a dmg and a `-mac.aarch64.zip`; the rule takes the
+/// dmg, which is the artifact whose signature was verified.
+@Test func rancherDesktopRuleTakesTheDmg() {
+    #expect(extract("v1.24.0", "io.rancherdesktop.app") == "1.24.0")
+    #expect(matches("Rancher.Desktop-1.24.0.aarch64.dmg", "io.rancherdesktop.app"))
+    #expect(!matches("Rancher.Desktop-1.24.0-mac.aarch64.zip", "io.rancherdesktop.app"))
+    #expect(!matches("Rancher.Desktop-1.24.0.x86_64.dmg", "io.rancherdesktop.app"))
+}
+
+/// Upscayl ships ONE universal dmg — no architecture token to match on. The
+/// pattern must not grow one, and must still reject the zip beside it.
+@Test func upscaylRuleMatchesTheUniversalDmg() {
+    #expect(extract("v2.15.0", "org.upscayl.Upscayl") == "2.15.0")
+    #expect(matches("upscayl-2.15.0-mac.dmg", "org.upscayl.Upscayl"))
+    #expect(!matches("upscayl-2.15.0-mac.zip", "org.upscayl.Upscayl"))
+    #expect(!matches("upscayl-2.15.0-mac.dmg.blockmap", "org.upscayl.Upscayl"))
+}
+
+/// WailBrew ships the app as a zip whose name repeats the `v` from the tag.
+@Test func wailBrewRuleMatchesItsVersionedZip() {
+    #expect(extract("v0.10.4", "io.github.wickenico.wailbrew") == "0.10.4")
+    #expect(matches("wailbrew-v0.10.4.zip", "io.github.wickenico.wailbrew"))
+    #expect(!matches("wailbrew-v0.10.4.zip.blockmap", "io.github.wickenico.wailbrew"))
+}
+
+/// Every rule added in this pass installs — none of them is detection-only —
+/// and each one's kind matches the artifact that was actually verified.
+@Test func secondPassRulesAllInstall() {
+    let expected: [String: VendorInstallerKind] = [
+        "io.rancherdesktop.app": .dmg,
+        "com.kangfenmao.CherryStudio": .dmg,
+        "org.RedisLabs.RedisInsight-V2": .dmg,
+        "org.upscayl.Upscayl": .dmg,
+        "io.github.wickenico.wailbrew": .zip,
+    ]
+    for (bundleID, kind) in expected {
+        let r = rule(bundleID)
+        #expect(r.installAssetPattern != nil, "\(bundleID) lost its asset pattern")
+        #expect(r.installerKind == kind, "\(bundleID) installer kind drifted")
     }
 }

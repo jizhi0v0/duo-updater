@@ -175,6 +175,15 @@ public enum ChangelogExtractor {
             // must stay literal, so the broad HTML path is left untouched.
             if recipe.mode == .json { s = decodeJSONStringEscapes(s) }
             s = decodeEntities(s)
+            // The body was escaped markup (an RSS <description>), so the decode
+            // just turned `&lt;a href=…&gt;` back into real tags, and prose
+            // entities that were double-escaped (`&amp;rsquo;`) into single ones.
+            // Strip once more and decode once more, or the rendered note shows raw
+            // HTML and literal `&rsquo;`. See `escapedMarkup`.
+            if recipe.escapedMarkup {
+                if recipe.stripTags { s = stripTags(s) }
+                s = decodeEntities(s)
+            }
         }
         return collapseWhitespace(s)
     }

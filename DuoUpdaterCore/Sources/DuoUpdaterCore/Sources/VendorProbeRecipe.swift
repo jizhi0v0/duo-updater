@@ -2227,13 +2227,19 @@ public enum VendorProbeRegistry {
         // 1Password 8 — self-updates via its own EdDSA updater, so no standard
         // source resolves it. The vendor's app-updates.agilebits.com/check JSON
         // API only serves the NIGHTLY channel for product OPM8 (no stable param
-        // exists), so it can't be used for a stable install. Instead scrape the
-        // stable releases page, whose "1Password for Mac <ver>" titles are
-        // server-rendered and listed newest-first — the FIRST match is the current
-        // stable build (the bare <h1> "1Password for Mac" has no version and is
-        // skipped by the required \s+[0-9]). NOTE: HTML scrape — more brittle than
-        // an API; refresh if it stops matching. The same page is also the
-        // ChangelogRecipe(com.1password.1password) source.
+        // exists), so it can't be used for a stable install.
+        //
+        // The version comes from the stable channel's RSS FEED
+        // (`…/mac/stable/index.xml`), not from scraping the HTML page beside it:
+        // a feed is a published interface with fixed element names, while the
+        // page's version sat in a `c-updates__title` class that a redesign renames
+        // without anyone calling it breaking. The same feed backs
+        // `ChangelogRecipe(com.1password.1password)`.
+        //
+        // `selectHighest` rather than first-match, because the feed is ASCENDING
+        // (8.7.0 from 2022 is item 1 of 89) — first-match here would report a
+        // four-year-old release as current, which reads as "up to date" forever.
+        // Comparing numerically means the order stops mattering at all.
         //
         // ONE-CLICK — but NOT from the URL the download page hands out.
         // `downloads.1password.com/mac/1Password.zip` looks perfect (stable URL,
@@ -2260,11 +2266,12 @@ public enum VendorProbeRegistry {
         // must never become is the stub URL above.
         VendorProbeRecipe(
             bundleID: "com.1password.1password",
-            url: URL(string: "https://releases.1password.com/mac/stable/")!,
+            url: URL(string: "https://releases.1password.com/mac/stable/index.xml")!,
             mode: .responseBody,
-            versionPattern: #"1Password for Mac\s+([0-9]+\.[0-9]+\.[0-9]+)"#,
+            versionPattern: #"<title>1Password for Mac\s+([0-9]+\.[0-9]+\.[0-9]+)</title>"#,
             downloadURL: URL(string: "https://1password.com/downloads/mac/"),
             changelogURL: URL(string: "https://releases.1password.com/mac/stable/"),
+            selectHighest: true,
             install: VendorInstallSpec(
                 urlSource: .fixed(
                     URL(string: "https://downloads.1password.com/mac/1Password-latest-aarch64.zip")!),

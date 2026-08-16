@@ -68,6 +68,18 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// Default true.
     public var decodeEntities: Bool
 
+    /// The captured text is HTML that was itself entity-escaped — an RSS
+    /// `<description>` carrying `&lt;a href=…&gt;…&lt;/a&gt;` (1Password's feed).
+    /// Cleaning strips tags BEFORE decoding entities, so on such a body the first
+    /// strip sees no tags and the decode then turns the escapes back into visible
+    /// `<a href="…">` markup in the rendered note. This runs one more strip after
+    /// decoding.
+    ///
+    /// Opt-in rather than always-on: a normal HTML changelog may deliberately
+    /// SHOW markup as text (`use &lt;div&gt; instead`), and a second unconditional
+    /// strip would eat exactly that.
+    public var escapedMarkup: Bool
+
     /// Keep at most this many entries (changelogs run for years; the detail view
     /// only needs the recent ones). Nil = keep all. Default 40.
     public var maxEntries: Int?
@@ -153,6 +165,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         mode: Mode = .html,
         stripTags: Bool = true,
         decodeEntities: Bool = true,
+        escapedMarkup: Bool = false,
         maxEntries: Int? = 40,
         minItemLength: Int = 1,
         indexLinkPattern: String? = nil,
@@ -170,6 +183,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.structuredFormat = structuredFormat
         self.stripTags = stripTags
         self.decodeEntities = decodeEntities
+        self.escapedMarkup = escapedMarkup
         self.maxEntries = maxEntries
         self.minItemLength = minItemLength
         self.indexLinkPattern = indexLinkPattern
@@ -235,6 +249,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         mode = try c.decodeIfPresent(Mode.self, forKey: .mode) ?? .html
         stripTags = try c.decodeIfPresent(Bool.self, forKey: .stripTags) ?? true
         decodeEntities = try c.decodeIfPresent(Bool.self, forKey: .decodeEntities) ?? true
+        escapedMarkup = try c.decodeIfPresent(Bool.self, forKey: .escapedMarkup) ?? false
         maxEntries = try c.decodeIfPresent(Int?.self, forKey: .maxEntries) ?? 40
         minItemLength = try c.decodeIfPresent(Int.self, forKey: .minItemLength) ?? 1
         indexLinkPattern = try c.decodeIfPresent(String.self, forKey: .indexLinkPattern)
@@ -981,28 +996,36 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"<p(?:\s[^>]*)?>(?<item>.*?)</p>"#],
             maxEntries: 20),
 
-        // 1Password 8 (Mac) — releases.1password.com/mac/stable/ is the STABLE
-        // channel notes page (the bare /mac/ landing page is only a two-card hub —
-        // latest beta + latest stable — with no change items; the beta channel
-        // lives at the sibling /mac/beta/). Fully server-rendered, all recent
-        // 8.12.x releases inline, newest-first. Each release is:
-        //   <article class="c-updates__release …">…<time …class="…c-updates__date …">
-        //     June 2 2026</time><h6 class="…c-updates__title">1Password for Mac 8.12.22</h6>
-        //   …<div class="…c-updates__content …"><ul><li>…</li>…</ul></div></article>
-        // We capture the *visible* date text from <time> rather than the datetime
-        // attr, whose value is a space-separated timestamp ("… 00:00:00 +0000 UTC")
-        // that would display ugly. Items keep their trailing GitLab issue refs
-        // (!37801 / #DESK-541) inline as the vendor writes them — the page's
-        // "Show issue numbers" toggle only hides them via CSS.
+        // 1Password 8 (Mac) — the STABLE channel's RSS feed, `…/mac/stable/index.xml`,
+        // not the HTML page next to it (the bare /mac/ landing page is only a
+        // two-card hub with no change items; the beta channel has its own
+        // /mac/beta/ feed). Both carry the same releases; the feed is the sturdier
+        // read — it is a published interface with fixed element names, where the
+        // page's `c-updates__release` / `c-updates__title` class names are styling
+        // that a site redesign renames without anyone calling it a breaking change.
+        //
+        // Each item (captured verbatim 2026-08-16):
+        //   <item><title>1Password for Mac 8.12.33</title><link>…</link>
+        //   <pubDate>Wed, 12 Aug 2026 00:00:00 +0000</pubDate><guid>…</guid>
+        //   <description>&lt;ul&gt;&lt;li&gt;We&amp;rsquo;ve fixed …&lt;/li&gt;&lt;/ul&gt;</description></item>
+        //
+        // Two consequences of it being a feed rather than a page:
+        //   * items are ASCENDING (8.7.0 from 2022 first, 89 of them), so
+        //     `newestLast` flips them — the HTML page was newest-first;
+        //   * the change list lives ENTITY-ESCAPED inside <description>, so the
+        //     item pattern matches `&lt;li&gt;`, not `<li>`. Matching a raw `<li>`
+        //     here finds nothing at all.
+        // Items keep the vendor's inline issue refs ([[!40819]]) as written.
         ChangelogRecipe(
             bundleID: "com.1password.1password",
-            source: URL(string: "https://releases.1password.com/mac/stable/")!,
+            source: URL(string: "https://releases.1password.com/mac/stable/index.xml")!,
             entryPattern:
-                #"<article class="c-updates__release[^"]*"[^>]*>.*?"#
-                + #"<time[^>]*class="[^"]*c-updates__date[^"]*"[^>]*>(?<date>[^<]+)</time>\s*"#
-                + #"<h6[^>]*c-updates__title[^>]*>1Password for Mac\s*(?<version>[\d.]+)\s*</h6>.*?"#
-                + #"<div[^>]*c-updates__content[^>]*>(?<body>.*?)</div>\s*</article>"#,
-            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+                #"<item>\s*<title>1Password for Mac\s*(?<version>[0-9][0-9.]*)</title>.*?"#
+                + #"<pubDate>(?<date>[^<]+)</pubDate>.*?"#
+                + #"<description>(?<body>.*?)</description>\s*</item>"#,
+            itemPatterns: [#"&lt;li&gt;(?<item>.*?)&lt;/li&gt;"#],
+            escapedMarkup: true,
+            newestLast: true),
 
         // Sublime Text 4 — the /download page is fully server-rendered and carries
         // the <h2>Changelog</h2> inline (no hydration). Each release is an <article>

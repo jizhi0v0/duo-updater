@@ -1366,35 +1366,10 @@ private let figmaFixture = """
     #expect(cl.entries.last?.items.count == 1)
 }
 
-// 1Password — two stable release <article>s from releases.1password.com/mac/stable/;
-// items keep their GitLab issue refs inline, and the first carries `&rsquo;`.
-private let onePasswordFixture = """
-<article class="c-updates__release u-mb-6"><header class="c-updates__header">\
-<a href=#1password-for-mac-8.12.22 class="c-updates__anchor">\
-<time datetime="2026-06-02 00:00:00 +0000 UTC" class="c-heading c-updates__date u-mb-2 u-is-displayblock">June 2 2026</time>\
-<h6 class="c-heading c-updates__title">1Password for Mac 8.12.22</h6></a></header>\
-<div class="c-updates__content u-py-8"><ul>\
-<li>We&rsquo;ve improved the scrolling experience. <span class='c-icon c-icon--gitlab'>!37801</span></li></ul></div></article>\
-<article class="c-updates__release u-mb-6"><header class="c-updates__header">\
-<a href=#1password-for-mac-8.12.21 class="c-updates__anchor">\
-<time datetime="2026-05-20 00:00:00 +0000 UTC" class="c-heading c-updates__date u-mb-2 u-is-displayblock">May 20 2026</time>\
-<h6 class="c-heading c-updates__title">1Password for Mac 8.12.21</h6></a></header>\
-<div class="c-updates__content u-py-8"><ul>\
-<li>You can now use Codex to interact directly with 1Password Environments. <span class='c-icon c-icon--gitlab'>!37261</span></li>\
-<li>Fixed an issue with autofill. <span class='c-icon c-icon--gitlab'>#DESK-541</span></li></ul></div></article>
-"""
-
-@Test func extractsOnePasswordEntries() throws {
-    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.1password.1password"))
-    let cl = try #require(ChangelogExtractor.extract(from: onePasswordFixture, using: recipe))
-    #expect(cl.entries.count == 2)
-    #expect(cl.entries.first?.version == "8.12.22")
-    #expect(cl.entries.first?.date == "June 2 2026")
-    #expect(cl.entries.first?.items.count == 1)
-    #expect(cl.entries.first?.items.first == "We\u{2019}ve improved the scrolling experience. !37801")
-    #expect(cl.entries.last?.version == "8.12.21")
-    #expect(cl.entries.last?.items.count == 2)
-}
+// 1Password's changelog moved from this page to the stable channel's RSS feed
+// on 2026-08-16 (see `OnePasswordFeedTests`), so the page fixture that used to
+// live here is gone with the recipe it pinned. The feed is the sturdier read:
+// fixed element names instead of `c-updates__*` styling classes.
 
 // Sublime Text — two /download build blocks; the 4200 block keeps an `&amp;`
 // entity and an inline <tt> tag. Versions are 4-digit build numbers.

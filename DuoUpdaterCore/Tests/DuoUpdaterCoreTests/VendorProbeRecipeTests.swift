@@ -220,3 +220,90 @@ private let warpEndpointFixture = #"""
     #expect(!channels.contains(.beta))
     #expect(!channels.contains(.canary))
 }
+
+// MARK: - 2026-08-16 vendor batch
+//
+// Bodies below are verbatim excerpts of the real endpoints, captured the day
+// each recipe was written, so a pattern edit that stops matching them fails
+// here rather than silently resolving nothing in production.
+
+private func batchRecipe(_ bundleID: String) -> VendorProbeRecipe? {
+    VendorProbeRegistry.recipes.first { $0.bundleID == bundleID }
+}
+
+private func batchVersion(_ bundleID: String, in body: String) -> String? {
+    guard let recipe = batchRecipe(bundleID) else {
+        Issue.record("no recipe for \(bundleID)")
+        return nil
+    }
+    return VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern)
+}
+
+/// The three electron-builder feeds share one shape, so they share one pattern —
+/// pin all three against their real `latest-mac.yml` headers.
+@Test func electronBuilderFeedsYieldTheirVersionLine() {
+    #expect(batchVersion("dev.commandline.waveterm", in: """
+        version: 0.14.5
+        files:
+          - url: Wave-darwin-arm64-0.14.5.zip
+        """) == "0.14.5")
+    #expect(batchVersion("com.termius-dmg.mac", in: """
+        version: 9.43.1
+        files:
+          - url: Termius.zip
+        """) == "9.43.1")
+    #expect(batchVersion("com.unity3d.unityhub", in: """
+        version: 3.20.1
+        files:
+          - url: 3.20.1/UnityHubSetup-3.20.1-arm64.zip
+        """) == "3.20.1")
+}
+
+/// Lens versions end in a literal `-latest`, and so does the shipped bundle's
+/// own CFBundleShortVersionString. Trimming it here would make the probe read
+/// older than the install on every check.
+@Test func lensKeepsTheLatestSuffixItsBundleAlsoCarries() {
+    let resolved = batchVersion("com.electron.kontena-lens", in: """
+        version: 2026.6.260931-latest
+        files:
+          - url: Lens-2026.6.260931-latest-arm64.dmg
+        """)
+    #expect(resolved == "2026.6.260931-latest")
+    // Same string on both sides → no update. The stripped form would not compare
+    // equal, which is the failure this pins.
+    #expect(!VersionComparator.isNewer(resolved ?? "", than: "2026.6.260931-latest"))
+}
+
+/// iStat Menus' product name ends in a digit (`istatmenus7`), and the download
+/// filename repeats it — the pattern must take the version after that 7, not
+/// the 7 itself.
+@Test func iStatMenusPatternSkipsTheProductNumber() {
+    let location = "https://cdn.istatmenus.app/files/istatmenus7/versions/iStatMenus7.30.zip"
+    #expect(batchVersion("com.bjango.istatmenus", in: location) == "7.30")
+}
+
+/// Inkscape resolves a version but deliberately ships no install spec — the dmg
+/// is only reachable through a per-release gallery id handed out by an HTML meta
+/// refresh, so nothing can be templated from the version.
+@Test func inkscapeResolvesAVersionAndStaysDetectionOnly() {
+    #expect(batchVersion("org.inkscape.Inkscape", in: "/release/inkscape-1.4.4/") == "1.4.4")
+    #expect(batchRecipe("org.inkscape.Inkscape")?.install == nil)
+}
+
+/// The five that DO install must keep an install spec and the artifact kind that
+/// was actually verified — a silent drop to detection-only would look like
+/// "nothing changed" in the UI.
+@Test func vendorBatchInstallKindsMatchTheVerifiedArtifacts() {
+    let expected: [String: VendorInstallerKind] = [
+        "dev.commandline.waveterm": .zip,
+        "com.electron.kontena-lens": .dmg,
+        "com.termius-dmg.mac": .dmg,
+        "com.unity3d.unityhub": .zip,
+        "com.bjango.istatmenus": .zip,
+    ]
+    for (bundleID, kind) in expected {
+        let spec = batchRecipe(bundleID)?.install
+        #expect(spec != nil, "\(bundleID) lost its install spec")
+        #expect(spec?.kind == kind, "\(bundleID) installer kind drifted")
+    }
+}

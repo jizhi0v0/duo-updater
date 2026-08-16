@@ -85,6 +85,13 @@ public enum UpdatePolicy {
         if actionableStaged(result, staged: environment.stagedSelfUpdates[result.id]) != nil { return false }
         switch result.remote?.sourceName {
         case "Sparkle":
+            let ext = result.remote?.downloadURL?.pathExtension.lowercased()
+            // A package is not an in-place archive. Signed Sparkle packages are
+            // still installable, but `requiresInstaller` owns them so the download
+            // is EdDSA-verified and then handed to macOS Installer. Keeping them out
+            // of this branch prevents `SparkleInstaller` from feeding a `.pkg` to
+            // `ArchiveExtractor`, which can never extract it.
+            if Self.sparklePackageExtensions.contains(ext ?? "") { return false }
             // Signed feed: the full EdDSA path — needs both the app's SUPublicEDKey
             // and a signature in the item.
             if result.app.sparkleEdPublicKey?.isEmpty == false {
@@ -96,9 +103,8 @@ public enum UpdatePolicy {
             // only when the enclosure is an archive we can extract and swap in place
             // — a `.pkg` is a system-installer payload, not an in-place archive, and
             // a missing URL leaves nothing to install.
-            let ext = result.remote?.downloadURL?.pathExtension.lowercased()
             return ext.map {
-                ["dmg", "zip", "gz", "bz2", "xz", "tar", "tbz", "tgz", "app"].contains($0)
+                Self.sparkleArchiveExtensions.contains($0)
             } ?? false
         case "Homebrew":
             return result.remote?.sourceIdentifier != nil
@@ -202,10 +208,26 @@ public enum UpdatePolicy {
             return result.remote?.requiresManualInstaller == true
         case "Vendor", "GitHub":
             return result.remote?.vendorInstallerKind == .pkg
+        case "Sparkle":
+            // Sparkle permits signed package enclosures. They must retain Gate 1
+            // (EdDSA over the exact enclosure bytes) before PackageInstaller applies
+            // its Developer ID Installer + Team-ID gate. An unsigned package stays
+            // detection-only: unlike an extracted app, it has no bundle-id gate.
+            guard let ext = result.remote?.downloadURL?.pathExtension.lowercased(),
+                  Self.sparklePackageExtensions.contains(ext),
+                  result.app.sparkleEdPublicKey?.isEmpty == false,
+                  result.remote?.edSignature?.isEmpty == false else { return false }
+            return true
         default:
             return false
         }
     }
+
+    private static let sparkleArchiveExtensions: Set<String> = [
+        "dmg", "zip", "gz", "bz2", "xz", "tar", "tbz", "tgz", "app",
+    ]
+
+    private static let sparklePackageExtensions: Set<String> = ["pkg", "mpkg"]
 
     /// Whether, per the user's `vendorInstallPolicy`, this update should be handed
     /// to the app's OWN updater rather than installed over by us right now. True for

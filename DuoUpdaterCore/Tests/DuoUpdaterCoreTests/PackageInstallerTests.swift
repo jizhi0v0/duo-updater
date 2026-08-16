@@ -64,6 +64,51 @@ struct PackageInstallerTests {
         #expect(second.lastPathComponent.hasPrefix("DuoUpdater-pkg-Example-App-"))
     }
 
+    @Test func multiPackageImagesRequireAUniqueProductMatch() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory
+            .appendingPathComponent("pkg-choice-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        func package(_ name: String) throws -> URL {
+            let url = root.appendingPathComponent(name)
+            try Data("fixture".utf8).write(to: url)
+            return url
+        }
+
+        let product = try package("Foo.pkg")
+        _ = try package("FooHelper.pkg")
+        _ = try package("Bar.pkg")
+        #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo")?.lastPathComponent
+                    == product.lastPathComponent)
+
+        try fm.removeItem(at: product)
+        #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo") == nil,
+                "a helper package must not win by substring")
+
+        let versioned = try package("Foo-2.0.pkg")
+        #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo")?.lastPathComponent
+                    == versioned.lastPathComponent)
+
+        _ = try package("Foo-v3.pkg")
+        #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo") == nil,
+                "two plausible product packages are ambiguous")
+    }
+
+    @Test func aSinglePackageNeedsNoFilenameConvention() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory
+            .appendingPathComponent("pkg-single-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+        let only = root.appendingPathComponent("Installer.pkg")
+        try Data("fixture".utf8).write(to: only)
+
+        #expect(PackageInstaller.preferredPackage(in: root, preferring: "Different App")?.lastPathComponent
+                    == only.lastPathComponent)
+    }
+
     /// The hand-over retires the *previous* Installer window for this app, so a
     /// package that fails the Developer-ID/Team-ID gate must not cost the user the
     /// window they already have open — nothing is closed and nothing is opened.

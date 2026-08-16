@@ -117,6 +117,14 @@ private func storeAvailability(
             settings: defaultSettings(), environment: environment(),
             expected: false
         ),
+        (
+            name: "sparkle signed pkg is handled by the system installer, not the archive path",
+            result: fixtureResult(
+                source: "Sparkle", downloadURL: URL(string: "https://example.com/fixture.pkg"),
+                edSignature: "sig", app: fixtureApp(sparkleEdKey: "key")),
+            settings: defaultSettings(), environment: environment(),
+            expected: false
+        ),
         // Sparkle, unsigned feed: only an extractable archive enclosure qualifies.
         (
             name: "sparkle unsigned feed with archive enclosure is auto-installable",
@@ -323,8 +331,26 @@ private func storeAvailability(
             expected: true
         ),
         (
-            name: "sparkle never routes to the system installer",
-            result: fixtureResult(source: "Sparkle", app: fixtureApp(sparkleEdKey: "key")),
+            name: "sparkle archive does not route to the system installer",
+            result: fixtureResult(
+                source: "Sparkle", downloadURL: URL(string: "https://example.com/fixture.dmg"),
+                edSignature: "sig", app: fixtureApp(sparkleEdKey: "key")),
+            settings: defaultSettings(), environment: environment(),
+            expected: false
+        ),
+        (
+            name: "sparkle signed pkg routes to the system installer",
+            result: fixtureResult(
+                source: "Sparkle", downloadURL: URL(string: "https://example.com/fixture.pkg"),
+                edSignature: "sig", app: fixtureApp(sparkleEdKey: "key")),
+            settings: defaultSettings(), environment: environment(),
+            expected: true
+        ),
+        (
+            name: "sparkle unsigned pkg stays detection-only",
+            result: fixtureResult(
+                source: "Sparkle", downloadURL: URL(string: "https://example.com/fixture.pkg"),
+                app: fixtureApp(sparkleEdKey: nil)),
             settings: defaultSettings(), environment: environment(),
             expected: false
         ),

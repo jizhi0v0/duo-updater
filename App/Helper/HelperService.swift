@@ -6,12 +6,12 @@ import Security
 final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {
     func listener(_ listener: NSXPCListener,
                   shouldAcceptNewConnection conn: NSXPCConnection) -> Bool {
-        guard HelperService.isValidClient(conn) else {
+        guard let identity = HelperService.validatedClientIdentity(conn) else {
             NSLog("duo-helper: rejected connection — client failed code-signing check")
             return false
         }
         conn.exportedInterface = NSXPCInterface(with: MASHelperProtocol.self)
-        conn.exportedObject = HelperService()
+        conn.exportedObject = HelperService(clientIdentity: identity)
         conn.resume()
         return true
     }
@@ -35,22 +35,62 @@ final class HelperService: NSObject, MASHelperProtocol {
 
     private static let workQueue = DispatchQueue(label: "com.duoupdater.helper.install")
 
+    struct ClientIdentity {
+        let uid: uid_t
+        let gid: gid_t
+        let userName: String
+    }
+
+    private let clientIdentity: ClientIdentity
+
+    init(clientIdentity: ClientIdentity) {
+        self.clientIdentity = clientIdentity
+        super.init()
+    }
+
     // MARK: Peer validation
 
     static func isValidClient(_ conn: NSXPCConnection) -> Bool {
+        validatedClientIdentity(conn) != nil
+    }
+
+    /// Validate the peer's code identity and bind the session identity used by
+    /// every privileged operation to the same kernel-supplied audit token. Client
+    /// arguments remain in the XPC protocol for compatibility, but can no longer
+    /// select a different user's GUI session.
+    static func validatedClientIdentity(_ conn: NSXPCConnection) -> ClientIdentity? {
         // No resolvable team ⇒ no requirement we're willing to accept. Refuse
         // rather than degrade to a team-less (forgeable) requirement.
-        guard let clientRequirement else { return false }
-        guard var token = auditToken(of: conn) else { return false }
+        guard let clientRequirement else { return nil }
+        guard var token = auditToken(of: conn) else { return nil }
         let data = Data(bytes: &token, count: MemoryLayout<audit_token_t>.size)
         let attrs = [kSecGuestAttributeAudit: data] as CFDictionary
         var code: SecCode?
         guard SecCodeCopyGuestWithAttributes(nil, attrs, [], &code) == errSecSuccess,
-              let guest = code else { return false }
+              let guest = code else { return nil }
         var requirement: SecRequirement?
         guard SecRequirementCreateWithString(clientRequirement as CFString, [], &requirement) == errSecSuccess,
-              let req = requirement else { return false }
-        return SecCodeCheckValidity(guest, [], req) == errSecSuccess
+              let req = requirement else { return nil }
+        guard SecCodeCheckValidity(guest, [], req) == errSecSuccess else { return nil }
+        let uid = audit_token_to_euid(token)
+        let gid = audit_token_to_egid(token)
+        guard let user = accountName(for: uid) else { return nil }
+        return ClientIdentity(uid: uid, gid: gid, userName: user)
+    }
+
+    private static func accountName(for uid: uid_t) -> String? {
+        // Listener callbacks may validate more than one connection concurrently;
+        // `getpwuid` uses shared storage, so use its re-entrant counterpart.
+        let suggested = sysconf(_SC_GETPW_R_SIZE_MAX)
+        var buffer = [CChar](
+            repeating: 0, count: max(suggested > 0 ? Int(suggested) : 16_384, 1_024))
+        var entry = passwd()
+        var result: UnsafeMutablePointer<passwd>?
+        let status = buffer.withUnsafeMutableBufferPointer {
+            getpwuid_r(uid, &entry, $0.baseAddress, $0.count, &result)
+        }
+        guard status == 0, result != nil, let name = entry.pw_name else { return nil }
+        return String(cString: name)
     }
 
     /// `auditToken` is SPI on NSXPCConnection (stable since macOS 11) — no public
@@ -71,8 +111,13 @@ final class HelperService: NSObject, MASHelperProtocol {
 
     func installMASApp(adamID: Int, uid: Int, gid: Int, userName: String, logPath: String,
                        withReply reply: @escaping (Int32, String?) -> Void) {
+        let identity = clientIdentity
         Self.workQueue.async {
             guard adamID > 0 else { reply(-1, "invalid adamID"); return }
+            guard uid == Int(identity.uid), gid == Int(identity.gid),
+                  userName == identity.userName else {
+                reply(-1, "client identity did not match its XPC audit token"); return
+            }
             // logPath is a path the *client* chose that root will redirect onto, so
             // pin it to exactly what `MASInstaller` builds: the basename is the
             // adamID we were already given, and the directory must be a temp area.
@@ -96,7 +141,7 @@ final class HelperService: NSObject, MASHelperProtocol {
             // an arbitrary-root-file truncation primitive.
             let logHandle: FileHandle
             do {
-                logHandle = try Self.openLogFile(at: logPath, owner: uid)
+                logHandle = try Self.openLogFile(at: logPath, owner: Int(identity.uid))
             } catch {
                 reply(-1, "invalid log path: \(error.localizedDescription)"); return
             }
@@ -108,9 +153,9 @@ final class HelperService: NSObject, MASHelperProtocol {
             // The trailing `2>&1` still folds stderr into the log, but onto the fd we
             // opened and verified rather than a path the shell re-resolves.
             let command =
-                "/bin/launchctl asuser \(uid) "
+                "/bin/launchctl asuser \(identity.uid) "
                 + "/usr/bin/script -q /dev/null "
-                + "/usr/bin/env SUDO_UID=\(uid) SUDO_GID=\(gid) SUDO_USER=\(Self.shellQuoted(userName)) MAS_NO_AUTO_INDEX=1 "
+                + "/usr/bin/env SUDO_UID=\(identity.uid) SUDO_GID=\(identity.gid) SUDO_USER=\(Self.shellQuoted(identity.userName)) MAS_NO_AUTO_INDEX=1 "
                 + "\(Self.shellQuoted(mas)) install \(adamID) --force 2>&1"
 
             let process = Process()

@@ -82,6 +82,7 @@ public actor PackageInstaller {
         installedApp: URL,
         headers: [String: String] = [:],
         onStage: @Sendable @escaping (InstallStage) -> Void,
+        verifyDownload: @Sendable (URL) throws -> Void = { _ in },
         beforeOpen: @Sendable () async -> Void = {}
     ) async throws -> OpenedPackage {
         guard let url else { throw PackageError.noURL }
@@ -105,6 +106,12 @@ public actor PackageInstaller {
         }
         let file = try await downloader.download(url, headers: headers)
         let bytesDownloaded = downloader.bytesDownloaded
+
+        // Source-specific proof over the original downloaded bytes belongs before
+        // any parsing or mounting. Sparkle uses this seam for its enclosure EdDSA;
+        // Vendor/Homebrew packages use the no-op default and retain the common pkg
+        // signature + Team-ID gate in `handOver` below.
+        try verifyDownload(file)
 
         onStage(.installing)
         let toOpen = try resolveInstaller(from: file, workDir: workDir, installedApp: installedApp)
@@ -207,9 +214,9 @@ public actor PackageInstaller {
         defer { _ = run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-force"]) }
 
         // Pass the installed app's name so a multi-pkg image is matched to *this*
-        // product (see `firstPackage`).
+        // product (see `preferredPackage`).
         let appName = installedApp.deletingPathExtension().lastPathComponent
-        guard let pkg = firstPackage(in: mountPoint, preferring: appName) else {
+        guard let pkg = Self.preferredPackage(in: mountPoint, preferring: appName) else {
             throw PackageError.noInstallablePackage
         }
         let dest = workDir.appendingPathComponent(pkg.lastPathComponent)
@@ -294,7 +301,12 @@ public actor PackageInstaller {
         return (true, Self.packageTeamIdentifier(fromPkgutilOutput: result.output))
     }
 
-    private func firstPackage(in dir: URL, preferring appName: String) -> URL? {
+    /// Pick a package only when the answer is unambiguous. A single package needs
+    /// no naming convention. On a multi-package image, accept an exact product name
+    /// or a unique product name followed by a numeric version (`Foo-2.0.pkg`); never
+    /// let a substring such as `FooHelper.pkg` stand in for `Foo.app`, and never
+    /// fall back to whichever unrelated package sorts first.
+    static func preferredPackage(in dir: URL, preferring appName: String) -> URL? {
         let fm = FileManager.default
         let dirBase = dir.resolvingSymlinksInPath().standardizedFileURL.path
         guard let entries = try? fm.contentsOfDirectory(
@@ -304,21 +316,30 @@ public actor PackageInstaller {
         ) else { return nil }
         let valid = entries.sorted { $0.lastPathComponent < $1.lastPathComponent }
             .filter { Self.isPackageEntry($0, insideResolvedPath: dirBase) }
-        // The pkg path is gated by a Team-ID match but NOT a bundle-id match, so a
-        // disk image carrying several pkgs from the same Team (a vendor suite, or a
-        // bundled helper) could otherwise have us open the *wrong* product just
-        // because its filename sorts first. Prefer a pkg whose filename references the
-        // app we're actually updating; fall back to the alphabetical-first valid pkg
-        // when nothing matches (single-pkg images, or names that don't line up).
-        let needle = appName.lowercased().replacingOccurrences(of: " ", with: "")
-        if !needle.isEmpty,
-           let matched = valid.first(where: {
-               $0.lastPathComponent.lowercased().replacingOccurrences(of: " ", with: "")
-                   .contains(needle)
-           }) {
-            return matched
+        guard valid.count > 1 else { return valid.first }
+
+        func normalized(_ value: String) -> String {
+            value.lowercased().unicodeScalars
+                .filter(CharacterSet.alphanumerics.contains)
+                .map(String.init).joined()
         }
-        return valid.first
+
+        let needle = normalized(appName)
+        guard !needle.isEmpty else { return nil }
+        let names = valid.map { ($0, normalized($0.deletingPathExtension().lastPathComponent)) }
+
+        let exact = names.filter { $0.1 == needle }
+        if exact.count == 1 { return exact[0].0 }
+        if exact.count > 1 { return nil }
+
+        let versioned = names.filter { _, candidate in
+            guard candidate.hasPrefix(needle) else { return false }
+            let suffix = candidate.dropFirst(needle.count)
+            guard let first = suffix.first else { return false }
+            if first.isNumber { return true }
+            return first == "v" && suffix.dropFirst().first?.isNumber == true
+        }
+        return versioned.count == 1 ? versioned[0].0 : nil
     }
 
     static func isPackageEntry(_ url: URL, insideResolvedPath dirBase: String) -> Bool {

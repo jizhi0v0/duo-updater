@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.28
+
+**Signed Sparkle updates that arrive as installer packages now work.** A few apps publish a perfectly valid, cryptographically signed `.pkg` instead of an app archive. DuoUpdater offered those updates, downloaded them, and then tried to unpack the package as though it were a zip — an update that could never finish. They now go to macOS's own Installer, after DuoUpdater verifies both the Sparkle signature on the download and the installer identity inside it.
+
+**A disk image containing several installers is no longer allowed to make a guess.** Some vendors put a main installer, helpers, and sibling products in one image. Matching on a fragment of the filename could pick a helper simply because its name contained the app's name. DuoUpdater now opens a package only when it is the sole choice or can be identified uniquely; otherwise it stops and leaves the decision to you instead of presenting the wrong installer.
+
+**The App Store helper is more tightly scoped to your login session.** The privileged helper now takes the account identity directly from macOS's authenticated XPC connection and refuses a request whose claimed user does not match. Normal App Store updates behave exactly as before; the change closes off a signed client from redirecting the helper into another user's session.
+
 ## 0.3.27
 
 **Release notes show their formatting instead of its punctuation.** Notes that come from a project's GitHub release were rendered exactly as written — `**bold**` with the asterisks, links as `[text](url)`. Bold is now bold and links are links. This affected every app whose updates come from GitHub, which is most of the open-source ones.

@@ -180,6 +180,9 @@ public actor InstallCoordinator {
 
         case .installer:
             progress(.downloading(fraction: 0))
+            let verifyDownload: @Sendable (URL) throws -> Void = { file in
+                try Self.verifyInstallerDownload(file, for: result, progress: progress)
+            }
             let opened = try await permits.withDownloadPermit {
                 // Cancelled while parked on the permit: don't start the fetch.
                 try Task.checkCancellation()
@@ -188,6 +191,7 @@ public actor InstallCoordinator {
                     installedApp: result.app.path,
                     headers: result.remote?.downloadHeaders ?? [:],
                     onStage: progress,
+                    verifyDownload: verifyDownload,
                     beforeOpen: beforeInstallerOpen)
             }
             await releaseAfterDownload()
@@ -228,6 +232,28 @@ public actor InstallCoordinator {
                 download: { try await self.sparkle.download($0, onStage: $1) },
                 apply: { _ = try await self.sparkle.apply($0, download: $1, onStage: $2) })
         }
+    }
+
+    /// Source-specific proof over a package route's original download. A Sparkle
+    /// package bypasses SparkleInstaller's archive path, but must not bypass Gate 1:
+    /// EdDSA covers the exact enclosure (the outer DMG when the pkg is wrapped).
+    /// PackageInstaller independently verifies the selected inner package's
+    /// Developer ID Installer signature and Team ID before opening it.
+    static func verifyInstallerDownload(
+        _ file: URL,
+        for result: UpdateResult,
+        progress: @Sendable (InstallStage) -> Void
+    ) throws {
+        guard result.remote?.sourceName == "Sparkle" else { return }
+        guard let key = result.app.sparkleEdPublicKey, !key.isEmpty else {
+            throw SignatureVerifier.VerifyError.edSignatureMissing
+        }
+        progress(.verifyingSignature)
+        let data = try Data(contentsOf: file, options: .mappedIfSafe)
+        try SignatureVerifier.verifyEdSignature(
+            fileData: data,
+            signatureBase64: result.remote?.edSignature,
+            publicKeyBase64: key)
     }
 
     /// The shape both archive routes share: download under a download permit,

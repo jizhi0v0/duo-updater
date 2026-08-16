@@ -64,6 +64,20 @@ public enum UpdatePolicy {
         // release; this is the only branch here that turns a *previously offered*
         // one-click off, and only the user can turn it back on (row context menu).
         if elevationDeclined(result, settings: settings, environment: environment) { return false }
+        // An input method is installed, not copied: the vendor's installer
+        // REGISTERS the bundle as an input source with the system (WeType's
+        // installer binary carries "Registered input source from
+        // /Library/Input Methods/WeType.app, result:"), and identity established
+        // there is what the app's own settings and device pairing hang off.
+        // Swapping the bundle underneath performs none of that.
+        //
+        // Withdrawn one-click, 2026-08-16: a user lost WeType settings during the
+        // work that added it, and their device list ended up with the same Mac
+        // listed twice — the fingerprint of a second copy registering itself as a
+        // new device. This is a whole-CLASS refusal rather than a per-recipe one
+        // because the next input method would be just as easy to get wrong, and
+        // the damage is the user's dictionary, not a failed download.
+        if isInputMethod(result.app.path) { return false }
         // The app's own updater already staged *the latest* for relaunch — installing
         // it ourselves would re-download the same bytes and collide with the pending
         // ShipIt swap. Defer to Relaunch. (A staged build that *trails* the latest
@@ -167,6 +181,15 @@ public enum UpdatePolicy {
     /// sets (meaning "send the user to download by hand"). Conflating the two
     /// made detection-only apps (LM Studio, Chrome, …) wrongly show an installer
     /// button pointed at their version-check endpoint.
+    /// Whether a bundle lives in one of macOS's input-method directories, whose
+    /// contents are registered with the system rather than merely present on disk.
+    /// Matched on the containing directory, not the app, so it holds for any
+    /// vendor — `/Library/Input Methods` (system-wide) and its per-user twin.
+    public static func isInputMethod(_ bundle: URL) -> Bool {
+        let parent = bundle.deletingLastPathComponent().standardizedFileURL.path
+        return parent.hasSuffix("/Library/Input Methods")
+    }
+
     public static func requiresInstaller(
         _ result: UpdateResult,
         environment: InstallEnvironment

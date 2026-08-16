@@ -7,7 +7,9 @@ release and the Sparkle appcast, so this file is the single source of truth for
 
 ## Unreleased
 
-**微信输入法 (WeType) goes back to report-only, and 0.3.25's one-click for it is withdrawn.** A user lost their WeType settings during the work that added it. What we can show is that the copy in the protected system folder was never actually replaced by DuoUpdater — but an older copy of the input method was installed and launched elsewhere on that machine while testing, inside the window where the settings were rewritten. Nothing here is proven, and an input method's dictionary is not something to test a theory on: WeType now reports its version and sends you to the vendor's installer, which registers the input source with the system — a step that replacing the app bundle skips.
+**Input methods are never updated by replacing the app, and 微信输入法 (WeType)'s one-click from 0.3.25 is withdrawn.** A user lost their WeType settings during the work that added it. What we can show is that the copy in the protected system folder was never actually replaced by DuoUpdater — but an older copy of the input method was installed and launched elsewhere on that machine while testing, inside the window where the settings were rewritten. Nothing here is proven, and an input method's dictionary is not something to test a theory on: WeType now reports its version and sends you to the vendor's installer, which registers the input source with the system — a step that replacing the app bundle skips, and the likely reason that Mac then appeared twice in WeType's own device list.
+
+The refusal is not specific to WeType: DuoUpdater no longer offers a one-click for anything installed as an input method, whichever vendor it comes from. Those apps still report their versions and link out.
 
 ## 0.3.26
 

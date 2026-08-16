@@ -774,3 +774,35 @@ struct LaggingRemoteVersionTests {
         }
     }
 }
+
+// MARK: - Input methods are never swapped in place
+
+/// An input method is registered with the system by the vendor's installer, and
+/// the app's own settings and device pairing hang off that registration. Swapping
+/// the bundle does none of it. Withdrawn one-click, 2026-08-16: a user lost their
+/// WeType settings and their device list showed the same Mac twice — a second
+/// copy having registered itself as a new device.
+///
+/// The refusal is by LOCATION, not by bundle id: the next input method must not
+/// need this incident repeated to be safe.
+@Test func inputMethodsAreNeverOfferedAnInPlaceInstall() {
+    for parent in ["/Library/Input Methods", NSHomeDirectory() + "/Library/Input Methods"] {
+        let app = fixtureApp(path: parent + "/Fixture.app")
+        // A Vendor result that would otherwise be a perfectly good one-click.
+        let result = fixtureResult(source: "Vendor", vendorInstallerKind: .zip, app: app)
+        #expect(!UpdatePolicy.canAutoInstall(
+            result, settings: defaultSettings(), environment: environment()),
+            "an input method in \(parent) must stay detection-only")
+        #expect(UpdatePolicy.isInputMethod(app.path))
+    }
+}
+
+/// The guard keys on the containing directory, so an ordinary app — including one
+/// whose name merely mentions input — is untouched by it.
+@Test func ordinaryAppsAreUnaffectedByTheInputMethodGuard() {
+    let app = fixtureApp(path: "/Applications/Input Methods Helper.app")
+    #expect(!UpdatePolicy.isInputMethod(app.path))
+    #expect(UpdatePolicy.canAutoInstall(
+        fixtureResult(source: "Vendor", vendorInstallerKind: .zip, app: app),
+        settings: defaultSettings(), environment: environment()))
+}

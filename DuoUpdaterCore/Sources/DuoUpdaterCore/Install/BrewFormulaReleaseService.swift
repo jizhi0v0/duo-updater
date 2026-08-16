@@ -130,7 +130,7 @@ public actor BrewFormulaReleaseService {
         process.executableURL = URL(fileURLWithPath: brew)
         // `--` terminates option parsing so a name can never be misread as a flag.
         process.arguments = ["info", "--json=v2", "--formula", "--", name]
-        var env = ProcessInfo.processInfo.environment
+        var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         process.environment = env

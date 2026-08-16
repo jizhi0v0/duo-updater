@@ -94,7 +94,7 @@ public actor BrewFormulaService {
         process.arguments = ["outdated", "--formula", "--json=v2"]
         // Never let a check trigger an implicit `brew update` (slow, writes the
         // user's tap). Keep it a pure read of the local state.
-        var env = ProcessInfo.processInfo.environment
+        var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         process.environment = env
@@ -198,7 +198,7 @@ public actor BrewFormulaService {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: brew)
         process.arguments = arguments
-        var env = ProcessInfo.processInfo.environment
+        var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         process.environment = env
@@ -366,7 +366,7 @@ public actor BrewFormulaService {
         // NOT set HOMEBREW_NO_AUTO_UPDATE here: on the real upgrade, letting brew
         // refresh first is correct — it's what a terminal `brew upgrade` does, and
         // it ensures we land the genuine latest even if the pre-count was stale.
-        var env = ProcessInfo.processInfo.environment
+        var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
         process.environment = env

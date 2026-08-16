@@ -39,7 +39,7 @@ public actor HomebrewInstaller {
         // We deliberately allow auto-update here: our detection reads the fresh
         // formulae.brew.sh API, so the local tap must refresh first or brew
         // might install a stale version (or think it's already current).
-        var env = ProcessInfo.processInfo.environment
+        var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
         process.environment = env

@@ -16,14 +16,15 @@ private let fixturePath = "/Applications/Fixture.app"
 private func fixtureApp(
     sparkleEdKey: String? = nil,
     sparkleFeedURL: URL? = nil,
-    isiOSAppOnMac: Bool = false
+    isiOSAppOnMac: Bool = false,
+    path: String = fixturePath
 ) -> InstalledApp {
     InstalledApp(
         name: "Fixture",
         bundleID: "com.example.fixture",
         shortVersion: "1.0",
         buildVersion: "1",
-        path: URL(fileURLWithPath: fixturePath),
+        path: URL(fileURLWithPath: path),
         isMASApp: false,
         isiOSAppOnMac: isiOSAppOnMac,
         sparkleFeedURL: sparkleFeedURL,
@@ -58,17 +59,21 @@ private func fixtureResult(
 
 private func defaultSettings(
     strategy: AppStoreUpdateStrategy = .full,
-    policy: VendorInstallPolicy = .deferWhenRunning
+    policy: VendorInstallPolicy = .deferWhenRunning,
+    declinedElevation: Set<String> = []
 ) -> UpdateSettings {
-    UpdateSettings(appStoreUpdateStrategy: strategy, vendorInstallPolicy: policy)
+    UpdateSettings(appStoreUpdateStrategy: strategy, vendorInstallPolicy: policy,
+                   declinedElevationKeys: declinedElevation)
 }
 
 private func environment(
     helperEnabled: Bool = false,
     running: Set<String> = [],
-    staged: [String: StagedSelfUpdate] = [:]
+    staged: [String: StagedSelfUpdate] = [:],
+    elevationRequired: Set<String> = []
 ) -> InstallEnvironment {
-    InstallEnvironment(isHelperEnabled: helperEnabled, runningAppPaths: running, stagedSelfUpdates: staged)
+    InstallEnvironment(isHelperEnabled: helperEnabled, runningAppPaths: running,
+                       stagedSelfUpdates: staged, elevationRequiredPaths: elevationRequired)
 }
 
 private func staged(_ version: String) -> StagedSelfUpdate {
@@ -612,5 +617,160 @@ struct LaggingRemoteVersionTests {
             installedBuild: nil,
             remoteShort: "2.0",
             remoteBuild: nil)) == nil)
+    }
+}
+
+// MARK: - The administrator-prompt tri-state
+
+/// An install we cannot write to (an input method under `/Library/Input Methods`,
+/// a root-owned `/Applications`) can only be replaced behind an administrator
+/// prompt. The row's behaviour is deliberately three-valued, and each of the three
+/// is pinned here because the wrong two-valued collapse is tempting in both
+/// directions: demoting every such app up front denies a working one-click nobody
+/// declined, and never remembering a refusal re-raises the password panel on every
+/// release the user already said no to.
+@Suite struct ElevatedInstallGateTests {
+
+    /// An app whose location needs elevation, offered as a normal Sparkle EdDSA
+    /// one-click. `elevationRequired` is what the host observed from the filesystem.
+    private func elevatedResult(path: String = fixturePath) -> UpdateResult {
+        fixtureResult(
+            source: "Sparkle",
+            edSignature: "sig",
+            app: fixtureApp(sparkleEdKey: "key", path: path))
+    }
+
+    private func declinedKey(_ path: String = fixturePath) -> Set<String> {
+        [InstallPreferenceKey.preferenceKey(path)]
+    }
+
+    // MARK: never asked
+
+    @Test func neverAskedKeepsTheUpdateButton() {
+        let result = elevatedResult()
+        let environment = environment(elevationRequired: [fixturePath])
+        #expect(UpdatePolicy.requiresElevatedInstall(result, environment: environment),
+                "the host reported this path as needing elevation")
+        #expect(!UpdatePolicy.elevationDeclined(result, settings: defaultSettings(), environment: environment),
+                "needing a password is not the same as having refused one")
+        #expect(UpdatePolicy.canAutoInstall(result, settings: defaultSettings(), environment: environment),
+                "an app the user was never asked about must still offer Update")
+    }
+
+    // MARK: declined
+
+    @Test func decliningTheAdministratorPromptRetiresTheOneClick() {
+        let result = elevatedResult()
+        let environment = environment(elevationRequired: [fixturePath])
+        let settings = defaultSettings(declinedElevation: declinedKey())
+        #expect(UpdatePolicy.elevationDeclined(result, settings: settings, environment: environment))
+        #expect(!UpdatePolicy.canAutoInstall(result, settings: settings, environment: environment),
+                "a refused prompt must not be re-raised on the next release")
+    }
+
+    @Test func clearingTheDeclineRestoresTheOneClick() {
+        let result = elevatedResult()
+        let environment = environment(elevationRequired: [fixturePath])
+        #expect(UpdatePolicy.canAutoInstall(result, settings: defaultSettings(declinedElevation: []),
+                                            environment: environment),
+                "there must be a way back: an emptied decline set re-offers Update")
+    }
+
+    // MARK: both halves are load-bearing
+
+    @Test func aDeclineOnlyBitesWhereElevationIsActuallyNeeded() {
+        let result = elevatedResult()
+        // Same recorded decline, but the app now sits somewhere writable — e.g. it
+        // moved from a root-owned location to `~/Applications`. A stale flag must
+        // not keep suppressing a one-click that no longer needs a password, with
+        // nothing in the UI to explain it.
+        let writable = environment(elevationRequired: [])
+        #expect(!UpdatePolicy.elevationDeclined(result, settings: defaultSettings(declinedElevation: declinedKey()),
+                                                 environment: writable))
+        #expect(UpdatePolicy.canAutoInstall(result, settings: defaultSettings(declinedElevation: declinedKey()),
+                                            environment: writable))
+    }
+
+    // MARK: keyed per install path, not per bundle id
+
+    @Test func decliningOneCopyDoesNotSilenceASiblingSharingItsBundleID() {
+        // Both fixtures carry `com.example.fixture` on purpose: several installed
+        // apps legitimately share a bundle id (the Toolbox-managed Android Studio
+        // channels, Thunderbird stable/esr), and a bundle-id key would collapse
+        // them so one refusal hid every copy.
+        let sibling = "/Applications/Fixture Beta.app"
+        let result = elevatedResult(path: sibling)
+        let environment = environment(elevationRequired: [fixturePath, sibling])
+        let settings = defaultSettings(declinedElevation: declinedKey())  // the OTHER copy
+        #expect(!UpdatePolicy.elevationDeclined(result, settings: settings, environment: environment))
+        #expect(UpdatePolicy.canAutoInstall(result, settings: settings, environment: environment))
+    }
+
+    @Test func elevationIsMatchedOnThisExactInstall() {
+        let result = elevatedResult()
+        #expect(!UpdatePolicy.requiresElevatedInstall(
+            result, environment: environment(elevationRequired: ["/Applications/Other.app"])),
+                "another app's location says nothing about this one")
+    }
+
+    /// Entries written before preferences moved to per-path keys are stored under
+    /// the bundle id. Honoured on read for the same reason ignore honours them —
+    /// otherwise a refusal silently expires and the panel comes back.
+    @Test func aLegacyBundleIDDeclineIsStillHonoured() {
+        let result = elevatedResult()
+        let legacy: Set<String> = [InstallPreferenceKey.preferenceKey("com.example.fixture")]
+        #expect(UpdatePolicy.elevationDeclined(
+            result, settings: defaultSettings(declinedElevation: legacy),
+            environment: environment(elevationRequired: [fixturePath])))
+    }
+
+    // MARK: the gate only ever subtracts
+
+    @Test func theGateNeverTurnsAnUninstallableAppIntoAnInstallableOne() {
+        // Detection-only (no installer kind) and an unsigned-feed `.pkg`: both are
+        // refused for reasons that have nothing to do with elevation, and must stay
+        // refused whether or not a decline is recorded.
+        let cases: [(name: String, result: UpdateResult)] = [
+            (name: "detection-only vendor app",
+             result: fixtureResult(source: "Vendor", vendorInstallerKind: nil)),
+            (name: "unsigned Sparkle feed pointing at a pkg",
+             result: fixtureResult(source: "Sparkle",
+                                   downloadURL: URL(string: "https://example.com/fixture.pkg"))),
+        ]
+        for c in cases {
+            for declined in [Set<String>(), declinedKey()] {
+                let actual = UpdatePolicy.canAutoInstall(
+                    c.result,
+                    settings: defaultSettings(declinedElevation: declined),
+                    environment: environment(elevationRequired: [fixturePath]))
+                #expect(actual == false, "\(c.name): must stay uninstallable (declined: \(!declined.isEmpty))")
+            }
+        }
+    }
+}
+
+// MARK: - Recognising a dismissed administrator prompt
+
+/// `osascript … with administrator privileges` reports a dismissed password panel
+/// as AppleScript error `-128`. Telling that apart from a real failure is what
+/// makes the decline recordable instead of a red error the user caused on purpose.
+@Suite struct AuthorizationDeclineDetectionTests {
+
+    @Test func aDismissedPromptIsRecognisedAndAFailureIsNot() {
+        let cases: [(name: String, stderr: String, expected: Bool)] = [
+            (name: "the literal osascript cancellation",
+             stderr: "0:0: execution error: User canceled. (-128)", expected: true),
+            (name: "a localized cancellation still carries the code",
+             stderr: "0:0: execution error: 使用者已取消。 (-128)", expected: true),
+            (name: "an English cancellation without the code",
+             stderr: "User canceled.", expected: true),
+            (name: "a genuine failure must not be mistaken for a refusal",
+             stderr: "mv: rename /Applications/Fixture.app: Operation not permitted", expected: false),
+            (name: "empty stderr is not a refusal",
+             stderr: "", expected: false),
+        ]
+        for c in cases {
+            #expect(InPlaceSwap.isAuthorizationDeclined(c.stderr) == c.expected, "\(c.name)")
+        }
     }
 }

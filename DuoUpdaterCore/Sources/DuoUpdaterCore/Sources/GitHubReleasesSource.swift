@@ -719,6 +719,50 @@ public enum GitHubReleaseRegistry {
             owner: "qbittorrent", repo: "qBittorrent",
             versionPattern: #"^release-([0-9]+(?:\.[0-9]+)+)$"#),
 
+        // Hidden Bar — the app DOES carry a Sparkle feed
+        // (`SUFeedURL = api.amore.computer/v1/apps/com.dwarvesv.minimalbar/appcast.xml`),
+        // which is why it looks covered from the outside and isn't: fetched
+        // 2026-08-16 the feed answers 200 with a well-formed `<channel>` — title,
+        // link, description — and **no `<item>` at all**. `SparkleAppcastSource`
+        // finds nothing, returns nil, and the row falls through to here as
+        // "unknown" with nothing failing anywhere. An empty feed is exactly the
+        // shape a broken recipe can't be told from a healthy one, so the version
+        // comes from the tags instead, which are real (`v1.10`).
+        //
+        // One-click verified 2026-08-16 by unpacking `Hidden-Bar-v1.10-macos.zip`:
+        // `Hidden Bar.app`, com.dwarvesv.minimalbar, 1.10, universal, Team
+        // W777S7V8TN (Dwarves Foundation Company Limited), notarized Developer ID.
+        GitHubReleaseRule(
+            bundleID: "com.dwarvesv.minimalbar",
+            owner: "dwarvesf", repo: "hidden",
+            installAssetPattern: #"^Hidden-Bar-v[0-9.]+-macos\.zip$"#,
+            installerKind: .zip),
+
+        // XQuartz — ships as a pkg, so this takes the system-installer route the
+        // Office/AweSun packages use (`UpdatePolicy.requiresInstaller` already
+        // covers `"GitHub"` + `.pkg`): we download the official package and hand it
+        // to macOS, which prompts for the administrator password itself. Nothing
+        // here swaps a bundle — X11 installs far more than `XQuartz.app`
+        // (`/opt/X11`, launchd jobs), and an in-place app swap would leave all of
+        // it stale.
+        //
+        // The installed app lives in `/Applications/Utilities`, which the scanner
+        // covers. Verified 2026-08-16 against the real 2.8.6 pkg (122,035,963 B):
+        // `pkgutil --check-signature` reports "Developer ID Installer: Apple Inc. -
+        // XQuartz (NA574AWV7E)", notarized and timestamped, and its `Distribution`
+        // declares `org.xquartz.X11` at version 2.8.6 — the same id the installed
+        // bundle reports.
+        //
+        // Tags are `XQuartz-2.8.6`; the release also carries `.dSYMS.tar.bz2` and
+        // `.sha256sum`/`.sha512sum` siblings, so the asset pattern is anchored to
+        // the exact pkg name rather than "the first thing that looks like a build".
+        GitHubReleaseRule(
+            bundleID: "org.xquartz.X11",
+            owner: "XQuartz", repo: "XQuartz",
+            versionPattern: #"^XQuartz-([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^XQuartz-[0-9.]+\.pkg$"#,
+            installerKind: .pkg),
+
         // UTM — virtualiser. The repo publishes v5.x as PRERELEASES while stable
         // sits at v4.7.5, so `usePrereleases` stays false: `/releases/latest` is
         // exactly the stable train, and a v5 prerelease can never be pushed at a

@@ -51,23 +51,29 @@ struct ArchitectureGateTests {
     }
 
     @Test func verifyThrowsWithBothArchitecturesNamed() throws {
-        // Uses a real bundle on this machine so the Mach-O reading path is
-        // exercised, not just the pure decision.
-        let duo = URL(fileURLWithPath: "/Applications/DuoUpdater.app")
-        try #require(FileManager.default.fileExists(atPath: duo.path))
-        let archs = SignatureVerifier.executableArchitectures(ofAppAt: duo)
-        #expect(!archs.isEmpty, "should read at least one slice from a real bundle")
+        // Reads a real Mach-O so the parsing path is exercised, not just the pure
+        // decision — and reads the test runner itself rather than some app that
+        // happens to be installed, so this holds on a bare checkout or CI box.
+        let runner = Bundle.main.bundleURL
+        let archs = SignatureVerifier.executableArchitectures(ofAppAt: runner)
+        try #require(!archs.isEmpty, "should read at least one slice from the test runner")
 
         // It passes on the machine it was built for…
+        let host = HostArch.current
         #expect(throws: Never.self) {
             try SignatureVerifier.verifyRunnableArchitecture(
-                appAt: duo, host: .arm64, canRunIntel: false)
+                appAt: runner, host: host, canRunIntel: false)
         }
-        // …and is refused on the other one, with the failure naming both sides.
+
+        // …and the failure names both sides. A universal runner can run
+        // anywhere, so there is no "other" host to refuse it on; only a
+        // single-slice build reaches the throw.
+        let other: HostArch = host == .arm64 ? .x86_64 : .arm64
+        guard archs.count == 1 else { return }
         do {
             try SignatureVerifier.verifyRunnableArchitecture(
-                appAt: duo, host: .x86_64, canRunIntel: true)
-            Issue.record("an arm64-only bundle must not pass the gate on Intel")
+                appAt: runner, host: other, canRunIntel: true)
+            Issue.record("a single-architecture bundle must not pass the gate on the other host")
         } catch let error as SignatureVerifier.VerifyError {
             let text = error.errorDescription ?? ""
             #expect(text.contains("arm64"))

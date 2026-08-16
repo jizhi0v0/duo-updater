@@ -2541,6 +2541,35 @@ public enum VendorProbeRegistry {
                     #"url:\s*(https://storage\.googleapis\.com/\S+\.zip)"#),
                 kind: .zip,
                 checksumPattern: #"sha512:\s*([A-Za-z0-9+/=]+)"#)),
+
+        // AnyDesk — the plain-text changelog its own Homebrew cask reads for
+        // livecheck, and the one thing on that host a script can fetch: the
+        // download page and `anydesk.com/en/changelog/mac-os` both answer 403 with
+        // a Cloudflare challenge even under a full Safari UA, which is why an
+        // earlier sweep wrote this app off entirely. `changelog.txt` answers 200.
+        //
+        // Every platform's releases share the file, newest first, as
+        // `22.07.2026 - 9.7.3 (macOS)`. The `(macOS)` anchor is load-bearing and
+        // `selectHighest` must stay off: Windows is on a HIGHER number (9.7.14 the
+        // day this was written), so an unanchored or highest-wins pattern reports
+        // a version this app will never install.
+        //
+        // Verified 2026-08-16 on the downloaded dmg: AnyDesk.app 9.7.3,
+        // com.philandro.anydesk, Developer ID `AnyDesk Software GmbH (KHRWM533LU)`
+        // — the same Team as the installed copy — notarized and accepted by
+        // `spctl`. The dmg URL carries no version, but it does not need to: it
+        // always serves the release this file names first (its `Last-Modified`,
+        // 2026-07-22, matches that entry's date).
+        VendorProbeRecipe(
+            bundleID: "com.philandro.anydesk",
+            url: URL(string: "https://download.anydesk.com/changelog.txt")!,
+            mode: .responseBody,
+            versionPattern: #"([0-9]+(?:\.[0-9]+)+)\s+\(macOS\)"#,
+            downloadURL: URL(string: "https://anydesk.com/en/downloads/mac-os"),
+            changelogURL: URL(string: "https://anydesk.com/en/changelog/mac-os"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(URL(string: "https://download.anydesk.com/anydesk.dmg")!),
+                kind: .dmg)),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

@@ -1267,7 +1267,6 @@ private let weChatFeed = #"""
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.tencent.inputmethod.wetype" })
     #expect(recipe.versionIsBuild)  // compared against CFBundleVersion, not 2.2.2
-    #expect(recipe.install == nil)  // detection-only: see the recipe's note (permissions)
 
     let body = """
     [{"id":120,"title":"x for iOS","release_date":1,"version":"3.4.0","content":"","content_html":"<h2>iOS</h2>","platform":1,"download_url":""},\
@@ -1282,6 +1281,57 @@ private let weChatFeed = #"""
     // highest-version pattern over the same body takes iOS's 3.4.0.
     #expect(VendorProbeRecipe.highestVersion(
         from: body, pattern: #""version":"([0-9][^"]*)""#) == "3.4.0")
+}
+
+// WeType's install spec builds the CDN URL of the REAL app from the version and
+// build it already reads off the stub installer's filename. The page links only
+// the ~3 MB stub, so nothing on it can be used as the download; the 319 MB
+// `WeType_<ver>_<build>.zip` is what the app's own updater fetches.
+//
+// Fixture: the verbatim `appInfo.mac` slice of the real 2026-08-16 page — the
+// shape that matters, because every link on it is a *stub* whose filename is the
+// only carrier of the pair, and one of them (`maxwx_new_installer`) is a hashed
+// path with no version in it at all.
+@Test func weTypeInstallSpecBuildsTheRealZipURLFromVersionAndBuild() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.tencent.inputmethod.wetype" })
+    let install = try #require(recipe.install)
+    #expect(install.kind == .zip)
+    // No SHA-512 anywhere in this chain (the appcast signs with EdDSA, the
+    // install_info json publishes md5) — so no checksum pattern, and the trust is
+    // the code-signature/Team/bundle-id/arch gates in `VendorInstaller`.
+    #expect(install.checksumPattern == nil)
+
+    let body = #"{"appInfo":{"mac":{"macwx_work_install_guide":"https://download.z.weixin.qq.com/app/mac/2.2.2/WeTypeInstaller_2.2.2_647_h.zip",""#
+        + #""InstallInfo":"https://download.weread.qq.com/app/wxkb/mac/2.2.2/install_info_2.2.2_647.json",""#
+        + #""wread_reader_sidebar":"https://download.z.weixin.qq.com/app/mac/2.2.2/WeTypeInstaller_2.2.2_647_i.zip",""#
+        + #""maxwx_new_installer":"https://download.z.weixin.qq.com/app/mac/6e4413479e2dc6f4dc9549e.zip"}}}"#
+
+    guard case let .bodyTemplate(template, fields) = install.urlSource else {
+        Issue.record("expected bodyTemplate install source"); return
+    }
+    var filled = template
+    for (i, pattern) in fields.enumerated() {
+        let value = try #require(VendorProbeRecipe.extractVersion(from: body, pattern: pattern))
+        filled = filled.replacingOccurrences(of: "{\(i)}", with: value)
+    }
+    // Exactly the `<enclosure url>` of the vendor's own appcast for 2.2.2/647
+    // (`…/mac/2.2.2/updates_2.2.2_647.xml`), and the `zip_download_url` of its
+    // install_info json. Both were fetched and compared on 2026-08-16.
+    #expect(filled == "https://download.weread.qq.com/app/wxkb/mac/2.2.2/WeType_2.2.2_647.zip")
+
+    // The version and the build must come from the SAME filename. Reading the
+    // version off the *page's* release objects instead would pair a build with
+    // the oldest macOS release's version (the page is oldest-first) and build a
+    // URL for an app that was never published.
+    #expect(fields.count == 2)
+    #expect(fields[0] == recipe.displayVersionPattern)
+    #expect(fields[1] == recipe.versionPattern)
+
+    // A page that stopped naming the installer resolves to no URL at all — the
+    // recipe degrades to detection-only rather than guessing a path.
+    let noInstaller = #"{"appInfo":{"mac":{"maxwx_new_installer":"https://download.z.weixin.qq.com/app/mac/6e4413479e2dc6f4dc9549e.zip"}}}"#
+    #expect(VendorProbeRecipe.extractVersion(from: noInstaller, pattern: fields[0]) == nil)
 }
 
 // Alcove — the old public endpoint (update.tryalcove.com) went NXDOMAIN, so the

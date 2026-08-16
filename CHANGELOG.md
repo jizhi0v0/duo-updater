@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## Unreleased
+
+**微信输入法 (WeType) goes back to report-only, and 0.3.25's one-click for it is withdrawn.** A user lost their WeType settings during the work that added it. What we can show is that the copy in the protected system folder was never actually replaced by DuoUpdater — but an older copy of the input method was installed and launched elsewhere on that machine while testing, inside the window where the settings were rewritten. Nothing here is proven, and an input method's dictionary is not something to test a theory on: WeType now reports its version and sends you to the vendor's installer, which registers the input source with the system — a step that replacing the app bundle skips.
+
 ## 0.3.26
 
 **Three more apps now report their updates, and all three install with one click.** Hidden Bar, XQuartz and EasyFind were sitting in the list as a grey "unknown".

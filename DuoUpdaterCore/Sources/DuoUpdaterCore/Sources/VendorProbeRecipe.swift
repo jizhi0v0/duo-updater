@@ -1360,51 +1360,35 @@ public enum VendorProbeRegistry {
         // If a future page ever drops the installer links, the build pattern misses
         // and the probe degrades to "unknown" — never to a wrong version.
         //
-        // INSTALL: the changelog page is the only place that says what the latest
-        // release IS, but it links only the ~3 MB installer *stub*. The real app
-        // lives on the CDN the app's own updater downloads from, at a path built
-        // from the version and the build — the two values this recipe already
-        // extracts from the same installer filename:
-        //   download.weread.qq.com/app/wxkb/mac/<ver>/WeType_<ver>_<build>.zip
-        // Verified 2026-08-16 against the vendor's own Sparkle appcast for TWO
-        // releases (`…/mac/<ver>/updates_<ver>_<build>.xml`): its `<enclosure url>`
-        // is exactly this shape for 2.2.2/647 (319,952,454 B, HEAD 200, and the
-        // zip is a notarized `WeType.app` Team 88L2Q4487U == the installed copy)
-        // and for 2.2.1/620. The same page also links an
-        // `install_info_<ver>_<build>.json` that states the identical URL plus an
-        // md5, and the bytes we fetched match it. So the URL is *constructed*,
-        // not read from either document — they add nothing we don't already have,
-        // and asking for one would only add a second endpoint that can break.
+        // DETECTION ONLY — the one-click was built, shipped in 0.3.25, and then
+        // WITHDRAWN on 2026-08-16 after a user lost their WeType settings during
+        // that work. State the evidence plainly, because it does not add up to a
+        // proof and the decision does not depend on one:
+        //   * `/Library/Input Methods/WeType.app` was never replaced by us — its
+        //     mtime is still the vendor install's (Aug 6) and it is 2.2.2/647.
+        //     The elevated swap never actually ran on this machine.
+        //   * What DID run, during the one-click work, was a staged OLDER copy
+        //     (2.2.1) placed in `~/Applications`, installed over, and the running
+        //     input method restarted twice. `~/Library/Application Support/WeType/`
+        //     `userDict` and `mmkv` were rewritten inside that window.
+        // So the swap is not convicted; a second, older copy of an input method
+        // registering itself is. Either way the blast radius is the user's own
+        // dictionary and settings, and this class of app is not one to learn on.
         //
-        // Two appcast traps, kept because they are what makes construction the
-        // right call: the generic `mac/updates.xml` is a frozen first-generation
-        // file still advertising 1.4.1/519 from 2025-07, and a per-version appcast
-        // is never rewritten when a newer release ships (2.2.1's still describes
-        // 2.2.1). Either one *states* a release; neither points at the latest.
-        // The changelog page has to stay the version source.
+        // The real reason a bundle swap was always the wrong shape here: the
+        // vendor's own `WeTypeInstaller.app` does more than copy. Its binary
+        // carries `Registered input source from /Library/Input Methods/WeType.app,
+        // result:` — it REGISTERS the input source with the system, and whatever
+        // per-version migration sits alongside that. Replacing the bundle skips
+        // every one of those steps.
         //
-        // The version and build filling the template come from the SAME first
-        // match, and today the page carries installer links for the current
-        // release only. If it ever carried two generations, `selectHighest` would
-        // compare the newer build while the template built the older URL — the
-        // same first-match coupling `displayVersionPattern` already rests on, and
-        // the failure mode is a row that stays red, never a wrong app: gates 2-5
-        // (signature, Team, bundle id, arch) all pass for any genuine WeType
-        // build, but the installed build simply wouldn't reach the detected one.
-        //
-        // NO CHECKSUM. The appcast publishes an EdDSA `sparkle:edSignature`, and
-        // WeType's Info.plist does carry an `SUPublicEDKey` — but `VendorInstaller`
-        // verifies SHA-512 only, and there is no SHA anywhere in this chain.
-        // Wiring EdDSA in would mean a second endpoint plus a new verifier; the
-        // download is gated by code signature + Team ID + bundle id + arch either
-        // way, which is what every other vendor install here rests on.
-        //
-        // FIRST ELEVATED INSTALL in the registry: `/Library/Input Methods` is
-        // root-owned, so `InPlaceSwap.needsElevatedReplace` is true and the swap
-        // goes through the administrator prompt (`UpdatePolicy.requiresElevatedInstall`,
-        // with the decline remembered per install path). Nothing here is
-        // WeType-specific — the tri-state is what makes an unwritable location
-        // installable at all.
+        // Kept for whoever revisits this: the real payload (not the ~3 MB stub the
+        // page links) is `download.weread.qq.com/app/wxkb/mac/<ver>/WeType_<ver>_<build>.zip`,
+        // constructible from the version+build this recipe already extracts, and
+        // verified in 2026-08 to be a notarized `WeType.app`, Team 88L2Q4487U.
+        // The missing piece is not the URL — it is doing the vendor installer's
+        // registration/migration, which nothing here does.
+
         VendorProbeRecipe(
             bundleID: "com.tencent.inputmethod.wetype",
             url: URL(string: "https://z.weixin.qq.com/web/change-log/macos")!,
@@ -1414,15 +1398,7 @@ public enum VendorProbeRegistry {
             changelogURL: URL(string: "https://z.weixin.qq.com/web/change-log/macos"),
             selectHighest: true,
             versionIsBuild: true,
-            displayVersionPattern: #"WeTypeInstaller_([0-9.]+)_[0-9]+_[a-z]\.zip"#,
-            install: VendorInstallSpec(
-                urlSource: .bodyTemplate(
-                    "https://download.weread.qq.com/app/wxkb/mac/{0}/WeType_{0}_{1}.zip",
-                    fields: [
-                        #"WeTypeInstaller_([0-9.]+)_[0-9]+_[a-z]\.zip"#,
-                        #"WeTypeInstaller_[0-9.]+_([0-9]+)_[a-z]\.zip"#,
-                    ]),
-                kind: .zip)),
+            displayVersionPattern: #"WeTypeInstaller_([0-9.]+)_[0-9]+_[a-z]\.zip"#),
 
         // WeChat (微信, 官网版) — Tencent's flagship messenger, installed from the
         // official site (Developer ID, no MAS receipt, no SUFeedURL in Info.plist).

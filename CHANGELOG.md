@@ -5,9 +5,13 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
-## Unreleased
+## 0.3.27
 
-**Input methods are never updated by replacing the app, and 微信输入法 (WeType)'s one-click from 0.3.25 is withdrawn.** A user lost their WeType settings during the work that added it. What we can show is that the copy in the protected system folder was never actually replaced by DuoUpdater — but an older copy of the input method was installed and launched elsewhere on that machine while testing, inside the window where the settings were rewritten. Nothing here is proven, and an input method's dictionary is not something to test a theory on: WeType now reports its version and sends you to the vendor's installer, which registers the input source with the system — a step that replacing the app bundle skips, and the likely reason that Mac then appeared twice in WeType's own device list.
+**Release notes show their formatting instead of its punctuation.** Notes that come from a project's GitHub release were rendered exactly as written — `**bold**` with the asterisks, links as `[text](url)`. Bold is now bold and links are links. This affected every app whose updates come from GitHub, which is most of the open-source ones.
+
+**Arrow-keying down the app list no longer crawls.** Holding an arrow key felt like moving one row at a time through mud, and long release notes made it worse. Three things were doing it: a permission check on every app in the list ran again for every row drawn; the notes for whichever app you passed through were re-parsed on each keypress; and a long set of notes — one project's runs to 54,000 characters — was laid out in a single pass, which froze the window for about two seconds. The check is now computed once per list, parsed notes are kept, and long notes are laid out only as far as you have scrolled. Worst measured stall went from ~2.1 s to under 0.6 s, and what remains is the deliberate pause before the detail pane catches up rather than a freeze.
+
+**Input methods are never updated by replacing the app, and 微信输入法 (WeType)'s one-click from 0.3.25 is withdrawn.** Settings were lost on a Mac during the work that added it. What we can show is that the copy in the protected system folder was never actually replaced by DuoUpdater — but an older copy of the input method was installed and launched elsewhere on that machine while testing, inside the window where the settings were rewritten. Nothing here is proven, and an input method's dictionary is not something to test a theory on: WeType now reports its version and sends you to the vendor's installer, which registers the input source with the system — a step that replacing the app bundle skips, and the likely reason that Mac then appeared twice in WeType's own device list.
 
 The refusal is not specific to WeType: DuoUpdater no longer offers a one-click for anything installed as an input method, whichever vendor it comes from. Those apps still report their versions and link out.
 

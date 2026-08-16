@@ -1260,7 +1260,7 @@ private struct ChangelogEntriesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     ForEach(Array(changelog.entries.enumerated()), id: \.offset) { _, entry in
-                        ChangelogEntryView(entry: entry)
+                        ChangelogEntryView(entry: entry, syntax: changelog.itemSyntax)
                     }
                 }
                 .padding(16)
@@ -1311,7 +1311,7 @@ private struct ChangelogEntriesView: View {
                 .frame(width: cachedRailWidth)
             Divider()
             ScrollView {
-                ChangelogEntryView(entry: changelog.entries[index])
+                ChangelogEntryView(entry: changelog.entries[index], syntax: changelog.itemSyntax)
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
@@ -1327,7 +1327,7 @@ private struct ChangelogEntriesView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
                 ForEach(Array(changelog.entries.enumerated()), id: \.offset) { _, entry in
-                    ChangelogEntryView(entry: entry)
+                    ChangelogEntryView(entry: entry, syntax: changelog.itemSyntax)
                 }
             }
             .padding(16)
@@ -1462,6 +1462,9 @@ private struct TrafficPane: View {
 /// with date/build metadata underneath.
 private struct ChangelogEntryView: View {
     let entry: Changelog.Entry
+    /// Carried down from the `Changelog` so a bullet knows whether its text is
+    /// Markdown; see `rendered(_:syntax:)`.
+    var syntax: Changelog.ItemSyntax = .plain
 
     private var displayDate: String? {
         guard let date = entry.date else { return nil }
@@ -1517,8 +1520,28 @@ private struct ChangelogEntryView: View {
     private func noteRow(_ item: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("•").foregroundStyle(.secondary)
-            Text(item).fixedSize(horizontal: false, vertical: true)
+            Text(Self.rendered(item, syntax: syntax))
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// `Text(someString)` does NOT parse Markdown — SwiftUI only does that for
+    /// string *literals* — so a GitHub release body rendered this way showed the
+    /// user raw `**bold**` and `[text](url)`. Parse it explicitly when the
+    /// changelog says its items are Markdown, and only then: a page-scraped item
+    /// is plain prose where a stray `*` or `_` is a character the vendor typed,
+    /// not emphasis.
+    ///
+    /// `.inlineOnlyPreservingWhitespace` keeps this to inline spans — a change
+    /// line is one bullet, and full-document parsing would swallow a leading `#`
+    /// or `-` into block structure the bullet already provides. A malformed line
+    /// falls back to itself rather than disappearing.
+    static func rendered(_ item: String, syntax: Changelog.ItemSyntax) -> AttributedString {
+        guard syntax == .markdown else { return AttributedString(item) }
+        return (try? AttributedString(
+            markdown: item,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(item)
     }
 
     /// A vendor-embedded release illustration. Served from the changelog image cache

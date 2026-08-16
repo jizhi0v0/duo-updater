@@ -34,7 +34,9 @@ public enum GitHubMarkdownParser {
         }
         guard !items.isEmpty else { return nil }
         let entry = Changelog.Entry(version: version, date: date, items: items)
-        return Changelog(entries: [entry])
+        // The body is Markdown and the items keep their inline syntax — say so,
+        // or the renderer prints `**bold**` and `[text](url)` verbatim.
+        return Changelog(entries: [entry], itemSyntax: .markdown)
     }
 
     // MARK: - Internals

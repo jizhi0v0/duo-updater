@@ -13,8 +13,35 @@ import Foundation
 public struct Changelog: Codable, Sendable, Hashable {
     public let entries: [Entry]
 
-    public init(entries: [Entry]) {
+    /// What the change lines in `items` are written in, so the renderer knows
+    /// whether to parse them or print them.
+    ///
+    /// This is declared, never sniffed. A GitHub release body is Markdown and
+    /// keeps its inline syntax through `GitHubMarkdownParser` (`**bold**`,
+    /// `[text](url)`); everything scraped from a web page has already had its
+    /// tags stripped by `ChangelogExtractor` and is plain prose. Rendering the
+    /// first as plain text shows raw `**` and bracketed URLs to the user;
+    /// rendering the second as Markdown would eat any stray `*` or `_` a vendor
+    /// wrote literally. Neither is recoverable from the text itself.
+    public enum ItemSyntax: String, Codable, Sendable, Hashable {
+        case plain
+        case markdown
+    }
+
+    /// Defaults to `.plain`: every producer except the GitHub one strips markup
+    /// before it gets here, and an older cached `Changelog` (this type is
+    /// `Codable` and lands on disk) decodes without the key.
+    public let itemSyntax: ItemSyntax
+
+    public init(entries: [Entry], itemSyntax: ItemSyntax = .plain) {
         self.entries = entries
+        self.itemSyntax = itemSyntax
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        entries = try c.decode([Entry].self, forKey: .entries)
+        itemSyntax = try c.decodeIfPresent(ItemSyntax.self, forKey: .itemSyntax) ?? .plain
     }
 
     /// One released version's worth of notes.

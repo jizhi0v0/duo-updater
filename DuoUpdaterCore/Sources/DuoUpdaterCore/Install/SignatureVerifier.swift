@@ -2,8 +2,13 @@ import Foundation
 import CryptoKit
 import Security
 
-/// The three security gates a downloaded Sparkle update must pass before we
-/// will install it. Any failure aborts the install.
+/// The gates a downloaded update must pass before we will install it. Any
+/// failure aborts the install.
+///
+/// Gates 1–4 are about trust (EdDSA signature, code signature, Team ID, bundle
+/// ID); gate 5 is about liveness — whether the bundle can launch on this Mac at
+/// all. Callers pick the gates that apply to their route: the Sparkle installer
+/// runs all five, the vendor installer runs 2–5 (no feed signature to check).
 public enum SignatureVerifier {
 
     public enum VerifyError: LocalizedError {
@@ -222,9 +227,14 @@ public enum SignatureVerifier {
     /// name-based — we choose an asset before we have it — and names lie. Real
     /// cases from the registry: `Goose.zip` and `MarkEdit-<ver>-apple-silicon.dmg`
     /// are arm64-only but carry no marker the asset picker reads, so they were
-    /// classified as safe for either Mac. This gate makes that class of mistake
-    /// impossible to *install*: whatever the filename said, the bundle either has
-    /// a slice this machine can run or the swap is refused.
+    /// classified as safe for either Mac. Whatever the filename said, the bundle
+    /// either has a slice this machine can run or the swap is refused.
+    ///
+    /// Scope: this covers the two routes that swap in a bundle *we* picked by
+    /// filename — VendorInstaller and SparkleInstaller. The pkg route
+    /// (`PackageInstaller`) hands the file to Installer.app and never sees an
+    /// .app to read, so it stays gated on signature + Team ID only; Homebrew and
+    /// the Mac App Store pick their own architecture and need no gate here.
     static func executableArchitectures(ofAppAt url: URL) -> Set<Int> {
         guard let bundle = Bundle(url: url),
               let archs = bundle.executableArchitectures else { return [] }
@@ -238,6 +248,12 @@ public enum SignatureVerifier {
     /// we can PROVE is wrong for the machine; it is not a proof of correctness, so
     /// an unreadable header must not start refusing updates that install fine
     /// today.
+    ///
+    /// The worrying version of "unreadable" — a bundle whose main executable is
+    /// missing or truncated — cannot reach this gate: both make the *whole*
+    /// bundle read as unsigned, so gate 2 refuses them first (measured
+    /// 2026-08-16 on a copy of DuoUpdater.app with its executable emptied and
+    /// with it deleted: `errSecCSUnsigned`, -67062, in both cases).
     static func canRun(architectures: Set<Int>, on host: HostArch, canRunIntel: Bool) -> Bool {
         guard !architectures.isEmpty else { return true }
         let arm = architectures.contains(NSBundleExecutableArchitectureARM64)
@@ -268,9 +284,10 @@ public enum SignatureVerifier {
             default: return "arch \(arch)"
             }
         }.sorted().joined(separator: " + ")
+        // `names` is never empty here: an empty set is runnable by definition
+        // above, so this line is only reached with slices we could read.
         throw VerifyError.unrunnableArchitecture(
-            built: names.isEmpty ? "an unreadable architecture" : names,
-            host: host == .arm64 ? "arm64" : "x86_64")
+            built: names, host: host == .arm64 ? "arm64" : "x86_64")
     }
 
 }

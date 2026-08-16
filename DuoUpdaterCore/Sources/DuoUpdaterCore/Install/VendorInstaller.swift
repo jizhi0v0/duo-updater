@@ -6,11 +6,16 @@ import CryptoKit
 ///
 /// A vendor download is the same channel the app was installed from, so this
 /// never mixes channels. There's no EdDSA feed signature to lean on, so the
-/// trust comes from two gates, both mandatory:
+/// trust comes from the gates below, of which only the checksum is optional:
 ///   1. (optional) SHA-512 match when the feed publishes one — transport integrity.
 ///   2. **Code signature valid AND identical Team ID to the installed app** — the
 ///      real guarantee that the download is the same vendor's notarized build,
 ///      not a substituted bundle.
+///   3. **Bundle identifier match**, so a vendor's *other* app can't take this
+///      one's place.
+/// One further gate is not about trust but about liveness: the bundle must have
+/// a Mach-O slice this Mac can launch (assets are chosen by filename, and
+/// filenames lie). See `SignatureVerifier`.
 ///
 /// Pipeline: download → (checksum) → unpack → signature/Team gate → swap bundle
 /// in place. Any gate failure throws and leaves the installed app untouched (the

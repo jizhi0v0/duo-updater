@@ -50,34 +50,73 @@ struct ArchitectureGateTests {
         #expect(SignatureVerifier.canRun(architectures: [], on: .x86_64, canRunIntel: false))
     }
 
-    @Test func verifyThrowsWithBothArchitecturesNamed() throws {
-        // Reads a real Mach-O so the parsing path is exercised, not just the pure
-        // decision — and reads the test runner itself rather than some app that
-        // happens to be installed, so this holds on a bare checkout or CI box.
-        let runner = Bundle.main.bundleURL
-        let archs = SignatureVerifier.executableArchitectures(ofAppAt: runner)
-        try #require(!archs.isEmpty, "should read at least one slice from the test runner")
+    /// A bundle whose executable is a real (if minimal) Mach-O built for exactly
+    /// `cputype`. 32 bytes of header is all `executableArchitectures` reads, so
+    /// this needs no compiler and no app installed on the machine — the test
+    /// then holds identically on a bare checkout, on CI, and on either
+    /// architecture.
+    private func bundle(cputype: Int32, subtype: Int32, in dir: URL) throws -> URL {
+        var header = Data()
+        func word(_ value: UInt32) {
+            withUnsafeBytes(of: value.littleEndian) { header.append(contentsOf: $0) }
+        }
+        word(0xfeed_facf)                        // MH_MAGIC_64
+        word(UInt32(bitPattern: cputype))
+        word(UInt32(bitPattern: subtype))
+        word(2)                                  // MH_EXECUTE
+        word(0); word(0); word(0x0020_0085); word(0)   // ncmds/sizeofcmds/flags/reserved
 
-        // It passes on the machine it was built for…
-        let host = HostArch.current
+        let app = dir.appendingPathComponent("Fixture-\(cputype).app")
+        let macOS = app.appendingPathComponent("Contents/MacOS")
+        try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
+        try header.write(to: macOS.appendingPathComponent("fixture"))
+        let info: [String: String] = [
+            "CFBundleExecutable": "fixture",
+            "CFBundleIdentifier": "test.fixture.\(cputype)",
+        ]
+        try PropertyListSerialization
+            .data(fromPropertyList: info, format: .xml, options: 0)
+            .write(to: app.appendingPathComponent("Contents/Info.plist"))
+        return app
+    }
+
+    @Test func readsRealMachOSlicesAndNamesBothSidesWhenRefusing() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("arch-gate-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let armApp = try bundle(cputype: 0x0100_000c, subtype: 0, in: dir)
+        let intelApp = try bundle(cputype: 0x0100_0007, subtype: 3, in: dir)
+
+        // The slices come back out of the Mach-O, not out of the filename.
+        #expect(SignatureVerifier.executableArchitectures(ofAppAt: armApp) == [arm])
+        #expect(SignatureVerifier.executableArchitectures(ofAppAt: intelApp) == [intel])
+
+        // Each runs on its own machine…
         #expect(throws: Never.self) {
             try SignatureVerifier.verifyRunnableArchitecture(
-                appAt: runner, host: host, canRunIntel: false)
+                appAt: armApp, host: .arm64, canRunIntel: false)
+        }
+        #expect(throws: Never.self) {
+            try SignatureVerifier.verifyRunnableArchitecture(
+                appAt: intelApp, host: .x86_64, canRunIntel: false)
+        }
+        // …and an Intel build still runs on Apple silicon while translation lasts.
+        #expect(throws: Never.self) {
+            try SignatureVerifier.verifyRunnableArchitecture(
+                appAt: intelApp, host: .arm64, canRunIntel: true)
         }
 
-        // …and the failure names both sides. A universal runner can run
-        // anywhere, so there is no "other" host to refuse it on; only a
-        // single-slice build reaches the throw.
-        let other: HostArch = host == .arm64 ? .x86_64 : .arm64
-        guard archs.count == 1 else { return }
+        // The refusal names the build and the machine, so the log says which way
+        // round the mismatch went.
         do {
             try SignatureVerifier.verifyRunnableArchitecture(
-                appAt: runner, host: other, canRunIntel: true)
-            Issue.record("a single-architecture bundle must not pass the gate on the other host")
+                appAt: armApp, host: .x86_64, canRunIntel: true)
+            Issue.record("an arm64-only bundle must not pass the gate on Intel")
         } catch let error as SignatureVerifier.VerifyError {
             let text = error.errorDescription ?? ""
-            #expect(text.contains("arm64"))
-            #expect(text.contains("x86_64"))
+            #expect(text.contains("built for arm64"))
+            #expect(text.contains("Mac runs x86_64"))
         } catch {
             Issue.record("unexpected error: \(error)")
         }

@@ -2723,6 +2723,104 @@ public enum VendorProbeRegistry {
         // compared with the other, so a recipe would report a permanent update.
         // (Homebrew's cask uses 5071136 as its own bookkeeping version, which is
         // what makes this look workable from the outside.)
+
+        // MARK: - 2026-08-16 group D (directory indexes)
+        //
+        // All three below are the same shape: a vendor's plain Apache/MirrorBrain
+        // directory listing of version folders, sorted ALPHABETICALLY (not
+        // numerically) by every one of these servers — confirmed for Opera by
+        // diffing the default listing against an explicit `?C=N;O=A` (name,
+        // ascending) request: identical. Alphabetical sort makes `selectHighest`
+        // mandatory (`"100.0…" < "99.0…"` as strings, so first-in-document is
+        // often not the newest), and — for exactly the same reason — makes it UNSAFE
+        // to build the install/download URL from ANY single match (first OR last):
+        // once a version component crosses a digit-width boundary (Opera's 3-digit
+        // major overtaking 2-digit, pgAdmin's major eventually reaching v10 and
+        // sorting ahead of v9.x, a LibreOffice patch someday reaching two digits)
+        // the alphabetically-first-or-last entry silently stops being the numeric
+        // maximum, and a template built from it would download an OLDER build than
+        // the one just reported as available. `VendorInstallSpec.URLSource` has no
+        // "take the true max of every match" mode — only first (`bodyPattern`/
+        // `bodyTemplate`) or last (`bodyPatternLast`) — so none of it can be made
+        // to agree with `selectHighest`'s numeric max safely. All three are
+        // therefore detection-only, even though every one of them mounts to a
+        // genuine, notarized, Developer-ID-signed app (verified below) — the
+        // blocker is this URL-construction gap, not the artifact.
+
+        // Opera — `get.geo.opera.com` is Opera's own CDN mirror index, one folder
+        // per released version (`134.0.5954.56/`), each holding a `mac/` dir with
+        // `Opera_<version>_Setup.dmg`. The `href="…/"` anchor matches nothing but
+        // version folders on this page (checked: every 4-dot-separated number in
+        // the raw body is inside an `href`, none appear elsewhere — no stray dates
+        // or sizes share that shape here).
+        //
+        // VERSION SCHEME TRAP: verified 2026-08-16 by mounting
+        // `Opera_134.0.5954.56_Setup.dmg` — it holds `Opera.app`, notarized
+        // Developer ID (Team A2P9LX4JPN, "Opera Software AS"), spctl accepted. But
+        // `CFBundleShortVersionString` is only `"134.0"` while `CFBundleVersion` is
+        // `"134.0.5954.56"` — exactly what the folder name carries. Comparing the
+        // 4-part folder version against the 2-part marketing string would read
+        // every release as a phantom major upgrade forever, so this is a build
+        // comparison (`versionIsBuild`), not a marketing one.
+        VendorProbeRecipe(
+            bundleID: "com.operasoftware.Opera",
+            url: URL(string: "https://get.geo.opera.com/pub/opera/desktop/")!,
+            mode: .responseBody,
+            versionPattern: #"href="([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/""#,
+            downloadURL: URL(string: "https://www.opera.com/download"),
+            changelogURL: URL(string: "https://blogs.opera.com/desktop/"),
+            selectHighest: true,
+            versionIsBuild: true),
+
+        // LibreOffice — `download.documentfoundation.org/libreoffice/stable/` is a
+        // MirrorBrain index of version folders (`26.2.5/`), the mac artifact sitting
+        // two levels deeper (`26.2.5/mac/aarch64/LibreOffice_26.2.5_MacOS_aarch64.dmg`)
+        // — a second-level fetch this recipe shape can't reach, which is the other
+        // half of why this stays detection-only (see the group note above for the
+        // ordering half). `href="X.Y.Z/"` matches only version folders; the page
+        // carries no other dotted-numeric hrefs.
+        //
+        // VERSION SCHEME TRAP (the one flagged in the brief): the index publishes
+        // 3-segment versions (`26.2.5`) but the installed bundle reports 4
+        // (`CFBundleShortVersionString` AND `CFBundleVersion` both `26.2.5.2`,
+        // verified 2026-08-16 by mounting the aarch64 dmg — notarized Developer ID,
+        // Team 7P5S3ZLCN7, "The Document Foundation", spctl accepted). Comparing a
+        // bare `26.2.5` against `26.2.5.2` is safe either way `VersionComparator`
+        // treats missing trailing components as `0`: it reads the installed copy as
+        // (at worst) equal, never triggers a phantom update. The only blind spot is
+        // a pure 4th-component hotfix under an unchanged 3-segment folder, which
+        // this index can't see at all — same acceptable direction as OneDrive's
+        // first-three-components recipe above.
+        VendorProbeRecipe(
+            bundleID: "org.libreoffice.script",
+            url: URL(string: "https://download.documentfoundation.org/libreoffice/stable/")!,
+            mode: .responseBody,
+            versionPattern: #"href="([0-9]+\.[0-9]+\.[0-9]+)/""#,
+            downloadURL: URL(string: "https://www.libreoffice.org/download/download-libreoffice/"),
+            changelogURL: URL(string: "https://www.libreoffice.org/release-notes/"),
+            selectHighest: true),
+
+        // pgAdmin4 — `ftp.postgresql.org/pub/pgadmin/pgadmin4/` lists both version
+        // folders (`v9.17/`) and non-version siblings (`apt/`, `autoupdate/`,
+        // `snapshots/`, `yum/`, `README`) — none of the siblings carry a digit
+        // immediately after the `v`, so anchoring on `href="v([0-9.]+)/"` takes only
+        // the releases; `snapshots/` in particular is a trap left alone deliberately
+        // (dev builds, not what a stable-channel install should ever be pointed at).
+        // The mac artifact is one level deeper (`v9.17/macos/pgadmin4-9.17-arm64.dmg`),
+        // which is what makes this the same shape as LibreOffice above.
+        //
+        // Verified 2026-08-16 by mounting `pgadmin4-9.17-arm64.dmg`: `pgAdmin 4.app`,
+        // CFBundleShortVersionString exactly `"9.17"` (matches the probe 1:1, no
+        // build/marketing mismatch here), notarized Developer ID, Team TCHGL2R7C5
+        // ("David Page"), spctl accepted.
+        VendorProbeRecipe(
+            bundleID: "org.pgadmin.pgadmin4",
+            url: URL(string: "https://ftp.postgresql.org/pub/pgadmin/pgadmin4/")!,
+            mode: .responseBody,
+            versionPattern: #"href="v([0-9]+\.[0-9]+)/""#,
+            downloadURL: URL(string: "https://www.pgadmin.org/download/pgadmin-4-macos/"),
+            changelogURL: URL(string: "https://www.pgadmin.org/docs/pgadmin4/latest/release_notes.html"),
+            selectHighest: true),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

@@ -1700,9 +1700,25 @@ private struct ReleaseNotesText: View {
     /// a different shape than the vendor wrote.
     static func split(_ text: String) -> [String] {
         guard text.count > singleChunkLimit else { return [text] }
+        // NORMALIZE FIRST. GitHub release bodies come over the API with CRLF —
+        // Headlamp's v0.44.0 body has 535 `\r\n` and ZERO bare `\n\n`, so
+        // splitting on the blank line straight away found nothing and returned the
+        // whole 54 KB as one chunk. The log said `1 chunks` and the stall stayed
+        // exactly as it was; that is what made this visible rather than silent.
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
         var chunks: [String] = []
         var current = ""
-        for paragraph in text.components(separatedBy: "\n\n") {
+        for paragraph in normalized.components(separatedBy: "\n\n") {
+            // A paragraph that is itself enormous (a table, or notes written with
+            // no blank lines at all) still has to be broken up, or one chunk is
+            // the whole document again — the bug above, one level down.
+            if paragraph.count > targetChunkSize * 3 {
+                if !current.isEmpty { chunks.append(current); current = "" }
+                chunks.append(contentsOf: splitOnLines(paragraph))
+                continue
+            }
             current += current.isEmpty ? paragraph : "\n\n" + paragraph
             if current.count >= targetChunkSize {
                 chunks.append(current)
@@ -1711,6 +1727,21 @@ private struct ReleaseNotesText: View {
         }
         if !current.isEmpty { chunks.append(current) }
         return chunks.isEmpty ? [text] : chunks
+    }
+
+    /// Last-resort break for a single paragraph with no blank lines in it.
+    private static func splitOnLines(_ paragraph: String) -> [String] {
+        var chunks: [String] = []
+        var current = ""
+        for line in paragraph.components(separatedBy: "\n") {
+            current += current.isEmpty ? line : "\n" + line
+            if current.count >= targetChunkSize {
+                chunks.append(current)
+                current = ""
+            }
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
     }
 
     /// NSAttributedString's HTML parser is documented main-thread-only, so this

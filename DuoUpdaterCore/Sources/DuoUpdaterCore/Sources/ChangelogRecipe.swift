@@ -32,6 +32,12 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// installed/offered build — no version-pin to bump, no index-ordering guess.
     /// nil for the common case (a single fixed `source`). See
     /// `resolvedSource(forVersion:)` for the substitution + channel normalization.
+    ///
+    /// `{major}` is also substituted, with the version's first component, for
+    /// vendors who publish one page per MAJOR release listing every build in it
+    /// (Opera's `changelog-for-134`). Same reason as `{version}`: a fixed URL
+    /// there would silently stop covering the installed build at the next major,
+    /// and majors ship every few weeks.
     public let sourceTemplate: String?
 
     /// Response shape. `.html` runs the regexes against the raw markup; `.json`
@@ -186,7 +192,13 @@ public struct ChangelogRecipe: Codable, Sendable {
     public func resolvedSource(forVersion version: String?) -> URL {
         guard let sourceTemplate, let version, !version.isEmpty else { return source }
         let token = Self.urlVersionToken(for: version, channel: channel)
-        let urlString = sourceTemplate.replacingOccurrences(of: "{version}", with: token)
+        var urlString = sourceTemplate.replacingOccurrences(of: "{version}", with: token)
+        if urlString.contains("{major}") {
+            // First component only — the version is already channel-normalized, so
+            // an ESR/beta suffix can't leak in here.
+            let major = token.split(separator: ".").first.map(String.init) ?? token
+            urlString = urlString.replacingOccurrences(of: "{major}", with: major)
+        }
         return URL(string: urlString) ?? source
     }
 
@@ -1384,6 +1396,35 @@ public enum ChangelogRecipeRegistry {
         // Licensed users get full structured notes from `AlcoveUpdateSource`, which
         // reads the `sections` array on the authenticated api.tryalcove.com endpoint.
         // Re-add a recipe here only if Alcove publishes notes in a parseable form.)
+
+        // Opera — one page per MAJOR version, listing every build in it newest
+        // first: `blogs.opera.com/desktop/changelog-for-134/`. Each entry is
+        //   <h4><strong> 134.0.5954.56 &#8211; 2026-08-12 <a …>blog post</a></strong></h4>
+        //   <ul><li>CHR-9416 Updating Chromium…</li>…</ul>
+        // (captured verbatim 2026-08-16). The separator is an HTML-entity en dash,
+        // not a hyphen, and the trailing "blog post" link sits INSIDE the
+        // `<strong>` — both are why the pattern stops at the date instead of
+        // matching to `</strong>`.
+        //
+        // `{major}`, not `{version}`: the page covers a whole major line, and
+        // Opera ships a new major every few weeks, so a fixed URL would quietly
+        // stop covering the installed build. `source` is the current page, used
+        // only if no version is ever supplied.
+        //
+        // The page also carries developer/beta builds of the same major (the
+        // `…5960.0` shapes). That is fine and deliberate: entries are listed
+        // newest-first and the workbench shows the ones at the top; pinning to a
+        // single build would need a per-build page, which Opera doesn't publish.
+        ChangelogRecipe(
+            bundleID: "com.operasoftware.Opera",
+            source: URL(string: "https://blogs.opera.com/desktop/changelog-for-134/")!,
+            entryPattern:
+                #"<h4[^>]*>\s*<strong>\s*(?<version>[0-9]+(?:\.[0-9]+)+)\s*(?:&#8211;|–|-)\s*"#
+                + #"(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})[^<]*(?:<a[^>]*>[^<]*</a>)?\s*</strong>\s*</h4>"#
+                + #"\s*(?<body><ul>.*?</ul>)"#,
+            itemPatterns: [#"<li>(?<item>.*?)</li>"#],
+            channel: .stable,
+            sourceTemplate: "https://blogs.opera.com/desktop/changelog-for-{major}/"),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

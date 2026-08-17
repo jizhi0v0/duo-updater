@@ -23,6 +23,15 @@ final class AppUpdater {
         controller.updater.canCheckForUpdates
     }
 
+    /// Whether Sparkle downloads and installs our own updates silently instead of
+    /// putting up the "a new version is available" alert. Sparkle owns the storage
+    /// (it persists to the `SUAutomaticallyUpdate` user default), so this is a
+    /// straight pass-through rather than a mirror in `Preferences` that could drift.
+    var installsUpdatesAutomatically: Bool {
+        get { controller.updater.automaticallyDownloadsUpdates }
+        set { controller.updater.automaticallyDownloadsUpdates = newValue }
+    }
+
     /// Start Sparkle once the app is ready for its own update checks.
     func start() {
         guard !didStart else { return }

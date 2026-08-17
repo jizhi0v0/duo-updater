@@ -3,6 +3,12 @@ import SwiftUI
 /// Duo Updater's own version and self-update check — separate from the managed
 /// app list, which is what the rest of the window is about.
 struct UpdatesSettingsPage: View {
+    /// Mirrors Sparkle's `automaticallyDownloadsUpdates` for the toggle. Seeded in
+    /// `.task` rather than in the initializer because reading it touches the
+    /// main-actor updater, and written straight back on change — Sparkle keeps the
+    /// stored value, so this state is only ever a view of it.
+    @State private var installsAutomatically = false
+
     private var currentVersionLine: String {
         let info = Bundle.main.infoDictionary ?? [:]
         let shortVersion = (info["CFBundleShortVersionString"] as? String)?
@@ -31,8 +37,11 @@ struct UpdatesSettingsPage: View {
             }
 
             SettingsCard(
-                footer: "Automatic checks are enabled too, but this button forces an immediate check."
+                footer: "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you; turned on, it is downloaded and installed in the background and takes effect the next time Duo Updater restarts — no prompt, no clicking.\n\nThe button below forces a check right now either way."
             ) {
+                Toggle("Install Duo Updater's own updates silently", isOn: $installsAutomatically)
+                    .settingsRow()
+                SettingsDivider()
                 HStack {
                     Text("Check now")
                     Spacer(minLength: 12)
@@ -44,6 +53,10 @@ struct UpdatesSettingsPage: View {
                 }
                 .settingsRow()
             }
+        }
+        .task { installsAutomatically = AppUpdater.shared.installsUpdatesAutomatically }
+        .onChange(of: installsAutomatically) { _, on in
+            AppUpdater.shared.installsUpdatesAutomatically = on
         }
     }
 

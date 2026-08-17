@@ -17,6 +17,22 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.32</title>
+            <pubDate>Mon, 17 Aug 2026 20:35:50 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.32</link>
+            <sparkle:version>42</sparkle:version>
+            <sparkle:shortVersionString>0.3.32</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Docker updated to the version it said it would.** Docker publishes its releases in an order that puts an older one first, and Duo Updater read the newest version from that list while taking the download link from the top of it — so it fetched 574 MB, kept a backup, installed 4.86.0 over the 4.86.0 already there, and went on offering 4.87.0. Downloads are now matched to the version each entry declares for itself, whatever order a vendor lists them in.
+
+**An update that changed nothing is no longer reported as done.** The check that runs immediately after installing already knew Docker hadn't moved; it was overruled by a success message and an "Updated ✓". When an update we applied ourselves leaves the app exactly as it was, that is now shown as the failure it is, naming what was installed and what is still on disk.
+
+**Silent self-updates no longer wait for an empty screen.** With the switch turned on, Duo Updater would hold its own update back while any of its windows were open — which, for a window people leave open, meant waiting until the app was quit. Open windows no longer delay it (macOS brings them back after the restart), while a Duo Updater you are actually using still does: it waits for the keyboard and mouse to go quiet before restarting itself.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.32/DuoUpdater-0.3.32-macos.zip" length="10460069" type="application/octet-stream" sparkle:edSignature="GOS2UIHQZcEmNMBpszjZe5Cho/VRv9SEulEAqsAo93f6Caadb/vLUYxEJj2NOVWzSwluxqLXaC/NTfZpT5QjAw=="/>
+        </item>
+        <item>
             <title>0.3.31</title>
             <pubDate>Mon, 17 Aug 2026 17:52:48 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.31</link>
@@ -45,22 +61,6 @@
 **Eight more AI desktop apps are tracked.** OpenCode Desktop and OpenChamber follow their GitHub releases; Wispr Flow, Granola, Comet, Windsurf, AionUi and Msty are read from their vendors' own version endpoints.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.30/DuoUpdater-0.3.30-macos.zip" length="10451974" type="application/octet-stream" sparkle:edSignature="yru+PQH/9+9n8Ogz3GkMQdDgKuQAreO+e3tkmnoVGY0LHfectAIfYcGcG4QArT3sPX9m4aRQ9xUvR+CVwAPeBg=="/>
-        </item>
-        <item>
-            <title>0.3.29</title>
-            <pubDate>Mon, 17 Aug 2026 01:25:06 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.29</link>
-            <sparkle:version>39</sparkle:version>
-            <sparkle:shortVersionString>0.3.29</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Installer packages stay the same package from verification to macOS Installer.** DuoUpdater now seals the selected installer before closing or replacing any existing Installer window, checks it again immediately before opening, and refuses the hand-off if another local process changed the file in between. This preserves Sparkle's signature guarantee all the way to the package you see in Installer without making the menu-bar UI pause while large packages are checked.
-
-**Multi-installer disk images handle more real-world package names without guessing.** Versioned beta, release-candidate, Apple Silicon, and universal package names are recognized when they identify one unique product, while similarly named helpers and sibling products remain excluded. Older bundle-style macOS installer packages are supported by the same integrity checks.
-
-**Failed installer downloads are cleaned up immediately.** A bad signature, unreadable disk image, cancelled download, or rejected package no longer leaves a full installer sitting in temporary storage until the next day's cleanup.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.29/DuoUpdater-0.3.29-macos.zip" length="10445637" type="application/octet-stream" sparkle:edSignature="BoU5mWskbVcBFe6Mj7BhjgvVUohVjcJgX4GEFg8/bpoZ2Mit2SV42GaSEXf1d03x/C9OSwJH37Kd7Baon/ZQCQ=="/>
         </item>
     </channel>
 </rss>

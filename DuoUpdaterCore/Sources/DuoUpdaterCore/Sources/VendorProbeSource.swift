@@ -574,6 +574,13 @@ public struct VendorProbeSource: UpdateSource {
             else { return nil }
             return (Self.preferHTTPS(url), checksum)
 
+        case .bodyPatternHighestVersioned(let pattern):
+            guard
+                let raw = VendorProbeRecipe.highestVersionedURL(from: body, pattern: pattern),
+                let url = URL(string: raw)
+            else { return nil }
+            return (Self.preferHTTPS(url), checksum)
+
         case .bodyPatternRelative(let pattern, let base):
             guard
                 let raw = VendorProbeRecipe.extractVersion(from: body, pattern: pattern),

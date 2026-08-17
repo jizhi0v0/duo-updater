@@ -39,7 +39,23 @@ public struct VendorInstallSpec: Sendable {
         /// Like `bodyPattern`, but takes the LAST match — for feeds listed in
         /// ascending order, where the newest release is the final entry (e.g. the
         /// VLC appcast).
+        ///
+        /// Prefer `bodyPatternHighestVersioned` when the feed states each entry's
+        /// version next to its URL: "last in the document" is another bet on
+        /// ordering, just the opposite one.
         case bodyPatternLast(String)
+        /// Two capture groups — group 1 the URL, group 2 the version that same
+        /// entry declares — and the entry with the highest version wins, in any
+        /// document order.
+        ///
+        /// Use this for any feed that lists several releases and says which version
+        /// each download is. It is the only positional-independent option: with
+        /// `selectHighest` deciding the reported version by comparison while the URL
+        /// was chosen by position, the two can name different releases — the app
+        /// then downloads, backs up and installs a version it already has, reports
+        /// success, and goes on offering the update (measured on Docker's appcast,
+        /// which lists 4.86.0 ahead of 4.87.0).
+        case bodyPatternHighestVersioned(String)
         /// Capture group 1 is a *relative* path/filename; resolve it against
         /// `base` to form the absolute URL (e.g. Tailscale's JSON gives only the
         /// pkg filename).
@@ -374,6 +390,36 @@ public struct VendorProbeRecipe: Sendable {
     /// the *highest* version, not the first. Single-match bodies behave exactly
     /// like `extractVersion`. This is the right default for vendor probes —
     /// "first in the document" is not reliably "newest", but max-by-version is.
+    /// Pick a download by the version it declares about *itself*: group 1 is the
+    /// URL, group 2 the version that same entry carries, and the highest version
+    /// wins — whatever order the feed lists its entries in.
+    ///
+    /// Positional selection (`extractVersion`'s first match, `lastMatch`'s last) is
+    /// a bet on the vendor's ordering, and losing it is silent. Docker's appcast
+    /// lists 4.86.0 *before* 4.87.0: first-match downloaded the 4.86.0 image
+    /// (573976729 bytes, exactly that entry's `length`), installed it over the
+    /// 4.86.0 already on disk, and the row went on offering 4.87.0 — after 574 MB
+    /// of download and a 2.26 GB backup. Reading each candidate's own version takes
+    /// ordering out of the decision entirely.
+    public static func highestVersionedURL(from text: String, pattern: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        var best: (url: String, version: String)?
+        for match in regex.matches(in: text, options: [], range: range) {
+            // Both groups are required: a pattern that captures only the URL would
+            // otherwise silently degrade to "first match wins", which is the bug.
+            guard match.numberOfRanges > 2,
+                  let urlRange = Range(match.range(at: 1), in: text),
+                  let versionRange = Range(match.range(at: 2), in: text)
+            else { continue }
+            let candidate = (url: String(text[urlRange]), version: String(text[versionRange]))
+            if best == nil || VersionComparator.isNewer(candidate.version, than: best!.version) {
+                best = candidate
+            }
+        }
+        return best?.url
+    }
+
     public static func highestVersion(from text: String, pattern: String) -> String? {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         let range = NSRange(text.startIndex..., in: text)
@@ -1557,12 +1603,19 @@ public enum VendorProbeRegistry {
             // file as if it were the app. (Same trap that made the Sparkle parser
             // drop whole feeds — see `SparkleAppcastParser`.)
             //
+            // And the entry is chosen by the version it declares, not by position:
+            // this feed is NOT newest-first. On 2026-08-17 it listed 4.86.0 (build
+            // 236216) ahead of 4.87.0 (236836), so a first-match download fetched
+            // 4.86.0 over an installed 4.86.0 — 574 MB, a 2.26 GB backup, "install
+            // done", and the update still pending. `sparkle:shortVersionString` sits
+            // in the same tag as the URL, so the two can no longer disagree.
+            //
             // Verified 2026-08-09 on 4.85.0 (build 235549): `Docker.app` in the
             // image, bundle id com.docker.docker, Team 9BNSXJN65R, spctl "Notarized
             // Developer ID". 573 MB, arm64-specific feed path.
             install: VendorInstallSpec(
-                urlSource: .bodyPattern(
-                    #"<enclosure[^>]*url="(https://desktop\.docker\.com/[^"]+/Docker\.dmg)""#),
+                urlSource: .bodyPatternHighestVersioned(
+                    #"<enclosure[^>]*url="(https://desktop\.docker\.com/[^"]+/Docker\.dmg)"[^>]*sparkle:shortVersionString="([0-9][0-9.]*)""#),
                 kind: .dmg)),
 
         // LibreWolf — release tags, newest first; tag is "<firefox-version>-<packaging>"

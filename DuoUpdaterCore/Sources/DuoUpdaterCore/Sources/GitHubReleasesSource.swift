@@ -365,6 +365,41 @@ public struct GitHubReleasesSource: UpdateSource {
 /// the live Releases API to yield the app's current version.
 public enum GitHubReleaseRegistry {
     public static let rules: [GitHubReleaseRule] = [
+        // MARK: - AI desktop clients (verified 2026-08-17)
+
+        // OpenCode Desktop — the stable tag and the app's marketing/build versions
+        // are the same bare numeric value after stripping `v`. The release carries
+        // native arm64 and x64 dmgs; `installableAsset` selects the host-native one.
+        // Mounted arm64 dmg: ai.opencode.desktop, Team 5NZ4Q7NXJ4, notarized.
+        GitHubReleaseRule(
+            bundleID: "ai.opencode.desktop",
+            owner: "anomalyco", repo: "opencode",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^opencode-desktop-mac-(?:arm64|x64)\.dmg$"#,
+            installerKind: .dmg),
+
+        // OpenChamber — electron-builder publishes both architectures beside
+        // Windows/Linux/mobile artifacts. Keep the extension and mac token
+        // anchored; the architecture-aware selector chooses arm64 or x64.
+        // Mounted arm64 dmg: dev.openchamber.desktop, Team 5J7WJGPA2Q, notarized.
+        GitHubReleaseRule(
+            bundleID: "dev.openchamber.desktop",
+            owner: "openchamber", repo: "openchamber",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\.dmg$"#,
+            installerKind: .dmg),
+
+        // Jan ships a universal macOS zip whose app reports the release tag's
+        // version verbatim. Mounted/extracted zip: jan.ai.app, Team F8AH6NHVY5,
+        // notarized. Pin the desktop asset; the same release carries source and
+        // dependency archives plus Linux/Windows builds.
+        GitHubReleaseRule(
+            bundleID: "jan.ai.app",
+            owner: "janhq", repo: "jan",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^jan-mac-universal-[0-9.]+\.zip$"#,
+            installerKind: .zip),
+
         // Zed Stable — same repo, but stable ships as non-prerelease tags
         // (`vX.Y.Z`, no `-pre`). `usePrereleases: false` (default) reads
         // `/releases/latest`, which GitHub computes excluding prereleases, so it

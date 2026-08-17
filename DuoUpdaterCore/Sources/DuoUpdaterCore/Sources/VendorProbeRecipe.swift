@@ -2547,6 +2547,103 @@ public enum VendorProbeRegistry {
         // higher-priority SparkleAppcastSource handles it, and `SurgeChannel`
         // retargets that feed to the release/beta appcast per the user's choice.)
 
+        // MARK: - 2026-08-17 AI desktop apps
+
+        // Wispr Flow — official RELEASES.json, the same endpoint Homebrew uses.
+        // `currentRelease` is authoritative and matches both version fields in the
+        // mounted app (1.6.531). The feed is architecture-specific and the vendor
+        // publishes separate Intel/arm64 installers; VendorInstallSpec has no
+        // host-architecture substitution, so this stays detection-only rather
+        // than risking a cross-architecture swap. com.electron.wispr-flow, Team
+        // C9VQZ78H85, notarized; no SUFeedURL.
+        VendorProbeRecipe(
+            bundleID: "com.electron.wispr-flow",
+            url: URL(string: "https://dl.wisprflow.com/wispr-flow/darwin/arm64/RELEASES.json")!,
+            mode: .responseBody,
+            versionPattern: #"\"currentRelease\"\s*:\s*\"([0-9]+(?:\.[0-9]+)+)\""#,
+            downloadURL: URL(string: "https://wisprflow.ai/downloads")),
+
+        // Granola — its public latest-mac.yml redirects to a versioned CloudFront
+        // manifest. `version` equals both Info.plist version fields. The dmg path is
+        // deterministic from that exact resolved version and is universal, so it
+        // is safe for one-click. Mounted dmg: com.granola.app, Team QZ7DHHLN25,
+        // notarized. The manifest's sha512 is for the zip, not the dmg, so the
+        // signature/Team gate is the integrity check for this installer.
+        VendorProbeRecipe(
+            bundleID: "com.granola.app",
+            url: URL(string: "https://api.granola.ai/v1/check-for-update/latest-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"(?m)^version:\s*([0-9]+(?:\.[0-9]+)+)\s*$"#,
+            downloadURL: URL(string: "https://www.granola.ai/"),
+            publishedAtPattern: #"(?m)^releaseDate:\s*'([^']+)'\s*$"#,
+            install: VendorInstallSpec(
+                urlSource: .versionTemplate(
+                    "https://dr2v7l5emb758.cloudfront.net/{version}/Granola-{version}-mac-universal.dmg"),
+                kind: .dmg)),
+
+        // Comet — the cask's JSON update API is rollout-stale (145.x while the
+        // public download already contains 151.x), so probing it would report a
+        // downgrade. The official stable download GET redirects to a signed R2 URL
+        // whose versioned directory exactly matches the mounted bundle's marketing
+        // version. HEAD is a vendor trap (redirects to example.com), hence GET with
+        // redirects disabled. Detection-only: the signed URL expires and the fixed
+        // gateway is architecture-specific. ai.perplexity.comet, Team 7S8W4W365S,
+        // notarized; Keystone updater, no Sparkle feed.
+        VendorProbeRecipe(
+            bundleID: "ai.perplexity.comet",
+            url: URL(string: "https://www.perplexity.ai/rest/browser/download?channel=stable&platform=mac_arm64")!,
+            mode: .redirectFilename,
+            versionPattern: #"/([0-9]+(?:\.[0-9]+)+)/comet_latest\.dmg"#,
+            downloadURL: URL(string: "https://www.perplexity.ai/comet"),
+            followRedirects: false),
+
+        // Devin Desktop (formerly Windsurf) — official stable update JSON. The
+        // `windsurfVersion` field is the app's own 3.7.25 marketing/build version;
+        // `productVersion` is the upstream VS Code base and must never be parsed.
+        // The response carries an arm64-only installer URL, so detection remains
+        // architecture-neutral but one-click is omitted. com.exafunction.windsurf,
+        // Team 83Z2LHX6XW, notarized.
+        VendorProbeRecipe(
+            bundleID: "com.exafunction.windsurf",
+            url: URL(string: "https://windsurf-stable.codeium.com/api/update/darwin-arm64-dmg/stable/latest")!,
+            mode: .responseBody,
+            versionPattern: #"\"windsurfVersion\"\s*:\s*\"([0-9]+(?:\.[0-9]+)+)\""#,
+            downloadURL: URL(string: "https://devin.ai/desktop"),
+            changelogURL: URL(string: "https://windsurf.com/editor/releases/")),
+
+        // AionUi — official electron-builder arm64 manifest. `version` matches the
+        // mounted app exactly. Intel has a separate manifest and artifact, so keep
+        // this detection-only until VendorInstallSpec can select by host arch.
+        // com.aionui.app, Team 52JQX2HUSC, notarized.
+        VendorProbeRecipe(
+            bundleID: "com.aionui.app",
+            url: URL(string: "https://static.aionui.com/releases/latest-arm64-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"(?m)^version:\s*v?([0-9]+(?:\.[0-9]+)+)\s*$"#,
+            downloadURL: URL(string: "https://www.aionui.com/"),
+            changelogURL: URL(string: "https://github.com/iOfficeAI/AionUi/releases"),
+            publishedAtPattern: #"(?m)^releaseDate:\s*'([^']+)'\s*$"#),
+
+        // Msty Studio — official electron-builder manifest lists both x64 and
+        // arm64 assets and reports the same version as Info.plist. Detection-only:
+        // selecting the correct one-click asset needs host-architecture-aware
+        // VendorInstallSpec support. MstyStudio, Team S6CF5A8MX9, notarized.
+        VendorProbeRecipe(
+            bundleID: "MstyStudio",
+            url: URL(string: "https://next-assets.msty.studio/app/latest/mac/latest-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"(?m)^version:\s*v?([0-9]+(?:\.[0-9]+)+)\s*$"#,
+            downloadURL: URL(string: "https://msty.ai/"),
+            changelogURL: URL(string: "https://msty.ai/resources/changelog/studio/"),
+            publishedAtPattern: #"(?m)^releaseDate:\s*'([^']+)'\s*$"#),
+
+        // TRAE is deliberately absent here. Its official manifest exposes only
+        // the packaging line `2.3.61406`, while the exact dmg at that manifest URL
+        // reports CFBundleShortVersionString/CFBundleVersion `3.5.81`. The embedded
+        // product.json ties the two together (`tronBuildVersion` / `appVersion`),
+        // but the network response never publishes `appVersion`; neither string can
+        // safely be compared to the installed Info.plist. See the persisted audit.
+
         // MARK: - 2026-08-16 Google desktop apps
 
         // Gemini — Google's Omaha update service, which answers only a POST. The

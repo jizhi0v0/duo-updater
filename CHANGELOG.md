@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.31
+
+**Installing Duo Updater's own updates silently now actually is silent.** The switch introduced in 0.3.30 downloaded the new version in the background and then still asked before applying it — the one thing it was meant to spare you. It now applies the update itself, at a moment when doing so interrupts nothing: no check or install running, nothing waiting to be relaunched, no Duo Updater window open, and you working in another app. It restarts itself there, without a prompt. Until such a moment arrives it simply waits, and if none ever comes the update is still applied when you quit — so the wait can delay a version, never lose one. Leaving the switch off is unchanged: you are asked, as before.
+
 ## 0.3.30
 
 **An App Store update no longer blames you for a permission you already gave.** When DuoUpdater is replaced while it is running — by its own update, or by a rebuild during development — the previous copy of its background helper keeps holding the slot the system reserves for it, while macOS still reports the helper as switched on. Every App Store update then failed with a red line telling you to go turn it on in Login Items, where you would find it already on, and the button offered beside that message quietly did nothing. That state is now recognised and named for what it is, along with the one thing that clears it. DuoUpdater no longer tries to repair it by re-registering the helper: that was measured to switch the background item off and leave it unable to be switched back on.

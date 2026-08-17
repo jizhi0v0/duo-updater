@@ -5,6 +5,16 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.30
+
+**An App Store update no longer blames you for a permission you already gave.** When DuoUpdater is replaced while it is running — by its own update, or by a rebuild during development — the previous copy of its background helper keeps holding the slot the system reserves for it, while macOS still reports the helper as switched on. Every App Store update then failed with a red line telling you to go turn it on in Login Items, where you would find it already on, and the button offered beside that message quietly did nothing. That state is now recognised and named for what it is, along with the one thing that clears it. DuoUpdater no longer tries to repair it by re-registering the helper: that was measured to switch the background item off and leave it unable to be switched back on.
+
+**Duo Updater can now update itself without asking.** Settings → Updates has a new switch for installing DuoUpdater's own updates in the background, taking effect the next time it restarts. It stays off unless you turn it on, and the prompt-and-wait behaviour is unchanged for everyone who leaves it alone.
+
+**Its own updates are noticed within the hour.** DuoUpdater checked for its own new versions once a day, so a release could sit unseen for most of a day. It now checks hourly.
+
+**Eight more AI desktop apps are tracked.** OpenCode Desktop and OpenChamber follow their GitHub releases; Wispr Flow, Granola, Comet, Windsurf, AionUi and Msty are read from their vendors' own version endpoints.
+
 ## 0.3.29
 
 **Installer packages stay the same package from verification to macOS Installer.** DuoUpdater now seals the selected installer before closing or replacing any existing Installer window, checks it again immediately before opening, and refuses the hand-off if another local process changed the file in between. This preserves Sparkle's signature guarantee all the way to the package you see in Installer without making the menu-bar UI pause while large packages are checked.

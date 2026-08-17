@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.33
+
+**A silent self-update no longer leaves Duo Updater sitting in front of you.** When it applied its own update in the background, macOS brought back the windows that had been open — and bringing a window back also brings the app forward, so an update nobody asked for landed on top of whatever was being worked on and stayed there. Duo Updater now notes which application was in front before it replaces itself, and gives the front back to it on the way in. Windows still return exactly as they were.
+
 ## 0.3.32
 
 **Docker updated to the version it said it would.** Docker publishes its releases in an order that puts an older one first, and Duo Updater read the newest version from that list while taking the download link from the top of it — so it fetched 574 MB, kept a backup, installed 4.86.0 over the 4.86.0 already there, and went on offering 4.87.0. Downloads are now matched to the version each entry declares for itself, whatever order a vendor lists them in.

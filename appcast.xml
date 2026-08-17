@@ -17,6 +17,18 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.31</title>
+            <pubDate>Mon, 17 Aug 2026 17:52:48 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.31</link>
+            <sparkle:version>41</sparkle:version>
+            <sparkle:shortVersionString>0.3.31</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Installing Duo Updater's own updates silently now actually is silent.** The switch introduced in 0.3.30 downloaded the new version in the background and then still asked before applying it — the one thing it was meant to spare you. It now applies the update itself, at a moment when doing so interrupts nothing: no check or install running, nothing waiting to be relaunched, no Duo Updater window open, and you working in another app. It restarts itself there, without a prompt. Until such a moment arrives it simply waits, and if none ever comes the update is still applied when you quit — so the wait can delay a version, never lose one. Leaving the switch off is unchanged: you are asked, as before.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.31/DuoUpdater-0.3.31-macos.zip" length="10457262" type="application/octet-stream" sparkle:edSignature="PDO+sMaOezrrR08x3NGn1oefCzdlarim68F2LeQ0h+YS04hRjr8/d4r1RvcTBjAgmMr8HUl6xMpCo9UniI/mDA=="/>
+        </item>
+        <item>
             <title>0.3.30</title>
             <pubDate>Mon, 17 Aug 2026 15:17:50 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.30</link>
@@ -49,22 +61,6 @@
 **Failed installer downloads are cleaned up immediately.** A bad signature, unreadable disk image, cancelled download, or rejected package no longer leaves a full installer sitting in temporary storage until the next day's cleanup.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.29/DuoUpdater-0.3.29-macos.zip" length="10445637" type="application/octet-stream" sparkle:edSignature="BoU5mWskbVcBFe6Mj7BhjgvVUohVjcJgX4GEFg8/bpoZ2Mit2SV42GaSEXf1d03x/C9OSwJH37Kd7Baon/ZQCQ=="/>
-        </item>
-        <item>
-            <title>0.3.28</title>
-            <pubDate>Mon, 17 Aug 2026 00:26:28 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.28</link>
-            <sparkle:version>38</sparkle:version>
-            <sparkle:shortVersionString>0.3.28</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Signed Sparkle updates that arrive as installer packages now work.** A few apps publish a perfectly valid, cryptographically signed `.pkg` instead of an app archive. DuoUpdater offered those updates, downloaded them, and then tried to unpack the package as though it were a zip — an update that could never finish. They now go to macOS's own Installer, after DuoUpdater verifies both the Sparkle signature on the download and the installer identity inside it.
-
-**A disk image containing several installers is no longer allowed to make a guess.** Some vendors put a main installer, helpers, and sibling products in one image. Matching on a fragment of the filename could pick a helper simply because its name contained the app's name. DuoUpdater now opens a package only when it is the sole choice or can be identified uniquely; otherwise it stops and leaves the decision to you instead of presenting the wrong installer.
-
-**The App Store helper is more tightly scoped to your login session.** The privileged helper now takes the account identity directly from macOS's authenticated XPC connection and refuses a request whose claimed user does not match. Normal App Store updates behave exactly as before; the change closes off a signed client from redirecting the helper into another user's session.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.28/DuoUpdater-0.3.28-macos.zip" length="10429590" type="application/octet-stream" sparkle:edSignature="Mw34kXbJ8/G4KHJDCa/R7+sbJA0PPBLvp6m7YztvAY6clnHlzlwVKCte02IXqIPo5Put4NzdlnqVrobxY66MCQ=="/>
         </item>
     </channel>
 </rss>

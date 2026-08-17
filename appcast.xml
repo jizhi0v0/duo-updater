@@ -17,6 +17,24 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.30</title>
+            <pubDate>Mon, 17 Aug 2026 15:17:50 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.30</link>
+            <sparkle:version>40</sparkle:version>
+            <sparkle:shortVersionString>0.3.30</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**An App Store update no longer blames you for a permission you already gave.** When DuoUpdater is replaced while it is running — by its own update, or by a rebuild during development — the previous copy of its background helper keeps holding the slot the system reserves for it, while macOS still reports the helper as switched on. Every App Store update then failed with a red line telling you to go turn it on in Login Items, where you would find it already on, and the button offered beside that message quietly did nothing. That state is now recognised and named for what it is, along with the one thing that clears it. DuoUpdater no longer tries to repair it by re-registering the helper: that was measured to switch the background item off and leave it unable to be switched back on.
+
+**Duo Updater can now update itself without asking.** Settings → Updates has a new switch for installing DuoUpdater's own updates in the background, taking effect the next time it restarts. It stays off unless you turn it on, and the prompt-and-wait behaviour is unchanged for everyone who leaves it alone.
+
+**Its own updates are noticed within the hour.** DuoUpdater checked for its own new versions once a day, so a release could sit unseen for most of a day. It now checks hourly.
+
+**Eight more AI desktop apps are tracked.** OpenCode Desktop and OpenChamber follow their GitHub releases; Wispr Flow, Granola, Comet, Windsurf, AionUi and Msty are read from their vendors' own version endpoints.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.30/DuoUpdater-0.3.30-macos.zip" length="10451974" type="application/octet-stream" sparkle:edSignature="yru+PQH/9+9n8Ogz3GkMQdDgKuQAreO+e3tkmnoVGY0LHfectAIfYcGcG4QArT3sPX9m4aRQ9xUvR+CVwAPeBg=="/>
+        </item>
+        <item>
             <title>0.3.29</title>
             <pubDate>Mon, 17 Aug 2026 01:25:06 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.29</link>
@@ -47,24 +65,6 @@
 **The App Store helper is more tightly scoped to your login session.** The privileged helper now takes the account identity directly from macOS's authenticated XPC connection and refuses a request whose claimed user does not match. Normal App Store updates behave exactly as before; the change closes off a signed client from redirecting the helper into another user's session.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.28/DuoUpdater-0.3.28-macos.zip" length="10429590" type="application/octet-stream" sparkle:edSignature="Mw34kXbJ8/G4KHJDCa/R7+sbJA0PPBLvp6m7YztvAY6clnHlzlwVKCte02IXqIPo5Put4NzdlnqVrobxY66MCQ=="/>
-        </item>
-        <item>
-            <title>0.3.27</title>
-            <pubDate>Sun, 16 Aug 2026 23:41:08 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.27</link>
-            <sparkle:version>37</sparkle:version>
-            <sparkle:shortVersionString>0.3.27</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Release notes show their formatting instead of its punctuation.** Notes that come from a project's GitHub release were rendered exactly as written — `**bold**` with the asterisks, links as `[text](url)`. Bold is now bold and links are links. This affected every app whose updates come from GitHub, which is most of the open-source ones.
-
-**Arrow-keying down the app list no longer crawls.** Holding an arrow key felt like moving one row at a time through mud, and long release notes made it worse. Three things were doing it: a permission check on every app in the list ran again for every row drawn; the notes for whichever app you passed through were re-parsed on each keypress; and a long set of notes — one project's runs to 54,000 characters — was laid out in a single pass, which froze the window for about two seconds. The check is now computed once per list, parsed notes are kept, and long notes are laid out only as far as you have scrolled. Worst measured stall went from ~2.1 s to under 0.6 s, and what remains is the deliberate pause before the detail pane catches up rather than a freeze.
-
-**Input methods are never updated by replacing the app, and 微信输入法 (WeType)'s one-click from 0.3.25 is withdrawn.** Settings were lost on a Mac during the work that added it. What we can show is that the copy in the protected system folder was never actually replaced by DuoUpdater — but an older copy of the input method was installed and launched elsewhere on that machine while testing, inside the window where the settings were rewritten. Nothing here is proven, and an input method's dictionary is not something to test a theory on: WeType now reports its version and sends you to the vendor's installer, which registers the input source with the system — a step that replacing the app bundle skips, and the likely reason that Mac then appeared twice in WeType's own device list.
-
-The refusal is not specific to WeType: DuoUpdater no longer offers a one-click for anything installed as an input method, whichever vendor it comes from. Those apps still report their versions and link out.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.27/DuoUpdater-0.3.27-macos.zip" length="10426224" type="application/octet-stream" sparkle:edSignature="VuRql3lKbSMqDciwlLg0o3+7xCf/9LZZoYpOBWAIPoyzmRq2LZ6tFsIRl7Jy0Eq7uWPCfCMbgUhKR8WGbJAeAg=="/>
         </item>
     </channel>
 </rss>

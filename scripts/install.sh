@@ -110,7 +110,10 @@ if [ -x "$lsregister" ]; then
 fi
 
 say "Relaunching"
-open "$DEST"
+# `-g` keeps it behind whatever the developer is actually looking at. A menu-bar
+# app has nothing to show on launch, so activating it only steals focus — and a
+# rebuild-install loop steals it once per build.
+open -g "$DEST"
 
 cat <<EOF
 

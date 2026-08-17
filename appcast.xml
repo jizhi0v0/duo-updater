@@ -17,6 +17,18 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.33</title>
+            <pubDate>Mon, 17 Aug 2026 21:29:14 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.33</link>
+            <sparkle:version>43</sparkle:version>
+            <sparkle:shortVersionString>0.3.33</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**A silent self-update no longer leaves Duo Updater sitting in front of you.** When it applied its own update in the background, macOS brought back the windows that had been open — and bringing a window back also brings the app forward, so an update nobody asked for landed on top of whatever was being worked on and stayed there. Duo Updater now notes which application was in front before it replaces itself, and gives the front back to it on the way in. Windows still return exactly as they were.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.33/DuoUpdater-0.3.33-macos.zip" length="10465660" type="application/octet-stream" sparkle:edSignature="VS6BKvTnqiYj1wjmo+EMy0EmKUSMQBwRVaFfBZewoQGmUOCSEVtzZBGerHnxw69ZzSMaAf/gIAaluOBXs2tQCQ=="/>
+        </item>
+        <item>
             <title>0.3.32</title>
             <pubDate>Mon, 17 Aug 2026 20:35:50 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.32</link>
@@ -43,24 +55,6 @@
             <description sparkle:format="markdown"><![CDATA[**Installing Duo Updater's own updates silently now actually is silent.** The switch introduced in 0.3.30 downloaded the new version in the background and then still asked before applying it — the one thing it was meant to spare you. It now applies the update itself, at a moment when doing so interrupts nothing: no check or install running, nothing waiting to be relaunched, no Duo Updater window open, and you working in another app. It restarts itself there, without a prompt. Until such a moment arrives it simply waits, and if none ever comes the update is still applied when you quit — so the wait can delay a version, never lose one. Leaving the switch off is unchanged: you are asked, as before.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.31/DuoUpdater-0.3.31-macos.zip" length="10457262" type="application/octet-stream" sparkle:edSignature="PDO+sMaOezrrR08x3NGn1oefCzdlarim68F2LeQ0h+YS04hRjr8/d4r1RvcTBjAgmMr8HUl6xMpCo9UniI/mDA=="/>
-        </item>
-        <item>
-            <title>0.3.30</title>
-            <pubDate>Mon, 17 Aug 2026 15:17:50 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.30</link>
-            <sparkle:version>40</sparkle:version>
-            <sparkle:shortVersionString>0.3.30</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**An App Store update no longer blames you for a permission you already gave.** When DuoUpdater is replaced while it is running — by its own update, or by a rebuild during development — the previous copy of its background helper keeps holding the slot the system reserves for it, while macOS still reports the helper as switched on. Every App Store update then failed with a red line telling you to go turn it on in Login Items, where you would find it already on, and the button offered beside that message quietly did nothing. That state is now recognised and named for what it is, along with the one thing that clears it. DuoUpdater no longer tries to repair it by re-registering the helper: that was measured to switch the background item off and leave it unable to be switched back on.
-
-**Duo Updater can now update itself without asking.** Settings → Updates has a new switch for installing DuoUpdater's own updates in the background, taking effect the next time it restarts. It stays off unless you turn it on, and the prompt-and-wait behaviour is unchanged for everyone who leaves it alone.
-
-**Its own updates are noticed within the hour.** DuoUpdater checked for its own new versions once a day, so a release could sit unseen for most of a day. It now checks hourly.
-
-**Eight more AI desktop apps are tracked.** OpenCode Desktop and OpenChamber follow their GitHub releases; Wispr Flow, Granola, Comet, Windsurf, AionUi and Msty are read from their vendors' own version endpoints.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.30/DuoUpdater-0.3.30-macos.zip" length="10451974" type="application/octet-stream" sparkle:edSignature="yru+PQH/9+9n8Ogz3GkMQdDgKuQAreO+e3tkmnoVGY0LHfectAIfYcGcG4QArT3sPX9m4aRQ9xUvR+CVwAPeBg=="/>
         </item>
     </channel>
 </rss>

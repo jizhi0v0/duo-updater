@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import DuoUpdaterCore
 
 @main
 struct DuoUpdaterApp: App {
@@ -82,6 +83,7 @@ private struct MenuBarLabel: View {
             // Runs once at launch. Show onboarding only the first time, then never
             // again (the user can re-open it from Settings).
             AppDockBadge.syncSoon(count: model.badgeCount)
+            if let front = SilentSelfUpdateRelaunch.consume() { handTheFrontBack(to: front) }
             // What "a safe moment to replace ourselves" means, for the silent
             // self-update path.
             AppUpdater.shared.setIdleProbe { [weak model] in
@@ -116,6 +118,28 @@ private struct MenuBarLabel: View {
         }
     }
 
+    /// Step back out of the way after a silent self-update relaunched us. Repeated
+    /// rather than checked once, because the activation arrives late: macOS restores
+    /// the window a beat after launch, so a single `isActive` test here reads false
+    /// and does nothing — which is exactly how the app ended up sitting frontmost
+    /// for over a minute after an update nobody asked for.
+    private func handTheFrontBack(to bundleID: String) {
+        Log.app.info("self-update: relaunched by a silent update — handing the front back to \(bundleID, privacy: .public)")
+        Task { @MainActor in
+            // Retried rather than done once: macOS restores our window a beat after
+            // launch and that restore activates us, so a single attempt here can
+            // land before the thing it is meant to undo. Stops as soon as we are no
+            // longer in front.
+            for delay in [0.1, 0.4, 1.0, 2.0, 3.0] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard NSApp.isActive else { return }
+                NSRunningApplication
+                    .runningApplications(withBundleIdentifier: bundleID)
+                    .first?
+                    .activate()
+            }
+        }
+    }
 }
 
 /// The app-menu "Settings…" command (⌘,), pointing at our Window-based settings.

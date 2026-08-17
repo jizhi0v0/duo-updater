@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.32
+
+**Docker updated to the version it said it would.** Docker publishes its releases in an order that puts an older one first, and Duo Updater read the newest version from that list while taking the download link from the top of it — so it fetched 574 MB, kept a backup, installed 4.86.0 over the 4.86.0 already there, and went on offering 4.87.0. Downloads are now matched to the version each entry declares for itself, whatever order a vendor lists them in.
+
+**An update that changed nothing is no longer reported as done.** The check that runs immediately after installing already knew Docker hadn't moved; it was overruled by a success message and an "Updated ✓". When an update we applied ourselves leaves the app exactly as it was, that is now shown as the failure it is, naming what was installed and what is still on disk.
+
+**Silent self-updates no longer wait for an empty screen.** With the switch turned on, Duo Updater would hold its own update back while any of its windows were open — which, for a window people leave open, meant waiting until the app was quit. Open windows no longer delay it (macOS brings them back after the restart), while a Duo Updater you are actually using still does: it waits for the keyboard and mouse to go quiet before restarting itself.
+
 ## 0.3.31
 
 **Installing Duo Updater's own updates silently now actually is silent.** The switch introduced in 0.3.30 downloaded the new version in the background and then still asked before applying it — the one thing it was meant to spare you. It now applies the update itself, at a moment when doing so interrupts nothing: no check or install running, nothing waiting to be relaunched, no Duo Updater window open, and you working in another app. It restarts itself there, without a prompt. Until such a moment arrives it simply waits, and if none ever comes the update is still applied when you quit — so the wait can delay a version, never lose one. Leaving the switch off is unchanged: you are asked, as before.

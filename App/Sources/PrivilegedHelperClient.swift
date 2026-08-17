@@ -99,6 +99,15 @@ final class PrivilegedHelperClient: ObservableObject {
         // Gentle first, for the reason spelled out in `HelperShellRunner`'s repair:
         // on a corrupt record `register()` is refused, and an unregister-first order
         // leaves the background item switched OFF with no way back from in-app.
+        //
+        // ⚠️ Do NOT "improve" this by tearing an already-enabled record down first,
+        // however tempting: on a live service `register()` is a no-op, so it looks
+        // like the gentle order simply cannot repair the enabled-but-dead case.
+        // Tried exactly that on 2026-08-17 and it made a working machine worse —
+        // `unregister()` DID dislodge the stale daemon, and then `register()` came
+        // back "Operation not permitted", leaving the item switched off with no way
+        // back short of `sudo sfltool resetbtm` + a restart. The enabled-but-dead
+        // case has no in-app cure; `MASError.helperUnresponsive` says so honestly.
         do {
             try service.register()
             log.notice("helper re-registered — status \(self.service.status.rawValue, privacy: .public)")
@@ -144,6 +153,18 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
         // App Store update behind it waits on a reply that will never come. Observed
         // exactly that: `launchd: service inactive: com.duoupdater.helper` repeating
         // every 10s while the batch sat frozen, no error anywhere.
+        // A silent peer lands here, not in the `isConnectionFailure` catch below: the
+        // connection is accepted and the reply simply never comes. Replacing the app
+        // bundle in place (a self-update, `make install`) leaves the OLD helper process
+        // holding launchd's slot while BTM still reads `.enabled`, so every App Store
+        // install timed out and — until the error was split — told the user to go
+        // switch on something that was already on.
+        //
+        // No repair is attempted for it, deliberately: `register()` cannot re-resolve a
+        // live record and the unregister-first alternative was measured to leave the
+        // item switched off and unregisterable (see `repairRegistration`). So this
+        // throws `helperUnresponsive`, whose message names the one thing that does
+        // work, rather than burning a second 10s timeout pretending otherwise.
         try await ensureReachable()
         do {
             return try await send(adamID: adamID, uid: uid, gid: gid,
@@ -167,13 +188,17 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
                 return try await send(adamID: adamID, uid: uid, gid: gid,
                                       userName: userName, logPath: logPath)
             } catch let retryError as NSError where Self.isConnectionFailure(retryError) {
-                // Still unreachable after rebuilding the record — most likely macOS
-                // dropped the background item back to "pending approval". Report it
-                // as `helperNotApproved` rather than letting the raw XPC message
-                // ("Couldn't communicate with a helper application") reach the row:
-                // that text tells the user nothing they can act on, whereas this case
-                // is the one the UI knows how to guide out of.
-                throw MASInstaller.MASError.helperNotApproved
+                // Still unreachable after rebuilding the record. Which advice is right
+                // depends on where the rebuild left the item: back in "pending
+                // approval" means Login Items really is the answer, while still
+                // `.enabled` means it is on and simply not coming up — say that
+                // instead of sending the user to a switch they'd find already flipped.
+                // Either way, never let the raw XPC message ("Couldn't communicate
+                // with a helper application") reach the row; it names nothing the user
+                // can act on.
+                throw SMAppService.daemon(plistName: HelperConfig.plistName).status == .enabled
+                    ? MASInstaller.MASError.helperUnresponsive
+                    : MASInstaller.MASError.helperNotApproved
             }
         }
     }
@@ -203,7 +228,7 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
             // bind to a helper that did eventually come up.
             clearConnection()
             log.error("helper did not answer within \(Self.reachabilityTimeout, privacy: .public) — treating as unavailable")
-            throw MASInstaller.MASError.helperNotApproved
+            throw MASInstaller.MASError.helperUnresponsive
         }
     }
 
@@ -237,6 +262,14 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
     /// Diagnostics row already surfaces as an "Enable…" button.
     private func repairRegistration() {
         let service = SMAppService.daemon(plistName: HelperConfig.plistName)
+        // ⚠️ An ALREADY-enabled record is the one case this repair cannot fix, and it
+        // must not try: `register()` is a no-op on a live service, but tearing the
+        // record down first to force a re-resolve is strictly worse. Measured
+        // 2026-08-17 — `unregister()` did dislodge the stale daemon, then `register()`
+        // returned "Operation not permitted" and the background item was left switched
+        // off, recoverable only by `sudo sfltool resetbtm` + a restart. Enabled-but-dead
+        // is reported as `MASError.helperUnresponsive` instead of being "repaired".
+        //
         // Re-register FIRST, without tearing anything down. `register()` on a live
         // service is a no-op, so this costs nothing when the record is fine — and it
         // can't make a broken one worse. That matters: when BTM's record is corrupt

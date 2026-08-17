@@ -60,6 +60,10 @@ public actor MASInstaller {
         case masNotFound
         case cancelled
         case helperNotApproved
+        /// Registered and switched on, yet the daemon never answers. Distinct from
+        /// `helperNotApproved` because the guidance is the opposite: sending the user
+        /// to Login Items is a dead end — the item is already on there.
+        case helperUnresponsive
         case failed(code: Int32, output: String)
 
         public var errorDescription: String? {
@@ -70,6 +74,8 @@ public actor MASInstaller {
                 return "Authorization cancelled."
             case .helperNotApproved:
                 return "App Store updates need DuoUpdater's background helper. \(MASError.helperApprovalHint)"
+            case .helperUnresponsive:
+                return "DuoUpdater's background helper is switched on but isn’t answering — usually a leftover copy still holding the slot after DuoUpdater was replaced in place. Rebuilding its registration didn’t revive it; restarting your Mac clears it."
             case .failed(let code, let output):
                 // A known dead end on recent macOS: mas downloads the app fully, then
                 // CommerceKit refuses the final receipt import ("Failed to find receipt
@@ -122,6 +128,14 @@ public actor MASInstaller {
         /// True for the one error the helper-approval flow can act on.
         public var isHelperApproval: Bool {
             if case .helperNotApproved = self { return true }
+            return false
+        }
+
+        /// True when the helper is on but silent. Deliberately NOT folded into
+        /// `isHelperApproval`: that flow raises the Login Items prompt, which is the
+        /// wrong destination here and the reason this case was split out.
+        public var isHelperUnresponsive: Bool {
+            if case .helperUnresponsive = self { return true }
             return false
         }
 

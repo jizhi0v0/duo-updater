@@ -2021,6 +2021,37 @@ final class AppListModel {
                 await refreshBackupIndex()
             }
 
+            // An install that changed nothing is a failure, however quietly it
+            // returned. The recheck above already knows: it re-read the bundle and
+            // re-ran the source, so a row that still offers the same update while
+            // the bytes on disk never moved means the download did not carry the
+            // release it was supposed to. Docker shipped exactly that — its appcast
+            // lists 4.86.0 before 4.87.0, the first-match asset pattern fetched the
+            // older image, 574 MB and a 2.26 GB backup later the app was still
+            // 4.86.0, and this code logged "install done" and flashed "Updated ✓".
+            //
+            // Deliberately narrow, because a false "it didn't work" is its own kind
+            // of lie: only routes we apply ourselves and that are finished when
+            // `perform` returns. `.installer` hands a pkg to macOS Installer, which
+            // the user may not have clicked through yet; `.appStore` lands
+            // asynchronously. Comparing against the row's own verdict rather than
+            // raw version strings keeps every source's quirks (`versionIsBuild`,
+            // build-vs-marketing schemes) out of this decision.
+            let appliedNothing = [.vendor, .sparkle, .homebrew].contains(route)
+                && updated.app.shortVersion == result.app.shortVersion
+                && updated.app.buildVersion == result.app.buildVersion
+                && isActionableUpdate(updated)
+            if appliedNothing {
+                let onDisk = updated.app.shortVersion ?? updated.app.buildVersion ?? "?"
+                let target = result.remote?.displayVersion ?? result.remote?.shortVersion ?? "?"
+                Log.install.error("install applied nothing: \(updated.app.name, privacy: .public) still \(onDisk, privacy: .public) on disk after installing \(target, privacy: .public)")
+                installErrors[id] = "The install finished without an error, but \(updated.app.name) on disk is still \(onDisk) — what was downloaded wasn't \(target)."
+                reopenIfQuitForUpdate(id: id, path: result.app.path)
+                installing[id] = nil
+                relaunching.remove(id)
+                return false
+            }
+
             // Tell the user it landed. If the app was running, its live process
             // is still on the old code (so it's in needsRestart) — point them at
             // the Restart action. Otherwise the in-place swap is already fully in

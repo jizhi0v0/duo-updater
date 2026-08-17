@@ -37,7 +37,7 @@ struct UpdatesSettingsPage: View {
             }
 
             SettingsCard(
-                footer: "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you; turned on, it is downloaded and installed in the background and takes effect the next time Duo Updater restarts — no prompt, no clicking.\n\nThe button below forces a check right now either way."
+                footer: "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of Duo Updater's is open, and you are working in another app; it restarts itself there. Until such a moment comes it simply waits, and installs when you quit Duo Updater anyway.\n\nThe button below forces a check right now either way."
             ) {
                 Toggle("Install Duo Updater's own updates silently", isOn: $installsAutomatically)
                     .settingsRow()

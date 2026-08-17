@@ -82,6 +82,21 @@ private struct MenuBarLabel: View {
             // Runs once at launch. Show onboarding only the first time, then never
             // again (the user can re-open it from Settings).
             AppDockBadge.syncSoon(count: model.badgeCount)
+            // What "a safe moment to replace ourselves" means, for the silent
+            // self-update path. Deliberately strict — the cost of waiting is that
+            // an update lands later, while the cost of guessing wrong is quitting
+            // in the middle of someone else's install.
+            AppUpdater.shared.setIdleProbe { [weak model] in
+                guard let model else { return false }
+                // Nothing of ours may be in flight: a scan, a check, any install,
+                // or an app still waiting to be relaunched.
+                guard model.canRefresh, model.relaunching.isEmpty else { return false }
+                // And the user must be somewhere else. An app that disappears and
+                // comes back while its window is open reads as a crash, not as an
+                // update — so require both "not frontmost" and "nothing open".
+                guard !NSApp.isActive else { return false }
+                return !NSApp.windows.contains { $0.isVisible && $0.canBecomeMain }
+            }
             if hasCompletedOnboarding {
                 AppUpdater.shared.start()
                 return

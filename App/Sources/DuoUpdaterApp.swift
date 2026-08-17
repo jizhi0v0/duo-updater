@@ -83,19 +83,25 @@ private struct MenuBarLabel: View {
             // again (the user can re-open it from Settings).
             AppDockBadge.syncSoon(count: model.badgeCount)
             // What "a safe moment to replace ourselves" means, for the silent
-            // self-update path. Deliberately strict — the cost of waiting is that
-            // an update lands later, while the cost of guessing wrong is quitting
-            // in the middle of someone else's install.
+            // self-update path.
             AppUpdater.shared.setIdleProbe { [weak model] in
                 guard let model else { return false }
                 // Nothing of ours may be in flight: a scan, a check, any install,
-                // or an app still waiting to be relaunched.
+                // or an app still waiting to be relaunched. Quitting through one of
+                // those is the interruption this gate exists to prevent.
                 guard model.canRefresh, model.relaunching.isEmpty else { return false }
-                // And the user must be somewhere else. An app that disappears and
-                // comes back while its window is open reads as a crash, not as an
-                // update — so require both "not frontmost" and "nothing open".
-                guard !NSApp.isActive else { return false }
-                return !NSApp.windows.contains { $0.isVisible && $0.canBecomeMain }
+                // Open windows do NOT block: macOS restores them across the quit and
+                // relaunch on its own — measured, with nothing of ours involved, so
+                // a hand-written restore would only duplicate it (and the version
+                // that tried stole ~9 seconds of focus putting windows back).
+                // Being *looked at* does block: if we are frontmost, wait for the
+                // keyboard and mouse to go quiet so the window is never pulled out
+                // from under a click. In the background there is nothing to
+                // interrupt and no such wait.
+                guard NSApp.isActive else { return true }
+                let idleSeconds = CGEventSource.secondsSinceLastEventType(
+                    .combinedSessionState, eventType: .init(rawValue: ~0)!)
+                return idleSeconds >= 60
             }
             if hasCompletedOnboarding {
                 AppUpdater.shared.start()
@@ -109,6 +115,7 @@ private struct MenuBarLabel: View {
             AppDockBadge.syncSoon(count: count)
         }
     }
+
 }
 
 /// The app-menu "Settings…" command (⌘,), pointing at our Window-based settings.

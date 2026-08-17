@@ -49,6 +49,10 @@ private final class SelfUpdateInstaller: NSObject, SPUUpdaterDelegate {
     private func installIfIdle() {
         guard let installNow else { return }
         guard isIdle?() == true else { return }
+        // Nothing to save first: whatever windows are open come back on their own,
+        // because macOS restores them across a quit and relaunch (measured — an
+        // explicit restore here was written, tested against the system's own, and
+        // deleted as duplicate).
         Log.app.notice("self-update: idle — installing and relaunching now")
         installNow()
     }

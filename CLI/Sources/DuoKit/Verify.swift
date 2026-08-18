@@ -77,9 +77,19 @@ public enum Verify {
         if options.registries.contains(.github) {
             findings += await sweepGitHub(github, options: options, installed: installed)
         }
-        let knownVersions = Dictionary(
-            findings.compactMap { f in f.version.map { (f.bundleID, $0) } },
-            uniquingKeysWith: { a, _ in a })
+        // Keyed by bundle id AND channel, then by bare bundle id. A version-templated
+        // changelog on a multi-channel app needs ITS channel's version: WeChat
+        // DevTools publishes `logs/<channel>_v<version>.json` per train, so handing
+        // the RC recipe the Stable version 404s — a failure invented by the sweep,
+        // not by the vendor. The bare-id entries stay as the fallback for the common
+        // case (one recipe, `channel: nil`), where there is nothing to disambiguate.
+        var knownVersions: [String: String] = [:]
+        for finding in findings {
+            guard let version = finding.version else { continue }
+            let keyed = "\(finding.bundleID):\(finding.channel)"
+            if knownVersions[keyed] == nil { knownVersions[keyed] = version }
+            if knownVersions[finding.bundleID] == nil { knownVersions[finding.bundleID] = version }
+        }
         if options.registries.contains(.changelog) {
             // Fall back to the installed copy's version for templated recipes
             // when no version source ran this sweep (`--changelog` on its own).
@@ -281,7 +291,8 @@ public enum Verify {
             // Templated recipes need a concrete version to resolve their URL —
             // use the one this run's probe just read, so the sweep checks the
             // page the app would actually open.
-            let version = versions[recipe.bundleID]
+            let version = recipe.channel.flatMap { versions["\(recipe.bundleID):\($0.rawValue)"] }
+                ?? versions[recipe.bundleID]
             // With no version at all, `resolvedSource` silently falls back to the
             // untemplated `source` — which for these vendors is a generic landing
             // page that has never parsed. Reporting that as breakage would be a

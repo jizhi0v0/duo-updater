@@ -291,6 +291,13 @@ final class Preferences {
 
     static let stagedPackageVersionField = "version"
     static let stagedPackagePathField = "path"
+    /// When the package was handed to macOS's installer, as an epoch-seconds string.
+    /// Drives the launch-time staleness check that decides whether a landed pkg
+    /// leaves a running copy needing a restart (see `PackageRestartState`). Absent on
+    /// entries persisted before this field existed — treated as the distant past, so
+    /// a running copy that launched at any plausible time counts as already fresh
+    /// (no false restart prompt on upgrade).
+    static let stagedPackageStagedAtField = "stagedAt"
 
     /// Overwrite the staged-package map (the model recomputes it each rescan).
     func setStagedPackages(_ map: [String: [String: String]]) {

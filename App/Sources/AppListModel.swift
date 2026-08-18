@@ -69,6 +69,19 @@ final class AppListModel {
     /// the row shows "Install" (re-open the local package) rather than "Update"
     /// (download it again). Mirrored to `Preferences` so it survives a relaunch.
     private(set) var stagedPackages: [String: StagedPackage] = [:]
+    /// Rows whose handed-off installer package has LANDED on disk while a copy that
+    /// predates the hand-off is still running the old code — the pkg equivalent of
+    /// `needsRestart`. Kept separate because `computeRestartInfo` rebuilds
+    /// `needsRestart` from a version comparison that is blind to apps whose
+    /// `Info.plist` version is frozen across builds (WeChat DevTools reports Electron's
+    /// `36.6.0` on every 2.02.x build); this set is driven by launch time instead and
+    /// then unioned into `needsRestart` so the existing Restart affordance just works.
+    /// See `reconcilePackageRestarts` and `PackageRestartState`.
+    private(set) var packageRestartPending: Set<String> = []
+    /// Rows we've already posted a "ready to restart" notification for after a pkg
+    /// landed, so a repeated rescan doesn't re-notify. Cleared when the row settles
+    /// (relaunched, quit, or restarted from here).
+    private var notifiedPackageRestart: Set<String> = []
     /// App ids whose staged self-update is mid-relaunch (we've quit the app and are
     /// waiting for its ShipIt to swap & relaunch). Drives a per-row spinner and,
     /// crucially, blocks re-entry: the swap can take tens of seconds, during which
@@ -2230,7 +2243,120 @@ final class AppListModel {
     /// LaunchServices (`lsappinfo`), which is cached at launch and so differs
     /// from the on-disk Info.plist after an update. Covers our own installs,
     /// the app's own updater, and brew — across app restarts.
+    /// Resolved bundle path → the launch dates of every running copy at that path.
+    /// Keyed by path (not bundle id) for the same reason `runningBuildVersions` is:
+    /// two channels can share a bundle id, and only the exact path that's running is
+    /// stale. `NSWorkspace.runningApplications` is a cheap main-thread read.
+    private func runningLaunchDatesByPath() -> [String: [Date]] {
+        var map: [String: [Date]] = [:]
+        for app in NSWorkspace.shared.runningApplications {
+            guard let url = app.bundleURL else { continue }
+            let key = url.resolvingSymlinksInPath().path
+            // `launchDate` is documented nilable (AppKit didn't observe the launch).
+            // Treat unknown as the distant past — i.e. as a copy that predates any
+            // hand-off — so a running copy we can't date biases toward OFFERING a
+            // restart rather than silently deciding it's fresh and dropping the entry.
+            // A spurious restart PROMPT is harmless (the user chooses); missing a
+            // genuinely-stale process is the failure this feature exists to prevent.
+            map[key, default: []].append(app.launchDate ?? .distantPast)
+        }
+        return map
+    }
+
+    /// Turn "a package we handed off has landed and left a stale copy running" into a
+    /// Restart affordance + a one-time notification — the pkg counterpart of the
+    /// in-place routes' `awaitingRestart` disposition, which the `.installer` route
+    /// can't reach because its install finishes asynchronously in macOS's Installer.
+    ///
+    /// Driven by launch time, not version comparison (see `PackageRestartState`), so
+    /// it works even for apps whose reported version never moves, and so a vendor pkg
+    /// that relaunches the app itself produces no spurious prompt. Scoped to packages
+    /// WE staged, so an unrelated background self-update never trips it.
+    ///
+    /// Rebuilds `packageRestartPending` from scratch each pass; the caller unions it
+    /// into `needsRestart`. Must run before `computeRestartInfo` finalizes that set.
+    private func reconcilePackageRestarts() {
+        guard !stagedPackages.isEmpty else {
+            packageRestartPending.removeAll()
+            notifiedPackageRestart.removeAll()
+            return
+        }
+        let launchDates = runningLaunchDatesByPath()
+        let onDiskByID = Dictionary(
+            results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a })
+
+        var pending: Set<String> = []
+        var settledIDs: [String] = []
+        for (id, staged) in stagedPackages {
+            guard let app = onDiskByID[id] else {
+                // The row is missing from THIS scan — the bundle can be briefly
+                // unreadable while Installer swaps it. Decide nothing from a blind
+                // pass: carry a restart that was already pending forward so one
+                // missed scan can't drop the badge (or let `pruneStagedPackages`
+                // reclaim the entry). A genuinely deleted app is reclaimed later by
+                // the file-existence backstop in prune.
+                if packageRestartPending.contains(id) { pending.insert(id) }
+                continue
+            }
+            let key = app.path.resolvingSymlinksInPath().path
+            let state = PackageRestartState.resolve(
+                onDiskVersion: app.shortVersion,
+                stagedVersion: staged.version,
+                stagedAt: staged.stagedAt,
+                runningLaunchDates: launchDates[key] ?? [])
+            switch state {
+            case .pending:
+                // Not landed. Normally there's no badge yet; but if one was already
+                // lit (landed earlier) and the version momentarily reads old — a
+                // partial `package.json` read mid-swap — carry it rather than
+                // flickering the badge off and re-notifying on the next good pass.
+                if packageRestartPending.contains(id) { pending.insert(id) }
+            case .readyToRestart:
+                pending.insert(id)
+                if notifiedPackageRestart.insert(id).inserted {
+                    let version = app.shortVersion
+                    // Badge always; banner only if the user keeps update notifications
+                    // on — the pkg lands out of a rescan, not a click, so this is an
+                    // unsolicited background event like the "new update" nudge.
+                    if prefs.notifyOnUpdates {
+                        UpdateNotifier.readyToRestart(
+                            app: app.name, version: version, appID: app.bundleID)
+                    }
+                    Log.install.info("package landed, awaiting restart: \(app.name, privacy: .public) \(version ?? "?", privacy: .public)")
+                }
+            case .settled:
+                // Landed with nothing stale running (never open, or already
+                // relaunched). The install is fully done — drop the re-open entry.
+                settledIDs.append(id)
+            }
+        }
+        packageRestartPending = pending
+        for id in settledIDs { stagedPackages[id] = nil }
+        // Clear the notify-once guard ONLY when a restart genuinely resolves (settled,
+        // or its staged entry is gone) — never merely because the id fell out of
+        // `pending` for one pass, which would let the same landing re-notify. (A
+        // DuoUpdater relaunch, which doesn't persist this set, can still re-remind
+        // once for a restart that was already pending — acceptable, it's real.)
+        notifiedPackageRestart.formIntersection(Set(stagedPackages.keys))
+        if !settledIDs.isEmpty {
+            persistStagedPackages()
+        }
+    }
+
+    /// The restart happened (or the app was already gone), so a landed pkg has
+    /// nothing left to restart: drop its pending state, the one-time-notify guard,
+    /// and the now-pointless staged download entry.
+    private func settlePackageRestart(_ id: String) {
+        packageRestartPending.remove(id)
+        notifiedPackageRestart.remove(id)
+        if stagedPackages[id] != nil {
+            stagedPackages[id] = nil
+            persistStagedPackages()
+        }
+    }
+
     private func computeRestartInfo() async {
+        reconcilePackageRestarts()
         let running = await Self.runningBuildVersions()
         var ids: Set<String> = []
         var versions: [String: String] = [:]
@@ -2273,7 +2399,10 @@ final class AppListModel {
             }
             if !result.hasUpdate { ids.insert(result.id) }
         }
-        needsRestart = ids
+        // Fold in the launch-time signal for landed packages the version pass above
+        // can't see (frozen-version apps). `pruneStagedPackages` deliberately skips
+        // a row that's in this set, so the entry survives to keep the badge lit.
+        needsRestart = ids.union(packageRestartPending)
         runningVersionByID = versions
         recoveredRestartMarketing = recovered
         // Guard against an empty/partial pass wiping the persisted history before a
@@ -2333,6 +2462,10 @@ final class AppListModel {
     struct StagedPackage: Sendable, Equatable {
         let version: String
         let url: URL
+        /// When the package was handed to macOS's installer. Used to tell a copy
+        /// running the OLD code (launched before this) from one the vendor's own
+        /// installer relaunched afterwards — see `PackageRestartState`.
+        let stagedAt: Date
     }
 
     /// Restore the persisted staged packages, dropping anything whose file is gone
@@ -2347,7 +2480,13 @@ final class AppListModel {
                 let path = fields[Preferences.stagedPackagePathField],
                 FileManager.default.fileExists(atPath: path)
             else { continue }
-            restored[id] = StagedPackage(version: version, url: URL(fileURLWithPath: path))
+            // Missing on entries staged before the field existed → distant past, so
+            // no already-running copy is ever judged "older than the hand-off".
+            let stagedAt = fields[Preferences.stagedPackageStagedAtField]
+                .flatMap(TimeInterval.init).map(Date.init(timeIntervalSince1970:))
+                ?? .distantPast
+            restored[id] = StagedPackage(
+                version: version, url: URL(fileURLWithPath: path), stagedAt: stagedAt)
         }
         stagedPackages = restored
         persistStagedPackages()
@@ -2355,7 +2494,8 @@ final class AppListModel {
 
     private func recordStagedPackage(_ result: UpdateResult, packageURL: URL) {
         guard let version = result.remote?.displayVersion else { return }
-        stagedPackages[result.id] = StagedPackage(version: version, url: packageURL)
+        stagedPackages[result.id] = StagedPackage(
+            version: version, url: packageURL, stagedAt: Date())
         persistStagedPackages()
         Log.install.info("package staged: \(result.app.name, privacy: .public) \(version, privacy: .public) → \(packageURL.lastPathComponent, privacy: .public)")
     }
@@ -2392,6 +2532,8 @@ final class AppListModel {
             [
                 Preferences.stagedPackageVersionField: $0.version,
                 Preferences.stagedPackagePathField: $0.url.path,
+                Preferences.stagedPackageStagedAtField:
+                    String($0.stagedAt.timeIntervalSince1970),
             ]
         })
     }
@@ -2414,14 +2556,29 @@ final class AppListModel {
     /// button that can't do anything.
     private func pruneStagedPackages() {
         guard !stagedPackages.isEmpty else { return }
-        let live = Set(results.map(\.id))
+        let onDisk = Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a })
         let offered = Dictionary(
             results.compactMap { r in r.remote?.displayVersion.map { (r.id, $0) } },
             uniquingKeysWith: { a, _ in a })
         let kept = stagedPackages.filter { id, staged in
-            live.contains(id)
-                && offered[id] == staged.version
-                && FileManager.default.fileExists(atPath: staged.url.path)
+            // A landed package that left a stale copy running is no longer "on offer"
+            // (the app is now current) and its download may have been swept, yet its
+            // entry must survive to keep the Restart badge lit until the app is
+            // relaunched. `reconcilePackageRestarts` retires it once it settles.
+            if packageRestartPending.contains(id) { return true }
+            let fileThere = FileManager.default.fileExists(atPath: staged.url.path)
+            guard let app = onDisk[id] else {
+                // Row missing from THIS scan (bundle mid-swap): don't reclaim on a
+                // blind pass — a genuinely deleted app is still bounded by the file
+                // backstop once its download is swept.
+                return fileThere
+            }
+            // Landed (the app now IS the staged version): keep so restart tracking
+            // survives a one-scan flicker of the launch-time signal, even if the
+            // download was swept. Reconcile settles it once the copy is fresh/gone.
+            if app.shortVersion == staged.version { return true }
+            // Otherwise it's only usable while still on offer and re-openable.
+            return offered[id] == staged.version && fileThere
         }
         guard kept.count != stagedPackages.count else { return }
         stagedPackages = kept
@@ -2604,12 +2761,14 @@ final class AppListModel {
         case .noBundleID, .notRunning:
             needsRestart.remove(result.id)
             pendingBatchRestart[result.id] = nil
+            settlePackageRestart(result.id)
         case .stillRunning:
             break  // still up (likely a save prompt) — leave the badge
         case .relaunched(let relaunched):
             needsRestart.remove(result.id)
             pendingBatchRestart[result.id] = nil
             runningVersionByID[result.id] = nil
+            settlePackageRestart(result.id)
             Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
             if relaunched {
                 UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion, appID: result.app.bundleID)

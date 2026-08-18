@@ -17,6 +17,22 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.34</title>
+            <pubDate>Tue, 18 Aug 2026 15:40:26 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.34</link>
+            <sparkle:version>44</sparkle:version>
+            <sparkle:shortVersionString>0.3.34</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**App Store updates stop breaking every time Duo Updater updates itself.** Replacing the app left the background helper from the previous copy running, and macOS then never started the new one — so the helper looked switched on while every App Store update failed talking to a copy that no longer existed. Only a restart cleared it. The helper now steps aside when it has been idle for a minute, which means a replaced app heals itself by the next update. For a Mac already in that state there is a **Restart Helper** button in Settings → Diagnostics and on the update that failed; it asks for an administrator password and takes effect immediately, no restart.
+
+**Diagnostics can tell you whether the helper actually works.** "Enabled" only ever meant "switched on", and the difference between that and "answering" showed up as a failed update. A **Check** button now says which one you have, in those words.
+
+**Backups: choose what to delete.** "Clean Up Now" only removed backups belonging to apps you had uninstalled, so on most Macs it deleted nothing and said nothing while the size stayed put. It now opens a list — every backup with its app icon, the update it would roll back, its size and date — with everything selected and anything you want to keep unselectable. The button says how much the selection frees. Backups whose records had gone missing were previously counted in the total but impossible to see or remove; they are listed too, marked unusable.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.34/DuoUpdater-0.3.34-macos.zip" length="10530450" type="application/octet-stream" sparkle:edSignature="2tfrSzuAjj+3oi8Vy256Vrcsw8Epn21uq50quGjad32mjeFM2FKvftZ/UHz3kbeG+OGNJncGJNDMp58oLcFSBw=="/>
+        </item>
+        <item>
             <title>0.3.33</title>
             <pubDate>Mon, 17 Aug 2026 21:29:14 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.33</link>
@@ -43,18 +59,6 @@
 **Silent self-updates no longer wait for an empty screen.** With the switch turned on, Duo Updater would hold its own update back while any of its windows were open — which, for a window people leave open, meant waiting until the app was quit. Open windows no longer delay it (macOS brings them back after the restart), while a Duo Updater you are actually using still does: it waits for the keyboard and mouse to go quiet before restarting itself.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.32/DuoUpdater-0.3.32-macos.zip" length="10460069" type="application/octet-stream" sparkle:edSignature="GOS2UIHQZcEmNMBpszjZe5Cho/VRv9SEulEAqsAo93f6Caadb/vLUYxEJj2NOVWzSwluxqLXaC/NTfZpT5QjAw=="/>
-        </item>
-        <item>
-            <title>0.3.31</title>
-            <pubDate>Mon, 17 Aug 2026 17:52:48 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.31</link>
-            <sparkle:version>41</sparkle:version>
-            <sparkle:shortVersionString>0.3.31</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Installing Duo Updater's own updates silently now actually is silent.** The switch introduced in 0.3.30 downloaded the new version in the background and then still asked before applying it — the one thing it was meant to spare you. It now applies the update itself, at a moment when doing so interrupts nothing: no check or install running, nothing waiting to be relaunched, no Duo Updater window open, and you working in another app. It restarts itself there, without a prompt. Until such a moment arrives it simply waits, and if none ever comes the update is still applied when you quit — so the wait can delay a version, never lose one. Leaving the switch off is unchanged: you are asked, as before.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.31/DuoUpdater-0.3.31-macos.zip" length="10457262" type="application/octet-stream" sparkle:edSignature="PDO+sMaOezrrR08x3NGn1oefCzdlarim68F2LeQ0h+YS04hRjr8/d4r1RvcTBjAgmMr8HUl6xMpCo9UniI/mDA=="/>
         </item>
     </channel>
 </rss>

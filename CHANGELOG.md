@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.34
+
+**App Store updates stop breaking every time Duo Updater updates itself.** Replacing the app left the background helper from the previous copy running, and macOS then never started the new one — so the helper looked switched on while every App Store update failed talking to a copy that no longer existed. Only a restart cleared it. The helper now steps aside when it has been idle for a minute, which means a replaced app heals itself by the next update. For a Mac already in that state there is a **Restart Helper** button in Settings → Diagnostics and on the update that failed; it asks for an administrator password and takes effect immediately, no restart.
+
+**Diagnostics can tell you whether the helper actually works.** "Enabled" only ever meant "switched on", and the difference between that and "answering" showed up as a failed update. A **Check** button now says which one you have, in those words.
+
+**Backups: choose what to delete.** "Clean Up Now" only removed backups belonging to apps you had uninstalled, so on most Macs it deleted nothing and said nothing while the size stayed put. It now opens a list — every backup with its app icon, the update it would roll back, its size and date — with everything selected and anything you want to keep unselectable. The button says how much the selection frees. Backups whose records had gone missing were previously counted in the total but impossible to see or remove; they are listed too, marked unusable.
+
 ## 0.3.33
 
 **A silent self-update no longer leaves Duo Updater sitting in front of you.** When it applied its own update in the background, macOS brought back the windows that had been open — and bringing a window back also brings the app forward, so an update nobody asked for landed on top of whatever was being worked on and stayed there. Duo Updater now notes which application was in front before it replaces itself, and gives the front back to it on the way in. Windows still return exactly as they were.

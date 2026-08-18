@@ -12,6 +12,13 @@ final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {
         }
         conn.exportedInterface = NSXPCInterface(with: MASHelperProtocol.self)
         conn.exportedObject = HelperService(clientIdentity: identity)
+        // Hold the process open for as long as this client is talking to us, and
+        // let it exit once nobody is — see `IdleExit`, which is what keeps a
+        // replaced app bundle from stranding a helper launchd will never restart.
+        // Rejected connections deliberately never get here: they must not keep a
+        // daemon alive.
+        IdleExit.connectionOpened()
+        conn.invalidationHandler = { IdleExit.connectionClosed() }
         conn.resume()
         return true
     }

@@ -17,6 +17,18 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.35</title>
+            <pubDate>Wed, 19 Aug 2026 00:39:56 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.35</link>
+            <sparkle:version>45</sparkle:version>
+            <sparkle:shortVersionString>0.3.35</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**WeChat DevTools (微信开发者工具) is checked for updates now — Stable, RC and Nightly each on their own track.** It used to sit there as "unknown": since version 2.02 the app reports Electron's stock identity on disk, calling itself version 36.6.0, and all three channels look identical from the outside. Duo Updater now reads the real version and channel out of the app's own configuration, so whichever track you installed is the only one you are offered — a Nightly install is never handed a Stable build, or the other way round. Updates install in one click, and the release notes for the exact build show up in the window.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.35/DuoUpdater-0.3.35-macos.zip" length="10541529" type="application/octet-stream" sparkle:edSignature="smxYlZvSnbvItEQefNpslE5xeFEz+RodOrHwzc91q4ckBf7BCJuwKL9O4sbJCu/5XgBrjvMd1wUDNJmdHqrWCw=="/>
+        </item>
+        <item>
             <title>0.3.34</title>
             <pubDate>Tue, 18 Aug 2026 15:40:26 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.34</link>
@@ -43,22 +55,6 @@
             <description sparkle:format="markdown"><![CDATA[**A silent self-update no longer leaves Duo Updater sitting in front of you.** When it applied its own update in the background, macOS brought back the windows that had been open — and bringing a window back also brings the app forward, so an update nobody asked for landed on top of whatever was being worked on and stayed there. Duo Updater now notes which application was in front before it replaces itself, and gives the front back to it on the way in. Windows still return exactly as they were.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.33/DuoUpdater-0.3.33-macos.zip" length="10465660" type="application/octet-stream" sparkle:edSignature="VS6BKvTnqiYj1wjmo+EMy0EmKUSMQBwRVaFfBZewoQGmUOCSEVtzZBGerHnxw69ZzSMaAf/gIAaluOBXs2tQCQ=="/>
-        </item>
-        <item>
-            <title>0.3.32</title>
-            <pubDate>Mon, 17 Aug 2026 20:35:50 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.32</link>
-            <sparkle:version>42</sparkle:version>
-            <sparkle:shortVersionString>0.3.32</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Docker updated to the version it said it would.** Docker publishes its releases in an order that puts an older one first, and Duo Updater read the newest version from that list while taking the download link from the top of it — so it fetched 574 MB, kept a backup, installed 4.86.0 over the 4.86.0 already there, and went on offering 4.87.0. Downloads are now matched to the version each entry declares for itself, whatever order a vendor lists them in.
-
-**An update that changed nothing is no longer reported as done.** The check that runs immediately after installing already knew Docker hadn't moved; it was overruled by a success message and an "Updated ✓". When an update we applied ourselves leaves the app exactly as it was, that is now shown as the failure it is, naming what was installed and what is still on disk.
-
-**Silent self-updates no longer wait for an empty screen.** With the switch turned on, Duo Updater would hold its own update back while any of its windows were open — which, for a window people leave open, meant waiting until the app was quit. Open windows no longer delay it (macOS brings them back after the restart), while a Duo Updater you are actually using still does: it waits for the keyboard and mouse to go quiet before restarting itself.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.32/DuoUpdater-0.3.32-macos.zip" length="10460069" type="application/octet-stream" sparkle:edSignature="GOS2UIHQZcEmNMBpszjZe5Cho/VRv9SEulEAqsAo93f6Caadb/vLUYxEJj2NOVWzSwluxqLXaC/NTfZpT5QjAw=="/>
         </item>
     </channel>
 </rss>

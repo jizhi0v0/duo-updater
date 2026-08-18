@@ -15,6 +15,17 @@ import Foundation
 public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     case stable
     case beta
+    /// A "release candidate" train that is its own published channel, not a tag on
+    /// a beta build: WeChat DevTools ships 稳定版 / 预发布版(RC) / 开发版(Nightly) as
+    /// three parallel downloads, and the RC one is what its own `package.json`
+    /// calls `versionType=1`. Modelled separately from `.beta` so the row label
+    /// matches what the vendor calls the track the user actually installed.
+    ///
+    /// Deliberately absent from `nonStable` and `channelWord`: no vendor we cover
+    /// spells this channel in a bundle id suffix or an app name, and "rc" is short
+    /// enough that a generic word/suffix match would be a false-positive machine.
+    /// It is only ever set by an explicit, app-scoped signal.
+    case rc
     /// Discord's "Public Test Build" — a distinct public pre-release track that
     /// ships as its own bundle id (`com.hnc.DiscordPTB`). No `<sparkle:channel>`
     /// tag or version suffix carries it, so it's detected from the standalone

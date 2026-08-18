@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.35
+
+**WeChat DevTools (微信开发者工具) is checked for updates now — Stable, RC and Nightly each on their own track.** It used to sit there as "unknown": since version 2.02 the app reports Electron's stock identity on disk, calling itself version 36.6.0, and all three channels look identical from the outside. Duo Updater now reads the real version and channel out of the app's own configuration, so whichever track you installed is the only one you are offered — a Nightly install is never handed a Stable build, or the other way round. Updates install in one click, and the release notes for the exact build show up in the window.
+
 ## 0.3.34
 
 **App Store updates stop breaking every time Duo Updater updates itself.** Replacing the app left the background helper from the previous copy running, and macOS then never started the new one — so the helper looked switched on while every App Store update failed talking to a copy that no longer existed. Only a restart cleared it. The helper now steps aside when it has been idle for a minute, which means a replaced app heals itself by the next update. For a Mac already in that state there is a **Restart Helper** button in Settings → Diagnostics and on the update that failed; it asks for an administrator password and takes effect immediately, no restart.

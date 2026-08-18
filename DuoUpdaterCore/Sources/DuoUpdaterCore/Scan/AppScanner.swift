@@ -226,10 +226,11 @@ public struct AppScanner: Sendable {
         // An app with no marketing version can't be update-checked — these are
         // helper/background bundles (URL handlers, login items) that would only
         // ever show as permanent "unknown" noise. Exclude them.
-        guard let shortVersion = (plist["CFBundleShortVersionString"] as? String)?
+        guard let rawShortVersion = (plist["CFBundleShortVersionString"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-              !shortVersion.isEmpty
+              !rawShortVersion.isEmpty
         else { return nil }
+        var shortVersion = rawShortVersion
 
         // Some bundles wrap their display name in invisible bidi/zero-width marks —
         // WhatsApp's `CFBundleDisplayName` is "\u{200E}WhatsApp" (a leading LEFT-TO-RIGHT
@@ -251,9 +252,37 @@ public struct AppScanner: Sendable {
         // stable track. Wrapped iOS apps have no `Contents/` — their MAS provenance
         // is implied by the wrapper itself, so we never look for a
         // `Contents/_MASReceipt` there (that path can't exist).
-        let bundleID = plist["CFBundleIdentifier"] as? String
+        var bundleID = plist["CFBundleIdentifier"] as? String
+        /// Set only for WeChat DevTools, from its `package.json` (see below).
+        var weChatDevToolsChannel: ReleaseChannel?
         let buildVersion = plist["CFBundleVersion"] as? String
         if bundleID == Self.duoUpdaterBundleID { return nil }
+
+        // WeChat DevTools (微信开发者工具) keeps its real identity OUT of Info.plist.
+        // Its 2.02 rewrite moved from NW.js to Electron and shipped Electron's stock
+        // plist verbatim: every 2.02 build — Stable, RC and Nightly alike — reports
+        // `com.github.Electron` and version `36.6.0` (the Electron runtime version,
+        // not the tool's). 2.01 at least had `com.tencent.webplusdevtools`, but its
+        // own version lives in a different file too. Both the true version
+        // ("2.02.2608040") and the channel (`versionType`) sit in the app's bundled
+        // `package.json`, the same file the app itself reads — so we read it and
+        // file the app under the id its INSTALLER declares
+        // (`com.tencent.wechatdevtools`), which is stable across both eras and,
+        // unlike `com.github.Electron`, cannot collide with any other Electron app
+        // whose vendor was equally careless. Keying the recipes on the stock id
+        // instead would make every such app a candidate for WeChat's installer.
+        //
+        // Scoped to the two known ids plus the bundle name so no other app pays a
+        // file probe; the `package.json`'s own `appname` is what actually confirms
+        // the match.
+        if bundleID == Self.weChatDevToolsElectronBundleID
+            || bundleID == Self.weChatDevToolsLegacyBundleID
+            || (plist["CFBundleName"] as? String) == Self.weChatDevToolsAppName,
+           let identity = Self.weChatDevToolsIdentity(in: bundleURL) {
+            bundleID = Self.weChatDevToolsBundleID
+            shortVersion = identity.version
+            weChatDevToolsChannel = identity.channel
+        }
         let hasReceipt = !isiOSAppOnMac && fm.fileExists(
             atPath: bundleURL.appendingPathComponent("Contents/_MASReceipt/receipt").path)
         // Primary TestFlight signal: the receipt ENVIRONMENT. A TestFlight build
@@ -355,6 +384,14 @@ public struct AppScanner: Sendable {
         // a beta build. See `ChannelBinding`.
         var channelIsAuthoritative = false
         var feedHeaders: [String: String] = [:]
+        // WeChat DevTools states its channel outright in its own `package.json`
+        // (`versionType`), which beats every heuristic `detect` has: the three
+        // channels share one bundle id, one app name, and a version string with no
+        // channel token in it, so nothing else on disk could tell them apart.
+        if let channel = weChatDevToolsChannel {
+            releaseChannel = channel
+            channelIsAuthoritative = true
+        }
         if let bound = ChannelBinding.resolve(bundleID: bundleID) {
             releaseChannel = bound.channel
             channelIsAuthoritative = true
@@ -429,6 +466,104 @@ public struct AppScanner: Sendable {
               !build.isEmpty
         else { return nil }
         return build
+    }
+
+    // MARK: - WeChat DevTools identity
+
+    /// Stock Electron bundle id, which WeChat DevTools 2.02+ ships unchanged.
+    static let weChatDevToolsElectronBundleID = "com.github.Electron"
+    /// The bundle id the 2.01 (NW.js) generation carried.
+    static let weChatDevToolsLegacyBundleID = "com.tencent.webplusdevtools"
+    /// `CFBundleName` — the one Info.plist field that survived both generations.
+    static let weChatDevToolsAppName = "wechatwebdevtools"
+    /// The id we file the app under: what its pkg declares
+    /// (`PackageInfo identifier="com.tencent.wechatdevtools"`, identical across all
+    /// three channels). Unlike `com.github.Electron` it names this product only.
+    public static let weChatDevToolsBundleID = "com.tencent.wechatdevtools"
+
+    /// The real version and channel of a WeChat DevTools install.
+    public struct WeChatDevToolsIdentity: Sendable, Hashable {
+        public let version: String
+        public let channel: ReleaseChannel
+    }
+
+    /// Read WeChat DevTools' real version + channel out of the `package.json` the
+    /// app itself runs on, or nil when this bundle isn't WeChat DevTools (or is a
+    /// build whose channel we don't recognize).
+    ///
+    /// Two locations, because the 2.02 Electron rewrite moved the file:
+    /// `Contents/Resources/app.asar.unpacked/package.json` (2.02+) and
+    /// `Contents/Resources/package.nw/package.json` (2.01, NW.js). Both carry the
+    /// same fields; the `appname` is checked so a stray `package.json` from some
+    /// other Electron app can never be read as this one.
+    ///
+    /// `versionType` is the vendor's own channel enum — `"0"` Stable, `"1"` RC
+    /// (预发布版), `"2"` Nightly (开发版) — verified on four real bundles on
+    /// 2026-08-18 (installed 2.01.2510290, and the 2.02.2608031 / 2.02.2608040 /
+    /// 2.02.2608182 pkg payloads). It is a STRING in every build seen; a number is
+    /// accepted too rather than betting on the vendor never changing that.
+    /// `window.title` ("… Stable v2.02.2608040") carries the same fact and is the
+    /// fallback. An unrecognized value returns nil for the WHOLE identity — the app
+    /// then stays on its stock id, matches no recipe, and shows "unknown", which is
+    /// the right failure: guessing `.stable` for an unknown future channel is how a
+    /// cross-channel install happens.
+    public static func weChatDevToolsIdentity(in bundleURL: URL) -> WeChatDevToolsIdentity? {
+        let candidates = [
+            "Contents/Resources/app.asar.unpacked/package.json",  // 2.02+ (Electron)
+            "Contents/Resources/package.nw/package.json",         // 2.01 (NW.js)
+        ]
+        for relativePath in candidates {
+            let url = bundleURL.appendingPathComponent(relativePath)
+            guard let data = try? Data(contentsOf: url),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { continue }
+            guard let identity = weChatDevToolsIdentity(fromPackageJSON: json) else { continue }
+            return identity
+        }
+        return nil
+    }
+
+    /// The pure half of `weChatDevToolsIdentity(in:)` — decoding one parsed
+    /// `package.json`. Split out so it can be unit-tested without a real bundle.
+    static func weChatDevToolsIdentity(
+        fromPackageJSON json: [String: Any]
+    ) -> WeChatDevToolsIdentity? {
+        guard (json["appname"] as? String) == weChatDevToolsAppName
+                || (json["product_string"] as? String) == weChatDevToolsAppName
+        else { return nil }
+        guard let version = (json["version"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !version.isEmpty
+        else { return nil }
+
+        let rawType = (json["versionType"] as? String)
+            ?? (json["versionType"] as? NSNumber)?.stringValue
+        let title = (json["window"] as? [String: Any])?["title"] as? String
+        guard let channel = weChatDevToolsChannel(versionType: rawType, windowTitle: title)
+        else { return nil }
+        return WeChatDevToolsIdentity(version: version, channel: channel)
+    }
+
+    /// Map WeChat DevTools' `versionType` to a channel, falling back to the
+    /// Stable/RC/Nightly word in the window title when the field is missing.
+    static func weChatDevToolsChannel(
+        versionType: String?, windowTitle: String?
+    ) -> ReleaseChannel? {
+        switch versionType?.trimmingCharacters(in: .whitespaces) {
+        case "0": return .stable
+        case "1": return .rc
+        case "2": return .nightly
+        case .some(let other) where !other.isEmpty:
+            // A value the vendor added since — don't guess it into an existing
+            // channel; the title fallback below can't disambiguate it either.
+            return nil
+        default: break
+        }
+        guard let title = windowTitle?.lowercased() else { return nil }
+        if title.contains(" nightly ") { return .nightly }
+        if title.contains(" rc ") { return .rc }
+        if title.contains(" stable ") { return .stable }
+        return nil
     }
 
     public static func mozillaRemotingName(in bundleURL: URL) -> String? {

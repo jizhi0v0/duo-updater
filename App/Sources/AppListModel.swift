@@ -2911,15 +2911,26 @@ final class AppListModel {
     /// auto-prune preference, and refreshes the on-screen backup index so any
     /// rollback affordance that pointed at a just-removed orphan disappears.
     /// Returns the bytes freed, for the confirmation the button shows.
-    func cleanUpOrphanBackups() async -> Int64 {
-        let freed = await Task.detached(priority: .utility) { BackupStore.pruneOrphans() }.value
-        await refreshBackupIndex()
-        return freed
+    /// Every stored backup, measured, for the delete sheet. Off the main actor:
+    /// sizing walks each bundle.
+    func backupListing() async -> [BackupStore.Listing] {
+        await Task.detached(priority: .utility) { BackupStore.listing() }.value
     }
+
+    /// Delete exactly the backups the user ticked, then re-read the index so the
+    /// rows lose their rollback affordance and the total is honest again.
+    func deleteBackups(keys: [String]) async {
+        await Task.detached(priority: .utility) {
+            for key in keys { BackupStore.remove(forKey: key) }
+        }.value
+        Log.install.notice("backups: deleted \(keys.count, privacy: .public) on request")
+        await refreshBackupIndex()
+    }
+
 
     /// Re-read which apps have a rollback backup on disk (one directory scan),
     /// mapping it onto the current rows.
-    private func refreshBackupIndex() async {
+    func refreshBackupIndex() async {
         let map = await Task.detached(priority: .utility) { BackupStore.allBackups() }.value
         var byID: [String: String] = [:]
         for result in results {

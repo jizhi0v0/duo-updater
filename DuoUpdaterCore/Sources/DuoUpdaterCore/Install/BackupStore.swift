@@ -387,6 +387,76 @@ public enum BackupStore {
             at: root.appendingPathComponent(key, isDirectory: true))
     }
 
+    /// One stored backup, described for a UI that has to let someone choose which
+    /// ones to delete: what app it belongs to, when it was taken, how much disk it
+    /// is holding, and whether it can still do its job.
+    public struct Listing: Sendable, Identifiable, Equatable {
+        public let key: String
+        public var id: String { key }
+        public let name: String
+        /// What the backup would restore — the version that was replaced.
+        public let version: String?
+        /// What is installed at that path right now, so the row can show the update
+        /// this backup undoes (`2.0.11 → 2.0.14`). Nil when the app is gone, or when
+        /// its plist can't be read. Deciding whether a rollback point still matters
+        /// is mostly a question of how far behind it now is.
+        public let currentVersion: String?
+        public let savedAt: Date?
+        public let sizeBytes: Int64
+        /// The backed-up bundle itself, for an icon. Present even when the original
+        /// app is long gone, which is exactly when a name alone identifies least.
+        public let bundlePath: URL?
+        /// False when the original app is gone — nothing left to restore onto.
+        public let appStillInstalled: Bool
+        /// False when the sidecar is missing or unreadable: without it `restore`
+        /// has no target path, so the bytes are unusable. Listing these anyway is
+        /// the point — they are invisible to every other surface, which is how one
+        /// grew to 272 MB unnoticed, counted in the total but impossible to remove.
+        public let isRestorable: Bool
+    }
+
+    /// `CFBundleShortVersionString` of the app currently at `path`, or nil if it
+    /// isn't there or has no readable plist.
+    private static func installedShortVersion(atPath path: String) -> String? {
+        let plist = URL(fileURLWithPath: path).appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: plist),
+              let info = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any]
+        else { return nil }
+        return info["CFBundleShortVersionString"] as? String
+    }
+
+    /// Every stored backup with its size, newest first. Walks each directory to
+    /// measure it, so call it off the main thread.
+    public static func listing() -> [Listing] {
+        let fm = FileManager.default
+        guard let dirs = try? fm.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]) else { return [] }
+        var out: [Listing] = []
+        for dir in dirs {
+            guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            else { continue }
+            let bundle = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))?
+                .first { $0.pathExtension == "app" }
+            let meta = (try? Data(contentsOf: dir.appendingPathComponent("backup.json")))
+                .flatMap { try? JSONDecoder().decode(Meta.self, from: $0) }
+            out.append(Listing(
+                key: dir.lastPathComponent,
+                name: meta?.bundleName ?? bundle?.lastPathComponent ?? dir.lastPathComponent,
+                version: meta?.version,
+                currentVersion: meta.flatMap { installedShortVersion(atPath: $0.originalPath) },
+                savedAt: meta?.savedAt,
+                sizeBytes: directorySize(dir),
+                bundlePath: bundle,
+                appStillInstalled: meta.map { fm.fileExists(atPath: $0.originalPath) } ?? false,
+                isRestorable: meta != nil))
+        }
+        // Undated (sidecar-less) entries sort last: they are the ones to clear out,
+        // not the ones to reason about.
+        return out.sorted { ($0.savedAt ?? .distantPast) > ($1.savedAt ?? .distantPast) }
+    }
+
     // MARK: - Cleanup
 
     /// Removes backups whose original app no longer exists at the recorded path —

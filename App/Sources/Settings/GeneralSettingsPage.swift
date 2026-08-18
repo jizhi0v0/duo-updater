@@ -34,7 +34,22 @@ struct GeneralSettingsPage: View {
         .task {
             backupBytes = await Task.detached(priority: .utility) { BackupStore.totalSize() }.value
         }
+        .sheet(isPresented: $showingBackups) {
+            BackupsSheet(backups: backupListing) { keys in
+                Task {
+                    await model.deleteBackups(keys: keys)
+                    backupBytes = await Task.detached(priority: .utility) {
+                        BackupStore.totalSize()
+                    }.value
+                }
+            }
+        }
     }
+
+    /// Presented by "Clean Up…", loaded on demand because measuring every backup
+    /// walks the disk.
+    @State private var showingBackups = false
+    @State private var backupListing: [BackupStore.Listing] = []
 
     private var backupSizeLabel: String {
         guard let backupBytes else { return "…" }
@@ -85,18 +100,19 @@ struct GeneralSettingsPage: View {
                 Text("Backups are using \(backupSizeLabel)")
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Clean Up Now") {
+                // Opens the list rather than acting immediately: every backup is
+                // somebody's rollback, and the old behaviour (prune orphans only)
+                // usually deleted nothing and said nothing, which read as broken.
+                Button("Clean Up…") {
                     guard !isCleaningBackups else { return }
                     isCleaningBackups = true
                     Task {
-                        _ = await model.cleanUpOrphanBackups()
-                        backupBytes = await Task.detached(priority: .utility) {
-                            BackupStore.totalSize()
-                        }.value
+                        backupListing = await model.backupListing()
                         isCleaningBackups = false
+                        showingBackups = !backupListing.isEmpty
                     }
                 }
-                .disabled(isCleaningBackups)
+                .disabled(isCleaningBackups || backupBytes == 0)
             }
             .settingsRow()
         }

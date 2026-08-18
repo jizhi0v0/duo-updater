@@ -553,4 +553,47 @@ struct BackupStoreTests {
                 source: app, copy: copy, expected: ["Contents/marker.txt"]).isEmpty)
         }
     }
+
+    // MARK: - Listing (for the delete sheet)
+
+    /// The delete sheet needs a name, a measured size, and — the part that decides
+    /// whether a backup is worth keeping — whether the app it would restore onto
+    /// still exists. A listing that dropped that flag would present orphans and
+    /// live rollback points as the same thing.
+    @Test func listingReportsSizeAndWhetherTheAppIsStillInstalled() throws {
+        try withScratchRoot { root in
+            // Outside the backup root on purpose: `listing()` now reports every
+            // directory under it, including leftovers with no sidecar, so fixtures
+            // stored inside would show up as backups of their own.
+            let dir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("DuoUpdaterBackupApps-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let live = try makeApp(named: "Live.app", in: dir, marker: String(repeating: "x", count: 4096))
+            let gone = try makeApp(named: "Gone.app", in: dir, marker: "y")
+            _ = try BackupStore.save(
+                appPath: live, key: BackupStore.key(bundleID: "com.example.live", path: live),
+                version: "2.0", bundleID: "com.example.live")
+            _ = try BackupStore.save(
+                appPath: gone, key: BackupStore.key(bundleID: "com.example.gone", path: gone),
+                version: "1.0", bundleID: "com.example.gone")
+            try FileManager.default.removeItem(at: gone)
+
+            let listing = BackupStore.listing()
+            #expect(listing.count == 2)
+            let liveEntry = try #require(listing.first { $0.name == "Live.app" })
+            let goneEntry = try #require(listing.first { $0.name == "Gone.app" })
+            #expect(liveEntry.appStillInstalled)
+            #expect(!goneEntry.appStillInstalled)
+            #expect(liveEntry.version == "2.0")
+            // The installed copy still reads its own plist version, so the row can
+            // show what the rollback would step back from.
+            #expect(liveEntry.currentVersion == nil || liveEntry.currentVersion == liveEntry.version)
+            // Gone app: nothing to read a current version from.
+            #expect(goneEntry.currentVersion == nil)
+            // Measured, not guessed: zero here would show every backup as free.
+            #expect(liveEntry.sizeBytes > goneEntry.sizeBytes)
+            #expect(goneEntry.sizeBytes > 0)
+        }
+    }
 }

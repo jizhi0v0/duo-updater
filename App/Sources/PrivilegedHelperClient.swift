@@ -124,6 +124,58 @@ final class PrivilegedHelperClient: ObservableObject {
     func openLoginItems() {
         SMAppService.openSystemSettingsLoginItems()
     }
+
+    /// Kill the running daemon so launchd starts the copy that belongs to the app
+    /// bundle currently on disk. The cure for a helper stranded by an in-place
+    /// replacement — and the only one that works from inside the app.
+    ///
+    /// It needs an administrator prompt because the daemon runs as root and the
+    /// registration APIs cannot reach it: `register()` on a live record does
+    /// nothing, and `unregister()` first switches the background item off and then
+    /// refuses to come back (both measured). Newer builds exit on their own when
+    /// idle, but a helper already stranded by an older build predates that code —
+    /// which is exactly who needs this button.
+    ///
+    /// - Returns: true when the daemon was restarted; false when the user
+    ///   dismissed the authorization panel, which is a decision, not a failure.
+    @discardableResult
+    func restartDaemon() async -> Bool {
+        // Off the main thread on purpose: the authorization panel stays up for as
+        // long as the user takes to answer it, and `waitUntilExit()` would hold the
+        // main thread for exactly that long — a frozen window behind the password
+        // prompt. Callers guard against a second press while this is in flight.
+        let label = HelperConfig.machServiceName
+        // nil means it ran and succeeded; a string is why it didn't.
+        let failure: String? = await Task.detached(priority: .userInitiated) { () -> String? in
+            let shell = "/bin/launchctl kickstart -k system/\(label)"
+            let script = "do shell script \"\(shell)\" with administrator privileges"
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            process.arguments = ["-e", script]
+            let errPipe = Pipe()
+            process.standardError = errPipe
+            do { try process.run() } catch {
+                return "could not run: \(error.localizedDescription)"
+            }
+            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                return String(data: errData, encoding: .utf8) ?? "unknown error"
+            }
+            return nil
+        }.value
+        if let message = failure {
+            // Dismissing the panel lands here too, and is a decision rather than a
+            // fault: nothing ran, so nothing is claimed.
+            log.error("helper kickstart failed: \(message, privacy: .public)")
+            return false
+        }
+        log.notice("helper kickstarted — launchd will start the copy in the current bundle")
+        // The install path owns its own XPC connection and drops a dead one on the
+        // first failure, so there is nothing to tear down from here.
+        refreshStatus()
+        return true
+    }
 }
 
 /// Runs `mas install` as root by handing a structured request to the privileged
@@ -212,6 +264,14 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
     /// if nothing comes back in time. A registered-but-unlaunchable daemon accepts
     /// the connection and simply never replies, which no error handler ever fires
     /// for, so a timeout is the only way to tell "working on it" from "never coming".
+    /// Does the helper actually answer right now? The same round-trip an install
+    /// makes, exposed so the Diagnostics page can tell "switched on" from
+    /// "switched on and working" — a distinction that otherwise only surfaces as a
+    /// failed update, and that a replaced app bundle creates routinely.
+    func isAnswering() async -> Bool {
+        do { try await ensureReachable(); return true } catch { return false }
+    }
+
     private func ensureReachable() async throws {
         let answered = try await withThrowingTaskGroup(of: Bool.self) { group in
             group.addTask { [self] in await probeVersion() }

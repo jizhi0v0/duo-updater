@@ -498,7 +498,11 @@ private struct AppRow: View {
                     versionLine
                 }
                 Spacer()
+                // Constant-width action slot, centre-aligned: buttons of different
+                // widths ("Update" vs "Relaunch" vs "Restart now") line up on a
+                // shared centre line down the list instead of a ragged right edge.
                 trailing
+                    .frame(minWidth: 64, alignment: .center)
             }
             if let installError {
                 VStack(alignment: .leading, spacing: 3) {
@@ -515,6 +519,14 @@ private struct AppRow: View {
                         Button("Turn On Helper…") { model.enableAppStoreHelper() }
                             .font(.caption2)
                             .buttonStyle(.link)
+                    }
+                    if model.showsHelperRestartFallback(result.id) {
+                        Button(model.restartingHelper ? "Restarting…" : "Restart Helper…") {
+                            Task { await model.restartAppStoreHelper(result.id) }
+                        }
+                        .font(.caption2)
+                        .buttonStyle(.link)
+                        .disabled(model.restartingHelper)
                     }
                 }
             } else if let note = model.installNotes[result.id] {
@@ -854,7 +866,7 @@ private struct AppRow: View {
         // Right-align the bar+label as a tight group inside a constant-width slot,
         // so it sits flush right (matching the buttons) and the row never reflows
         // as the percentage changes — the source of the jitter with many downloads.
-        .frame(width: 96, alignment: .trailing)
+        .frame(width: 64, alignment: .center)
     }
 
     private func stageLabel(_ stage: InstallStage) -> String {
@@ -942,7 +954,7 @@ private struct AppRow: View {
             Text("Relaunching…")
                 .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
-        .frame(width: 96, alignment: .trailing)
+        .frame(width: 64, alignment: .center)
         .help("Quit \(result.app.name) — waiting for it to swap in the new version and reopen")
     }
 
@@ -953,7 +965,7 @@ private struct AppRow: View {
             Text("Updated")
                 .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
-        .frame(width: 96, alignment: .trailing)
+        .frame(width: 64, alignment: .center)
         .help("\(result.app.name) updated to \(result.app.shortVersion ?? "the latest version")")
     }
 

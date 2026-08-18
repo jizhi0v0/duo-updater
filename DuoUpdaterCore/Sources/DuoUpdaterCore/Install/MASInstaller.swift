@@ -75,7 +75,7 @@ public actor MASInstaller {
             case .helperNotApproved:
                 return "App Store updates need DuoUpdater's background helper. \(MASError.helperApprovalHint)"
             case .helperUnresponsive:
-                return "DuoUpdater's background helper is switched on but isn’t answering — usually a leftover copy still holding the slot after DuoUpdater was replaced in place. Rebuilding its registration didn’t revive it; restarting your Mac clears it."
+                return "DuoUpdater's background helper is switched on but isn’t answering — a leftover copy is still holding its slot after DuoUpdater updated itself. \(MASError.helperRestartHint)"
             case .failed(let code, let output):
                 // A known dead end on recent macOS: mas downloads the app fully, then
                 // CommerceKit refuses the final receipt import ("Failed to find receipt
@@ -124,6 +124,13 @@ public actor MASInstaller {
         /// action to the row, so the user isn't left reading an error that names a
         /// Settings pane they'd have to find themselves.
         public static let helperApprovalHint = "Turn it on in Login Items."
+
+        /// Stable fragment for the helper-is-silent message. Same contract as the
+        /// two above: the UI matches on it to attach a "Restart Helper…" action.
+        /// Worth its own action rather than telling people to reboot — the fix is
+        /// one authenticated command, and the reboot advice is what the message
+        /// used to end with.
+        public static let helperRestartHint = "Restarting it takes an administrator password."
 
         /// True for the one error the helper-approval flow can act on.
         public var isHelperApproval: Bool {

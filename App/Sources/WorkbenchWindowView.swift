@@ -1103,6 +1103,14 @@ private struct DetailHeader: View {
                         .font(.caption)
                         .buttonStyle(.link)
                 }
+                if model.showsHelperRestartFallback(result.id) {
+                    Button(model.restartingHelper ? "Restarting…" : "Restart Helper…") {
+                        Task { await model.restartAppStoreHelper(result.id) }
+                    }
+                    .font(.caption)
+                    .buttonStyle(.link)
+                    .disabled(model.restartingHelper)
+                }
             } else if let note = model.installNotes[result.id] {
                 Text(note)
                     .font(.caption)

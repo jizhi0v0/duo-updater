@@ -2184,6 +2184,33 @@ final class AppListModel {
         installErrors[id]?.contains(MASInstaller.MASError.helperApprovalHint) == true
     }
 
+    /// The other helper failure: registered and switched on, but the process
+    /// answering for it belongs to a bundle we've since replaced. Distinct action
+    /// from the approval one — Login Items is the wrong place to send anyone here.
+    func showsHelperRestartFallback(_ id: String) -> Bool {
+        installErrors[id]?.contains(MASInstaller.MASError.helperRestartHint) == true
+    }
+
+    /// Restart the stranded daemon (administrator prompt), then clear the row's
+    /// error so the retry is a plain "Update" again rather than a red line the
+    /// user has to reason about. Leaves the error in place if they dismiss the
+    /// prompt — nothing changed, so the row shouldn't claim otherwise.
+    func restartAppStoreHelper(_ id: String) async {
+        // One authorization panel at a time, however many times the row is
+        // pressed: a second press while the first is up stacks another prompt and
+        // kickstarts the daemon twice.
+        guard !restartingHelper else { return }
+        restartingHelper = true
+        defer { restartingHelper = false }
+        guard await helperClient.restartDaemon() else { return }
+        helperEnabled = helperClient.isEnabled
+        installErrors[id] = nil
+    }
+
+    /// True while the helper-restart authorization panel is up, so the row's
+    /// button can disable itself instead of queueing prompts.
+    private(set) var restartingHelper = false
+
     /// Rebuild the helper's registration and, if it still isn't enabled, open the
     /// Login Items pane. Same two steps as the dialog, minus the dialog.
     func enableAppStoreHelper() {

@@ -22,6 +22,8 @@ public enum StructuredChangelogDecoder {
             return decodeWarp(body, channel: channel ?? .stable, maxEntries: maxEntries)
         case .typelessReleaseNotes:
             return decodeTypeless(body, maxEntries: maxEntries)
+        case .weChatDevToolsLog:
+            return decodeWeChatDevTools(body)
         }
     }
 
@@ -157,6 +159,80 @@ public enum StructuredChangelogDecoder {
                 return s.trimmingCharacters(in: .whitespaces)
             }
             .filter { !$0.isEmpty }
+    }
+
+    // MARK: - WeChat DevTools (devtools.wxqcloud.qq.com.cn/…/logs/<channel>_v<ver>.json)
+
+    /// One release's notes: `categories[]` of `{title, items[]}`, where each item is
+    /// a line of Chinese prose prefixed by a literal ordinal and a backticked marker
+    /// ("1. `F` 修复 …" / "1. `修复` …" — the marker vocabulary is inconsistent across
+    /// channels, which is why it's stripped rather than mapped).
+    ///
+    /// The endpoint is per-version — the recipe templates `{version}` into the URL —
+    /// so a document is always exactly ONE entry. There is no multi-version document
+    /// to page through: the vendor's index (`history_<channel>.json`) carries only
+    /// version→filename pointers, no notes.
+    private struct WeChatDevToolsLog: Decodable {
+        let version: String?
+        let updateTime: String?
+        let categories: [WeChatDevToolsCategory]?
+        enum CodingKeys: String, CodingKey {
+            case version
+            case updateTime = "update_time"
+            case categories
+        }
+    }
+    private struct WeChatDevToolsCategory: Decodable {
+        let title: String?
+        let items: [String]?
+    }
+
+    static func decodeWeChatDevTools(_ body: String) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let log = try? JSONDecoder().decode(WeChatDevToolsLog.self, from: data),
+              let version = log.version?.trimmingCharacters(in: .whitespaces),
+              !version.isEmpty
+        else { return nil }
+
+        var blocks: [Changelog.Entry.Block] = []
+        var items: [String] = []
+        for category in log.categories ?? [] {
+            let lines = (category.items ?? []).compactMap { weChatDevToolsItem($0) }
+            guard !lines.isEmpty else { continue }
+            // The category title ("🐛 问题修复" / " 问题修复") is the only thing that
+            // says what a group of lines IS, so it rides along as a heading note.
+            if let title = category.title?.trimmingCharacters(in: .whitespaces), !title.isEmpty {
+                blocks.append(.note(title))
+                items.append(title)
+            }
+            for line in lines {
+                blocks.append(.note(line))
+                items.append(line)
+            }
+        }
+        guard !blocks.isEmpty else { return nil }
+        return Changelog(entries: [.init(
+            version: version,
+            date: log.updateTime,
+            items: items,
+            content: blocks)])
+    }
+
+    /// Clean one change line: drop the literal ordinal every item carries ("1. " —
+    /// the vendor authors these as markdown lists and every single one is numbered
+    /// "1.", so they are decoration, not a sequence) and the leading backticked
+    /// marker (`A` / `F` / `修复` / `新增`, inconsistent between channels and already
+    /// implied by the category heading). Then run the shared markdown cleanup.
+    /// nil when nothing readable is left.
+    static func weChatDevToolsItem(_ raw: String) -> String? {
+        var s = raw.trimmingCharacters(in: .whitespaces)
+        s = s.replacingOccurrences(
+            of: #"^\d+[.、)]\s*"#, with: "", options: .regularExpression)
+        // Only a SHORT backticked token is a marker; a longer one is real inline
+        // code the note is about (`wx.login`), which must survive.
+        s = s.replacingOccurrences(
+            of: #"^`[^`]{1,4}`\s*"#, with: "", options: .regularExpression)
+        return bulletItems(from: s).first
     }
 
     // MARK: - Typeless (typeless.com/help/release-notes/macos)

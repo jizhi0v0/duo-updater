@@ -45,6 +45,18 @@ application.ini` 的 `RemotingName`（baked per-channel）区分——`ReleaseCh
 | Firefox esr | `org.mozilla.firefox`（共享）| `firefox-esr` |
 | Thunderbird esr | `org.mozilla.thunderbird`（共享）| `thunderbird-esr` |
 
+### Pattern A\* — 共享 bundle id，但 app 自带文件里写着渠道（非 ChannelBinding）
+
+`RemotingName` 的同构做法：渠道烤进 bundle 里一个不用启动就能读的文件，
+`AppScanner` 在扫描时读出来。与 Pattern B/C 的区别是**这不是用户偏好，是构建产物**。
+
+| App | 磁盘 bundle id | 登记 id | 读的文件 → 信号 |
+|---|---|---|---|
+| **微信开发者工具** | 2.02 `com.github.Electron`（Electron 出厂默认，三渠道相同）/ 2.01 `com.tencent.webplusdevtools` | `com.tencent.wechatdevtools` | `Resources/app.asar.unpacked/package.json`（2.01 是 `package.nw/`）→ `versionType` 0/1/2 = stable/rc/nightly |
+
+Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`），所以这个 app 的
+版本号也一起从 `package.json` 取。三渠道共用一个 `config.json` 端点，各自锚 `"id"`。
+
 ### Pattern B/C — 共享 bundle id + app 内开关写的本地信号（ChannelBinding）
 
 这就是"app 内切换渠道"已做成的 6 个。每个读一个具体偏好/凭证：

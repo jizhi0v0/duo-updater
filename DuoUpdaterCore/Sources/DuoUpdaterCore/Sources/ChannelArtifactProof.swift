@@ -97,6 +97,18 @@ public enum ChannelProofRegistry {
         ChannelProofKey("com.hnc.DiscordPTB", .ptb): .artifact(#"^https://ptb\."#),
         ChannelProofKey("com.hnc.DiscordCanary", .canary): .artifact(#"^https://canary\."#),
 
+        // MARK: WeChat DevTools (微信开发者工具)
+        // Nightly builds live under their own CDN prefix (`/WechatWebDev/nightly/…`)
+        // while Stable and RC are both served from `/WechatWebDev/release/<hash>/`,
+        // so only Nightly can be proven from the URL. RC's artifact is byte-for-byte
+        // shaped like Stable's — same host, same directory, same filename template,
+        // differing only in the version — so its proof is the anchor instead: the
+        // recipe reads the `"id": "rc"` block of the vendor's own `config.json`, and
+        // if that anchor ever stops being there the recipe would start reading
+        // whichever channel `config.json` lists first (Stable).
+        ChannelProofKey("com.tencent.wechatdevtools", .nightly): .artifact(#"/WechatWebDev/nightly/"#),
+        ChannelProofKey("com.tencent.wechatdevtools", .rc): .recipeAnchor(#""id":.*"rc""#),
+
         // MARK: Everything else
         ChannelProofKey("dev.warp.Warp-Preview", .preview): .artifact(#"channel=preview"#),
         ChannelProofKey("io.tailscale.ipn.macsys", .unstable): .artifact(#"/unstable/"#),

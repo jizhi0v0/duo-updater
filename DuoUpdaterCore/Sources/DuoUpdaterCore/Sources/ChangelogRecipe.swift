@@ -151,6 +151,13 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// markdown content carrying a leading illustration image). No regex can reach
         /// it; the decoder inflates and walks the JSON.
         case typelessReleaseNotes
+        /// WeChat DevTools' per-version notes,
+        /// `…/versions/logs/<channel>_v<version>.json` — `categories[]` of
+        /// `{title, items[]}`, one document per release (the recipe templates
+        /// `{version}` into the URL). Regex-extractable in principle, but the items
+        /// need the vendor's ordinal/marker decoration stripped and the category
+        /// headings folded in, which the extractor has no shape for.
+        case weChatDevToolsLog
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -859,6 +866,40 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 20,
             channel: .preview,
             structuredFormat: .warpChannelVersions),
+
+        // 微信开发者工具 (WeChat DevTools) — three channels under one (synthesized)
+        // bundle id, each with its own notes train, so one recipe per channel keyed
+        // by `channel`; `AppScanner` reads the install's channel out of the app's own
+        // `package.json` (see `weChatDevToolsIdentity`) and
+        // `recipe(forBundleID:channel:)` routes to the matching train.
+        //
+        // Version-templated, like Thunderbird: the vendor publishes ONE document per
+        // release (`logs/<channel>_v<version>.json`) and no "latest" alias, so the
+        // target version is substituted at load time and the notes on screen are
+        // always the build being offered. The docs page (`log.html#stable-<version>`)
+        // renders these very files — it's a Vue SPA reading them over fetch, so the
+        // JSON is the source and the page is the rendering, not the other way round.
+        ChangelogRecipe(
+            bundleID: "com.tencent.wechatdevtools",
+            source: URL(string: "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/config.json")!,
+            mode: .json,
+            channel: .stable,
+            sourceTemplate: "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/logs/stable_v{version}.json",
+            structuredFormat: .weChatDevToolsLog),
+        ChangelogRecipe(
+            bundleID: "com.tencent.wechatdevtools",
+            source: URL(string: "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/config.json")!,
+            mode: .json,
+            channel: .rc,
+            sourceTemplate: "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/logs/rc_v{version}.json",
+            structuredFormat: .weChatDevToolsLog),
+        ChangelogRecipe(
+            bundleID: "com.tencent.wechatdevtools",
+            source: URL(string: "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/config.json")!,
+            mode: .json,
+            channel: .nightly,
+            sourceTemplate: "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/logs/nightly_v{version}.json",
+            structuredFormat: .weChatDevToolsLog),
 
         // Typeless — the release-notes page ships every version's notes (with a
         // hero image per release) base64+gzip'd inside the Next.js `__NEXT_DATA__`.

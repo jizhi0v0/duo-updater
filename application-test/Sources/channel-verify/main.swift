@@ -161,6 +161,8 @@ if let i = argv.firstIndex(of: "--expect"), i + 1 < argv.count {
 
 let input = URL(fileURLWithPath: inputPath)
 var mountPoint: String? = nil
+/// Scratch dir holding an expanded pkg payload, removed on the way out.
+var tempDir: URL? = nil
 let appPath: URL
 
 if input.pathExtension.lowercased() == "dmg" {
@@ -180,11 +182,38 @@ if input.pathExtension.lowercased() == "dmg" {
     }
     appPath = URL(fileURLWithPath: mp).appendingPathComponent(appName)
     print("mounted DMG read-only → \(appPath.path)")
+} else if input.pathExtension.lowercased() == "pkg" {
+    // A flat installer pkg: xar out the Payload, then unpack that cpio archive.
+    // Some vendors ship macOS ONLY as a pkg (WeChat DevTools), so without this the
+    // hard "verify against a real bundle of that channel" gate had no way to run
+    // short of installing the thing.
+    let temp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("channel-verify-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+    tempDir = temp
+    let (xarCode, _) = sh("/usr/bin/xar", ["-xf", input.path, "Payload", "-C", temp.path])
+    let payload = temp.appendingPathComponent("Payload")
+    guard xarCode == 0, FileManager.default.fileExists(atPath: payload.path) else {
+        cleanup()
+        die("failed to extract Payload from \(input.path)", code: 2)
+    }
+    let (tarCode, _) = sh("/usr/bin/tar", ["-xf", payload.path, "-C", temp.path])
+    guard tarCode == 0 else { cleanup(); die("failed to unpack pkg Payload", code: 2) }
+    // The payload is rooted at the install location ("./Applications/Foo.app").
+    let found = FileManager.default.enumerator(atPath: temp.path)?
+        .compactMap { $0 as? String }
+        .first { $0.hasSuffix(".app") && !$0.dropLast(4).contains(".app/") }
+    guard let found else { cleanup(); die("no .app inside the pkg payload", code: 2) }
+    appPath = temp.appendingPathComponent(found)
+    print("expanded pkg → \(appPath.path)")
 } else {
     appPath = input
 }
 
-@MainActor func cleanup() { if let mp = mountPoint { sh("/usr/bin/hdiutil", ["detach", mp, "-quiet"]) } }
+@MainActor func cleanup() {
+    if let mp = mountPoint { sh("/usr/bin/hdiutil", ["detach", mp, "-quiet"]) }
+    if let dir = tempDir { try? FileManager.default.removeItem(at: dir) }
+}
 
 // MARK: - read identity straight from Info.plist (no launch, no codesign)
 
@@ -193,8 +222,8 @@ guard let info = NSDictionary(contentsOf: infoURL) as? [String: Any] else {
     cleanup()
     die("cannot read \(infoURL.path)", code: 2)
 }
-let bundleID = info["CFBundleIdentifier"] as? String
-let shortVersion = info["CFBundleShortVersionString"] as? String
+var bundleID = info["CFBundleIdentifier"] as? String
+var shortVersion = info["CFBundleShortVersionString"] as? String
 let buildVersion = info["CFBundleVersion"] as? String
 let ksChannel = info["KSChannelID"] as? String
 // The display name AppScanner sees is the bundle's on-disk file name.
@@ -202,6 +231,17 @@ let displayName = appPath.deletingPathExtension().lastPathComponent
 // Mozilla's authoritative per-channel marker, read the same way AppScanner does.
 let remotingName = (bundleID?.hasPrefix("org.mozilla") == true)
     ? AppScanner.mozillaRemotingName(in: appPath) : nil
+
+// WeChat DevTools keeps its real version and channel in its own `package.json`;
+// since 2.02 the Info.plist read above is Electron's stock one (`com.github.Electron`
+// / `36.6.0`) for all three channels. Production re-files the app under the
+// canonical id — mirror that here, or this harness would "verify" an identity no
+// install ever has. Same production helper, same override order as `AppScanner`.
+let weChatDevTools = AppScanner.weChatDevToolsIdentity(in: appPath)
+if let weChatDevTools {
+    bundleID = AppScanner.weChatDevToolsBundleID
+    shortVersion = weChatDevTools.version
+}
 
 // MARK: - run the PRODUCTION channel detector
 
@@ -223,7 +263,7 @@ let inferred = ReleaseChannel.detect(
 // the app had it on beta, so a verification run exercised a recipe the user's
 // machine would never reach, and the actually-broken channel looked fine.
 let bound = bundleID.flatMap { ChannelBinding.resolve(bundleID: $0) }
-let detected = bound?.channel ?? inferred
+let detected = weChatDevTools?.channel ?? bound?.channel ?? inferred
 
 print("""
 
@@ -233,6 +273,7 @@ print("""
   build version   \(buildVersion ?? "<none>")
   KSChannelID     \(ksChannel ?? "<none>")
   RemotingName    \(remotingName ?? "<none>")
+  package.json    \(weChatDevTools.map { "\($0.version) · versionType → \($0.channel.rawValue)" } ?? "<none>")
   inferred        \(inferred.rawValue)\(bound == nil ? "" : "  (overridden below)")
   ChannelBinding  \(bound.map { "\($0.channel.rawValue) — read from this app's own preference" } ?? "<none for this app>")
   ─────────────────────────────────────────────

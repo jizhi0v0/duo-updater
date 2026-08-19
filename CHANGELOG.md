@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.40
+
+**Telegram's one-click update stops vanishing when Telegram's servers hiccup.** Working out where to download Telegram from needs one extra request to their servers, and those servers were intermittently refusing it — a few minutes at a time, then fine again. When that happened the update was still detected, but the Update button quietly disappeared for that check and you had to go to the website yourself. Duo Updater now retries before giving up, so a brief hiccup no longer costs you the one-click install.
+
 ## 0.3.39
 
 **Package installers are checked against the app they claim to update.** Some updates arrive as a macOS installer package, which runs with administrator rights the moment you confirm it. Until now the only check was that the package came from the same developer as the app being updated — which would have let any package from that developer through, not just the right one. Duo Updater now also reads where the package says it will install and refuses it if that is not the app you are updating. Nothing changes for a normal update; this only ever fires on a package that does not belong.

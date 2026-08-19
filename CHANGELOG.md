@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.39
+
+**Package installers are checked against the app they claim to update.** Some updates arrive as a macOS installer package, which runs with administrator rights the moment you confirm it. Until now the only check was that the package came from the same developer as the app being updated — which would have let any package from that developer through, not just the right one. Duo Updater now also reads where the package says it will install and refuses it if that is not the app you are updating. Nothing changes for a normal update; this only ever fires on a package that does not belong.
+
+**Release notes only open over a secure connection.** The notes pane loads a vendor's own page for some apps, and one of those pages was still being fetched over plain `http`. Those pages now have to be `https`, and a handful of other malformed addresses are refused outright rather than loaded.
+
+**Fewer apps can go silently missing after a vendor renumbers.** Zotero's jump to `10.0` in 0.3.37 exposed a whole class of this: an app disappears from the update list, with no error, because the vendor changed how many numbers are in its version. Twenty-one apps — among them VS Code, Discord, Obsidian, Figma, WhatsApp and GIMP — no longer depend on that staying the same. The rest were checked and deliberately left alone, because for those a looser check would risk reading the wrong number off the page.
+
 ## 0.3.38
 
 **The download percentage no longer spills out of its row.** While an update downloaded, the number next to the progress bar sat too far right — clipped by the edge of the list instead of lining up with everything else in the column — and there was more empty space between the bar and the number than there needed to be. Both are fixed; the percentage still holds a fixed width, so the row stays steady as it counts up to 100%.

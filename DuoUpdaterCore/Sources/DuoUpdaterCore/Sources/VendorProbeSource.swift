@@ -295,6 +295,18 @@ public struct VendorProbeSource: UpdateSource {
             // until now it left no trace in the log at all.
             Log.source.error(
                 "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: \(body.text.utf8.count) bytes fetched, none matched /\(recipe.versionPattern, privacy: .public)/")
+            // Before reporting a bare miss, try the one diagnosis that is cheap
+            // and accounts for the most common way these die: the vendor changed
+            // the number of segments in their version string. Saying so — with the
+            // value the pattern would have read — turns a "go read the page"
+            // investigation into a one-line fix.
+            if let would = VendorProbeRecipe.versionIfSegmentCountRelaxed(
+                from: body.text, pattern: recipe.versionPattern) {
+                return fail(
+                    .versionSegmentCountChanged(
+                        wouldMatch: would, sampleBytes: body.text.utf8.count),
+                    status: body.status, sample: sample)
+            }
             return fail(
                 .versionPatternNoMatch(sampleBytes: body.text.utf8.count),
                 status: body.status, sample: sample)

@@ -99,7 +99,11 @@ import Network
 
         #expect(outcome.remote == nil)
         let failure = try #require(outcome.failure)
-        #expect(failure.kind == "versionPatternNoMatch")
+        // This miss has a specific, common cause — the vendor's version grew a
+        // fourth segment — and the probe now says so instead of reporting a bare
+        // "no match", naming the value the pattern would have read.
+        #expect(failure.kind == "versionSegmentCountChanged")
+        #expect(failure.detail.contains("2026.2.0.1"))
         #expect(failure.classification == .recipe, "a stale pattern must be actionable, not infra")
         // The body sample is what a human (or a triage step) needs to fix it.
         #expect(outcome.bodySample?.contains("2026.2.0.1") == true)

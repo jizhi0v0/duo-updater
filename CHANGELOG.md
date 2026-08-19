@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.37
+
+**Zotero 10 shows up as an update again.** Zotero numbered its new major release `10.0` — two numbers where every previous release had three — and Duo Updater's check for it quietly stopped recognising the version. Nothing looked wrong: no error, no failed check, Zotero simply never appeared in the list, so anyone still on 9.0.6 was never offered the upgrade. It is recognised again, and the one-click install is unchanged.
+
 ## 0.3.36
 
 **A package update that leaves the old copy running now offers to restart it.** Some updates install as a package handed to macOS's own installer, and when that finished it left the previous copy still running the old version — with no prompt, so you had to notice and quit it yourself. Duo Updater now spots that and offers a Restart, the same as it already does for other kinds of update. It only offers one when a copy that was open before the install is genuinely still running the old code — if the installer (or you) already relaunched the app, or it wasn't open, nothing is shown.

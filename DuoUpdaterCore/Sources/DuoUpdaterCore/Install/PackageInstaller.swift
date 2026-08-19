@@ -561,8 +561,55 @@ public actor PackageInstaller {
                     contentsOf: scratch.appendingPathComponent(name), encoding: .utf8)
             else { continue }
             out.formUnion(Self.destinations(inPackageInfo: body))
+
+            // The `<bundle>` elements are a vendor's *description* of the payload.
+            // The Bom beside them is the payload: the actual list of paths the
+            // installer will write. Reading both means a package that declares no
+            // bundles — which the XML path yields nothing for, and which now fails
+            // closed — is still understood, and it removes the dependence on each
+            // vendor's XML habits.
+            let bom = (name as NSString).deletingLastPathComponent.isEmpty
+                ? "Bom"
+                : (name as NSString).deletingLastPathComponent + "/Bom"
+            guard Self.runCapturing(
+                "/usr/bin/xar", ["-xf", pkg.path, bom], cwd: scratch).code == 0
+            else { continue }
+            let listing = Self.runCapturing(
+                "/usr/bin/lsbom", ["-s", scratch.appendingPathComponent(bom).path])
+            guard listing.code == 0 else { continue }
+            out.formUnion(Self.destinations(
+                inBomListing: listing.output,
+                installLocation: Self.installLocation(inPackageInfo: body)))
         }
         return out
+    }
+
+    /// Absolute `.app` destinations from one component's Bom listing.
+    ///
+    /// `lsbom -s` prints one payload path per line, relative to the component's
+    /// `install-location`. Only the lines that name an app bundle matter, and a
+    /// Bom lists every file inside one, so this keeps the bundle and discards its
+    /// contents rather than emitting thousands of paths.
+    static func destinations(
+        inBomListing listing: String, installLocation: String
+    ) -> Set<String> {
+        var out: Set<String> = []
+        for line in listing.split(separator: "\n") {
+            let path = String(line)
+            guard path.lowercased().contains(".app") else { continue }
+            let joined = (installLocation as NSString).appendingPathComponent(path)
+            out.formUnion(appBundlePrefixes(in: (joined as NSString).standardizingPath))
+        }
+        return out
+    }
+
+    /// The payload root a component unpacks into, defaulting to `/`.
+    static func installLocation(inPackageInfo body: String) -> String {
+        guard let doc = try? XMLDocument(xmlString: body, options: [.nodePreserveWhitespace]),
+              let value = (try? doc.nodes(forXPath: "/pkg-info/@install-location"))?
+                .first?.stringValue
+        else { return "/" }
+        return value.isEmpty ? "/" : value
     }
 
     /// Parse one `PackageInfo` body into absolute `.app` destinations. Split out so
@@ -613,6 +660,12 @@ public actor PackageInstaller {
         var walked: [String] = []
         for component in (path as NSString).pathComponents {
             walked.append(component)
+            // `._Foo.app` is an AppleDouble sidecar carrying another file's
+            // extended attributes, not a bundle. Reading the Bom surfaces them
+            // because they are genuinely in the payload — Shottr's package ships
+            // one next to the app — and treating them as destinations puts paths
+            // in a refusal message that no app was ever installed at.
+            guard !component.hasPrefix("._") else { continue }
             if isAppBundlePath(component) {
                 out.insert(NSString.path(withComponents: walked))
             }

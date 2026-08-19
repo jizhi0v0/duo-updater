@@ -511,4 +511,60 @@ struct PackageInstallerTests {
         // for an installed /Applications/Foo.app rather than matching on the name.
         #expect(!dests.contains("/Applications/Foo.app"))
     }
+
+    // MARK: Destinations from the Bom
+    //
+    // The `<bundle>` elements are a vendor's description of the payload; the Bom
+    // is the payload. Reading both means a package that declares no bundles is
+    // still understood — which matters now that an unreadable layout is refused
+    // rather than waved through.
+
+    @Test func aBomListingResolvesAgainstTheInstallLocation() {
+        // Tailscale's shape: the payload root IS the app, so Bom paths are the
+        // bundle's own contents.
+        let listing = """
+        .
+        ./Contents
+        ./Contents/MacOS/Tailscale
+        ./Contents/Library/LoginItems/TailscaleLoginItemHelper-macsys.app
+        """
+        let d = PackageInstaller.destinations(
+            inBomListing: listing, installLocation: "/Applications/Tailscale.app")
+        #expect(d.contains("/Applications/Tailscale.app"))
+    }
+
+    @Test func aBomListingRootedAtSlashNamesTheAppDirectly() {
+        let listing = """
+        .
+        ./Applications
+        ./Applications/Foo.app
+        ./Applications/Foo.app/Contents/Info.plist
+        """
+        let d = PackageInstaller.destinations(inBomListing: listing, installLocation: "/")
+        #expect(d.contains("/Applications/Foo.app"))
+        // A Bom lists every file inside the bundle; only the bundle is a
+        // destination, not the thousands of paths under it.
+        #expect(!d.contains("/Applications/Foo.app/Contents/Info.plist"))
+    }
+
+    /// `._Foo.app` is an AppleDouble sidecar carrying another file's extended
+    /// attributes, not a bundle. The Bom surfaces them because they really are in
+    /// the payload — Shottr's package ships one — and treating them as
+    /// destinations puts paths in a refusal message that no app was installed at.
+    @Test func appleDoubleSidecarsAreNotDestinations() {
+        let listing = """
+        ./Applications/Shottr.app
+        ./Applications/._Shottr.app
+        """
+        let d = PackageInstaller.destinations(inBomListing: listing, installLocation: "/")
+        #expect(d == ["/Applications/Shottr.app"])
+    }
+
+    @Test func aMissingInstallLocationDefaultsToTheRoot() {
+        #expect(PackageInstaller.installLocation(inPackageInfo: "<pkg-info/>") == "/")
+        #expect(PackageInstaller.installLocation(
+            inPackageInfo: #"<pkg-info install-location=""/>"#) == "/")
+        #expect(PackageInstaller.installLocation(
+            inPackageInfo: #"<pkg-info install-location="/Applications"/>"#) == "/Applications")
+    }
 }

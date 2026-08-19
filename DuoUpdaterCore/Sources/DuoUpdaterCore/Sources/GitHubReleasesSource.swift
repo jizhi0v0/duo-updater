@@ -110,6 +110,21 @@ public struct GitHubReleaseRule: Sendable {
         return matches.first.map { ($0.url, $0.size) }
     }
 
+    /// Does this release carry *any* asset this rule would install?
+    ///
+    /// Deliberately a plain pattern match, NOT `installableAsset`. That selector
+    /// can answer nil for an architecture reason — everything matched is built
+    /// for the other arch and this Mac can't run it — and using it as the gate
+    /// would make an Intel Mac walk past a release that genuinely ships the
+    /// macOS build, then report an older version as the newest one. The two
+    /// questions are separate: *does this release exist for macOS* (here) and
+    /// *which file do we hand the installer* (there).
+    static func carriesInstallableAsset(
+        from assets: [(name: String, url: URL, size: Int64?)], matching pattern: String
+    ) -> Bool {
+        assets.contains { $0.name.range(of: pattern, options: .regularExpression) != nil }
+    }
+
     var slug: String { "\(owner)/\(repo)" }
 }
 
@@ -166,6 +181,23 @@ public struct GitHubReleasesSource: UpdateSource {
         // Toolbox-managed apps update through Toolbox — never offer a GitHub
         // artifact over a Toolbox install (no cross-channel mixing).
         guard !app.isToolboxManaged else { return nil }
+        // Same reasoning, different owner: a Mac App Store copy updates through
+        // the store, and the GitHub build of the same app is a *different
+        // distribution* that happens to share a bundle id — Developer ID signed,
+        // unsandboxed, no receipt. Swapping one in would break the store's update
+        // path and the app's own entitlements, and the version numbers don't even
+        // have to line up (the store review lag routinely puts them a release
+        // apart). LocalSend ships both, which is how this surfaced.
+        //
+        // The gate has to live here rather than in source ordering: the App Store
+        // source going first only wins while it answers, and it misses often
+        // enough (region-locked storefront, a lookup that 404s) that "GitHub as
+        // the accidental fallback" is a real state, not a hypothetical one.
+        guard !app.isMASApp else {
+            Log.source.info(
+                "GitHub skip \(app.bundleID ?? "?", privacy: .public): App Store copy, the store owns its updates")
+            return nil
+        }
         guard let bundleID = app.bundleID, let candidates = rules[bundleID] else {
             return nil  // no rule for this app — not applicable
         }
@@ -236,13 +268,24 @@ public struct GitHubReleasesSource: UpdateSource {
 
     /// Also returns the tags it examined: on a pattern miss those are the only
     /// evidence of *why*, and `resolveDiagnostic` has no other way to see them.
-    private func resolve(
-        _ rule: GitHubReleaseRule
-    ) async throws -> (remote: RemoteVersion?, tags: [String]) {
-        let endpoint = rule.usePrereleases
+    /// How many version-matching releases may lack the rule's macOS asset before
+    /// we stop walking and call it a broken recipe instead of a quiet answer.
+    ///
+    /// Generous enough for a project that cuts several mobile-only point releases
+    /// in a row, tight enough that a renamed artifact can't silently pin us to a
+    /// year-old version.
+    static let maxReleasesWithoutMacOSAsset = 5
+
+    /// One GitHub Releases fetch, decoded. nil means the endpoint URL was
+    /// unbuildable or the response wasn't HTTP; a bad status throws so the row
+    /// surfaces a retryable error rather than a dead "unknown".
+    private func fetchReleases(
+        _ rule: GitHubReleaseRule, list: Bool
+    ) async throws -> [Release]? {
+        let endpoint = list
             ? "https://api.github.com/repos/\(rule.slug)/releases?per_page=20"
             : "https://api.github.com/repos/\(rule.slug)/releases/latest"
-        guard let url = URL(string: endpoint) else { return (nil, []) }
+        guard let url = URL(string: endpoint) else { return nil }
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
@@ -254,17 +297,46 @@ public struct GitHubReleasesSource: UpdateSource {
 
         Log.source.debug("GitHub GET \(endpoint, privacy: .public) (auth=\(self.token != nil, privacy: .public))")
         let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { return (nil, []) }
+        guard let http = response as? HTTPURLResponse else { return nil }
         guard (200..<300).contains(http.statusCode) else {
             let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "?"
             Log.source.error("GitHub \(rule.slug, privacy: .public): HTTP \(http.statusCode, privacy: .public) (ratelimit-remaining=\(remaining, privacy: .public))")
             throw GitHubError.badStatus(http.statusCode)
         }
-
         // Walk releases in document order (GitHub returns newest first) and take
         // the first whose tag the pattern matches — for prerelease channels this
         // skips interleaved stable releases.
-        let releases = Self.releases(from: data, list: rule.usePrereleases)
+        return Self.releases(from: data, list: list)
+    }
+
+    private func resolve(
+        _ rule: GitHubReleaseRule
+    ) async throws -> (remote: RemoteVersion?, tags: [String]) {
+        guard var releases = try await fetchReleases(rule, list: rule.usePrereleases) else {
+            return (nil, [])
+        }
+
+        // A rule that names a macOS installer asks a stricter question than "what
+        // is the newest tag": **which release shipped this app for macOS.** Those
+        // differ whenever a cross-platform project cuts a release for some of its
+        // platforms only — LocalSend's v1.18.1 carries four `.apk` files and
+        // nothing else, because the fixes in it were Android/iOS ones and the
+        // macOS dmg is built by hand off CI. Reading the tag alone turns that into
+        // a permanent phantom update: a version that is real, newer, and simply
+        // does not exist for this platform, so it can never be installed and never
+        // goes away.
+        //
+        // `/releases/latest` returns a single object, so when that one release has
+        // no matching asset there is nothing to fall back to — pay for the list
+        // then, and only then. The healthy path stays at one request, which is
+        // what the unauthenticated 60/hour budget can afford.
+        if let pattern = rule.installAssetPattern, !rule.usePrereleases,
+           !releases.contains(where: {
+               GitHubReleaseRule.carriesInstallableAsset(from: $0.assets, matching: pattern)
+           }) {
+            Log.source.debug("GitHub \(rule.slug, privacy: .public): latest release carries no macOS asset, falling back to the releases list")
+            if let list = try await fetchReleases(rule, list: true) { releases = list }
+        }
         // Every matching release that carries a publish date — backfills the app's
         // visible release history into the timeline at no extra network cost (these
         // are the same releases we already fetched). A single-`latest` fetch yields
@@ -274,8 +346,23 @@ public struct GitHubReleasesSource: UpdateSource {
                   let date = ReleaseDate.parse(release.publishedAt) else { return nil }
             return ReleaseHistoryEntry(version: v, publishedAt: date)
         }
+        var skippedForMissingAsset: [String] = []
         for release in releases {
             if let version = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern) {
+                // See the fallback above: for an install-capable rule the macOS
+                // artifact IS the release, so a tag without one is not this app's
+                // version and we keep walking back.
+                if let pattern = rule.installAssetPattern,
+                   !GitHubReleaseRule.carriesInstallableAsset(from: release.assets, matching: pattern) {
+                    skippedForMissingAsset.append(release.tag)
+                    // Walking back forever is how a renamed asset turns into a
+                    // confident "up to date" on a version from a year ago. A
+                    // handful of platform-partial releases is normal; a run of
+                    // them means the pattern stopped matching, which is a recipe
+                    // failure and has to surface as one.
+                    if skippedForMissingAsset.count > Self.maxReleasesWithoutMacOSAsset { break }
+                    continue
+                }
                 let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
                 let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
                 let structured = body.flatMap {
@@ -310,6 +397,21 @@ public struct GitHubReleasesSource: UpdateSource {
                     releaseHistory: history
                 ), releases.map(\.tag))
             }
+        }
+        // Two different breakages end up here and they need different words: a
+        // tag-format change (nothing matched the version pattern) versus an
+        // asset rename (tags matched fine, none carried the macOS file). Reported
+        // as the same thing, the second reads like the first and gets fixed in
+        // the wrong place.
+        if !skippedForMissingAsset.isEmpty {
+            let tags = skippedForMissingAsset.joined(separator: ", ")
+            Log.source.error("GitHub \(rule.slug, privacy: .public): no release carries an asset matching /\(rule.installAssetPattern ?? "", privacy: .public)/ (walked \(tags, privacy: .public))")
+            await RecipeHealth.shared.recordMiss(
+                id: rule.slug, source: name,
+                detail: "\(skippedForMissingAsset.count) release(s) matched the version pattern but "
+                    + "none carried an asset matching the install pattern (\(tags)) — the vendor may "
+                    + "have renamed the macOS artifact")
+            return (nil, releases.map(\.tag))
         }
         Log.source.error("GitHub \(rule.slug, privacy: .public): \(releases.count, privacy: .public) releases fetched, none matched /\(rule.versionPattern, privacy: .public)/")
         // Fetched fine but nothing matched the version pattern — the breakage
@@ -717,17 +819,27 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^bruno_[0-9.]+_arm64_mac\.dmg$"#,
             installerKind: .dmg),
 
-        // LocalSend — detection only, on purpose. The newest release (v1.18.1)
-        // carries ONLY Android artifacts (four .apk files); the macOS dmg was last
-        // attached to v1.18.0, so there is no dmg on the tag we read and no install
-        // URL to resolve. Detection is still right (tag → 1.18.1 vs the installed
-        // 1.18.0), so we surface the version and link out. Revisit the one-click when
-        // upstream attaches a macOS dmg to the tag it marks latest — not merely when
-        // it attaches assets. (The v1.18.0 dmg is org.localsend.localsendApp,
-        // Team 3W7H4PYMCV, notarized — the gate would pass, the URL is what's missing.)
+        // LocalSend — the reason `installAssetPattern` doubles as the macOS-release
+        // gate. Upstream builds Windows/Linux/Android on CI but the dmg by hand
+        // (`support/scripts/compile_mac_dmg.sh`, one maintainer, Developer ID +
+        // notarization), and version numbers are shared across all five platforms
+        // out of a single `pubspec.yaml`. So a mobile-only hotfix advances the tag
+        // without producing a macOS build: v1.18.1 (2026-08-12) ships four `.apk`
+        // files and says so in its own release notes — "Android+iOS only hotfix".
+        // Reading the tag alone reported a 1.18.0 → 1.18.1 update that nobody can
+        // ever install. With the pattern set, resolution walks back to v1.18.0,
+        // which is genuinely the newest macOS release (Homebrew's cask and the
+        // vendor's own download page both agree).
+        //
+        // The CLI tarballs (`LocalSend-CLI-1.18.0-macos-arm-64.tar.gz`) and the
+        // Windows zip share the prefix, so the pattern anchors both ends.
+        // Mounted dmg: org.localsend.localsendApp 1.18.0 (60), Team 3W7H4PYMCV,
+        // hardened runtime, `spctl -a -t install` accepted.
         GitHubReleaseRule(
             bundleID: "org.localsend.localsendApp",
-            owner: "localsend", repo: "localsend"),
+            owner: "localsend", repo: "localsend",
+            installAssetPattern: #"^LocalSend-[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
 
         // qBittorrent — DETECTION ONLY, and this is upstream's own signature, not
         // a property of where we read from: the macOS dmg on GitHub is the SAME

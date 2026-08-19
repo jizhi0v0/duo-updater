@@ -61,6 +61,38 @@ public enum Reconcile {
         // pattern that stopped matching. Filing at that point is the difference
         // between the sweep noticing a vendor shutting a host down and never
         // noticing it at all.
+        // An installer URL that has been 5xx-ing past the window is not having a
+        // bad minute any more. The finding still reads `.ok` — detection works —
+        // so this is the only branch that can ever surface it.
+        if finding.status != .infra, entry.isInstallTransientReportable(now: now) {
+            let elapsed = entry.installTransientSince.map {
+                now.timeIntervalSince($0) / 86_400
+            }
+            guard let issue = entry.issueNumber else {
+                return .create(
+                    title: "One-click broken: \(finding.recipeID) — installer URL "
+                        + "unreachable for \(Report.duration(elapsed))",
+                    body: "Detection still works and the version still resolves, so "
+                        + "this recipe looks healthy in every other view.\n\n"
+                        + "`\(finding.endpointHost)` has answered the installer-URL "
+                        + "request with a 5xx/429 (or not at all) on "
+                        + "\(entry.consecutiveInstallTransient) consecutive sweeps "
+                        + "over \(Report.duration(elapsed)). That is past the point "
+                        + "where a vendor having a bad minute explains it.\n\n"
+                        + "Either the endpoint has been retired, or it now refuses "
+                        + "the request we make. Check what it returns before "
+                        + "changing the pattern.")
+            }
+            guard entry.mayComment(now: now) else {
+                return .none("install URL still failing, already open")
+            }
+            return .comment(
+                issue: issue,
+                body: "Still unable to resolve the installer URL as of "
+                    + "\(Self.day(now)) — \(Report.duration(elapsed)) across "
+                    + "\(entry.consecutiveInstallTransient) sweeps.")
+        }
+
         if finding.status == .infra {
             guard entry.isInfraReportable(now: now) else {
                 let elapsed = entry.infraElapsed(now: now).map { $0 / 86_400 }

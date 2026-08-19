@@ -1889,6 +1889,16 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
         //     docs.x.com → x.com/docs is normal, and cancelling it just blanks the
         //     pane. The URL we start from comes from our own recipe registry, not
         //     from the page, so this is a usability boundary, not a trust boundary.
+        // One thing here IS a trust boundary: the scheme. `ChangelogURLPolicy` only
+        // vets the URL we start from, and a vendor page that redirects itself to
+        // `http://` would land cleartext content in this in-process web view
+        // anyway — which is the whole thing that policy exists to stop. Cross-host
+        // https redirects stay allowed; only the downgrade is refused.
+        if let url = navigationAction.request.url,
+           url.scheme?.lowercased() == "http" {
+            decisionHandler(.cancel); return
+        }
+
         guard navigationAction.navigationType == .linkActivated,
               navigationAction.targetFrame?.isMainFrame ?? true,
               let url = navigationAction.request.url,

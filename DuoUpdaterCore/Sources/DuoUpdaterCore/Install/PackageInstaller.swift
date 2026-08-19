@@ -504,6 +504,19 @@ public actor PackageInstaller {
         // update for an app the user keeps elsewhere. Fall back to the bundle name,
         // which is what actually distinguishes one product from another — Google
         // Earth's package names `Google Earth.app`, never `Google Chrome.app`.
+        //
+        // Only for an app that is NOT in `/Applications`, though. Allowing the name
+        // to stand in for the path unconditionally would let a same-Team package
+        // that installs a like-named app somewhere else entirely — say
+        // `/Library/Application Support/Vendor/Foo.app` — satisfy the gate for
+        // `/Applications/Foo.app`, which it never touches. Restricting the fallback
+        // to the case it was added for keeps the non-standard location working
+        // without opening that up.
+        guard !target.hasPrefix("/Applications/") else {
+            throw PackageError.packageDestinationMismatch(
+                installed: target,
+                destinations: destinations.sorted())
+        }
         let targetName = (target as NSString).lastPathComponent
         let namesMatch = destinations.contains {
             ($0 as NSString).lastPathComponent.compare(

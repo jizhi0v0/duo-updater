@@ -52,6 +52,19 @@ public struct Baseline: Codable, Sendable {
         /// Sweeps since the last comment on the open issue. Kept for the issue
         /// text ("still down, N sweeps"); the rate limit itself is `lastCommentedAt`.
         public var sweepsSinceComment = 0
+        /// When the installer URL first started failing for a reason we call
+        /// transient, and how many sweeps have seen it.
+        ///
+        /// A vendor 5xx on the install URL is deliberately not actionable — that
+        /// was the whole point of splitting it out of `installURLUnresolved`. But
+        /// "not actionable" was implemented as "never actionable", which recreated
+        /// the exact silent failure this sweep exists to end: an install URL that
+        /// 5xxs forever reported `.ok` on every run and could never be seen. It is
+        /// transient only for as long as it is brief; past that it is a dead
+        /// endpoint wearing a 5xx, and it ages into a report the same way
+        /// unreachability does.
+        public var installTransientSince: Date?
+        public var consecutiveInstallTransient = 0
         /// When the open issue was last commented on, for the nudge rate limit.
         /// A timestamp rather than a sweep count for the same reason as
         /// `infraSince`: the interval is meant to be a week of wall-clock, and a
@@ -79,6 +92,16 @@ public struct Baseline: Codable, Sendable {
         public func mayComment(now: Date = Date()) -> Bool {
             guard let lastCommentedAt else { return true }
             return now.timeIntervalSince(lastCommentedAt) >= Baseline.commentInterval
+        }
+
+        /// Whether the installer URL has been failing transiently for long enough,
+        /// and often enough, that "the vendor is having a bad minute" has stopped
+        /// being a credible explanation. Same window and same floor as
+        /// `isInfraReportable`, for the same reason.
+        public func isInstallTransientReportable(now: Date = Date()) -> Bool {
+            guard consecutiveInstallTransient >= Baseline.minInfraObservations,
+                  let since = installTransientSince else { return false }
+            return now.timeIntervalSince(since) >= Baseline.infraWindow
         }
 
         /// How long since the open issue was last nudged, or nil if never.
@@ -116,6 +139,10 @@ public struct Baseline: Codable, Sendable {
             closedAt = try c.decodeIfPresent(Date.self, forKey: .closedAt)
             sweepsSinceComment =
                 try c.decodeIfPresent(Int.self, forKey: .sweepsSinceComment) ?? 0
+            installTransientSince =
+                try c.decodeIfPresent(Date.self, forKey: .installTransientSince)
+            consecutiveInstallTransient =
+                try c.decodeIfPresent(Int.self, forKey: .consecutiveInstallTransient) ?? 0
             lastCommentedAt = try c.decodeIfPresent(Date.self, forKey: .lastCommentedAt)
             triagedSignature = try c.decodeIfPresent(String.self, forKey: .triagedSignature)
         }
@@ -228,6 +255,18 @@ public struct Baseline: Codable, Sendable {
             }
             entry.lastGoodVersion = version
             entry.lastGoodAt = Date()
+        }
+
+        // The installer URL's transient run is tracked on every status, because the
+        // finding it rides on stays `.ok` — there is no other place it would age.
+        if finding.warnings.contains(ProbeWarning.installURLTransient(status: nil).kind) {
+            entry.consecutiveInstallTransient += 1
+            if entry.installTransientSince == nil { entry.installTransientSince = Date() }
+        } else if finding.status != .skipped {
+            // A sweep that resolved the URL, or failed for a different reason,
+            // ends the run. `skipped` proves nothing either way.
+            entry.consecutiveInstallTransient = 0
+            entry.installTransientSince = nil
         }
 
         // Any status other than `infra` means we got an answer out of the host,

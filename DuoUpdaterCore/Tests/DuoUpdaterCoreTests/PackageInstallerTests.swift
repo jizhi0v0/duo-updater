@@ -332,11 +332,17 @@ struct PackageInstallerTests {
         """
         let dests = PackageInstaller.destinations(inPackageInfo: body)
         #expect(dests.contains("/Applications/Tailscale.app"))
-        // Helpers nested inside the bundle come along as candidates too. That is
-        // harmless: `AppScanner` only ever reports bundles sitting in the scanned
-        // directories, never one buried inside another app, so a nested path can
-        // never be the installed app the gate compares against.
-        #expect(dests.contains("/Applications/Tailscale.app"))
+        // Helpers nested inside the bundle come along as candidates too, because
+        // every `.app`-suffixed prefix is collected. Assert that explicitly rather
+        // than leaving it implied — the nested entries are what make the "all
+        // prefixes" strategy safe to reason about.
+        #expect(dests.contains(
+            "/Applications/Tailscale.app/Contents/Library/LoginItems/TailscaleLoginItemHelper-macsys.app"))
+        // They are harmless as comparison targets: `AppScanner` only reports
+        // bundles sitting in the directories it scans, never one buried inside
+        // another app, so a nested path is never the installed app being updated.
+        #expect(dests.allSatisfy { $0.hasPrefix("/Applications/Tailscale.app") },
+                "every destination is inside the bundle this package updates")
     }
 
     /// WeChat DevTools is a flat component package rooted at `/`, so the
@@ -472,5 +478,37 @@ struct PackageInstallerTests {
     /// Malformed input yields nothing, which the gate treats as "cannot verify".
     @Test func unparsableBodyYieldsNoDestinations() {
         #expect(PackageInstaller.destinations(inPackageInfo: "not xml at all <<<").isEmpty)
+    }
+
+    // MARK: The bundle-name fallback, and its limit
+
+    /// Why the fallback exists: AppScanner also scans `~/Applications`, and a
+    /// vendor package always names `/Applications`, so a full-path comparison
+    /// alone would refuse every pkg update for an app kept elsewhere.
+    @Test func aNonStandardLocationFallsBackToTheBundleName() {
+        let body = #"<pkg-info install-location="/Applications"><bundle path="Foo.app"/></pkg-info>"#
+        let dests = PackageInstaller.destinations(inPackageInfo: body)
+        #expect(dests.contains("/Applications/Foo.app"))
+        // The gate compares last path components in this case, so a copy at
+        // ~/Applications/Foo.app is recognised as the same product.
+        let home = "/Users/someone/Applications/Foo.app"
+        #expect((home as NSString).lastPathComponent
+            == ("/Applications/Foo.app" as NSString).lastPathComponent)
+    }
+
+    /// …and why it must not apply in `/Applications`. Letting the name stand in
+    /// for the path unconditionally would let a same-Team package that installs a
+    /// like-named app somewhere else satisfy the gate for an app it never touches.
+    @Test func aLikeNamedAppElsewhereIsNotTheAppInApplications() {
+        let body = """
+        <pkg-info install-location="/Library/Application Support/Vendor">
+            <bundle path="Foo.app"/>
+        </pkg-info>
+        """
+        let dests = PackageInstaller.destinations(inPackageInfo: body)
+        #expect(dests == ["/Library/Application Support/Vendor/Foo.app"])
+        // Same last component, different product location — the gate refuses this
+        // for an installed /Applications/Foo.app rather than matching on the name.
+        #expect(!dests.contains("/Applications/Foo.app"))
     }
 }

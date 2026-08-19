@@ -55,6 +55,19 @@ public struct VendorProbeSource: UpdateSource {
         return URLSession(configuration: config, delegate: RedirectBlocker(), delegateQueue: nil)
     }()
 
+    /// Thrown by the `.redirect` install source when the vendor answered with a
+    /// 5xx/429, or not at all, on every attempt — as opposed to answering with
+    /// something that says the recipe is wrong.
+    struct TransientInstallURL: Error {
+        let status: Int?
+    }
+
+    /// The same rule `ProbeFailure.category` applies to version probes: 5xx and
+    /// 429 are the vendor having a bad day, anything else in 4xx is us.
+    static func isTransientStatus(_ code: Int) -> Bool {
+        code >= 500 || code == 429
+    }
+
     /// A browser-like UA — several vendor sites reject unfamiliar agents.
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
@@ -310,7 +323,16 @@ public struct VendorProbeSource: UpdateSource {
         // (and any checksum) now — from the same body we already have. A failure
         // here just falls back to detection-only; it never blocks the version.
         if allowInstall, let spec = recipe.install {
-            if let plan = try? await resolveInstall(spec, body: body.text, version: version) {
+            var resolved: (url: URL, checksum: String?)?
+            var transient: TransientInstallURL?
+            do {
+                resolved = try await resolveInstall(spec, body: body.text, version: version)
+            } catch let error as TransientInstallURL {
+                transient = error
+            } catch {
+                resolved = nil
+            }
+            if let plan = resolved {
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: spec, plan: plan,
                     resolvedDownload: body.resolvedDownload, display: display,
@@ -324,7 +346,9 @@ public struct VendorProbeSource: UpdateSource {
                 // Version still reads, one-click is dead. The app shows this app
                 // as up-to-date-detectable but no longer installable, with no
                 // signal anywhere — so name it.
-                warnings.append(.installURLUnresolved)
+                warnings.append(
+                    transient.map { .installURLTransient(status: $0.status) }
+                        ?? .installURLUnresolved)
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: nil, plan: nil,
                     resolvedDownload: body.resolvedDownload, display: display,
@@ -599,18 +623,36 @@ public struct VendorProbeSource: UpdateSource {
             return (Self.preferHTTPS(url), checksum)
 
         case .redirect(let url):
-            var request = URLRequest(url: url)
-            request.httpMethod = "HEAD"
-            request.timeoutInterval = 15
-            request.cachePolicy = URLRequest.versionFeedCachePolicy
-            request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-            let (_, response) = try await session.data(for: request)
-            guard
-                let http = response as? HTTPURLResponse,
-                (200..<400).contains(http.statusCode),
-                let finalURL = response.url
-            else { return nil }
-            return (Self.preferHTTPS(finalURL), checksum)
+            // The only install source that makes its own request, so it is the only
+            // one that can fail for reasons that have nothing to do with the recipe.
+            // `td.telegram.org` returns 502 to this HEAD in bursts — verified by
+            // interleaving it with curl against the same URL in the same seconds,
+            // which also came back 502, so it is the vendor and not URLSession.
+            // Retry a few times, then say which kind of failure it was.
+            var lastStatus: Int?
+            for attempt in 0..<3 {
+                if attempt > 0 {
+                    try? await Task.sleep(nanoseconds: UInt64(attempt) * 700_000_000)
+                }
+                var request = URLRequest(url: url)
+                request.httpMethod = "HEAD"
+                request.timeoutInterval = 15
+                request.cachePolicy = URLRequest.versionFeedCachePolicy
+                request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+                guard let (_, response) = try? await session.data(for: request),
+                      let http = response as? HTTPURLResponse
+                else { lastStatus = nil; continue }
+                lastStatus = http.statusCode
+                guard (200..<400).contains(http.statusCode) else {
+                    // 4xx means the URL we were given is wrong — that IS the recipe,
+                    // and retrying cannot help. Stop and report it as unresolved.
+                    if !Self.isTransientStatus(http.statusCode) { return nil }
+                    continue
+                }
+                guard let finalURL = response.url else { return nil }
+                return (Self.preferHTTPS(finalURL), checksum)
+            }
+            throw TransientInstallURL(status: lastStatus)
         }
     }
 

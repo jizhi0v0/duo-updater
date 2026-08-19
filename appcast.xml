@@ -17,6 +17,20 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.41</title>
+            <pubDate>Wed, 19 Aug 2026 20:24:37 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.41</link>
+            <sparkle:version>51</sparkle:version>
+            <sparkle:shortVersionString>0.3.41</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Updating OneNote no longer installs the whole of Microsoft Office.** OneNote's update was being fetched from Microsoft's combined Office installer, which puts Word, Excel, PowerPoint, Outlook and OneDrive on your Mac along with it. If you keep OneNote on its own, that was five applications you never asked for. It now downloads Microsoft's standalone OneNote update, which installs OneNote and nothing else.
+
+**Package updates are checked more strictly before they are opened.** An update that arrives as a macOS installer package now has to say where it installs, and has to name the app you are updating. A package that will not say is refused rather than let through. Every app that updates this way — Office, Edge, Teams, OneDrive, Tailscale, ToDesk, AweSun and the rest — was checked against its real installer first, so this should never fire on a normal update.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.41/DuoUpdater-0.3.41-macos.zip" length="10560401" type="application/octet-stream" sparkle:edSignature="WrobQheIBFPZaSHyTfmkneGQqNZc61oiVPTNyf76MShxOo66oSgWrOqC/+TngPHkcxwbmuJVyafu6WldvR2FBA=="/>
+        </item>
+        <item>
             <title>0.3.40</title>
             <pubDate>Wed, 19 Aug 2026 19:35:32 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.40</link>
@@ -43,18 +57,6 @@
 **Fewer apps can go silently missing after a vendor renumbers.** Zotero's jump to `10.0` in 0.3.37 exposed a whole class of this: an app disappears from the update list, with no error, because the vendor changed how many numbers are in its version. Twenty-one apps — among them VS Code, Discord, Obsidian, Figma, WhatsApp and GIMP — no longer depend on that staying the same. The rest were checked and deliberately left alone, because for those a looser check would risk reading the wrong number off the page.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.39/DuoUpdater-0.3.39-macos.zip" length="10557194" type="application/octet-stream" sparkle:edSignature="5KfOpNz3fZBUp0RZoNkkXN5XkQsXYV65MPr4MU+9fcJkJkOgSK7b+oTPA/2LIcOV0+Zaf4GmXhpwFhL7Dg8BCw=="/>
-        </item>
-        <item>
-            <title>0.3.38</title>
-            <pubDate>Wed, 19 Aug 2026 18:12:48 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.38</link>
-            <sparkle:version>48</sparkle:version>
-            <sparkle:shortVersionString>0.3.38</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**The download percentage no longer spills out of its row.** While an update downloaded, the number next to the progress bar sat too far right — clipped by the edge of the list instead of lining up with everything else in the column — and there was more empty space between the bar and the number than there needed to be. Both are fixed; the percentage still holds a fixed width, so the row stays steady as it counts up to 100%.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.38/DuoUpdater-0.3.38-macos.zip" length="10551119" type="application/octet-stream" sparkle:edSignature="aZJ0obEDirUgjQsBc93EsY+3PvpEL60ET5itX2yJfgTkP8yHwMf6J7H770CZQkeBz7UxnFkryrKIzMrvLcsiCA=="/>
         </item>
     </channel>
 </rss>

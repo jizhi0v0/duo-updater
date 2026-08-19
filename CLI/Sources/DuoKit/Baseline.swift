@@ -85,7 +85,14 @@ public struct Baseline: Codable, Sendable {
     }
 
     /// Actionable sweeps below this never produce an issue. One sweep of trouble
-    /// is noise; two consecutive sweeps a day apart is a pattern.
+    /// is noise; two consecutive sweeps is a pattern.
+    ///
+    /// Left at two when the sweep moved from nightly to every six hours, which
+    /// tightens the wait from two days to twelve hours. That is the point of the
+    /// change — a broken recipe is invisible until a sweep reports it — and it
+    /// stays safe because the noisy failures it could otherwise catch (a vendor's
+    /// maintenance window returning 5xx or 429) are classified `.infra`, not
+    /// actionable, and are gated separately below.
     public static let actionableThreshold = 2
 
     /// Consecutive *unreachable* sweeps before an endpoint is reported as gone.
@@ -93,10 +100,15 @@ public struct Baseline: Codable, Sendable {
     /// Much higher than `actionableThreshold` on purpose. Unreachability is the
     /// one signal that is routinely someone else's fault — a vendor's bad night,
     /// the runner's flaky uplink — so the bar has to be high enough that none of
-    /// those clear it. At one sweep a night, five is the better part of a week:
-    /// no CDN incident lasts that long, and no DNS record is missing that long
-    /// by accident.
-    public static let infraThreshold = 5
+    /// those clear it. The bar is expressed in sweeps but the property that
+    /// matters is wall-clock: it has to outlast any plausible outage. Nightly
+    /// sweeps made five the better part of a week; at every six hours five would
+    /// be thirty hours, which a long CDN incident or a bad uplink night can
+    /// clear. Twenty keeps the original ~5 days, so no CDN incident lasts that
+    /// long and no DNS record is missing that long by accident.
+    ///
+    /// If the sweep interval changes again, change this with it.
+    public static let infraThreshold = 20
 
     public init() {}
 

@@ -50,6 +50,7 @@ public actor PackageInstaller {
         case noInstallablePackage
         case packageTeamIdentifierMissing
         case packageTeamIdentifierMismatch(installed: String, package: String)
+        case packageDestinationMismatch(installed: String, destinations: [String])
 
         public var errorDescription: String? {
             switch self {
@@ -61,6 +62,8 @@ public actor PackageInstaller {
                 return "The downloaded disk image did not contain an installer package DuoUpdater could verify. Nothing was opened."
             case .packageTeamIdentifierMissing:
                 return "Could not read the installer package's Developer ID team. Nothing was opened."
+            case .packageDestinationMismatch(let installed, let destinations):
+                return "This package installs to \(destinations.joined(separator: ", ")), not to \(installed). Refusing to install."
             case .packageTeamIdentifierMismatch(let installed, let package):
                 return "Installer Team Identifier mismatch: installed “\(installed)” vs package “\(package)”. Refusing to open it."
             }
@@ -437,6 +440,167 @@ public actor PackageInstaller {
                 installed: installedTeam,
                 package: packageTeam)
         }
+
+        // Team ID alone permits any app from the same vendor — the `.app` routes
+        // pair it with a bundle-identifier check (`SignatureVerifier` Gate 4,
+        // :181), but a `.pkg` has no single bundle identity to compare: it is a
+        // container that may declare hundreds of bundles (Microsoft Word's
+        // Distribution lists 206) or, like Tailscale's, not declare the app's own
+        // identifier at all. Comparing identifiers was measured against real
+        // vendor packages and rejects legitimate updates, so it is not the gate.
+        //
+        // What every package does declare is where it writes. Require that the app
+        // being updated is one of those destinations, which is what stops a
+        // same-Team substitution (Google Earth's package targets
+        // `/Applications/Google Earth.app`, never Chrome's bundle).
+        // An empty set means the package's layout could not be read — a bundle-format
+        // `.mpkg` is not a xar archive at all, and a component may be missing or
+        // unreadable — not that the package writes nowhere. Verified non-empty on
+        // Tailscale, Microsoft Word, Edge, OneDrive, WeChat DevTools and UU Remote,
+        // covering all three package shapes, but the remaining pkg recipes are
+        // untested, so an unreadable layout falls back to the Team-only gate rather
+        // than blocking an install that works today.
+        //
+        // Note what this gate does NOT cover: `preinstall`/`postinstall` scripts run
+        // as root whatever the declared destinations say. It narrows which package
+        // may be handed over; it does not make an accepted one harmless.
+        let destinations = Self.declaredDestinations(toOpen)
+        guard !destinations.isEmpty else { return }
+
+        let target = installedApp.resolvingSymlinksInPath().standardizedFileURL.path
+        guard !destinations.contains(target) else { return }
+
+        // The same app kept somewhere other than `/Applications` is still the same
+        // app. `AppScanner` also scans `~/Applications`, `/Applications/Utilities`
+        // and the Input Methods directories, and a vendor package always names the
+        // system location, so comparing full paths alone would refuse every pkg
+        // update for an app the user keeps elsewhere. Fall back to the bundle name,
+        // which is what actually distinguishes one product from another — Google
+        // Earth's package names `Google Earth.app`, never `Google Chrome.app`.
+        let targetName = (target as NSString).lastPathComponent
+        let namesMatch = destinations.contains {
+            ($0 as NSString).lastPathComponent.compare(
+                targetName, options: .caseInsensitive) == .orderedSame
+        }
+        guard !namesMatch else { return }
+
+        throw PackageError.packageDestinationMismatch(
+            installed: target,
+            destinations: destinations.sorted())
+    }
+
+    /// The `.app` destinations a package declares, as absolute paths.
+    ///
+    /// A flat component package carries one `PackageInfo`; a product archive
+    /// carries a `Distribution` plus one `PackageInfo` per nested component. Both
+    /// spell the destination the same way: `install-location` is the payload root,
+    /// and each `<bundle path=…>` is relative to it. Tailscale's package sets
+    /// `install-location` to the app bundle itself and lists only the bundles
+    /// *inside* it, so the root counts as a destination in its own right.
+    static func declaredDestinations(_ pkg: URL) -> Set<String> {
+        let listing = Self.runCapturing("/usr/bin/xar", ["-tf", pkg.path])
+        guard listing.code == 0 else { return [] }
+        let infos = listing.output
+            .split(separator: "\n")
+            .map(String.init)
+            .filter { $0 == "PackageInfo" || $0.hasSuffix("/PackageInfo") }
+        guard !infos.isEmpty else { return [] }
+
+        let fm = FileManager.default
+        let scratch = fm.temporaryDirectory
+            .appendingPathComponent("duo-pkg-dest-\(UUID().uuidString)", isDirectory: true)
+        guard (try? fm.createDirectory(at: scratch, withIntermediateDirectories: true)) != nil
+        else { return [] }
+        defer { try? fm.removeItem(at: scratch) }
+
+        var out: Set<String> = []
+        for name in infos {
+            guard Self.runCapturing(
+                "/usr/bin/xar", ["-xf", pkg.path, name], cwd: scratch).code == 0,
+                let body = try? String(
+                    contentsOf: scratch.appendingPathComponent(name), encoding: .utf8)
+            else { continue }
+            out.formUnion(Self.destinations(inPackageInfo: body))
+        }
+        return out
+    }
+
+    /// Parse one `PackageInfo` body into absolute `.app` destinations. Split out so
+    /// the path arithmetic is testable without building a package.
+    ///
+    /// Parsed as XML rather than scanned with regexes: an attribute pattern also
+    /// matches `search-path`, does not decode `&amp;` in an app name, and happily
+    /// reads a destination out of a commented-out element. None of those is a
+    /// signature bypass — `PackageInfo` is covered by the package signature, which
+    /// `pkgutil --check-signature` has already verified by this point — but each
+    /// one is a way to refuse a legitimate update.
+    static func destinations(inPackageInfo body: String) -> Set<String> {
+        guard let doc = try? XMLDocument(xmlString: body, options: [.nodePreserveWhitespace])
+        else { return [] }
+
+        let location = (try? doc.nodes(forXPath: "/pkg-info/@install-location"))?
+            .first?.stringValue ?? "/"
+        var out: Set<String> = []
+        // The payload root itself, when the package unpacks straight into a bundle.
+        if isAppBundlePath(location) {
+            out.insert((location as NSString).standardizingPath)
+        }
+        for node in (try? doc.nodes(forXPath: "//bundle/@path")) ?? [] {
+            guard let path = node.stringValue else { continue }
+            let joined = (location as NSString).appendingPathComponent(path)
+            out.formUnion(appBundlePrefixes(in: (joined as NSString).standardizingPath))
+        }
+        return out
+    }
+
+    /// Every prefix of `path` that ends in an app bundle.
+    ///
+    /// Neither the first nor the last `.app` component is reliably the one that
+    /// matters. Taking the first truncates on a reverse-DNS directory such as
+    /// `com.vendor.app`, throwing away the real bundle further along — and because
+    /// the truncated prefix still ends in `.app` the result is non-empty but wrong,
+    /// which sails past the "could not read the layout" fallback and refuses a
+    /// legitimate update. Taking the last picks a helper out of a package whose
+    /// payload root is the app itself, as Tailscale's is.
+    ///
+    /// Returning every candidate keeps the real destination in the set whichever
+    /// shape the package has. The extra entries are all paths the package genuinely
+    /// writes, and none of them can make a different product match: the comparison
+    /// is against the installed bundle's own path and name, so Google Earth's
+    /// package still never resolves to Chrome.
+    static func appBundlePrefixes(in path: String) -> Set<String> {
+        var out: Set<String> = []
+        var walked: [String] = []
+        for component in (path as NSString).pathComponents {
+            walked.append(component)
+            if isAppBundlePath(component) {
+                out.insert(NSString.path(withComponents: walked))
+            }
+        }
+        return out
+    }
+
+    /// Case-insensitive because the filesystem is, and vendors are inconsistent.
+    private static func isAppBundlePath(_ component: String) -> Bool {
+        component.lowercased().hasSuffix(".app")
+    }
+
+    /// `runCapturingOutput`, but usable from the static helpers above and able to
+    /// run in a working directory (`xar -xf` extracts relative to cwd).
+    private static func runCapturing(
+        _ launchPath: String, _ args: [String], cwd: URL? = nil
+    ) -> (code: Int32, output: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: launchPath)
+        p.arguments = args
+        if let cwd { p.currentDirectoryURL = cwd }
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        do { try p.run() } catch { return (-1, "") }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return (p.terminationStatus, String(decoding: data, as: UTF8.self))
     }
 
     /// Given a downloaded file, return the thing to hand to the system installer.

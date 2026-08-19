@@ -1028,7 +1028,7 @@ private struct FormulaDetailPane: View {
         case .loaded(let release):
             if let changelog = release.changelog {
                 ChangelogEntriesView(changelog: changelog)
-            } else if let url = release.pageURL {
+            } else if let url = ChangelogURLPolicy.displayable(release.pageURL) {
                 CachedWebView(url: url)
             } else {
                 noNotes
@@ -1059,7 +1059,8 @@ private struct DetailHeader: View {
 
     /// The vendor page to link out to in Release Notes mode.
     private var changelogURL: URL? {
-        result.remote?.changelogURL ?? ChangelogCatalog.url(forBundleID: result.app.bundleID)
+        ChangelogURLPolicy.displayable(
+            result.remote?.changelogURL ?? ChangelogCatalog.url(forBundleID: result.app.bundleID))
     }
 
     var body: some View {
@@ -1149,7 +1150,8 @@ private struct ReleaseNotesPane: View {
     @Bindable var model: AppListModel
 
     private var changelogURL: URL? {
-        result.remote?.changelogURL ?? ChangelogCatalog.url(forBundleID: result.app.bundleID)
+        ChangelogURLPolicy.displayable(
+            result.remote?.changelogURL ?? ChangelogCatalog.url(forBundleID: result.app.bundleID))
     }
 
     var body: some View {

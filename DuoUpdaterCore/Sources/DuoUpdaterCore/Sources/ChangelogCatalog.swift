@@ -17,7 +17,7 @@ import Foundation
 /// update through brew (because it self-updates) can still show its release notes.
 public enum ChangelogCatalog {
     /// bundleID (lowercased) → changelog page.
-    private static let pages: [String: URL] = [
+    static let pages: [String: URL] = [
         // Ghostty — auto_updates cask, no Sparkle feed; official release notes.
         "com.mitchellh.ghostty": URL(string: "https://ghostty.org/docs/install/release-notes")!,
         // Ollama — auto_updates cask, Electron app; GitHub releases.

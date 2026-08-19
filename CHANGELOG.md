@@ -5,6 +5,12 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.42
+
+**A download link that stays broken now gets noticed.** When a vendor's server has a bad minute, Duo Updater waits it out rather than crying wolf — but that was letting a download link that had been broken for good slip by unremarked, because it looked the same as a bad minute on any single check. It now tells the difference: brief trouble is still ignored, trouble that lasts is flagged and fixed. Nothing changes on your Mac; this is about broken apps getting repaired sooner instead of quietly staying broken.
+
+**Release notes can't be pulled down to an insecure page.** A vendor's notes page is loaded over a secure connection, but nothing stopped that page from redirecting itself to an insecure one. Now it can't.
+
 ## 0.3.41
 
 **Updating OneNote no longer installs the whole of Microsoft Office.** OneNote's update was being fetched from Microsoft's combined Office installer, which puts Word, Excel, PowerPoint, Outlook and OneDrive on your Mac along with it. If you keep OneNote on its own, that was five applications you never asked for. It now downloads Microsoft's standalone OneNote update, which installs OneNote and nothing else.

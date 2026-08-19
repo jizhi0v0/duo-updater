@@ -68,15 +68,56 @@ import Foundation
     @Test func unreachabilityAccumulatesOnItsOwnCounter() {
         var baseline = Baseline()
         let id = "vendor:com.example.app:stable"
-        for _ in 1...(Baseline.infraThreshold - 1) {
+        let start = Date()
+        for _ in 1...6 {
             _ = baseline.reconcile(finding(status: .infra, failureKind: "transport"))
         }
-        #expect(!baseline.isInfraReportable(id), "a few bad nights is still the network")
+        // Enough sweeps, but the run is minutes old: still the network.
+        #expect(!baseline.isInfraReportable(id, now: start.addingTimeInterval(3_600)),
+                "a few bad sweeps in an hour is still the network")
+
+        // Same sweeps, now five days in.
+        let later = start.addingTimeInterval(Baseline.infraWindow + 60)
+        #expect(baseline.isInfraReportable(id, now: later))
+        #expect(baseline.infraStreak(id) == 6)
+        #expect(baseline.entries[id]?.infraSince != nil)
+    }
+
+    /// The gate is wall-clock, but wall-clock alone breaks in the one case where
+    /// the *sweep* is what stopped: after a week of downtime the first sweep back
+    /// records `infraSince`, and the second — minutes later — would otherwise
+    /// satisfy an elapsed-time test against a timestamp that is already days old.
+    /// Two observations must never retire a host.
+    @Test func aLongGapBetweenSweepsDoesNotRetireAHostOnTwoObservations() {
+        var baseline = Baseline()
+        let id = "vendor:com.example.app:stable"
+        let start = Date()
+        for _ in 1...2 {
+            _ = baseline.reconcile(finding(status: .infra, failureKind: "transport"))
+        }
+        let wayLater = start.addingTimeInterval(Baseline.infraWindow * 2)
+        #expect(!baseline.isInfraReportable(id, now: wayLater),
+                "two sweeps is not evidence, however old the first one is")
 
         _ = baseline.reconcile(finding(status: .infra, failureKind: "transport"))
-        #expect(baseline.isInfraReportable(id))
-        #expect(baseline.infraStreak(id) == Baseline.infraThreshold)
-        #expect(baseline.entries[id]?.infraSince != nil)
+        #expect(baseline.isInfraReportable(id, now: wayLater),
+                "the third observation clears the minimum")
+    }
+
+    /// The point of the change: the gate no longer moves when the sweep cadence
+    /// does. The same five days of downtime reports either way, whether it was
+    /// observed nightly or four times a day.
+    @Test func theGateDoesNotMoveWithTheSweepCadence() {
+        let start = Date()
+        let later = start.addingTimeInterval(Baseline.infraWindow + 60)
+        for sweepsOverTheWindow in [5, 20] {
+            var baseline = Baseline()
+            for _ in 1...sweepsOverTheWindow {
+                _ = baseline.reconcile(finding(status: .infra, failureKind: "transport"))
+            }
+            #expect(baseline.isInfraReportable("vendor:com.example.app:stable", now: later),
+                    "\(sweepsOverTheWindow) sweeps across the same five days must report")
+        }
     }
 
     /// Any answer at all — even a broken one — is proof the host is still there,
@@ -86,14 +127,17 @@ import Foundation
         let id = "vendor:com.example.app:stable"
         for reachable in [FindingStatus.ok, .broken, .warn] {
             var baseline = Baseline()
-            for _ in 1...Baseline.infraThreshold {
+            let start = Date()
+            let later = start.addingTimeInterval(Baseline.infraWindow + 60)
+            for _ in 1...6 {
                 _ = baseline.reconcile(finding(status: .infra))
             }
-            #expect(baseline.isInfraReportable(id))
+            #expect(baseline.isInfraReportable(id, now: later))
 
             _ = baseline.reconcile(finding(status: reachable, version: "1.0.0",
                                            failureKind: "versionPatternNoMatch"))
-            #expect(!baseline.isInfraReportable(id), "\(reachable.rawValue) proves the host is up")
+            #expect(!baseline.isInfraReportable(id, now: later),
+                    "\(reachable.rawValue) proves the host is up")
             #expect(baseline.infraStreak(id) == 0)
             #expect(baseline.entries[id]?.infraSince == nil)
         }
@@ -104,11 +148,12 @@ import Foundation
     /// those would report every one of them as a dead host within a week.
     @Test func skippedSweepsAreNotEvidenceOfADeadHost() {
         var baseline = Baseline()
-        for _ in 1...(Baseline.infraThreshold * 3) {
+        for _ in 1...60 {
             _ = baseline.reconcile(finding(status: .skipped))
         }
         #expect(baseline.infraStreak("vendor:com.example.app:stable") == 0)
-        #expect(!baseline.isInfraReportable("vendor:com.example.app:stable"))
+        #expect(!baseline.isInfraReportable("vendor:com.example.app:stable",
+                                            now: Date().addingTimeInterval(Baseline.infraWindow * 3)))
     }
 
     /// An unreachable sweep in the middle of a broken streak must not make the

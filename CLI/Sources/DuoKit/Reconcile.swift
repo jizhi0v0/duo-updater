@@ -27,13 +27,9 @@ public enum IssueAction: Equatable, Sendable {
 
 public enum Reconcile {
 
-    /// Comment on a still-broken issue only every Nth sweep.
-    ///
-    /// Like `Baseline.infraThreshold` this is a wall-clock property counted in
-    /// sweeps: a job that comments every run is a notification saying nothing new.
-    /// Seven was a week of nightly sweeps; at six-hourly it would be under two
-    /// days, so it scales with the cadence to stay at roughly a week.
-    public static let commentEverySweeps = 28
+    /// How long an open, unchanged issue is left alone before it is nudged again.
+    /// Lives on `Baseline` as a wall-clock interval; see `Baseline.commentInterval`.
+    public static var commentInterval: TimeInterval { Baseline.commentInterval }
 
     /// A recipe that broke again within this window reopens its old issue rather
     /// than opening a second one about the same thing.
@@ -66,10 +62,12 @@ public enum Reconcile {
         // between the sweep noticing a vendor shutting a host down and never
         // noticing it at all.
         if finding.status == .infra {
-            guard entry.consecutiveInfra >= Baseline.infraThreshold else {
+            guard entry.isInfraReportable(now: now) else {
+                let elapsed = entry.infraElapsed(now: now).map { $0 / 86_400 }
                 return .none(
-                    "infra — unreachable \(entry.consecutiveInfra)/"
-                        + "\(Baseline.infraThreshold) sweeps, still assuming the network")
+                    "infra — unreachable \(Report.duration(elapsed)) of "
+                        + "\(Report.duration(Baseline.infraWindow / 86_400)) "
+                        + "(\(entry.consecutiveInfra) sweeps), still assuming the network")
             }
             guard let issue = entry.issueNumber else {
                 return .create(
@@ -94,15 +92,18 @@ public enum Reconcile {
             // as everything else. No signature comparison: a dead host has no
             // shape to change, and transport errors flap between "no route" and
             // "TLS failed" for reasons that mean nothing.
-            guard entry.sweepsSinceComment >= commentEverySweeps else {
+            guard entry.mayComment(now: now) else {
                 return .none(
-                    "unreachable and already open (\(entry.sweepsSinceComment)/"
-                        + "\(commentEverySweeps) sweeps since last comment)")
+                    "unreachable and already open (nudged "
+                        + "\(Report.duration(entry.sinceLastComment(now: now).map { $0 / 86_400 })) "
+                        + "ago, waits \(Report.duration(Baseline.commentInterval / 86_400)))")
             }
             return .comment(
                 issue: issue,
                 body: "`\(finding.endpointHost)` is still unreachable as of "
-                    + "\(Self.day(now)) — \(entry.consecutiveInfra) consecutive sweeps"
+                    + "\(Self.day(now)) — unreachable for "
+                    + "\(Report.duration(entry.infraElapsed(now: now).map { $0 / 86_400 })) "
+                    + "across \(entry.consecutiveInfra) sweeps"
                     + (entry.infraSince.map { ", since \(Self.day($0))" } ?? "") + ".")
         }
 
@@ -162,10 +163,11 @@ public enum Reconcile {
                 body: "An automated analysis of the captured response is available.\n\n"
                     + suggestionBlock(suggestion))
         }
-        guard entry.sweepsSinceComment >= commentEverySweeps else {
+        guard entry.mayComment(now: now) else {
             return .none(
-                "already open, unchanged (\(entry.sweepsSinceComment)/"
-                    + "\(commentEverySweeps) sweeps since last comment)")
+                "already open, unchanged (nudged "
+                    + "\(Report.duration(entry.sinceLastComment(now: now).map { $0 / 86_400 })) "
+                    + "ago, waits \(Report.duration(Baseline.commentInterval / 86_400)))")
         }
         return .comment(
             issue: issue,
@@ -456,9 +458,11 @@ public enum Reconcile {
             baseline.entries[recipeID]?.issueNumber = number
             baseline.entries[recipeID]?.closedAt = nil
             baseline.entries[recipeID]?.sweepsSinceComment = 0
+            baseline.entries[recipeID]?.lastCommentedAt = Date()
         case .comment(let issue, let body):
             try GitHub.comment(issue: issue, body: body)
             baseline.entries[recipeID]?.sweepsSinceComment = 0
+            baseline.entries[recipeID]?.lastCommentedAt = Date()
         case .close(let issue, let comment):
             try GitHub.close(issue: issue, comment: comment)
             baseline.entries[recipeID]?.closedAt = Date()
@@ -466,6 +470,7 @@ public enum Reconcile {
             try GitHub.reopen(issue: issue, comment: comment)
             baseline.entries[recipeID]?.closedAt = nil
             baseline.entries[recipeID]?.sweepsSinceComment = 0
+            baseline.entries[recipeID]?.lastCommentedAt = Date()
         }
     }
 

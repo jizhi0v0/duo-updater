@@ -21,8 +21,9 @@ import Foundation
 
     private func entry(
         issue: Int? = nil, streak: Int = 0, signature: String? = nil,
-        closedAt: Date? = nil, sweepsSinceComment: Int = 0, lastGood: String? = nil,
-        infra: Int = 0
+        closedAt: Date? = nil, sweepsSinceComment: Int = 0, commentedDaysAgo: Double? = nil,
+        lastGood: String? = nil,
+        infra: Int = 0, infraDays: Double? = nil
     ) -> Baseline.Entry {
         var e = Baseline.Entry()
         e.issueNumber = issue
@@ -30,9 +31,15 @@ import Foundation
         e.lastSignature = signature
         e.closedAt = closedAt
         e.sweepsSinceComment = sweepsSinceComment
+        e.lastCommentedAt = commentedDaysAgo.map { Date(timeIntervalSinceNow: -$0 * 86_400) }
         e.lastGoodVersion = lastGood
         e.consecutiveInfra = infra
-        if infra > 0 { e.infraSince = Date(timeIntervalSinceNow: -Double(infra) * 86_400) }
+        // The gate is wall-clock now, so the age of the run matters, not just how
+        // many sweeps saw it. Default to one day per sweep — the old cadence —
+        // unless a test needs the two to disagree.
+        if infra > 0 {
+            e.infraSince = Date(timeIntervalSinceNow: -(infraDays ?? Double(infra)) * 86_400)
+        }
         return e
     }
 
@@ -57,7 +64,7 @@ import Foundation
     @Test func anEndpointUnreachableForAWeekIsReported() {
         let action = Reconcile.decide(
             finding(status: .infra, failureKind: "transport"),
-            entry: entry(infra: Baseline.infraThreshold), reportable: false)
+            entry: entry(infra: 6, infraDays: 6), reportable: false)
         guard case .create(let title, let body) = action else {
             Issue.record("expected an issue to be created, got \(action)")
             return
@@ -74,7 +81,7 @@ import Foundation
     /// as dead hosts would file an issue for each one within a week.
     @Test func skippedNeverFilesHoweverLongItPersists() {
         let action = Reconcile.decide(
-            finding(status: .skipped), entry: entry(infra: Baseline.infraThreshold * 5),
+            finding(status: .skipped), entry: entry(infra: 40, infraDays: 40),
             reportable: true)
         #expect(!action.isWrite)
     }
@@ -83,10 +90,10 @@ import Foundation
     @Test func aBriefOutageIsCountedButNotFiled() {
         let action = Reconcile.decide(
             finding(status: .infra, failureKind: "transport"),
-            entry: entry(infra: Baseline.infraThreshold - 1), reportable: true)
+            entry: entry(infra: 4, infraDays: 4), reportable: true)
         #expect(!action.isWrite)
         if case .none(let reason) = action {
-            #expect(reason.contains("\(Baseline.infraThreshold - 1)/\(Baseline.infraThreshold)"))
+            #expect(reason.contains("4 days of 5 days"))
         } else {
             Issue.record("expected no action")
         }
@@ -100,15 +107,16 @@ import Foundation
         let quiet = Reconcile.decide(
             finding(status: .infra, failureKind: "tlsFailure"),
             entry: entry(issue: 7, signature: "transport",
-                         sweepsSinceComment: 1, infra: Baseline.infraThreshold + 3),
+                         sweepsSinceComment: 1, commentedDaysAgo: 1,
+                         infra: 8, infraDays: 8),
             reportable: true)
         #expect(!quiet.isWrite, "a changed transport error is not news")
 
         let nudge = Reconcile.decide(
             finding(status: .infra, failureKind: "tlsFailure"),
             entry: entry(issue: 7, signature: "transport",
-                         sweepsSinceComment: Reconcile.commentEverySweeps,
-                         infra: Baseline.infraThreshold + 3),
+                         sweepsSinceComment: 9, commentedDaysAgo: 8,
+                         infra: 8, infraDays: 8),
             reportable: true)
         guard case .comment(let issue, let body) = nudge else {
             Issue.record("expected a nudge comment, got \(nudge)")
@@ -181,16 +189,31 @@ import Foundation
 
     // MARK: - not repeating yourself
 
-    /// A daily job that comments daily is a daily notification saying nothing
-    /// new. The issue is already open; silence is the correct output.
+    /// A job that comments every run is a notification saying nothing new. The
+    /// issue is already open; silence is the correct output. Counted in days now,
+    /// so the answer does not change when the sweep interval does.
     @Test func anUnchangedFailureStaysQuietBetweenNudges() {
-        for sweeps in 0..<Reconcile.commentEverySweeps {
+        for daysAgo in [0.0, 0.25, 1, 3, 6.9] {
             let action = Reconcile.decide(
                 finding(status: .broken, failureKind: "versionPatternNoMatch"),
                 entry: entry(issue: 7, streak: 5, signature: "versionPatternNoMatch",
-                             sweepsSinceComment: sweeps),
+                             commentedDaysAgo: daysAgo),
                 reportable: true)
-            #expect(!action.isWrite, "should stay silent at \(sweeps) sweeps since last comment")
+            #expect(!action.isWrite, "should stay silent \(daysAgo) days after the last nudge")
+        }
+    }
+
+    /// The whole point of the timestamp: the quiet period is the same length
+    /// however many sweeps happen inside it.
+    @Test func theNudgeIntervalDoesNotMoveWithTheSweepCadence() {
+        for sweepsInside in [7, 28] {
+            let action = Reconcile.decide(
+                finding(status: .broken, failureKind: "versionPatternNoMatch"),
+                entry: entry(issue: 7, streak: 5, signature: "versionPatternNoMatch",
+                             sweepsSinceComment: sweepsInside, commentedDaysAgo: 3),
+                reportable: true)
+            #expect(!action.isWrite,
+                    "three days is three days, whether that was \(sweepsInside) sweeps")
         }
     }
 
@@ -198,7 +221,7 @@ import Foundation
         let action = Reconcile.decide(
             finding(status: .broken, failureKind: "versionPatternNoMatch"),
             entry: entry(issue: 7, streak: 9, signature: "versionPatternNoMatch",
-                         sweepsSinceComment: Reconcile.commentEverySweeps),
+                         sweepsSinceComment: 9, commentedDaysAgo: 8),
             reportable: true)
         guard case .comment(let issue, _) = action else {
             Issue.record("expected a nudge, got \(action)")

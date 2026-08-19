@@ -49,13 +49,49 @@ public struct Baseline: Codable, Sendable {
         /// Set by the reconcile step, read by it on the next run.
         public var issueNumber: Int?
         public var closedAt: Date?
-        /// Sweeps since the last comment on the open issue, for the rate limit
-        /// that keeps a daily job from producing a daily comment.
+        /// Sweeps since the last comment on the open issue. Kept for the issue
+        /// text ("still down, N sweeps"); the rate limit itself is `lastCommentedAt`.
         public var sweepsSinceComment = 0
+        /// When the open issue was last commented on, for the nudge rate limit.
+        /// A timestamp rather than a sweep count for the same reason as
+        /// `infraSince`: the interval is meant to be a week of wall-clock, and a
+        /// count only says that as long as the cadence never moves.
+        public var lastCommentedAt: Date?
         /// The failure signature the last LLM suggestion was written about, so
         /// a suggestion is posted once per distinct problem rather than every
         /// sweep, and is never shown against a failure it doesn't describe.
         public var triagedSignature: String?
+
+        /// Whether this endpoint has been unreachable long enough, and often
+        /// enough, that the network has stopped being a plausible explanation.
+        ///
+        /// Both conditions are load-bearing: see `Baseline.infraWindow` for why
+        /// the wall-clock one replaced a sweep count, and
+        /// `Baseline.minInfraObservations` for why a count still has to be there.
+        public func isInfraReportable(now: Date = Date()) -> Bool {
+            guard consecutiveInfra >= Baseline.minInfraObservations,
+                  let elapsed = infraElapsed(now: now) else { return false }
+            return elapsed >= Baseline.infraWindow
+        }
+
+        /// Whether the open issue may be nudged again yet. An issue that has never
+        /// been commented on is always eligible.
+        public func mayComment(now: Date = Date()) -> Bool {
+            guard let lastCommentedAt else { return true }
+            return now.timeIntervalSince(lastCommentedAt) >= Baseline.commentInterval
+        }
+
+        /// How long since the open issue was last nudged, or nil if never.
+        public func sinceLastComment(now: Date = Date()) -> TimeInterval? {
+            lastCommentedAt.map { now.timeIntervalSince($0) }
+        }
+
+        /// How long the current unreachable run has been going, or nil when the
+        /// endpoint is not currently in one.
+        public func infraElapsed(now: Date = Date()) -> TimeInterval? {
+            guard let infraSince else { return nil }
+            return now.timeIntervalSince(infraSince)
+        }
 
         public init() {}
 
@@ -80,6 +116,7 @@ public struct Baseline: Codable, Sendable {
             closedAt = try c.decodeIfPresent(Date.self, forKey: .closedAt)
             sweepsSinceComment =
                 try c.decodeIfPresent(Int.self, forKey: .sweepsSinceComment) ?? 0
+            lastCommentedAt = try c.decodeIfPresent(Date.self, forKey: .lastCommentedAt)
             triagedSignature = try c.decodeIfPresent(String.self, forKey: .triagedSignature)
         }
     }
@@ -100,15 +137,39 @@ public struct Baseline: Codable, Sendable {
     /// Much higher than `actionableThreshold` on purpose. Unreachability is the
     /// one signal that is routinely someone else's fault — a vendor's bad night,
     /// the runner's flaky uplink — so the bar has to be high enough that none of
-    /// those clear it. The bar is expressed in sweeps but the property that
-    /// matters is wall-clock: it has to outlast any plausible outage. Nightly
-    /// sweeps made five the better part of a week; at every six hours five would
-    /// be thirty hours, which a long CDN incident or a bad uplink night can
-    /// clear. Twenty keeps the original ~5 days, so no CDN incident lasts that
-    /// long and no DNS record is missing that long by accident.
+    /// those clear it.
     ///
-    /// If the sweep interval changes again, change this with it.
-    public static let infraThreshold = 20
+    /// Expressed as wall-clock rather than a sweep count, because wall-clock is
+    /// the property that actually matters: no CDN incident lasts five days and no
+    /// DNS record is missing that long by accident. Counting sweeps encoded the
+    /// same intent only as long as the cadence never moved — and when it did move
+    /// (nightly to six-hourly) the constant silently came to mean thirty hours,
+    /// which a long outage clears. Two separate constants had to be rescaled by
+    /// hand to fix that. This one cannot drift.
+    public static let infraWindow: TimeInterval = 5 * 24 * 60 * 60
+
+    /// How many unreachable sweeps must actually have been observed, on top of
+    /// `infraWindow` having elapsed.
+    ///
+    /// Time alone is not enough in the one case where the sweep itself is what
+    /// stopped: if the runner is off for a week, the first sweep back records an
+    /// `infraSince` and the second, minutes later, would satisfy any elapsed-time
+    /// test on a timestamp that is now days old — reporting a host as retired on
+    /// the strength of two observations. Requiring a handful of sweeps as well
+    /// keeps that honest without reintroducing the cadence coupling: at any
+    /// sensible interval the window is the binding constraint, and this only
+    /// takes over when sweeps are sparse.
+    public static let minInfraObservations = 3
+
+    /// How long to wait before nudging an issue that is still open and still
+    /// saying the same thing. A job that comments every run is a notification
+    /// that says nothing new.
+    ///
+    /// Wall-clock for the same reason as `infraWindow`: this was seven sweeps,
+    /// which meant a week nightly and under two days once the sweep moved to
+    /// six-hourly. Both constants had to be rescaled by hand for that one change;
+    /// neither can drift now.
+    public static let commentInterval: TimeInterval = 7 * 24 * 60 * 60
 
     public init() {}
 
@@ -182,6 +243,7 @@ public struct Baseline: Codable, Sendable {
             entry.consecutiveActionable = 0
             entry.lastSignature = nil
             entry.sweepsSinceComment = 0
+            entry.lastCommentedAt = nil
 
         case .broken, .warn:
             entry.consecutiveActionable += 1
@@ -230,8 +292,13 @@ public struct Baseline: Codable, Sendable {
 
     /// Whether this recipe's endpoint has been unreachable long enough that the
     /// network is no longer a plausible explanation.
-    public func isInfraReportable(_ recipeID: String) -> Bool {
-        (entries[recipeID]?.consecutiveInfra ?? 0) >= Self.infraThreshold
+    public func isInfraReportable(_ recipeID: String, now: Date = Date()) -> Bool {
+        entries[recipeID]?.isInfraReportable(now: now) ?? false
+    }
+
+    /// How long the current unreachable run has been going, for display.
+    public func infraElapsed(_ recipeID: String, now: Date = Date()) -> TimeInterval? {
+        entries[recipeID]?.infraElapsed(now: now)
     }
 
     public func infraStreak(_ recipeID: String) -> Int {

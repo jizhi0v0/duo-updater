@@ -9,6 +9,20 @@ import DuoUpdaterCore
 /// constructed, so there is no formatting path that can leak a credential.
 public enum Report {
 
+    /// Days rendered for a human: "3 days", "1 day", "18 hours". Durations here
+    /// are always shown alongside a sweep count, so this only has to be readable,
+    /// not precise.
+    static func duration(_ days: Double?) -> String {
+        guard let days else { return "?" }
+        if days < 1 {
+            let hours = Int((days * 24).rounded())
+            return "\(hours) hour\(hours == 1 ? "" : "s")"
+        }
+        let whole = Int(days.rounded())
+        return "\(whole) day\(whole == 1 ? "" : "s")"
+    }
+
+
     // MARK: - terminal
 
     static func text(
@@ -48,11 +62,14 @@ public enum Report {
             print("\n  ~ INFRA (transient by default — reported once persistent)")
             for finding in infra {
                 let streak = baseline.infraStreak(finding.recipeID)
+                let days = baseline.infraElapsed(finding.recipeID).map { $0 / 86_400 }
                 let note: String
                 if baseline.isInfraReportable(finding.recipeID) {
-                    note = "   ← unreachable \(streak) sweeps running; treated as GONE"
-                } else if streak > 1 {
-                    note = "   (unreachable \(streak)/\(Baseline.infraThreshold) sweeps)"
+                    note = "   ← unreachable \(Self.duration(days)) "
+                        + "(\(streak) sweeps); treated as GONE"
+                } else if streak > 1, let days {
+                    note = "   (unreachable \(Self.duration(days)) of "
+                        + "\(Self.duration(Baseline.infraWindow / 86_400)))"
                 } else {
                     note = ""
                 }
@@ -150,7 +167,10 @@ public enum Report {
             }
             let infraStreak = baseline.infraStreak(finding.recipeID)
             if infraStreak > 0 {
-                out += "- **consecutive sweeps unreachable**: \(infraStreak)"
+                out += "- **unreachable for**: "
+                out += baseline.infraElapsed(finding.recipeID)
+                    .map { Self.duration($0 / 86_400) } ?? "?"
+                out += " (\(infraStreak) sweeps)"
                 out += baseline.entries[finding.recipeID]?.infraSince
                     .map { " (since \(ISO8601DateFormatter().string(from: $0).prefix(10)))" } ?? ""
                 out += "\n"

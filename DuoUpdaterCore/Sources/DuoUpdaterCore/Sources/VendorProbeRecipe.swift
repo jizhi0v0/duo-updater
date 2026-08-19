@@ -342,6 +342,40 @@ public struct VendorProbeRecipe: Sendable {
     /// — this is the fragile, format-specific bit, so it's factored out for
     /// unit testing without touching the network. Returns nil when the pattern
     /// is invalid or doesn't match (the caller then degrades to "unknown").
+    /// The same pattern with its fixed run of version segments made variable.
+    ///
+    /// A pattern that hard-codes how many dot-separated numbers a version has is
+    /// the single most common way a recipe dies silently: Zotero shipped `10.0`
+    /// where every release before it had three segments, the pattern stopped
+    /// matching, and the app simply vanished from the update list with no error
+    /// anywhere. 33 of the registry's patterns still pin an exact count — audited
+    /// 2026-08-19 against every live endpoint, and for all but one the count is
+    /// not load-bearing today, so widening them wholesale would be churn without
+    /// evidence. Detecting the day it stops being true is worth more.
+    ///
+    /// Returns nil when the pattern pins no segment run, so a caller can tell
+    /// "this diagnosis does not apply" from "it applies and found nothing".
+    static func segmentCountRelaxed(_ pattern: String) -> String? {
+        guard let re = try? NSRegularExpression(
+            pattern: #"\[0-9\]\+(?:\\\.\[0-9\]\+)+"#) else { return nil }
+        let ns = pattern as NSString
+        guard let m = re.firstMatch(
+            in: pattern, range: NSRange(location: 0, length: ns.length))
+        else { return nil }
+        return ns.replacingCharacters(
+            in: m.range, with: #"[0-9]+(?:\.[0-9]+){1,4}"#)
+    }
+
+    /// What a pattern WOULD have matched if it did not pin the segment count.
+    /// Used only to explain a miss; never to produce a version we act on.
+    static func versionIfSegmentCountRelaxed(
+        from body: String, pattern: String
+    ) -> String? {
+        guard let relaxed = segmentCountRelaxed(pattern), relaxed != pattern
+        else { return nil }
+        return extractVersion(from: body, pattern: relaxed)
+    }
+
     public static func extractVersion(from text: String, pattern: String) -> String? {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         let range = NSRange(text.startIndex..., in: text)

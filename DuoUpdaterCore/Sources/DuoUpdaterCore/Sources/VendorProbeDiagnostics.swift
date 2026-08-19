@@ -34,6 +34,11 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     /// **The signature failure of a broken recipe**: the endpoint answered, the
     /// body arrived, and `versionPattern` matched nothing in it.
     case versionPatternNoMatch(sampleBytes: Int)
+    /// The pattern matched nothing, but the same pattern with its segment count
+    /// made variable matches `wouldMatch`. That is a vendor changing how many
+    /// dot-separated numbers their version has — the Zotero `9.0.6` -> `10.0`
+    /// shape — and it says both what broke and what the answer is.
+    case versionSegmentCountChanged(wouldMatch: String, sampleBytes: Int)
 
     /// What a sweep should *do* about this failure.
     public enum Classification: String, Sendable {
@@ -56,7 +61,8 @@ public enum ProbeFailure: Error, Sendable, Equatable {
             // hold is wrong, which is a recipe problem.
             return (code >= 500 || code == 429) ? .infra : .recipe
         case .redirectMissingLocation, .malformedResolvedURL,
-             .archiveExtractionFailed, .plistKeyMissing, .versionPatternNoMatch:
+             .archiveExtractionFailed, .plistKeyMissing, .versionPatternNoMatch,
+             .versionSegmentCountChanged:
             return .recipe
         }
     }
@@ -73,6 +79,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .archiveExtractionFailed: return "archiveExtractionFailed"
         case .plistKeyMissing: return "plistKeyMissing"
         case .versionPatternNoMatch: return "versionPatternNoMatch"
+        case .versionSegmentCountChanged: return "versionSegmentCountChanged"
         }
     }
 
@@ -87,6 +94,10 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .archiveExtractionFailed(let why): return why
         case .plistKeyMissing(let entry, let key): return "\(entry) has no key '\(key)'"
         case .versionPatternNoMatch(let bytes): return "no match in \(bytes)-byte body"
+        case .versionSegmentCountChanged(let would, let bytes):
+            return "no match in \(bytes)-byte body, but the same pattern with a "
+                + "variable segment count matches \(would) — the vendor changed "
+                + "how many numbers are in the version"
         }
     }
 }

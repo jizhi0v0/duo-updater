@@ -51,6 +51,7 @@ public actor PackageInstaller {
         case packageTeamIdentifierMissing
         case packageTeamIdentifierMismatch(installed: String, package: String)
         case packageDestinationMismatch(installed: String, destinations: [String])
+        case packageDestinationsUnreadable
 
         public var errorDescription: String? {
             switch self {
@@ -62,6 +63,8 @@ public actor PackageInstaller {
                 return "The downloaded disk image did not contain an installer package DuoUpdater could verify. Nothing was opened."
             case .packageTeamIdentifierMissing:
                 return "Could not read the installer package's Developer ID team. Nothing was opened."
+            case .packageDestinationsUnreadable:
+                return "Could not read where this package installs, so it was not opened."
             case .packageDestinationMismatch(let installed, let destinations):
                 return "This package installs to \(destinations.joined(separator: ", ")), not to \(installed). Refusing to install."
             case .packageTeamIdentifierMismatch(let installed, let package):
@@ -453,19 +456,43 @@ public actor PackageInstaller {
         // being updated is one of those destinations, which is what stops a
         // same-Team substitution (Google Earth's package targets
         // `/Applications/Google Earth.app`, never Chrome's bundle).
-        // An empty set means the package's layout could not be read — a bundle-format
-        // `.mpkg` is not a xar archive at all, and a component may be missing or
-        // unreadable — not that the package writes nowhere. Verified non-empty on
-        // Tailscale, Microsoft Word, Edge, OneDrive, WeChat DevTools and UU Remote,
-        // covering all three package shapes, but the remaining pkg recipes are
-        // untested, so an unreadable layout falls back to the Team-only gate rather
-        // than blocking an install that works today.
+        // Fail-closed: a package whose destinations cannot be read does not get
+        // handed to the installer.
+        //
+        // This started out fail-open, on the reasoning that most pkg recipes were
+        // untested and refusing an install that works today would be worse than
+        // letting an unreadable one through. That reasoning does not survive
+        // contact with what the gate is for: an attacker substituting a package
+        // does not need to defeat the parser, only to hand us one it cannot read,
+        // and "we could not check" is not a reason to install. Every pkg recipe in
+        // the registry has since been checked against its real vendor package, so
+        // the exemption has nothing left to protect.
+        //
+        // Checked against the real vendor package for all 16 pkg recipes, on
+        // 2026-08-19: Word, Excel, PowerPoint, OneNote, Outlook, Teams, Edge, Edge
+        // Beta, Edge Dev, OneDrive, Tailscale, WeChat DevTools, UU Remote, Shottr,
+        // ToDesk and AweSun. Every one is a flat xar archive and every one declares
+        // the app it updates, so there is no shape here this cannot read.
+        //
+        // ToDesk and AweSun took a second attempt worth recording: a plain `curl`
+        // gets a bot-challenge page from both (ToDesk a "Security Verification"
+        // page, AweSun an Aliyun WAF script), which looked like the one-click was
+        // broken. It is not — `Downloader` gets the real 375 MB and 145 MB payloads
+        // from the same URLs with the same declared headers. When checking a vendor
+        // endpoint, reproduce the production client; curl is not a stand-in for it,
+        // in either direction.
+        //
+        // A vendor that ships a shape this cannot read will fail closed and be
+        // reported rather than silently downgraded to the Team-only check — which
+        // is the outcome we want, because it is visible.
         //
         // Note what this gate does NOT cover: `preinstall`/`postinstall` scripts run
         // as root whatever the declared destinations say. It narrows which package
         // may be handed over; it does not make an accepted one harmless.
         let destinations = Self.declaredDestinations(toOpen)
-        guard !destinations.isEmpty else { return }
+        guard !destinations.isEmpty else {
+            throw PackageError.packageDestinationsUnreadable
+        }
 
         let target = installedApp.resolvingSymlinksInPath().standardizedFileURL.path
         guard !destinations.contains(target) else { return }

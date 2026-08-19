@@ -382,9 +382,9 @@ struct PackageInstallerTests {
         #expect(dests.contains("/Applications/Google Earth Pro.app"))
     }
 
-    /// A body with nothing to go on yields no destinations, which the gate treats
-    /// as "cannot verify" and falls back to the Team-only check rather than
-    /// blocking a working install.
+    /// A body with nothing to go on yields no destinations. The gate treats that
+    /// as a refusal, not as permission: an attacker substituting a package does
+    /// not have to defeat the parser, only hand us one it cannot read.
     @Test func anUnreadableLayoutYieldsNoDestinations() {
         #expect(PackageInstaller.destinations(inPackageInfo: "<pkg-info/>").isEmpty)
     }

@@ -177,4 +177,60 @@ struct GroupBProbeRecipeTests {
             #expect(recipe.install != nil)
         }
     }
+
+    // MARK: OneNote — suite installer vs standalone
+
+    /// The `FullUpdaterLocation` entry from the real OneNote MAU manifest
+    /// (`0409ONMC2019.xml`), captured 2026-08-19, trimmed to the keys the recipe
+    /// reads. The delta entries around it are kept because picking one of those
+    /// instead is the mistake this pattern has to avoid.
+    @Test func oneNoteInstallsTheStandalonePackageNotADelta() throws {
+        let recipe = try #require(
+            VendorProbeRegistry.recipes.first { $0.bundleID == "com.microsoft.onenote.mac" })
+        let spec = try #require(recipe.install)
+        guard case .bodyPattern(let pattern) = spec.urlSource else {
+            Issue.record("expected a body pattern"); return
+        }
+        let body = """
+        <key>Payload</key>
+        <string>OneNote_16.109.26041922_to_16.109.26053122_Delta.pkg</string>
+        <key>Location</key>
+        <string>https://res.public.onecdn.static.microsoft/x/OneNote_16.109.26041922_to_16.109.26053122_Delta.pkg</string>
+        <key>FullUpdaterLocation</key>
+        <string>https://res.public.onecdn.static.microsoft/x/Microsoft_OneNote_16.109.26053122_Updater.pkg</string>
+        """
+        // A delta applied without its baseline installs a broken app, so the
+        // standalone updater is the only acceptable match.
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: pattern)
+            == "https://res.public.onecdn.static.microsoft/x/Microsoft_OneNote_16.109.26053122_Updater.pkg")
+    }
+
+    /// The suite installer must not be reachable from this recipe any more. It
+    /// declares eight destinations — Word, Excel, PowerPoint, Outlook, OneNote,
+    /// OneDrive, AutoUpdate and a Defender shim — so installing it to update
+    /// OneNote put the whole of Office on the machine.
+    @Test func oneNoteDoesNotResolveTheWholeOfficeSuite() throws {
+        let recipe = try #require(
+            VendorProbeRegistry.recipes.first { $0.bundleID == "com.microsoft.onenote.mac" })
+        let spec = try #require(recipe.install)
+        guard case .bodyPattern(let pattern) = spec.urlSource else {
+            Issue.record("expected a body pattern"); return
+        }
+        let suite = """
+        <key>FullUpdaterLocation</key>
+        <string>https://res.public.onecdn.static.microsoft/x/Microsoft_365_and_Office_16.112.26081720_Installer.pkg</string>
+        """
+        #expect(VendorProbeRecipe.extractVersion(from: suite, pattern: pattern) == nil)
+    }
+
+    /// Detection reads the manifest's own version rather than a filename, and the
+    /// build is what the bundle reports (`versionIsBuild`).
+    @Test func oneNoteReadsTheManifestUpdateVersion() throws {
+        let recipe = try #require(
+            VendorProbeRegistry.recipes.first { $0.bundleID == "com.microsoft.onenote.mac" })
+        let body = "<key>Update Version</key><string>16.109.26053122</string>"
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern)
+            == "16.109.26053122")
+        #expect(recipe.versionIsBuild)
+    }
 }

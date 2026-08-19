@@ -1028,7 +1028,7 @@ private struct FormulaDetailPane: View {
         case .loaded(let release):
             if let changelog = release.changelog {
                 ChangelogEntriesView(changelog: changelog)
-            } else if let url = release.pageURL {
+            } else if let url = ChangelogURLPolicy.displayable(release.pageURL) {
                 CachedWebView(url: url)
             } else {
                 noNotes

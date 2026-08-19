@@ -847,15 +847,18 @@ private struct AppRow: View {
 
     @ViewBuilder
     private func installProgress(_ stage: InstallStage) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             if case .downloading(let f) = stage {
                 ProgressView(value: f).frame(width: 50).controlSize(.small)
                 // Fixed-width, right-aligned, monospaced digits: "2%" and "100%"
                 // both end at the same edge, so neither the bar nor the row moves.
+                // 29pt is measured, not guessed — "100%" at caption2 with monospaced
+                // digits is 28.6pt wide, and anything wider just opens a gap between
+                // the bar and the number on the usual two-digit case.
                 Text("\(Int(f * 100))%")
                     .font(.caption2).foregroundStyle(.secondary)
                     .monospacedDigit()
-                    .frame(width: 34, alignment: .trailing)
+                    .frame(width: 29, alignment: .trailing)
             } else {
                 ProgressView().controlSize(.small)
                 Text(stageLabel(stage))
@@ -863,10 +866,12 @@ private struct AppRow: View {
                     .lineLimit(1)
             }
         }
-        // Right-align the bar+label as a tight group inside a constant-width slot,
-        // so it sits flush right (matching the buttons) and the row never reflows
-        // as the percentage changes — the source of the jitter with many downloads.
-        .frame(width: 64, alignment: .center)
+        // Centre the bar+label as a tight group in the same minimum-width slot the
+        // buttons use, so it lines up down the list. It has to be a *minimum*: the
+        // bar plus the percentage is wider than 64pt, and a hard width made the
+        // number overflow past the row's trailing edge. The percentage's own fixed
+        // width keeps the row from reflowing as it counts up.
+        .frame(minWidth: 64, alignment: .center)
     }
 
     private func stageLabel(_ stage: InstallStage) -> String {
@@ -954,7 +959,7 @@ private struct AppRow: View {
             Text("Relaunching…")
                 .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
-        .frame(width: 64, alignment: .center)
+        .frame(minWidth: 64, alignment: .center)
         .help("Quit \(result.app.name) — waiting for it to swap in the new version and reopen")
     }
 
@@ -965,7 +970,7 @@ private struct AppRow: View {
             Text("Updated")
                 .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
-        .frame(width: 64, alignment: .center)
+        .frame(minWidth: 64, alignment: .center)
         .help("\(result.app.name) updated to \(result.app.shortVersion ?? "the latest version")")
     }
 

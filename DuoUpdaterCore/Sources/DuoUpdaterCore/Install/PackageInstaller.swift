@@ -453,20 +453,40 @@ public actor PackageInstaller {
         // being updated is one of those destinations, which is what stops a
         // same-Team substitution (Google Earth's package targets
         // `/Applications/Google Earth.app`, never Chrome's bundle).
+        // An empty set means the package's layout could not be read — a bundle-format
+        // `.mpkg` is not a xar archive at all, and a component may be missing or
+        // unreadable — not that the package writes nowhere. Verified non-empty on
+        // Tailscale, Microsoft Word, Edge, OneDrive, WeChat DevTools and UU Remote,
+        // covering all three package shapes, but the remaining pkg recipes are
+        // untested, so an unreadable layout falls back to the Team-only gate rather
+        // than blocking an install that works today.
+        //
+        // Note what this gate does NOT cover: `preinstall`/`postinstall` scripts run
+        // as root whatever the declared destinations say. It narrows which package
+        // may be handed over; it does not make an accepted one harmless.
         let destinations = Self.declaredDestinations(toOpen)
-        // An empty set means the package's layout could not be read, not that it
-        // writes nowhere. Verified non-empty on Tailscale, Microsoft Word, Edge,
-        // OneDrive, WeChat DevTools and UU Remote — all three package shapes — but
-        // the remaining pkg recipes are untested, so an unreadable layout falls
-        // back to the Team-only gate rather than blocking an install that works
-        // today. Tighten to fail-closed once every pkg recipe is confirmed.
         guard !destinations.isEmpty else { return }
+
         let target = installedApp.resolvingSymlinksInPath().standardizedFileURL.path
-        guard destinations.contains(target) else {
-            throw PackageError.packageDestinationMismatch(
-                installed: target,
-                destinations: destinations.sorted())
+        guard !destinations.contains(target) else { return }
+
+        // The same app kept somewhere other than `/Applications` is still the same
+        // app. `AppScanner` also scans `~/Applications`, `/Applications/Utilities`
+        // and the Input Methods directories, and a vendor package always names the
+        // system location, so comparing full paths alone would refuse every pkg
+        // update for an app the user keeps elsewhere. Fall back to the bundle name,
+        // which is what actually distinguishes one product from another — Google
+        // Earth's package names `Google Earth.app`, never `Google Chrome.app`.
+        let targetName = (target as NSString).lastPathComponent
+        let namesMatch = destinations.contains {
+            ($0 as NSString).lastPathComponent.compare(
+                targetName, options: .caseInsensitive) == .orderedSame
         }
+        guard !namesMatch else { return }
+
+        throw PackageError.packageDestinationMismatch(
+            installed: target,
+            destinations: destinations.sorted())
     }
 
     /// The `.app` destinations a package declares, as absolute paths.
@@ -507,30 +527,62 @@ public actor PackageInstaller {
 
     /// Parse one `PackageInfo` body into absolute `.app` destinations. Split out so
     /// the path arithmetic is testable without building a package.
+    ///
+    /// Parsed as XML rather than scanned with regexes: an attribute pattern also
+    /// matches `search-path`, does not decode `&amp;` in an app name, and happily
+    /// reads a destination out of a commented-out element. None of those is a
+    /// signature bypass — `PackageInfo` is covered by the package signature, which
+    /// `pkgutil --check-signature` has already verified by this point — but each
+    /// one is a way to refuse a legitimate update.
     static func destinations(inPackageInfo body: String) -> Set<String> {
-        func attribute(_ name: String, in text: String) -> [String] {
-            let pattern = "\(name)=\"([^\"]*)\""
-            guard let re = try? NSRegularExpression(pattern: pattern) else { return [] }
-            let ns = text as NSString
-            return re.matches(in: text, range: NSRange(location: 0, length: ns.length))
-                .map { ns.substring(with: $0.range(at: 1)) }
-        }
+        guard let doc = try? XMLDocument(xmlString: body, options: [.nodePreserveWhitespace])
+        else { return [] }
 
-        let location = attribute("install-location", in: body).first ?? "/"
+        let location = (try? doc.nodes(forXPath: "/pkg-info/@install-location"))?
+            .first?.stringValue ?? "/"
         var out: Set<String> = []
         // The payload root itself, when the package unpacks straight into a bundle.
-        if location.hasSuffix(".app") {
+        if isAppBundlePath(location) {
             out.insert((location as NSString).standardizingPath)
         }
-        for path in attribute("path", in: body) {
+        for node in (try? doc.nodes(forXPath: "//bundle/@path")) ?? [] {
+            guard let path = node.stringValue else { continue }
             let joined = (location as NSString).appendingPathComponent(path)
-            let full = (joined as NSString).standardizingPath
-            // Keep the top-level bundle, not the helpers nested inside it.
-            guard let range = full.range(of: ".app") else { continue }
-            let top = String(full[full.startIndex..<range.upperBound])
-            if top.hasSuffix(".app") { out.insert(top) }
+            out.formUnion(appBundlePrefixes(in: (joined as NSString).standardizingPath))
         }
         return out
+    }
+
+    /// Every prefix of `path` that ends in an app bundle.
+    ///
+    /// Neither the first nor the last `.app` component is reliably the one that
+    /// matters. Taking the first truncates on a reverse-DNS directory such as
+    /// `com.vendor.app`, throwing away the real bundle further along — and because
+    /// the truncated prefix still ends in `.app` the result is non-empty but wrong,
+    /// which sails past the "could not read the layout" fallback and refuses a
+    /// legitimate update. Taking the last picks a helper out of a package whose
+    /// payload root is the app itself, as Tailscale's is.
+    ///
+    /// Returning every candidate keeps the real destination in the set whichever
+    /// shape the package has. The extra entries are all paths the package genuinely
+    /// writes, and none of them can make a different product match: the comparison
+    /// is against the installed bundle's own path and name, so Google Earth's
+    /// package still never resolves to Chrome.
+    static func appBundlePrefixes(in path: String) -> Set<String> {
+        var out: Set<String> = []
+        var walked: [String] = []
+        for component in (path as NSString).pathComponents {
+            walked.append(component)
+            if isAppBundlePath(component) {
+                out.insert(NSString.path(withComponents: walked))
+            }
+        }
+        return out
+    }
+
+    /// Case-insensitive because the filesystem is, and vendors are inconsistent.
+    private static func isAppBundlePath(_ component: String) -> Bool {
+        component.lowercased().hasSuffix(".app")
     }
 
     /// `runCapturingOutput`, but usable from the static helpers above and able to

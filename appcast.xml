@@ -17,6 +17,18 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.37</title>
+            <pubDate>Wed, 19 Aug 2026 17:15:02 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.37</link>
+            <sparkle:version>47</sparkle:version>
+            <sparkle:shortVersionString>0.3.37</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Zotero 10 shows up as an update again.** Zotero numbered its new major release `10.0` — two numbers where every previous release had three — and Duo Updater's check for it quietly stopped recognising the version. Nothing looked wrong: no error, no failed check, Zotero simply never appeared in the list, so anyone still on 9.0.6 was never offered the upgrade. It is recognised again, and the one-click install is unchanged.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.37/DuoUpdater-0.3.37-macos.zip" length="10551554" type="application/octet-stream" sparkle:edSignature="Ni7vzyFiTJyFprNkfcaXF9YYtlHN6MH40kzJfjXJ62gA3HTK5MoXIQjNn3Kl0AFI+QT76PsWoQ3bXL0lfV+SAQ=="/>
+        </item>
+        <item>
             <title>0.3.36</title>
             <pubDate>Wed, 19 Aug 2026 02:21:33 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.36</link>
@@ -39,22 +51,6 @@
             <description sparkle:format="markdown"><![CDATA[**WeChat DevTools (微信开发者工具) is checked for updates now — Stable, RC and Nightly each on their own track.** It used to sit there as "unknown": since version 2.02 the app reports Electron's stock identity on disk, calling itself version 36.6.0, and all three channels look identical from the outside. Duo Updater now reads the real version and channel out of the app's own configuration, so whichever track you installed is the only one you are offered — a Nightly install is never handed a Stable build, or the other way round. Updates install in one click, and the release notes for the exact build show up in the window.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.35/DuoUpdater-0.3.35-macos.zip" length="10541529" type="application/octet-stream" sparkle:edSignature="smxYlZvSnbvItEQefNpslE5xeFEz+RodOrHwzc91q4ckBf7BCJuwKL9O4sbJCu/5XgBrjvMd1wUDNJmdHqrWCw=="/>
-        </item>
-        <item>
-            <title>0.3.34</title>
-            <pubDate>Tue, 18 Aug 2026 15:40:26 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.34</link>
-            <sparkle:version>44</sparkle:version>
-            <sparkle:shortVersionString>0.3.34</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**App Store updates stop breaking every time Duo Updater updates itself.** Replacing the app left the background helper from the previous copy running, and macOS then never started the new one — so the helper looked switched on while every App Store update failed talking to a copy that no longer existed. Only a restart cleared it. The helper now steps aside when it has been idle for a minute, which means a replaced app heals itself by the next update. For a Mac already in that state there is a **Restart Helper** button in Settings → Diagnostics and on the update that failed; it asks for an administrator password and takes effect immediately, no restart.
-
-**Diagnostics can tell you whether the helper actually works.** "Enabled" only ever meant "switched on", and the difference between that and "answering" showed up as a failed update. A **Check** button now says which one you have, in those words.
-
-**Backups: choose what to delete.** "Clean Up Now" only removed backups belonging to apps you had uninstalled, so on most Macs it deleted nothing and said nothing while the size stayed put. It now opens a list — every backup with its app icon, the update it would roll back, its size and date — with everything selected and anything you want to keep unselectable. The button says how much the selection frees. Backups whose records had gone missing were previously counted in the total but impossible to see or remove; they are listed too, marked unusable.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.34/DuoUpdater-0.3.34-macos.zip" length="10530450" type="application/octet-stream" sparkle:edSignature="2tfrSzuAjj+3oi8Vy256Vrcsw8Epn21uq50quGjad32mjeFM2FKvftZ/UHz3kbeG+OGNJncGJNDMp58oLcFSBw=="/>
         </item>
     </channel>
 </rss>

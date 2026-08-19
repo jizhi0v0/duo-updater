@@ -5,6 +5,12 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.41
+
+**Updating OneNote no longer installs the whole of Microsoft Office.** OneNote's update was being fetched from Microsoft's combined Office installer, which puts Word, Excel, PowerPoint, Outlook and OneDrive on your Mac along with it. If you keep OneNote on its own, that was five applications you never asked for. It now downloads Microsoft's standalone OneNote update, which installs OneNote and nothing else.
+
+**Package updates are checked more strictly before they are opened.** An update that arrives as a macOS installer package now has to say where it installs, and has to name the app you are updating. A package that will not say is refused rather than let through. Every app that updates this way — Office, Edge, Teams, OneDrive, Tailscale, ToDesk, AweSun and the rest — was checked against its real installer first, so this should never fire on a normal update.
+
 ## 0.3.40
 
 **Telegram's one-click update stops vanishing when Telegram's servers hiccup.** Working out where to download Telegram from needs one extra request to their servers, and those servers were intermittently refusing it — a few minutes at a time, then fine again. When that happened the update was still detected, but the Update button quietly disappeared for that check and you had to go to the website yourself. Duo Updater now retries before giving up, so a brief hiccup no longer costs you the one-click install.

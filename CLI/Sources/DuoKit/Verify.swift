@@ -268,11 +268,22 @@ public enum Verify {
                 try? await Task.sleep(for: .seconds(attempt))
                 outcome = await source.resolveDiagnostic(rule)
             }
-            out.append(classify(
+            var finding = classify(
                 outcome, registry: .github, host: "api.github.com",
                 pattern: rule.versionPattern, attempts: attempt + 1,
                 installed: installed["vendor:\(rule.bundleID):\(rule.channel.rawValue)"],
-                sanity: { _, _ in [] }))
+                sanity: { _, _ in [] })
+            // The GitHub sweep never ran this cross-check — only the vendor sweep
+            // did — so the one registry where a tag can outrun the macOS artifact
+            // was also the one with no second opinion. GitHub releases carry a
+            // publish date, which is exactly what the phantom check needs.
+            if let version = finding.version,
+               let complaint = await brewComplaint(
+                   bundleID: rule.bundleID, version: version,
+                   publishedAt: outcome.remote?.publishedAt) {
+                finding = finding.adding(warning: complaint)
+            }
+            out.append(finding)
         }
         return out
     }
@@ -359,7 +370,9 @@ public enum Verify {
     ///
     /// This is the only cross-check that works on a CI runner, where no apps are
     /// installed and `remoteBehindInstalled` has nothing to compare against.
-    static func brewComplaint(bundleID: String, version: String) async -> String? {
+    static func brewComplaint(
+        bundleID: String, version: String, publishedAt: Date? = nil, now: Date = Date()
+    ) async -> String? {
         guard let cask = try? await HomebrewCaskCatalog.shared.entry(forBundleID: bundleID),
               !cask.autoUpdates  // an auto-updating cask's version is decorative
         else { return nil }
@@ -369,9 +382,69 @@ public enum Verify {
         }
         let ours = majorMinor(version)
         let theirs = majorMinor(cask.version)
-        guard ours != theirs, VersionComparator.isNewer(theirs, than: ours) else { return nil }
-        return "Homebrew's cask `\(cask.token)` is at \(cask.version) while this recipe "
-            + "reads \(version) — the probe may be stuck on a stale element"
+        if ours != theirs, VersionComparator.isNewer(theirs, than: ours) {
+            return "Homebrew's cask `\(cask.token)` is at \(cask.version) while this recipe "
+                + "reads \(version) — the probe may be stuck on a stale element"
+        }
+        return phantomVersionComplaint(
+            caskToken: cask.token, caskVersion: cask.version, version: version,
+            publishedAt: publishedAt, now: now)
+    }
+
+    /// How long a version we report may sit ahead of Homebrew before the gap
+    /// stops looking like brew being slow and starts looking like the version
+    /// not existing for macOS at all.
+    ///
+    /// Brew's normal lag on a live cask is hours to a couple of days, which is
+    /// why the *ahead* direction was originally left unchecked — flagging it
+    /// naively would fire on nearly every release for its first night. Ten days
+    /// is past the point where any maintained cask has caught up, and the case
+    /// this exists for never catches up: there is nothing to package.
+    static let brewPickupDays = 10
+
+    /// The check that would have caught LocalSend on day one.
+    ///
+    /// A phantom update is a version that is real, newer, and does not exist for
+    /// this platform — a cross-platform project cutting a mobile-only point
+    /// release out of a shared version number. Nothing fails: the endpoint
+    /// answers, the tag parses, `lastGoodVersion` gets written, and the row shows
+    /// an update that can never be installed and never clears. `duo verify` is
+    /// structurally blind to it, because every check it runs asks "did the recipe
+    /// parse something" rather than "is what it parsed true for macOS".
+    ///
+    /// The tell is the rest of the ecosystem declining to follow. Homebrew tracks
+    /// the same upstream and packages only what it can actually install, so a
+    /// non-auto-updating cask still sitting behind us well after publication says
+    /// the artifact isn't there. Advisory, never fatal — it accuses a recipe of
+    /// being *too* new, and the honest causes (a cask maintainer on holiday, a
+    /// version scheme brew normalizes differently) deserve a human read.
+    /// Takes the two cask fields it needs rather than a `CaskEntry`, which has no
+    /// public initializer — widening the core's API so a test can build a fixture
+    /// would be the tail wagging the dog.
+    static func phantomVersionComplaint(
+        caskToken: String, caskVersion: String, version: String,
+        publishedAt: Date?, now: Date
+    ) -> String? {
+        // Without a publish date there is no way to tell a phantom from a release
+        // that shipped an hour ago, and guessing wrong here means crying wolf on
+        // every healthy recipe the night it updates. Sources that carry no date
+        // simply opt out.
+        guard let publishedAt else { return nil }
+        let days = Calendar(identifier: .gregorian)
+            .dateComponents([.day], from: publishedAt, to: now).day ?? 0
+        guard days >= brewPickupDays else { return nil }
+        // Brew spells some cask versions `version,build` (flameshot ships
+        // `14.0.0,14.0`) and occasionally `version_revision`. Compared raw, the
+        // suffix makes an identical version read as older and every one of those
+        // casks becomes a false phantom — which is exactly what the first full
+        // sweep with this check turned up. The upstream direction above dodges it
+        // by only ever comparing major.minor.
+        let caskUpstream = caskVersion.split(separator: ",").first.map(String.init) ?? caskVersion
+        guard version != caskUpstream, VersionComparator.isNewer(version, than: caskUpstream)
+        else { return nil }
+        return "Homebrew's cask `\(caskToken)` is STILL at \(caskVersion) \(days) days after "
+            + "\(version) was published — the newer version may not exist for macOS "
+            + "(a platform-partial release), which would make this a permanent phantom update"
     }
 
     /// Flag a changelog only when it trails the detected version at

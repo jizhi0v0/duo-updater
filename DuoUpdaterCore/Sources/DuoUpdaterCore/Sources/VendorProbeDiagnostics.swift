@@ -100,6 +100,16 @@ public enum ProbeWarning: Sendable, Equatable {
     /// The recipe carries an install spec but the installer URL didn't resolve —
     /// one-click is dead even though detection still works.
     case installURLUnresolved
+    /// The installer URL could not be resolved because the vendor answered with
+    /// a 5xx/429 or the request failed outright — after retrying.
+    ///
+    /// Kept apart from `installURLUnresolved` because the two accuse different
+    /// people. That one says the recipe is wrong and someone has to go fix it;
+    /// this one says the vendor was having a bad minute. `td.telegram.org`
+    /// intermittently 502s the HEAD that resolves Telegram's download, which made
+    /// a healthy recipe file issues against itself. The same 5xx/429-is-not-our-
+    /// fault rule already governs version probes (see `ProbeFailure.category`).
+    case installURLTransient(status: Int?)
     /// `checksumPattern` is set but matched nothing, so the download would be
     /// installed without SHA-512 verification.
     case checksumPatternNoMatch
@@ -107,6 +117,7 @@ public enum ProbeWarning: Sendable, Equatable {
     public var kind: String {
         switch self {
         case .installURLUnresolved: return "installURLUnresolved"
+        case .installURLTransient: return "installURLTransient"
         case .checksumPatternNoMatch: return "checksumPatternNoMatch"
         }
     }

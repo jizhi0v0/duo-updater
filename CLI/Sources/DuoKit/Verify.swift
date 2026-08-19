@@ -532,7 +532,13 @@ public enum Verify {
             installedBuild: installed.build) {
             warnings.append(complaint)
         }
-        return make(warnings.isEmpty ? .ok : .warn, version: version, warnings: warnings)
+        // A vendor 5xx while resolving the installer URL is reported but is not
+        // actionable: it accuses nobody, and treating it as one files an issue
+        // against a recipe that is working. `td.telegram.org` 502s that HEAD in
+        // bursts, which is what this exists for. Everything else keeps flipping
+        // the finding to `.warn`, including a genuinely dead install URL.
+        let actionable = warnings.filter { $0 != ProbeWarning.installURLTransient(status: nil).kind }
+        return make(actionable.isEmpty ? .ok : .warn, version: version, warnings: warnings)
     }
 
     /// How long to wait for the local scan before deciding the cross-check isn't

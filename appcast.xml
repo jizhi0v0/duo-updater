@@ -17,6 +17,22 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.39</title>
+            <pubDate>Wed, 19 Aug 2026 19:14:17 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.39</link>
+            <sparkle:version>49</sparkle:version>
+            <sparkle:shortVersionString>0.3.39</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Package installers are checked against the app they claim to update.** Some updates arrive as a macOS installer package, which runs with administrator rights the moment you confirm it. Until now the only check was that the package came from the same developer as the app being updated — which would have let any package from that developer through, not just the right one. Duo Updater now also reads where the package says it will install and refuses it if that is not the app you are updating. Nothing changes for a normal update; this only ever fires on a package that does not belong.
+
+**Release notes only open over a secure connection.** The notes pane loads a vendor's own page for some apps, and one of those pages was still being fetched over plain `http`. Those pages now have to be `https`, and a handful of other malformed addresses are refused outright rather than loaded.
+
+**Fewer apps can go silently missing after a vendor renumbers.** Zotero's jump to `10.0` in 0.3.37 exposed a whole class of this: an app disappears from the update list, with no error, because the vendor changed how many numbers are in its version. Twenty-one apps — among them VS Code, Discord, Obsidian, Figma, WhatsApp and GIMP — no longer depend on that staying the same. The rest were checked and deliberately left alone, because for those a looser check would risk reading the wrong number off the page.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.39/DuoUpdater-0.3.39-macos.zip" length="10557194" type="application/octet-stream" sparkle:edSignature="5KfOpNz3fZBUp0RZoNkkXN5XkQsXYV65MPr4MU+9fcJkJkOgSK7b+oTPA/2LIcOV0+Zaf4GmXhpwFhL7Dg8BCw=="/>
+        </item>
+        <item>
             <title>0.3.38</title>
             <pubDate>Wed, 19 Aug 2026 18:12:48 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.38</link>
@@ -39,18 +55,6 @@
             <description sparkle:format="markdown"><![CDATA[**Zotero 10 shows up as an update again.** Zotero numbered its new major release `10.0` — two numbers where every previous release had three — and Duo Updater's check for it quietly stopped recognising the version. Nothing looked wrong: no error, no failed check, Zotero simply never appeared in the list, so anyone still on 9.0.6 was never offered the upgrade. It is recognised again, and the one-click install is unchanged.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.37/DuoUpdater-0.3.37-macos.zip" length="10551554" type="application/octet-stream" sparkle:edSignature="Ni7vzyFiTJyFprNkfcaXF9YYtlHN6MH40kzJfjXJ62gA3HTK5MoXIQjNn3Kl0AFI+QT76PsWoQ3bXL0lfV+SAQ=="/>
-        </item>
-        <item>
-            <title>0.3.36</title>
-            <pubDate>Wed, 19 Aug 2026 02:21:33 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.36</link>
-            <sparkle:version>46</sparkle:version>
-            <sparkle:shortVersionString>0.3.36</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**A package update that leaves the old copy running now offers to restart it.** Some updates install as a package handed to macOS's own installer, and when that finished it left the previous copy still running the old version — with no prompt, so you had to notice and quit it yourself. Duo Updater now spots that and offers a Restart, the same as it already does for other kinds of update. It only offers one when a copy that was open before the install is genuinely still running the old code — if the installer (or you) already relaunched the app, or it wasn't open, nothing is shown.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.36/DuoUpdater-0.3.36-macos.zip" length="10551554" type="application/octet-stream" sparkle:edSignature="+otip2wv8Sf2zlUPaNslFWdT8Ye+f8C3JHy/ixfVHhBNj+llBV3WDqi5fTKXB8/IF1qCvy1h/Y+GC1+yiWOJCw=="/>
         </item>
     </channel>
 </rss>

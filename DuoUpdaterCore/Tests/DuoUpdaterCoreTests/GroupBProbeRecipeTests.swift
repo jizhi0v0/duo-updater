@@ -49,6 +49,15 @@ private let zoteroDownloadPageFixture = #"""
 <script>window.__DATA__={"standaloneVersions":{"mac":"9.0.6","win32":"9.0.6","win-arm64":"9.0.6","win-x64":"9.0.6","linux-i686":"9.0.6","linux-x86_64":"9.0.6","win32-zip":"9.0.6"},"other":"noise 1.2.3"};</script>
 """#
 
+/// The same literal re-captured verbatim on 2026-08-19, after Zotero 10.0 shipped
+/// a TWO-segment version string. This is the body that broke the original
+/// three-segment pattern in the wild (issue #8): the anchor never moved, only the
+/// component count changed. Note `oldVersions` carries a three-segment 7.0.32 —
+/// the pattern must not drift onto it.
+private let zoteroDownloadPageFixtureV10 = #"""
+<script>window.__DATA__={"standaloneVersions":{"mac":"10.0","win32":"10.0","win-arm64":"10.0","win-x64":"10.0","linux-i686":"10.0","linux-x86_64":"10.0","win32-zip":"10.0"},"oldVersions":{"macOS":{"platform":"mac","version":"7.0.32"}}};</script>
+"""#
+
 struct GroupBProbeRecipeTests {
 
     private func recipe(_ bundleID: String) -> VendorProbeRecipe? {
@@ -119,6 +128,30 @@ struct GroupBProbeRecipeTests {
         // exactly "9.0.6", matching the page's literal verbatim.
         #expect(VendorProbeRecipe.extractVersion(
             from: zoteroDownloadPageFixture, pattern: recipe.versionPattern) == "9.0.6")
+    }
+
+    @Test func zoteroReadsATwoSegmentVersion() throws {
+        let recipe = try #require(recipe("org.zotero.zotero"))
+        // Zotero 10.0 self-reports exactly "10.0" (verified by mounting
+        // Zotero-10.0.dmg: CFBundleShortVersionString == CFBundleVersion == "10.0"),
+        // so the two-segment page string is the correct thing to compare against —
+        // it must not be padded, and must not fall through to `oldVersions`.
+        #expect(VendorProbeRecipe.extractVersion(
+            from: zoteroDownloadPageFixtureV10, pattern: recipe.versionPattern) == "10.0")
+    }
+
+    @Test func zoteroTwoSegmentVersionTemplatesTheInstallURL() throws {
+        let recipe = try #require(recipe("org.zotero.zotero"))
+        let spec = try #require(recipe.install)
+        guard case .bodyTemplate(let template, let fields) = spec.urlSource else {
+            Issue.record("expected a body template"); return
+        }
+        let version = try #require(VendorProbeRecipe.extractVersion(
+            from: zoteroDownloadPageFixtureV10, pattern: fields[0]))
+        // Confirmed live: the vendor's own download redirect resolves to exactly
+        // this URL, and it serves a 192 MB application/x-apple-diskimage.
+        #expect(template.replacingOccurrences(of: "{0}", with: version)
+            == "https://download.zotero.org/client/release/10.0/Zotero-10.0.dmg")
     }
 
     @Test func zoteroInstallURLIsTemplatedFromTheMatchedVersion() throws {

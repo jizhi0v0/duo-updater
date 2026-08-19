@@ -17,6 +17,20 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.42</title>
+            <pubDate>Wed, 19 Aug 2026 21:03:40 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.42</link>
+            <sparkle:version>52</sparkle:version>
+            <sparkle:shortVersionString>0.3.42</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**A download link that stays broken now gets noticed.** When a vendor's server has a bad minute, Duo Updater waits it out rather than crying wolf — but that was letting a download link that had been broken for good slip by unremarked, because it looked the same as a bad minute on any single check. It now tells the difference: brief trouble is still ignored, trouble that lasts is flagged and fixed. Nothing changes on your Mac; this is about broken apps getting repaired sooner instead of quietly staying broken.
+
+**Release notes can't be pulled down to an insecure page.** A vendor's notes page is loaded over a secure connection, but nothing stopped that page from redirecting itself to an insecure one. Now it can't.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.42/DuoUpdater-0.3.42-macos.zip" length="10560264" type="application/octet-stream" sparkle:edSignature="QPDb/ZyIdSWy7KEPxtqmNeoQpWeZC9GkvEATbIAguhV5Mo5fSIMzDnMszMXp+bkM4Kel+JuNIXB8cHNLb+n7DQ=="/>
+        </item>
+        <item>
             <title>0.3.41</title>
             <pubDate>Wed, 19 Aug 2026 20:24:37 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.41</link>
@@ -41,22 +55,6 @@
             <description sparkle:format="markdown"><![CDATA[**Telegram's one-click update stops vanishing when Telegram's servers hiccup.** Working out where to download Telegram from needs one extra request to their servers, and those servers were intermittently refusing it — a few minutes at a time, then fine again. When that happened the update was still detected, but the Update button quietly disappeared for that check and you had to go to the website yourself. Duo Updater now retries before giving up, so a brief hiccup no longer costs you the one-click install.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.40/DuoUpdater-0.3.40-macos.zip" length="10559364" type="application/octet-stream" sparkle:edSignature="BJU9A0Lj2Y29h5Nnr1wRpTCFGZ+0LZu8TfBWtImkjoZrd/xbCaizYAs7dVcRJ3RqEs9fb2Rg6BoGwPcN5GzBDQ=="/>
-        </item>
-        <item>
-            <title>0.3.39</title>
-            <pubDate>Wed, 19 Aug 2026 19:14:17 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.39</link>
-            <sparkle:version>49</sparkle:version>
-            <sparkle:shortVersionString>0.3.39</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Package installers are checked against the app they claim to update.** Some updates arrive as a macOS installer package, which runs with administrator rights the moment you confirm it. Until now the only check was that the package came from the same developer as the app being updated — which would have let any package from that developer through, not just the right one. Duo Updater now also reads where the package says it will install and refuses it if that is not the app you are updating. Nothing changes for a normal update; this only ever fires on a package that does not belong.
-
-**Release notes only open over a secure connection.** The notes pane loads a vendor's own page for some apps, and one of those pages was still being fetched over plain `http`. Those pages now have to be `https`, and a handful of other malformed addresses are refused outright rather than loaded.
-
-**Fewer apps can go silently missing after a vendor renumbers.** Zotero's jump to `10.0` in 0.3.37 exposed a whole class of this: an app disappears from the update list, with no error, because the vendor changed how many numbers are in its version. Twenty-one apps — among them VS Code, Discord, Obsidian, Figma, WhatsApp and GIMP — no longer depend on that staying the same. The rest were checked and deliberately left alone, because for those a looser check would risk reading the wrong number off the page.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.39/DuoUpdater-0.3.39-macos.zip" length="10557194" type="application/octet-stream" sparkle:edSignature="5KfOpNz3fZBUp0RZoNkkXN5XkQsXYV65MPr4MU+9fcJkJkOgSK7b+oTPA/2LIcOV0+Zaf4GmXhpwFhL7Dg8BCw=="/>
         </item>
     </channel>
 </rss>

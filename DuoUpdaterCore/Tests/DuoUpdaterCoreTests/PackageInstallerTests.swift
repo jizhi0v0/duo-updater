@@ -309,4 +309,81 @@ struct PackageInstallerTests {
         #expect(!PackageInstaller.discardWorkDirectory(containing: outsidePkg))
         #expect(fm.fileExists(atPath: outsidePkg.path))
     }
+
+    // MARK: Declared install destinations
+    //
+    // Bodies below are the real `PackageInfo` headers from vendor packages
+    // downloaded on 2026-08-19, trimmed to the attributes the parser reads. They
+    // cover all three shapes seen across the pkg recipes.
+
+    /// Tailscale unpacks straight into the app bundle: `install-location` IS the
+    /// destination, and every `<bundle path>` is a helper *inside* it. This is the
+    /// case that makes a bundle-identifier gate unworkable — the package never
+    /// declares `io.tailscale.ipn.macsys`, only its sub-bundles.
+    @Test func destinationIsThePayloadRootWhenItIsTheAppItself() {
+        let body = """
+        <pkg-info identifier="com.tailscale.ipn.macsys" version="1.102.2" \
+        install-location="/Applications/Tailscale.app" auth="root">
+            <bundle path="./Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" \
+        id="org.sparkle-project.Sparkle.Updater"/>
+            <bundle path="./Contents/Library/LoginItems/TailscaleLoginItemHelper-macsys.app" \
+        id="io.tailscale.ipn.macsys.login-item-helper"/>
+        </pkg-info>
+        """
+        let dests = PackageInstaller.destinations(inPackageInfo: body)
+        #expect(dests.contains("/Applications/Tailscale.app"))
+        // The helpers nested inside the bundle must not become destinations of
+        // their own — only the top-level `.app` counts.
+        #expect(!dests.contains(
+            "/Applications/Tailscale.app/Contents/Library/LoginItems/TailscaleLoginItemHelper-macsys.app"))
+    }
+
+    /// WeChat DevTools is a flat component package rooted at `/`, so the
+    /// destination comes from joining the relative bundle path onto it.
+    @Test func destinationJoinsARelativeBundlePathOntoTheRoot() {
+        let body = """
+        <pkg-info identifier="com.tencent.wechatdevtools" version="2.02.2608182" \
+        install-location="/" auth="root">
+            <bundle path="./Applications/wechatwebdevtools.app" id="com.github.Electron"/>
+        </pkg-info>
+        """
+        #expect(PackageInstaller.destinations(inPackageInfo: body)
+            == ["/Applications/wechatwebdevtools.app"])
+    }
+
+    /// Office components install into `/Applications` by name, and a single
+    /// package legitimately writes more than one app.
+    @Test func aPackageMayDeclareSeveralDestinations() {
+        let body = """
+        <pkg-info identifier="com.microsoft.word" version="16.112" \
+        install-location="/Applications" auth="root">
+            <bundle path="Microsoft Word.app" id="com.microsoft.Word"/>
+            <bundle path="Microsoft AutoUpdate.app" id="com.microsoft.autoupdate"/>
+        </pkg-info>
+        """
+        let dests = PackageInstaller.destinations(inPackageInfo: body)
+        #expect(dests.contains("/Applications/Microsoft Word.app"))
+        #expect(dests.contains("/Applications/Microsoft AutoUpdate.app"))
+    }
+
+    /// The property that motivates the gate: a same-vendor package for a
+    /// *different* app resolves to a different destination, so it can be told
+    /// apart from a genuine update even though the Team ID matches.
+    @Test func aSiblingAppFromTheSameVendorIsADifferentDestination() {
+        let body = """
+        <pkg-info identifier="com.google.earth" install-location="/Applications" auth="root">
+            <bundle path="Google Earth Pro.app" id="com.google.GoogleEarthPro"/>
+        </pkg-info>
+        """
+        let dests = PackageInstaller.destinations(inPackageInfo: body)
+        #expect(!dests.contains("/Applications/Google Chrome.app"))
+        #expect(dests.contains("/Applications/Google Earth Pro.app"))
+    }
+
+    /// A body with nothing to go on yields no destinations, which the gate treats
+    /// as "cannot verify" and falls back to the Team-only check rather than
+    /// blocking a working install.
+    @Test func anUnreadableLayoutYieldsNoDestinations() {
+        #expect(PackageInstaller.destinations(inPackageInfo: "<pkg-info/>").isEmpty)
+    }
 }

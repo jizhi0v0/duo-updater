@@ -17,6 +17,18 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.40</title>
+            <pubDate>Wed, 19 Aug 2026 19:35:32 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.40</link>
+            <sparkle:version>50</sparkle:version>
+            <sparkle:shortVersionString>0.3.40</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Telegram's one-click update stops vanishing when Telegram's servers hiccup.** Working out where to download Telegram from needs one extra request to their servers, and those servers were intermittently refusing it — a few minutes at a time, then fine again. When that happened the update was still detected, but the Update button quietly disappeared for that check and you had to go to the website yourself. Duo Updater now retries before giving up, so a brief hiccup no longer costs you the one-click install.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.40/DuoUpdater-0.3.40-macos.zip" length="10559364" type="application/octet-stream" sparkle:edSignature="BJU9A0Lj2Y29h5Nnr1wRpTCFGZ+0LZu8TfBWtImkjoZrd/xbCaizYAs7dVcRJ3RqEs9fb2Rg6BoGwPcN5GzBDQ=="/>
+        </item>
+        <item>
             <title>0.3.39</title>
             <pubDate>Wed, 19 Aug 2026 19:14:17 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.39</link>
@@ -43,18 +55,6 @@
             <description sparkle:format="markdown"><![CDATA[**The download percentage no longer spills out of its row.** While an update downloaded, the number next to the progress bar sat too far right — clipped by the edge of the list instead of lining up with everything else in the column — and there was more empty space between the bar and the number than there needed to be. Both are fixed; the percentage still holds a fixed width, so the row stays steady as it counts up to 100%.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.38/DuoUpdater-0.3.38-macos.zip" length="10551119" type="application/octet-stream" sparkle:edSignature="aZJ0obEDirUgjQsBc93EsY+3PvpEL60ET5itX2yJfgTkP8yHwMf6J7H770CZQkeBz7UxnFkryrKIzMrvLcsiCA=="/>
-        </item>
-        <item>
-            <title>0.3.37</title>
-            <pubDate>Wed, 19 Aug 2026 17:15:02 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.37</link>
-            <sparkle:version>47</sparkle:version>
-            <sparkle:shortVersionString>0.3.37</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Zotero 10 shows up as an update again.** Zotero numbered its new major release `10.0` — two numbers where every previous release had three — and Duo Updater's check for it quietly stopped recognising the version. Nothing looked wrong: no error, no failed check, Zotero simply never appeared in the list, so anyone still on 9.0.6 was never offered the upgrade. It is recognised again, and the one-click install is unchanged.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.37/DuoUpdater-0.3.37-macos.zip" length="10551554" type="application/octet-stream" sparkle:edSignature="Ni7vzyFiTJyFprNkfcaXF9YYtlHN6MH40kzJfjXJ62gA3HTK5MoXIQjNn3Kl0AFI+QT76PsWoQ3bXL0lfV+SAQ=="/>
         </item>
     </channel>
 </rss>

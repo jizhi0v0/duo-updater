@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.38
+
+**The download percentage no longer spills out of its row.** While an update downloaded, the number next to the progress bar sat too far right — clipped by the edge of the list instead of lining up with everything else in the column — and there was more empty space between the bar and the number than there needed to be. Both are fixed; the percentage still holds a fixed width, so the row stays steady as it counts up to 100%.
+
 ## 0.3.37
 
 **Zotero 10 shows up as an update again.** Zotero numbered its new major release `10.0` — two numbers where every previous release had three — and Duo Updater's check for it quietly stopped recognising the version. Nothing looked wrong: no error, no failed check, Zotero simply never appeared in the list, so anyone still on 9.0.6 was never offered the upgrade. It is recognised again, and the one-click install is unchanged.

@@ -27,9 +27,13 @@ public enum IssueAction: Equatable, Sendable {
 
 public enum Reconcile {
 
-    /// Comment on a still-broken issue only every Nth sweep. A daily job that
-    /// comments daily is a daily notification saying nothing new.
-    public static let commentEverySweeps = 7
+    /// Comment on a still-broken issue only every Nth sweep.
+    ///
+    /// Like `Baseline.infraThreshold` this is a wall-clock property counted in
+    /// sweeps: a job that comments every run is a notification saying nothing new.
+    /// Seven was a week of nightly sweeps; at six-hourly it would be under two
+    /// days, so it scales with the cadence to stay at roughly a week.
+    public static let commentEverySweeps = 28
 
     /// A recipe that broke again within this window reopens its old issue rather
     /// than opening a second one about the same thing.

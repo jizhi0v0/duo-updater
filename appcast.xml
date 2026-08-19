@@ -17,6 +17,18 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.43</title>
+            <pubDate>Wed, 19 Aug 2026 22:15:06 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.43</link>
+            <sparkle:version>53</sparkle:version>
+            <sparkle:shortVersionString>0.3.43</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Package updates are read more thoroughly before they are opened.** The check added in 0.3.41 asks an installer package where it installs, and refuses one that will not say. It was reading only the summary the package publishes about itself; it now also reads the package's own file list, which is what the installer actually follows. That means a package that keeps quiet in its summary is still understood instead of turned away. Every app that updates this way was re-checked against its real installer, and none of them changed.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.43/DuoUpdater-0.3.43-macos.zip" length="10561650" type="application/octet-stream" sparkle:edSignature="djnevwzFytT/H9vSrcqn6k5eQuwCMKiWWWR/YySJMZfp3l235c/DNxxJ/faafcKmn62u8u0plmacttQOqAoNCA=="/>
+        </item>
+        <item>
             <title>0.3.42</title>
             <pubDate>Wed, 19 Aug 2026 21:03:40 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.42</link>
@@ -43,18 +55,6 @@
 **Package updates are checked more strictly before they are opened.** An update that arrives as a macOS installer package now has to say where it installs, and has to name the app you are updating. A package that will not say is refused rather than let through. Every app that updates this way — Office, Edge, Teams, OneDrive, Tailscale, ToDesk, AweSun and the rest — was checked against its real installer first, so this should never fire on a normal update.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.41/DuoUpdater-0.3.41-macos.zip" length="10560401" type="application/octet-stream" sparkle:edSignature="WrobQheIBFPZaSHyTfmkneGQqNZc61oiVPTNyf76MShxOo66oSgWrOqC/+TngPHkcxwbmuJVyafu6WldvR2FBA=="/>
-        </item>
-        <item>
-            <title>0.3.40</title>
-            <pubDate>Wed, 19 Aug 2026 19:35:32 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.40</link>
-            <sparkle:version>50</sparkle:version>
-            <sparkle:shortVersionString>0.3.40</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Telegram's one-click update stops vanishing when Telegram's servers hiccup.** Working out where to download Telegram from needs one extra request to their servers, and those servers were intermittently refusing it — a few minutes at a time, then fine again. When that happened the update was still detected, but the Update button quietly disappeared for that check and you had to go to the website yourself. Duo Updater now retries before giving up, so a brief hiccup no longer costs you the one-click install.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.40/DuoUpdater-0.3.40-macos.zip" length="10559364" type="application/octet-stream" sparkle:edSignature="BJU9A0Lj2Y29h5Nnr1wRpTCFGZ+0LZu8TfBWtImkjoZrd/xbCaizYAs7dVcRJ3RqEs9fb2Rg6BoGwPcN5GzBDQ=="/>
         </item>
     </channel>
 </rss>

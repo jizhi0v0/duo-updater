@@ -102,6 +102,10 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
 // 2026-08-16; the negative cases are the specific artifacts that sit beside the
 // wanted one in the same release and would be picked by a looser pattern.
 
+private func assetList(_ names: [String]) -> [(name: String, url: URL, size: Int64?)] {
+    names.map { (name: $0, url: URL(string: "https://example.invalid/\($0)")!, size: Int64?.none) }
+}
+
 private func matches(_ name: String, _ bundleID: String) -> Bool {
     guard let p = rule(bundleID).installAssetPattern else { return false }
     return name.range(of: p, options: .regularExpression) != nil
@@ -126,13 +130,62 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(!matches("bruno_4.0.0_arm64_win.zip", "com.usebruno.app"))
 }
 
-@Test func localSendRuleStaysDetectionOnly() {
-    #expect(extract("v1.18.1", "org.localsend.localsendApp") == "1.18.1")
-    // Upstream marks a release latest while attaching only Android .apk artifacts
-    // to it, so there is no macOS artifact to install from; the rule must stay
-    // detection-only rather than resolve some other tag's dmg.
-    #expect(rule("org.localsend.localsendApp").installAssetPattern == nil)
-    #expect(rule("org.localsend.localsendApp").installerKind == nil)
+@Test func localSendRulePicksTheDmgAndNothingElse() {
+    #expect(extract("v1.18.0", "org.localsend.localsendApp") == "1.18.0")
+    #expect(matches("LocalSend-1.18.0.dmg", "org.localsend.localsendApp"))
+    // Everything else in the real v1.18.0 listing shares the `LocalSend-` prefix,
+    // which is why the pattern anchors both ends. The CLI tarballs even carry a
+    // `macos` token, so an extension check alone is not enough.
+    #expect(!matches("LocalSend-CLI-1.18.0-macos-arm-64.tar.gz", "org.localsend.localsendApp"))
+    #expect(!matches("LocalSend-CLI-1.18.0-macos-x86-64.tar.gz", "org.localsend.localsendApp"))
+    #expect(!matches("LocalSend-1.18.0-windows-x86-64.zip", "org.localsend.localsendApp"))
+    #expect(!matches("LocalSend-1.18.0-linux-x86-64.deb", "org.localsend.localsendApp"))
+    #expect(!matches("LocalSend-1.18.1-android-arm64v8.apk", "org.localsend.localsendApp"))
+}
+
+/// The phantom-update regression, replayed on the exact listings that produced
+/// it: v1.18.1 (2026-08-12) carries four Android `.apk` files and no macOS build
+/// because upstream cut a mobile-only hotfix out of a version number shared by
+/// all five platforms. Reading the tag alone reported an uninstallable
+/// 1.18.0 → 1.18.1 update; the asset gate has to walk back to v1.18.0.
+@Test func localSendMobileOnlyReleaseIsNotAMacOSRelease() {
+    guard let pattern = rule("org.localsend.localsendApp").installAssetPattern else {
+        Issue.record("LocalSend rule lost its installAssetPattern")
+        return
+    }
+    func carries(_ names: [String]) -> Bool {
+        GitHubReleaseRule.carriesInstallableAsset(from: assetList(names), matching: pattern)
+    }
+    // v1.18.1, verbatim.
+    #expect(!carries([
+        "LocalSend-1.18.1-android-arm32v7.apk", "LocalSend-1.18.1-android-arm64v8.apk",
+        "LocalSend-1.18.1-android-google-play.apk", "LocalSend-1.18.1-android-x64.apk",
+    ]))
+    // v1.18.0, abridged to one asset per platform.
+    #expect(carries([
+        "LocalSend-1.18.0-android-arm64v8.apk", "LocalSend-1.18.0-windows-x86-64.zip",
+        "LocalSend-1.18.0-linux-x86-64.deb", "LocalSend-1.18.0.dmg",
+        "LocalSend-CLI-1.18.0-macos-arm-64.tar.gz",
+    ]))
+}
+
+/// The gate answers "does a macOS build exist here", which is a different
+/// question from "which file do we install" — and conflating them breaks the
+/// Intel case. `installableAsset` returns nil when every match is built for the
+/// other architecture and this Mac can't run it; if that nil were the gate, an
+/// Intel Mac would walk *past* a release that genuinely ships macOS and report
+/// an older version as the newest. The gate is a plain pattern match on purpose.
+@Test func assetGateIgnoresArchitectureSelectability() {
+    let pattern = #"^App-[0-9.]+-(?:arm64|x86_64)\.dmg$"#
+    let arm64Only = assetList(["App-2.0-arm64.dmg"])
+    #expect(GitHubReleaseRule.carriesInstallableAsset(from: arm64Only, matching: pattern))
+    // An Intel Mac can't install it — but the release is still a macOS release,
+    // so resolution must report 2.0 rather than fall back to an older tag.
+    #expect(GitHubReleaseRule.installableAsset(
+        from: arm64Only, matching: pattern, preferring: .x86_64,
+        allowingIntelTranslation: false) == nil)
+    #expect(!GitHubReleaseRule.carriesInstallableAsset(
+        from: assetList(["App-2.0-linux.tar.gz"]), matching: pattern))
 }
 
 @Test func utmRuleStaysOnTheStableTrain() {

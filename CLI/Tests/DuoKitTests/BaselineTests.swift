@@ -249,6 +249,51 @@ import Foundation
             entry: "Share context with Custom Agents", detected: "7.29.0") == nil)
     }
 
+    // MARK: - phantom updates
+
+    /// LocalSend's regression, in the shape the check sees it. v1.18.1 was
+    /// published 2026-08-12 carrying only Android artifacts; Homebrew's cask
+    /// stayed on 1.18.0 because there was no macOS build to package, and would
+    /// have stayed there forever. Eight days in it is still ordinary brew lag;
+    /// past the pickup window it is the tell that the version isn't real here.
+    @Test func aVersionHomebrewNeverPicksUpIsFlaggedAsPhantom() {
+        let published = Date(timeIntervalSince1970: 1_786_000_000)  // 2026-08-12
+        func complain(daysLater: Int) -> String? {
+            Verify.phantomVersionComplaint(
+                caskToken: "localsend", caskVersion: "1.18.0", version: "1.18.1",
+                publishedAt: published,
+                now: published.addingTimeInterval(Double(daysLater) * 86_400))
+        }
+        // Inside the window this is just brew being brew — the whole reason the
+        // ahead direction went unchecked for so long.
+        #expect(complain(daysLater: 1) == nil)
+        #expect(complain(daysLater: 8) == nil)
+        // Past it, nothing else explains the gap.
+        #expect(complain(daysLater: 14)?.contains("may not exist for macOS") == true)
+    }
+
+    /// The check must stay silent on the healthy case it most resembles: a cask
+    /// that simply caught up, and a source that carries no publish date at all
+    /// (guessing there would fire on every recipe the night it updates).
+    @Test func phantomCheckStaysQuietWhenBrewAgreesOrTheDateIsUnknown() {
+        let published = Date(timeIntervalSince1970: 1_786_000_000)
+        #expect(Verify.phantomVersionComplaint(
+            caskToken: "localsend", caskVersion: "1.18.1", version: "1.18.1",
+            publishedAt: published,
+            now: published.addingTimeInterval(365 * 86_400)) == nil)
+        #expect(Verify.phantomVersionComplaint(
+            caskToken: "localsend", caskVersion: "1.18.0", version: "1.18.1",
+            publishedAt: nil, now: Date()) == nil)
+        // Brew's `version,build` spelling. Flameshot's cask reads `14.0.0,14.0`
+        // against our 14.0.0 — identical upstream versions that compared raw look
+        // like we are a release ahead. The first full sweep with this check filed
+        // exactly this, which is what the noise gate is for.
+        let old = Date(timeIntervalSince1970: 1_780_000_000)
+        #expect(Verify.phantomVersionComplaint(
+            caskToken: "flameshot", caskVersion: "14.0.0,14.0", version: "14.0.0",
+            publishedAt: old, now: old.addingTimeInterval(61 * 86_400)) == nil)
+    }
+
     /// …but a changelog a whole release behind still is.
     @Test func aChangelogAWholeReleaseBehindIsFlagged() {
         let complaint = Verify.changelogLagComplaint(entry: "1.85", detected: "1.123.4")

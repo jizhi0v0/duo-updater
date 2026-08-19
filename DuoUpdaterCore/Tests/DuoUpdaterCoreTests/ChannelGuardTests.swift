@@ -287,6 +287,30 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
 
 // MARK: - GitHubReleasesSource refuses to cross channels (gate B, GitHub side)
 
+/// A Mac App Store copy and a GitHub build can share a bundle id while being
+/// different distributions — LocalSend ships both, the store copy sandboxed with
+/// a receipt and the GitHub one Developer ID signed without. The store owns its
+/// copy's updates; offering a GitHub artifact over it would break the receipt and
+/// the store's own update path, and now that GitHub rules can carry a one-click
+/// installer that would be a real swap, not just a wrong number on a row.
+@Test func githubSourceSkipsAppStoreCopies() async throws {
+    let rule = GitHubReleaseRule(
+        bundleID: "com.example.ghapp",
+        owner: "example", repo: "ghapp",
+        installAssetPattern: #"^GHApp\.dmg$"#,
+        installerKind: .dmg)
+    let source = GitHubReleasesSource(rules: [rule])
+
+    let storeCopy = InstalledApp(
+        name: "GHApp", bundleID: "com.example.ghapp",
+        shortVersion: "1.0.0", buildVersion: nil,
+        path: URL(fileURLWithPath: "/Applications/GHApp.app"),
+        isMASApp: true, sparkleFeedURL: nil, releaseChannel: .stable)
+
+    // Skipped before any fetch — a network call here would be a bug on its own.
+    #expect(try await source.latestVersion(for: storeCopy) == nil)
+}
+
 @Test func githubSourceSkipsChannelMismatch() async throws {
     let stableRule = GitHubReleaseRule(
         bundleID: "com.example.ghapp",

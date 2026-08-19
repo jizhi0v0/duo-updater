@@ -940,21 +940,39 @@ public enum VendorProbeRegistry {
                 kind: .pkg),
             followRedirects: false),
 
-        // Microsoft OneNote — Office suite, unified version. No dedicated OneNote
-        // fwlink; uses the Office suite fwlink (linkid=525133) that redirects to
-        // the Microsoft_365_and_Office installer — same version. MAU-managed.
+        // Microsoft OneNote — Office suite, unified version. MAU-managed, and read
+        // from the MAU manifest rather than the suite fwlink, the same way Outlook
+        // is below.
+        //
+        // It used to use the suite fwlink (linkid=525133), on the reasoning that
+        // there is no dedicated OneNote fwlink and the suite reports the same
+        // version. That is true for DETECTION and wrong for INSTALL: that link
+        // serves `Microsoft_365_and_Office_<build>_Installer.pkg`, which declares
+        // eight destinations — Word, Excel, PowerPoint, Outlook, OneNote, OneDrive,
+        // AutoUpdate and a Defender shim. Someone who has only OneNote installed
+        // and clicks Update would have had the entire Office suite put on their
+        // machine. Verified 2026-08-19 by parsing the real 2.7 GB suite package.
+        //
+        // `FullUpdaterLocation` in the MAU manifest is a standalone 592 MB
+        // OneNote package that declares exactly one destination,
+        // `/Applications/Microsoft OneNote.app` (verified the same way), signed
+        // `Developer ID Installer: Microsoft Corporation (UBF8T346G9)`.
+        //
+        // It must be `FullUpdaterLocation` and not `Location`/`Payload`: those are
+        // deltas keyed to a specific starting build, and applying one without its
+        // baseline installs a broken app.
         VendorProbeRecipe(
             bundleID: "com.microsoft.onenote.mac",
-            url: URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525133")!,
-            mode: .redirectFilename,
-            versionPattern: #"_(\d+\.\d+\.\d+)_Installer\.pkg"#,
+            url: URL(string: "https://officecdn.microsoft.com/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/0409ONMC2019.xml")!,
+            mode: .responseBody,
+            versionPattern: #"<key>Update Version</key>\s*<string>([0-9]+\.[0-9]+\.[0-9]+)</string>"#,
             downloadURL: URL(string: "https://www.microsoft.com/en-us/microsoft-365/onenote/digital-note-taking-app")!,
             changelogURL: URL(string: "https://learn.microsoft.com/en-us/officeupdates/release-notes-office-for-mac")!,
             versionIsBuild: true,
             install: VendorInstallSpec(
-                urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/p/?linkid=525133")!),
-                kind: .pkg),
-            followRedirects: false),
+                urlSource: .bodyPattern(
+                    #"<key>FullUpdaterLocation</key>\s*<string>(https://[^<\s]+/Microsoft_OneNote_[0-9.]+_Updater\.pkg)</string>"#),
+                kind: .pkg)),
 
         // Microsoft Outlook — Office suite, unified version. Uses the Office
         // AutoUpdate XML manifest (same CDN product tree as the fwlinks), an

@@ -487,7 +487,7 @@ public enum VendorProbeRegistry {
             bundleID: "net.whatsapp.WhatsApp",
             url: URL(string: "https://web.whatsapp.com/desktop/mac_native/release/?configuration=Release&src=whatsapp_downloads_desktop_page")!,
             mode: .redirectFilename,
-            versionPattern: #"WhatsApp-2\.([0-9]+\.[0-9]+\.[0-9]+)\.dmg"#,
+            versionPattern: #"WhatsApp-[0-9]+\.([0-9]+(?:\.[0-9]+){1,2})\.dmg"#,
             changelogURL: URL(string: "https://web.whatsapp.com/desktop/mac_native/release-notes/"),
             install: VendorInstallSpec(
                 urlSource: .redirect(
@@ -555,7 +555,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.microsoft.VSCode",
             url: URL(string: "https://update.code.visualstudio.com/api/update/darwin-arm64/stable/latest")!,
             mode: .responseBody,
-            versionPattern: #""name"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""name"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://code.visualstudio.com/updates"),
             // `/latest/darwin-arm64/stable` 302-redirects to the official zip.
             install: VendorInstallSpec(
@@ -620,7 +620,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.jetbrains.intellij-EAP",
             url: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&latest=true&type=eap")!,
             mode: .responseBody,
-            versionPattern: #""build"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""build"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://www.jetbrains.com/idea/whatsnew/"),
             versionIsBuild: true,
             install: VendorInstallSpec(
@@ -1052,7 +1052,7 @@ public enum VendorProbeRegistry {
             bundleID: "net.pornel.ImageOptim",
             url: URL(string: "https://imageoptim.com/appcast.xml")!,
             mode: .responseBody,
-            versionPattern: #"sparkle:shortVersionString="([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #"sparkle:shortVersionString="([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://imageoptim.com/changelog.html")!,
             // One-click verified 2026-08-09 on 1.9.3: `ImageOptim.app` in the
             // archive, bundle id net.pornel.ImageOptim, Team 59KZTZA4XR, accepted by
@@ -1627,7 +1627,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.todesktop.230313mzl4w4u92",
             url: URL(string: "https://api2.cursor.sh/updates/api/download/latest/darwin-arm64/cursor")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             downloadURL: URL(string: "https://www.cursor.com/downloads"),
             changelogURL: URL(string: "https://www.cursor.com/changelog"),
             install: VendorInstallSpec(
@@ -1642,7 +1642,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.raycast.macos",
             url: URL(string: "https://releases.raycast.com/releases/latest?build=universal")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             downloadURL: URL(string: "https://www.raycast.com/"),
             changelogURL: URL(string: "https://www.raycast.com/changelog"),
             install: VendorInstallSpec(
@@ -1745,7 +1745,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.anthropic.claudefordesktop",
             url: URL(string: "https://api.anthropic.com/api/desktop/darwin/universal/zip/latest/redirect")!,
             mode: .redirectFilename,
-            versionPattern: #"/darwin/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            versionPattern: #"/darwin/universal/([0-9]+(?:\.[0-9]+){1,3})/"#,
             downloadURL: URL(string: "https://claude.ai/download"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"(https://downloads\.claude\.ai/releases/darwin/universal/[0-9.]+/Claude-[0-9a-f]+\.zip)"#),
@@ -1825,7 +1825,7 @@ public enum VendorProbeRegistry {
             bundleID: "app.chatwise",
             url: URL(string: "https://releases.chatwise.app/releases?version=0.0.0&platform=osx")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://chatwise.app/changelog"),
             // assets[] carries the arm64 zip and its SHA-512 (base64) — use both.
             install: VendorInstallSpec(
@@ -1839,7 +1839,7 @@ public enum VendorProbeRegistry {
             bundleID: "ai.elementlabs.lmstudio",
             url: URL(string: "https://versions-prod.lmstudio.ai/update/darwin/arm64/0.0.0")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://lmstudio.ai/changelog/lmstudio"),
             // Feed has no link — build the dmg path from version + build, both of
             // which are REQUIRED in the path (…/0.4.15-2/LM-Studio-0.4.15-2-arm64.dmg;
@@ -1855,7 +1855,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.conductor.app",
             url: URL(string: "https://cdn.crabnebula.app/update/melty/conductor/darwin-aarch64/0.0.0")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://conductor.build/changelog"),
             // Tauri updater `url` is the `Conductor.app.tar.gz` (CDN asset id, no
             // file extension — VendorInstaller renames by kind before unpacking).
@@ -1951,7 +1951,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.postmanlabs.mac",
             url: URL(string: "https://mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json")!,
             mode: .responseBody,
-            versionPattern: #""notes"\s*:\s*\[\s*\{[^}]*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""notes"\s*:\s*\[\s*\{[^}]*"version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             downloadURL: URL(string: "https://www.postman.com/downloads/"),
             changelogURL: URL(string: "https://www.postman.com/release-notes/postman-app/"),
             install: VendorInstallSpec(
@@ -1986,7 +1986,7 @@ public enum VendorProbeRegistry {
             bundleID: "io.dcloud.HBuilderX",
             url: URL(string: "https://download1.dcloud.net.cn/hbuilderx/release.json")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             changelogURL: URL(string: "https://hx.dcloud.net.cn/Tutorial/HistoryVersion"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
@@ -2177,7 +2177,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.hnc.Discord",
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=osx&arch=x64")!,
             mode: .responseBody,
-            versionPattern: #"discordapp\.net/distro/app/stable/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            versionPattern: #"discordapp\.net/distro/app/stable/osx/universal/([0-9]+(?:\.[0-9]+){1,3})/"#,
             downloadURL: URL(string: "https://discord.com/download"),
             changelogURL: URL(string: "https://discord.com/blog"),
             install: VendorInstallSpec(
@@ -2196,7 +2196,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.hnc.DiscordPTB",
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=ptb&platform=osx&arch=x64")!,
             mode: .responseBody,
-            versionPattern: #"discordapp\.net/distro/app/ptb/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            versionPattern: #"discordapp\.net/distro/app/ptb/osx/universal/([0-9]+(?:\.[0-9]+){1,3})/"#,
             changelogURL: URL(string: "https://discord.com/blog"),
             // One-click verified 2026-08-09: `https://discord.com/api/download/ptb`
             // 302s to `…/apps/osx/0.0.252/DiscordPTB.dmg`, holding `Discord PTB.app`
@@ -2212,7 +2212,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.hnc.DiscordCanary",
             url: URL(string: "https://updates.discord.com/distributions/app/manifests/latest?channel=canary&platform=osx&arch=x64")!,
             mode: .responseBody,
-            versionPattern: #"discordapp\.net/distro/app/canary/osx/universal/([0-9]+\.[0-9]+\.[0-9]+)/"#,
+            versionPattern: #"discordapp\.net/distro/app/canary/osx/universal/([0-9]+(?:\.[0-9]+){1,3})/"#,
             changelogURL: URL(string: "https://discord.com/blog"),
             // Same stable "latest" redirect as PTB, on the canary track (the
             // manifest URL points at a `.dis` distro blob, not an app). Verified
@@ -2264,7 +2264,7 @@ public enum VendorProbeRegistry {
             bundleID: "md.obsidian",
             url: URL(string: "https://raw.githubusercontent.com/obsidianmd/obsidian-releases/master/desktop-releases.json")!,
             mode: .responseBody,
-            versionPattern: #""latestVersion"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""latestVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             downloadURL: URL(string: "https://obsidian.md/download"),
             changelogURL: URL(string: "https://obsidian.md/changelog/"),
             install: VendorInstallSpec(
@@ -2287,7 +2287,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.figma.Desktop",
             url: URL(string: "https://desktop.figma.com/mac-arm/RELEASE.json")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             downloadURL: URL(string: "https://www.figma.com/downloads/"),
             changelogURL: URL(string: "https://www.figma.com/release-notes/"),
             install: VendorInstallSpec(
@@ -2415,7 +2415,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.sublimemerge",
             url: URL(string: "https://www.sublimemerge.com/download")!,
             mode: .responseBody,
-            versionPattern: #"class="latest"><i>Version:</i>\s*(Build\s+[0-9]{4})"#,
+            versionPattern: #"class="latest"><i>Version:</i>\s*(Build\s+[0-9]+)"#,
             changelogURL: URL(string: "https://www.sublimemerge.com/download"),
             // Same shape as Sublime Text: the page ships the download link as the
             // literal template `sublime_merge_build_${version}_mac.zip` for JS to
@@ -2447,6 +2447,13 @@ public enum VendorProbeRegistry {
             bundleID: "tv.plex.desktop",
             url: URL(string: "https://plex.tv/api/downloads/6.json")!,
             mode: .responseBody,
+            // NOT widened to a variable segment count like its neighbours. The feed's
+            // value is `1.115.0.426-4e960a1d` and this pattern has no closing
+            // delimiter, so the capture is bounded only by how many segments it
+            // asks for: three yields the marketing version, four would silently
+            // start reporting `1.115.0.426` — a build number the app does not
+            // report, which is a phantom update. Verified against the live feed
+            // 2026-08-19.
             versionPattern: #""MacOS"\s*:\s*\{[^}]*?"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"#,
             downloadURL: URL(string: "https://www.plex.tv/media-server-downloads/?cat=plex+desktop"),
             changelogURL: URL(string: "https://www.plex.tv/media-server-downloads/?cat=plex+desktop"),
@@ -3088,7 +3095,7 @@ public enum VendorProbeRegistry {
             bundleID: "org.torproject.torbrowser",
             url: URL(string: "https://aus1.torproject.org/torbrowser/update_3/release/download-macos.json")!,
             mode: .responseBody,
-            versionPattern: #""version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             downloadURL: URL(string: "https://www.torproject.org/download/"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#""binary"\s*:\s*"(https://[^"]+\.dmg)""#),
@@ -3318,7 +3325,7 @@ public enum VendorProbeRegistry {
             bundleID: "org.gimp.gimp",
             url: URL(string: "https://www.gimp.org/gimp_versions.json")!,
             mode: .responseBody,
-            versionPattern: #""STABLE"\s*:\s*\[\s*\{\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)""#,
+            versionPattern: #""STABLE"\s*:\s*\[\s*\{\s*"version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             downloadURL: URL(string: "https://www.gimp.org/downloads/"),
             changelogURL: URL(string: "https://www.gimp.org/news/"),
             install: VendorInstallSpec(

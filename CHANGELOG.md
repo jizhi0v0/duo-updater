@@ -9,7 +9,9 @@ release and the Sparkle appcast, so this file is the single source of truth for
 
 **An update that only ever existed for phones no longer sits in your list.** Some apps share one version number across Mac, Windows, Linux and mobile, and sometimes a release goes out to the phones alone — the version number moves, but no Mac build is ever made. Duo Updater was reading that as a Mac update, which left an update you could never install and that never went away. It now looks for the Mac download itself rather than trusting the version number, so those releases are correctly ignored. LocalSend was the app affected; its row now reads as up to date, which it is.
 
-**LocalSend updates in one click.** Now that the right release is identified, its Mac disk image can be installed in place like the rest.
+**LocalSend installed from its own website updates in one click.** Now that the right release is identified, its Mac disk image can be installed in place like the rest.
+
+**An App Store copy is never replaced with a build from elsewhere.** A few apps are published both on the Mac App Store and as a download from their developer, under the same identity — LocalSend is one. Those are genuinely different builds, and the App Store's copy has to keep updating through the App Store. Duo Updater now leaves those copies to the store instead of ever offering the developer's build over them.
 
 **Updates that the wider ecosystem never picks up get flagged for us.** Our nightly recipe sweep could only tell whether an app's version could still be read, not whether the answer made sense for a Mac — which is why the LocalSend problem had to be spotted by hand. It now also compares against Homebrew, and raises a flag when we are reporting a version that nobody else has packaged long after it was published. Nothing about this is visible on your Mac; it is how this class of mistake gets caught by machine next time.
 

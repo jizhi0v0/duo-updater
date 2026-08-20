@@ -17,6 +17,22 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.45</title>
+            <pubDate>Thu, 20 Aug 2026 11:35:27 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.45</link>
+            <sparkle:version>55</sparkle:version>
+            <sparkle:shortVersionString>0.3.45</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**A beta build can never arrive on the stable channel.** The fix in 0.3.44 looks further back through an app's releases when the newest one has no Mac build attached. That wider search could also see the developer's beta and release-candidate builds, which the normal check never shows you — so an app that happened to publish a release without its Mac download could have offered you a beta. Nothing had actually hit this, and now nothing can: the wider search only ever considers finished releases.
+
+**Notion's release notes are readable again.** Notion restyled its releases page and Duo Updater could no longer pick the posts out of it, so the notes fell back to showing the raw web page. They render as proper entries again.
+
+**PureMac's updates are visible again.** The developer publishes a separate command-line tool from the same place as the app, and its release was being read as if it were the app — as version 1.0.0, which looks older than what you have installed, so the app reported itself up to date and every real update stayed hidden. It now reads only the app's own releases.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.45/DuoUpdater-0.3.45-macos.zip" length="10567581" type="application/octet-stream" sparkle:edSignature="VqMLQDY9u330DN7k+tvNZyo0F7KW2ucYdl3XnnMuRE0WX0txpfmLx53tOB21kytrdeeUPwDALBpHmzWC3tRWCQ=="/>
+        </item>
+        <item>
             <title>0.3.44</title>
             <pubDate>Thu, 20 Aug 2026 10:21:02 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.44</link>
@@ -45,20 +61,6 @@
             <description sparkle:format="markdown"><![CDATA[**Package updates are read more thoroughly before they are opened.** The check added in 0.3.41 asks an installer package where it installs, and refuses one that will not say. It was reading only the summary the package publishes about itself; it now also reads the package's own file list, which is what the installer actually follows. That means a package that keeps quiet in its summary is still understood instead of turned away. Every app that updates this way was re-checked against its real installer, and none of them changed.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.43/DuoUpdater-0.3.43-macos.zip" length="10561650" type="application/octet-stream" sparkle:edSignature="djnevwzFytT/H9vSrcqn6k5eQuwCMKiWWWR/YySJMZfp3l235c/DNxxJ/faafcKmn62u8u0plmacttQOqAoNCA=="/>
-        </item>
-        <item>
-            <title>0.3.42</title>
-            <pubDate>Wed, 19 Aug 2026 21:03:40 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.42</link>
-            <sparkle:version>52</sparkle:version>
-            <sparkle:shortVersionString>0.3.42</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**A download link that stays broken now gets noticed.** When a vendor's server has a bad minute, Duo Updater waits it out rather than crying wolf — but that was letting a download link that had been broken for good slip by unremarked, because it looked the same as a bad minute on any single check. It now tells the difference: brief trouble is still ignored, trouble that lasts is flagged and fixed. Nothing changes on your Mac; this is about broken apps getting repaired sooner instead of quietly staying broken.
-
-**Release notes can't be pulled down to an insecure page.** A vendor's notes page is loaded over a secure connection, but nothing stopped that page from redirecting itself to an insecure one. Now it can't.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.42/DuoUpdater-0.3.42-macos.zip" length="10560264" type="application/octet-stream" sparkle:edSignature="QPDb/ZyIdSWy7KEPxtqmNeoQpWeZC9GkvEATbIAguhV5Mo5fSIMzDnMszMXp+bkM4Kel+JuNIXB8cHNLb+n7DQ=="/>
         </item>
     </channel>
 </rss>

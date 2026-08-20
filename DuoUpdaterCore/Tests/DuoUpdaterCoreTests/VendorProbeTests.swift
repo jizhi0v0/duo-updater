@@ -1267,60 +1267,84 @@ private let weChatFeed = #"""
     #expect(try recipe("im.riot.nightly", channel: .nightly).install != nil)
 }
 
-// WeType (微信输入法) — the changelog page lists releases for ALL platforms in one
-// flat list (`"platform":1`=iOS … `3`=macOS), so a naive highest-version pattern
-// grabs a higher non-macOS entry (iOS is at 3.4.0) and reports a phantom update.
-// The recipe sidesteps that entirely by reading the macOS installer's filename,
-// which carries the build the installed bundle's `CFBundleVersion` also reports,
-// and exists only for the current release.
-@Test func weTypeProbeReadsTheMacInstallerBuildNotAHigherIOSVersion() throws {
+// WeType (微信输入法) — reads the manifest the vendor's own stub installer reads.
+//
+// The real 2026-08-20 response of
+// `z.weixin.qq.com/web/mac/download?channel=InstallInfo`, which 302s to a
+// per-build `install_info_<ver>_<build>.json`.
+private let weTypeInstallInfoFixture = #"""
+{
+  "zip_download_url": "https://download.weread.qq.com/app/wxkb/mac/2.2.3/WeType_2.2.3_657.zip",
+  "zip_download_md5": "001fb418c7974c112bfc7ebbf47d483e",
+  "zip_version": "2.2.3.657",
+  "package_type": ""
+}
+"""#
+
+@Test func weTypeReadsTheAppBuildNotTheInstallerStubs() throws {
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.tencent.inputmethod.wetype" })
-    #expect(recipe.versionIsBuild)  // compared against CFBundleVersion, not 2.2.2
+    #expect(recipe.versionIsBuild)  // compared against CFBundleVersion, not 2.2.3
+    #expect(recipe.url.absoluteString.contains("channel=InstallInfo"))
 
-    let body = """
-    [{"id":120,"title":"x for iOS","release_date":1,"version":"3.4.0","content":"","content_html":"<h2>iOS</h2>","platform":1,"download_url":""},\
-    {"id":121,"title":"x for Mac","release_date":2,"version":"2.1.0","content":"","content_html":"<h2>old</h2>","platform":3,"download_url":""},\
-    {"id":152,"title":"x for Mac","release_date":3,"version":"2.2.2","content":"","content_html":"<h2>new &quot;v&quot; WeTypeInstaller_2.2.2_647_d.zip</h2>","platform":3,"download_url":""}]
-    """
-    #expect(VendorProbeRecipe.highestVersion(from: body, pattern: recipe.versionPattern) == "647")
+    // `zip_version` is major.minor.patch.build — the build is the LAST component,
+    // and the marketing string is the first three. Splitting it the other way is
+    // the whole bug this recipe used to have, in miniature.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: weTypeInstallInfoFixture, pattern: recipe.versionPattern) == "657")
     let display = try #require(recipe.displayVersionPattern)
-    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: display) == "2.2.2")
-
-    // The trap this replaced, kept so it stays documented: an unanchored
-    // highest-version pattern over the same body takes iOS's 3.4.0.
-    #expect(VendorProbeRecipe.highestVersion(
-        from: body, pattern: #""version":"([0-9][^"]*)""#) == "3.4.0")
+    #expect(VendorProbeRecipe.extractVersion(
+        from: weTypeInstallInfoFixture, pattern: display) == "2.2.3")
 }
 
-// WeType's install spec builds the CDN URL of the REAL app from the version and
-// build it already reads off the stub installer's filename. The page links only
-// the ~3 MB stub, so nothing on it can be used as the download; the 319 MB
-// `WeType_<ver>_<build>.zip` is what the app's own updater fetches.
-//
-// Fixture: the verbatim `appInfo.mac` slice of the real 2026-08-16 page — the
-// shape that matters, because every link on it is a *stub* whose filename is the
-// only carrier of the pair, and one of them (`maxwx_new_installer`) is a hashed
-// path with no version in it at all.
+/// What the previous recipe read, and why it was wrong — kept as a test so the
+/// registry can never drift back to it.
+///
+/// It scraped `WeTypeInstaller_<x.y.z>_<build>_<letter>.zip` filenames off the
+/// change-log page and treated that pair as the app's version. Those numbers
+/// belong to the **installer stub**, which ships no payload: the stub in hand is
+/// 2.2.0 (643) and installs 2.2.3 (657). The two schemes ran close enough to look
+/// right, so nothing ever failed — the recipe just answered from the wrong
+/// namespace, and only `remote is BEHIND the installed copy` in the nightly sweep
+/// ever objected.
+@Test func theInstallerStubFilenameIsNotTheAppVersion() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.tencent.inputmethod.wetype" })
+    let oldPageBody = #"{"appInfo":{"mac":{"macwx_work_install_guide":"https://download.z.weixin.qq.com/app/mac/2.2.2/WeTypeInstaller_2.2.2_647_h.zip"}}}"#
+    // The old source must no longer resolve to anything under the new pattern.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: oldPageBody, pattern: recipe.versionPattern) == nil)
+    #expect(!recipe.url.absoluteString.contains("change-log"))
+
+    // The other trap the old recipe had to dodge, and that this endpoint removes
+    // structurally: the change-log page lists every platform in one flat list
+    // (`"platform":1`=iOS … `3`=macOS), so an unanchored highest-version pattern
+    // takes iOS's number and reports a phantom update. The InstallInfo manifest
+    // is macOS-only, so there is nothing to disambiguate.
+    let flatList = """
+    [{"id":120,"title":"x for iOS","version":"3.5.3","platform":1},\
+    {"id":152,"title":"x for Mac","version":"2.2.2","platform":3}]
+    """
+    #expect(VendorProbeRecipe.highestVersion(
+        from: flatList, pattern: #""version":"([0-9][^"]*)""#) == "3.5.3")
+    #expect(VendorProbeRecipe.extractVersion(
+        from: flatList, pattern: recipe.versionPattern) == nil)
+}
+
+/// Detection-only, and not for want of a download URL — the InstallInfo manifest
+/// hands over the payload URL and its md5. The one-click shipped in 0.3.25 and was
+/// withdrawn the same day after a user's WeType settings went missing, re-confirmed
+/// 2026-08-20 by the vendor installer being run by hand. A bundle swap skips the
+/// input-source registration and per-version migration the stub performs.
 @Test func weTypeStaysDetectionOnlyAfterTheSettingsLoss() throws {
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.tencent.inputmethod.wetype" })
-    // The one-click shipped in 0.3.25 and was withdrawn the same day: a user's
-    // WeType settings went missing during that work. The swap itself was never
-    // convicted (the /Library copy was never replaced), but an input method's
-    // user dictionary is not something to re-litigate by experiment, and a bundle
-    // swap skips the registration the vendor's own installer performs.
-    //
-    // Re-attaching an install spec here needs a story for that registration —
-    // not just a working download URL, which we already had.
     #expect(recipe.install == nil)
-    // Detection must keep working, build-based, with the marketing string shown.
     #expect(recipe.versionIsBuild)
     #expect(recipe.displayVersionPattern != nil)
-    let body = #"{"appInfo":{"mac":{"macwx_work_install_guide":"https://download.z.weixin.qq.com/app/mac/2.2.2/WeTypeInstaller_2.2.2_647_h.zip"}}}"#
-    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "647")
-    #expect(VendorProbeRecipe.extractVersion(
-        from: body, pattern: recipe.displayVersionPattern!) == "2.2.2")
+    // The manifest does carry a usable payload URL — the reason to refuse is the
+    // registration step, not a missing artifact.
+    #expect(weTypeInstallInfoFixture.contains("WeType_2.2.3_657.zip"))
 }
 
 // Alcove — the old public endpoint (update.tryalcove.com) went NXDOMAIN, so the

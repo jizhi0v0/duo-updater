@@ -1487,16 +1487,40 @@ public enum VendorProbeRegistry {
         // The missing piece is not the URL — it is doing the vendor installer's
         // registration/migration, which nothing here does.
 
+        // Read the endpoint the vendor's OWN installer reads, not the marketing
+        // page. `WeTypeInstaller.app` is an 8 MB stub that ships no payload — it
+        // GETs `?channel=InstallInfo`, which 302s to a per-build JSON manifest:
+        //
+        //   {"zip_download_url": ".../2.2.3/WeType_2.2.3_657.zip",
+        //    "zip_version": "2.2.3.657", "zip_download_md5": "…"}
+        //
+        // The previous recipe read `WeTypeInstaller_<x.y.z>_<build>_<letter>.zip`
+        // filenames off `z.weixin.qq.com/web/change-log/macos`. Those numbers are
+        // **the installer stub's own version, not the app's** — the stub in hand
+        // is 2.2.0 (643) and installs 2.2.3 (657). The two tracked each other
+        // closely enough for a while to look right, which is exactly how a
+        // wrong-scheme recipe survives: it never fails, it just answers with a
+        // number from the wrong namespace. `remote is BEHIND the installed copy`
+        // in the nightly sweep is what finally caught it.
+        //
+        // That page also lags on its own account — its embedded per-platform JSON
+        // still listed Mac at 2.2.2 while 2.2.3 was shipping — so neither the
+        // filenames nor the notes on it are a version source.
+        //
+        // Still detection-only, and that has nothing to do with where the version
+        // comes from: this endpoint hands over a perfectly good payload URL and an
+        // md5. Overwriting the bundle skips the stub's input-source registration
+        // and per-version migration, and was measured to lose user settings. See
+        // the note above.
         VendorProbeRecipe(
             bundleID: "com.tencent.inputmethod.wetype",
-            url: URL(string: "https://z.weixin.qq.com/web/change-log/macos")!,
+            url: URL(string: "https://z.weixin.qq.com/web/mac/download?channel=InstallInfo")!,
             mode: .responseBody,
-            versionPattern: #"WeTypeInstaller_[0-9.]+_([0-9]+)_[a-z]\.zip"#,
+            versionPattern: #""zip_version"\s*:\s*"[0-9]+(?:\.[0-9]+){2}\.([0-9]+)""#,
             downloadURL: URL(string: "https://z.weixin.qq.com/"),
             changelogURL: URL(string: "https://z.weixin.qq.com/web/change-log/macos"),
-            selectHighest: true,
             versionIsBuild: true,
-            displayVersionPattern: #"WeTypeInstaller_([0-9.]+)_[0-9]+_[a-z]\.zip"#),
+            displayVersionPattern: #""zip_version"\s*:\s*"([0-9]+(?:\.[0-9]+){2})\.[0-9]+""#),
 
         // WeChat (微信, 官网版) — Tencent's flagship messenger, installed from the
         // official site (Developer ID, no MAS receipt, no SUFeedURL in Info.plist).

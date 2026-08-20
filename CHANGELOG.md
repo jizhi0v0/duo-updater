@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.46
+
+**WeType (微信输入法) now reports the version you actually have.** Its version was being read off the name of the vendor's installer file, which turns out to carry the *installer's* version rather than the app's — the installer is a small downloader that fetches the real app separately, and the two numbers drift apart. Duo Updater now reads the same manifest the vendor's own installer reads, so the version matches your copy and new releases show up when they ship. WeType still has to be updated with the vendor's installer rather than in place: replacing the bundle skips the input-method registration step and was found to lose settings.
+
 ## 0.3.45
 
 **A beta build can never arrive on the stable channel.** The fix in 0.3.44 looks further back through an app's releases when the newest one has no Mac build attached. That wider search could also see the developer's beta and release-candidate builds, which the normal check never shows you — so an app that happened to publish a release without its Mac download could have offered you a beta. Nothing had actually hit this, and now nothing can: the wider search only ever considers finished releases.

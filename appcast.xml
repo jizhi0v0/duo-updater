@@ -17,6 +17,24 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.44</title>
+            <pubDate>Thu, 20 Aug 2026 10:21:02 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.44</link>
+            <sparkle:version>54</sparkle:version>
+            <sparkle:shortVersionString>0.3.44</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**An update that only ever existed for phones no longer sits in your list.** Some apps share one version number across Mac, Windows, Linux and mobile, and sometimes a release goes out to the phones alone — the version number moves, but no Mac build is ever made. Duo Updater was reading that as a Mac update, which left an update you could never install and that never went away. It now looks for the Mac download itself rather than trusting the version number, so those releases are correctly ignored. LocalSend was the app affected; its row now reads as up to date, which it is.
+
+**LocalSend installed from its own website updates in one click.** Now that the right release is identified, its Mac disk image can be installed in place like the rest.
+
+**An App Store copy is never replaced with a build from elsewhere.** A few apps are published both on the Mac App Store and as a download from their developer, under the same identity — LocalSend is one. Those are genuinely different builds, and the App Store's copy has to keep updating through the App Store. Duo Updater now leaves those copies to the store instead of ever offering the developer's build over them.
+
+**Updates that the wider ecosystem never picks up get flagged for us.** Our nightly recipe sweep could only tell whether an app's version could still be read, not whether the answer made sense for a Mac — which is why the LocalSend problem had to be spotted by hand. It now also compares against Homebrew, and raises a flag when we are reporting a version that nobody else has packaged long after it was published. Nothing about this is visible on your Mac; it is how this class of mistake gets caught by machine next time.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.44/DuoUpdater-0.3.44-macos.zip" length="10567334" type="application/octet-stream" sparkle:edSignature="o2lkJUMHt/J0UCr5smUZSKmrkLP0IGZqg+WakKsQ9efJ6gxDI0OngClcZBTkoAqqVO2P0cZBJ2q9+VT183DXCg=="/>
+        </item>
+        <item>
             <title>0.3.43</title>
             <pubDate>Wed, 19 Aug 2026 22:15:06 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.43</link>
@@ -41,20 +59,6 @@
 **Release notes can't be pulled down to an insecure page.** A vendor's notes page is loaded over a secure connection, but nothing stopped that page from redirecting itself to an insecure one. Now it can't.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.42/DuoUpdater-0.3.42-macos.zip" length="10560264" type="application/octet-stream" sparkle:edSignature="QPDb/ZyIdSWy7KEPxtqmNeoQpWeZC9GkvEATbIAguhV5Mo5fSIMzDnMszMXp+bkM4Kel+JuNIXB8cHNLb+n7DQ=="/>
-        </item>
-        <item>
-            <title>0.3.41</title>
-            <pubDate>Wed, 19 Aug 2026 20:24:37 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.41</link>
-            <sparkle:version>51</sparkle:version>
-            <sparkle:shortVersionString>0.3.41</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Updating OneNote no longer installs the whole of Microsoft Office.** OneNote's update was being fetched from Microsoft's combined Office installer, which puts Word, Excel, PowerPoint, Outlook and OneDrive on your Mac along with it. If you keep OneNote on its own, that was five applications you never asked for. It now downloads Microsoft's standalone OneNote update, which installs OneNote and nothing else.
-
-**Package updates are checked more strictly before they are opened.** An update that arrives as a macOS installer package now has to say where it installs, and has to name the app you are updating. A package that will not say is refused rather than let through. Every app that updates this way — Office, Edge, Teams, OneDrive, Tailscale, ToDesk, AweSun and the rest — was checked against its real installer first, so this should never fire on a normal update.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.41/DuoUpdater-0.3.41-macos.zip" length="10560401" type="application/octet-stream" sparkle:edSignature="WrobQheIBFPZaSHyTfmkneGQqNZc61oiVPTNyf76MShxOo66oSgWrOqC/+TngPHkcxwbmuJVyafu6WldvR2FBA=="/>
         </item>
     </channel>
 </rss>

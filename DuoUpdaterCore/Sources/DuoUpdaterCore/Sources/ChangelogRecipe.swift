@@ -975,20 +975,27 @@ public enum ChangelogRecipeRegistry {
         //     <article class="contentfulRichText_richText__…">
         //       <p class="contentfulRichText_paragraph__…">…note…</p> …</article>
         //   </article>
-        // Items target <p class="contentfulRichText_paragraph__…"> — a class the
-        // decorative <p class="videoPlayer_errorLine__…"> ad-blocker notices do
-        // NOT share, so they're skipped. The inner contentfulRichText article also
-        // closes with </article>, so the body bounds on the next release article.
+        // Items target the rich-text paragraph class — one the decorative
+        // <p class="…errorLine…"> ad-blocker notices do NOT share, so they're
+        // skipped. The inner contentfulRichText article also closes with
+        // </article>, so the body bounds on the next release article.
+        //
+        // 2026-08-20: the page switched CSS-modules naming from `release_release__<hash>`
+        // to `release-module-scss-module__<hash>__release` — same markup, same
+        // nesting, every class renamed. Both spellings are accepted rather than
+        // just the new one: the rename is a build-tooling change that can be
+        // rolled back or served A/B, and carrying the old alternative costs one
+        // group. The hash stays unpinned in both, as it turns over on every deploy.
         ChangelogRecipe(
             bundleID: "notion.id",
             source: URL(string: "https://www.notion.com/releases")!,
             entryPattern:
-                #"<article class="release_release__[^"]*">.*?"#
-                + #"<time class="release_date__[^"]*">(?<date>[^<]+)</time>.*?"#
-                + #"<h2 class="[^"]*release_title__[^"]*">(?<version>.*?)</h2>"#
-                + #"(?<body>.*?)(?=<article class="release_release__|</main>|<footer)"#,
+                #"<article class="(?:release_release__[^"]*|release-module-scss-module__[^"]*__release)">.*?"#
+                + #"<time class="(?:release_date__[^"]*|release-module-scss-module__[^"]*__date)">(?<date>[^<]+)</time>.*?"#
+                + #"<h2 class="[^"]*(?:release_title__[^"]*|release-module-scss-module__[^"]*__title)">(?<version>.*?)</h2>"#
+                + #"(?<body>.*?)(?=<article class="(?:release_release__|release-module-scss-module__[^"]*__release")|</main>|<footer)"#,
             itemPatterns: [
-                #"<p class="contentfulRichText_paragraph__[^"]*">(?<item>.*?)</p>"#,
+                #"<p class="(?:contentfulRichText_paragraph__[^"]*|contentfulRichText-module-scss-module__[^"]*__paragraph)">(?<item>.*?)</p>"#,
             ],
             maxEntries: 20,
             minItemLength: 4),

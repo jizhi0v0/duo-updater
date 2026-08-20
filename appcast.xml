@@ -17,6 +17,18 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.46</title>
+            <pubDate>Thu, 20 Aug 2026 15:38:12 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.46</link>
+            <sparkle:version>56</sparkle:version>
+            <sparkle:shortVersionString>0.3.46</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**WeType (微信输入法) now reports the version you actually have.** Its version was being read off the name of the vendor's installer file, which turns out to carry the *installer's* version rather than the app's — the installer is a small downloader that fetches the real app separately, and the two numbers drift apart. Duo Updater now reads the same manifest the vendor's own installer reads, so the version matches your copy and new releases show up when they ship. WeType still has to be updated with the vendor's installer rather than in place: replacing the bundle skips the input-method registration step and was found to lose settings.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.46/DuoUpdater-0.3.46-macos.zip" length="10567616" type="application/octet-stream" sparkle:edSignature="BKHtG9dZ0nRszxQDke7GoV/gE+I2I5vKynBXWxvYJ6GhtXi2quYyx4v/VtujphsXLPIKvUdf9sNHHyM1v0sdAA=="/>
+        </item>
+        <item>
             <title>0.3.45</title>
             <pubDate>Thu, 20 Aug 2026 11:35:27 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.45</link>
@@ -49,18 +61,6 @@
 **Updates that the wider ecosystem never picks up get flagged for us.** Our nightly recipe sweep could only tell whether an app's version could still be read, not whether the answer made sense for a Mac — which is why the LocalSend problem had to be spotted by hand. It now also compares against Homebrew, and raises a flag when we are reporting a version that nobody else has packaged long after it was published. Nothing about this is visible on your Mac; it is how this class of mistake gets caught by machine next time.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.44/DuoUpdater-0.3.44-macos.zip" length="10567334" type="application/octet-stream" sparkle:edSignature="o2lkJUMHt/J0UCr5smUZSKmrkLP0IGZqg+WakKsQ9efJ6gxDI0OngClcZBTkoAqqVO2P0cZBJ2q9+VT183DXCg=="/>
-        </item>
-        <item>
-            <title>0.3.43</title>
-            <pubDate>Wed, 19 Aug 2026 22:15:06 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.43</link>
-            <sparkle:version>53</sparkle:version>
-            <sparkle:shortVersionString>0.3.43</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Package updates are read more thoroughly before they are opened.** The check added in 0.3.41 asks an installer package where it installs, and refuses one that will not say. It was reading only the summary the package publishes about itself; it now also reads the package's own file list, which is what the installer actually follows. That means a package that keeps quiet in its summary is still understood instead of turned away. Every app that updates this way was re-checked against its real installer, and none of them changed.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.43/DuoUpdater-0.3.43-macos.zip" length="10561650" type="application/octet-stream" sparkle:edSignature="djnevwzFytT/H9vSrcqn6k5eQuwCMKiWWWR/YySJMZfp3l235c/DNxxJ/faafcKmn62u8u0plmacttQOqAoNCA=="/>
         </item>
     </channel>
 </rss>

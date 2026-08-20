@@ -130,6 +130,20 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(!matches("bruno_4.0.0_arm64_win.zip", "com.usebruno.app"))
 }
 
+/// PureMac ships a second product out of the same releases: `cli-v1.0.0`
+/// (2026-08-17) carries only `puremac-cli-1.0.0.tar.gz` and GitHub marks it
+/// latest. Unanchored, the default pattern read that as 1.0.0 — and a remote
+/// *behind* the installed 2.9.x evaluates to "up to date", so every real update
+/// disappeared silently. CI's own baseline had recorded `lastGoodVersion: 1.0.0`.
+@Test func pureMacRuleRejectsTheCLIProductTag() {
+    #expect(extract("v2.9.7", "com.puremac.app") == "2.9.7")
+    #expect(extract("cli-v1.0.0", "com.puremac.app") == nil)
+    // The asset gate is the second guard, not a substitute for the first.
+    #expect(matches("PureMac-2.9.7.dmg", "com.puremac.app"))
+    #expect(!matches("puremac-cli-1.0.0.tar.gz", "com.puremac.app"))
+    #expect(!matches("PureMac-2.9.7.zip", "com.puremac.app"))
+}
+
 @Test func localSendRulePicksTheDmgAndNothingElse() {
     #expect(extract("v1.18.0", "org.localsend.localsendApp") == "1.18.0")
     #expect(matches("LocalSend-1.18.0.dmg", "org.localsend.localsendApp"))
@@ -727,4 +741,42 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         #expect(r.installAssetPattern != nil, "\(bundleID) lost its asset pattern")
         #expect(r.installerKind == kind, "\(bundleID) installer kind drifted")
     }
+}
+
+/// The macOS-asset fallback added in 0.3.44 reaches for the releases *list* when
+/// the latest release carries no macOS build. That endpoint is not "latest with
+/// more rows": GitHub computes `/releases/latest` with prereleases excluded, and
+/// every stable rule leans on that. Walked raw, the list would hand a stable
+/// install a `-beta`/`-rc`/`-pre` build the first time a stable release shipped
+/// without its dmg — the cross-channel mixing the channel gate exists to stop.
+///
+/// SwiftBar's real tag shapes: 22 of its recent releases are betas sitting above
+/// older stables, so it is the registry entry this would have bitten first.
+@Test func theListFallbackNeverContributesPrereleasesToAStableRule() throws {
+    let json = """
+    [
+      {"tag_name":"v2.1.2-beta-3","prerelease":true,"draft":false,"assets":[]},
+      {"tag_name":"v2.1.2-wip","prerelease":false,"draft":true,"assets":[]},
+      {"tag_name":"v2.1.1","prerelease":false,"draft":false,"assets":[]},
+      {"tag_name":"v2.1.0","prerelease":false,"draft":false,"assets":[]}
+    ]
+    """.data(using: .utf8)!
+
+    let all = GitHubReleasesSource.releases(from: json, list: true)
+    #expect(all.count == 4)
+    // The decode has to carry the flags at all — reading them as false by
+    // omission is how the filter silently becomes a no-op.
+    #expect(all[0].isPrerelease)
+    #expect(all[1].isDraft)
+
+    let stable = GitHubReleasesSource.stableOnly(all)
+    #expect(stable.map(\.tag) == ["v2.1.1", "v2.1.0"])
+}
+
+/// A release object that simply omits the flags (some proxies and older API
+/// shapes do) must default to "released", not be dropped.
+@Test func releasesMissingTheFlagsAreTreatedAsStable() throws {
+    let json = #"[{"tag_name":"v1.0.0","assets":[]}]"#.data(using: .utf8)!
+    let all = GitHubReleasesSource.releases(from: json, list: true)
+    #expect(GitHubReleasesSource.stableOnly(all).map(\.tag) == ["v1.0.0"])
 }

@@ -335,7 +335,17 @@ public struct GitHubReleasesSource: UpdateSource {
                GitHubReleaseRule.carriesInstallableAsset(from: $0.assets, matching: pattern)
            }) {
             Log.source.debug("GitHub \(rule.slug, privacy: .public): latest release carries no macOS asset, falling back to the releases list")
-            if let list = try await fetchReleases(rule, list: true) { releases = list }
+            // The list endpoint is not the latest endpoint with more rows: GitHub
+            // computes `/releases/latest` with prereleases excluded, and every
+            // stable rule depends on that. Walking the raw list would let a
+            // stable install be offered a `-beta`/`-rc`/`-pre` build the moment
+            // its newest stable release happened to lack the macOS asset —
+            // reintroducing exactly the cross-channel mixing the channel gate
+            // exists to prevent. Drafts go too: they are visible on this endpoint
+            // to a token with push access and are not released at all.
+            if let list = try await fetchReleases(rule, list: true) {
+                releases = Self.stableOnly(list)
+            }
         }
         // Every matching release that carries a publish date — backfills the app's
         // visible release history into the timeline at no extra network cost (these
@@ -425,16 +435,29 @@ public struct GitHubReleasesSource: UpdateSource {
     /// A GitHub release reduced to the fields we use: tag, notes body, page URL,
     /// date, and downloadable assets (filename → URL + declared size, for
     /// installer selection and shortest-first "Update All" ordering).
-    private struct Release {
+    struct Release {
         let tag: String
         let body: String?
         let htmlURL: URL?
         let publishedAt: String?
         let assets: [(name: String, url: URL, size: Int64?)]
+        /// Only ever consulted on the list endpoint. `/releases/latest` is
+        /// computed by GitHub with prereleases excluded, which is precisely why
+        /// stable rules use it — see the fallback in `resolve`.
+        let isPrerelease: Bool
+        let isDraft: Bool
+    }
+
+    /// What the list endpoint may contribute to a *stable* rule. Split out from
+    /// the call site so the filter is testable without a fetch — the bug it
+    /// prevents is invisible until the day a stable release ships without its
+    /// macOS asset, which is far too late to find out.
+    static func stableOnly(_ releases: [Release]) -> [Release] {
+        releases.filter { !$0.isPrerelease && !$0.isDraft }
     }
 
     /// Extract releases from either a single release object or a list.
-    private static func releases(from data: Data, list: Bool) -> [Release] {
+    static func releases(from data: Data, list: Bool) -> [Release] {
         guard let json = try? JSONSerialization.jsonObject(with: data) else { return [] }
         let objects: [[String: Any]]
         if list {
@@ -457,7 +480,9 @@ public struct GitHubReleasesSource: UpdateSource {
                 body: obj["body"] as? String,
                 htmlURL: (obj["html_url"] as? String).flatMap { URL(string: $0) },
                 publishedAt: obj["published_at"] as? String,
-                assets: assets
+                assets: assets,
+                isPrerelease: (obj["prerelease"] as? Bool) ?? false,
+                isDraft: (obj["draft"] as? Bool) ?? false
             )
         }
     }
@@ -1258,9 +1283,19 @@ public enum GitHubReleaseRegistry {
 
         // PureMac — a dmg and a zip of the same build ship together; take the dmg.
         // One-click: com.puremac.app, Team H3WXHVTP97, notarized.
+        //
+        // The tag is anchored because this repo ships a *second product* out of
+        // the same releases: on 2026-08-17 it published `cli-v1.0.0`, carrying
+        // only `puremac-cli-1.0.0.tar.gz`, and GitHub marks it latest. The default
+        // pattern is unanchored, so it read that tag as version 1.0.0 — which,
+        // against an installed 2.9.x, evaluates as "up to date" and hides every
+        // real update. The macOS-asset gate already walks past that release, but
+        // the number it walked past should never have parsed in the first place:
+        // one guard against a silent no-update is not enough.
         GitHubReleaseRule(
             bundleID: "com.puremac.app",
             owner: "momenbasel", repo: "PureMac",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^PureMac-[0-9.]+\.dmg$"#,
             installerKind: .dmg),
 

@@ -9,6 +9,8 @@ release and the Sparkle appcast, so this file is the single source of truth for
 
 **A beta build can never arrive on the stable channel.** The fix in 0.3.44 looks further back through an app's releases when the newest one has no Mac build attached. That wider search could also see the developer's beta and release-candidate builds, which the normal check never shows you — so an app that happened to publish a release without its Mac download could have offered you a beta. Nothing had actually hit this, and now nothing can: the wider search only ever considers finished releases.
 
+**Notion's release notes are readable again.** Notion restyled its releases page and Duo Updater could no longer pick the posts out of it, so the notes fell back to showing the raw web page. They render as proper entries again.
+
 **PureMac's updates are visible again.** The developer publishes a separate command-line tool from the same place as the app, and its release was being read as if it were the app — as version 1.0.0, which looks older than what you have installed, so the app reported itself up to date and every real update stayed hidden. It now reads only the app's own releases.
 
 ## 0.3.44

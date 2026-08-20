@@ -5,6 +5,12 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.45
+
+**A beta build can never arrive on the stable channel.** The fix in 0.3.44 looks further back through an app's releases when the newest one has no Mac build attached. That wider search could also see the developer's beta and release-candidate builds, which the normal check never shows you — so an app that happened to publish a release without its Mac download could have offered you a beta. Nothing had actually hit this, and now nothing can: the wider search only ever considers finished releases.
+
+**PureMac's updates are visible again.** The developer publishes a separate command-line tool from the same place as the app, and its release was being read as if it were the app — as version 1.0.0, which looks older than what you have installed, so the app reported itself up to date and every real update stayed hidden. It now reads only the app's own releases.
+
 ## 0.3.44
 
 **An update that only ever existed for phones no longer sits in your list.** Some apps share one version number across Mac, Windows, Linux and mobile, and sometimes a release goes out to the phones alone — the version number moves, but no Mac build is ever made. Duo Updater was reading that as a Mac update, which left an update you could never install and that never went away. It now looks for the Mac download itself rather than trusting the version number, so those releases are correctly ignored. LocalSend was the app affected; its row now reads as up to date, which it is.

@@ -39,7 +39,8 @@ final class PrivilegedHelperClient: ObservableObject {
     }
 
     /// True only once the user has approved the background item — the gate that
-    /// decides whether App Store auto-update is offered (vs falling back to "Get").
+    /// decides whether App Store auto-update is offered (vs falling back to an
+    /// "Update" button that just opens the store).
     /// Queried live (not the cached `status`) so the gate is always current.
     var isEnabled: Bool { service.status == .enabled }
 
@@ -193,7 +194,8 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
     private var cachedConnection: NSXPCConnection?
 
     func installMAS(adamID: Int, uid: Int, gid: Int, userName: String, logPath: String) async throws -> Int32 {
-        // Fail fast (and let the UI show "Get"/guidance) if the helper isn't approved.
+        // Fail fast (and let the UI fall back to the store redirect / guidance) if
+        // the helper isn't approved.
         guard SMAppService.daemon(plistName: HelperConfig.plistName).status == .enabled else {
             throw MASInstaller.MASError.helperNotApproved
         }

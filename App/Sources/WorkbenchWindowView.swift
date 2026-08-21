@@ -671,19 +671,31 @@ private struct WorkbenchActionView: View {
         } else if let info = result.remote?.appStore, !info.isRegionMismatch, !info.isLatestMacIncompatible {
             // iOS-on-Mac apps: only the App Store app can update them (mas can't,
             // AX is unreliable), so this is a redirect to the store rather than a
-            // one-click. A not-yet-installed App Store app stays a plain "Get".
-            Button(result.app.isiOSAppOnMac ? "App Store" : "Get") {
+            // one-click. A Mac App Store app lands here when the privileged helper
+            // isn't approved yet — still an installed app with a pending update, so
+            // it says **Update** (what the store calls it), never "Get".
+            Button(result.app.isiOSAppOnMac ? "App Store" : "Update") {
                 if let url = info.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
             }
             .buttonStyle(.bordered)
             .help(result.app.isiOSAppOnMac
                   ? "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here"
-                  : "Open in the App Store")
+                  : appStoreRedirectHelp)
         } else if let url = result.remote?.pageURL {
             Button("Open page") { NSWorkspace.shared.open(url) }
                 .buttonStyle(.bordered)
                 .help("Open the official download page")
         }
+    }
+
+    /// Why this row hands off to the App Store instead of installing in place —
+    /// same reasoning as the popover's: approving the helper is the one lever the
+    /// user has, so say so when that's what's missing.
+    private var appStoreRedirectHelp: String {
+        if !model.helperEnabled {
+            return "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click."
+        }
+        return "Update \(result.app.name) in the App Store"
     }
 
     @ViewBuilder

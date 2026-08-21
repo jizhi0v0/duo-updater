@@ -1167,11 +1167,27 @@ private struct AppRow: View {
                 .buttonStyle(.bordered)
                 .help("Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
         } else {
-            Button("Get") { openInAppStore(info) }
+            // A redirect, not a one-click — the App Store route needs the privileged
+            // helper approved (`UpdatePolicy.canAutoInstall`, case "App Store"). But
+            // the row IS an installed app with a pending update, which the store
+            // itself calls **Update**; "Get" reads as "not installed yet", and no row
+            // that reaches here ever is. The help text carries the real reason.
+            Button("Update") { openInAppStore(info) }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
-                .help("Open in the App Store")
+                .help(appStoreRedirectHelp)
         }
+    }
+
+    /// Why this row hands off to the App Store instead of installing in place.
+    /// Approving the helper is the one lever the user actually has, so name it when
+    /// that's what's missing — otherwise the button just looks like something we
+    /// decline to do, with nothing to act on.
+    private var appStoreRedirectHelp: String {
+        if !model.helperEnabled {
+            return "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click."
+        }
+        return "Update \(result.app.name) in the App Store"
     }
 
     private func openInAppStore(_ info: AppStoreAvailability) {

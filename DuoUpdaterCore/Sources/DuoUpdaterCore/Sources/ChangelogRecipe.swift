@@ -714,56 +714,93 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 30,
             structuredFormat: .postmanReleaseNotes),
 
-        // HBuilderX (DCloud) — two-stage, and deliberately NOT pointed at
-        // update.dcloud.net.cn: that host 302s the changelog HTML to a per-request
-        // tokenized CDN node on a non-standard port (…qrstuvwxyzab.com:22443),
-        // which under many networks crawls past the 15s fetch timeout — the app
-        // then spins and degrades to the embedded web page. The download-site host
-        // download1.dcloud.net.cn serves the very same HTML directly (200, no
-        // redirect, ~0.3s), so we go there instead.
+        // HBuilderX (DCloud) — SINGLE-hop now, not two-stage: hx.dcloud.net.cn
+        // serves a plain markdown changelog directly (200, ~95 KB, no redirect,
+        // no per-request tokenized CDN hop), so there is no index page to follow
+        // and no `indexLinkPattern` here anymore (that's how the old
+        // download1.dcloud.net.cn/release.json + HTML-detail-page two-stage
+        // fetch worked; this recipe replaces it wholesale, not on top of it).
+        // NOT `structuredFormat`: that decoder path (`StructuredChangelogDecoder`)
+        // is for feeds too irregular for the regex extractor; this one is a
+        // clean, uniform `## <version>` / `* <item>` document that the regex
+        // path (same as com.anthropic.claudefordesktop above) handles
+        // directly — and `structuredFormat` would also disable
+        // `indexLinkPattern` handling in `ChangelogService`, which is irrelevant
+        // here anyway since there's no second hop to disable.
         //
-        // `source` is the download page's `release.json` config; `indexLinkPattern`
-        // follows its `release` field to the current changelog page on download1.
-        // That field always names the latest build, so this also retires the old
-        // version-pinned URL — a new HBuilderX release is picked up with no rebuild
-        // (same win as VLC/Ghostty). The detail page is a cumulative list: each
-        // release is an <h2>X.Y.Z</h2> (the build encodes YYYYMMDD, no separate
-        // date), then module-section <h3>s and <li> change items.
+        // Format: `## 5.24.2026081301` heading (the build IS the version, no
+        // separate date — same as the old HTML: there was never a `date` group
+        // there either, so this is not a regression), then `* ` bullet lines,
+        // e.g. `* 修复 ... [详情](https://issues.dcloud.net.cn/...)`. The
+        // trailing `[详情](url)` / `[文档](url)` markdown link (occasionally two
+        // in a row, occasionally followed by a bare `<url>` autolink) is stripped
+        // by the item pattern rather than kept literal — flattening it to just
+        // the link text (as `StructuredChangelogDecoder.bulletItems` does for
+        // the structured path) isn't reachable from here without a much bigger
+        // change to the regex extractor, so instead the pattern simply excludes
+        // any *trailing* link syntax from the captured item. This covers the
+        // overwhelming majority of lines (verified: 1301/1303 items across both
+        // documents — 618 in release, 685 in alpha — have their link(s) fully
+        // stripped this way; the sole exception in EACH document is one line
+        // where the link sits mid-sentence rather than at the end — that rare
+        // case is left with its `[text](url)` literal intact).
+        //
+        // Content scope: this md endpoint covers only the HBuilder IDE itself —
+        // the old HTML detail page's other module sections (uni-app x, uni-app,
+        // uts插件, uniCloud, App插件) aren't in it. That's an intentional
+        // narrowing (confirmed against the HTML: every md item matches an
+        // HBuilder-section item in the HTML verbatim, including issue ids — it's
+        // a subset, not a rewrite/summary), so fewer items per entry here vs.
+        // before is expected, not a parsing regression.
+        //
+        // Version group has no `-alpha` suffix, matching only bare `X.Y.Z`
+        // headings (the alpha recipe below requires the suffix) — moot in
+        // practice since the two channels are served from separate documents,
+        // but kept for the same belt-and-suspenders reason the old HTML regexes
+        // did.
         ChangelogRecipe(
             bundleID: "io.dcloud.HBuilderX",
-            source: URL(string: "https://download1.dcloud.net.cn/hbuilderx/release.json")!,
+            source: URL(
+                string: "https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_release.md")!,
             entryPattern:
-                #"<h2[^>]*>(?<version>[0-9]+\.[0-9]+\.[0-9]+)</h2>"#
+                #"## (?<version>[0-9]+\.[0-9]+\.[0-9]+)\n"#
                 + #"(?<body>.*?)"#
-                + #"(?=<h2[^>]*>[0-9]|$)"#,
-            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
-            // The page is a years-long cumulative list (~28 builds, each with many
-            // module-section items); cap to the recent handful — the detail view
-            // only needs "what changed lately", and this also halts the parse early.
+                + #"(?=\n## |$)"#,
+            itemPatterns: [
+                #"(?:^|\n)[ \t]*\*[ \t]+(?<item>[^\n]+?)(?:\s*\[[^\]\n]*\]\([^)\n]*\))*(?:\s*<[^>\n]*>)?(?=\n|$)"#
+            ],
+            stripTags: false,
+            decodeEntities: false,
+            // The doc is a years-long cumulative list (32 versions); cap to the
+            // recent handful, same as before.
             maxEntries: 10,
-            minItemLength: 4,
-            indexLinkPattern: #""release"\s*:\s*"(?<link>https://[^"]+)""#),
+            minItemLength: 4),
 
         // HBuilderX Alpha (DCloud) — the alpha is a SEPARATE app (bundle id
         // io.dcloud.HBuilderXAlpha, ships as HBuilderX-Alpha.app), so it needs its
         // own recipe; the stable io.dcloud.HBuilderX one never matches it. Same
-        // two-stage shape as stable but reading `alpha.json`, whose `release` field
-        // points at the alpha changelog page on download1. The page is structured
-        // exactly like the stable one except every version <h2> carries an "-alpha"
-        // suffix (5.11.2026052520-alpha), so the version group requires it — which
-        // also means a stray stable <h2> could never be mis-captured here.
+        // single-hop markdown shape as stable, reading the alpha document
+        // instead, whose version headings all carry an "-alpha" suffix
+        // (5.23.2026080313-alpha) — the version group requires it, so a stray
+        // stable heading could never be mis-captured here. See the stable
+        // recipe above for the full rationale (single-hop rewrite, why not
+        // `structuredFormat`, link-stripping, and the HBuilder-IDE-only scope).
         ChangelogRecipe(
             bundleID: "io.dcloud.HBuilderXAlpha",
-            source: URL(string: "https://download1.dcloud.net.cn/hbuilderx/alpha.json")!,
+            source: URL(
+                string: "https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_alpha.md")!,
             entryPattern:
-                #"<h2[^>]*>(?<version>[0-9]+\.[0-9]+\.[0-9]+-alpha)</h2>"#
+                #"## (?<version>[0-9]+\.[0-9]+\.[0-9]+-alpha)\n"#
                 + #"(?<body>.*?)"#
-                + #"(?=<h2[^>]*>[0-9]|$)"#,
-            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
-            // Alpha lists 60+ builds; same cap as stable — recent handful only.
+                + #"(?=\n## |$)"#,
+            itemPatterns: [
+                #"(?:^|\n)[ \t]*\*[ \t]+(?<item>[^\n]+?)(?:\s*\[[^\]\n]*\]\([^)\n]*\))*(?:\s*<[^>\n]*>)?(?=\n|$)"#
+            ],
+            stripTags: false,
+            decodeEntities: false,
+            // Alpha document lists 67 versions; same cap as stable.
             maxEntries: 10,
-            minItemLength: 4,
-            indexLinkPattern: #""release"\s*:\s*"(?<link>https://[^"]+)""#),
+            minItemLength: 4),
 
         // Ollama — GitHub releases page. Each release is a <section> with an
         // sr-only h2 (version tag, e.g. "v0.30.0"), a <relative-time> element

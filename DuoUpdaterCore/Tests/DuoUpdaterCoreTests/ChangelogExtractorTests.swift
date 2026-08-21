@@ -661,99 +661,201 @@ private let bionicFixture = """
     #expect(changelog?.entries.first?.version == "4.8.8")
 }
 
-// Trimmed real payload from mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json.
-// Content field is Markdown with \\r\\n line separators (raw JSON escapes). Two entries:
-// one with a #### feature heading + plain description + bug-fix line, and one with only
-// a plain bug-fix line (no #### heading) to cover the simpler layout.
-private let postmanFixture = """
-{"notes":[{"version":"12.12.7","content":"## Postman 12.12.7\\r\\nMay 30, 2026\\r\\n\\r\\n### Improvements\\r\\n#### Aggregated test results in Postman Flows run logs\\r\\nRun logs in Postman Flows now aggregate and display test results from all **Request** blocks in a single summary view.\\r\\n\\r\\n### Bug fixes\\r\\nResolved an issue in Postman Flows where the environment selector would not respond.\\r\\n","createdAt":"2026-05-30T04:43:09.000Z"},{"version":"12.13.2","content":"## Postman 12.13.2\\r\\nJune 2, 2026\\r\\n\\r\\n### Bug Fixes\\r\\nSome critical bug fixes and enhancements were added in this release.\\r\\n","createdAt":"2026-06-02T02:32:09.000Z"}]}
-"""
+// Byte-for-byte slice of the real feed (curled 2026-08-21 from
+// mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json), four
+// "notes[]" objects verbatim, covering every shape the decoder has to handle:
+//   - 12.24.3: a `#### ` feature heading (kept, prefix stripped) followed by a
+//     bold safety line, two prose paragraphs, and a trailing `[text](url)` link
+//     line — 5 items, `\r\n` separators.
+//   - 12.23.7: the same shape but with a `- ` bullet list in the middle — 8
+//     items, exercises "not just single-paragraph" bodies.
+//   - 12.17.3: the entry the OLD regex path truncated. Its one bug-fix line
+//     contains an escaped quote (`\"8000\"`) — the old itemPattern's
+//     `[^\\]{10,}` capture stopped at that backslash and silently dropped the
+//     rest of the sentence. This fixture pins the FULL, correct sentence.
+//   - 9.18.2: a legacy entry whose body uses a bare `\n` separator (only the
+//     very last blank line is `\r\n\r\n`) — the format older entries actually
+//     shipped in, which the old itemPattern (anchored on `\\r\\n`) could never
+//     match at all.
+private let postmanFeedFixture = #"""
+{"notes":[
+{"version":"12.24.3","content":"## Postman 12.24.3\r\nAugust 19, 2026\r\n\r\n### What’s New\r\n#### Mocks are now available in Cloud View\r\n**Available on Solo, Team, and Enterprise plans**\r\n\r\nMocks let you simulate APIs using custom JavaScript request handlers. In Cloud View, each mock receives a unique URL and is always available to handle requests.\r\n\r\nYou can also deploy a mock as a mock server, giving your team a cloud-hosted service they can send requests to at any time. By default, mock servers deployed from a mock are private and require workspace access or a valid Postman API key.\r\n\r\nTo learn more, see [Build API mocks with JavaScript](https://learning.postman.com/docs/design-apis/mock-apis/local-mock-servers).\r\n\r\n","createdAt":"2026-08-19T06:06:19.000Z"},
+{"version":"12.23.7","content":"## Postman 12.23.7\r\nAugust 14, 2026\r\n\r\n### What’s New\r\n#### Buy Postman from AWS Marketplace\r\n\r\nYou can now purchase Postman Team and Enterprise plans directly through the AWS Marketplace, consolidating Postman within your existing AWS billing.\r\n\r\nThere are two ways to get started:\r\n\r\n- Subscribe from the AWS Marketplace listing and complete setup on a Postman-hosted page.\r\n- In the Postman app, click **Buy with AWS** to purchase without leaving Postman.\r\n\r\nBoth flows support purchasing for your own team or on behalf of another team in your organization. All subscription changes are managed through the AWS Marketplace console.\r\n\r\nAvailable for net-new Team and Enterprise plans.\r\n\r\nTo learn more, see [Purchase AWS from AWS Marketplace](https://learning.postman.com/docs/billing/buying-aws).\r\n\r\n","createdAt":"2026-08-14T02:32:42.000Z"},
+{"version":"12.17.3","content":"## Postman 12.17.3\r\nJuly 2, 2026\r\n\r\n### Bug fixes\r\nFixed an issue in Postman Flows where configuration values typed as Number arrived as text at runtime (for example, 8000 became \"8000\" ), which could break blocks expecting a real number.\r\n","createdAt":"2026-07-02T02:32:20.000Z"},
+{"version":"9.18.2","content":"## Postman v9.18.2\n\n### Bug Fixes\n- Fixed the issue of cookies not showing up in the interceptor debug session - [Github #10901](https://github.com/postmanlabs/postman-app-support/issues/10901)\r\n\r\n","createdAt":"2022-05-11T10:42:53.000Z"}
+]}
+"""#
 
-@Test func extractsPostmanEntriesFromJSON() throws {
+@Test func postmanRecipeIsStructuredJSON() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.postmanlabs.mac"))
-    let changelog = try #require(ChangelogExtractor.extract(from: postmanFixture, using: recipe))
-
-    #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "12.12.7")
-    #expect(changelog.entries[0].date == "2026-05-30")
-    #expect(changelog.entries[0].items.count == 3)
-    #expect(changelog.entries[0].items[0] == "Aggregated test results in Postman Flows run logs")
-    #expect(changelog.entries[0].items[1].contains("Run logs in Postman Flows"))
-    #expect(changelog.entries[0].items[2].contains("Resolved an issue"))
-    #expect(changelog.entries[1].version == "12.13.2")
-    #expect(changelog.entries[1].date == "2026-06-02")
-    #expect(changelog.entries[1].items.count == 1)
-    #expect(changelog.entries[1].items[0].contains("critical bug fixes"))
+    #expect(recipe.structuredFormat == .postmanReleaseNotes)
+    #expect(recipe.maxEntries == 30)
+    #expect(recipe.entryPattern.isEmpty)
+    #expect(recipe.itemPatterns.isEmpty)
 }
 
-// Trimmed real markup from update.dcloud.net.cn/hbuilderx/changelog/<version>.html.
-// The page is cumulative — all versions in one file. Each version block starts with
-// an <h2>, categories are <h3>, and changes are <li>. No explicit date field;
-// the version string itself encodes YYYYMMDD (e.g. 5.07.2026041006 = 2026-04-10).
+@Test func decodesPostmanFeedSliceExactly() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        postmanFeedFixture, format: .postmanReleaseNotes, channel: nil, maxEntries: 10))
+
+    #expect(changelog.entries.count == 4)
+
+    let a = changelog.entries[0]
+    #expect(a.version == "12.24.3")
+    #expect(a.date == "2026-08-19")
+    #expect(a.items.count == 5)
+    #expect(a.items[0] == "Mocks are now available in Cloud View")
+    #expect(a.items[1] == "**Available on Solo, Team, and Enterprise plans**")
+    #expect(a.items.last == "To learn more, see [Build API mocks with JavaScript](https://learning.postman.com/docs/design-apis/mock-apis/local-mock-servers).")
+    // The "## Postman 12.24.3" title line, the "August 19, 2026" date line, and
+    // the "### What's New" section heading must all be filtered out — none of
+    // them are a change line.
+    #expect(!a.items.contains { $0.contains("## Postman") })
+    #expect(!a.items.contains { $0.contains("August 19, 2026") })
+    #expect(!a.items.contains { $0.contains("What’s New") })
+
+    let b = changelog.entries[1]
+    #expect(b.version == "12.23.7")
+    #expect(b.date == "2026-08-14")
+    #expect(b.items.count == 8)
+    #expect(b.items[0] == "Buy Postman from AWS Marketplace")
+    #expect(b.items[3] == "- Subscribe from the AWS Marketplace listing and complete setup on a Postman-hosted page.")
+    #expect(b.items.last == "To learn more, see [Purchase AWS from AWS Marketplace](https://learning.postman.com/docs/billing/buying-aws).")
+
+    // 12.17.3: the old regex path's item capture (`[^\\]{10,}`) stopped at the
+    // backslash in `\"8000\"`, truncating this to "...8000 became ". The
+    // structured decoder reads the real, unescaped string and must not lose the
+    // rest of the sentence.
+    let c = changelog.entries[2]
+    #expect(c.version == "12.17.3")
+    #expect(c.items.count == 1)
+    #expect(c.items[0] == "Fixed an issue in Postman Flows where configuration values typed as Number arrived as text at runtime (for example, 8000 became \"8000\" ), which could break blocks expecting a real number.")
+
+    // 9.18.2: legacy entry whose body is `\n`-separated (not `\r\n`) — a shape
+    // the old itemPattern could never match, so this release's notes were
+    // structurally invisible under the regex path. The decoder must still find it.
+    let d = changelog.entries[3]
+    #expect(d.version == "9.18.2")
+    #expect(d.date == "2022-05-11")
+    #expect(d.items == ["- Fixed the issue of cookies not showing up in the interceptor debug session - [Github #10901](https://github.com/postmanlabs/postman-app-support/issues/10901)"])
+}
+
+@Test func postmanDecodeRespectsMaxEntries() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        postmanFeedFixture, format: .postmanReleaseNotes, channel: nil, maxEntries: 2))
+    #expect(changelog.entries.count == 2)
+    #expect(changelog.entries.map(\.version) == ["12.24.3", "12.23.7"])
+}
+
+@Test func postmanMalformedBodyDecodesToNil() {
+    #expect(StructuredChangelogDecoder.decode(
+        "not json at all", format: .postmanReleaseNotes, channel: nil, maxEntries: 30) == nil)
+    #expect(StructuredChangelogDecoder.decode(
+        #"{"notes": []}"#, format: .postmanReleaseNotes, channel: nil, maxEntries: 30) == nil)
+}
+
+// Verbatim leading slice (lines 1-17, plus one trailing blank line so the last
+// item's line-end still has a following "\n" for the item pattern's lookahead —
+// see the note on that below) of the real response body from
+// https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_release.md,
+// fetched 2026-08-21. Two version blocks: 5.24.2026081301 has a single
+// link-free item; 5.23.2026080626 has 13 items, all but one carrying a
+// trailing `[详情](url)` markdown link, and one (the uni-network-cronet line)
+// carrying both a `[文档](url)` link AND a bare `<url>` autolink after it — the
+// item pattern must strip all of that, in sequence, off the end of the line.
+// No date field — the version itself encodes YYYYMMDD (5.23.2026080626 =
+// 2026-08-06), same as the old HTML source; this is not a regression.
 private let hbuilderxFixture = """
-<h1 id="hbuilder-x---release-notes">HBuilder X - Release Notes</h1>
-<p>======================================</p>
-<h2 id="5072026041006">5.07.2026041006</h2>
-<h3 id="hbuilder">HBuilder</h3>
-<ul>
-<li>修复 5.0版本引发的 uni-app iOS安心打包图标没有生效 <a href="https://issues.dcloud.net.cn/pages/issues/detail?id=27902">详情</a></li>
-</ul>
-<h3 id="uni-app-x">uni-app x</h3>
-<ul>
-<li>Android平台 修复 5.0版本引发的 API uni.showLoading 调用异常 <a href="https://issues.dcloud.net.cn/pages/issues/detail?id=27821">详情</a></li>
-</ul>
-<h2 id="5062026033105">5.06.2026033105</h2>
-<h3 id="hbuilder-1">HBuilder</h3>
-<ul>
-<li>macOS平台 修复 5.0版本引发的 iOS 安心打包功能中资源拷贝路径不正确的问题 <a href="https://issues.dcloud.net.cn/pages/issues/detail?id=27379">详情</a></li>
-</ul>
+## 5.24.2026081301
+* 修复 uniapp框架的一些Bug
+
+## 5.23.2026080626
+* Windows平台 修复 Windows 上使用在外部资源管理器打开文件时未选中目标文件 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=29907)
+* 修复 5.0版本引发的 AI对比工具栏缺少跟随移动，多窗口下进行部分操作导致工具栏不消失 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31128)
+* 修复 4.81版本引发的 部分git操作导致的文件变更无法在editor内同步 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=28392)
+* 修复 条件编译置灰和 对比选中文件/uni-agent插件代码修改 的预览样式冲突 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=26579)
+* 修复 在uniapp项目下uni.没有提示 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31477)
+* 新增 HBuilderX CLI 支持通过 config get/set 命令行工具动态查询与管理全局配置项 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31115)
+* 新增 HBuilderX CLI 独立编译 App 端 UTS 文件及 uni_modules 模块 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31116)
+* 修复 HBuilderX cli launch 命令运行鸿蒙元服务时会卡住 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31740)
+* 新增 manifest.json uni-app x Android平台 打包是否压缩so库的可视化选项 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31099)
+* 新增 manifest.json uni-app x iOS平台可选模块配置 uni-oauth apple登录 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31102)
+* 新增 manifest.json uni-app x 蒸汽模式 Android平台 可选模块配置 uni-network-cronet [文档](https://doc.dcloud.net.cn/uni-app-x/collocation/manifest-android.html#modulesnetwork) <https://issues.dcloud.net.cn/pages/issues/detail?id=31450>
+* 新增 鸿蒙App配置增加可选模块配置uni-requestMerchantTransfer [文档](https://doc.dcloud.net.cn/uni-app-x/api/request-merchant-transfer.html) <https://issues.dcloud.net.cn/pages/issues/detail?id=31481>
+* 新增 对应用打包所包含的动态库进行体积优化 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31285)
+
 """
 
-@Test func extractsHBuilderXEntriesInOrder() throws {
+@Test func extractsHBuilderXMarkdownEntriesWithLinksStripped() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "io.dcloud.HBuilderX"))
     let changelog = try #require(ChangelogExtractor.extract(from: hbuilderxFixture, using: recipe))
 
     #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "5.07.2026041006")
+    #expect(changelog.entries[0].version == "5.24.2026081301")
     #expect(changelog.entries[0].date == nil)
-    #expect(changelog.entries[0].items.count == 2)
-    #expect(changelog.entries[0].items[0].contains("uni-app iOS安心打包图标没有生效"))
-    #expect(changelog.entries[1].version == "5.06.2026033105")
-    #expect(changelog.entries[1].items.count == 1)
-    #expect(changelog.entries[1].items[0].contains("iOS 安心打包功能中资源拷贝路径不正确"))
+    #expect(changelog.entries[0].items.count == 1)
+    #expect(changelog.entries[0].items[0] == "修复 uniapp框架的一些Bug")
+
+    #expect(changelog.entries[1].version == "5.23.2026080626")
+    #expect(changelog.entries[1].date == nil)
+    #expect(changelog.entries[1].items.count == 13)
+    // First item: trailing `[详情](url)` stripped clean off the end.
+    #expect(
+        changelog.entries[1].items.first
+            == "Windows平台 修复 Windows 上使用在外部资源管理器打开文件时未选中目标文件")
+    // Last item: same — the trailing link is gone, not left as a literal
+    // "[详情](https://...)" tail.
+    #expect(changelog.entries[1].items.last == "新增 对应用打包所包含的动态库进行体积优化")
+    // The uni-network-cronet line carries a `[文档](url)` link immediately
+    // followed by a bare `<url>` autolink — both must be stripped, not just one.
+    let cronetItem = try #require(
+        changelog.entries[1].items.first { $0.contains("uni-network-cronet") })
+    #expect(
+        cronetItem
+            == "新增 manifest.json uni-app x 蒸汽模式 Android平台 可选模块配置 uni-network-cronet")
+    #expect(!cronetItem.contains("["))
+    #expect(!cronetItem.contains("<"))
 }
 
-// Trimmed real markup from the HBuilderX *Alpha* changelog page (followed from
-// alpha.json's `release` field). Same shape as the stable page, but every version
-// <h2> carries an "-alpha" suffix — which the alpha recipe's version group requires.
+// Verbatim leading slice (lines 1-13, plus trailing blank line for the same
+// lookahead reason as above) of
+// https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_alpha.md,
+// fetched 2026-08-21. Every version heading carries the "-alpha" suffix, which
+// the alpha recipe's version group requires (and the stable recipe's doesn't
+// allow) — confirms the suffix survives capture intact rather than being eaten
+// by the version pattern's dot-number matching.
 private let hbuilderxAlphaFixture = """
-<h1 id="hbuilder-x---release-notes">HBuilder X - Release Notes</h1>
-<h2 id="5112026052520-alpha">5.11.2026052520-alpha</h2>
-<h3 id="hbuilder">HBuilder</h3>
-<ul>
-<li>调整 内置node版本由v18.20.0升级到v22.22.2</li>
-</ul>
-<h3 id="uni-app-x">uni-app x</h3>
-<ul>
-<li>Android平台 修复 某些情况下编译报错的问题 <a href="https://issues.dcloud.net.cn/x">详情</a></li>
-</ul>
-<h2 id="5082026050815-alpha">5.08.2026050815-alpha</h2>
-<h3 id="hbuilder-1">HBuilder</h3>
-<ul>
-<li>修复 alpha 渠道某个崩溃问题</li>
-</ul>
+## 5.23.2026080313-alpha
+* 修复 cli launch 命令运行鸿蒙元服务时会卡住 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31740)
+
+## 5.22.2026072503-alpha
+* 修复 条件编译置灰和 对比选中文件/uni-agent插件代码修改 的预览样式冲突 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=26579)
+* 修复 5.0版本引发的 AI对比工具栏缺少跟随移动，多窗口下进行部分操作导致工具栏不消失 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31128)
+* 新增 HBuilderX CLI 支持通过 config get/set 命令行工具动态查询与管理全局配置项 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31115)
+* 新增 HBuilderX CLI 独立编译 App 端 UTS 文件及 uni_modules 模块 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31116)
+* 新增 manifest.json uni-app x Android平台 打包是否压缩so库的可视化选项 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31099)
+* 新增 manifest.json uni-app x iOS平台可选模块配置 uni-oauth apple登录 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31102)
+* 新增 manifest.json uni-app x 蒸汽模式 Android平台 可选模块配置 uni-network-cronet [文档](https://doc.dcloud.net.cn/uni-app-x/collocation/manifest-ios.html#modulesoauth) <https://issues.dcloud.net.cn/pages/issues/detail?id=31450>
+* 新增 鸿蒙App配置增加可选模块配置uni-requestMerchantTransfer [文档](https://doc.dcloud.net.cn/uni-app-x/api/request-merchant-transfer.html) <https://issues.dcloud.net.cn/pages/issues/detail?id=31481>
+* 新增 对应用打包所包含的动态库进行体积优化 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31285)
+
 """
 
-@Test func extractsHBuilderXAlphaEntriesWithSuffix() throws {
+@Test func extractsHBuilderXAlphaMarkdownEntriesWithSuffix() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "io.dcloud.HBuilderXAlpha"))
     let changelog = try #require(ChangelogExtractor.extract(from: hbuilderxAlphaFixture, using: recipe))
 
     #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "5.11.2026052520-alpha")
-    #expect(changelog.entries[0].items.count == 2)
-    #expect(changelog.entries[0].items[0].contains("内置node版本"))
-    #expect(changelog.entries[1].version == "5.08.2026050815-alpha")
-    #expect(changelog.entries[1].items.count == 1)
+    #expect(changelog.entries[0].version == "5.23.2026080313-alpha")
+    #expect(changelog.entries[0].items.count == 1)
+    #expect(changelog.entries[0].items[0] == "修复 cli launch 命令运行鸿蒙元服务时会卡住")
+
+    #expect(changelog.entries[1].version == "5.22.2026072503-alpha")
+    #expect(changelog.entries[1].items.count == 9)
+    #expect(
+        changelog.entries[1].items.first
+            == "修复 条件编译置灰和 对比选中文件/uni-agent插件代码修改 的预览样式冲突")
+    #expect(changelog.entries[1].items.last == "新增 对应用打包所包含的动态库进行体积优化")
 }
 
 // Trimmed real markup from github.com/ollama/ollama/releases. Two sections:

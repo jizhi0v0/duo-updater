@@ -194,6 +194,15 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// got silently truncated mid-sentence. Decoding the JSON for real yields
         /// genuine newlines and un-escaped text, sidestepping both problems.
         case postmanReleaseNotes
+        /// JetBrains' `data.services.jetbrains.com/products/releases?code=<CODE>`
+        /// (shared by IntelliJ IDEA's `IIU` and Toolbox App's `TBA`) —
+        /// `{"<CODE>": [{date, version, whatsnew, …}]}`. Regex-extractable in
+        /// principle (and formerly regex-extracted), but `whatsnew` is JSON-escaped
+        /// HTML whose embedded `\n` is exactly the two-char-escape trap that motivated
+        /// this decoder family: an item pattern that gets that wrong silently drops
+        /// entries. `Decodable` sidesteps it entirely — the JSON string is already
+        /// unescaped by the time the decoder sees it.
+        case jetBrainsProductReleases
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -1371,47 +1380,40 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 20),
 
         // IntelliJ IDEA — same JetBrains data-services API as Toolbox (`IIU`
-        // product code, stable releases only via `type=release`). Each entry's
-        // `whatsnew` is well-structured HTML: a lead `<p>` summary then `<ul><li>`
-        // bug/feature bullets with YouTrack links. The item pattern sweeps `<li>`
-        // only — the lead `<p>` ("IntelliJ IDEA X is out with…") is a boilerplate
-        // intro, not a discrete change line, so skipping it is cleaner. Major
-        // releases (2026.1) carry a richer `whatsnew` with `<strong>` section
-        // headings inside `<p>` tags; those section labels are short enough to
-        // read as items, so the `<li>` pattern suffices for both shapes.
+        // product code, stable releases only via `type=release`). Structured decode
+        // (`StructuredChangelogDecoder.decodeJetBrainsProductReleases`): the old
+        // regex path read `whatsnew` as raw JSON-escaped text, where an embedded
+        // `\n` is a two-character escape a hand-written item pattern can silently
+        // mis-anchor on (the ChatWise-class bug this decoder family exists to avoid).
+        // `Decodable` unescapes the JSON string for us, so the decoder walks real
+        // HTML instead: `whatsnew` is a lead `<p>` summary then `<ul><li>` bullets,
+        // and only the `<li>` bullets count as discrete changes — the lead `<p>`
+        // is boilerplate ("IntelliJ IDEA X is out with…"). A hotfix release with no
+        // `<li>` at all (its content is plain `<p>` prose, or just a pointer to the
+        // release notes) yields zero items and is skipped, same as the regex did.
         ChangelogRecipe(
             bundleID: "com.jetbrains.intellij",
             source: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&type=release")!,
-            entryPattern:
-                #""date"\s*:\s*"(?<date>\d{4}-\d{2}-\d{2})".*?"#
-                + #""version"\s*:\s*"(?<version>[^"]+)".*?"#
-                + #""whatsnew"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
-            itemPatterns: [#"<li>(?<item>.*?)</li>"#],
-            mode: .json,
-            maxEntries: 20),
+            maxEntries: 20,
+            structuredFormat: .jetBrainsProductReleases),
 
         // JetBrains Toolbox App — JetBrains publishes no public changelog page
         // (long-requested: YouTrack TBX-2807), but the official product-releases
         // API the download site itself uses returns the full history as JSON. The
-        // `TBA` product code is the Toolbox App; each element of the TBA array is
-        // one release with `version` ("3.5"), `build` ("3.5.0.84344"), `date`, and
-        // a `whatsnew` HTML string. Fields run date … version … build … whatsnew,
-        // so the entry anchors date→version→whatsnew. The whatsnew HTML mixes <h4>
-        // section headings with <p> feature paragraphs and <ul><li> bullet lists,
-        // so the single item pattern sweeps BOTH <p> and <li> (the <h4> labels are
-        // skipped) and a negative lookahead drops the trailing "See the full list…"
-        // footer <p>. Older releases omit whatsnew and are silently skipped; the
-        // top entries we keep all carry it and stay correctly attributed.
+        // `TBA` product code is the Toolbox App; each element of the TBA array has
+        // `version` ("3.7.2"), `date`, and a `whatsnew` HTML string. Structured
+        // decode, same reason and same decoder as IntelliJ IDEA above (shared
+        // endpoint shape, JSON-escaped HTML the regex path used to scrape as text).
+        // Toolbox's `whatsnew` is CUMULATIVE — each release concatenates its own
+        // `<li>` bullets with the full prior minor release's `<h3>`/`<h4>` + `<p>`
+        // write-up — so the decoder sweeps BOTH `<li>` and `<p>` (the decoder
+        // branches on the response's own top-level key, "TBA" vs "IIU") and drops
+        // only the trailing "See the full list of release notes…" `<p>` footer.
         ChangelogRecipe(
             bundleID: "com.jetbrains.toolbox",
             source: URL(string: "https://data.services.jetbrains.com/products/releases?code=TBA")!,
-            entryPattern:
-                #""date"\s*:\s*"(?<date>\d{4}-\d{2}-\d{2})".*?"#
-                + #""version"\s*:\s*"(?<version>[^"]+)".*?"#
-                + #""whatsnew"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
-            itemPatterns: [#"<(?:li|p)>\s*(?!See the full list)(?<item>.*?)</(?:li|p)>"#],
-            mode: .json,
-            maxEntries: 20),
+            maxEntries: 20,
+            structuredFormat: .jetBrainsProductReleases),
 
         // OpenCode (desktop) — github.com/anomalyco/opencode/releases (the repo
         // moved from sst/opencode via GitHub's org-rename redirect; we pin the

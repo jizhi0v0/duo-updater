@@ -190,7 +190,9 @@ public enum ChangelogExtractor {
 
     /// Turn line-breaking tags into spaces, then drop every remaining tag. Done in
     /// that order so `<br>`/`</p>`/`</li>` don't glue adjacent words together.
-    private static func stripTags(_ s: String) -> String {
+    /// Internal (not `private`) so `StructuredChangelogDecoder` can reuse it for
+    /// vendor HTML that arrives already JSON-unescaped by `Decodable`.
+    static func stripTags(_ s: String) -> String {
         let breaks = try? NSRegularExpression(
             pattern: #"<\s*/?\s*(br|p|li|div|ul|ol)\b[^>]*>"#,
             options: [.caseInsensitive])
@@ -210,7 +212,8 @@ public enum ChangelogExtractor {
     /// Decode the handful of entities that actually show up in changelogs, plus
     /// numeric (`&#39;`, `&#x2019;`) escapes. Deliberately small and pure — we
     /// avoid `NSAttributedString` HTML decoding (heavy and main-thread-only).
-    private static func decodeEntities(_ s: String) -> String {
+    /// Internal (not `private`) — see `stripTags`.
+    static func decodeEntities(_ s: String) -> String {
         var out = s
         let named: [String: String] = [
             "&amp;": "&", "&lt;": "<", "&gt;": ">",
@@ -319,7 +322,8 @@ public enum ChangelogExtractor {
         return out
     }
 
-    private static func collapseWhitespace(_ s: String) -> String {
+    /// Internal (not `private`) — see `stripTags`.
+    static func collapseWhitespace(_ s: String) -> String {
         let collapsed = s.replacingOccurrences(
             of: #"\s+"#, with: " ", options: .regularExpression)
         return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)

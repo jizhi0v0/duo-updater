@@ -32,6 +32,8 @@ public enum StructuredChangelogDecoder {
             return decodeGitHubDesktop(body, maxEntries: maxEntries)
         case .postmanReleaseNotes:
             return decodePostman(body, maxEntries: maxEntries)
+        case .jetBrainsProductReleases:
+            return decodeJetBrainsProductReleases(body, maxEntries: maxEntries)
         }
     }
 
@@ -489,6 +491,88 @@ public enum StructuredChangelogDecoder {
         return (version, Array(lines.dropFirst()))
     }
 
+    // MARK: - JetBrains product releases
+    // (data.services.jetbrains.com/products/releases?code=<CODE>)
+
+    /// One release from the feed. Verified against the live `IIU` (IntelliJ IDEA)
+    /// and `TBA` (Toolbox App) endpoints: both return `{"<CODE>": [ {…}, … ]}` —
+    /// exactly one top-level key — with each element carrying `date` (already
+    /// plain `YYYY-MM-DD`, no parsing needed), `version` (marketing string, e.g.
+    /// "2026.2.1" / "3.7.2"), and `whatsnew` (release-notes HTML). Fields present
+    /// in the real response but unused here (`type`, `build`, `downloads`,
+    /// `patches`, `notesLink`, `uninstallFeedbackLinks`, …) are simply omitted —
+    /// `Decodable` ignores keys a struct doesn't declare.
+    private struct JetBrainsRelease: Decodable {
+        let date: String?
+        let version: String?
+        let whatsnew: String?
+    }
+
+    /// The array is NOT a global newest-first-by-date sort — verified against both
+    /// live feeds: entries group by major-version branch (descending), and only
+    /// within a branch by date (descending). So IntelliJ IDEA's `2026.1.5` patch
+    /// (dated 2026-08-12) sits AFTER `2026.2.1` (dated 2026-08-10) in the array,
+    /// because 2026.1 is the older branch — even though 2026.1.5 is objectively the
+    /// more recently published file. That's the vendor's own "current branch first"
+    /// intent (matches what jetbrains.com/idea/whatsnew shows), so entries are kept
+    /// in document order rather than re-sorted by date.
+    static func decodeJetBrainsProductReleases(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let root = try? JSONDecoder().decode([String: [JetBrainsRelease]].self, from: data),
+              let releases = root.first?.value
+        else { return nil }
+        let code = root.first?.key ?? ""
+
+        var entries: [Changelog.Entry] = []
+        for release in releases {
+            guard let version = release.version?.trimmingCharacters(in: .whitespaces),
+                  !version.isEmpty,
+                  let whatsnew = release.whatsnew, !whatsnew.isEmpty
+            else { continue }
+            let items = jetBrainsItems(from: whatsnew, code: code)
+            guard !items.isEmpty else { continue }
+            entries.append(.init(version: version, date: release.date, items: items))
+            if let cap = maxEntries, entries.count >= cap { break }
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    /// Extract discrete change lines from one release's `whatsnew` HTML.
+    ///
+    /// IntelliJ IDEA (`IIU`) documents are standalone: the lead `<p>` is always
+    /// boilerplate ("IntelliJ IDEA X is out with…") and the trailing `<p>` is
+    /// always a "Get more details in our blog post" pointer, so only `<li>`
+    /// bullets are discrete changes. A hotfix release with no `<li>` at all (its
+    /// only content is prose `<p>`, e.g. 2026.2.0.1, or just a "see the release
+    /// notes" pointer, e.g. 2026.1.5) yields zero items and is skipped — same as
+    /// the regex recipe this replaces did.
+    ///
+    /// Toolbox App (`TBA`) documents are CUMULATIVE: one entry concatenates its
+    /// own `<li>` bullets with the full prior minor release's write-up as `<h3>`/
+    /// `<h4>` headings each followed by a `<p>` description, ending in a "See the
+    /// full list of release notes…" `<p>` footer. Headings aren't matched by this
+    /// sweep (only `<li>`/`<p>`), so both tags count as items; only that trailing
+    /// footer paragraph is dropped.
+    static func jetBrainsItems(from whatsnew: String, code: String) -> [String] {
+        let tags = code == "TBA" ? "li|p" : "li"
+        guard let regex = try? NSRegularExpression(
+            pattern: "<(\(tags))>(.*?)</\\1>",
+            options: [.caseInsensitive, .dotMatchesLineSeparators])
+        else { return [] }
+        let ns = whatsnew as NSString
+        var items: [String] = []
+        for match in regex.matches(in: whatsnew, range: NSRange(location: 0, length: ns.length)) {
+            guard match.numberOfRanges > 2 else { continue }
+            let raw = ns.substring(with: match.range(at: 2))
+            if raw.range(
+                of: #"^\s*See the full list"#, options: [.regularExpression, .caseInsensitive]
+            ) != nil { continue }
+            let cleaned = ChangelogExtractor.collapseWhitespace(
+                ChangelogExtractor.decodeEntities(ChangelogExtractor.stripTags(raw)))
+            if !cleaned.isEmpty { items.append(cleaned) }
+        }
+        return items
+    }
     // MARK: - Typeless (typeless.com/help/release-notes/macos)
 
     /// Typeless's release-notes page is a Next.js SSG page whose entire content is

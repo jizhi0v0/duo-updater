@@ -1869,28 +1869,38 @@ private let macupdaterFixture = """
     #expect(cl.entries[1].items.count == 1)
 }
 
-// Trimmed real bytes from the JetBrains TBA releases JSON. Raw string so the
-// JSON escapes (\\n between tags, \\" in attrs) stay literal as on the wire. The
-// whatsnew mixes a feature <p>, a <ul><li> bullet list, and the "See the full
-// list…" footer the item pattern must skip.
+// Trimmed real bytes from the live JetBrains TBA releases JSON
+// (data.services.jetbrains.com/products/releases?code=TBA, fetched 2026-08-21).
+// Raw string so the JSON escapes (\\n between tags, \\" in attrs) stay literal as
+// on the wire — `StructuredChangelogDecoder` decodes this with `JSONDecoder`
+// itself (not the regex `ChangelogExtractor`), so the escapes are unescaped by
+// `Decodable`, never by a hand-written item pattern. The whatsnew mixes a
+// feature <p>, a <ul><li> bullet list, and the "See the full list…" footer the
+// decoder must skip. Verified against the real recipe (`ChangelogExtractor` on
+// this same fixture with the pre-migration regex recipe): identical entry count,
+// versions, dates, item counts, and last item per entry.
 private let jbToolboxFixture = #"""
 {"TBA":[{"date":"2026-06-02","type":"release","downloads":{"mac":{"link":"https://x"}},"notesLink":"https://y","version":"3.5","majorVersion":"3.5","build":"3.5.0.84344","whatsnew":"<h3>What's New in Toolbox App 3.5</h3>\n<h4>Zoom controls</h4>\n<p>You can now zoom in and out with Cmd/Ctrl +. <a href=\"https://youtrack.jetbrains.com/issue/TBX-17170/\">TBX-17170</a></p>\n<h4>Bug fixes</h4>\n<ul>\n <li>IDEs no longer randomly disappear from the home view. <a href=\"https://x/TBX-10600/\">TBX-10600</a></li>\n</ul>\n<p>See the full list of release notes <a href=\"https://x\">here</a>.</p>"},{"date":"2026-04-15","type":"release","version":"3.4.3","majorVersion":"3.4","build":"3.4.3.81140","whatsnew":"<h3>Toolbox App 3.4.3</h3>\n<ul>\n <li>Fixed an internal error.</li>\n</ul>"}]}
 """#
 
-@Test func extractsJetBrainsToolboxReleasesFromJSON() throws {
+@Test func decodesJetBrainsToolboxReleases() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.toolbox"))
-    let cl = try #require(ChangelogExtractor.extract(from: jbToolboxFixture, using: recipe))
+    #expect(recipe.structuredFormat == .jetBrainsProductReleases)
+    let cl = try #require(StructuredChangelogDecoder.decode(
+        jbToolboxFixture, format: .jetBrainsProductReleases, channel: nil, maxEntries: nil))
 
     #expect(cl.entries.count == 2)
     #expect(cl.entries[0].version == "3.5")
     #expect(cl.entries[0].date == "2026-06-02")
-    // One feature <p> + one <li>, footer <p> dropped by the negative lookahead.
+    // One feature <p> + one <li>; footer <p> dropped.
     #expect(cl.entries[0].items.count == 2)
     #expect(cl.entries[0].items[0].hasPrefix("You can now zoom in and out with Cmd/Ctrl +."))
     #expect(cl.entries[0].items[1].hasPrefix("IDEs no longer randomly disappear"))
     #expect(!cl.entries[0].items.contains { $0.contains("See the full list") })
+    #expect(cl.entries[0].items.last == "IDEs no longer randomly disappear from the home view. TBX-10600")
     #expect(cl.entries[1].version == "3.4.3")
     #expect(cl.entries[1].items == ["Fixed an internal error."])
+    #expect(cl.entries[1].items.last == "Fixed an internal error.")
 }
 
 // Trimmed real markup from github.com/anomalyco/opencode/releases (GitHub
@@ -1933,15 +1943,23 @@ private let opencodeFixture = """
     #expect(cl.entries[1].items == ["ACP integrations can now send prompts through acp-next."])
 }
 
-// Trimmed real JSON from data.services.jetbrains.com/products/releases?code=IIU&type=release:
-// two stable releases — 2026.1.2 (bug-fix with <li> list) and 2026.1 (major with section headings).
+// Trimmed real bytes from the live JetBrains IIU releases JSON
+// (data.services.jetbrains.com/products/releases?code=IIU&type=release, fetched
+// 2026-08-21): two stable releases — 2026.1.2 (bug-fix with a <li> list, and a
+// boilerplate lead <p> the decoder must NOT count as an item) and 2026.1 (major,
+// same shape). Raw string so the JSON escapes stay literal as on the wire; see
+// `jbToolboxFixture` above for why that matters. Verified against the real
+// recipe (`ChangelogExtractor` on this same fixture with the pre-migration regex
+// recipe): identical entry count, versions, dates, item counts, and last item.
 private let intellijFixture = #"""
 {"IIU":[{"date":"2026-05-15","type":"release","notesLink":"https://youtrack.jetbrains.com/articles/IDEA-A-2100662679","version":"2026.1.2","majorVersion":"2026.1","build":"261.24374.151","whatsnew":"<p>IntelliJ IDEA 2026.1.2 is out with the following improvements:\n <br></p>\n<ul>\n <li>Projects can now be opened correctly via <code>.ipr</code> files. [<a href=\"https://youtrack.jetbrains.com/issue/IJPL-242321\">IJPL-242321</a>]</li>\n <li>The indentation for Java ternary expressions has been fixed. [<a href=\"https://youtrack.jetbrains.com/issue/IDEA-387867\">IDEA-387867</a>]</li>\n</ul>"},{"date":"2026-03-25","type":"release","version":"2026.1","majorVersion":"2026.1","build":"261.23610.47","whatsnew":"<p>IntelliJ IDEA 2026.1 is now out! The highlights include:</p>\n<ul>\n <li>ACP Registry: Browse and install AI agents in one click.</li>\n <li>Git worktrees: Work in parallel branches.</li>\n</ul>"}]}
 """#
 
-@Test func extractsIntelliJIDEAReleasesFromJSON() throws {
+@Test func decodesIntelliJIDEAReleases() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.intellij"))
-    let cl = try #require(ChangelogExtractor.extract(from: intellijFixture, using: recipe))
+    #expect(recipe.structuredFormat == .jetBrainsProductReleases)
+    let cl = try #require(StructuredChangelogDecoder.decode(
+        intellijFixture, format: .jetBrainsProductReleases, channel: nil, maxEntries: nil))
 
     #expect(cl.entries.count == 2)
     #expect(cl.entries[0].version == "2026.1.2")
@@ -1949,10 +1967,13 @@ private let intellijFixture = #"""
     #expect(cl.entries[0].items.count == 2)
     #expect(cl.entries[0].items[0].contains("Projects can now be opened correctly"))
     #expect(cl.entries[0].items[1].contains("ternary expressions"))
+    #expect(cl.entries[0].items.last == "The indentation for Java ternary expressions has been fixed. [IDEA-387867]")
+    #expect(!cl.entries[0].items.contains { $0.contains("is out with the following improvements") })
     #expect(cl.entries[1].version == "2026.1")
     #expect(cl.entries[1].date == "2026-03-25")
     #expect(cl.entries[1].items.count == 2)
     #expect(cl.entries[1].items[0].contains("ACP Registry"))
+    #expect(cl.entries[1].items.last == "Git worktrees: Work in parallel branches.")
 }
 
 // MARK: - Thunderbird (Mozilla) — Stable / ESR / Beta share one page structure

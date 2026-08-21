@@ -112,7 +112,12 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         // The "Release date: …" h4 duplicates `entry.date` and must not appear.
         XCTAssertFalse(entry.items.contains { $0.lowercased().hasPrefix("release date") })
         // The trailing footer headings are pure links to other pages, not section
-        // titles — dropped, not shown as bare "Older change logs." / "Bug report." bullets.
+        // titles. They are dropped because the vendor closes them with `<h2>` rather
+        // than `</h2>`, so the level-matched heading pattern never matches them —
+        // NOT by any filter aimed at them. (There used to be one, guessing that a
+        // heading made entirely of a link is chrome. It was removed: deleting it
+        // changed this feed's output not at all, and it would have dropped a real
+        // section title like `<h3><a href="…">What's new in 2.0</a></h3>`.)
         XCTAssertFalse(entry.items.contains("Older change logs."))
         XCTAssertFalse(entry.items.contains("Bug report."))
         // The three real <ol><li> change lines all survive, in order.
@@ -345,4 +350,80 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
     <p>We fixed a number of crashes reported by users and improved startup time on older Macs.</p>
     <p>Thanks for your continued support!</p>
     """
+
+    // MARK: - Review regressions
+    //
+    // Each of these is a shape a live feed we already fetch actually contains, and
+    // none of them was covered before: every original fixture was a shape the
+    // parser already handled, which is exactly why the parser was wrong about the
+    // ones below.
+
+    /// ImageOptim's live appcast (fetched 2026-08-22) writes all eight bullets with
+    /// no `</li>` — legal HTML5, and the extractor is anchored on `</li>`.
+    /// All-unclosed was already harmless: zero items, `entry` returns nil, the
+    /// caller falls back. Pinning it so it stays that way.
+    private static let imageOptimUnclosedLI = """
+    <ul>
+      <li>Full support for Apple Silicon CPUs.
+      <li>Workaround for Dropbox getting confused by quick file renames.
+      <li>Dark theme and window transparency fixes.
+      <li>Updated OxiPNG.
+    </ul>
+    """
+
+    func testAllUnclosedListItemsFallBackInsteadOfProducingNothing() {
+        XCTAssertFalse(AppcastHTMLChangelogParser.isStructured(Self.imageOptimUnclosedLI))
+        XCTAssertNil(AppcastHTMLChangelogParser.entry(
+            html: Self.imageOptimUnclosedLI, version: "4.2", date: nil))
+    }
+
+    /// The dangerous variant: some closed, some not. The closed ones parse, so the
+    /// entry is non-nil and there is NO fallback — the unclosed bullets just vanish.
+    /// That is the same silent-bullet-loss bug this parser exists to fix, so the
+    /// whole body must bail to the HTML path instead.
+    func testMixedClosedAndUnclosedListItemsBailRatherThanDropBullets() {
+        let mixed = "<ul><li>Closed one</li><li>Unclosed two<li>Unclosed three</ul>"
+        XCTAssertFalse(AppcastHTMLChangelogParser.isStructured(mixed),
+                       "one bullet parsing must not license dropping the other two")
+        XCTAssertNil(AppcastHTMLChangelogParser.entry(html: mixed, version: "1.0", date: nil))
+    }
+
+    /// TablePlus's live feed closes two of its headings with `<h2>` instead of
+    /// `</h2>`. With a level-agnostic `</h[234]>` close, a heading like this
+    /// swallows every `<li>` up to the next heading close of any level.
+    func testMistypedHeadingCloserDoesNotSwallowTheItemsUnderIt() throws {
+        let html = "<h2>Fixed<h2><ul><li>Crash on launch</li><li>Slow startup</li></ul>"
+            + "<h3>Added</h3><ul><li>Dark mode</li></ul>"
+        let entry = try XCTUnwrap(
+            AppcastHTMLChangelogParser.entry(html: html, version: "1.0", date: nil))
+        // The mistyped heading is lost — unavoidable, it isn't a heading — but every
+        // bullet survives, and the well-formed heading still lands in place.
+        XCTAssertEqual(entry.items, ["Crash on launch", "Slow startup", "Added", "Dark mode"])
+    }
+
+    /// TablePro writes SQL placeholders as literal angle brackets inside CDATA.
+    /// A blind `<[^>]+>` sweep deletes the identifier the sentence is about; the
+    /// recipe this parser replaced protected them with `stripTags: false`.
+    func testLiteralAngleBracketTextSurvivesTagStripping() throws {
+        let html = "<ul>"
+            + "<li>SQL Server: <code>USE &lt;database&gt;</code> switches DB</li>"
+            + "<li>Unknown types show `<unsupported: type>` instead of crashing (#965)</li>"
+            + "</ul>"
+        let entry = try XCTUnwrap(
+            AppcastHTMLChangelogParser.entry(html: html, version: "0.40.0", date: nil))
+        XCTAssertEqual(entry.items[0], "SQL Server: USE <database> switches DB")
+        XCTAssertEqual(entry.items[1], "Unknown types show `<unsupported: type>` instead of crashing (#965)")
+    }
+
+    /// Stripped elements become a space, not nothing, so adjacent runs of text stay
+    /// separate words.
+    func testStrippedBlockElementsDoNotGlueWordsTogether() throws {
+        let html = "<ul>"
+            + "<li>Line one<br>Line two</li>"
+            + "<li><p>First para.</p><p>Second para.</p></li>"
+            + "</ul>"
+        let entry = try XCTUnwrap(
+            AppcastHTMLChangelogParser.entry(html: html, version: "1.0", date: nil))
+        XCTAssertEqual(entry.items, ["Line one Line two", "First para. Second para."])
+    }
 }

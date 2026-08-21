@@ -21,6 +21,20 @@ import Foundation
 /// which at least renders the paragraphs as paragraphs — so `isStructured` gates
 /// entry into this whole path and `entry(html:version:date:)` returns nil (never
 /// throws) whenever it isn't confident the result is an improvement.
+///
+/// Scope, stated honestly: of the 19 live appcasts surveyed, four pass
+/// `isStructured` (TablePro, Fork, TablePlus, ImageOptim) and three of those are
+/// served by a `ChangelogRecipe` first, which takes precedence. **TablePro is the
+/// only registry app this parser actually renders today.** The other fixtures are
+/// still worth keeping as tests — they are real markup, and the next feed to lose
+/// its recipe lands here — but nobody should read this file believing it is
+/// carrying three vendors.
+///
+/// The failure mode to keep in mind while editing: this parser only produces a
+/// non-nil entry when it is confident, because a non-nil entry SUPPRESSES the
+/// fallback. Anything it half-understands must return nil rather than a partial
+/// answer — a partial answer is invisible to the user, and silent bullet loss is
+/// the bug this file was written to fix.
 enum AppcastHTMLChangelogParser {
 
     /// Whether `html` has enough list structure to be worth converting. Requires
@@ -29,7 +43,24 @@ enum AppcastHTMLChangelogParser {
     /// understands. Pure prose (`<p>` only, no lists) fails this and the caller
     /// keeps rendering the raw HTML through the existing fallback path.
     static func isStructured(_ html: String) -> Bool {
-        html.range(of: #"<li[\s>]"#, options: [.regularExpression, .caseInsensitive]) != nil
+        let opens = count(of: #"<li\b[^>]*>"#, in: html)
+        guard opens > 0 else { return false }
+        // Every `<li>` must be closed. `</li>` is OPTIONAL in HTML5 and vendors do
+        // omit it — ImageOptim's live appcast writes all eight of its bullets that
+        // way — while the extractor below is anchored on `</li>`. All-unclosed was
+        // already harmless (zero items, so `entry` returns nil and the caller falls
+        // back). MIXED was not: the closed ones parse, the unclosed ones vanish, and
+        // because *something* parsed there is no fallback — silently dropping
+        // bullets, which is the exact bug this parser was written to fix, in a new
+        // shape. Balanced-or-bail sends the whole body to the existing HTML path,
+        // which renders all of them (less prettily) rather than some of them.
+        return opens == count(of: #"</li\s*>"#, in: html)
+    }
+
+    private static func count(of pattern: String, in s: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+        else { return 0 }
+        return regex.numberOfMatches(in: s, range: NSRange(s.startIndex..., in: s))
     }
 
     /// Convert one appcast item's `<description>` HTML into a `Changelog.Entry`.
@@ -46,7 +77,14 @@ enum AppcastHTMLChangelogParser {
     static func entry(html: String, version: String, date: String?) -> Changelog.Entry? {
         guard !version.isEmpty, isStructured(html) else { return nil }
 
-        let pattern = #"<h[234][^>]*>(.*?)</h[234]>|<li[^>]*>(.*?)</li>"#
+        // `</h\1>` — a BACKREFERENCE, so the closing level must match the opening
+        // one. With `</h[234]>` a heading whose closer is mistyped (TablePlus's live
+        // feed really does write `<h2>…<h2>`) matches greedily up to the next
+        // heading close of ANY level, swallowing every `<li>` in between into one
+        // glued blob. Requiring the same level means a mistyped closer simply
+        // doesn't match: the heading is dropped and its items survive, which is the
+        // right way to fail.
+        let pattern = #"<h([234])[^>]*>(.*?)</h\1>|<li[^>]*>(.*?)</li>"#
         guard let regex = try? NSRegularExpression(
             pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive])
         else { return nil }
@@ -58,16 +96,11 @@ enum AppcastHTMLChangelogParser {
         var pendingHeading: String?
 
         for match in matches {
-            let headingRange = match.range(at: 1)
-            let itemRange = match.range(at: 2)
+            let headingRange = match.range(at: 2)   // group 1 is the heading level
+            let itemRange = match.range(at: 3)
 
             if headingRange.location != NSNotFound {
                 let raw = ns.substring(with: headingRange)
-                // A heading whose entire body is one link is vendor-page chrome —
-                // "Older change logs." / "Bug report." (TablePlus appends both as
-                // trailing `<h2>`s) — not a section title, so it's dropped outright
-                // rather than becoming a pending heading (and never overwrites one).
-                guard !isPureLinkHeading(raw) else { continue }
                 guard let cleaned = cleanInline(raw), !cleaned.isEmpty else { continue }
                 // A "Release date: …" heading is boilerplate metadata the entry
                 // already carries in its own `date` field (from `pubDate`); folding
@@ -95,20 +128,6 @@ enum AppcastHTMLChangelogParser {
 
     // MARK: - Internals
 
-    /// True when, after trimming whitespace, the whole heading body is a single
-    /// `<a>…</a>` — i.e. it exists to link somewhere, not to title a group of
-    /// change lines.
-    private static func isPureLinkHeading(_ raw: String) -> Bool {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        // `[\s\S]` (rather than `.dotMatchesLineSeparators`, which
-        // `String.CompareOptions` doesn't have) so a link title that happens to
-        // wrap a line still matches.
-        return trimmed.range(
-            of: #"^<a\b[^>]*>[\s\S]*</a>$"#,
-            options: [.regularExpression, .caseInsensitive]
-        ) != nil
-    }
-
     /// Matches the common Sparkle boilerplate "Release date: 12 August 2026" (and
     /// bare "Release date" with no value) so it can be dropped as metadata rather
     /// than shown as a change line.
@@ -127,8 +146,15 @@ enum AppcastHTMLChangelogParser {
         s = s.replacingOccurrences(
             of: #"<a\b[^>]*>([\s\S]*?)</a>"#, with: "$1",
             options: [.regularExpression, .caseInsensitive])
-        s = s.replacingOccurrences(
-            of: #"<[^>]+>"#, with: "", options: .regularExpression)
+        // Known HTML elements only — NOT a blind `<[^>]+>` sweep. TablePro's notes
+        // carry `` `USE <database>` `` and `` `<unsupported: type>` `` as literal
+        // text inside CDATA, and a blind sweep deletes exactly the identifier the
+        // sentence is about ("SQL Server: `USE ` switches DB"). The recipe this
+        // parser replaced protected them with `stripTags: false`; an appcast
+        // description has no such switch, so the stripper has to be the careful one.
+        // Block-level elements become a space in the process, so `<li>a<br>b</li>`
+        // no longer glues into "ab".
+        s = ChangelogExtractor.stripHTMLElements(s)
         // Shared with the recipe extractor rather than reimplemented: this file
         // originally carried its own copies because the batch that made these
         // internal had not landed in that worktree yet. `decodeHTMLEntities` (not

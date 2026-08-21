@@ -183,8 +183,20 @@ public struct SparkleAppcastSource: UpdateSource {
             }
             return true
         }
-        return usable.sorted { lhs, rhs in
-            VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) == .orderedDescending
+        // Deterministic tie-break on equal versions. `sorted(by:)` is NOT a stable
+        // sort in Swift, so per-architecture twins (TablePro publishes an arm64 and
+        // an x86_64 item per release) could come back in either order from run to
+        // run — and the changelog dedupe below keeps the FIRST item that yields
+        // notes. Identical bodies make that invisible today; the day a vendor writes
+        // per-arch notes it would silently alternate between them. Falling back to
+        // the enclosure URL is arbitrary but fixed, which is the property that
+        // matters.
+        return usable.sorted { (lhs: SparkleAppcastItem, rhs: SparkleAppcastItem) -> Bool in
+            switch VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) {
+            case .orderedDescending: return true
+            case .orderedAscending: return false
+            case .orderedSame: return (lhs.enclosureURL?.absoluteString ?? "") < (rhs.enclosureURL?.absoluteString ?? "")
+            }
         }
     }
 

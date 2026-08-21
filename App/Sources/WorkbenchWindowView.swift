@@ -1353,7 +1353,17 @@ private struct ChangelogEntriesView: View {
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .id(Self.scrollTopAnchor)
                 }
+                // BOTH triggers. `index` alone misses the most common switch there
+                // is: picking a different app resets `selection` to 0, so a user who
+                // was on entry 0 (the default) and had scrolled halfway down a long
+                // release's notes keeps that offset while the pane now shows a
+                // different app — `index` never changed, so the callback never ran.
+                // `.id(index)` had the identical hole; the commit that replaced it
+                // claimed a fix that only held for switching versions within one app.
                 .onChange(of: index) {
+                    proxy.scrollTo(Self.scrollTopAnchor, anchor: .top)
+                }
+                .onChange(of: changelog) {
                     proxy.scrollTo(Self.scrollTopAnchor, anchor: .top)
                 }
             }
@@ -1377,7 +1387,6 @@ private struct ChangelogEntriesView: View {
 
 /// The left rail of the master/detail changelog: one selectable row per version,
 /// newest first. The selected row is tinted; clicking it drives the detail pane.
-
 private struct ChangelogVersionList: View {
     let entries: [Changelog.Entry]
     @Binding var selection: Int

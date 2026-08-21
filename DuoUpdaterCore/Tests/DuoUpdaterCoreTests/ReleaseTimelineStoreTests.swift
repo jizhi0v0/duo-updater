@@ -144,6 +144,30 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
     await store.reset()
 }
 
+/// `flush` is what the model gates its snapshot refresh on, so it has to report a
+/// rename-only batch as a write — the case where both `record` and
+/// `observeForChange` correctly return false.
+@Test func flushReportsARenameOnlyBatchAsAWrite() async {
+    let store = ReleaseTimelineStore(fileURL: tempFileURL())
+    let id = "/Applications/Renamed.app"
+    await store.record(appID: id, appName: "OldName", bundleID: "com.old",
+        version: "1", sourceName: "Sparkle", publishedAt: d1)
+    #expect(await store.flush() == true)
+
+    // Nothing at all changed: same version, same name.
+    let addedAgain = await store.record(appID: id, appName: "OldName", bundleID: "com.old",
+        version: "1", sourceName: "Sparkle", publishedAt: d1)
+    #expect(!addedAgain)
+    #expect(await store.flush() == false)
+
+    // Same version, new display metadata — no event added, but the file changed.
+    let addedAfterRename = await store.record(appID: id, appName: "NewName", bundleID: "com.new",
+        version: "1", sourceName: "Sparkle", publishedAt: d1)
+    #expect(!addedAfterRename)
+    #expect(await store.flush() == true)
+    await store.reset()
+}
+
 @Test func ignoresEmptyVersion() async {
     let store = ReleaseTimelineStore(fileURL: tempFileURL())
     let added = await store.record(appID: "/e.app", appName: "E", bundleID: nil,

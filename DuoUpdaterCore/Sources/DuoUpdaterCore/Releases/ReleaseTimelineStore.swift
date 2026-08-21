@@ -158,18 +158,18 @@ public actor ReleaseTimelineStore {
         let start = min(prior.lastSeenAt, now)
         let range = DateInterval(start: start, end: now)
 
+        // Display fields are already current here: an existing timeline was
+        // refreshed and marked dirty above, and a timeline constructed by the `??`
+        // below is built from these very values. So there is nothing left to detect
+        // — a second `displayFieldsChanged` check here could never be true, and
+        // leaving one in would read as a safety net that does not exist.
         var timeline = timelines[appID] ?? AppReleaseTimeline(
             appID: appID, appName: appName, bundleID: bundleID
         )
-        let displayFieldsChanged = timeline.appName != appName || timeline.bundleID != bundleID
-        timeline.appName = appName
-        timeline.bundleID = bundleID
 
         // Don't double-record a version already known (e.g. a trustworthy event
         // landed for it earlier, or a beta flapped back).
         guard !timeline.events.contains(where: { $0.version == version }) else {
-            timelines[appID] = timeline
-            if displayFieldsChanged { timelinesDirty = true }
             return false
         }
 
@@ -196,7 +196,16 @@ public actor ReleaseTimelineStore {
     /// bounded by one check's duration, and this is a best-effort observational log:
     /// losing a few seconds of it to a crash costs nothing a later check won't
     /// re-derive.
-    public func flush() {
+    ///
+    /// - Returns: true if the timelines file was rewritten — i.e. this batch either
+    ///   logged a release or refreshed an app's display metadata. `record` and
+    ///   `observeForChange` each answer only for themselves and a rename reports
+    ///   `false` from both, so this is the only honest signal that the snapshot the
+    ///   UI holds is now out of date. The observations file is bookkeeping the UI
+    ///   never shows, so it deliberately doesn't count.
+    @discardableResult
+    public func flush() -> Bool {
+        let wroteTimelines = timelinesDirty
         if timelinesDirty {
             save()
             timelinesDirty = false
@@ -205,6 +214,7 @@ public actor ReleaseTimelineStore {
             saveObservations()
             observationsDirty = false
         }
+        return wroteTimelines
     }
 
     /// Per-app timelines, sorted by most-recent release first (apps that shipped

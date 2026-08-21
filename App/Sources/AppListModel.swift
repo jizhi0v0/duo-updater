@@ -705,11 +705,18 @@ final class AppListModel {
         // One write for the whole check. The store batches every `record` /
         // `observeForChange` above into dirty flags precisely so a 100-app check
         // doesn't turn into 100 full-file atomic rewrites.
-        await releaseTimelineStore.flush()
-        // A duplicate version can still refresh display metadata after an app rename
-        // or bundle-id correction. Refresh once per batch so that store-only change is
-        // visible even though `record` correctly reports that it added no new event.
-        releaseTimelines = await releaseTimelineStore.snapshot()
+        //
+        // `flush` reports whether it actually rewrote the timelines, which is the
+        // signal to use rather than whether any `record` returned true: a duplicate
+        // version that only refreshed an app's name or bundle id is a real change to
+        // show and both recording calls correctly report it as "added nothing".
+        // Snapshotting unconditionally would sort every timeline and reassign an
+        // `@Observable` property on every idle check, redrawing the Release Log for
+        // no reason.
+        let timelinesChanged = await releaseTimelineStore.flush()
+        if timelinesChanged || releaseTimelines.isEmpty {
+            releaseTimelines = await releaseTimelineStore.snapshot()
+        }
     }
 
     /// Per-app load state for a recipe-backed changelog, keyed by

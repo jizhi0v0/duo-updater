@@ -4363,15 +4363,29 @@ final class AppListModel {
         pinnedOrder = Dictionary(
             results.enumerated().map { ($0.element.id, $0.offset) },
             uniquingKeysWith: { first, _ in first })
+        // A freeze that failed to lift looks exactly like a freeze that never
+        // engaged — from outside, both are "the list stopped re-sorting". Say when
+        // it starts and when it ends, for the same reason `refreshLocal` says why it
+        // skipped: without it, the two are indistinguishable in a live-log session.
+        Log.app.debug("row order: frozen (\(self.pinnedOrder.count, privacy: .public) rows)")
     }
 
     /// Lift the freeze and re-sort once — but only when nothing is left in flight.
     /// Safe to call from every settle point; it no-ops until the last one.
     private func releaseRowOrder() {
-        guard !pinnedOrder.isEmpty, installing.isEmpty, !isInstallingAll,
-              relaunching.isEmpty, justUpdated.isEmpty else { return }
+        guard !pinnedOrder.isEmpty else { return }
+        guard installing.isEmpty, !isInstallingAll, relaunching.isEmpty, justUpdated.isEmpty
+        else {
+            let holding = !installing.isEmpty ? "installing (\(installing.count))"
+                : isInstallingAll ? "batch install"
+                : !relaunching.isEmpty ? "relaunching (\(relaunching.count))"
+                : "just-updated confirmation"
+            Log.app.debug("row order: still frozen — \(holding, privacy: .public)")
+            return
+        }
         pinnedOrder = [:]
         results = sorted(results)
+        Log.app.debug("row order: released — re-sorted")
     }
 }
 

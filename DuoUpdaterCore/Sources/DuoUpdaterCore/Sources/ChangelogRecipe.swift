@@ -169,6 +169,12 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// lost its last bullet). Decoding the JSON hands us real newlines and
         /// retires that whole class of bug.
         case chatwiseReleases
+        /// GitHub Desktop's `central.github.com/deployments/desktop/desktop/
+        /// changelog.json` (and its `?env=beta` twin, a separate URL/recipe) — a flat
+        /// array of `{name, notes, pub_date, version}`, newest-first, where `notes` is
+        /// already an array of one-line strings. No regex needed; the decoder just
+        /// walks the array.
+        case gitHubDesktopChangelog
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -1466,36 +1472,30 @@ public enum ChangelogRecipeRegistry {
         // plain JSON array, newest-first, each element:
         //   {"name":"","notes":["[Fixed] …- #22219", …],
         //    "pub_date":"2026-06-01T17:43:05Z","version":"3.5.12"}
-        // `version` is LAST in each object, so the entry pattern walks name→notes→
-        // pub_date→version in document order; `body` is the notes array, sliced into
-        // items by the JSON-string pattern (each note keeps its `[Fixed]`/`[Added]`
-        // prefix and trailing `- #issue`). Stable feed carries bare `3.5.12`; beta
-        // carries `3.5.12-beta2`. JSON mode + decodeEntities unescapes the `\"` some
-        // beta notes contain. A parse miss just falls back to embedding the SPA.
+        // `notes` is already an array of one-line strings (each keeping the vendor's
+        // own `[Fixed]`/`[Added]`/`[Improved]` prefix and trailing `- #issue`) — this
+        // feed was structured JSON all along, so it's decoded by
+        // `StructuredChangelogDecoder.decodeGitHubDesktop` rather than regex-scraped;
+        // see `.gitHubDesktopChangelog` for the shape. Stable feed carries bare
+        // `3.5.12`; beta carries `3.5.12-beta2`. A parse miss just falls back to
+        // embedding the SPA. `channel` here is only for the recipe-registry lookup
+        // (`ChangelogRecipeRegistry.recipe(forBundleID:channel:)` picks stable vs.
+        // beta by it) — the decoder itself takes no channel, since stable and beta
+        // are two different URLs, not one document split by a channel key.
         ChangelogRecipe(
             bundleID: "com.github.GitHubClient",
             source: URL(string: "https://central.github.com/deployments/desktop/desktop/changelog.json")!,
-            entryPattern:
-                #"\{"name":"[^"]*","notes":\[(?<body>.*?)\],"#
-                + #""pub_date":"(?<date>\d{4}-\d{2}-\d{2})[^"]*","version":"(?<version>[^"]+)"\}"#,
-            itemPatterns: [#""(?<item>(?:\\.|[^"\\])*)""#],
-            mode: .json,
-            stripTags: false,
-            channel: .stable),
+            channel: .stable,
+            structuredFormat: .gitHubDesktopChangelog),
 
         // GitHub Desktop Beta — same feed with `?env=beta`, matched by `channel:
         // .beta` so a `-betaN`-detected install gets beta notes (`3.5.12-beta2`)
-        // instead of the stable train. Identical structure/patterns.
+        // instead of the stable train. Identical structured decoder.
         ChangelogRecipe(
             bundleID: "com.github.GitHubClient",
             source: URL(string: "https://central.github.com/deployments/desktop/desktop/changelog.json?env=beta")!,
-            entryPattern:
-                #"\{"name":"[^"]*","notes":\[(?<body>.*?)\],"#
-                + #""pub_date":"(?<date>\d{4}-\d{2}-\d{2})[^"]*","version":"(?<version>[^"]+)"\}"#,
-            itemPatterns: [#""(?<item>(?:\\.|[^"\\])*)""#],
-            mode: .json,
-            stripTags: false,
-            channel: .beta),
+            channel: .beta,
+            structuredFormat: .gitHubDesktopChangelog),
 
         // (No Alcove recipe. It parsed the `body` of update.tryalcove.com, which the
         // vendor retired outright — NXDOMAIN. Its replacement as the public version

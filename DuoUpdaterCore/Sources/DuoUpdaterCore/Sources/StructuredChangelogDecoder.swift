@@ -26,6 +26,8 @@ public enum StructuredChangelogDecoder {
             return decodeWeChatDevTools(body)
         case .chatwiseReleases:
             return decodeChatWise(body, maxEntries: maxEntries)
+        case .gitHubDesktopChangelog:
+            return decodeGitHubDesktop(body, maxEntries: maxEntries)
         }
     }
 
@@ -281,6 +283,56 @@ public enum StructuredChangelogDecoder {
             if let cap = maxEntries, entries.count >= cap { break }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    // MARK: - GitHub Desktop (central.github.com/deployments/desktop/desktop/changelog.json)
+
+    /// The feed is a flat JSON array, newest-first, of `{name, notes, pub_date,
+    /// version}` — `notes` is already an array of one-line strings (each keeping the
+    /// vendor's own `[Fixed]`/`[Added]`/`[Improved]` prefix and trailing `- #issue`),
+    /// so there is no markdown to split or clean, just JSON strings to decode as-is.
+    /// `name` is always empty in practice and unused. Stable and beta are two
+    /// separate URLs (`?env=beta` on the same host), not one document with a
+    /// per-channel key, so unlike Warp this decoder takes no `channel` — the two
+    /// `ChangelogRecipe`s just point at different endpoints and share this format.
+    private struct GitHubDesktopEntry: Decodable {
+        let notes: [String]?
+        let pubDate: String?
+        let version: String?
+        enum CodingKeys: String, CodingKey {
+            case notes
+            case pubDate = "pub_date"
+            case version
+        }
+    }
+
+    static func decodeGitHubDesktop(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let feed = try? JSONDecoder().decode([GitHubDesktopEntry].self, from: data),
+              !feed.isEmpty
+        else { return nil }
+
+        var entries: [Changelog.Entry] = []
+        for entry in feed {
+            guard let version = entry.version, !version.isEmpty else { continue }
+            let items = (entry.notes ?? []).filter { !$0.isEmpty }
+            guard !items.isEmpty else { continue }
+            entries.append(.init(
+                version: version, date: gitHubDesktopDate(entry.pubDate), items: items))
+            if let cap = maxEntries, entries.count >= cap { break }
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    /// `2026-06-01T17:43:05Z` → `2026-06-01`, matching the old regex recipe's
+    /// `"pub_date":"(?<date>\d{4}-\d{2}-\d{2})[^"]*"` capture (day precision only,
+    /// no time-of-day shown in the UI). nil when the leading segment isn't a plain
+    /// date, rather than showing a raw ISO string.
+    static func gitHubDesktopDate(_ raw: String?) -> String? {
+        guard let raw, raw.count >= 10 else { return nil }
+        let ymd = String(raw.prefix(10))
+        return ymd.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
+            ? ymd : nil
     }
 
     // MARK: - Typeless (typeless.com/help/release-notes/macos)

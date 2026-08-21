@@ -277,40 +277,74 @@ private let aweSunFixture = #"""
     #expect(changelog.entries[1].items[0] == "Fixed a bug causing SmartDelete to crash.")
 }
 
-@Test func extractsChatWiseEntriesFromJSON() throws {
+@Test func chatWiseRecipeIsStructuredJSON() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "app.chatwise"))
-    let changelog = try #require(ChangelogExtractor.extract(from: chatWiseFixture, using: recipe))
-
-    #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "26.5.3")
-    #expect(changelog.entries[0].date == "2026-05-29T07:02:44.116Z")
-    #expect(changelog.entries[0].items.count == 1)
-    #expect(changelog.entries[0].items[0] == "Add Claude Opus 4.8 and adjust Claude reasoning support")
-    #expect(changelog.entries[1].version == "26.5.2")
-    #expect(changelog.entries[1].items.count == 3)
-    #expect(changelog.entries[1].items[1] == "Custom provider: add Responses API support for openai-compatible providers")
+    #expect(recipe.structuredFormat == .chatwiseReleases)
+    #expect(recipe.source.absoluteString == "https://releases.chatwise.app/releases")
 }
 
-@Test func extractsGitHubDesktopPerChannelFromJSON() throws {
-    // Stable channel → bare semver versions, plain-text notes.
+@Test func decodesChatWiseKeepingTheLastBullet() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        chatWiseFixture, format: .chatwiseReleases, channel: nil, maxEntries: 20))
+
+    #expect(changelog.entries.count == 2)
+
+    // 26.6.0's changelog string has no trailing `\n` escape, so its only bullet
+    // IS its last bullet — the case the previous regex pattern dropped outright.
+    #expect(changelog.entries[0].version == "26.6.0")
+    #expect(changelog.entries[0].date == "2026-06-26")
+    #expect(changelog.entries[0].items == ["new provider: cloudflare workers ai"])
+
+    // Multi-bullet entry: pin the count AND the final item specifically, so a
+    // regression that silently truncates the tail fails here rather than merely
+    // shrinking a count somewhere.
+    let multi = changelog.entries[1]
+    #expect(multi.version == "26.5.2")
+    #expect(multi.date == "2026-05-27")
+    #expect(multi.items.count == 4)
+    #expect(multi.items.first == "Add `curl.md` web fetch provider support")
+    #expect(multi.items.last == "Add CJK-friendly remark plugins for better markdown rendering")
+}
+
+@Test func extractsGitHubDesktopPerChannelFromStructuredJSON() throws {
+    // Stable channel → recipe wiring: bundle id resolves to the .stable recipe,
+    // and it's declared structured (no regex left to exercise).
     let stable = try #require(ChangelogRecipeRegistry.recipe(
         forBundleID: "com.github.GitHubClient", channel: .stable))
-    let scl = try #require(ChangelogExtractor.extract(from: ghDesktopStableFixture, using: stable))
+    #expect(stable.structuredFormat == .gitHubDesktopChangelog)
+    let scl = try #require(StructuredChangelogDecoder.decode(
+        ghDesktopStableFixture, format: stable.structuredFormat!,
+        channel: stable.channel, maxEntries: stable.maxEntries))
     #expect(scl.entries.count == 2)
-    #expect(scl.entries[0].version == "3.5.12")
-    #expect(scl.entries[0].date == "2026-06-01")
-    #expect(scl.entries[0].items.count == 1)
-    #expect(scl.entries[0].items[0] == "[Fixed] Items in lists such as branches and changed files are properly announced by screen readers on Windows - #22219")
-    #expect(scl.entries[1].version == "3.5.11")
+    #expect(scl.entries[0].version == "3.6.4")
+    #expect(scl.entries[0].date == "2026-08-11")
+    #expect(scl.entries[0].items.count == 2)
+    #expect(scl.entries[0].items[0] == "[Improved] Update Git for Windows to v2.53.0.windows.4")
+    #expect(scl.entries[1].version == "3.6.3")
+    #expect(scl.entries[1].date == "2026-07-14")
+    #expect(scl.entries[1].items.count == 9)
+    // A real JSON `\"@null\"` escape inside the entry must decode to a literal
+    // quote, not survive as a backslash-quote.
+    #expect(scl.entries[1].items[1] == "[Fixed] Keep commit message @-mention autocomplete from surfacing users without a profile name when typing queries like \"@null\" - #22414. Thanks @sukanth!")
+    #expect(scl.entries[1].items.last == "[Improved] Clarify the line-ending conversion warning to explain that Git will automatically convert the file's line endings on next checkout, with a link to learn more - #21446. Thanks @Whitebrim!")
 
-    // Beta channel — SAME bundle id, selected by `channel: .beta`: -betaN version,
-    // and the JSON `\"` escape in the first note must decode to a real quote.
+    // Beta channel — SAME bundle id, a DIFFERENT recipe/URL (`?env=beta`),
+    // selected by `channel: .beta`. Same structured format.
     let beta = try #require(ChangelogRecipeRegistry.recipe(
         forBundleID: "com.github.GitHubClient", channel: .beta))
-    let bcl = try #require(ChangelogExtractor.extract(from: ghDesktopBetaFixture, using: beta))
-    #expect(bcl.entries[0].version == "3.5.12-beta2")
+    #expect(beta.structuredFormat == .gitHubDesktopChangelog)
+    let bcl = try #require(StructuredChangelogDecoder.decode(
+        ghDesktopBetaFixture, format: beta.structuredFormat!,
+        channel: beta.channel, maxEntries: beta.maxEntries))
+    #expect(bcl.entries.count == 2)
+    #expect(bcl.entries[0].version == "3.6.3-beta3")
+    #expect(bcl.entries[0].date == "2026-07-08")
     #expect(bcl.entries[0].items.count == 2)
-    #expect(bcl.entries[0].items[0] == "[Improved] Show \"No newline at end of file\" as visible text in the diff view instead of requiring a tooltip hover - #22204")
+    #expect(bcl.entries[0].items[0] == "[Fixed] Resolve error that prevented Copilot-based features from working correctly on Windows - #22509")
+    #expect(bcl.entries[0].items.last == "[Fixed] Keep commit message @-mention autocomplete from surfacing users without a profile name when typing queries like \"@null\" - #22414. Thanks @sukanth!")
+    #expect(bcl.entries[1].version == "3.6.3-beta2")
+    #expect(bcl.entries[1].items.count == 5)
+    #expect(bcl.entries[1].items.last == "[Fixed] Copilot sessions from generating commit messages or resolving conflicts do not show up in VS Code - #22443")
 }
 
 @Test func extractsLatestVSCodeReleaseHighlights() throws {

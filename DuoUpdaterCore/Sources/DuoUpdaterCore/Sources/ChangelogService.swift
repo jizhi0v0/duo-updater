@@ -283,6 +283,37 @@ public enum ChangelogService {
         return URL(string: String(body[r]), relativeTo: base)?.absoluteURL
     }
 
+
+    /// STRICTLY api.github.com. The Authorization header must never ride along to
+    /// some other vendor's changelog host just because a recipe happens to point
+    /// at a URL containing "github" (raw.githubusercontent.com hosts TablePro's
+    /// appcast, for one) — a credential leak is a much worse failure than a rate
+    /// limit.
+    static func isGitHubAPI(_ url: URL) -> Bool {
+        url.host?.lowercased() == "api.github.com"
+    }
+
+    /// Resolved once per process, not per request: `GitHubToken.resolve()` may
+    /// shell out to `gh auth token`, and its own documentation says callers should
+    /// resolve once per run rather than per request. `nil` is cached too — a
+    /// machine with no token must not re-spawn `gh` on every changelog open.
+    private nonisolated(unsafe) static var cachedToken: String??
+    private static let tokenLock = NSLock()
+    static func gitHubToken() -> String? {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        if let cachedToken { return cachedToken }
+        let resolved = GitHubToken.resolve()
+        cachedToken = resolved
+        // `.notice`, not `.debug`: a third-party subsystem's debug/info lines are
+        // not persisted, and this one answers "am I exposed to the 60/hour
+        // unauthenticated limit right now?" — exactly what you want to be able to
+        // read back after the fact. Once per process, so it costs nothing.
+        Log.source.notice(
+            "changelog GitHub auth: \(resolved != nil ? "token" : "anonymous", privacy: .public)")
+        return resolved
+    }
+
     /// Fetch a URL with the browser-like UA and return its body as a string, or
     /// nil on network error / non-2xx. Shared by the index and detail fetches.
     private static func fetchBody(_ url: URL, session: URLSession) async -> String? {
@@ -302,6 +333,16 @@ public enum ChangelogService {
         // and just 304 here.)
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        // A recipe may read the GitHub API (Zed's notes come from the same
+        // `/releases` endpoint the version check already uses). Unauthenticated
+        // that is 60 requests/hour PER IP, shared with every GitHub-sourced
+        // version check on the machine — and a full `duo verify` sweep spends two
+        // of them on Zed alone, so the recipes turned up as HTTP 403 "BROKEN"
+        // while a perfectly good token sat in `gh` unused. Same token the
+        // GitHub source sends; 5000/hour once attached.
+        if isGitHubAPI(url), let token = gitHubToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         guard let (data, response) = try? await session.data(for: request) else {
             return (nil, nil)
         }

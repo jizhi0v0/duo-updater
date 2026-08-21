@@ -97,22 +97,31 @@ public struct SparkleAppcastSource: UpdateSource {
     static func structuredChangelog(from usable: [SparkleAppcastItem]) -> Changelog? {
         let maxEntries = 40
         var entries: [Changelog.Entry] = []
+        // One RELEASE can be several <item>s. TablePro publishes its 0.67.0 twice —
+        // once per architecture (…-arm64.zip / …-x86_64.zip), same build, same
+        // notes, `pubDate` one second apart — so walking items 1:1 rendered every
+        // version twice in the rail. Key on the version the entry will display and
+        // keep the first item that yields notes; that's the same defence
+        // `ChangelogExtractor` already applies to pages that repeat their content.
+        var seen: Set<String> = []
         for item in usable {
             if entries.count >= maxEntries { break }
             let version = item.shortVersionString ?? item.version ?? ""
-            guard !version.isEmpty else { continue }
+            guard !version.isEmpty, !seen.contains(version) else { continue }
             let date = AppcastMarkdownParser.displayDate(from: item.pubDate)
 
             if let md = item.markdownDescription {
                 let notes = AppcastMarkdownParser.items(from: md)
                 guard !notes.isEmpty else { continue }
                 entries.append(Changelog.Entry(version: version, date: date, items: notes))
+                seen.insert(version)
                 continue
             }
 
             if let html = item.descriptionHTML,
                let entry = AppcastHTMLChangelogParser.entry(html: html, version: version, date: date) {
                 entries.append(entry)
+                seen.insert(version)
             }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)

@@ -175,6 +175,49 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         XCTAssertEqual(changelog.entries.first?.items.first, "Added")
     }
 
+    /// TablePro publishes every release TWICE — once per architecture, same build
+    /// and same notes, `pubDate` one second apart — which rendered each version
+    /// twice in the rail. Byte-real pair lifted from the live feed (0.67.0's arm64
+    /// item at 13:40:28 and its x86_64 twin at 13:40:29).
+    func testPerArchitectureDuplicateItemsCollapseToOneEntry() throws {
+        func item(_ arch: String, _ second: String) -> String {
+            """
+              <item>
+                <title>0.64.0</title>
+                <pubDate>Mon, 10 Aug 2026 16:19:\(second) +0000</pubDate>
+                <sparkle:version>117</sparkle:version>
+                <sparkle:shortVersionString>0.64.0</sparkle:shortVersionString>
+                <description><![CDATA[\(Self.tableProItem064Description)]]></description>
+                <enclosure url="https://example.invalid/TablePro-0.64.0-\(arch).zip" sparkle:version="117" sparkle:shortVersionString="0.64.0"/>
+              </item>
+            """
+        }
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+        <channel>
+        \(item("arm64", "26"))
+        \(item("x86_64", "27"))
+        </channel>
+        </rss>
+        """
+        let parsed = SparkleAppcastParser.parse(xml.data(using: .utf8)!)
+        XCTAssertEqual(parsed.count, 2, "the feed really does carry two items")
+
+        let app = InstalledApp(
+            name: "TablePro", bundleID: "com.TablePro",
+            shortVersion: "0.60.1", buildVersion: "113",
+            path: URL(fileURLWithPath: "/Applications/TablePro.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        let usable = SparkleAppcastSource.usableItems(for: app, from: parsed, osVersion: "26.0.0")
+        XCTAssertEqual(usable.count, 2)
+
+        let changelog = try XCTUnwrap(SparkleAppcastSource.structuredChangelog(from: usable))
+        XCTAssertEqual(changelog.entries.count, 1, "one release, one entry")
+        XCTAssertEqual(changelog.entries.first?.version, "0.64.0")
+        XCTAssertEqual(changelog.entries.map(\.version), ["0.64.0"])
+    }
+
     // MARK: - Fixtures (real bytes; see file-level doc comment)
 
     private static let tableProItem064Description = """

@@ -40,7 +40,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///   * OrbStack → `UserDefaults[updates_optinChannel]`               (String: the channel name)
 ///   * TablePlus→ `UserDefaults[ViewSetting][IsReceiveBetaBuild]`     (Bool: true→beta, via header)
 ///   * CleanShot→ `UserDefaults[activationKey]`                       (String: license key → personalized feed)
-///   * Tailscale→ `UserDefaults[UnstableUpdatesEnabled]`             (Bool: true→unstable)
+///   * Tailscale→ `UserDefaults[UnstableUpdatesEnabled]` + `[RCUpdatesEnabled]`
+///                                                          (two Bools, three tracks)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic

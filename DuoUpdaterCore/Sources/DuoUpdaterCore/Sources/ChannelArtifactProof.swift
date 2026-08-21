@@ -112,6 +112,7 @@ public enum ChannelProofRegistry {
         // MARK: Everything else
         ChannelProofKey("dev.warp.Warp-Preview", .preview): .artifact(#"channel=preview"#),
         ChannelProofKey("io.tailscale.ipn.macsys", .unstable): .artifact(#"/unstable/"#),
+        ChannelProofKey("io.tailscale.ipn.macsys", .rc): .artifact(#"/release-candidate/"#),
         ChannelProofKey("com.figma.DesktopBeta", .beta): .artifact(#"/beta/FigmaBeta-"#),
         // Alfred serves stable and pre-release from two endpoints that frequently
         // carry the SAME build (both were 5.7.3 (2320) on 2026-08-09), and the

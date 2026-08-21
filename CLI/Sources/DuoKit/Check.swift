@@ -69,9 +69,18 @@ public enum Check {
             return 2
         }
 
+        // An ignored app is not asked after — its row would be filtered out below
+        // anyway, so the request buys nothing. Two things override that, and both
+        // are the user asking about this app specifically: naming it, and asking
+        // for hidden rows. `list` asks no source at all, so it never filters here.
+        let checkable = options.checkForUpdates
+            ? settings.appsWorthChecking(
+                selected, named: !options.queries.isEmpty, includeHidden: options.includeHidden)
+            : selected
+
         let results: [UpdateResult]
         if options.checkForUpdates {
-            results = await Inventory.checker(settings).check(selected)
+            results = await Inventory.checker(settings).check(checkable)
         } else {
             results = selected.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
         }

@@ -182,6 +182,20 @@ public enum InstallPreferenceKey {
 /// ignore matches either key, so un-ignoring has to clear both.
 public enum VisibilityRules {
 
+    /// Whether this app is worth spending a network check on.
+    ///
+    /// Ignoring an app means "stop telling me about this one" — nothing will be
+    /// said about the answer however it comes back, so the request is pure cost.
+    /// On an unauthenticated GitHub budget (60 requests an hour) it is cost that
+    /// pushes apps the user *does* watch out of the hour.
+    ///
+    /// A **skipped version** is deliberately not covered here and must keep being
+    /// checked: whether the version being offered is still the one the user
+    /// skipped is knowable only by asking. Skipping 3.3 hides 3.3, not 3.4.
+    public static func deservesCheck(_ app: InstalledApp, ignoredKeys: Set<String>) -> Bool {
+        !isIgnored(app, ignoredKeys: ignoredKeys)
+    }
+
     public static func isIgnored(_ app: InstalledApp, ignoredKeys: Set<String>) -> Bool {
         ignoredKeys.contains(InstallPreferenceKey.key(for: app))
             || ignoredKeys.contains(InstallPreferenceKey.legacyKey(for: app))

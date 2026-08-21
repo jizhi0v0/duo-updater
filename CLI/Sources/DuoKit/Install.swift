@@ -69,8 +69,12 @@ public enum Install {
             return 2
         }
 
-        print("Checking \(selected.count) app\(selected.count == 1 ? "" : "s")…")
-        let results = await Inventory.checker(settings).check(selected)
+        // `--all` means "the updates I would see", which excludes ignored apps —
+        // so don't spend a request on them either. A *named* app is honoured even
+        // when hidden (see the loop below), and must therefore still be checked.
+        let checkable = settings.appsWorthChecking(selected, named: !options.queries.isEmpty)
+        print("Checking \(checkable.count) app\(checkable.count == 1 ? "" : "s")…")
+        let results = await Inventory.checker(settings).check(checkable)
 
         let environment = InstallEnvironment(
             isHelperEnabled: false,

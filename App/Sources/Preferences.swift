@@ -454,6 +454,12 @@ final class Preferences {
         VisibilityRules.isIgnored(app, ignoredKeys: ignoredKeys)
     }
 
+    /// Whether a refresh should spend a request on this app. See
+    /// `VisibilityRules.deservesCheck` for why a skipped version still is one.
+    func deservesCheck(_ app: InstalledApp) -> Bool {
+        VisibilityRules.deservesCheck(app, ignoredKeys: ignoredKeys)
+    }
+
     func setIgnored(_ ignored: Bool, _ app: InstalledApp) {
         if ignored {
             ignoredKeys.insert(key(for: app))

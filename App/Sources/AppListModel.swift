@@ -1159,8 +1159,21 @@ final class AppListModel {
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)
-        Log.app.info("refresh: checking \(found.count, privacy: .public) apps")
-        let checked = await checker.check(found)
+        // Ignored apps are not asked after. Nothing would be said about the answer,
+        // so the request is pure cost — and against an unauthenticated GitHub hour
+        // it is cost that crowds out the apps the user does watch.
+        //
+        // They stay in the list as rows, but with no remote at all rather than the
+        // one they were last checked with: `mergeScanned` would otherwise carry the
+        // old remote forward and keep re-deriving a verdict from it, so "Show all"
+        // would show a frozen "3.2 → 3.3" that nothing is refreshing any more —
+        // worse than saying nothing, because it reads as current.
+        let checkable = found.filter { prefs.deservesCheck($0) }
+        let ignored = found.filter { !prefs.deservesCheck($0) }
+        Log.app.info(
+            "refresh: checking \(checkable.count, privacy: .public) apps, skipping \(ignored.count, privacy: .public) ignored")
+        let checked = await checker.check(checkable)
+            + ignored.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
         results = sorted(checked)
         // Pre-warm the disk changelog cache for anything pending, so opening its
         // notes is instant (and a no-op network-wise for versions already cached).
@@ -3513,11 +3526,31 @@ final class AppListModel {
             // outlives the ignore on its own — clearing notifications isn't what
             // anyone does next after ignoring an app.
             UpdateNotifier.clearSelfDownloaded(appID: result.id)
+        } else {
+            // Un-ignoring has to ask. While the app was ignored no refresh spent a
+            // request on it, so its row carries no remote at all — without this it
+            // would sit at the bare source hint until the next scheduled check, up
+            // to an hour of a row that reads as broken right after the user asked
+            // to see it again.
+            Task { await recheckAfterUnignore(result) }
         }
         // Re-evaluate the reminder loop in both directions: ignoring the last staged
         // app should tear it down, and un-ignoring one should arm it again.
         updateSelfUpdateReminder()
         Log.app.info("\(nowIgnored ? "ignore" : "unignore", privacy: .public): \(result.app.name, privacy: .public)")
+    }
+
+    /// Re-check one app the moment it stops being ignored, so the row it comes back
+    /// to is a real verdict rather than the blank one an ignored app carries.
+    private func recheckAfterUnignore(_ result: UpdateResult) async {
+        guard installing[result.id] == nil else { return }
+        installing[result.id] = .checking
+        let updated = await recheck(result)
+        installing[result.id] = nil
+        replaceRow(updated)
+        syncDockBadge()
+        Log.app.info(
+            "unignore re-check: \(updated.app.name, privacy: .public) → \(String(describing: updated.status), privacy: .public)")
     }
 
     /// Whether this row is demoted to "Open" purely because the user dismissed its

@@ -83,6 +83,26 @@ public struct Settings: Sendable {
                     licenseKey: licenseKey, instanceID: instanceID))
     }
 
+    /// Whether a check should spend a request on this app. Only outright ignore
+    /// buys the saving — see `VisibilityRules.deservesCheck` for why a skipped
+    /// version has to keep being asked about.
+    public func deservesCheck(_ app: InstalledApp) -> Bool {
+        VisibilityRules.deservesCheck(app, ignoredKeys: ignoredKeys)
+    }
+
+    /// The apps a run should actually spend requests on.
+    ///
+    /// An ignored app's row is filtered out of the output anyway, so asking about
+    /// it buys nothing. Two things put it back, and both are the user asking about
+    /// that app specifically: naming it on the command line, and asking for hidden
+    /// rows. A skipped version is never dropped here — `deservesCheck` says why.
+    public func appsWorthChecking(
+        _ apps: [InstalledApp], named: Bool = false, includeHidden: Bool = false
+    ) -> [InstalledApp] {
+        guard !named, !includeHidden else { return apps }
+        return apps.filter { deservesCheck($0) }
+    }
+
     /// Whether the user has hidden this app: ignored outright, or told to skip
     /// exactly the version being offered. The same two predicates the app's
     /// `isActionableUpdate` runs, so a row counted here is a row counted there.

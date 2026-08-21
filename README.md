@@ -56,16 +56,23 @@ Apps are scanned from `/Applications`, `/Applications/Utilities`, and
 1. **Mac App Store** — iTunes lookup API, with storefront/region awareness
    (only native `mac-software` results are trusted; iOS-on-Mac apps are skipped
    to avoid phantom updates).
-2. **Sparkle** — the app's own `SUFeedURL` appcast.
-3. **Homebrew Cask** — matched by `.app` filename, falling back to bundle id
+2. **Xcode Releases** — non-App-Store Xcode beta and RC builds, matched to the
+   installed release channel.
+3. **Sparkle** — the app's own `SUFeedURL` appcast.
+4. **Homebrew Cask** — matched by `.app` filename, falling back to bundle id
    (so `pkg`-only casks like AweSun are still found).
+5. **GitHub Releases** — channel-aware release/tag matching for apps distributed
+   through GitHub, with installable assets only where an explicit rule vets one.
+6. **Alcove** — its authenticated update endpoint when the user has supplied a
+   licence; omitted otherwise.
+7. **Vendor probes** — curated vendor-owned endpoints as the final fallback.
 
 It **respects each app's own update channel**:
 
 | Channel | Action |
 | --- | --- |
-| Sparkle | Native install — download → EdDSA + code-signature + Team ID checks → swap → relaunch |
-| Mac App Store | Open the store page (deep link); region-locked apps are flagged |
+| Sparkle | Native install — EdDSA when the app supplies a key, then code-signature + Team ID + bundle ID checks → swap → relaunch |
+| Mac App Store | Full store-daemon download by default; optional App Store UI route, with a deep-link fallback; region-locked apps are flagged |
 | Self-updating (Electron/Squirrel) | Open the app and let it update itself |
 | Homebrew app cask | `brew install --cask --force` |
 | Homebrew `pkg` cask | Download the official package and open the system installer |

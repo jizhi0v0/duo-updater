@@ -3,6 +3,9 @@
 A macOS menu-bar app that finds updates for the apps you already have, and
 installs them the way each app expects to be updated.
 
+**[duoupdater.app](https://duoupdater.app)** — the download, the release notes,
+and what it checks before replacing an app.
+
 Most updaters pick one mechanism and push every app through it. This one reads
 each app's own release channel — its Sparkle appcast, its App Store listing, its
 Homebrew cask, its vendor's release feed — and uses that. When an app ships its

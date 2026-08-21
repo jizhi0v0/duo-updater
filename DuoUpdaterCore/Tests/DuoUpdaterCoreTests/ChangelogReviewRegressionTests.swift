@@ -145,14 +145,28 @@ private let hbuilderXCodeSpanFixture = #"""
     let changelog = try #require(StructuredChangelogDecoder.decodeZedGitHubReleases(feed, channel: .preview, maxEntries: 15))
     let entry = try #require(changelog.entries.first)
     #expect(entry.version == "1.5.3")
-    #expect(entry.items == ["No public-facing changes in this release. View the commits"])
+    // The Markdown link is KEPT rather than flattened: the entry carries
+    // `.markdown` item syntax, so it renders as a link the reader can follow.
+    // (The Zed-only fallback this replaced flattened it to bare text, which was
+    // the wrong call for a `.markdown` entry.)
+    #expect(entry.items == [
+        "No public-facing changes in this release. "
+            + "[View the commits](https://github.com/zed-industries/zed/compare/v1.5.2-pre...v1.5.3-pre)",
+    ])
 }
 
 /// …but a body with nothing renderable at all is still skipped, rather than
 /// producing a bare version heading with an empty bullet under it.
-@Test func zedStillSkipsAReleaseWithNothingRenderable() {
-    #expect(StructuredChangelogDecoder.zedProseFallback(body: "## Heading only\n\n### Another\n") == nil)
-    #expect(StructuredChangelogDecoder.zedProseFallback(body: "   \n\n  \n") == nil)
+///
+/// The fallback that makes the test above pass now lives in `GitHubMarkdownParser`
+/// rather than in a Zed-only branch here — every GitHub-sourced app has the same
+/// shape and deserves the same treatment. Asserted through the public parser so
+/// this stays true wherever the implementation sits.
+@Test func aReleaseWithNothingRenderableIsStillSkipped() {
+    #expect(GitHubMarkdownParser.parse(
+        body: "## Heading only\n\n### Another\n", version: "1.0", date: nil) == nil)
+    #expect(GitHubMarkdownParser.parse(
+        body: "   \n\n  \n", version: "1.0", date: nil) == nil)
 }
 
 // MARK: - ChatWise: CRLF must not fold a whole entry into one line
@@ -183,4 +197,32 @@ private let hbuilderXCodeSpanFixture = #"""
         #expect(recipe.indexLinkPattern == nil,
                 "\(recipe.bundleID): structuredFormat skips the two-stage fetch, so indexLinkPattern is dead")
     }
+}
+
+// MARK: - Waku
+
+/// Waku's registered recipe reads GitHub releases, which carry the same bullets
+/// AND the history the per-version `.md` files can't enumerate (the site root
+/// 404s, so there is no index to walk).
+@Test func wakuReadsGitHubReleases() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "sh.waku"))
+    #expect(recipe.structuredFormat == .gitHubReleases)
+    #expect(recipe.source.host == "api.github.com")
+}
+
+/// The generic GitHub-releases decoder: stable only, newest first, `v` stripped,
+/// and a prose-only release still gets an entry rather than a gap in the rail.
+@Test func gitHubReleasesDecoderSkipsPrereleasesAndKeepsProseOnes() throws {
+    let feed = #"""
+    [{"tag_name":"v0.1.12","prerelease":false,"draft":false,"published_at":"2026-08-21T00:00:00Z",
+      "body":"- Stream live output from Claude background tasks\n- Fix model selection for Cursor"},
+     {"tag_name":"v0.2.0-rc1","prerelease":true,"draft":false,"published_at":"2026-08-21T00:00:00Z",
+      "body":"- Something on a track the user did not choose"},
+     {"tag_name":"v0.1.9","prerelease":false,"draft":false,"published_at":"2026-08-18T00:00:00Z",
+      "body":"See CHANGELOG.md for details."}]
+    """#
+    let log = try #require(StructuredChangelogDecoder.decodeGitHubReleases(feed, maxEntries: 20))
+    #expect(log.entries.map(\.version) == ["0.1.12", "0.1.9"])
+    #expect(log.entries.first?.date == "2026-08-21")
+    #expect(log.entries.last?.items == ["See CHANGELOG.md for details."])
 }

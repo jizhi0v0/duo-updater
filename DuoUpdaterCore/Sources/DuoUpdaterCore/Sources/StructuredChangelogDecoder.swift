@@ -36,6 +36,8 @@ public enum StructuredChangelogDecoder {
             return decodeJetBrainsProductReleases(body, maxEntries: maxEntries)
         case .zedGitHubReleases:
             return decodeZedGitHubReleases(body, channel: channel ?? .stable, maxEntries: maxEntries)
+        case .gitHubReleases:
+            return decodeGitHubReleases(body, maxEntries: maxEntries)
         case .notionPageChunk:
             return decodeNotionPageChunk(body, maxEntries: maxEntries)
         }
@@ -481,46 +483,76 @@ public enum StructuredChangelogDecoder {
             // Reuse the same parser GitHub-release version detection already
             // uses for a single release's notes (`GitHubMarkdownParser`), rather
             // than a second bespoke bullet-extractor for the same markdown shape.
-            if let parsed = GitHubMarkdownParser.parse(body: body, version: version, date: date),
-               let entry = parsed.entries.first {
-                entries.append(entry)
-            } else if let prose = zedProseFallback(body: body) {
-                // `GitHubMarkdownParser` returns nil for a body with no bullets, and
-                // Zed ships such releases: 1 of the newest 100 today (`v1.5.3-pre`,
-                // whose whole body is "No public-facing changes in this release.").
-                // Skipping them left a Preview user sitting on exactly that build
-                // with NO entry for their own version — the retired zed.dev recipe
-                // had a `<p>` item pattern that covered this, so dropping them was a
-                // content regression against the source this replaced.
-                entries.append(.init(version: version, date: date, items: [prose]))
-            } else {
-                continue
-            }
+            // `GitHubMarkdownParser` covers the bullet-less shape itself now (its
+            // prose pass) — Zed ships such releases, 1 of the newest 100 today
+            // (`v1.5.3-pre`, "No public-facing changes in this release."), and a
+            // Preview user sitting on exactly that build must still find an entry
+            // for their own version. That used to be a Zed-only fallback here;
+            // it belongs in the parser, where every GitHub-sourced app gets it.
+            guard let parsed = GitHubMarkdownParser.parse(body: body, version: version, date: date),
+                  let entry = parsed.entries.first
+            else { continue }
+            entries.append(entry)
             if let cap = maxEntries, entries.count >= cap { break }
         }
         guard !entries.isEmpty else { return nil }
         return Changelog(entries: entries, itemSyntax: .markdown)
     }
 
-    /// The first non-empty, non-heading prose line of a release body that has no
-    /// bullets at all — Zed's "No public-facing changes in this release." shape.
-    /// Markdown links are flattened to their text so the trailing
-    /// "[View the commits](…)" doesn't render as raw bracket syntax; the entry is
-    /// emitted with `.markdown` syntax like every other Zed entry, so anything
-    /// left is rendered rather than shown literally. nil when the body is only
-    /// headings/links, in which case the release really is skipped.
-    static func zedProseFallback(body: String) -> String? {
-        for rawLine in body.split(omittingEmptySubsequences: true, whereSeparator: { $0.isNewline }) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            guard !line.isEmpty, !line.hasPrefix("#"), !line.hasPrefix("<") else { continue }
-            let flattened = ChangelogExtractor.collapseWhitespace(
-                line.replacingOccurrences(
-                    of: #"\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)"#, with: "$1",
-                    options: .regularExpression))
-            guard !flattened.isEmpty else { continue }
-            return flattened
+    // MARK: - Plain GitHub releases (api.github.com/repos/<owner>/<repo>/releases)
+
+    /// Decode a GitHub releases array into one entry per stable release, newest
+    /// first, using the same `GitHubMarkdownParser` the GitHub version source uses
+    /// — so a release body renders identically no matter which way we arrived at it.
+    ///
+    /// Prereleases are skipped: nothing here says which track the user is on, so
+    /// offering a prerelease's notes beside a stable install would be describing a
+    /// build they were never shown. A release whose body yields nothing at all
+    /// (empty, or only a checksum block) is skipped rather than shown as a bare
+    /// version heading — but a body of plain sentences is NOT, since the parser's
+    /// prose pass covers those.
+    static func decodeGitHubReleases(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
+        else { return nil }
+
+        var entries: [Changelog.Entry] = []
+        for release in releases where !release.prerelease && !release.draft {
+            guard let raw = release.body, !raw.isEmpty else { continue }
+            let version = stripLeadingV(release.tagName)
+            guard !version.isEmpty else { continue }
+            let date = isoDay(release.publishedAt)
+            guard let parsed = GitHubMarkdownParser.parse(body: raw, version: version, date: date),
+                  let entry = parsed.entries.first
+            else { continue }
+            entries.append(entry)
+            if let cap = maxEntries, entries.count >= cap { break }
         }
-        return nil
+        guard !entries.isEmpty else { return nil }
+        return Changelog(entries: entries, itemSyntax: .markdown)
+    }
+
+    /// `v0.1.12` → `0.1.12`. Only a leading `v`, and only when a digit follows, so
+    /// a tag that legitimately starts with a letter (`version-2`) is left alone.
+    private static func stripLeadingV(_ tag: String) -> String {
+        guard tag.count > 1, tag.hasPrefix("v"),
+              let second = tag.dropFirst().first, second.isNumber
+        else { return tag }
+        return String(tag.dropFirst())
+    }
+
+    private struct GitHubRelease: Decodable {
+        let tagName: String
+        let prerelease: Bool
+        let draft: Bool
+        let publishedAt: String?
+        let body: String?
+        enum CodingKeys: String, CodingKey {
+            case tagName = "tag_name"
+            case prerelease, draft
+            case publishedAt = "published_at"
+            case body
+        }
     }
 
     /// `v1.17.0-pre` → `1.17.0`, `v1.16.1` → `1.16.1`: drop the leading `v` and

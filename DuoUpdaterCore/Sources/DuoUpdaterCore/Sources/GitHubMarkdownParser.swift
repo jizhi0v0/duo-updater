@@ -27,10 +27,22 @@ public enum GitHubMarkdownParser {
     /// apps that share this parser); the lenient pass purely rescues bodies that
     /// would otherwise fall back to a raw web view — e.g. nvm's space-indented
     /// `- ` lists, or any project that writes its notes as a numbered list.
+    ///
+    /// A THIRD pass, prose, runs only when both bullet passes come back empty: a
+    /// release whose notes are written as sentences rather than a list. Returning
+    /// nil for those was a real hole — for a multi-release source it drops that
+    /// version out of the rail entirely, so a user sitting on exactly that build
+    /// finds no entry for their own version (Zed's `v1.5.3-pre`, "No public-facing
+    /// changes in this release.", is the live case; Waku's `v0.1.9`, "See
+    /// CHANGELOG.md for details.", is another). Gated the same way the lenient pass
+    /// is, so no body that already parsed changes at all.
     public static func parse(body: String, version: String, date: String?) -> Changelog? {
         var items = extractItems(from: body, lenient: false)
         if items.isEmpty {
             items = extractItems(from: body, lenient: true)
+        }
+        if items.isEmpty {
+            items = proseItems(from: body)
         }
         guard !items.isEmpty else { return nil }
         let entry = Changelog.Entry(version: version, date: date, items: items)
@@ -51,6 +63,80 @@ public enum GitHubMarkdownParser {
     private static let lenientExtraSkipKeywords = [
         "sha256", "sha-256", "sha1", "md5", "checksum", "hashes", "artifacts",
     ]
+
+    /// Sentences from a release body that contains no list at all, in document
+    /// order. Deliberately conservative about what it drops, because at this point
+    /// the alternative is showing the user nothing:
+    ///
+    ///   - headings and fenced code blocks (same as the bullet passes);
+    ///   - a line that is only an image or a badge — LuLu opens its notes with a
+    ///     `[![](shields.io/...)](...)` sponsor banner, which as an "item" is a URL
+    ///     the reader cannot use;
+    ///   - a checksum: both the `🔐 Disk Image Hash (SHA256):` label line and the
+    ///     `file.dmg: <64 hex>` line under it. Neither is a change.
+    ///
+    /// Everything else is kept verbatim, including Markdown links — the entry is
+    /// emitted with `.markdown` syntax, so they render rather than showing as raw
+    /// brackets.
+    ///
+    /// Two hard bails, both of which mean "this is a shape I don't understand, and
+    /// showing part of it as bullets is worse than not converting at all":
+    ///
+    ///   - a Markdown TABLE. Headlamp writes its whole changelog as tables — 142
+    ///     table rows in v0.45.0 — and line-by-line that renders as bullets reading
+    ///     `|:--|--:|` and `| <img src="…">`, next to download links for other
+    ///     platforms. Verified against the live release before this guard existed.
+    ///   - more than `proseItemCap` lines. Prose notes are a sentence or a handful;
+    ///     dozens of lines means real structure this pass is misreading. Not a
+    ///     display limit — the entry is abandoned, not truncated, so the caller
+    ///     falls back to the renderer that shows the body whole.
+    private static let proseItemCap = 12
+
+    private static func proseItems(from body: String) -> [String] {
+        guard body.range(of: #"(?m)^\s*\|"#, options: .regularExpression) == nil
+        else { return [] }
+        var items: [String] = []
+        var inCodeBlock = false
+        for line in body.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("```") { inCodeBlock.toggle(); continue }
+            if inCodeBlock || trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            if isImageOnly(trimmed) || isBareURL(trimmed) || isChecksum(trimmed) { continue }
+            if skippedSectionKeywords.contains(where: {
+                trimmed.lowercased().hasPrefix("**\($0)")
+            }) { continue }
+            items.append(trimmed)
+            if items.count > proseItemCap { return [] }
+        }
+        return items
+    }
+
+    /// A line that is nothing but a URL. Not a change description — the same
+    /// reasoning as the image-only skip. Caught by an existing test: an
+    /// azure-cli-style body of "a bare link, a SHA256 heading, a hash code block"
+    /// must still yield nothing, and without this the bare link became its one
+    /// "change". A sentence that merely CONTAINS a URL is untouched (kitty's notes
+    /// are exactly that), because the whole line has to be the URL.
+    private static func isBareURL(_ line: String) -> Bool {
+        line.range(of: #"^<?https?://\S+>?$"#, options: .regularExpression) != nil
+    }
+
+    /// A line whose entire content is one image, optionally wrapped in a link.
+    private static func isImageOnly(_ line: String) -> Bool {
+        line.range(
+            of: #"^\[?!\[[^\]]*\]\([^)]*\)\]?(\([^)]*\))?$"#,
+            options: .regularExpression) != nil
+    }
+
+    /// A checksum label (`… SHA256 …:`) or a line carrying a 32+ character hex run.
+    private static func isChecksum(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        if lower.hasSuffix(":"),
+           lenientExtraSkipKeywords.contains(where: { lower.contains($0) }) {
+            return true
+        }
+        return line.range(of: #"\b[0-9a-fA-F]{32,}\b"#, options: .regularExpression) != nil
+    }
 
     private static func extractItems(from body: String, lenient: Bool) -> [String] {
         let lines = body.components(separatedBy: .newlines)

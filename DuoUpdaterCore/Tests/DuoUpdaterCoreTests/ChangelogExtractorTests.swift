@@ -128,36 +128,38 @@ private let appCleanerFixture = """
 </div>
 """
 
-// Trimmed fixture from releases.chatwise.app/releases. The real endpoint is JSON,
-// with markdown changelog lines stored as escaped strings.
-private let chatWiseFixture = """
+// Two entries lifted VERBATIM (assets and hashes included) from a real
+// releases.chatwise.app/releases response fetched 2026-08-21, in the order the
+// endpoint emits them. Kept byte-for-byte, and in a raw literal so the `\n`
+// escapes inside `changelog` stay two characters, because the shape that broke
+// us was exactly that escaping: 26.6.0's notes do NOT end in a trailing `\n`,
+// which is what made the old regex item pattern lose its last (here: only)
+// bullet. 26.5.2 is the multi-bullet counterpart.
+private let chatWiseFixture = #"""
 [
-  {
-    "version":"26.5.3",
-    "changelog":"- Add Claude Opus 4.8 and adjust Claude reasoning support\\n",
-    "assets":[],
-    "date":"2026-05-29T07:02:44.116Z"
-  },
-  {
-    "version":"26.5.2",
-    "changelog":"- Add `curl.md` web fetch provider support\\n- Custom provider: add Responses API support for openai-compatible providers\\n- Set user-agent for LLM requests to `ChatWise/$version`\\n",
-    "assets":[],
-    "date":"2026-05-27T06:20:07.532Z"
-  }
+{"version":"26.6.0","changelog":"- new provider: cloudflare workers ai","assets":[{"name":"ChatWise-26.6.0-x64.zip","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-x64.zip","sha512":"hR0mkg45XrysNVY8TCDaXw3gqVeP+NAAvvYhlF5MYYZrhTTT7Y77FYDIoAHGAT7dEikSsmcuQ5nxXXbdBBGmOA=="},{"name":"ChatWise-26.6.0-arm64.zip","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-arm64.zip","sha512":"PdsVbVwbQgYdW2HcmR1U5FaKr3zslAGy82eYVb2iRwT875VlYNi9/MHvdZceSDEvRV8979cU2N8Q8sC6IPaA2g=="},{"name":"ChatWise-26.6.0-x64.dmg","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-x64.dmg","sha512":"iWgVJGPSlye6Ay7uJ08zhkBXY+h8FfD+sPY7C8rKQxO+jImxrWTF+qvbr9Lly9Rqu7Yyt32/04IucEXsmXAmXA=="},{"name":"ChatWise-26.6.0-arm64.dmg","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-arm64.dmg","sha512":"Ue2BUmAkDB2MfUFo89oQcrWXvOr2q9wlwA0zs4KZYhpvx6kWyZKer1sMFUAHLcuxzsmveRYj4NzWH5dPcUoysw=="},{"name":"ChatWise-26.6.0-setup.exe","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-setup.exe","sha512":"3PfSmUXs9mtAs/25n3oZUKh6BOwXPYHuDna+mw6uZdfC7R+SzzAgWlDo8mHpEpNWB7//213UvPQArgwezwUqEg=="},{"name":"ChatWise-26.6.0.AppImage","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0.AppImage","sha512":"oDnIZ36PKHbm8ShzIxuHtdl2hHCUmbLm/9TR7+aUqd8XeslcteMS6BNtGgHfDIC1Jhqbg0pdaP/+mia4Bl6MVw=="},{"name":"ChatWise-26.6.0.deb","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0.deb","sha512":"u6eRy6Yx40P+D1GcTXf8e7wA5m71mpf5v3fnBFAEBGfE4dpcivJqxU5E+jVO2vPoIf5E7uEDgza5b5efaq7sGQ=="},{"name":"ChatWise-26.6.0.rpm","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0.rpm","sha512":"US8qTdbIf75Kh5K18g267WXH9BqGD2OOEPyPgel8cUaM5GDmbawqT0GIkOcn2kL5dP8X9xYEQwu5iFR3faN/ow=="}],"date":"2026-06-26T16:04:26.161Z"},
+{"version":"26.5.2","changelog":"- Add `curl.md` web fetch provider support\n- Custom provider: add Responses API support for openai-compatible providers\n- Set user-agent for LLM requests to `ChatWise/$version`\n- Add CJK-friendly remark plugins for better markdown rendering\n","assets":[{"name":"ChatWise-26.5.2-x64.zip","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-x64.zip","sha512":"O98u9F82JZ6ZSPjt8MHYt+GoEH7gAeyetStz04GVFIlkfQdSaplh0GoM8IxtWo05o0IXmt4jtHeIePYx4AOBzw=="},{"name":"ChatWise-26.5.2-arm64.zip","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-arm64.zip","sha512":"5thP89IXREnbenfzZRvT3p6amfPFW2zOB6/zFA410lHZBpjIx/PLirqVfhrGUTMLMTbb/YbJ+k8c2c4cDlskNw=="},{"name":"ChatWise-26.5.2-x64.dmg","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-x64.dmg","sha512":"aCHj9cCyz7i3jLd55WIDTWnVnMxpLNeG6nMRI6HE5CdQkXMOzsEN21o/3AMnNfM+TUgY0y7x/OBeg3bXCQR8Pw=="},{"name":"ChatWise-26.5.2-arm64.dmg","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-arm64.dmg","sha512":"0XFpaeX4d3skvOBtYkGo3hsMf0gpQxSkkIlFC3wxOVCB7uAGrPHRge6Gan0/B4QISJUuD2RU8LDR1H6dUK9YNw=="},{"name":"ChatWise-26.5.2-setup.exe","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-setup.exe","sha512":"ybIFl3MghEN3Mx9odKS6hcjESib0IILBiMj6efcNXLxVc9//aMYRryTDjZSyjO4Bj9CHi4x9XqXaW4SzHso+Uw=="},{"name":"ChatWise-26.5.2.AppImage","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2.AppImage","sha512":"VhXtsqJ79aBxz2QiPCN6xuWGmINV//EnnUSqXlVniE21GeH/goL8oZf9HeJjrTEVWkAfQOZFYRoBAV+nM62QcA=="},{"name":"ChatWise-26.5.2.deb","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2.deb","sha512":"TNLNJ6EDdTV/ql3yAEiE1163hflarImlXVcg+6n/hNvucTk4oNo2oM53jFwZdKIjySWrWwNo5f7T7pWqCoKmCA=="},{"name":"ChatWise-26.5.2.rpm","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2.rpm","sha512":"nhaFrSermyq+eXqPddMElQIBKAk2nr2VFOe/Ukqs+bsi7VXeaDaBH930JODI83SAkvkC2tirFkTkDTj2gyVVog=="}],"date":"2026-05-27T06:20:07.532Z"}
 ]
-"""
+"""#
 
-// Trimmed real payloads from central.github.com/deployments/desktop/desktop/
-// changelog.json — the stable feed (bare semver) and the `?env=beta` feed
-// (`-betaN` versions). The beta note includes a JSON `\"` escape to prove the
-// json-mode string unescaper turns it into a real quote.
-private let ghDesktopStableFixture = """
-[{"name":"","notes":["[Fixed] Items in lists such as branches and changed files are properly announced by screen readers on Windows - #22219"],"pub_date":"2026-06-01T17:43:05Z","version":"3.5.12"},{"name":"","notes":["[Fixed] Fix launching custom shells"],"pub_date":"2026-05-26T00:00:00Z","version":"3.5.11"}]
-"""
+// Byte-for-byte slices of two adjacent array elements each, taken from a real
+// `curl` of central.github.com/deployments/desktop/desktop/changelog.json (stable)
+// and the same URL with `?env=beta` appended — captured 2026-08-21. Both feeds
+// are flat JSON arrays, newest-first, of `{name, notes, pub_date, version}` with
+// `notes` already an array of one-line strings — no markdown, nothing to regex.
+//
+// The stable slice's 3.6.3 entry happens to carry a real `\"@null\"` JSON escape
+// (a Git ref name quoted in the note text), so it doubles as the "does the decoder
+// see a literal quote, not a backslash-quote" proof — no constructed case needed.
+private let ghDesktopStableFixture = #"""
+[{"name":"","notes":["[Improved] Update Git for Windows to v2.53.0.windows.4","[Improved] Update Git Credential Manager to 2.9.0"],"pub_date":"2026-08-11T22:07:40Z","version":"3.6.4"},{"name":"","notes":["[Fixed] Resolve error that prevented Copilot-based features from working correctly on Windows - #22509","[Fixed] Keep commit message @-mention autocomplete from surfacing users without a profile name when typing queries like \"@null\" - #22414. Thanks @sukanth!","[Fixed] Resolve a crash where the truncated repository path text could enter an infinite re-render loop - #22458","[Fixed] Fall back to the main worktree so a repository no longer appears as missing when its linked worktree folder was deleted outside Desktop - #22474","[Fixed] Keep files visible in the Changes list after Desktop returns from being backgrounded - #22497","[Fixed] Show an error dialog instead of silently doing nothing when Copilot fails to generate a commit message due to a Git error - #22496","[Fixed] Copilot sessions from generating commit messages or resolving conflicts do not show up in VS Code - #22443","[Fixed] Repository list scrolling no longer gets stuck or jitters when scrolling over tall groups (e.g. large organizations) - #22438. Thanks @peteski22!","[Improved] Clarify the line-ending conversion warning to explain that Git will automatically convert the file's line endings on next checkout, with a link to learn more - #21446. Thanks @Whitebrim!"],"pub_date":"2026-07-14T17:47:41Z","version":"3.6.3"}]
+"""#
 
-private let ghDesktopBetaFixture = """
-[{"name":"","notes":["[Improved] Show \\"No newline at end of file\\" as visible text in the diff view instead of requiring a tooltip hover - #22204","[Fixed] Screen reader now correctly announces added and removed line counts in the pull request preview dialog - #22202"],"pub_date":"2026-05-29T09:38:07Z","version":"3.5.12-beta2"}]
-"""
+// Beta slice: two adjacent 3.6.3-beta entries, the first (beta3) also carrying a
+// real `\"@null\"` escape — same proof as the stable slice, on the beta feed.
+private let ghDesktopBetaFixture = #"""
+[{"name":"","notes":["[Fixed] Resolve error that prevented Copilot-based features from working correctly on Windows - #22509","[Fixed] Keep commit message @-mention autocomplete from surfacing users without a profile name when typing queries like \"@null\" - #22414. Thanks @sukanth!"],"pub_date":"2026-07-08T12:55:09Z","version":"3.6.3-beta3"},{"name":"","notes":["[Fixed] Resolve a crash where the truncated repository path text could enter an infinite re-render loop - #22458","[Fixed] Fall back to the main worktree so a repository no longer appears as missing when its linked worktree folder was deleted outside Desktop - #22474","[Fixed] Keep files visible in the Changes list after Desktop returns from being backgrounded - #22497","[Fixed] Show an error dialog instead of silently doing nothing when Copilot fails to generate a commit message due to a git error - #22496","[Fixed] Copilot sessions from generating commit messages or resolving conflicts do not show up in VS Code - #22443"],"pub_date":"2026-07-07T17:21:05Z","version":"3.6.3-beta2"}]
+"""#
 
 // Trimmed real markup from the latest VS Code updates page (v1_123): one release
 // header and its highlight bullets. Includes the trailing <blockquote> aside

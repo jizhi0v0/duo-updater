@@ -158,6 +158,17 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// need the vendor's ordinal/marker decoration stripped and the category
         /// headings folded in, which the extractor has no shape for.
         case weChatDevToolsLog
+        /// ChatWise's `releases.chatwise.app/releases` — a newest-first ARRAY of
+        /// `{version, changelog, assets, date}` where `changelog` is a markdown
+        /// bullet list. Shallow enough for the regex path in principle, but the
+        /// notes live inside a JSON *string*, so every newline in them is a
+        /// two-character `\n` escape and an item pattern has to spell its
+        /// separators as `\\n` — a trap the shipped pattern fell into (its tail
+        /// alternative `\\n?$` read as "a backslash, optionally followed by an
+        /// `n`", so any entry whose notes did NOT end in a trailing `\n` escape
+        /// lost its last bullet). Decoding the JSON hands us real newlines and
+        /// retires that whole class of bug.
+        case chatwiseReleases
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -347,27 +358,21 @@ public enum ChangelogRecipeRegistry {
             decodeEntities: false,
             maxEntries: 20),
 
-        // ChatWise — the /changelog page hydrates client-side from the public
-        // releases JSON endpoint. The current payload order is:
-        //   {"version":"26.5.3","changelog":"- Add Claude Opus 4.8...\\n",
-        //    "assets":[...],"date":"2026-05-29T07:02:44.116Z"}
-        // Notes are markdown bullet lines, so keep tags intact and split on `- `.
-        // We match the fields in the order the live endpoint currently emits them;
-        // a parse miss simply falls back to the page link, so shipping coverage is
-        // still the right bias here.
+        // ChatWise — the public /changelog page is a SvelteKit shell (a ~4 KB
+        // document with no notes in it) that hydrates from the releases JSON
+        // endpoint, so we read that endpoint directly. It is a newest-first array:
+        //   {"version":"26.6.0","changelog":"- new provider: cloudflare workers ai",
+        //    "assets":[...],"date":"2026-06-26T16:04:26.161Z"}
+        // Decoded as JSON rather than regex-scraped: the notes are a markdown
+        // bullet list living inside a JSON string, so on the regex path every
+        // newline is a literal `\n` escape that an item pattern must spell as
+        // `\\n` — see `.chatwiseReleases` for the last-bullet bug that cost us.
         ChangelogRecipe(
             bundleID: "app.chatwise",
             source: URL(string: "https://releases.chatwise.app/releases")!,
-            entryPattern:
-                #"\{\s*"version"\s*:\s*"(?<version>[^"]+)".*?"changelog"\s*:\s*"(?<body>(?:\\.|[^"\\])*)".*?"date"\s*:\s*"(?<date>[^"]+)""#,
-            itemPatterns: [
-                #"(?:^|\\n)-\s*(?<item>.*?)\s*(?=\\n-\s|\\n?$)"#,
-                #"\s*(?<item>.+?)\s*$"#
-            ],
             mode: .json,
-            stripTags: false,
-            decodeEntities: false,
-            maxEntries: 20),
+            maxEntries: 20,
+            structuredFormat: .chatwiseReleases),
 
         // VS Code — the official `/updates` page redirects to the latest stable
         // release page (e.g. /updates/v1_123). The top summary is:

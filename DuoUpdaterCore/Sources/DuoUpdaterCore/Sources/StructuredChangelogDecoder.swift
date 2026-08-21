@@ -24,6 +24,8 @@ public enum StructuredChangelogDecoder {
             return decodeTypeless(body, maxEntries: maxEntries)
         case .weChatDevToolsLog:
             return decodeWeChatDevTools(body)
+        case .chatwiseReleases:
+            return decodeChatWise(body, maxEntries: maxEntries)
         }
     }
 
@@ -233,6 +235,52 @@ public enum StructuredChangelogDecoder {
         s = s.replacingOccurrences(
             of: #"^`[^`]{1,4}`\s*"#, with: "", options: .regularExpression)
         return bulletItems(from: s).first
+    }
+
+    // MARK: - ChatWise (releases.chatwise.app/releases)
+
+    /// One published release. `changelog` is a markdown bullet list, `date` is
+    /// ISO-8601. `assets` is the updater payload (per-platform archives + hashes)
+    /// and is ignored here — the changelog pane only wants the notes.
+    private struct ChatWiseRelease: Decodable {
+        let version: String?
+        let changelog: String?
+        let date: String?
+    }
+
+    /// `2026-06-26T16:04:26.161Z` → `2026-06-26` for the rail subtitle; nil when
+    /// the field is missing or isn't a leading `YYYY-MM-DD`.
+    static func isoDay(_ raw: String?) -> String? {
+        guard let raw, raw.count >= 10 else { return nil }
+        let ymd = String(raw.prefix(10))
+        guard ymd.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
+        else { return nil }
+        return ymd
+    }
+
+    /// The document is a flat array in newest-first order (the same order the
+    /// vendor's own /changelog page renders), so we keep it as-is and just cap.
+    /// A release with an empty changelog is skipped rather than shown as a bare
+    /// version heading, and does not count toward the cap.
+    static func decodeChatWise(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let releases = try? JSONDecoder().decode([ChatWiseRelease].self, from: data)
+        else { return nil }
+
+        var entries: [Changelog.Entry] = []
+        for release in releases {
+            guard let version = release.version?.trimmingCharacters(in: .whitespaces),
+                  !version.isEmpty
+            else { continue }
+            let items = bulletItems(from: release.changelog)
+            guard !items.isEmpty else { continue }
+            entries.append(.init(
+                version: version,
+                date: isoDay(release.date),
+                items: items))
+            if let cap = maxEntries, entries.count >= cap { break }
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
     }
 
     // MARK: - Typeless (typeless.com/help/release-notes/macos)

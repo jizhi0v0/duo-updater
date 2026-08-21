@@ -512,6 +512,11 @@ final class AppListModel {
         if NSApp.keyWindow == nil && NSApp.mainWindow == nil {
             NSApp.activate(ignoringOtherApps: true)
         }
+        // The user coming back to DuoUpdater is one of the two moments we use to
+        // notice a `ChannelBinding` app's channel toggle flipped in the vendor
+        // app itself (see `recheckChannelSwitches`) — free unless something
+        // actually changed.
+        Task { await recheckChannelSwitches(trigger: "window-appeared") }
     }
 
     /// Call from a window's `.onDisappear`. Kept for symmetric lifecycle sites: the
@@ -4154,8 +4159,12 @@ final class AppListModel {
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didLaunchApplicationNotification,
                      NSWorkspace.didTerminateApplicationNotification] {
-            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in self?.handleRunningAppsChange() }
+            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                // Which app launched/quit, so the channel-switch pass below can skip
+                // the overwhelming majority of these events without doing any I/O.
+                let changed = (note.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication)?.bundleIdentifier?.lowercased()
+                Task { @MainActor in self?.handleRunningAppsChange(changedBundleID: changed) }
             }
             runningAppObservers.append(observer)
         }
@@ -4171,11 +4180,27 @@ final class AppListModel {
     /// notification is the only live event that marks it. Without recomputing here the
     /// "Relaunch" badge lingered until the 180s backstop (or the user reopening the
     /// popover) — the "I restarted it myself but it still shows Relaunch" report.
-    private func handleRunningAppsChange() {
+    private func handleRunningAppsChange(changedBundleID: String? = nil) {
         refreshRunningApps()
         // Before the needs-restart early-out below: a quit hand-off fires exactly
         // on a terminate event, and usually with `needsRestart` empty.
         settleQuitHandoffs()
+        // A `ChannelBinding` app launching or quitting is the other moment (besides
+        // `windowAppeared`) we use to notice its channel toggle flipped in the
+        // vendor app itself — the common "open Settings, flip the toggle, quit"
+        // flow. Independent of the needs-restart early-out below: a channel switch
+        // has nothing to do with a pending restart.
+        //
+        // Gated on the app that actually changed. This notification fires for EVERY
+        // app on the machine — every helper, every menu-bar utility, all day — and
+        // the pass behind it reads one vendor preference per bound app (Surge's is a
+        // plist read off disk). Nine of those on every launch/quit event on the
+        // system is not what "free unless something changed" meant. A nil id (the
+        // notification arrived without one) still runs the pass rather than
+        // silently skipping a real switch.
+        if ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: changedBundleID) {
+            Task { await recheckChannelSwitches(trigger: "running-apps-change") }
+        }
         // Nothing pending → nothing a relaunch could clear. A launch can't *create* a
         // needsRestart entry (that needs a newer on-disk build, which only a disk swap
         // produces — already covered by the FS watcher), so this stays a no-op on the
@@ -4286,6 +4311,97 @@ final class AppListModel {
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)
         return await checker.check(fresh)
+    }
+
+    // MARK: - Channel-switch recheck
+
+    /// Bound-app id (lowercased bundle id) → fingerprint of the channel we last
+    /// resolved for it (see `ChannelSwitchDetector`). Empty until the first call
+    /// to `recheckChannelSwitches`; that first call seeds it rather than treating
+    /// every bound app as having just "changed".
+    @ObservationIgnored private var lastSeenChannelFingerprints: [String: String] = [:]
+    /// Guards against overlapping passes — a bound app's launch and terminate
+    /// notifications can arrive back to back — queuing duplicate rechecks.
+    @ObservationIgnored private var channelSwitchRecheckRunning = false
+
+    /// The bound-app ids currently on screen. Main-actor (it reads `results`) but
+    /// pure memory — the disk-touching half is `fingerprints(forBoundIDs:)`.
+    private func onScreenBoundBundleIDs() -> [String] {
+        results.compactMap {
+            guard let id = $0.app.bundleID?.lowercased(),
+                  ChannelBinding.boundBundleIDs.contains(id)
+            else { return nil }
+            return id
+        }
+    }
+
+    /// Resolve each bound app's channel and fingerprint it. Network-free, but NOT
+    /// free: `ChannelBinding.resolve` reads another app's preferences, and Surge's
+    /// resolver reads a plist off disk with `Data(contentsOf:)`. Every other
+    /// `AppScanner`/resolver call site in this file is wrapped in `Task.detached`
+    /// for exactly that reason, and this one is called from an event that fires on
+    /// every app launch and quit on the machine — so it is `nonisolated` and runs
+    /// off the main actor like its neighbours, rather than being the one exception.
+    private nonisolated static func fingerprints(forBoundIDs ids: [String]) -> [String: String] {
+        var out: [String: String] = [:]
+        for id in ids {
+            guard let resolved = ChannelBinding.resolve(bundleID: id) else { continue }
+            out[id] = ChannelSwitchDetector.fingerprint(resolved)
+        }
+        return out
+    }
+
+    /// Re-check any `ChannelBinding` app (Tailscale, Fork, Surge, …) whose own
+    /// channel toggle changed since we last looked — the fix for the bug where
+    /// switching Tailscale's Settings from Unstable back to Stable left its row
+    /// pinned to the old unstable target until the next scheduled check. The
+    /// channel choice lives entirely in the vendor app's own private preference,
+    /// so neither our FS watcher (it watches app *bundles*, not another app's
+    /// prefs) nor a networked check re-derives it on its own — the row is
+    /// otherwise stuck until the next scheduled check, up to an hour away.
+    ///
+    /// Resolves fresh and compares fingerprints (`ChannelSwitchDetector`) first —
+    /// free, no network, no I/O beyond a handful of `CFPreferences`/plist reads —
+    /// and only rechecks (a real scan + networked check, same path as
+    /// `recheckAfterUnignore`/`retry`) the rows that actually flipped.
+    ///
+    /// Called from two sites, chosen after checking on this machine that a
+    /// cross-process preference-change notification (`NSDistributedNotificationCenter`,
+    /// the Darwin notify center) is not reliably delivered here — see the report
+    /// alongside this change for the actual test and its output:
+    /// `handleRunningAppsChange` (a bound app launching/quitting — the common
+    /// "open Settings, flip the toggle, quit" flow) and `windowAppeared` (the
+    /// user comes back to DuoUpdater itself — the "leave the vendor app running"
+    /// flow). Coalesced against overlapping calls.
+    private func recheckChannelSwitches(trigger: String) async {
+        guard !results.isEmpty, !channelSwitchRecheckRunning else { return }
+        channelSwitchRecheckRunning = true
+        defer { channelSwitchRecheckRunning = false }
+
+        let ids = onScreenBoundBundleIDs()
+        guard !ids.isEmpty else { return }
+        let current = await Task.detached(priority: .utility) {
+            Self.fingerprints(forBoundIDs: ids)
+        }.value
+        let (changed, next) = ChannelSwitchDetector.changes(
+            current: current, lastSeen: lastSeenChannelFingerprints)
+        lastSeenChannelFingerprints = next
+        guard !changed.isEmpty else { return }
+
+        let targets = results.filter {
+            guard let id = $0.app.bundleID?.lowercased() else { return false }
+            return changed.contains(id)
+        }
+        for result in targets {
+            guard installing[result.id] == nil else { continue }
+            installing[result.id] = .checking
+            let updated = await recheck(result)
+            installing[result.id] = nil
+            replaceRow(updated)
+            Log.app.info(
+                "channel switch re-check (\(trigger, privacy: .public)): \(updated.app.name, privacy: .public) → \(String(describing: updated.status), privacy: .public)")
+        }
+        syncDockBadge()
     }
 
     /// Re-run the update check for one app whose source errored — the retry

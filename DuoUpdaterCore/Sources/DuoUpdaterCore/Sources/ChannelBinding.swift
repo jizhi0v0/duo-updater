@@ -58,6 +58,26 @@ public struct ResolvedChannel: Sendable, Equatable {
 /// machine would never reach.
 public enum ChannelBinding {
 
+    /// Every bundle id (lower-cased) a resolver above covers — i.e. an app whose
+    /// channel choice hides in a private preference rather than in a bundle-id
+    /// suffix or a `<sparkle:channel>` tag. Used by the menu-bar app to scope its
+    /// "did the user just flip a channel toggle in the vendor app itself" recheck
+    /// to only these apps, instead of polling every installed app's prefs.
+    ///
+    /// Deliberately excludes Ghostty: its binding is a fixed stable-only feed
+    /// override with no user-settable preference, so there is nothing to watch.
+    public static let boundBundleIDs: Set<String> = [
+        DuoPasteChannel.bundleID.lowercased(),
+        ForkChannel.bundleID.lowercased(),
+        SurgeChannel.bundleID.lowercased(),
+        OrbStackChannel.bundleID.lowercased(),
+        TablePlusChannel.bundleID.lowercased(),
+        CleanShotChannel.bundleID.lowercased(),
+        TailscaleChannel.bundleID.lowercased(),
+        IINAChannel.bundleID.lowercased(),
+        AlfredChannel.bundleID.lowercased(),
+    ]
+
     /// The user-chosen channel (and feed, for feed-swap apps) for `bundleID`, or
     /// nil when no bespoke resolver exists.
     ///

@@ -153,13 +153,6 @@ public struct AppScanner: Sendable {
         }
     }
 
-    /// Fold a completed TestFlight inventory into apps that were already scanned.
-    ///
-    /// The inventory read can block on macOS's app-data privacy prompt, so the app
-    /// intentionally scans first with an empty inventory. Once the read succeeds we
-    /// only need to correct store provenance: every other field came from the same
-    /// bundle and is independent of TestFlight. Rebuilding those fields here avoids
-    /// a second full directory/plist/receipt/channel scan.
     /// True when `InstalledApp.buildVersion` for this app is not its `CFBundleVersion`.
     ///
     /// Xcode is the only case: its published build (`27A5237l`) lives in
@@ -170,6 +163,13 @@ public struct AppScanner: Sendable {
         bundleID == "com.apple.dt.Xcode"
     }
 
+    /// Fold a completed TestFlight inventory into apps that were already scanned.
+    ///
+    /// The inventory read can block on macOS's app-data privacy prompt, so the app
+    /// intentionally scans first with an empty inventory. Once the read succeeds we
+    /// only need to correct store provenance: every other field came from the same
+    /// bundle and is independent of TestFlight. Rebuilding those fields here avoids
+    /// a second full directory/plist/receipt/channel scan.
     public static func applyingTestFlightInventory(
         _ inventory: TestFlightInventory,
         to apps: [InstalledApp]

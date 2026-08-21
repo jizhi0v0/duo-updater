@@ -552,6 +552,50 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 20,
             newestLast: true),
 
+        // 豆包输入法 (DoubaoIme) — the vendor publishes no release-notes page; the
+        // notes only exist inside the endpoint the app's own updater polls:
+        //
+        //   ime.doubao.com/api/v1/version/list?channel=&version_code=&platform=
+        //
+        // It answers "what should a client on <version_code> be offered", so it needs
+        // all three parameters (it 400s with 渠道/当前版本/平台不能为空 otherwise) and
+        // returns [] once the caller is current. We pass `version_code=1` — an
+        // impossibly old client — so the newest release's notes always come back,
+        // whatever the reader has installed. `channel=release` is the user-facing
+        // track; `inhouse` and `test` also answer but are ByteDance's internal builds
+        // (the installed bundle's Info.plist carries `CHANNEL_NAME = release`).
+        //
+        //   {"list":[{"channel":"release","platform":"macOS","version_name":"0.9.6",
+        //     "version_code":90601,"change_log":"- 新增账号登录…；\n- 新增离线语音…",
+        //     …,"push_message":{"title":"豆包输入法已更新至 0.9.6 版本",…}}]}
+        //
+        // The entry pattern is anchored on `"platform":"macOS"` immediately before
+        // `version_name` and walks the fields in emitted order, so it can only ever
+        // bind a version to the `change_log` of its OWN object — and it cannot reach
+        // the version number sitting in `push_message.title`.
+        //
+        // `change_log` is one string of `- `-prefixed lines joined by escaped `\n`,
+        // so the item pattern splits on those. NOTE the tail alternative is `|$)`,
+        // NOT the `|\\n?$)` used by the ChatWise recipe above: `\\n?` means "a literal
+        // backslash, optionally followed by n", which requires the body to END in a
+        // backslash and therefore drops the last bullet. Verified against the real
+        // 2026-08-21 response: 6 bullets in, 6 out.
+        ChangelogRecipe(
+            bundleID: "com.bytedance.inputmethod.doubaoime",
+            source: URL(string:
+                "https://ime.doubao.com/api/v1/version/list"
+                + "?channel=release&version_code=1&platform=macos")!,
+            entryPattern:
+                #""platform":"macOS","version_name":"(?<version>[0-9][^"]*)","#
+                + #""version_code":\d+,"change_log":"(?<body>(?:\\.|[^"\\])*)""#,
+            itemPatterns: [
+                #"(?:^|\\n)-\s*(?<item>.*?)\s*(?=\\n-\s|$)"#,
+                #"\s*(?<item>.+?)\s*$"#,
+            ],
+            mode: .json,
+            stripTags: false,
+            maxEntries: 20),
+
         // WeChat (微信, 官网版) — the official updates site publishes ONE page per
         // Mac version at `weixin.qq.com/updates?platform=mac&version=<X.Y.Z>`, with the
         // exact labels/dates the user sees in-app (4.1.10, 4.1.9, …). The Sparkle feed

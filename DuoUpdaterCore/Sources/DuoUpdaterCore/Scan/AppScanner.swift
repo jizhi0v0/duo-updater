@@ -155,13 +155,18 @@ public struct AppScanner: Sendable {
 
     /// True when `InstalledApp.buildVersion` for this app is not its `CFBundleVersion`.
     ///
-    /// Xcode is the only case: its published build (`27A5237l`) lives in
-    /// `version.plist`, and that is the number worth showing, so the scan stores it
-    /// in place of the bundle's own. Anything keyed on the raw build — TestFlight's
+    /// Two cases, for opposite reasons. Xcode: its published build (`27A5237l`)
+    /// lives in `version.plist`, and that is the number worth showing, so the scan
+    /// stores it in place of the bundle's own. 豆包输入法: its `CFBundleVersion` is a
+    /// flat `1` on every build, and the number the vendor actually versions by sits
+    /// in a custom Info.plist key. Anything keyed on the raw build — TestFlight's
     /// database is — has to know that and not use the stored value.
-    static func buildVersionIsOverridden(bundleID: String?) -> Bool {
-        bundleID == "com.apple.dt.Xcode"
+    public static func buildVersionIsOverridden(bundleID: String?) -> Bool {
+        bundleID == Self.xcodeBundleID || bundleID == Self.doubaoImeBundleID
     }
+
+    public static let xcodeBundleID = "com.apple.dt.Xcode"
+    public static let doubaoImeBundleID = "com.bytedance.inputmethod.doubaoime"
 
     /// Fold a completed TestFlight inventory into apps that were already scanned.
     ///
@@ -385,8 +390,23 @@ public struct AppScanner: Sendable {
         // namespace) so from→to stay in one namespace: "262.43.15 → 262.43.17".
         // Xcode's published build (`27A5237l`), which is neither `CFBundleVersion`
         // nor `DTXcodeBuild` — see `effectiveBuildVersion`. nil for everything else.
-        let xcodeBuild = Self.buildVersionIsOverridden(bundleID: bundleID)
+        let xcodeBuild = bundleID == Self.xcodeBundleID
             ? Self.productBuildVersion(in: bundleURL) : nil
+
+        // 豆包输入法 stamps every build with `CFBundleVersion = 1` and keeps the real
+        // one in `Wave Build Version Number` (`90602`, the same number the vendor's
+        // download URL carries as `DoubaoImeInstaller_v90602_release.zip`). Note the
+        // deliberate absence of a `?? buildVersion` fallback below: if the vendor
+        // ever drops that key, the app must go back to comparing marketing versions,
+        // NOT compare a remote `90602` against a local `1` — which is a phantom
+        // update that never clears. nil here is what routes `evaluate()` back to the
+        // marketing branch.
+        let doubaoImeBuild = bundleID == Self.doubaoImeBundleID
+            ? Self.waveBuildVersionNumber(plist) : nil
+        let effectiveBuildVersion: String? = {
+            if bundleID == Self.doubaoImeBundleID { return doubaoImeBuild }
+            return xcodeBuild ?? buildVersion
+        }()
 
         let toolboxTool = toolbox.tool(forApp: bundleURL)
         let displayShortVersion: String = {
@@ -461,7 +481,7 @@ public struct AppScanner: Sendable {
             name: displayName,
             bundleID: bundleID,
             shortVersion: displayShortVersion,
-            buildVersion: xcodeBuild ?? buildVersion,
+            buildVersion: effectiveBuildVersion,
             path: bundleURL,
             isMASApp: isMAS,
             isiOSAppOnMac: isiOSAppOnMac,
@@ -513,8 +533,27 @@ public struct AppScanner: Sendable {
     /// installed copies: only `ProductBuildVersion` matched the released beta 1 /
     /// beta 5 builds, so comparing on either of the others would mean a permanent
     /// phantom update.
+    /// 豆包输入法's real build number, from the custom `Wave Build Version Number`
+    /// key in its Info.plist (`"90602"`). The bundle also carries the same number
+    /// dotted as `Wave Build Version` (`0.9.6.2`); the flat form is the one the
+    /// vendor's own download filenames use, so it is the one that compares. Nil when
+    /// the key is absent or not a plain number — see the caller for why nil, and not
+    /// `CFBundleVersion`, is the safe answer.
+    public static func waveBuildVersionNumber(_ plist: [String: Any]) -> String? {
+        let raw: String?
+        switch plist["Wave Build Version Number"] {
+        case let s as String: raw = s
+        case let n as NSNumber: raw = n.stringValue
+        default: raw = nil
+        }
+        guard let build = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !build.isEmpty, build.allSatisfy(\.isNumber)
+        else { return nil }
+        return build
+    }
+
     /// `ProductBuildVersion` from an app's `Contents/version.plist`, if it has one.
-    static func productBuildVersion(in bundleURL: URL) -> String? {
+    public static func productBuildVersion(in bundleURL: URL) -> String? {
         let url = bundleURL.appendingPathComponent("Contents/version.plist")
         guard let data = try? Data(contentsOf: url),
               let plist = try? PropertyListSerialization.propertyList(

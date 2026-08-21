@@ -704,7 +704,7 @@ private struct WorkbenchActionView: View {
         case .extracting: return "Extracting"
         case .installing: return "Installing"
         case .runningCommand: return "Installing"
-        case .done: return "Done"
+        case .done: return "Installed"
         }
     }
 }

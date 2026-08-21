@@ -507,11 +507,15 @@ private struct AppRow: View {
                     versionLine
                 }
                 Spacer()
-                // Constant-width action slot, centre-aligned: buttons of different
-                // widths ("Update" vs "Relaunch" vs "Restart now") line up on a
-                // shared centre line down the list instead of a ragged right edge.
+                // Minimum-width action slot, trailing-aligned: every control ends on
+                // the row's own trailing edge, so a narrow indicator (a bare ✓) shares
+                // a right edge with a wide button ("Restart now") *and* with the brew
+                // footer's badge below, which is flush right against the same 12pt
+                // padding. Centring instead inset the narrow ones by ~27pt and broke
+                // that shared edge. The minimum still reserves a slot so the name
+                // column can't run right up to the control.
                 trailing
-                    .frame(minWidth: 64, alignment: .center)
+                    .frame(minWidth: 64, alignment: .trailing)
             }
             if let installError {
                 VStack(alignment: .leading, spacing: 3) {
@@ -892,7 +896,7 @@ private struct AppRow: View {
         case .extracting: return "Extracting"
         case .installing: return "Installing"
         case .runningCommand: return "Installing"
-        case .done: return "Done"
+        case .done: return "Installed"
         }
     }
 

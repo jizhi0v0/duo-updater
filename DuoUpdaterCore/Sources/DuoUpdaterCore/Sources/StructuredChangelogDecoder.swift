@@ -30,6 +30,8 @@ public enum StructuredChangelogDecoder {
             return decodeSunLogin(body, maxEntries: maxEntries)
         case .gitHubDesktopChangelog:
             return decodeGitHubDesktop(body, maxEntries: maxEntries)
+        case .postmanReleaseNotes:
+            return decodePostman(body, maxEntries: maxEntries)
         }
     }
 
@@ -335,6 +337,101 @@ public enum StructuredChangelogDecoder {
         let ymd = String(raw.prefix(10))
         return ymd.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
             ? ymd : nil
+    }
+
+    // MARK: - Postman (mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json)
+
+    /// Top-level shape: `{"notes": [{version, content, createdAt}, ...]}`, newest
+    /// first. `content` is markdown; we deliberately do NOT run it through
+    /// `bulletItems` — the prior regex path left markdown syntax (`**bold**`,
+    /// `[text](url)`) verbatim in the rendered items, and this recipe's item text
+    /// must not change shape out from under that, only stop being truncated.
+    private struct PostmanFeed: Decodable {
+        let notes: [PostmanNote]
+    }
+    private struct PostmanNote: Decodable {
+        let version: String?
+        let content: String?
+        let createdAt: String?
+    }
+
+    static func decodePostman(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let feed = try? JSONDecoder().decode(PostmanFeed.self, from: data)
+        else { return nil }
+
+        var entries: [Changelog.Entry] = []
+        for note in feed.notes {
+            guard let version = note.version?.trimmingCharacters(in: .whitespaces),
+                  !version.isEmpty
+            else { continue }
+            let items = postmanItems(from: note.content)
+            guard !items.isEmpty else { continue }
+            entries.append(.init(
+                version: version, date: postmanDate(note.createdAt), items: items))
+            if let cap = maxEntries, entries.count >= cap { break }
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    /// Reproduces, line-for-line, what the old regex itemPattern
+    /// (`\r\n(?:####\s+)?(?!##|\r\n|\w+ \d+, \d{4})(?<item>[^\\]{10,})`) picked out
+    /// of the *escaped* JSON text — but working on the real, decoded markdown, so a
+    /// line containing an escaped quote is no longer cut off at the backslash.
+    /// Per line:
+    ///   - blank lines are dropped (this also eats the trailing `\r\n\r\n` and, for
+    ///     older entries, absorbs the plain-`\n` line separator the same way);
+    ///   - a `#### ` feature-heading prefix is stripped but the heading text is KEPT
+    ///     as an item (the old pattern's optional non-capturing group did the same);
+    ///   - any other line starting with `##` (a `##`/`###` document/section heading)
+    ///     is skipped entirely;
+    ///   - a line that IS (or starts with) a "Month D, YYYY" date stamp is skipped —
+    ///     this is the "## Postman X.Y.Z" / date pair at the top of every entry;
+    ///   - anything left under 10 characters is dropped (matches the old pattern's
+    ///     `{10,}` floor, there to filter stray short fragments);
+    ///   - everything else is kept as-is, including leading `- ` list markers and
+    ///     inline markdown syntax.
+    static func postmanItems(from content: String?) -> [String] {
+        guard let content else { return [] }
+        // NOTE: split on `Character.isNewline`, not `separator: "\n"`. Swift
+        // Strings treat "\r\n" as a SINGLE Character (one grapheme cluster) that
+        // is not equal to the standalone "\n" Character — so `split(separator:
+        // "\n")` does not split inside it at all, and a whole `\r\n`-separated
+        // body comes back as one giant "line". `isNewline` recognizes "\n", "\r",
+        // and the "\r\n" cluster alike, so both this recipe's current (`\r\n`)
+        // and legacy (`\n`) entries split the same way. (Caught by running this
+        // against a real 4-entry feed slice in the regression test below — three
+        // of the four entries silently produced zero items before this fix.)
+        return content
+            .split(omittingEmptySubsequences: false, whereSeparator: { $0.isNewline })
+            .compactMap { rawLine -> String? in
+                var line = String(rawLine)
+                if line.isEmpty { return nil }
+                if line.hasPrefix("#### ") {
+                    line = String(line.dropFirst(5))
+                } else if line.hasPrefix("##") {
+                    return nil
+                }
+                if postmanIsDateLine(line) { return nil }
+                guard line.count >= 10 else { return nil }
+                return line
+            }
+    }
+
+    /// True when `line` begins with a "Month D, YYYY" stamp (e.g. "August 21,
+    /// 2026"), the exact date line Postman prints under the "## Postman X.Y.Z"
+    /// title. A prefix match, not a whole-line match — matching the old regex's
+    /// negative lookahead, which only asserted the pattern at the start.
+    static func postmanIsDateLine(_ line: String) -> Bool {
+        line.range(of: #"^\w+ \d+, \d{4}"#, options: .regularExpression) != nil
+    }
+
+    /// `2026-08-19` from `2026-08-19T06:06:19.000Z` — the leading `YYYY-MM-DD` the
+    /// old regex's `[^"T]+` capture also stopped at.
+    static func postmanDate(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        if let t = raw.firstIndex(of: "T") { return String(raw[raw.startIndex..<t]) }
+        return raw.isEmpty ? nil : raw
     }
 
     // MARK: - SunLogin/AweSun (client-webapi.oray.com/softwares/…)

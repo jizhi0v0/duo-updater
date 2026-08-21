@@ -185,6 +185,15 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// already an array of one-line strings. No regex needed; the decoder just
         /// walks the array.
         case gitHubDesktopChangelog
+        /// Postman's `mkt.cdn.postman.com/.../app-release-notes.json` — a `notes[]`
+        /// array (newest-first) of `{version, content, createdAt}`, `content` being
+        /// markdown whose line separator is `\r\n` in *recent* entries but a bare
+        /// `\n` in older ones. The prior regex path only recognized the escaped
+        /// `\r\n` (`\\r\\n`) form and, worse, its item capture (`[^\\]{10,}`) stops
+        /// at the first backslash — so a line with an escaped quote (`\"8000\"`)
+        /// got silently truncated mid-sentence. Decoding the JSON for real yields
+        /// genuine newlines and un-escaped text, sidestepping both problems.
+        case postmanReleaseNotes
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -684,25 +693,26 @@ public enum ChangelogRecipeRegistry {
             ],
             indexLinkPattern: #"href="(?<link>/docs/install/release-notes/\d[^"]*)""#),
 
-        // Postman — CDN-hosted JSON array under the "notes" key. Each element has
-        // "version", "content" (Markdown, \\r\\n line separators in raw JSON), and
-        // "createdAt" (ISO-8601). itemPattern strips the #### feature-heading prefix
-        // and skips ## / ### section headers and the trailing date line; plain
-        // description lines that follow a heading are also captured.
+        // Postman — CDN-hosted JSON array under the "notes" key (newest-first).
+        // Each element has "version", "content" (Markdown; `\r\n` line separators in
+        // recent entries, bare `\n` in older ones) and "createdAt" (ISO-8601).
+        // Structured decode (StructuredChangelogDecoder.decodePostman): split
+        // `content` on real newlines, strip the `#### ` feature-heading prefix
+        // (keeping the heading text as an item), skip `##`/`###` section headers and
+        // the "August 21, 2026"-style date line, drop lines under 10 chars, keep
+        // everything else (including markdown syntax like `**bold**` / `[t](url)`
+        // verbatim — nothing downstream strips it for this recipe). This replaces a
+        // regex itemPattern that only recognized the escaped `\\r\\n` form and, on
+        // top of that, truncated any line containing an escaped quote at the
+        // backslash (`[^\\]{10,}` stops there) — confirmed against the live feed:
+        // 2 of the 30 most recent releases had a mid-sentence truncation the old
+        // path produced silently.
         ChangelogRecipe(
             bundleID: "com.postmanlabs.mac",
             source: URL(string: "https://mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json")!,
-            entryPattern:
-                #""version"\s*:\s*"(?<version>[^"]+)""#
-                + #".*?"content"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#
-                + #".*?"createdAt"\s*:\s*"(?<date>[^"T]+)"#,
-            itemPatterns: [
-                #"\\r\\n(?:####\s+)?(?!##|\\r\\n|\w+ \d+, \d{4})(?<item>[^\\]{10,})"#,
-            ],
             mode: .json,
-            stripTags: false,
-            decodeEntities: false,
-            maxEntries: 30),
+            maxEntries: 30,
+            structuredFormat: .postmanReleaseNotes),
 
         // HBuilderX (DCloud) — two-stage, and deliberately NOT pointed at
         // update.dcloud.net.cn: that host 302s the changelog HTML to a per-request

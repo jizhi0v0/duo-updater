@@ -545,6 +545,11 @@ public enum VendorProbeRegistry {
         // installer, so the user still confirms it there (same flow as ToDesk and
         // AweSun); the install spec re-resolves the redirect at download time so it
         // always fetches the current package, not this version's.
+        // No `changelogURL`: there is no such page. `uuyc.163.com/changelog` and
+        // `/update` both answer 200, but they return byte-identical content to a
+        // path that does not exist — an SPA catch-all serving the homepage, not a
+        // changelog. The download page is a distinct page but contains no
+        // 更新日志/更新说明/新增/修复 markers at all. (Checked 2026-08-22.)
         VendorProbeRecipe(
             bundleID: "com.netease.uuremote",
             url: URL(string: "https://api.nrd.nie.163.com/api/v1/release/dl/4?channel=gwqd")!,
@@ -1711,6 +1716,14 @@ public enum VendorProbeRegistry {
         // (template), on the vendor's own dl.todesk.com, signed by the same Team
         // KM56KD59W4 (Hainan Youqu Technology) as the installed app — the
         // VendorInstaller signature gate enforces it.
+        // No `changelogURL`: the vendor's macOS log page exists but is abandoned.
+        // `update.todesk.com/macos/uplog.html` is server-rendered with 30 real
+        // versions, and its newest is 4.8.1.0 (2025.9.5) — while the installed
+        // copy here is 4.10.0.0. It is not the whole site going stale: the same
+        // host's `windows/uplog.html` was current to 2026.8.18 on the same day.
+        // Pointing the pane at it would show notes for a version the user passed
+        // two minor releases ago, which is the version-mismatch failure the
+        // Notion and Figma changelogs were just moved away from.
         VendorProbeRecipe(
             bundleID: "com.youqu.todesk.mac",
             url: URL(string: "https://www.todesk.com/download.html")!,
@@ -1741,6 +1754,10 @@ public enum VendorProbeRegistry {
         // nil on purpose: spotify.com/release-notes tracks a DIFFERENT (mobile/web)
         // version scheme (`1.2.534.x`), so embedding it for a `1.2.92.x` desktop
         // build would show an unrelated page — better the honest "no notes" state.
+        // No `changelogURL`, and not an oversight: Spotify publishes no release
+        // notes for the desktop client anywhere. Checked 2026-08-22 — the only
+        // things that exist are one-off community forum posts from a decade ago
+        // (0.9.x, 1.0.9) and long-running threads asking for a changelog.
         VendorProbeRecipe(
             bundleID: "com.spotify.client",
             url: URL(string: "https://download.scdn.co/SpotifyInstaller.zip")!,
@@ -2951,6 +2968,12 @@ public enum VendorProbeRegistry {
         //
         // The manifest publishes a sha256, but `checksumPattern` verifies a
         // base64 SHA-512, so it goes unused; the signature gate still applies.
+        // No `changelogURL`: `gemini.google/release-notes` is the Gemini *Apps*
+        // product feed — model and feature announcements keyed by DATE
+        // (2023.04.10, …), with no desktop build number anywhere. The installed
+        // app reports 1.96.4.775, so nothing on that page can ever line up with
+        // the version on this row. Exactly the mismatch the Notion changelog was
+        // moved off of; wiring it here would reintroduce it. (Checked 2026-08-22.)
         VendorProbeRecipe(
             bundleID: "com.google.GeminiMacOS",
             url: URL(string: "https://update.googleapis.com/service/update2/json")!,

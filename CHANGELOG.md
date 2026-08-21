@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.49
+
+**Confirming a quit late no longer leaves the app updated but closed.** Some apps guard their own quit with a dialog — Claude, for one, asks about an active conversation — and that dialog could land in the middle of a Relaunch. Duo Updater rightly refuses to sit there while you decide (and it still won't force the quit past your unsaved work), but once it stepped aside it also stopped listening. Answer the dialog a minute later and the quit went through, the app's own updater swapped in the new version — and then nothing happened: some updaters deliberately don't reopen the app after installing, Duo Updater was no longer watching, and you were left staring at an app that had simply closed. It now leaves a note for itself when it steps aside: if you do confirm that quit within the next few minutes, it waits for the update to finish landing and then brings the app back, in front if that's where it was. Choosing Cancel changes nothing, and the note quietly expires — a quit hours later is just you closing the app, and stays that way.
+
 ## 0.3.48
 
 **No more Dock icon.** Duo Updater is a menu-bar app — everything it does starts from the icon up there — but it also held a Dock slot, and the only thing that slot ever did was open the same window the menu bar opens. It now runs from the menu bar alone. If you would rather keep the Dock icon, Settings ▸ General ▸ "Hide the Dock icon" turns it back on, and with it the badge that shows the number of pending updates; hidden, that count lives on the menu-bar icon instead.

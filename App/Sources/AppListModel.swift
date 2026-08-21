@@ -90,6 +90,38 @@ final class AppListModel {
     /// crucially, blocks re-entry: the swap can take tens of seconds, during which
     /// the Relaunch button must not fire a second quit.
     private(set) var relaunching: Set<String> = []
+    /// A staged relaunch that bailed because the app wouldn't quit within the
+    /// grace window — its own quit-confirmation dialog (a save prompt, Claude's
+    /// "active conversation" sheet) was up. If the user then confirms the quit by
+    /// hand, ShipIt swaps the bundle with nobody left to relaunch it: apps that
+    /// stage with `launchAfterInstallation=false` (Claude) end up updated but
+    /// closed, because `relaunchStagedUpdate` has long since returned and its
+    /// fallback launch never ran. This marker lets the NSWorkspace terminate
+    /// observer pick the hand-off back up — see `settleQuitHandoffs`.
+    struct StagedQuitHandoff: Sendable {
+        /// The row at bail time — the bundle to poll and the row to refresh.
+        let result: UpdateResult
+        /// Version of the build staged at bail time. The relay launches only once
+        /// disk shows this version (or newer), so the marker can't resurrect the
+        /// app on some later unrelated quit unless that exact swap really landed.
+        let stagedVersion: String
+        /// Whether relaunching should hand the app the front spot — it was
+        /// frontmost when we bailed (its quit dialog was up, over our click).
+        let activates: Bool
+        /// Bail time. A marker older than `quitHandoffMaxAge` is dropped instead
+        /// of relayed: past that, a quit is the user closing the app, not a late
+        /// answer to the dialog our relaunch attempt put up.
+        let armedAt: Date
+    }
+    /// Armed quit hand-offs by row id. In-memory only (the window is minutes);
+    /// reset by the next relaunch attempt for the row, dropped by
+    /// `computeSelfUpdateStaging` when the staging it was armed for goes away,
+    /// and consumed (at most once) by `settleQuitHandoffs`.
+    private var stagedQuitHandoffs: [String: StagedQuitHandoff] = [:]
+    /// How long an armed quit hand-off stays live. Generous enough to answer a
+    /// quit dialog after stepping away; short enough that a quit hours later is
+    /// clearly not this hand-off.
+    private static let quitHandoffMaxAge: TimeInterval = 10 * 60
     /// App ids for which an incremental (AX) App Store update has downloaded but the
     /// app is still running, so App Store is asking to quit it to finish installing.
     /// id → the app's display name (for the prompt). Drives a "Relaunch to finish
@@ -2486,6 +2518,14 @@ final class AppListModel {
             return map
         }.value
         pendingSelfUpdate = staged
+        // Drop armed quit hand-offs whose staging is gone or now points at a
+        // different version: each marker is bound to the exact build it was armed
+        // for, and must not outlive it. (A hand-off already relaying removed its
+        // marker synchronously in `settleQuitHandoffs`, so this can't cancel one
+        // in flight.)
+        stagedQuitHandoffs = stagedQuitHandoffs.filter {
+            pendingSelfUpdate[$0.key]?.version == $0.value.stagedVersion
+        }
         // Dismiss delivered "Relaunch to apply it" banners for apps that are no
         // longer actionable-staged, so a stale one doesn't linger.
         let nowActionable = Set(results.compactMap { actionableStaged($0) != nil ? $0.id : nil })
@@ -2864,6 +2904,8 @@ final class AppListModel {
         }
         relaunching.insert(result.id)
         defer { relaunching.remove(result.id) }
+        // A fresh attempt supersedes whatever a previous bail left armed.
+        stagedQuitHandoffs[result.id] = nil
         let running = AppRestarter.runningInstances(of: result.app)
         guard !running.isEmpty else {
             // Not running: the staged swap applies on the app's own next quit, not
@@ -2903,8 +2945,24 @@ final class AppListModel {
                 everQuit = true  // quit succeeded — now we're waiting on the swap
             } else if !everQuit && tick >= quitGraceTicks {
                 // Never quit → a save prompt (or similar) is keeping it up; the swap
-                // can't start, so don't block the long window on it.
+                // can't start, so don't block the long window on it. But giving up
+                // on *waiting* must not give up on the *hand-off*: if the user
+                // answers that prompt a minute from now, the quit completes, ShipIt
+                // swaps — and an app staged with launchAfterInstallation=false
+                // stays closed with nobody to relaunch it. Arm the terminate
+                // observer to finish the job (`settleQuitHandoffs`).
                 Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
+                if let staged = pendingSelfUpdate[result.id] {
+                    stagedQuitHandoffs[result.id] = StagedQuitHandoff(
+                        result: result,
+                        stagedVersion: staged.version,
+                        // Its quit dialog is up right now, which usually means it
+                        // holds the front spot even if it didn't when we started.
+                        activates: wasFrontmost
+                            || AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app)),
+                        armedAt: Date())
+                    Log.app.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) → \(staged.version, privacy: .public) (relaunch if it quits and the swap lands)")
+                }
                 break
             }
         }
@@ -2926,6 +2984,86 @@ final class AppListModel {
             let version = await Self.readShortVersionOffMain(result.app.path)
             UpdateNotifier.restarted(app: result.app.name, version: version, appID: result.app.bundleID)
         }
+    }
+
+    /// Pick up any armed quit hand-off whose app has now actually terminated —
+    /// the user answered the quit dialog after `relaunchStagedUpdate` gave up
+    /// waiting. Runs on every NSWorkspace launch/terminate event; a no-op unless
+    /// a hand-off is armed, which is rare and short-lived.
+    ///
+    /// The marker is taken out of the map *synchronously, before any await*: it
+    /// must fire at most once, and `computeSelfUpdateStaging`'s sweep (which
+    /// drops markers once the staging disappears) must not be able to cancel a
+    /// relay that is already under way.
+    private func settleQuitHandoffs() {
+        guard !stagedQuitHandoffs.isEmpty else { return }
+        for (id, handoff) in stagedQuitHandoffs {
+            guard !relaunching.contains(id),
+                  AppRestarter.runningInstances(of: handoff.result.app).isEmpty
+            else { continue }
+            stagedQuitHandoffs[id] = nil
+            guard Date().timeIntervalSince(handoff.armedAt) < Self.quitHandoffMaxAge else {
+                // Too long since the bail: this quit is the user closing the app,
+                // not a late answer to that dialog. ShipIt still swaps — we just
+                // don't bring the app back unasked.
+                Log.app.info("relaunch-handoff: \(handoff.result.app.name, privacy: .public) marker expired — not relaunching")
+                continue
+            }
+            Task { @MainActor [weak self] in await self?.relayQuitHandoff(handoff) }
+        }
+    }
+
+    /// Finish a bailed staged relaunch: the app has terminated, so its own
+    /// updater is (or will shortly be) swapping the bundle. Wait for the swap to
+    /// land on disk, then launch the app — the step ShipIt skips when the vendor
+    /// stages with `launchAfterInstallation=false`. Same cardinal rule as
+    /// `relaunchStagedUpdate`: never open the app before the swap has landed, or
+    /// ShipIt aborts with "App Still Running".
+    private func relayQuitHandoff(_ handoff: StagedQuitHandoff) async {
+        let app = handoff.result.app
+        // Reuse the row spinner + re-entry block for the duration of the relay.
+        guard !relaunching.contains(handoff.result.id) else { return }
+        relaunching.insert(handoff.result.id)
+        defer { relaunching.remove(handoff.result.id) }
+        Log.app.info("relaunch-handoff: \(app.name, privacy: .public) quit after the prompt — waiting for the staged swap to land")
+        var applied = false
+        for _ in 0..<900 {  // same patience as `relaunchStagedUpdate`'s swap wait (~180s)
+            try? await Task.sleep(for: .milliseconds(200))
+            guard AppRestarter.runningInstances(of: app).isEmpty else {
+                // Back up without us — ShipIt relaunched it itself, or the user
+                // reopened it. Either way our job is done; just re-read the row.
+                Log.app.info("relaunch-handoff: \(app.name, privacy: .public) reappeared on its own — standing down")
+                await refreshRow(handoff.result)
+                return
+            }
+            if let disk = await Self.readShortVersionOffMain(app.path),
+               disk == handoff.stagedVersion
+                || VersionComparator.isNewer(disk, than: handoff.stagedVersion) {
+                applied = true
+                break
+            }
+        }
+        guard applied else {
+            // The swap never landed (or disk never reached the version this marker
+            // was armed for). Launching now could race a still-working ShipIt, and
+            // the marker's promise was specifically "that staged build" — so leave
+            // the app quit, exactly as if the user had closed it.
+            Log.app.info("relaunch-handoff: \(app.name, privacy: .public) swap never landed — leaving it quit")
+            await refreshRow(handoff.result)
+            return
+        }
+        // One beat of grace: if this vendor's ShipIt *does* relaunch after
+        // installing, its open lands right after the swap — don't double-launch.
+        try? await Task.sleep(for: .milliseconds(500))
+        guard AppRestarter.runningInstances(of: app).isEmpty else {
+            await refreshRow(handoff.result)
+            return
+        }
+        Log.app.info("relaunch-handoff: \(app.name, privacy: .public) staged \(handoff.stagedVersion, privacy: .public) landed — relaunching")
+        await AppRestarter.launchApp(app.path, activates: handoff.activates)
+        await refreshRow(handoff.result)
+        let version = await Self.readShortVersionOffMain(app.path)
+        UpdateNotifier.restarted(app: app.name, version: version, appID: app.bundleID)
     }
 
     /// `readShortVersion` off the main actor. The staged-relaunch poll calls it
@@ -3839,6 +3977,9 @@ final class AppListModel {
     /// popover) — the "I restarted it myself but it still shows Relaunch" report.
     private func handleRunningAppsChange() {
         refreshRunningApps()
+        // Before the needs-restart early-out below: a quit hand-off fires exactly
+        // on a terminate event, and usually with `needsRestart` empty.
+        settleQuitHandoffs()
         // Nothing pending → nothing a relaunch could clear. A launch can't *create* a
         // needsRestart entry (that needs a newer on-disk build, which only a disk swap
         // produces — already covered by the FS watcher), so this stays a no-op on the

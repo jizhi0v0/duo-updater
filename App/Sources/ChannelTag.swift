@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import DuoUpdaterCore
 
 /// A small chip naming the app's release channel — Beta / Canary / Dev / …
@@ -11,6 +12,20 @@ import DuoUpdaterCore
 /// "STABLE" chip everywhere would be pure noise; we render nothing for it.
 struct ChannelTag: View {
     let channel: ReleaseChannel
+
+    /// The width this tag will claim once laid out, for callers that must budget
+    /// row space *before* layout happens (the menu row decides between a wide
+    /// progress bar and a compact ring by measuring what the name column needs).
+    /// Mirrors `body`'s font and padding — the two have to be changed together.
+    static func measuredWidth(for channel: ReleaseChannel) -> CGFloat {
+        guard channel != .stable else { return 0 }
+        let text = channel.rawValue.uppercased()
+        let font = NSFont.systemFont(ofSize: 9, weight: .semibold)
+        let width = NSAttributedString(
+            string: text, attributes: [.font: font, .kern: 0.3]
+        ).size().width
+        return width + 10   // .padding(.horizontal, 5) on both sides
+    }
 
     var body: some View {
         if channel != .stable {

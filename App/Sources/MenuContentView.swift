@@ -480,6 +480,53 @@ struct MenuContentView: View {
     }
 }
 
+/// The readouts a downloading row can wear, widest first — `AppRow` walks them
+/// in this order and takes the first one the app's name leaves room for.
+///
+/// The widths are what the group actually lays out to: the indicator, the 4pt
+/// HStack spacing, and the percentage's fixed 32pt slot.
+private enum DownloadReadout: CaseIterable {
+    case barAndPercent      // 86pt
+    case ringAndPercent     // 51pt
+    case ringOnly           // 15pt
+
+    static let bar: CGFloat = 50
+    static let ring: CGFloat = 15
+    static let spinner: CGFloat = 16
+    static let percent: CGFloat = 32
+
+    var contentWidth: CGFloat {
+        switch self {
+        case .barAndPercent: Self.bar + 4 + Self.percent
+        case .ringAndPercent: Self.ring + 4 + Self.percent
+        case .ringOnly: Self.ring
+        }
+    }
+}
+
+/// A determinate progress ring, 15pt across — the compact stand-in for the
+/// bar-plus-percentage readout on rows whose name needs the horizontal space.
+///
+/// Drawn rather than borrowed from `ProgressView(value:).progressViewStyle(.circular)`
+/// so the diameter and the tint are ours to fix at the size the row can afford.
+/// The floor on `trim` keeps a just-started download visibly a ring rather than
+/// a bare grey circle.
+private struct ProgressRing: View {
+    let value: Double
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Color.secondary.opacity(0.25), lineWidth: 2.5)
+            Circle()
+                .trim(from: 0, to: max(0.02, min(1, value)))
+                .stroke(.tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 15, height: 15)
+        .animation(.easeOut(duration: 0.2), value: value)
+    }
+}
+
 private struct AppRow: View {
     let result: UpdateResult
     @Bindable var model: AppListModel
@@ -490,6 +537,98 @@ private struct AppRow: View {
 
     private var stage: InstallStage? { model.installing[result.id] }
     private var installError: String? { model.installErrors[result.id] }
+
+    /// How wide the name line wants to be — the name plus whatever shares its
+    /// row (the running dot, a channel chip). Measured with AppKit rather than
+    /// left to `ViewThatFits`: the progress control is inflexible, so an HStack
+    /// hands it its ideal width and it never feels the pressure a long name is
+    /// under. Measuring is the only way to see the collision coming.
+    private var nameLineWidth: CGFloat {
+        var width = NSAttributedString(
+            string: result.app.name,
+            attributes: [.font: NSFont.preferredFont(forTextStyle: .body)]
+        ).size().width
+        if model.isRunning(result) { width += 6 + 6 }   // dot + HStack spacing
+        let tag = ChannelTag.measuredWidth(for: result.app.releaseChannel)
+        if tag > 0 { width += tag + 6 }
+        return width
+    }
+
+    /// What the version line under the name wants out of the same column.
+    ///
+    /// It never wraps — it shrinks to `minimumScaleFactor(0.75)` and then
+    /// truncates, which is how Warp's date-style versions became
+    /// "0.2026.08.18.02.52…  →  0.2026.08.19.08.15…" the moment a download
+    /// widened the readout from a 64pt button to the 86pt bar. Neither end of
+    /// the version was readable, which is the whole point of the line.
+    ///
+    /// The arrow and its two 4pt gaps don't scale, so the line survives in
+    /// `0.75 * natural + 4.25` — that's what it needs, and what this reports.
+    private var versionLineDemand: CGFloat {
+        guard case .updateAvailable(let latest) = result.status else { return 0 }
+        let caption = NSFont.preferredFont(forTextStyle: .caption1)
+        func measure(_ text: String) -> CGFloat {
+            NSAttributedString(string: text, attributes: [.font: caption]).size().width
+        }
+        let bump = result.buildBump(latest: latest)
+        let installed = result.installedDisplay ?? "?"
+        let from = bump.map { "\(installed) (\($0.installed))" } ?? installed
+        let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
+        var natural = measure(from) + measure(to) + Self.versionArrowWidth
+        if let running = model.restartFromVersion(result.id) {
+            natural += measure(" · current \(running)")
+        }
+        return 0.75 * natural + 0.25 * Self.versionArrowWidth
+    }
+
+    /// The arrow glyph plus the HStack's two 4pt gaps around it.
+    private static let versionArrowWidth: CGFloat = 17
+
+    /// The widest thing in the name column — the name, or a version line long
+    /// enough to be the binding constraint. Warp's name is 31.8pt and its
+    /// version line needs 177.4pt; budgeting on the name alone is what let the
+    /// bar squeeze the versions into ellipses.
+    private var nameColumnDemand: CGFloat { max(nameLineWidth, versionLineDemand) }
+
+    /// Whether the name column still holds together next to a readout `width`
+    /// wide. Six readout widths were rendered against the real row layout and
+    /// each one's wrap point recorded; the budget came out as `260 - width`,
+    /// taking the low end of the six intercepts (261…267.6) and 4pt of slack on
+    /// top. The slack is the lesson from the percentage label, which wrapped
+    /// because its slot was sized to the exact measurement.
+    private func nameFits(besideReadout width: CGFloat) -> Bool {
+        nameColumnDemand <= 260 - width - 4
+    }
+
+    /// How much of a download readout the name leaves room for. Widest first —
+    /// the number is worth keeping as long as it fits, so the bar is what goes
+    /// before the percentage does.
+    private var downloadReadout: DownloadReadout {
+        for style in DownloadReadout.allCases where nameFits(besideReadout: style.contentWidth) {
+            return style
+        }
+        return .ringOnly
+    }
+
+    /// Whether the spinner keeps its stage name ("Extracting", "Installing").
+    /// Measured per label, not per widest label: "Queued" is 12pt narrower than
+    /// "Extracting", and that difference decides the case for a long name.
+    private func showsStageLabel(_ stage: InstallStage) -> Bool {
+        let label = NSAttributedString(
+            string: stageLabel(stage),
+            attributes: [.font: NSFont.preferredFont(forTextStyle: .caption2)]
+        ).size().width
+        return nameFits(besideReadout: max(64, DownloadReadout.spinner + 4 + label))
+    }
+
+    /// The width the trailing slot reserves. 64pt is the shared one every button
+    /// and badge uses; a readout that has already given up width for the name
+    /// must give up its reservation too, or it hands back only the difference.
+    private var trailingSlot: CGFloat {
+        guard let stage else { return 64 }
+        if case .downloading = stage { return downloadReadout == .barAndPercent ? 64 : 24 }
+        return showsStageLabel(stage) ? 64 : 24
+    }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -514,8 +653,13 @@ private struct AppRow: View {
                 // padding. Centring instead inset the narrow ones by ~27pt and broke
                 // that shared edge. The minimum still reserves a slot so the name
                 // column can't run right up to the control.
+                // …except when a long name has pushed the progress readout down to
+                // a ring: reserving 64pt there would hand back only 22 of the 70pt
+                // the ring saves, and the name would wrap anyway. 24pt still keeps
+                // the name off the control, and trailing alignment means the ring
+                // ends on the same edge every other control does.
                 trailing
-                    .frame(minWidth: 64, alignment: .trailing)
+                    .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {
                 VStack(alignment: .leading, spacing: 3) {
@@ -860,31 +1004,75 @@ private struct AppRow: View {
 
     @ViewBuilder
     private func installProgress(_ stage: InstallStage) -> some View {
-        HStack(spacing: 4) {
-            if case .downloading(let f) = stage {
+        if case .downloading(let f) = stage {
+            downloadProgress(f)
+        } else {
+            stageProgress(stage)
+        }
+    }
+
+    /// The download readout, as wide as the name can afford. Every variant ends
+    /// on the row's trailing edge and carries the percentage where there's room
+    /// for it — losing the bar costs nothing you can't read off the number, but
+    /// losing the number leaves the row saying only "something is happening".
+    @ViewBuilder
+    private func downloadProgress(_ f: Double) -> some View {
+        switch downloadReadout {
+        case .barAndPercent:
+            HStack(spacing: 4) {
                 ProgressView(value: f).frame(width: 50).controlSize(.small)
-                // Fixed-width, right-aligned, monospaced digits: "2%" and "100%"
-                // both end at the same edge, so neither the bar nor the row moves.
-                // 29pt is measured, not guessed — "100%" at caption2 with monospaced
-                // digits is 28.6pt wide, and anything wider just opens a gap between
-                // the bar and the number on the usual two-digit case.
-                Text("\(Int(f * 100))%")
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .frame(width: 29, alignment: .trailing)
-            } else {
+                percentLabel(f)
+            }
+            // Centre the bar+label as a tight group in the same minimum-width slot
+            // the buttons use, so it lines up down the list. It has to be a
+            // *minimum*: the bar plus the percentage is wider than 64pt, and a hard
+            // width made the number overflow past the row's trailing edge. The
+            // percentage's own fixed width keeps the row from reflowing as it
+            // counts up.
+            .frame(minWidth: 64, alignment: .center)
+        case .ringAndPercent:
+            HStack(spacing: 4) {
+                ProgressRing(value: f)
+                percentLabel(f)
+            }
+        case .ringOnly:
+            // Only for a name long enough that even 32pt of digits would wrap it.
+            ProgressRing(value: f)
+                .help("Downloading \(result.app.name) — \(Int(f * 100))%")
+        }
+    }
+
+    /// Fixed-width, right-aligned, monospaced digits: "2%" and "100%" both end at
+    /// the same edge, so neither the bar nor the row moves as it counts up.
+    /// "100%" at caption2 with monospaced digits measures 28.6pt, so the old 29pt
+    /// slot left 0.4pt of slack and SwiftUI wrapped it to "100" over "%". 32pt
+    /// gives it real room, and lineLimit+fixedSize make a wrap impossible however
+    /// the metrics land.
+    private func percentLabel(_ f: Double) -> some View {
+        Text("\(Int(f * 100))%")
+            .font(.caption2).foregroundStyle(.secondary)
+            .monospacedDigit()
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(width: 32, alignment: .trailing)
+    }
+
+    /// The non-download stages: a spinner, named where the name column can spare
+    /// the width. When it can't, the stage moves into the tooltip.
+    @ViewBuilder
+    private func stageProgress(_ stage: InstallStage) -> some View {
+        if showsStageLabel(stage) {
+            HStack(spacing: 4) {
                 ProgressView().controlSize(.small)
                 Text(stageLabel(stage))
                     .font(.caption2).foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+            .frame(minWidth: 64, alignment: .center)
+        } else {
+            ProgressView().controlSize(.small)
+                .help("\(stageLabel(stage)) \(result.app.name)")
         }
-        // Centre the bar+label as a tight group in the same minimum-width slot the
-        // buttons use, so it lines up down the list. It has to be a *minimum*: the
-        // bar plus the percentage is wider than 64pt, and a hard width made the
-        // number overflow past the row's trailing edge. The percentage's own fixed
-        // width keeps the row from reflowing as it counts up.
-        .frame(minWidth: 64, alignment: .center)
     }
 
     private func stageLabel(_ stage: InstallStage) -> String {

@@ -292,7 +292,11 @@ public enum ChangelogService {
     /// appcast, for one) — a credential leak is a much worse failure than a rate
     /// limit.
     static func isGitHubAPI(_ url: URL) -> Bool {
-        url.host?.lowercased() == "api.github.com"
+        // Scheme checked too: `URL.host` is scheme-agnostic, so without this an
+        // `http://api.github.com/…` recipe would send the token in the clear. No
+        // such recipe exists and ATS would refuse the load anyway — but a CLI
+        // binary's ATS posture is not the app's, and this is one comparison.
+        url.scheme?.lowercased() == "https" && url.host?.lowercased() == "api.github.com"
     }
 
     /// The token the user pasted into Settings ▸ GitHub, pushed down by the app.
@@ -465,8 +469,15 @@ public enum ChangelogService {
         // of them on Zed alone, so the recipes turned up as HTTP 403 "BROKEN"
         // while a perfectly good token sat in `gh` unused. Same token the
         // GitHub source sends; 5000/hour once attached.
-        if isGitHubAPI(url), let token = await gitHubToken() {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if isGitHubAPI(url) {
+            // The same two headers `GitHubReleasesSource` sends: without them the
+            // API answers from whatever version it currently defaults to, which is
+            // exactly the kind of silent drift a pinned version exists to prevent.
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+            if let token = await gitHubToken() {
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
         }
         guard let (data, response) = try? await session.data(for: request) else {
             return (nil, nil)

@@ -928,6 +928,12 @@ public enum StructuredChangelogDecoder {
         }
     }
 
+    /// The page the request body asks for — same literal as the recipe's
+    /// `requestBody`, spelled in the dashed form the `recordMap.block` map keys
+    /// use. Kept beside the decoder so the two cannot drift apart silently; a
+    /// mismatch degrades to the type scan below rather than failing.
+    static let notionPageID = "5936dabc-8dd6-4978-9578-6c91b9d6f12a"
+
     static func decodeNotionPageChunk(_ body: String, maxEntries: Int?) -> Changelog? {
         guard let data = body.data(using: .utf8),
               let chunk = try? JSONDecoder().decode(NotionPageChunk.self, from: data)
@@ -936,8 +942,15 @@ public enum StructuredChangelogDecoder {
         // The reading order lives on the page block's own `content` array, NOT on
         // the surrounding map's key order (see the doc comment above) — so find
         // that one block first rather than iterating `blocks` directly.
-        guard let order = blocks.values.first(where: { $0.value.value.type == "page" })?
-            .value.value.content
+        //
+        // Looked up by id, not by `values.first(where: type == "page")`. Dictionary
+        // iteration order is unspecified, so scanning for the first `page`-typed
+        // block is only correct while the chunk contains exactly one — true of
+        // today's response and of nothing guaranteed. The id is the one we asked
+        // for in the request body, so it is the right block by construction.
+        guard let page = blocks[notionPageID]?.value.value
+            ?? blocks.values.first(where: { $0.value.value.type == "page" })?.value.value,
+              let order = page.content
         else { return nil }
 
         var entries: [Changelog.Entry] = []

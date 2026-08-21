@@ -270,18 +270,19 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// The literal request body to send when `httpMethod == .post`, as raw bytes
     /// (already-encoded JSON, in practice). nil for every `.get` recipe.
     ///
-    /// ⚠️ Cache-key caveat: `ChangelogCache`/`ChangelogDiskCache` key on the
-    /// resolved *URL*, not on (URL, method, body) — a POST endpoint's URL is the
-    /// same for every request regardless of body. That is safe today only
-    /// because exactly one recipe (Notion) uses POST and its body is a fixed,
-    /// hardcoded literal — every fetch of that URL sends the identical body, so
-    /// there is nothing for the cache to confuse. If a second recipe is ever
-    /// added that POSTs a *different* body to the *same* URL (e.g. paginating
-    /// with a different cursor, or targeting a different page id on the same
-    /// host), it WILL read the first recipe's cached response instead of making
-    /// its own request. Fixing that properly means folding a body hash into the
-    /// cache key everywhere — not done here because it is unneeded until that
-    /// second case exists.
+    /// ⚠️ Cache-key caveat, stated precisely because the first version of this
+    /// comment named the wrong mechanism for both caches: `ChangelogCache` keys on
+    /// (resolved URL, channel) — no bundle id and no body — so two recipes POSTing
+    /// different bodies to the same URL on the same channel would collide, and the
+    /// second would read the first's response. `ChangelogDiskCache.Key` is
+    /// (bundleID, channel, version), which cannot collide on URL at all and is
+    /// therefore not part of this hazard.
+    ///
+    /// Safe today because exactly one recipe (Notion) uses POST and its body is a
+    /// fixed, hardcoded literal. Fixing it properly means folding a body hash into
+    /// `ChangelogCache`'s key — not done here because it is unneeded until a
+    /// second POST recipe exists (paginating with a different cursor, or another
+    /// page id on the same host).
     public let requestBody: Data?
 
     public init(

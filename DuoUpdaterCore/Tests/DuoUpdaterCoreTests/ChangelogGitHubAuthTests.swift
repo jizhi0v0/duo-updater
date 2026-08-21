@@ -100,3 +100,11 @@ import Foundation
         #expect(await ChangelogService.gitHubToken(now: later) == "fresh")
     }
 }
+
+/// The host gate checks the scheme too. `URL.host` is scheme-agnostic, so a
+/// cleartext URL at the right host would otherwise have put the token on the wire
+/// in the clear.
+@Test func gitHubAuthRequiresHTTPS() {
+    #expect(!ChangelogService.isGitHubAPI(URL(string: "http://api.github.com/repos/x/y")!))
+    #expect(ChangelogService.isGitHubAPI(URL(string: "https://api.github.com/repos/x/y")!))
+}

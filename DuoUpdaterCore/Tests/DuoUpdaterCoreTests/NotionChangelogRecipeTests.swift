@@ -29,8 +29,9 @@ private let notionNewNamingFixture = #"""
     // with no build number, which never matched the app's real installed
     // version. The pattern is reconstructed here (via the shared helper in
     // `ChangelogExtractorTests.swift`) rather than fetched from the registry,
-    // so this regression coverage survives even though the pattern itself is
-    // now dead code (kept commented out in the registry for reference).
+    // so this regression coverage survives even though the pattern itself is no
+    // longer in the registry at all (it is in git history, at 3603c3c^ and
+    // earlier — deliberately NOT left behind as commented-out code).
     private func recipe() -> ChangelogRecipe {
         notionProductAnnouncementsRecipe()
     }

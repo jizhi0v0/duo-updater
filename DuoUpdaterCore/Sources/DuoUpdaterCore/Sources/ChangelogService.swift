@@ -126,8 +126,10 @@ public enum ChangelogService {
     ) async -> ChangelogDiagnostic {
         let resolved = recipe.resolvedSource(forVersion: version)
         // Fetch the entry page directly so a transport/status failure is
-        // distinguishable; `fetchAndParse` collapses both into nil.
-        let fetched = await fetch(resolved, session: session)
+        // distinguishable; `fetchAndParse` collapses both into nil. Pass the
+        // recipe through so a POST recipe (Notion) sends its body on this,
+        // its ONLY request — there is no second stage for a structured recipe.
+        let fetched = await fetch(resolved, recipe: recipe, session: session)
         guard fetched.body != nil else {
             await recordHealth(recipe, parsed: nil)
             return ChangelogDiagnostic(
@@ -171,11 +173,11 @@ public enum ChangelogService {
         _ recipe: ChangelogRecipe, resolved: URL, session: URLSession
     ) async -> Changelog? {
         if recipe.structuredFormat != nil {
-            return parse(recipe, body: await fetchBody(resolved, session: session))
+            return parse(recipe, body: await fetchBody(resolved, recipe: recipe, session: session))
         }
         guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session)
         else { return nil }
-        return parse(recipe, body: await fetchBody(pageURL, session: session))
+        return parse(recipe, body: await fetchBody(pageURL, recipe: recipe, session: session))
     }
 
     /// Turn a fetched page into entries, by whichever route the recipe declares.
@@ -316,14 +318,26 @@ public enum ChangelogService {
 
     /// Fetch a URL with the browser-like UA and return its body as a string, or
     /// nil on network error / non-2xx. Shared by the index and detail fetches.
-    private static func fetchBody(_ url: URL, session: URLSession) async -> String? {
-        await fetch(url, session: session).body
+    /// `recipe` is nil for a plain GET (every regex/HTML recipe, and both stages
+    /// of a two-stage index/detail recipe); pass it only for the single request a
+    /// structured recipe makes, so a `.post` recipe's method/body actually rides
+    /// along (see `fetch(_:recipe:session:)`).
+    private static func fetchBody(
+        _ url: URL, recipe: ChangelogRecipe? = nil, session: URLSession
+    ) async -> String? {
+        await fetch(url, recipe: recipe, session: session).body
     }
 
     /// The same request, but keeping the status code so a verifier can tell a
     /// moved page from a restyled one.
+    ///
+    /// `recipe` supplies the HTTP method and body (see `ChangelogRecipe.httpMethod`/
+    /// `requestBody`) — nil means the plain-GET default every recipe used before
+    /// Notion. Only the one request a caller explicitly threads a recipe through
+    /// can ever be a POST; every other fetch in this file (the two-stage index
+    /// page, its detail page) is hard-coded to GET by simply not passing one.
     private static func fetch(
-        _ url: URL, session: URLSession
+        _ url: URL, recipe: ChangelogRecipe? = nil, session: URLSession
     ) async -> (body: String?, status: Int?) {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
@@ -333,6 +347,11 @@ public enum ChangelogService {
         // and just 304 here.)
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        if let recipe, recipe.httpMethod == .post {
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = recipe.requestBody
+        }
         // A recipe may read the GitHub API (Zed's notes come from the same
         // `/releases` endpoint the version check already uses). Unauthenticated
         // that is 60 requests/hour PER IP, shared with every GitHub-sourced

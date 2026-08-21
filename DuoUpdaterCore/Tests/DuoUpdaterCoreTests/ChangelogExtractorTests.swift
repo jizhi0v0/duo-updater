@@ -1530,8 +1530,34 @@ private let notionFixture = #"""
 <article class="release_release__p2Jug"><div class="release_releaseMeta__bvuES"><div class="release_dateRow__ew79j"><time class="release_date__P0TR_">May 26, 2026</time></div></div><div class="release_content__gxmgt"><a class="release_titleLink__zEwHf" href="/releases/2026-05-26"><h2 class="semanticTypography_semanticTypography__mWJkv release_title__o1nuh">Merge cells in simple tables</h2></a><article class="contentfulRichText_richText__rW7Oq"><p class="videoPlayer_errorLine__pR8bX">Uh-oh! Your ad blocker is preventing the video from playing.</p><p class="contentfulRichText_paragraph___hjRE">Finally! Merge cells in simple tables &amp; databases.</p><p class="contentfulRichText_paragraph___hjRE">Select multiple cells → open the cell menu → select <code class="contentfulRichText_code__RWBxk">Merge</code>.</p></article></div></article><article class="release_release__p2Jug"><div class="release_releaseMeta__bvuES"><div class="release_dateRow__ew79j"><time class="release_date__P0TR_">May 7, 2026</time></div></div><div class="release_content__gxmgt"><a class="release_titleLink__zEwHf" href="/releases/2026-05-07"><h2 class="semanticTypography_semanticTypography__mWJkv release_title__o1nuh">Plan Mode</h2></a><article class="contentfulRichText_richText__rW7Oq"><p class="contentfulRichText_paragraph___hjRE">Your agent now drafts a plan before making significant changes.</p></article></div></article></main>
 """#
 
+/// The regex recipe this fixture exercises is no longer the ACTIVE `notion.id`
+/// recipe in `ChangelogRecipeRegistry` — 2026-08-22 it was replaced by
+/// `.notionPageChunk` (see that recipe's comment), because this page has no
+/// build number at all and its post titles were standing in for one, which
+/// never matched the installed app's real version. The old pattern is kept
+/// commented out in the registry (not deleted) for reference, so it can no
+/// longer be fetched via `ChangelogRecipeRegistry.recipe(forBundleID:)` — this
+/// reconstructs it inline to keep the regression coverage for the pattern
+/// itself (the CSS-modules-rename fixture in `NotionChangelogRecipeTests`
+/// depends on the same pattern surviving).
+func notionProductAnnouncementsRecipe() -> ChangelogRecipe {
+    ChangelogRecipe(
+        bundleID: "notion.id",
+        source: URL(string: "https://www.notion.com/releases")!,
+        entryPattern:
+            #"<article class="(?:release_release__[^"]*|release-module-scss-module__[^"]*__release)">.*?"#
+            + #"<time class="(?:release_date__[^"]*|release-module-scss-module__[^"]*__date)">(?<date>[^<]+)</time>.*?"#
+            + #"<h2 class="[^"]*(?:release_title__[^"]*|release-module-scss-module__[^"]*__title)">(?<version>.*?)</h2>"#
+            + #"(?<body>.*?)(?=<article class="(?:release_release__|release-module-scss-module__[^"]*__release")|</main>|<footer)"#,
+        itemPatterns: [
+            #"<p class="(?:contentfulRichText_paragraph__[^"]*|contentfulRichText-module-scss-module__[^"]*__paragraph)">(?<item>.*?)</p>"#,
+        ],
+        maxEntries: 20,
+        minItemLength: 4)
+}
+
 @Test func extractsNotionEntries() throws {
-    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "notion.id"))
+    let recipe = notionProductAnnouncementsRecipe()
     let cl = try #require(ChangelogExtractor.extract(from: notionFixture, using: recipe))
     #expect(cl.entries.count == 2)
     #expect(cl.entries.first?.version == "Merge cells in simple tables")

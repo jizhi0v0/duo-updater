@@ -36,6 +36,8 @@ public enum StructuredChangelogDecoder {
             return decodeJetBrainsProductReleases(body, maxEntries: maxEntries)
         case .zedGitHubReleases:
             return decodeZedGitHubReleases(body, channel: channel ?? .stable, maxEntries: maxEntries)
+        case .notionPageChunk:
+            return decodeNotionPageChunk(body, maxEntries: maxEntries)
         }
     }
 
@@ -769,5 +771,181 @@ public enum StructuredChangelogDecoder {
             if x != y { return x > y }
         }
         return false
+    }
+
+    // MARK: - Notion (notion.notion.site/api/v3/loadPageChunk)
+
+    /// Notion's internal, unauthenticated page-rendering API — POSTed with a fixed
+    /// page id (see `ChangelogRecipe.httpMethod`/`requestBody`) — for the desktop
+    /// app's real "What's New" page
+    /// (`notion.notion.site/What-s-New-Mac-Windows-…`), which carries actual build
+    /// numbers (`v7.31.0`). Distinct from `www.notion.com/releases`, Notion's
+    /// *product* announcement feed with no build numbers at all (see the
+    /// `notion.id` recipe comment in `ChangelogRecipe.swift`) — that page answers a
+    /// different question and is kept as a separate, channel-agnostic recipe.
+    ///
+    /// Shape: `recordMap.block` is a MAP keyed by block id, each entry wrapped
+    /// `{value: {value: {...}}}` — note the DOUBLE `value`. Losing the inner layer
+    /// yields every block's `type`/`properties` as nil silently (not a decode
+    /// error), which looks exactly like "the page structure changed" rather than
+    /// "wrong path" — confirmed by hand while building this decoder.
+    ///
+    /// The map's own iteration/key order is NOT the page's reading order (Swift
+    /// dictionary order is unspecified, and nothing here guarantees the JSON's
+    /// on-the-wire key order means anything either). The real order comes from the
+    /// root `page`-type block's OWN `content: [id, id, …]` array, which lists every
+    /// child block id in document order. We walk that array — filtering to ids
+    /// actually present in this (paginated, `limit`-bounded) chunk — and group the
+    /// blocks into releases:
+    ///   `header` (title text is the version, "v7.31.0") → `text` (a "📅 Released
+    ///   ‣ (macOS & Windows)" line whose `‣` is a real Notion date mention) → one
+    ///   or more `bulleted_list` (the change lines), repeating until the next
+    ///   `header`.
+    ///
+    /// Verified live 2026-08-22 against
+    /// `https://notion.notion.site/What-s-New-Mac-Windows-5936dabc8dd6497895786c91b9d6f12a`
+    /// via `loadPageChunk` (`pageId` = that page's id, `chunkNumber: 0, limit: 50`):
+    /// 101 blocks (1 page + 24 header + 24 text + 52 bulleted_list), `content`-array
+    /// order running v7.31.0 → v7.29.0 → v7.28.0 → … — newest first, matching the
+    /// installed app's own version (from the vendor probe's `.redirectFilename`).
+    private struct NotionPageChunk: Decodable {
+        let recordMap: NotionRecordMap
+    }
+    private struct NotionRecordMap: Decodable {
+        let block: [String: NotionBlockEnvelope]
+    }
+    private struct NotionBlockEnvelope: Decodable {
+        let value: NotionValueWrapper
+    }
+    private struct NotionValueWrapper: Decodable {
+        let value: NotionBlock
+    }
+    private struct NotionBlock: Decodable {
+        let type: String?
+        let properties: NotionProperties?
+        /// Present only on the `page` block: every child block id, in reading order.
+        let content: [String]?
+    }
+    private struct NotionProperties: Decodable {
+        let title: [NotionTitleSegment]?
+    }
+
+    /// One `title` segment: `[text]` or `[text, [decoration, …]]`. Only the plain
+    /// `text` and (when present) a date decoration's ISO day are extracted — rich
+    /// formatting (bold/italic/links) is not reproduced, matching every other
+    /// structured decoder's plain-text items.
+    private struct NotionTitleSegment: Decodable {
+        let text: String
+        /// Set only when one of this segment's decorations is a date mention.
+        let dateDay: String?
+
+        init(from decoder: Decoder) throws {
+            var container = try decoder.unkeyedContainer()
+            text = try container.decode(String.self)
+            guard !container.isAtEnd,
+                  let decorations = try? container.decode([NotionDecoration].self)
+            else {
+                dateDay = nil
+                return
+            }
+            dateDay = decorations.compactMap(\.dateDay).first
+        }
+    }
+
+    /// One decoration entry: `[code]` or `[code, payload]`. Only the `"d"` (date
+    /// mention) code's payload is consumed — a Notion date-mention object with a
+    /// `start_date` of `YYYY-MM-DD` (optionally followed by a time-of-day, which we
+    /// don't need). Every other code (bold `"b"`, italic `"i"`, link `"a"`, comment
+    /// `"ce"`, user mention `"u"`, …) decodes its leading code string fine and is
+    /// otherwise ignored — `dateDay` just stays nil for it.
+    private struct NotionDecoration: Decodable {
+        let dateDay: String?
+
+        init(from decoder: Decoder) throws {
+            var container = try decoder.unkeyedContainer()
+            let code = try container.decode(String.self)
+            guard code == "d", !container.isAtEnd else {
+                dateDay = nil
+                return
+            }
+            struct DateProps: Decodable {
+                let startDate: String?
+                enum CodingKeys: String, CodingKey { case startDate = "start_date" }
+            }
+            dateDay = (try? container.decode(DateProps.self))?.startDate
+        }
+    }
+
+    static func decodeNotionPageChunk(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let chunk = try? JSONDecoder().decode(NotionPageChunk.self, from: data)
+        else { return nil }
+        let blocks = chunk.recordMap.block
+        // The reading order lives on the page block's own `content` array, NOT on
+        // the surrounding map's key order (see the doc comment above) — so find
+        // that one block first rather than iterating `blocks` directly.
+        guard let order = blocks.values.first(where: { $0.value.value.type == "page" })?
+            .value.value.content
+        else { return nil }
+
+        var entries: [Changelog.Entry] = []
+        var version: String?
+        var date: String?
+        var items: [String] = []
+
+        func flush() {
+            guard let v = version, !items.isEmpty else { return }
+            entries.append(.init(version: v, date: date, items: items))
+        }
+
+        for id in order {
+            guard let block = blocks[id]?.value.value else { continue }
+            if block.type == "header" {
+                flush()
+                // Cap BEFORE starting a new entry, not after finishing it — an
+                // entry-count check placed after processing every child block
+                // would have already parsed one release too many.
+                if let cap = maxEntries, entries.count >= cap {
+                    version = nil  // so the trailing `flush()` below is a no-op
+                    break
+                }
+                var v = notionText(block.properties?.title ?? [])
+                    .trimmingCharacters(in: .whitespaces)
+                if v.hasPrefix("v") { v = String(v.dropFirst()) }
+                version = v
+                date = nil
+                items = []
+                continue
+            }
+            // A stray text/bulleted_list block before the first header (shouldn't
+            // happen on this page, but the page is fetched live) has nowhere to go.
+            guard version != nil else { continue }
+            switch block.type {
+            case "text":
+                // First date mention wins; the "📅 Released" line is the only
+                // `text` block per release in every sample seen.
+                if date == nil {
+                    date = (block.properties?.title ?? []).compactMap(\.dateDay).first
+                }
+            case "bulleted_list":
+                let line = notionText(block.properties?.title ?? [])
+                    .trimmingCharacters(in: .whitespaces)
+                if !line.isEmpty { items.append(line) }
+            default:
+                break
+            }
+        }
+        flush()
+
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    /// Join a title's segments' visible text, dropping the bare `‣` placeholder a
+    /// mention (date/user/page/comment) renders as in the raw JSON — it carries no
+    /// useful text of its own. (A date mention's real value is read separately, via
+    /// `NotionTitleSegment.dateDay`; a user/page/comment mention has no plain-text
+    /// substitute at all, so it is simply omitted rather than shown as a stray `‣`.)
+    private static func notionText(_ segments: [NotionTitleSegment]) -> String {
+        segments.map { $0.text == "‣" ? "" : $0.text }.joined()
     }
 }

@@ -223,11 +223,50 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// unauthenticated (60/hour/IP) and `ChangelogService` doesn't attach a
         /// token.
         case zedGitHubReleases
+        /// Notion's own desktop "What's New" page,
+        /// `notion.notion.site/What-s-New-Mac-Windows-…` — distinct from
+        /// `www.notion.com/releases`, which is Notion's *product* announcement feed
+        /// and carries no build numbers (see the `notion.id` recipe comment). The
+        /// rendered HTML is an empty Next.js shell; the real content is fetched
+        /// separately from Notion's internal, unauthenticated page API
+        /// (`notion.notion.site/api/v3/loadPageChunk`), which requires a POST with a
+        /// JSON body naming the page id — hence `ChangelogRecipe.httpMethod`/
+        /// `requestBody`. See `StructuredChangelogDecoder.decodeNotionPageChunk` for
+        /// the response shape and how release order is derived.
+        case notionPageChunk
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
     /// extractor (see ``StructuredFormat``). nil for the common HTML/JSON-regex case.
     public let structuredFormat: StructuredFormat?
+
+    /// The HTTP method to fetch `source`/`resolvedSource(forVersion:)` with.
+    /// Default (and every recipe until Notion) is `.get`. `.post` exists solely
+    /// for endpoints — like Notion's internal page API — that only answer a
+    /// POST carrying a JSON body; there is no GET form of that endpoint at all.
+    public enum HTTPMethod: String, Codable, Sendable { case get, post }
+
+    /// The method to fetch this recipe's page with. Defaults to `.get` so every
+    /// existing recipe (and any future one that doesn't set this) is completely
+    /// unaffected.
+    public var httpMethod: HTTPMethod
+
+    /// The literal request body to send when `httpMethod == .post`, as raw bytes
+    /// (already-encoded JSON, in practice). nil for every `.get` recipe.
+    ///
+    /// ⚠️ Cache-key caveat: `ChangelogCache`/`ChangelogDiskCache` key on the
+    /// resolved *URL*, not on (URL, method, body) — a POST endpoint's URL is the
+    /// same for every request regardless of body. That is safe today only
+    /// because exactly one recipe (Notion) uses POST and its body is a fixed,
+    /// hardcoded literal — every fetch of that URL sends the identical body, so
+    /// there is nothing for the cache to confuse. If a second recipe is ever
+    /// added that POSTs a *different* body to the *same* URL (e.g. paginating
+    /// with a different cursor, or targeting a different page id on the same
+    /// host), it WILL read the first recipe's cached response instead of making
+    /// its own request. Fixing that properly means folding a body hash into the
+    /// cache key everywhere — not done here because it is unneeded until that
+    /// second case exists.
+    public let requestBody: Data?
 
     public init(
         bundleID: String,
@@ -245,7 +284,9 @@ public struct ChangelogRecipe: Codable, Sendable {
         sourceTemplate: String? = nil,
         newestLast: Bool = false,
         imagePattern: String? = nil,
-        structuredFormat: StructuredFormat? = nil
+        structuredFormat: StructuredFormat? = nil,
+        httpMethod: HTTPMethod = .get,
+        requestBody: Data? = nil
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -263,6 +304,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.sourceTemplate = sourceTemplate
         self.newestLast = newestLast
         self.imagePattern = imagePattern
+        self.httpMethod = httpMethod
+        self.requestBody = requestBody
     }
 
     /// The actual page URL to fetch for a given target version. When
@@ -329,6 +372,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         sourceTemplate = try c.decodeIfPresent(String.self, forKey: .sourceTemplate)
         newestLast = try c.decodeIfPresent(Bool.self, forKey: .newestLast) ?? false
         imagePattern = try c.decodeIfPresent(String.self, forKey: .imagePattern)
+        httpMethod = try c.decodeIfPresent(HTTPMethod.self, forKey: .httpMethod) ?? .get
+        requestBody = try c.decodeIfPresent(Data.self, forKey: .requestBody)
     }
 }
 
@@ -1089,43 +1134,52 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
             maxEntries: 30),
 
-        // Notion — www.notion.com/releases is Notion's *product* changelog: a
-        // server-rendered Next.js page of dated feature posts, NOT the desktop
-        // app's build version. There is no build number on the page, so the post
-        // title is used as the `version` string (e.g. "Plan Mode"). Acceptable
-        // because this is the low-stakes changelog tier — a miss just falls back
-        // to embedding the page. (notion.so/releases 301s here; /help/whats-new
-        // 404s.) Each post is:
-        //   <article class="release_release__…">
-        //     <time class="release_date__…">May 26, 2026</time>
-        //     <a class="release_titleLink__…"><h2 class="… release_title__…">Title</h2></a>
-        //     <article class="contentfulRichText_richText__…">
-        //       <p class="contentfulRichText_paragraph__…">…note…</p> …</article>
-        //   </article>
-        // Items target the rich-text paragraph class — one the decorative
-        // <p class="…errorLine…"> ad-blocker notices do NOT share, so they're
-        // skipped. The inner contentfulRichText article also closes with
-        // </article>, so the body bounds on the next release article.
+        // Notion — the DESKTOP app's real "What's New" page,
+        // `notion.notion.site/What-s-New-Mac-Windows-5936dabc8dd6497895786c91b9d6f12a`.
+        // This is the recipe wired up for `notion.id`; see `NOT REGISTERED` below
+        // for the *other* Notion recipe this replaces and why.
         //
-        // 2026-08-20: the page switched CSS-modules naming from `release_release__<hash>`
-        // to `release-module-scss-module__<hash>__release` — same markup, same
-        // nesting, every class renamed. Both spellings are accepted rather than
-        // just the new one: the rename is a build-tooling change that can be
-        // rolled back or served A/B, and carrying the old alternative costs one
-        // group. The hash stays unpinned in both, as it turns over on every deploy.
+        // The rendered HTML is a 19 KB empty Next.js shell — zero content. The real
+        // notes come from Notion's own internal, unauthenticated page-rendering API,
+        // which only answers a POST:
+        //   POST https://notion.notion.site/api/v3/loadPageChunk
+        //   {"pageId":"5936dabc-8dd6-4978-9578-6c91b9d6f12a","limit":50,
+        //    "cursor":{"stack":[]},"chunkNumber":0,"verticalColumns":false}
+        // (`source` below is set to that API URL directly — there is nothing
+        // useful to fetch at the human-facing page URL itself.) See
+        // `StructuredChangelogDecoder.decodeNotionPageChunk` for the response shape
+        // (`recordMap.block`, double-`value` wrapping, and the page block's
+        // `content` array as the true reading order) and how the header/text/
+        // bulleted_list blocks are grouped into releases.
+        //
+        // Verified live 2026-08-22: the header text is "v7.31.0" (`v` stripped so
+        // the rail label reads "7.31.0", matching the installed build the vendor
+        // probe's `.redirectFilename` reports) and the release order runs
+        // v7.31.0 → v7.29.0 → v7.28.0 → … — newest first, real desktop builds, not
+        // the product-announcement post titles the old recipe surfaced.
         ChangelogRecipe(
             bundleID: "notion.id",
-            source: URL(string: "https://www.notion.com/releases")!,
-            entryPattern:
-                #"<article class="(?:release_release__[^"]*|release-module-scss-module__[^"]*__release)">.*?"#
-                + #"<time class="(?:release_date__[^"]*|release-module-scss-module__[^"]*__date)">(?<date>[^<]+)</time>.*?"#
-                + #"<h2 class="[^"]*(?:release_title__[^"]*|release-module-scss-module__[^"]*__title)">(?<version>.*?)</h2>"#
-                + #"(?<body>.*?)(?=<article class="(?:release_release__|release-module-scss-module__[^"]*__release")|</main>|<footer)"#,
-            itemPatterns: [
-                #"<p class="(?:contentfulRichText_paragraph__[^"]*|contentfulRichText-module-scss-module__[^"]*__paragraph)">(?<item>.*?)</p>"#,
-            ],
+            source: URL(string: "https://notion.notion.site/api/v3/loadPageChunk")!,
             maxEntries: 20,
-            minItemLength: 4),
+            structuredFormat: .notionPageChunk,
+            httpMethod: .post,
+            requestBody: Data(
+                (#"{"pageId":"5936dabc-8dd6-4978-9578-6c91b9d6f12a","limit":50,"#
+                    + #""cursor":{"stack":[]},"chunkNumber":0,"verticalColumns":false}"#
+                ).utf8)),
+
+        // Notion's OTHER changelog, deliberately not registered: www.notion.com/
+        // releases is the *product* announcement feed (feature launches like "Plan
+        // Mode"), server-rendered and scrapeable, but carrying no build number at
+        // all — the old recipe used each post's title as the `version`, which never
+        // matched the build on the row. That mismatch is what the recipe above
+        // fixes, so the two must not both claim to be this app's release notes.
+        //
+        // The scrape pattern is not kept here as commented-out code; it is in git
+        // (3603c3c^ and earlier), and `notionProductAnnouncementsRecipe()` in the
+        // tests still builds it, so its regression coverage survives. If those
+        // product announcements are ever wanted, they should come back as a
+        // separate, clearly-labelled source — not as a second recipe for this id.
 
         // Obsidian — obsidian.md/changelog is one server-rendered page listing
         // every release newest-first, with BOTH Mobile and Desktop posts. Each

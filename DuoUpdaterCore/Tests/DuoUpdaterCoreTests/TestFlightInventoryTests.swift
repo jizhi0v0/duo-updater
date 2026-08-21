@@ -13,6 +13,63 @@ final class TestFlightInventoryTests: XCTestCase {
         ])
     }
 
+    private func installedApp(
+        build: String = "100",
+        isMAS: Bool = true,
+        isTestFlight: Bool = false
+    ) -> InstalledApp {
+        InstalledApp(
+            name: "Beta App", bundleID: "com.example.beta",
+            shortVersion: "1.0", buildVersion: build,
+            path: URL(fileURLWithPath: "/Applications/Beta App.app"),
+            isMASApp: isMAS, isTestFlightApp: isTestFlight,
+            sparkleFeedURL: URL(string: "https://example.com/appcast.xml"),
+            sparkleFeedHeaders: ["X-Channel": "beta"],
+            sparkleEdPublicKey: "fixture-key", hasSelfUpdater: true,
+            releaseChannel: .beta, channelIsAuthoritative: true,
+            toolboxInstalledBuild: "toolbox-build", appStoreAdamID: 123)
+    }
+
+    func testApplyingInventoryRetagsWithoutLosingScannedMetadata() {
+        let app = installedApp()
+        let inventory = TestFlightInventory(macRows: [
+            (bundleID: "com.example.beta", shortVersion: "1.1", build: "100")
+        ])
+
+        let retagged = AppScanner.applyingTestFlightInventory(inventory, to: [app])[0]
+
+        XCTAssertTrue(retagged.isTestFlightApp)
+        XCTAssertFalse(retagged.isMASApp)
+        XCTAssertEqual(retagged.name, app.name)
+        XCTAssertEqual(retagged.path, app.path)
+        XCTAssertEqual(retagged.sparkleFeedURL, app.sparkleFeedURL)
+        XCTAssertEqual(retagged.sparkleFeedHeaders, app.sparkleFeedHeaders)
+        XCTAssertEqual(retagged.sparkleEdPublicKey, app.sparkleEdPublicKey)
+        XCTAssertEqual(retagged.releaseChannel, app.releaseChannel)
+        XCTAssertEqual(retagged.toolboxInstalledBuild, app.toolboxInstalledBuild)
+        XCTAssertEqual(retagged.appStoreAdamID, app.appStoreAdamID)
+    }
+
+    func testApplyingInventoryDoesNotTagADifferentInstalledBuild() {
+        let app = installedApp(build: "99")
+        let inventory = TestFlightInventory(macRows: [
+            (bundleID: "com.example.beta", shortVersion: "1.1", build: "100")
+        ])
+
+        let unchanged = AppScanner.applyingTestFlightInventory(inventory, to: [app])[0]
+        XCTAssertEqual(unchanged, app)
+    }
+
+    func testApplyingInventoryKeepsLocalReceiptTagWhenDatabaseLags() {
+        let app = installedApp(build: "101", isMAS: false, isTestFlight: true)
+        let lagging = TestFlightInventory(macRows: [
+            (bundleID: "com.example.beta", shortVersion: "1.0", build: "100")
+        ])
+
+        let unchanged = AppScanner.applyingTestFlightInventory(lagging, to: [app])[0]
+        XCTAssertEqual(unchanged, app)
+    }
+
     func testLatestPicksHighestBuild() {
         let tf = inventory()
         XCTAssertEqual(tf.latest(forBundleID: "com.wiheads.paste")?.latestBuild, "18706")

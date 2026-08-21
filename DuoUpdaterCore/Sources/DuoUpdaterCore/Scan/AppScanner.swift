@@ -153,6 +153,46 @@ public struct AppScanner: Sendable {
         }
     }
 
+    /// Fold a completed TestFlight inventory into apps that were already scanned.
+    ///
+    /// The inventory read can block on macOS's app-data privacy prompt, so the app
+    /// intentionally scans first with an empty inventory. Once the read succeeds we
+    /// only need to correct store provenance: every other field came from the same
+    /// bundle and is independent of TestFlight. Rebuilding those fields here avoids
+    /// a second full directory/plist/receipt/channel scan.
+    public static func applyingTestFlightInventory(
+        _ inventory: TestFlightInventory,
+        to apps: [InstalledApp]
+    ) -> [InstalledApp] {
+        apps.map { app in
+            let isTestFlight = app.isTestFlightApp || inventory.isManaged(
+                bundleID: app.bundleID, installedBuild: app.buildVersion)
+            guard isTestFlight, !app.isTestFlightApp else { return app }
+
+            return InstalledApp(
+                name: app.name,
+                bundleID: app.bundleID,
+                shortVersion: app.shortVersion,
+                buildVersion: app.buildVersion,
+                path: app.path,
+                isMASApp: false,
+                isiOSAppOnMac: app.isiOSAppOnMac,
+                isToolboxManaged: app.isToolboxManaged,
+                isTestFlightApp: true,
+                sparkleFeedURL: app.sparkleFeedURL,
+                sparkleFeedHeaders: app.sparkleFeedHeaders,
+                sparkleEdPublicKey: app.sparkleEdPublicKey,
+                hasSelfUpdater: app.hasSelfUpdater,
+                releaseChannel: app.releaseChannel,
+                channelIsAuthoritative: app.channelIsAuthoritative,
+                toolboxInstalledBuild: app.toolboxInstalledBuild,
+                // A receipt-backed app already paid this Spotlight read in the first
+                // scan. The fallback covers a DB-matched bundle with no receipt.
+                appStoreAdamID: app.appStoreAdamID ?? appStoreAdamID(app.path)
+            )
+        }
+    }
+
     /// Scan all configured locations and return the apps found, sorted by name.
     public func scan() -> [InstalledApp] {
         let fm = FileManager.default

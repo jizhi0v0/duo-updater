@@ -1141,9 +1141,10 @@ final class AppListModel {
         if let tfLoader {
             if let loaded = await Self.firstResult(of: tfLoader, within: .seconds(2)), loaded.accessible {
                 testflight = loaded
+                let scanned = found
                 let retagged = testflight
                 found = await Task.detached(priority: .userInitiated) {
-                    AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: retagged).scan()
+                    AppScanner.applyingTestFlightInventory(retagged, to: scanned)
                 }.value
                 results = sorted(mergeScanned(found))
             } else {

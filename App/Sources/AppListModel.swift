@@ -1162,6 +1162,11 @@ final class AppListModel {
         // power loss / force-quit on the non-admin install path). Restoring it here
         // means the about-to-run scan sees a working app rather than a missing one.
         recoverInterruptedSwapsOnce()
+        // A full check rewrites every row from scratch, and only runs when nothing is
+        // installing (`canRefresh`), so there is no click to protect: drop any frozen
+        // order outright rather than pinning the new list to an old layout. Also the
+        // backstop that guarantees a freeze can never outlive its round.
+        pinnedOrder = [:]
         // Snapshot the current count before we blank the rows below, so the menu-bar
         // badge holds it steady through the scan/check instead of flickering to 0.
         heldBadgeCount = updateCount
@@ -1737,6 +1742,9 @@ final class AppListModel {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
             self?.justUpdated.remove(id)
+            // Usually the last thing to clear after an install, so this is where the
+            // frozen order normally lifts.
+            self?.releaseRowOrder()
         }
     }
 
@@ -1789,6 +1797,11 @@ final class AppListModel {
     /// the actual installs.
     private func runInstall(_ result: UpdateResult, notify: Bool, deferBookkeeping: Bool) async -> Bool {
         let id = result.id
+        // Hold the list still for the duration — this row's rank is about to change
+        // under whoever is clicking down the list. Every exit below clears
+        // `installing[id]` first, so the release check here sees the settled state.
+        pinRowOrder()
+        defer { releaseRowOrder() }
         // The row was marked `.queued` by the caller before this suspension
         // point, so the UI already shows the wait and the re-entrancy guard
         // already rejects re-clicks; here we just park until a slot frees (the
@@ -2914,7 +2927,8 @@ final class AppListModel {
         // worked. A second click would otherwise fire a second quit.
         guard !relaunching.contains(result.id) else { return }
         relaunching.insert(result.id)
-        defer { relaunching.remove(result.id) }
+        pinRowOrder()
+        defer { relaunching.remove(result.id); releaseRowOrder() }
         Log.app.info("restart: \(result.app.name, privacy: .public) [\(bundleID, privacy: .public)]")
         // Sampled before the quit — once the instances are gone, so is the answer —
         // so a hand-off armed below can put the app back where it was. `AppRestarter`
@@ -2971,7 +2985,8 @@ final class AppListModel {
             return
         }
         relaunching.insert(result.id)
-        defer { relaunching.remove(result.id) }
+        pinRowOrder()
+        defer { relaunching.remove(result.id); releaseRowOrder() }
         // A fresh attempt supersedes whatever a previous bail left armed.
         quitHandoffs[result.id] = nil
         let running = AppRestarter.runningInstances(of: result.app)
@@ -3121,7 +3136,8 @@ final class AppListModel {
         // Reuse the row spinner + re-entry block for the duration of the relay.
         guard !relaunching.contains(handoff.result.id) else { return }
         relaunching.insert(handoff.result.id)
-        defer { relaunching.remove(handoff.result.id) }
+        pinRowOrder()
+        defer { relaunching.remove(handoff.result.id); releaseRowOrder() }
         var landed = !handoff.landing.waitsForDisk  // `.applied` has nothing to wait for
         if handoff.landing.waitsForDisk {
             Log.app.info("relaunch-handoff: \(app.name, privacy: .public) quit after the prompt — waiting for the swap to land")
@@ -4265,6 +4281,9 @@ final class AppListModel {
     /// Needs-restart is the most urgent action (the update already landed and
     /// only a restart stands between the user and the new version), so it sorts
     /// ahead of pending updates rather than sinking below them.
+    ///
+    /// …except while the order is frozen (see `pinRowOrder`), when every row the
+    /// user can already see keeps the slot it had, whatever its rank has become.
     private func sorted(_ list: [UpdateResult]) -> [UpdateResult] {
         func rank(_ r: UpdateResult) -> Int {
             if needsRestart.contains(r.id) { return 0 }
@@ -4276,10 +4295,60 @@ final class AppListModel {
             return 2
         }
         return list.sorted { a, b in
+            // Frozen: pinned rows hold their recorded slot, and anything that showed
+            // up since the freeze goes after them (inserting into the middle would
+            // push the pinned rows down, which is the thing being prevented).
+            if !pinnedOrder.isEmpty {
+                switch (pinnedOrder[a.id], pinnedOrder[b.id]) {
+                case let (pa?, pb?): return pa < pb
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): break  // both new — fall through to the normal order
+                }
+            }
             let ra = rank(a), rb = rank(b)
             if ra != rb { return ra < rb }
             return a.app.name.localizedCaseInsensitiveCompare(b.app.name) == .orderedAscending
         }
+    }
+
+    // MARK: - Frozen row order
+    //
+    // The list re-sorts on every rank change, and a row's rank changes the moment
+    // its install lands: it drops out of the pending tier, or picks up a Restart
+    // badge and jumps to the top. Either way every row below it shifts by one —
+    // under the pointer of someone who is working down the list clicking Update,
+    // which is how you end up updating the app you did not mean to. A single
+    // install fires that re-sort three times over (`replaceRow`,
+    // `computeRestartInfo`, `computeSelfUpdateStaging`), and the mid-install
+    // rescan that clears externally-updated apps can fire it at any moment on top.
+    //
+    // So while the user is acting on the list, freeze it: whatever happens to a
+    // row's rank, it stays where they last saw it, finishing in place with its
+    // "Installed ✓". When the round is over — nothing installing, queued,
+    // relaunching, or holding its confirmation — the freeze lifts and the list
+    // re-sorts *once*, which is when the finished rows drop to the bottom tier and
+    // filter out as they always have. One reflow at the end instead of one per app.
+
+    /// Row id → the slot it occupied when the order was frozen.
+    @ObservationIgnored private var pinnedOrder: [String: Int] = [:]
+
+    /// Freeze the current order, if it isn't already. Called wherever work starts
+    /// on a row (install, restart, staged relaunch) — the first one freezes and the
+    /// rest ride along, so a batch or a run of clicks shares one snapshot.
+    private func pinRowOrder() {
+        guard pinnedOrder.isEmpty else { return }
+        pinnedOrder = Dictionary(
+            uniqueKeysWithValues: results.enumerated().map { ($0.element.id, $0.offset) })
+    }
+
+    /// Lift the freeze and re-sort once — but only when nothing is left in flight.
+    /// Safe to call from every settle point; it no-ops until the last one.
+    private func releaseRowOrder() {
+        guard !pinnedOrder.isEmpty, installing.isEmpty, !isInstallingAll,
+              relaunching.isEmpty, justUpdated.isEmpty else { return }
+        pinnedOrder = [:]
+        results = sorted(results)
     }
 }
 

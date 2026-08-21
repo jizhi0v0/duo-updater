@@ -1587,40 +1587,67 @@ private let obsidianFixture = #"""
     #expect(cl.entries.first?.items[2] == "Added appendBinary method to the vault and adapter API.")
 }
 
-// Figma — two product release-notes <article>s from figma.com/release-notes; the
-// first has a <strong> to strip and a `&#x27;` entity to decode. Title = version.
-private let figmaFixture = """
-<article aria-label="Plan smarter" class="fig-1ud82tx">\
-<div class="fig-1u7wo0i">\
-<time dateTime="Jun 3, 2026" class="fig-4tc1ef">Jun 3, 2026</time>\
-<h2 class="fig-1u8vp4l">Plan smarter with more context in Make</h2>\
-</div>\
-<div class="fig-k1i24q">\
-<p class="fig-jco665"><strong>Plan mode</strong></p>\
-<p class="fig-jco665">It&#x27;s most useful for complex work.</p>\
-</div></article>\
-<article aria-label="Sharper controls" class="fig-1ud82tx">\
-<div class="fig-1u7wo0i">\
-<time dateTime="Jun 1, 2026" class="fig-4tc1ef">Jun 1, 2026</time>\
-<h2 class="fig-1u8vp4l">Sharper controls for every slot</h2>\
-</div>\
-<div class="fig-k1i24q">\
-<p class="fig-jco665">New slot settings let you set guardrails.</p>\
-</div></article>
-"""
+// Figma — three verbatim <entry> blocks copied byte-for-byte from the live Atom
+// feed (https://www.figma.com/release-notes/feed/atom.xml, fetched 2026-08-19).
+// The third entry's content carries a raw apostrophe inside the CDATA ("We've
+// added…"), which exercises that the entry/item patterns land strictly inside
+// the `<![CDATA[…]]>` delimiters rather than swallowing them — a naive
+// `<[^>]*>` strip run before the CDATA is pulled out eats the whole
+// `<![CDATA[…]]>` construct (`[^>]*` reads through to the `>` that closes
+// `]]>`), which would otherwise corrupt exactly this kind of entry.
+private let figmaFixture = #"""
+    <entry>
+        <title type="html"><![CDATA[Recommend resources you want users to discover and use]]></title>
+        <id>dece0d00-5f03-4a5d-aa04-3b0fad21b5eb</id>
+        <link href="https://www.figma.com/release-notes/?title=recommend-resources-you-want-users-to-discover-and-use"/>
+        <updated>2026-08-17T00:00:00.000Z</updated>
+        <content type="html"><![CDATA[Admins can now choose which resources (skills, templates, libraries, and Make kits) are recommended to your organization or workspace.]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Get responsive text across screens with text wrap]]></title>
+        <id>fdeb868a-690e-4286-9075-bc4d7fb7f1f9</id>
+        <link href="https://www.figma.com/release-notes/?title=get-responsive-text-across-screens-with-text-wrap"/>
+        <updated>2026-08-14T00:00:00.000Z</updated>
+        <content type="html"><![CDATA[Text wrap makes your text responsive with two new options: Balance and Pretty. Set either on a text layer, a text style, or an individual paragraph in text settings.]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Try skills from the Community and make your own with the Figma agent]]></title>
+        <id>c6056d47-fcc7-497d-aa75-ee928836bfe4</id>
+        <link href="https://www.figma.com/release-notes/?title=weve-added-more-ways-to-discover-create-and-share-skills-for-the-figma-agent"/>
+        <updated>2026-08-13T00:00:00.000Z</updated>
+        <content type="html"><![CDATA[We've added more ways to discover, create, and share skills for the Figma agent.]]></content>
+    </entry>
+    """#
 
 @Test func extractsFigmaEntries() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.figma.Desktop"))
     let cl = try #require(ChangelogExtractor.extract(from: figmaFixture, using: recipe))
-    #expect(cl.entries.count == 2)
-    #expect(cl.entries.first?.version == "Plan smarter with more context in Make")
-    #expect(cl.entries.first?.date == "Jun 3, 2026")
-    #expect(cl.entries.first?.items.count == 2)
-    #expect(cl.entries.first?.items.first == "Plan mode")              // <strong> stripped
-    #expect(cl.entries.first?.items.last == "It's most useful for complex work.")  // &#x27; decoded
-    #expect(cl.entries.last?.version == "Sharper controls for every slot")
-    #expect(cl.entries.last?.items.count == 1)
+    #expect(cl.entries.count == 3)
+
+    let first = try #require(cl.entries.first)
+    #expect(first.version == "Recommend resources you want users to discover and use")
+    #expect(!first.version.contains("CDATA"))
+    #expect(!first.version.isEmpty)
+    #expect(first.date == "2026-08-17")
+    #expect(first.items.count == 1)
+    #expect(first.items.last == "Admins can now choose which resources (skills, templates, libraries, and Make kits) are recommended to your organization or workspace.")
+
+    let last = try #require(cl.entries.last)
+    #expect(last.version == "Try skills from the Community and make your own with the Figma agent")
+    #expect(!last.version.contains("CDATA"))
+    #expect(last.date == "2026-08-13")
+    #expect(last.items.count == 1)
+    // Raw apostrophe survives untouched — nothing to decode, and the CDATA
+    // delimiters themselves must not leak into the captured text.
+    #expect(last.items.last == "We've added more ways to discover, create, and share skills for the Figma agent.")
 }
+
+// Checked against the live 444-entry feed on 2026-08-19: no entry's <title> or
+// <content> carries an embedded HTML tag (e.g. <a>, <br>) inside its CDATA —
+// every post today is plain sentence-style text. So there is no real-world
+// fixture to pin that shape against; if the vendor starts embedding markup,
+// stripTags will clean it (same as every other HTML-sourced recipe here), but
+// there is nothing to regression-test until that actually happens.
 
 // 1Password's changelog moved from this page to the stable channel's RSS feed
 // on 2026-08-16 (see `OnePasswordFeedTests`), so the page fixture that used to

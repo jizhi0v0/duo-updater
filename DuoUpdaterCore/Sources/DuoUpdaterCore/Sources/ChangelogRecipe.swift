@@ -1148,27 +1148,70 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
             maxEntries: 20),
 
-        // Figma (desktop) — figma.com/release-notes is Figma's *product*
-        // release-notes feed (Figma Design / Make / FigJam announcements), NOT
-        // desktop-app build notes: there is no per-entry app version. The desktop
-        // build version lives only at desktop.figma.com/mac/RELEASE.json with no
-        // human notes, so this product feed is the best changelog surface; a parse
-        // miss just falls back to embedding the page (low stakes). The page is
-        // fully server-rendered. Each post is an <article> with
-        //   <time dateTime="Jun 3, 2026">…</time><h2>Title</h2>…<p>…</p>…
-        // We surface the post title as the entry "version" and the post date as
-        // `date`. Figma's CSS class names are hashed per deploy (fig-XXXX), so we
-        // anchor ONLY on generic tags. The item pattern requires <p + whitespace/`>`
-        // so it cannot match the SVG <path> elements inside the "Copy link" button.
+        // Figma (desktop) — read the vendor's own Atom feed rather than the HTML
+        // page: `https://www.figma.com/release-notes/feed/atom.xml`. The `Content-Type`
+        // header on that response reads `application/rss+xml`, but the body is a
+        // standard Atom document (`<feed xmlns="http://www.w3.org/2005/Atom">`) —
+        // don't trust the header, trust the markup. Switched away from the page
+        // (which the entryPattern below used to scrape) because the page's markup is
+        // a client-hydrated shell with CSS classes hashed per deploy — the same
+        // fragility class as every other "scrape the rendered page" recipe in this
+        // file — while the feed's element names (`entry`/`title`/`updated`/`content`)
+        // are a published, stable contract. It also fixes a real bug in the old
+        // recipe: the page lazy-loads posts as you scroll, so the live DOM only ever
+        // had ~8 `<article>` blocks to match against however large `maxEntries` was
+        // set — the feed carries hundreds, so the existing `maxEntries: 20` cap now
+        // actually engages.
+        //
+        // Each entry (captured verbatim 2026-08-19):
+        //   <entry>
+        //       <title type="html"><![CDATA[Recommend resources you want users to discover and use]]></title>
+        //       <id>dece0d00-5f03-4a5d-aa04-3b0fad21b5eb</id>
+        //       <link href="https://www.figma.com/release-notes/?title=…"/>
+        //       <updated>2026-08-17T00:00:00.000Z</updated>
+        //       <content type="html"><![CDATA[Admins can now choose which resources…]]></content>
+        //   </entry>
+        // This is still Figma's *product* release-notes feed (Figma Design / Make /
+        // FigJam announcements), NOT desktop-app build notes — there is no per-entry
+        // app version. The desktop build version lives only at
+        // desktop.figma.com/mac/RELEASE.json with no human notes, so this remains the
+        // best changelog surface, and the post title still fills `version` / the post
+        // date still fills `date` — same mapping as the old page recipe, just read
+        // from a sturdier document.
+        //
+        // Both `title` and `content` are `<![CDATA[…]]>`-wrapped. A naive `<[^>]*>`
+        // tag-stripper applied BEFORE the CDATA payload is pulled out will eat the
+        // whole `<![CDATA[…]]>` construct, because `[^>]*` happily reads through to
+        // the `>` that closes `]]>` — so the capture groups below land strictly
+        // *inside* the CDATA delimiters (`<!\[CDATA\[(?<…>.*?)\]\]>`), and the
+        // generic stripTags/decodeEntities cleanup only ever runs on text already
+        // isolated that way. Checked against the live feed (444 entries, 2026-08-19):
+        // no entry's title or content carries embedded HTML tags today, so that
+        // cleanup is currently a no-op — but the ordering is still correct for the
+        // day one does.
+        //
+        // `date` truncates the ISO timestamp to just its date portion (`[^T]+` before
+        // the literal `T`) — the same convention already used for the GitHub-releases
+        // recipes (Ollama, RustDesk) reading `<relative-time datetime="…">`, and the
+        // prevailing `YYYY-MM-DD` shape most recipes in this file use.
+        //
+        // Trade-off (accepted, not a regression): `content` is a one-sentence
+        // summary, not the fuller multi-paragraph prose the HTML page rendered for
+        // its top posts. Verified against the same 8 posts on 2026-08-19: combined
+        // item text drops from 3390 to 1062 characters (31%) versus the old
+        // `<article>`/`<p>` scrape, while every title and date matches byte-for-byte.
+        // Chosen deliberately for stability over completeness.
         ChangelogRecipe(
             bundleID: "com.figma.Desktop",
-            source: URL(string: "https://www.figma.com/release-notes/")!,
+            source: URL(string: "https://www.figma.com/release-notes/feed/atom.xml")!,
             entryPattern:
-                #"<article[^>]*>.*?"#
-                + #"<time[^>]*dateTime="(?<date>[^"]+)"[^>]*>[^<]*</time>\s*"#
-                + #"<h2[^>]*>(?<version>.*?)</h2>"#
-                + #"(?<body>.*?)</article>"#,
-            itemPatterns: [#"<p(?:\s[^>]*)?>(?<item>.*?)</p>"#],
+                #"<entry>\s*"#
+                + #"<title type="html"><!\[CDATA\[(?<version>.*?)\]\]></title>\s*"#
+                + #"<id>[^<]*</id>\s*"#
+                + #"<link[^>]*/>\s*"#
+                + #"<updated>(?<date>[^T]+)T[^<]*</updated>\s*"#
+                + #"(?<body><content type="html"><!\[CDATA\[.*?\]\]></content>)"#,
+            itemPatterns: [#"<content type="html"><!\[CDATA\[(?<item>.*?)\]\]></content>"#],
             maxEntries: 20),
 
         // 1Password 8 (Mac) — the STABLE channel's RSS feed, `…/mac/stable/index.xml`,

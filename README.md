@@ -67,12 +67,18 @@ Apps are scanned from `/Applications`, `/Applications/Utilities`, and
    licence; omitted otherwise.
 7. **Vendor probes** — curated vendor-owned endpoints as the final fallback.
 
+The first source that recognises an app answers for it; a `nil` means "does not
+apply, try the next one". Two kinds of app never reach that stack at all:
+**JetBrains Toolbox**-managed apps and **TestFlight** builds are answered in
+`UpdateChecker` before the first source is consulted, because Toolbox and
+TestFlight each own the update and there is no second opinion worth having.
+
 It **respects each app's own update channel**:
 
 | Channel | Action |
 | --- | --- |
-| Sparkle | Native install — EdDSA when the app supplies a key, then code-signature + Team ID + bundle ID checks → swap → relaunch |
-| Mac App Store | Full store-daemon download by default; optional App Store UI route, with a deep-link fallback; region-locked apps are flagged |
+| Sparkle | Native install — EdDSA when the app supplies a key, then code-signature + Team ID + bundle ID + runnable-architecture checks → swap. The relaunch is a separate step (`autoRestartAfterUpdate`, on by default), not part of the installer |
+| Mac App Store | Full download through `mas` and the privileged helper. Where that is unavailable — helper not approved, or the app locked to another region — it falls back to a deep link or the App Store's own updates page; region-locked apps are flagged |
 | Self-updating (Electron/Squirrel) | Open the app and let it update itself |
 | Homebrew app cask | `brew install --cask --force` |
 | Homebrew `pkg` cask | Download the official package and open the system installer |
@@ -138,11 +144,11 @@ changes a private framework the App Store path has to be rebuilt.
 itself, which is what lets it also cover vendors that ship neither a Sparkle feed
 nor an App Store listing — per-app recipes against a vendor's own endpoint,
 GitHub releases, Homebrew casks, JetBrains Toolbox. Owning the install is what
-makes the checks in [Install safety](#install-safety) possible: EdDSA where a
-feed provides it, then a Developer ID signature, Team ID and bundle id that must
-match the app being replaced, plus a backup you can roll back to. Latest inherits
-whatever Sparkle and CommerceKit check and adds none of its own, and keeps no
-backup.
+makes the checks in [Install safety](#install-safety) possible: EdDSA where the
+app publishes a key, then a Developer ID signature, Team ID, bundle id and
+runnable architecture that must match the app being replaced, plus a backup you
+can roll back to. Latest inherits whatever Sparkle and CommerceKit check and adds
+none of its own, and keeps no backup.
 
 The trade is maintenance. Per-app recipes break whenever a vendor rewrites a
 download page, which is a real running cost — the same cost that a 100,000-app

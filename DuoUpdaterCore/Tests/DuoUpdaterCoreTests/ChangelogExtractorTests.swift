@@ -1013,36 +1013,103 @@ private let orbStackFixture = """
     #expect(changelog.entries[1].items[0] == "Activity Monitor TUI: orb top")
 }
 
-// Minimal but structurally faithful slice: one patch release (2 items) and one
-// feature release with section headers (2 items from nested <ul>).
-// Three entries: one with only a <p> note (no <li>), one plain patch, one with
-// section headers. Verifies both the <li> primary pattern and the <p> fallback.
-let zedPreviewFixture = """
-<div class="foo" id="zed-1.5.3" style="content-visibility:auto"><header class="p-3 font-zed-mono text-sm flex justify-between border-b default-border-color"><p class="high-contrast-text tabular-nums">1.5.3</p><p class="tabular-nums whitespace-nowrap">May 28, 2026</p></header><div class="content"><article class="p-3"><p>No public-facing changes in this release. <a href="https://github.com/zed-industries/zed/compare/v1.5.2-pre...v1.5.3-pre#commits_bucket">View the commits</a>.</p></article></div></div><div class="foo" id="zed-1.5.1" style="content-visibility:auto"><header class="p-3 font-zed-mono text-sm flex justify-between border-b default-border-color"><p class="high-contrast-text tabular-nums">1.5.1</p><p class="tabular-nums whitespace-nowrap">May 28, 2026</p></header><div class="content"><article class="p-3"><ul class="list-disc">\n<li class="mb-2">Fixed GitHub Copilot Chat showing an empty model dropdown for users on newer Copilot SDK builds (<a href="https://github.com/zed-industries/zed/pull/57964">#57964</a>)</li>\n<li class="mb-2">git: Fixed an issue where worktree creation would not be possible if resolving default branch fails (<a href="https://github.com/zed-industries/zed/pull/57960">#57960</a>)</li>\n</ul></article></div></div><div class="foo" id="zed-1.5.0" style="content-visibility:auto"><header class="p-3 font-zed-mono text-sm flex justify-between border-b default-border-color"><p class="high-contrast-text tabular-nums">1.5.0</p><p class="tabular-nums whitespace-nowrap">May 27, 2026</p></header><div class="content"><article class="p-3"><h2 class="h3" id="features">Features</h2>\n<ul class="list-disc">\n<li class="mb-2">Agent: Added support for importing skills from GitHub Markdown URLs in the Skill Creator. (<a href="https://github.com/zed-industries/zed/pull/57458">#57458</a>)</li>\n<li class="mb-2">Agent: Added commands for opening global and project-specific <code>AGENTS.md</code> rules. (<a href="https://github.com/zed-industries/zed/pull/57847">#57847</a>)</li>\n</ul></article></div></div>
-"""
+// Real (trimmed) slice of api.github.com/repos/zed-industries/zed/releases as of
+// 2026-08-21: 4 of the 100 sampled releases, in the API's actual newest-first
+// order — v1.17.0-pre, v1.16.1, v1.16.1-pre, v1.15.1 — so decode order is a real
+// property of this fixture, not something the test asserts into existence.
+// Bodies are truncated to their first 1-2 bullets (full bodies ran 700–14000
+// chars) and CRLF-normalized to LF (the live API mixes both across releases;
+// `GitHubMarkdownParser`/`CharacterSet.newlines` treat them identically, so this
+// is a lossless simplification for the fixture, not a behavior change). Tags,
+// dates, and every character of the kept bullets are verbatim from the real
+// response — including the real PR-link/attribution markdown, which is why the
+// items below still carry `([#62577](...); thanks [x](...))`.
+let zedGitHubReleasesFixture = #"""
+[
+  {
+    "tag_name": "v1.17.0-pre",
+    "prerelease": true,
+    "published_at": "2026-08-19T17:47:30Z",
+    "body": "This week's release includes tabular data previews for CSV, TSV, PSV, and SSV files with sortable and resizable columns, value-based row filtering, and right-click copying; new Git blame and stashing actions; and lower memory use when opening large files.\n\n## Shipped by the Zed Guild 🛡️\n\n- Added support for low reasoning effort for DeepSeek V4 Flash and V4 Pro. ([#62577](https://github.com/zed-industries/zed/pull/62577); thanks [lingyaochu](https://github.com/lingyaochu))\n- Improved JetBrains keymap behavior with CamelHump-style subword navigation for `alt-left`, `alt-right`, `shift-alt-left`, and `shift-alt-right` in editors. ([#51540](https://github.com/zed-industries/zed/pull/51540); thanks [loadingalias](https://github.com/loadingalias))"
+  },
+  {
+    "tag_name": "v1.16.1",
+    "prerelease": false,
+    "published_at": "2026-08-19T16:11:34Z",
+    "body": "This week's release includes Gemini 3.6 Flash support, collapsible grouped changes and optional stash messages in the Git Panel, zooming and horizontal scrolling for Mermaid diagrams, and a new setting for controlling whether the Terminal Panel opens automatically in new workspaces.\n\n## Shipped by the Zed Guild 🛡️\n\n- Improved Git Panel organization by making grouped change sections collapsible. ([#62441](https://github.com/zed-industries/zed/pull/62441); thanks [chirivelli](https://github.com/chirivelli))\n- Linux: Improved memory usage. ([#62192](https://github.com/zed-industries/zed/pull/62192); thanks [tidely](https://github.com/tidely))"
+  },
+  {
+    "tag_name": "v1.16.1-pre",
+    "prerelease": true,
+    "published_at": "2026-08-18T15:58:22Z",
+    "body": "- Fixed an issue where the Cursor ACP agent would fail to start ([#62826](https://github.com/zed-industries/zed/pull/62826))\n- Added git_gutter_width setting to the Settings UI with default (font-size-scaled) and custom (fixed pixel width) options ([#62813](https://github.com/zed-industries/zed/pull/62813))"
+  },
+  {
+    "tag_name": "v1.15.1",
+    "prerelease": false,
+    "published_at": "2026-08-18T16:05:04Z",
+    "body": "- Fixed an issue where the Cursor ACP agent would fail to start ([#62825](https://github.com/zed-industries/zed/pull/62825))\n- Git: Fixed the GPG passphrase modal appearing on every commit for users whose configured pinentry (e.g. pinentry-mac with the macOS Keychain) can supply the passphrase without Zed's help. Zed now only prompts when gpg cannot obtain the passphrase on its own. ([#62783](https://github.com/zed-industries/zed/pull/62783))"
+  }
+]
+"""#
 
-@Test func extractsZedPreviewEntriesInOrder() throws {
-    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.zed.Zed-Preview"))
-    let changelog = try #require(ChangelogExtractor.extract(from: zedPreviewFixture, using: recipe))
+@Test func zedRecipesAreStructuredJSONSharingOneURL() throws {
+    let stable = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.zed.Zed"))
+    let preview = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.zed.Zed-Preview"))
+    #expect(stable.structuredFormat == .zedGitHubReleases)
+    #expect(preview.structuredFormat == .zedGitHubReleases)
+    #expect(stable.channel == .stable)
+    #expect(preview.channel == .preview)
+    // Same endpoint for both — the whole reason `channel` exists on the format.
+    #expect(stable.source == preview.source)
+}
 
-    #expect(changelog.entries.count == 3)
-    // 1.5.3: no <li> items — falls back to <p> text
-    #expect(changelog.entries[0].version == "1.5.3")
-    #expect(changelog.entries[0].date == "May 28, 2026")
-    #expect(changelog.entries[0].items.count == 1)
-    #expect(changelog.entries[0].items[0] == "No public-facing changes in this release. View the commits.")
-    // 1.5.1: plain patch with <li> items
-    #expect(changelog.entries[1].version == "1.5.1")
-    #expect(changelog.entries[1].date == "May 28, 2026")
+@Test func decodesZedStableFromGitHubReleases() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        zedGitHubReleasesFixture, format: .zedGitHubReleases, channel: .stable, maxEntries: 15))
+
+    // Only the two non-prerelease entries, in the API's newest-first order.
+    #expect(changelog.entries.count == 2)
+    #expect(changelog.entries[0].version == "1.16.1")
+    #expect(changelog.entries[0].date == "2026-08-19")
+    #expect(changelog.entries[0].items.count == 2)
+    #expect(changelog.entries[0].items[0]
+        == "Improved Git Panel organization by making grouped change sections collapsible. ([#62441](https://github.com/zed-industries/zed/pull/62441); thanks [chirivelli](https://github.com/chirivelli))")
+    #expect(changelog.entries[1].version == "1.15.1")
+    #expect(changelog.entries[1].date == "2026-08-18")
     #expect(changelog.entries[1].items.count == 2)
-    #expect(changelog.entries[1].items[0] == "Fixed GitHub Copilot Chat showing an empty model dropdown for users on newer Copilot SDK builds (#57964)")
-    #expect(changelog.entries[1].items[1] == "git: Fixed an issue where worktree creation would not be possible if resolving default branch fails (#57960)")
-    // 1.5.0: feature release with section headers — <li> wins over <p>
-    #expect(changelog.entries[2].version == "1.5.0")
-    #expect(changelog.entries[2].date == "May 27, 2026")
-    #expect(changelog.entries[2].items.count == 2)
-    #expect(changelog.entries[2].items[0] == "Agent: Added support for importing skills from GitHub Markdown URLs in the Skill Creator. (#57458)")
-    #expect(changelog.entries[2].items[1] == "Agent: Added commands for opening global and project-specific AGENTS.md rules. (#57847)")
+    // Explicitly pin the last item: the version-normalization and the markdown
+    // link both survive to the end of the list, not just the first entry.
+    #expect(changelog.entries[1].items.last
+        == "Git: Fixed the GPG passphrase modal appearing on every commit for users whose configured pinentry (e.g. pinentry-mac with the macOS Keychain) can supply the passphrase without Zed's help. Zed now only prompts when gpg cannot obtain the passphrase on its own. ([#62783](https://github.com/zed-industries/zed/pull/62783))")
+}
+
+@Test func decodesZedPreviewFromGitHubReleasesNormalizingPreSuffix() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        zedGitHubReleasesFixture, format: .zedGitHubReleases, channel: .preview, maxEntries: 15))
+
+    #expect(changelog.entries.count == 2)
+    // "v1.17.0-pre" -> "1.17.0": leading `v` and trailing `-pre` both stripped so
+    // the rail version matches the installed CFBundleShortVersionString.
+    #expect(changelog.entries[0].version == "1.17.0")
+    #expect(changelog.entries[0].date == "2026-08-19")
+    #expect(changelog.entries[1].version == "1.16.1")
+    #expect(changelog.entries[1].date == "2026-08-18")
+    #expect(changelog.entries[1].items.last
+        == "Added git_gutter_width setting to the Settings UI with default (font-size-scaled) and custom (fixed pixel width) options ([#62813](https://github.com/zed-industries/zed/pull/62813))")
+}
+
+@Test func zedChannelsDoNotLeak() throws {
+    // A stable decode must never surface a `-pre`-tagged version, and vice versa
+    // — the whole point of routing both channels through one shared endpoint.
+    let stable = try #require(StructuredChangelogDecoder.decode(
+        zedGitHubReleasesFixture, format: .zedGitHubReleases, channel: .stable, maxEntries: 15))
+    #expect(!stable.entries.contains { $0.version.contains("17.0") })
+    #expect(stable.entries.allSatisfy { !$0.version.hasSuffix("-pre") })
+
+    let preview = try #require(StructuredChangelogDecoder.decode(
+        zedGitHubReleasesFixture, format: .zedGitHubReleases, channel: .preview, maxEntries: 15))
+    #expect(!preview.entries.contains { $0.version == "1.16.1" && $0.date == "2026-08-19" })
 }
 
 @Test func recipeDecodesFromTerseJSON() throws {

@@ -203,6 +203,26 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// entries. `Decodable` sidesteps it entirely — the JSON string is already
         /// unescaped by the time the decoder sees it.
         case jetBrainsProductReleases
+        /// The GitHub Releases API list for `zed-industries/zed`
+        /// (`api.github.com/repos/zed-industries/zed/releases?per_page=40`), read
+        /// instead of scraping `zed.dev/releases/{stable,preview}` — those pages
+        /// are 2+ MB of server-rendered HTML for content GitHub already serves as
+        /// compact JSON, and we already fetch this same endpoint for version
+        /// detection (`GitHubReleaseRule`, see `GitHubReleasesSource.swift`).
+        /// Verified 2026-08-21 that a release's `body` is byte-identical in
+        /// substance to the zed.dev page's rendered notes for that version (42/42
+        /// and 65/65 bullets matched exactly on a real stable and a real preview
+        /// release). One endpoint, both channels: `prerelease` (true ⟺ the tag
+        /// ends `-pre`, no exceptions in 100 sampled releases) selects Preview vs
+        /// Stable via the recipe's existing `channel` field, same as Warp's
+        /// `warpChannelVersions`. `per_page=40` is sized off a real sample where
+        /// stable/preview releases interleave roughly 1:1 with occasional bursts
+        /// of 2 in a row: the first 40 releases held 22 preview / 18 stable, both
+        /// comfortably over the `maxEntries: 15` this recipe (like the old one)
+        /// asks for. A single page, never paginated — GitHub's rate limit is
+        /// unauthenticated (60/hour/IP) and `ChangelogService` doesn't attach a
+        /// token.
+        case zedGitHubReleases
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -843,42 +863,31 @@ public enum ChangelogRecipeRegistry {
                 + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
             itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
 
-        // Zed Preview — zed.dev/releases/preview is a fully server-rendered page
-        // with all recent pre-release versions inline. Each version block is a
-        // <div id="zed-X.Y.Z"> with a two-cell header (version + date) and an
-        // <article> containing the notes — either a simple <ul><li>…</li></ul>
-        // for patch releases, or section <h2>/<h3> + nested <ul> for weekly
-        // feature releases. The item pattern picks up all <li> regardless of
-        // nesting depth. Entries with no <li> items (e.g. "No public-facing
-        // changes…") naturally produce zero items and are silently skipped.
+        // Zed Preview and Stable — both used to scrape the 2+ MB server-rendered
+        // zed.dev/releases/{preview,stable} pages (`<div id="zed-X.Y.Z">` blocks
+        // with an `<article>` of `<li>` items). Replaced 2026-08-21 with the
+        // GitHub Releases API list we already fetch for version detection
+        // (`GitHubReleaseRule` in `GitHubReleasesSource.swift`, bundle ids
+        // `dev.zed.Zed` / `dev.zed.Zed-Preview`): one JSON response instead of two
+        // multi-megabyte HTML pages, and verified byte-for-byte equivalent notes
+        // (see `StructuredFormat.zedGitHubReleases`). Both channels share this one
+        // recipe's URL; `StructuredChangelogDecoder` splits on `channel` the same
+        // way it does for Warp.
         ChangelogRecipe(
             bundleID: "dev.zed.Zed-Preview",
-            source: URL(string: "https://zed.dev/releases/preview")!,
-            entryPattern:
-                #"id="zed-(?<version>\d+\.\d+\.\d+)"[^>]*>.*?"#
-                + #"<p[^>]*whitespace-nowrap[^>]*>(?<date>[^<]+)</p>"#
-                + #".*?(?<body><article[^>]*>.*?</article>)"#,
-            itemPatterns: [
-                #"<li[^>]*>(?<item>.*?)</li>"#,
-                // Fallback for "no public-facing changes" entries that have
-                // only a <p> note and no <li> items.
-                #"<p[^>]*>(?<item>.+?)</p>"#,
-            ],
-            maxEntries: 15),
+            source: URL(
+                string: "https://api.github.com/repos/zed-industries/zed/releases?per_page=40")!,
+            maxEntries: 15,
+            channel: .preview,
+            structuredFormat: .zedGitHubReleases),
 
-        // Zed Stable — identical page structure, different channel URL.
         ChangelogRecipe(
             bundleID: "dev.zed.Zed",
-            source: URL(string: "https://zed.dev/releases/stable")!,
-            entryPattern:
-                #"id="zed-(?<version>\d+\.\d+\.\d+)"[^>]*>.*?"#
-                + #"<p[^>]*whitespace-nowrap[^>]*>(?<date>[^<]+)</p>"#
-                + #".*?(?<body><article[^>]*>.*?</article>)"#,
-            itemPatterns: [
-                #"<li[^>]*>(?<item>.*?)</li>"#,
-                #"<p[^>]*>(?<item>.+?)</p>"#,
-            ],
-            maxEntries: 15),
+            source: URL(
+                string: "https://api.github.com/repos/zed-industries/zed/releases?per_page=40")!,
+            maxEntries: 15,
+            channel: .stable,
+            structuredFormat: .zedGitHubReleases),
 
         // OrbStack — VitePress docs at docs.orbstack.dev/release-notes. The page
         // is server-side rendered with the full changelog inline. Each version is

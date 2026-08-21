@@ -34,6 +34,8 @@ public enum StructuredChangelogDecoder {
             return decodePostman(body, maxEntries: maxEntries)
         case .jetBrainsProductReleases:
             return decodeJetBrainsProductReleases(body, maxEntries: maxEntries)
+        case .zedGitHubReleases:
+            return decodeZedGitHubReleases(body, channel: channel ?? .stable, maxEntries: maxEntries)
         }
     }
 
@@ -434,6 +436,65 @@ public enum StructuredChangelogDecoder {
         guard let raw else { return nil }
         if let t = raw.firstIndex(of: "T") { return String(raw[raw.startIndex..<t]) }
         return raw.isEmpty ? nil : raw
+    }
+
+    // MARK: - Zed (api.github.com/repos/zed-industries/zed/releases)
+
+    /// One element of the GitHub Releases API array. Only the fields we use;
+    /// everything else (assets, author, reactions, …) is ignored by Decodable.
+    private struct ZedRelease: Decodable {
+        let tagName: String
+        let prerelease: Bool
+        let publishedAt: String?
+        let body: String?
+        enum CodingKeys: String, CodingKey {
+            case tagName = "tag_name"
+            case prerelease
+            case publishedAt = "published_at"
+            case body
+        }
+    }
+
+    /// `prerelease` is the channel split: Zed's Preview builds tag as
+    /// `vX.Y.Z-pre` and always carry `prerelease: true`, Stable never does
+    /// (confirmed 1:1 with the tag suffix across 100 sampled releases — no
+    /// exceptions). The list is already newest-first, so filtering by channel
+    /// preserves that order; no re-sort needed (unlike Warp's unordered map).
+    static func decodeZedGitHubReleases(
+        _ body: String, channel: ReleaseChannel, maxEntries: Int?
+    ) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let releases = try? JSONDecoder().decode([ZedRelease].self, from: data)
+        else { return nil }
+
+        let wantsPrerelease = channel == .preview
+        var entries: [Changelog.Entry] = []
+        for release in releases where release.prerelease == wantsPrerelease {
+            guard let body = release.body, !body.isEmpty else { continue }
+            let version = zedDisplayVersion(fromTag: release.tagName)
+            let date = release.publishedAt.map { String($0.prefix(10)) }
+            // Reuse the same parser GitHub-release version detection already
+            // uses for a single release's notes (`GitHubMarkdownParser`), rather
+            // than a second bespoke bullet-extractor for the same markdown shape.
+            guard let parsed = GitHubMarkdownParser.parse(body: body, version: version, date: date),
+                  let entry = parsed.entries.first
+            else { continue }
+            entries.append(entry)
+            if let cap = maxEntries, entries.count >= cap { break }
+        }
+        guard !entries.isEmpty else { return nil }
+        return Changelog(entries: entries, itemSyntax: .markdown)
+    }
+
+    /// `v1.17.0-pre` → `1.17.0`, `v1.16.1` → `1.16.1`: drop the leading `v` and
+    /// the `-pre` suffix so the rail version matches the installed
+    /// `CFBundleShortVersionString`, which is what `GitHubReleaseRule`'s
+    /// `versionPattern` (`v([0-9]+\.[0-9]+\.[0-9]+)-pre`) already extracts for
+    /// Preview and what the tag is verbatim (minus `v`) for Stable.
+    static func zedDisplayVersion(fromTag tag: String) -> String {
+        var v = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        if v.hasSuffix("-pre") { v = String(v.dropLast(4)) }
+        return v
     }
 
     // MARK: - SunLogin/AweSun (client-webapi.oray.com/softwares/…)

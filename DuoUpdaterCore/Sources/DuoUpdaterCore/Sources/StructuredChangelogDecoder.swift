@@ -26,6 +26,8 @@ public enum StructuredChangelogDecoder {
             return decodeWeChatDevTools(body)
         case .chatwiseReleases:
             return decodeChatWise(body, maxEntries: maxEntries)
+        case .sunLoginSoftwareLogs:
+            return decodeSunLogin(body, maxEntries: maxEntries)
         case .gitHubDesktopChangelog:
             return decodeGitHubDesktop(body, maxEntries: maxEntries)
         }
@@ -333,6 +335,61 @@ public enum StructuredChangelogDecoder {
         let ymd = String(raw.prefix(10))
         return ymd.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
             ? ymd : nil
+    }
+
+    // MARK: - SunLogin/AweSun (client-webapi.oray.com/softwares/…)
+
+    /// Top-level shape we care about: a `logs` array, one object per release,
+    /// already newest-first in the document (verified against the live feed
+    /// 2026-08-21: entries ran 2026-08-05 → 2024-07-08 in that order).
+    private struct SunLoginFeed: Decodable {
+        let logs: [SunLoginLogEntry]
+    }
+    /// One release. `logs` (yes, same name as the array) is a fixed
+    /// `<ol><li>version</li><li>item</li>…</ol>` HTML fragment; `updatedate` is a
+    /// `YYYY-MM-DD HH:mm:ss` timestamp.
+    private struct SunLoginLogEntry: Decodable {
+        let logs: String
+        let updatedate: String?
+    }
+
+    static func decodeSunLogin(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let feed = try? JSONDecoder().decode(SunLoginFeed.self, from: data)
+        else { return nil }
+
+        var entries: [Changelog.Entry] = []
+        for entry in feed.logs {
+            let (version, items) = sunLoginParseLogHTML(entry.logs)
+            guard let version, !items.isEmpty else { continue }
+            entries.append(.init(
+                version: version,
+                date: entry.updatedate.map { String($0.prefix(10)) },
+                items: items))
+            if let cap = maxEntries, entries.count >= cap { break }
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    /// Split one entry's `<ol><li>…</li>…</ol>` fragment into (version, items):
+    /// the first `<li>` names the version, every subsequent `<li>` is one change
+    /// line. JSONDecoder has already resolved the JSON string's `\uXXXX`/`\/`
+    /// escapes by the time this runs, so the fragment is plain HTML with real
+    /// UTF-8 text and unescaped slashes — no entity/unicode decoding needed here.
+    static func sunLoginParseLogHTML(_ html: String) -> (version: String?, items: [String]) {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"<li>(.*?)</li>"#, options: [.dotMatchesLineSeparators])
+        else { return (nil, []) }
+        let ns = html as NSString
+        let lines = regex.matches(in: html, range: NSRange(location: 0, length: ns.length))
+            .compactMap { match -> String? in
+                guard match.numberOfRanges > 1 else { return nil }
+                let s = ns.substring(with: match.range(at: 1))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                return s.isEmpty ? nil : s
+            }
+        guard let version = lines.first else { return (nil, []) }
+        return (version, Array(lines.dropFirst()))
     }
 
     // MARK: - Typeless (typeless.com/help/release-notes/macos)

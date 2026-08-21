@@ -169,6 +169,16 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// lost its last bullet). Decoding the JSON hands us real newlines and
         /// retires that whole class of bug.
         case chatwiseReleases
+        /// SunLogin/AweSun's `client-webapi.oray.com/softwares/…` API — the same
+        /// endpoint the `VendorProbeRecipe` reads for the version number. Its
+        /// top-level `logs` array holds one object per release, already
+        /// newest-first; each object's own `logs` field is a fixed
+        /// `<ol><li>version</li><li>item</li>…</ol>` HTML fragment (the first
+        /// `<li>` names the version, the rest are the change lines) alongside a
+        /// plain `updatedate` timestamp. Regex-extractable in principle (and
+        /// previously extracted that way), but JSONDecoder resolves the payload's
+        /// `\uXXXX`/`\/` escapes for free, which the regex path had to redo by hand.
+        case sunLoginSoftwareLogs
         /// GitHub Desktop's `central.github.com/deployments/desktop/desktop/
         /// changelog.json` (and its `?env=beta` twin, a separate URL/recipe) — a flat
         /// array of `{name, notes, pub_date, version}`, newest-first, where `notes` is
@@ -520,18 +530,15 @@ public enum ChangelogRecipeRegistry {
                 + #"<ul[^>]*>(?<body>.*?)</ul>"#,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
 
-        // AweSun (Oray) — same JSON API as the VendorProbeRecipe. The response is a
-        // top-level object; its `logs` array has one element per release. Each element
-        // has an HTML `logs` field (<ol><li>version<\/li><li>item…<\/li>…<\/ol>) and
-        // an ISO-date `updatedate`. Non-ASCII text is \uXXXX-encoded in the raw JSON;
-        // `decodeEntities` resolves those via the JSON-Unicode-escape pass.
+        // AweSun (Oray) — same JSON API as the VendorProbeRecipe (verified live
+        // 2026-08-21: GET returns 200/~15KB; the earlier "50 bytes" observation
+        // that prompted a re-check did not reproduce and the endpoint/logic are
+        // both healthy — see `sunLoginSoftwareLogs`'s doc comment for the shape).
         ChangelogRecipe(
             bundleID: "com.oray.sunlogin.macclient",
             source: URL(string: "https://client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM?versiontype=stable")!,
-            entryPattern:
-                #""logid":\d+.*?"logs":"<ol><li>(?<version>[^<]+)<\\/li>(?<body>.*?)<\\/ol>".*?"updatedate":"(?<date>\d{4}-\d{2}-\d{2})"#,
-            itemPatterns: [#"<li>(?<item>.*?)<\\/li>"#],
-            mode: .json),
+            mode: .json,
+            structuredFormat: .sunLoginSoftwareLogs),
 
         // WeType (微信输入法) — same official changelog page as its VendorProbe.
         // Next.js page with the data server-rendered inline (an `__next_f` RSC blob,

@@ -222,44 +222,95 @@ private let codexFixture = """
 </section>
 """
 
-// Trimmed real response from client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM:
+// MARK: - SunLogin/AweSun (client-webapi.oray.com/softwares/… → structured decoder)
+
+// Trimmed real response from client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM
+// (re-verified live 2026-08-21: GET returns 200/~15KB, matching this shape):
 // three entries chosen to cover single-item (V16.5.0.30757), multi-item numbered
 // (v16.0.0.22931), and multi-item unnumbered (V16.3.0.29006). JSON uses \uXXXX
-// for all non-ASCII text and \/ for forward slashes inside HTML attributes — both
-// decoded by ChangelogExtractor.decodeEntities.
-// Fixture uses the raw server encoding: \uXXXX for non-ASCII, \/ for forward
-// slashes inside HTML strings — both must survive the extractor unchanged unless
-// decodeEntities resolves them.
+// for all non-ASCII text and \/ for forward slashes inside HTML strings — both
+// resolved for free by JSONDecoder before the fragment parser ever sees them,
+// which is why the structured decoder needs no entity/unicode-escape pass of
+// its own (unlike the regex path it replaces).
 private let aweSunFixture = #"""
 {"logs":[{"logid":3299,"softwareid":187,"versionid":"3239","lang":"zh","logs":"<ol><li>V16.5.0.30757<\/li><li>1、修复已知bug<\/li><\/ol>","memoen":"V16.5.0.30757\r\n1、修复已知bug","memo":"V16.5.0.30757\r\n1、修复已知bug","updatedate":"2026-05-28 00:00:00","createtime":"2026-05-28 14:41:53"},{"logid":2881,"softwareid":187,"versionid":"2822","lang":"zh","logs":"<ol><li>v16.0.0.22931<\/li><li>1、【优化】功能交互，提升操作体验<\/li><li>2、【修复】已知问题，提升稳定性<\/li><\/ol>","memoen":"v16.0.0.22931 \r\n1、【优化】功能交互，提升操作体验\r\n2、【修复】已知问题，提升稳定性","memo":"v16.0.0.22931 \r\n1、【优化】功能交互，提升操作体验\r\n2、【修复】已知问题，提升稳定性","updatedate":"2025-07-17 00:00:00","createtime":"2025-07-17 14:57:37"},{"logid":3212,"softwareid":187,"versionid":"3153","lang":"zh","logs":"<ol><li>V16.3.0.29006<\/li><li>【新增】向日葵 MCP<\/li><li>【新增】端上支持分组<\/li><li>【新增】网络代理<\/li><li>【新增】跟随被控鼠标自动切换屏幕<\/li><li>【新增】支持设置低 \/ 中 \/ 高码率<\/li><li>【新增】Mac 跨平台文件拖拽<\/li><li>【新增】Mac 主控 HDR 支持<\/li><li>【新增】远程控控支持切换触摸 \/ 鼠标模式<\/li><li>【新增】智能远控硬件线缆状态<\/li><li>【优化】若干操作交互体验<\/li><li>【修复】若干已知问题<\/li><\/ol>","memoen":"V16.3.0.29006\r\n【新增】向日葵 MCP","memo":"V16.3.0.29006\r\n【新增】向日葵 MCP","updatedate":"2026-03-26 00:00:00","createtime":"2026-03-26 16:53:17"}]}
 """#
 
-@Test func extractsAweSunEntriesAndDecodesJSONEscapes() throws {
+// The OLD regex-based recipe this format replaces. Kept only here (deliberately
+// NOT in the registry any more) so the new structured decoder can be
+// cross-checked against it on the exact same fixture below.
+private let aweSunLegacyRegexRecipe = ChangelogRecipe(
+    bundleID: "com.oray.sunlogin.macclient",
+    source: URL(string: "https://client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM?versiontype=stable")!,
+    entryPattern:
+        #""logid":\d+.*?"logs":"<ol><li>(?<version>[^<]+)<\\/li>(?<body>.*?)<\\/ol>".*?"updatedate":"(?<date>\d{4}-\d{2}-\d{2})"#,
+    itemPatterns: [#"<li>(?<item>.*?)<\\/li>"#],
+    mode: .json)
+
+@Test func sunLoginRecipeIsStructuredJSON() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.oray.sunlogin.macclient"))
-    let changelog = try #require(ChangelogExtractor.extract(from: aweSunFixture, using: recipe))
+    #expect(recipe.structuredFormat == .sunLoginSoftwareLogs)
+    #expect(recipe.mode == .json)
+}
+
+@Test func decodesSunLoginEntriesFromLogsArray() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        aweSunFixture, format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 40))
 
     #expect(changelog.entries.count == 3)
 
-    // Entry 0: single item, \uXXXX Chinese text decoded.
+    // Entry 0: single item, \uXXXX Chinese text decoded (by JSONDecoder).
     #expect(changelog.entries[0].version == "V16.5.0.30757")
     #expect(changelog.entries[0].date == "2026-05-28")
-    #expect(changelog.entries[0].items.count == 1)
-    #expect(changelog.entries[0].items[0] == "1、修复已知bug")
+    #expect(changelog.entries[0].items == ["1、修复已知bug"])
 
     // Entry 1: two numbered items.
     #expect(changelog.entries[1].version == "v16.0.0.22931")
     #expect(changelog.entries[1].date == "2025-07-17")
-    #expect(changelog.entries[1].items.count == 2)
-    #expect(changelog.entries[1].items[0] == "1、【优化】功能交互，提升操作体验")
-    #expect(changelog.entries[1].items[1] == "2、【修复】已知问题，提升稳定性")
+    #expect(changelog.entries[1].items == [
+        "1、【优化】功能交互，提升操作体验",
+        "2、【修复】已知问题，提升稳定性",
+    ])
 
-    // Entry 2: eleven unnumbered items; \/ inside text decoded to /.
-    #expect(changelog.entries[2].version == "V16.3.0.29006")
-    #expect(changelog.entries[2].date == "2026-03-26")
-    #expect(changelog.entries[2].items.count == 11)
-    #expect(changelog.entries[2].items[0] == "【新增】向日葵 MCP")
-    #expect(changelog.entries[2].items[4] == "【新增】支持设置低 / 中 / 高码率")
-    #expect(changelog.entries[2].items[10] == "【修复】若干已知问题")
+    // Entry 2: eleven unnumbered items; \/ inside text resolved to a literal /.
+    // The LAST item is pinned explicitly — a regex-based cut is exactly the
+    // kind of thing that silently drops the final bullet (see ChatWise).
+    let entry2 = changelog.entries[2]
+    #expect(entry2.version == "V16.3.0.29006")
+    #expect(entry2.date == "2026-03-26")
+    #expect(entry2.items.count == 11)
+    #expect(entry2.items[0] == "【新增】向日葵 MCP")
+    #expect(entry2.items[4] == "【新增】支持设置低 / 中 / 高码率")
+    #expect(entry2.items.last == "【修复】若干已知问题")
+}
+
+@Test func sunLoginDecodeRespectsMaxEntries() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        aweSunFixture, format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 1))
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "V16.5.0.30757")
+}
+
+@Test func sunLoginDecodeDegradesToNilOnGarbage() {
+    #expect(StructuredChangelogDecoder.decode(
+        "not json", format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 40) == nil)
+    #expect(StructuredChangelogDecoder.decode(
+        #"{"logs":[]}"#, format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 40) == nil)
+}
+
+// Old regex path vs new structured decoder, run against the SAME fixture:
+// version/date/item-count/exact-text must match entry for entry.
+@Test func sunLoginOldRegexAndNewDecoderAgree() throws {
+    let legacy = try #require(ChangelogExtractor.extract(from: aweSunFixture, using: aweSunLegacyRegexRecipe))
+    let structured = try #require(StructuredChangelogDecoder.decode(
+        aweSunFixture, format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 40))
+
+    #expect(legacy.entries.count == structured.entries.count)
+    for (old, new) in zip(legacy.entries, structured.entries) {
+        #expect(old.version == new.version)
+        #expect(old.date == new.date)
+        #expect(old.items == new.items)
+    }
 }
 
 @Test func extractsAppCleanerEntriesInOrder() throws {

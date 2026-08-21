@@ -5,6 +5,18 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.47
+
+**An update no longer looks like it fired twice.** With one update pending, installing it briefly emptied the list: the row dropped out the moment the new version reached the disk, the "Everything is up to date" placeholder took its place and jumped the window's height, and then the row reappeared saying "Relaunching...". Nothing was actually wrong underneath — the app still had to be restarted to run the new code — but it read as though something had happened twice. The row now stays where it is from the click through to the relaunch. The step that used to announce "Done" while the app was still being restarted says "Installed" instead; "finished" is left for the confirmation at the end, where it belongs.
+
+**The workbench sidebar follows the arrow keys again.** Holding an arrow key walked the selection off the edge of the list and left it there, moving through apps that were never drawn and not catching up when the keys stopped. The selected app stays in view.
+
+**Moving through that sidebar is quicker.** Every keypress was re-deriving, once per app per row, a fact about the whole list that had not changed — on a machine with 124 apps that came to about fifteen thousand redundant filesystem-path lookups per keystroke. It is derived once now. Fast key repeat can still outrun the list; there is more to do here.
+
+**An App Store update says "Update", not "Get".** When the background helper has not been approved there is no way to install an App Store update in place, so the row hands off to the App Store app instead — but the button for that read "Get", which is what the store says about an app you do not own yet. Every row that reaches it is an app you already have, with an update waiting. It says "Update" now, and when the helper is what is missing the tooltip says so, since approving it in Settings is what turns those updates into one click.
+
+**The action column lines up.** A checkmark or a small badge at the end of a row was centred in its slot while a wide button sat flush against the row's edge, so the right-hand column read as ragged — and visibly out of line with the Homebrew row pinned below it. Everything ends on the same edge now.
+
 ## 0.3.46
 
 **WeType (微信输入法) now reports the version you actually have.** Its version was being read off the name of the vendor's installer file, which turns out to carry the *installer's* version rather than the app's — the installer is a small downloader that fetches the real app separately, and the two numbers drift apart. Duo Updater now reads the same manifest the vendor's own installer reads, so the version matches your copy and new releases show up when they ship. WeType still has to be updated with the vendor's installer rather than in place: replacing the bundle skips the input-method registration step and was found to lose settings.

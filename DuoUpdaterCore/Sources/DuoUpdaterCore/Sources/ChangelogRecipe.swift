@@ -80,6 +80,22 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// strip would eat exactly that.
     public var escapedMarkup: Bool
 
+    /// The captured text is Markdown source, not HTML — so the inline syntax that
+    /// `stripTags` would have removed from an HTML equivalent survives into the
+    /// rendered note as literal punctuation. HBuilderX's official release notes
+    /// spell inline code as `` `CLI pack cancel` ``; the HTML page they replaced
+    /// spelled it `<code>CLI pack cancel</code>`, which `stripTags` removed, so
+    /// without this the migration puts visible backticks in front of the user.
+    ///
+    /// Deliberately narrow: it unwraps inline code spans and nothing else. Bold,
+    /// emphasis and headings would need real Markdown rendering (`Changelog`
+    /// already has `.markdown` item syntax for producers that keep their source
+    /// intact); this flag exists for recipes whose *output contract is plain
+    /// text*, to restore the parity an HTML→Markdown source swap otherwise breaks.
+    /// Link syntax is not touched here — a recipe reading Markdown is expected to
+    /// consume links in its `itemPatterns`, as HBuilderX's does.
+    public var markdownSource: Bool
+
     /// Keep at most this many entries (changelogs run for years; the detail view
     /// only needs the recent ones). Nil = keep all. Default 40.
     public var maxEntries: Int?
@@ -158,11 +174,116 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// need the vendor's ordinal/marker decoration stripped and the category
         /// headings folded in, which the extractor has no shape for.
         case weChatDevToolsLog
+        /// ChatWise's `releases.chatwise.app/releases` — a newest-first ARRAY of
+        /// `{version, changelog, assets, date}` where `changelog` is a markdown
+        /// bullet list. Shallow enough for the regex path in principle, but the
+        /// notes live inside a JSON *string*, so every newline in them is a
+        /// two-character `\n` escape and an item pattern has to spell its
+        /// separators as `\\n` — a trap the shipped pattern fell into (its tail
+        /// alternative `\\n?$` read as "a backslash, optionally followed by an
+        /// `n`", so any entry whose notes did NOT end in a trailing `\n` escape
+        /// lost its last bullet). Decoding the JSON hands us real newlines and
+        /// retires that whole class of bug.
+        case chatwiseReleases
+        /// SunLogin/AweSun's `client-webapi.oray.com/softwares/…` API — the same
+        /// endpoint the `VendorProbeRecipe` reads for the version number. Its
+        /// top-level `logs` array holds one object per release, already
+        /// newest-first; each object's own `logs` field is a fixed
+        /// `<ol><li>version</li><li>item</li>…</ol>` HTML fragment (the first
+        /// `<li>` names the version, the rest are the change lines) alongside a
+        /// plain `updatedate` timestamp. Regex-extractable in principle (and
+        /// previously extracted that way), but JSONDecoder resolves the payload's
+        /// `\uXXXX`/`\/` escapes for free, which the regex path had to redo by hand.
+        case sunLoginSoftwareLogs
+        /// GitHub Desktop's `central.github.com/deployments/desktop/desktop/
+        /// changelog.json` (and its `?env=beta` twin, a separate URL/recipe) — a flat
+        /// array of `{name, notes, pub_date, version}`, newest-first, where `notes` is
+        /// already an array of one-line strings. No regex needed; the decoder just
+        /// walks the array.
+        case gitHubDesktopChangelog
+        /// Postman's `mkt.cdn.postman.com/.../app-release-notes.json` — a `notes[]`
+        /// array (newest-first) of `{version, content, createdAt}`, `content` being
+        /// markdown whose line separator is `\r\n` in *recent* entries but a bare
+        /// `\n` in older ones. The prior regex path only recognized the escaped
+        /// `\r\n` (`\\r\\n`) form and, worse, its item capture (`[^\\]{10,}`) stops
+        /// at the first backslash — so a line with an escaped quote (`\"8000\"`)
+        /// got silently truncated mid-sentence. Decoding the JSON for real yields
+        /// genuine newlines and un-escaped text, sidestepping both problems.
+        case postmanReleaseNotes
+        /// JetBrains' `data.services.jetbrains.com/products/releases?code=<CODE>`
+        /// (shared by IntelliJ IDEA's `IIU` and Toolbox App's `TBA`) —
+        /// `{"<CODE>": [{date, version, whatsnew, …}]}`. Regex-extractable in
+        /// principle (and formerly regex-extracted), but `whatsnew` is JSON-escaped
+        /// HTML whose embedded `\n` is exactly the two-char-escape trap that motivated
+        /// this decoder family: an item pattern that gets that wrong silently drops
+        /// entries. `Decodable` sidesteps it entirely — the JSON string is already
+        /// unescaped by the time the decoder sees it.
+        case jetBrainsProductReleases
+        /// The GitHub Releases API list for `zed-industries/zed`
+        /// (`api.github.com/repos/zed-industries/zed/releases?per_page=40`), read
+        /// instead of scraping `zed.dev/releases/{stable,preview}` — those pages
+        /// are 2+ MB of server-rendered HTML for content GitHub already serves as
+        /// compact JSON, and we already fetch this same endpoint for version
+        /// detection (`GitHubReleaseRule`, see `GitHubReleasesSource.swift`).
+        /// Verified 2026-08-21 that a release's `body` is byte-identical in
+        /// substance to the zed.dev page's rendered notes for that version (42/42
+        /// and 65/65 bullets matched exactly on a real stable and a real preview
+        /// release). One endpoint, both channels: `prerelease` (true ⟺ the tag
+        /// ends `-pre`, no exceptions in 100 sampled releases) selects Preview vs
+        /// Stable via the recipe's existing `channel` field, same as Warp's
+        /// `warpChannelVersions`. `per_page=40` is sized off a real sample where
+        /// stable/preview releases interleave roughly 1:1 with occasional bursts
+        /// of 2 in a row: the first 40 releases held 22 preview / 18 stable, both
+        /// comfortably over the `maxEntries: 15` this recipe (like the old one)
+        /// asks for. A single page, never paginated — GitHub's rate limit is
+        /// unauthenticated (60/hour/IP) and `ChangelogService` doesn't attach a
+        /// token.
+        case zedGitHubReleases
+        /// Notion's own desktop "What's New" page,
+        /// `notion.notion.site/What-s-New-Mac-Windows-…` — distinct from
+        /// `www.notion.com/releases`, which is Notion's *product* announcement feed
+        /// and carries no build numbers (see the `notion.id` recipe comment). The
+        /// rendered HTML is an empty Next.js shell; the real content is fetched
+        /// separately from Notion's internal, unauthenticated page API
+        /// (`notion.notion.site/api/v3/loadPageChunk`), which requires a POST with a
+        /// JSON body naming the page id — hence `ChangelogRecipe.httpMethod`/
+        /// `requestBody`. See `StructuredChangelogDecoder.decodeNotionPageChunk` for
+        /// the response shape and how release order is derived.
+        case notionPageChunk
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
     /// extractor (see ``StructuredFormat``). nil for the common HTML/JSON-regex case.
     public let structuredFormat: StructuredFormat?
+
+    /// The HTTP method to fetch `source`/`resolvedSource(forVersion:)` with.
+    /// Default (and every recipe until Notion) is `.get`. `.post` exists solely
+    /// for endpoints — like Notion's internal page API — that only answer a
+    /// POST carrying a JSON body; there is no GET form of that endpoint at all.
+    public enum HTTPMethod: String, Codable, Sendable { case get, post }
+
+    /// The method to fetch this recipe's page with. Defaults to `.get` so every
+    /// existing recipe (and any future one that doesn't set this) is completely
+    /// unaffected.
+    public var httpMethod: HTTPMethod
+
+    /// The literal request body to send when `httpMethod == .post`, as raw bytes
+    /// (already-encoded JSON, in practice). nil for every `.get` recipe.
+    ///
+    /// ⚠️ Cache-key caveat, stated precisely because the first version of this
+    /// comment named the wrong mechanism for both caches: `ChangelogCache` keys on
+    /// (resolved URL, channel) — no bundle id and no body — so two recipes POSTing
+    /// different bodies to the same URL on the same channel would collide, and the
+    /// second would read the first's response. `ChangelogDiskCache.Key` is
+    /// (bundleID, channel, version), which cannot collide on URL at all and is
+    /// therefore not part of this hazard.
+    ///
+    /// Safe today because exactly one recipe (Notion) uses POST and its body is a
+    /// fixed, hardcoded literal. Fixing it properly means folding a body hash into
+    /// `ChangelogCache`'s key — not done here because it is unneeded until a
+    /// second POST recipe exists (paginating with a different cursor, or another
+    /// page id on the same host).
+    public let requestBody: Data?
 
     public init(
         bundleID: String,
@@ -173,6 +294,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         stripTags: Bool = true,
         decodeEntities: Bool = true,
         escapedMarkup: Bool = false,
+        markdownSource: Bool = false,
         maxEntries: Int? = 40,
         minItemLength: Int = 1,
         indexLinkPattern: String? = nil,
@@ -180,7 +302,9 @@ public struct ChangelogRecipe: Codable, Sendable {
         sourceTemplate: String? = nil,
         newestLast: Bool = false,
         imagePattern: String? = nil,
-        structuredFormat: StructuredFormat? = nil
+        structuredFormat: StructuredFormat? = nil,
+        httpMethod: HTTPMethod = .get,
+        requestBody: Data? = nil
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -191,6 +315,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.stripTags = stripTags
         self.decodeEntities = decodeEntities
         self.escapedMarkup = escapedMarkup
+        self.markdownSource = markdownSource
         self.maxEntries = maxEntries
         self.minItemLength = minItemLength
         self.indexLinkPattern = indexLinkPattern
@@ -198,6 +323,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.sourceTemplate = sourceTemplate
         self.newestLast = newestLast
         self.imagePattern = imagePattern
+        self.httpMethod = httpMethod
+        self.requestBody = requestBody
     }
 
     /// The actual page URL to fetch for a given target version. When
@@ -257,6 +384,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         stripTags = try c.decodeIfPresent(Bool.self, forKey: .stripTags) ?? true
         decodeEntities = try c.decodeIfPresent(Bool.self, forKey: .decodeEntities) ?? true
         escapedMarkup = try c.decodeIfPresent(Bool.self, forKey: .escapedMarkup) ?? false
+        markdownSource = try c.decodeIfPresent(Bool.self, forKey: .markdownSource) ?? false
         maxEntries = try c.decodeIfPresent(Int?.self, forKey: .maxEntries) ?? 40
         minItemLength = try c.decodeIfPresent(Int.self, forKey: .minItemLength) ?? 1
         indexLinkPattern = try c.decodeIfPresent(String.self, forKey: .indexLinkPattern)
@@ -264,6 +392,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         sourceTemplate = try c.decodeIfPresent(String.self, forKey: .sourceTemplate)
         newestLast = try c.decodeIfPresent(Bool.self, forKey: .newestLast) ?? false
         imagePattern = try c.decodeIfPresent(String.self, forKey: .imagePattern)
+        httpMethod = try c.decodeIfPresent(HTTPMethod.self, forKey: .httpMethod) ?? .get
+        requestBody = try c.decodeIfPresent(Data.self, forKey: .requestBody)
     }
 }
 
@@ -347,27 +477,21 @@ public enum ChangelogRecipeRegistry {
             decodeEntities: false,
             maxEntries: 20),
 
-        // ChatWise — the /changelog page hydrates client-side from the public
-        // releases JSON endpoint. The current payload order is:
-        //   {"version":"26.5.3","changelog":"- Add Claude Opus 4.8...\\n",
-        //    "assets":[...],"date":"2026-05-29T07:02:44.116Z"}
-        // Notes are markdown bullet lines, so keep tags intact and split on `- `.
-        // We match the fields in the order the live endpoint currently emits them;
-        // a parse miss simply falls back to the page link, so shipping coverage is
-        // still the right bias here.
+        // ChatWise — the public /changelog page is a SvelteKit shell (a ~4 KB
+        // document with no notes in it) that hydrates from the releases JSON
+        // endpoint, so we read that endpoint directly. It is a newest-first array:
+        //   {"version":"26.6.0","changelog":"- new provider: cloudflare workers ai",
+        //    "assets":[...],"date":"2026-06-26T16:04:26.161Z"}
+        // Decoded as JSON rather than regex-scraped: the notes are a markdown
+        // bullet list living inside a JSON string, so on the regex path every
+        // newline is a literal `\n` escape that an item pattern must spell as
+        // `\\n` — see `.chatwiseReleases` for the last-bullet bug that cost us.
         ChangelogRecipe(
             bundleID: "app.chatwise",
             source: URL(string: "https://releases.chatwise.app/releases")!,
-            entryPattern:
-                #"\{\s*"version"\s*:\s*"(?<version>[^"]+)".*?"changelog"\s*:\s*"(?<body>(?:\\.|[^"\\])*)".*?"date"\s*:\s*"(?<date>[^"]+)""#,
-            itemPatterns: [
-                #"(?:^|\\n)-\s*(?<item>.*?)\s*(?=\\n-\s|\\n?$)"#,
-                #"\s*(?<item>.+?)\s*$"#
-            ],
             mode: .json,
-            stripTags: false,
-            decodeEntities: false,
-            maxEntries: 20),
+            maxEntries: 20,
+            structuredFormat: .chatwiseReleases),
 
         // VS Code — the official `/updates` page redirects to the latest stable
         // release page (e.g. /updates/v1_123). The top summary is:
@@ -509,18 +633,15 @@ public enum ChangelogRecipeRegistry {
                 + #"<ul[^>]*>(?<body>.*?)</ul>"#,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
 
-        // AweSun (Oray) — same JSON API as the VendorProbeRecipe. The response is a
-        // top-level object; its `logs` array has one element per release. Each element
-        // has an HTML `logs` field (<ol><li>version<\/li><li>item…<\/li>…<\/ol>) and
-        // an ISO-date `updatedate`. Non-ASCII text is \uXXXX-encoded in the raw JSON;
-        // `decodeEntities` resolves those via the JSON-Unicode-escape pass.
+        // AweSun (Oray) — same JSON API as the VendorProbeRecipe (verified live
+        // 2026-08-21: GET returns 200/~15KB; the earlier "50 bytes" observation
+        // that prompted a re-check did not reproduce and the endpoint/logic are
+        // both healthy — see `sunLoginSoftwareLogs`'s doc comment for the shape).
         ChangelogRecipe(
             bundleID: "com.oray.sunlogin.macclient",
             source: URL(string: "https://client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM?versiontype=stable")!,
-            entryPattern:
-                #""logid":\d+.*?"logs":"<ol><li>(?<version>[^<]+)<\\/li>(?<body>.*?)<\\/ol>".*?"updatedate":"(?<date>\d{4}-\d{2}-\d{2})"#,
-            itemPatterns: [#"<li>(?<item>.*?)<\\/li>"#],
-            mode: .json),
+            mode: .json,
+            structuredFormat: .sunLoginSoftwareLogs),
 
         // WeType (微信输入法) — same official changelog page as its VendorProbe.
         // Next.js page with the data server-rendered inline (an `__next_f` RSC blob,
@@ -666,76 +787,116 @@ public enum ChangelogRecipeRegistry {
             ],
             indexLinkPattern: #"href="(?<link>/docs/install/release-notes/\d[^"]*)""#),
 
-        // Postman — CDN-hosted JSON array under the "notes" key. Each element has
-        // "version", "content" (Markdown, \\r\\n line separators in raw JSON), and
-        // "createdAt" (ISO-8601). itemPattern strips the #### feature-heading prefix
-        // and skips ## / ### section headers and the trailing date line; plain
-        // description lines that follow a heading are also captured.
+        // Postman — CDN-hosted JSON array under the "notes" key (newest-first).
+        // Each element has "version", "content" (Markdown; `\r\n` line separators in
+        // recent entries, bare `\n` in older ones) and "createdAt" (ISO-8601).
+        // Structured decode (StructuredChangelogDecoder.decodePostman): split
+        // `content` on real newlines, strip the `#### ` feature-heading prefix
+        // (keeping the heading text as an item), skip `##`/`###` section headers and
+        // the "August 21, 2026"-style date line, drop lines under 10 chars, keep
+        // everything else (including markdown syntax like `**bold**` / `[t](url)`
+        // verbatim — nothing downstream strips it for this recipe). This replaces a
+        // regex itemPattern that only recognized the escaped `\\r\\n` form and, on
+        // top of that, truncated any line containing an escaped quote at the
+        // backslash (`[^\\]{10,}` stops there) — confirmed against the live feed:
+        // 2 of the 30 most recent releases had a mid-sentence truncation the old
+        // path produced silently.
         ChangelogRecipe(
             bundleID: "com.postmanlabs.mac",
             source: URL(string: "https://mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json")!,
-            entryPattern:
-                #""version"\s*:\s*"(?<version>[^"]+)""#
-                + #".*?"content"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#
-                + #".*?"createdAt"\s*:\s*"(?<date>[^"T]+)"#,
-            itemPatterns: [
-                #"\\r\\n(?:####\s+)?(?!##|\\r\\n|\w+ \d+, \d{4})(?<item>[^\\]{10,})"#,
-            ],
             mode: .json,
-            stripTags: false,
-            decodeEntities: false,
-            maxEntries: 30),
+            maxEntries: 30,
+            structuredFormat: .postmanReleaseNotes),
 
-        // HBuilderX (DCloud) — two-stage, and deliberately NOT pointed at
-        // update.dcloud.net.cn: that host 302s the changelog HTML to a per-request
-        // tokenized CDN node on a non-standard port (…qrstuvwxyzab.com:22443),
-        // which under many networks crawls past the 15s fetch timeout — the app
-        // then spins and degrades to the embedded web page. The download-site host
-        // download1.dcloud.net.cn serves the very same HTML directly (200, no
-        // redirect, ~0.3s), so we go there instead.
+        // HBuilderX (DCloud) — SINGLE-hop now, not two-stage: hx.dcloud.net.cn
+        // serves a plain markdown changelog directly (200, ~95 KB, no redirect,
+        // no per-request tokenized CDN hop), so there is no index page to follow
+        // and no `indexLinkPattern` here anymore (that's how the old
+        // download1.dcloud.net.cn/release.json + HTML-detail-page two-stage
+        // fetch worked; this recipe replaces it wholesale, not on top of it).
+        // NOT `structuredFormat`: that decoder path (`StructuredChangelogDecoder`)
+        // is for feeds too irregular for the regex extractor; this one is a
+        // clean, uniform `## <version>` / `* <item>` document that the regex
+        // path (same as com.anthropic.claudefordesktop above) handles
+        // directly — and `structuredFormat` would also disable
+        // `indexLinkPattern` handling in `ChangelogService`, which is irrelevant
+        // here anyway since there's no second hop to disable.
         //
-        // `source` is the download page's `release.json` config; `indexLinkPattern`
-        // follows its `release` field to the current changelog page on download1.
-        // That field always names the latest build, so this also retires the old
-        // version-pinned URL — a new HBuilderX release is picked up with no rebuild
-        // (same win as VLC/Ghostty). The detail page is a cumulative list: each
-        // release is an <h2>X.Y.Z</h2> (the build encodes YYYYMMDD, no separate
-        // date), then module-section <h3>s and <li> change items.
+        // Format: `## 5.24.2026081301` heading (the build IS the version, no
+        // separate date — same as the old HTML: there was never a `date` group
+        // there either, so this is not a regression), then `* ` bullet lines,
+        // e.g. `* 修复 ... [详情](https://issues.dcloud.net.cn/...)`. The
+        // trailing `[详情](url)` / `[文档](url)` markdown link (occasionally two
+        // in a row, occasionally followed by a bare `<url>` autolink) is stripped
+        // by the item pattern rather than kept literal — flattening it to just
+        // the link text (as `StructuredChangelogDecoder.bulletItems` does for
+        // the structured path) isn't reachable from here without a much bigger
+        // change to the regex extractor, so instead the pattern simply excludes
+        // any *trailing* link syntax from the captured item. This covers the
+        // overwhelming majority of lines (verified: 1301/1303 items across both
+        // documents — 618 in release, 685 in alpha — have their link(s) fully
+        // stripped this way; the sole exception in EACH document is one line
+        // where the link sits mid-sentence rather than at the end — that rare
+        // case is left with its `[text](url)` literal intact).
+        //
+        // Content scope: this md endpoint covers only the HBuilder IDE itself —
+        // the old HTML detail page's other module sections (uni-app x, uni-app,
+        // uts插件, uniCloud, App插件) aren't in it. That's an intentional
+        // narrowing (confirmed against the HTML: every md item matches an
+        // HBuilder-section item in the HTML verbatim, including issue ids — it's
+        // a subset, not a rewrite/summary), so fewer items per entry here vs.
+        // before is expected, not a parsing regression.
+        //
+        // Version group has no `-alpha` suffix, matching only bare `X.Y.Z`
+        // headings (the alpha recipe below requires the suffix) — moot in
+        // practice since the two channels are served from separate documents,
+        // but kept for the same belt-and-suspenders reason the old HTML regexes
+        // did.
         ChangelogRecipe(
             bundleID: "io.dcloud.HBuilderX",
-            source: URL(string: "https://download1.dcloud.net.cn/hbuilderx/release.json")!,
+            source: URL(
+                string: "https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_release.md")!,
             entryPattern:
-                #"<h2[^>]*>(?<version>[0-9]+\.[0-9]+\.[0-9]+)</h2>"#
+                #"## (?<version>[0-9]+\.[0-9]+\.[0-9]+)\n"#
                 + #"(?<body>.*?)"#
-                + #"(?=<h2[^>]*>[0-9]|$)"#,
-            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
-            // The page is a years-long cumulative list (~28 builds, each with many
-            // module-section items); cap to the recent handful — the detail view
-            // only needs "what changed lately", and this also halts the parse early.
+                + #"(?=\n## |$)"#,
+            itemPatterns: [
+                #"(?:^|\n)[ \t]*\*[ \t]+(?<item>[^\n]+?)(?:\s*\[[^\]\n]*\]\([^)\n]*\))*(?:\s*<[^>\n]*>)?(?=\n|$)"#
+            ],
+            stripTags: false,
+            decodeEntities: false,
+            markdownSource: true,
+            // The doc is a years-long cumulative list (32 versions); cap to the
+            // recent handful, same as before.
             maxEntries: 10,
-            minItemLength: 4,
-            indexLinkPattern: #""release"\s*:\s*"(?<link>https://[^"]+)""#),
+            minItemLength: 4),
 
         // HBuilderX Alpha (DCloud) — the alpha is a SEPARATE app (bundle id
         // io.dcloud.HBuilderXAlpha, ships as HBuilderX-Alpha.app), so it needs its
         // own recipe; the stable io.dcloud.HBuilderX one never matches it. Same
-        // two-stage shape as stable but reading `alpha.json`, whose `release` field
-        // points at the alpha changelog page on download1. The page is structured
-        // exactly like the stable one except every version <h2> carries an "-alpha"
-        // suffix (5.11.2026052520-alpha), so the version group requires it — which
-        // also means a stray stable <h2> could never be mis-captured here.
+        // single-hop markdown shape as stable, reading the alpha document
+        // instead, whose version headings all carry an "-alpha" suffix
+        // (5.23.2026080313-alpha) — the version group requires it, so a stray
+        // stable heading could never be mis-captured here. See the stable
+        // recipe above for the full rationale (single-hop rewrite, why not
+        // `structuredFormat`, link-stripping, and the HBuilder-IDE-only scope).
         ChangelogRecipe(
             bundleID: "io.dcloud.HBuilderXAlpha",
-            source: URL(string: "https://download1.dcloud.net.cn/hbuilderx/alpha.json")!,
+            source: URL(
+                string: "https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_alpha.md")!,
             entryPattern:
-                #"<h2[^>]*>(?<version>[0-9]+\.[0-9]+\.[0-9]+-alpha)</h2>"#
+                #"## (?<version>[0-9]+\.[0-9]+\.[0-9]+-alpha)\n"#
                 + #"(?<body>.*?)"#
-                + #"(?=<h2[^>]*>[0-9]|$)"#,
-            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
-            // Alpha lists 60+ builds; same cap as stable — recent handful only.
+                + #"(?=\n## |$)"#,
+            itemPatterns: [
+                #"(?:^|\n)[ \t]*\*[ \t]+(?<item>[^\n]+?)(?:\s*\[[^\]\n]*\]\([^)\n]*\))*(?:\s*<[^>\n]*>)?(?=\n|$)"#
+            ],
+            stripTags: false,
+            decodeEntities: false,
+            markdownSource: true,
+            // Alpha document lists 67 versions; same cap as stable.
             maxEntries: 10,
-            minItemLength: 4,
-            indexLinkPattern: #""release"\s*:\s*"(?<link>https://[^"]+)""#),
+            minItemLength: 4),
 
         // Ollama — GitHub releases page. Each release is a <section> with an
         // sr-only h2 (version tag, e.g. "v0.30.0"), a <relative-time> element
@@ -769,42 +930,31 @@ public enum ChangelogRecipeRegistry {
                 + #"<div[^>]*class="markdown-body[^"]*"[^>]*>(?<body>.*?)</div>\s*</div>"#,
             itemPatterns: [#"<li>(?<item>.*?)</li>"#]),
 
-        // Zed Preview — zed.dev/releases/preview is a fully server-rendered page
-        // with all recent pre-release versions inline. Each version block is a
-        // <div id="zed-X.Y.Z"> with a two-cell header (version + date) and an
-        // <article> containing the notes — either a simple <ul><li>…</li></ul>
-        // for patch releases, or section <h2>/<h3> + nested <ul> for weekly
-        // feature releases. The item pattern picks up all <li> regardless of
-        // nesting depth. Entries with no <li> items (e.g. "No public-facing
-        // changes…") naturally produce zero items and are silently skipped.
+        // Zed Preview and Stable — both used to scrape the 2+ MB server-rendered
+        // zed.dev/releases/{preview,stable} pages (`<div id="zed-X.Y.Z">` blocks
+        // with an `<article>` of `<li>` items). Replaced 2026-08-21 with the
+        // GitHub Releases API list we already fetch for version detection
+        // (`GitHubReleaseRule` in `GitHubReleasesSource.swift`, bundle ids
+        // `dev.zed.Zed` / `dev.zed.Zed-Preview`): one JSON response instead of two
+        // multi-megabyte HTML pages, and verified byte-for-byte equivalent notes
+        // (see `StructuredFormat.zedGitHubReleases`). Both channels share this one
+        // recipe's URL; `StructuredChangelogDecoder` splits on `channel` the same
+        // way it does for Warp.
         ChangelogRecipe(
             bundleID: "dev.zed.Zed-Preview",
-            source: URL(string: "https://zed.dev/releases/preview")!,
-            entryPattern:
-                #"id="zed-(?<version>\d+\.\d+\.\d+)"[^>]*>.*?"#
-                + #"<p[^>]*whitespace-nowrap[^>]*>(?<date>[^<]+)</p>"#
-                + #".*?(?<body><article[^>]*>.*?</article>)"#,
-            itemPatterns: [
-                #"<li[^>]*>(?<item>.*?)</li>"#,
-                // Fallback for "no public-facing changes" entries that have
-                // only a <p> note and no <li> items.
-                #"<p[^>]*>(?<item>.+?)</p>"#,
-            ],
-            maxEntries: 15),
+            source: URL(
+                string: "https://api.github.com/repos/zed-industries/zed/releases?per_page=40")!,
+            maxEntries: 15,
+            channel: .preview,
+            structuredFormat: .zedGitHubReleases),
 
-        // Zed Stable — identical page structure, different channel URL.
         ChangelogRecipe(
             bundleID: "dev.zed.Zed",
-            source: URL(string: "https://zed.dev/releases/stable")!,
-            entryPattern:
-                #"id="zed-(?<version>\d+\.\d+\.\d+)"[^>]*>.*?"#
-                + #"<p[^>]*whitespace-nowrap[^>]*>(?<date>[^<]+)</p>"#
-                + #".*?(?<body><article[^>]*>.*?</article>)"#,
-            itemPatterns: [
-                #"<li[^>]*>(?<item>.*?)</li>"#,
-                #"<p[^>]*>(?<item>.+?)</p>"#,
-            ],
-            maxEntries: 15),
+            source: URL(
+                string: "https://api.github.com/repos/zed-industries/zed/releases?per_page=40")!,
+            maxEntries: 15,
+            channel: .stable,
+            structuredFormat: .zedGitHubReleases),
 
         // OrbStack — VitePress docs at docs.orbstack.dev/release-notes. The page
         // is server-side rendered with the full changelog inline. Each version is
@@ -1006,43 +1156,52 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
             maxEntries: 30),
 
-        // Notion — www.notion.com/releases is Notion's *product* changelog: a
-        // server-rendered Next.js page of dated feature posts, NOT the desktop
-        // app's build version. There is no build number on the page, so the post
-        // title is used as the `version` string (e.g. "Plan Mode"). Acceptable
-        // because this is the low-stakes changelog tier — a miss just falls back
-        // to embedding the page. (notion.so/releases 301s here; /help/whats-new
-        // 404s.) Each post is:
-        //   <article class="release_release__…">
-        //     <time class="release_date__…">May 26, 2026</time>
-        //     <a class="release_titleLink__…"><h2 class="… release_title__…">Title</h2></a>
-        //     <article class="contentfulRichText_richText__…">
-        //       <p class="contentfulRichText_paragraph__…">…note…</p> …</article>
-        //   </article>
-        // Items target the rich-text paragraph class — one the decorative
-        // <p class="…errorLine…"> ad-blocker notices do NOT share, so they're
-        // skipped. The inner contentfulRichText article also closes with
-        // </article>, so the body bounds on the next release article.
+        // Notion — the DESKTOP app's real "What's New" page,
+        // `notion.notion.site/What-s-New-Mac-Windows-5936dabc8dd6497895786c91b9d6f12a`.
+        // This is the recipe wired up for `notion.id`; see `NOT REGISTERED` below
+        // for the *other* Notion recipe this replaces and why.
         //
-        // 2026-08-20: the page switched CSS-modules naming from `release_release__<hash>`
-        // to `release-module-scss-module__<hash>__release` — same markup, same
-        // nesting, every class renamed. Both spellings are accepted rather than
-        // just the new one: the rename is a build-tooling change that can be
-        // rolled back or served A/B, and carrying the old alternative costs one
-        // group. The hash stays unpinned in both, as it turns over on every deploy.
+        // The rendered HTML is a 19 KB empty Next.js shell — zero content. The real
+        // notes come from Notion's own internal, unauthenticated page-rendering API,
+        // which only answers a POST:
+        //   POST https://notion.notion.site/api/v3/loadPageChunk
+        //   {"pageId":"5936dabc-8dd6-4978-9578-6c91b9d6f12a","limit":50,
+        //    "cursor":{"stack":[]},"chunkNumber":0,"verticalColumns":false}
+        // (`source` below is set to that API URL directly — there is nothing
+        // useful to fetch at the human-facing page URL itself.) See
+        // `StructuredChangelogDecoder.decodeNotionPageChunk` for the response shape
+        // (`recordMap.block`, double-`value` wrapping, and the page block's
+        // `content` array as the true reading order) and how the header/text/
+        // bulleted_list blocks are grouped into releases.
+        //
+        // Verified live 2026-08-22: the header text is "v7.31.0" (`v` stripped so
+        // the rail label reads "7.31.0", matching the installed build the vendor
+        // probe's `.redirectFilename` reports) and the release order runs
+        // v7.31.0 → v7.29.0 → v7.28.0 → … — newest first, real desktop builds, not
+        // the product-announcement post titles the old recipe surfaced.
         ChangelogRecipe(
             bundleID: "notion.id",
-            source: URL(string: "https://www.notion.com/releases")!,
-            entryPattern:
-                #"<article class="(?:release_release__[^"]*|release-module-scss-module__[^"]*__release)">.*?"#
-                + #"<time class="(?:release_date__[^"]*|release-module-scss-module__[^"]*__date)">(?<date>[^<]+)</time>.*?"#
-                + #"<h2 class="[^"]*(?:release_title__[^"]*|release-module-scss-module__[^"]*__title)">(?<version>.*?)</h2>"#
-                + #"(?<body>.*?)(?=<article class="(?:release_release__|release-module-scss-module__[^"]*__release")|</main>|<footer)"#,
-            itemPatterns: [
-                #"<p class="(?:contentfulRichText_paragraph__[^"]*|contentfulRichText-module-scss-module__[^"]*__paragraph)">(?<item>.*?)</p>"#,
-            ],
+            source: URL(string: "https://notion.notion.site/api/v3/loadPageChunk")!,
             maxEntries: 20,
-            minItemLength: 4),
+            structuredFormat: .notionPageChunk,
+            httpMethod: .post,
+            requestBody: Data(
+                (#"{"pageId":"5936dabc-8dd6-4978-9578-6c91b9d6f12a","limit":50,"#
+                    + #""cursor":{"stack":[]},"chunkNumber":0,"verticalColumns":false}"#
+                ).utf8)),
+
+        // Notion's OTHER changelog, deliberately not registered: www.notion.com/
+        // releases is the *product* announcement feed (feature launches like "Plan
+        // Mode"), server-rendered and scrapeable, but carrying no build number at
+        // all — the old recipe used each post's title as the `version`, which never
+        // matched the build on the row. That mismatch is what the recipe above
+        // fixes, so the two must not both claim to be this app's release notes.
+        //
+        // The scrape pattern is not kept here as commented-out code; it is in git
+        // (3603c3c^ and earlier), and `notionProductAnnouncementsRecipe()` in the
+        // tests still builds it, so its regression coverage survives. If those
+        // product announcements are ever wanted, they should come back as a
+        // separate, clearly-labelled source — not as a second recipe for this id.
 
         // Obsidian — obsidian.md/changelog is one server-rendered page listing
         // every release newest-first, with BOTH Mobile and Desktop posts. Each
@@ -1065,27 +1224,70 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
             maxEntries: 20),
 
-        // Figma (desktop) — figma.com/release-notes is Figma's *product*
-        // release-notes feed (Figma Design / Make / FigJam announcements), NOT
-        // desktop-app build notes: there is no per-entry app version. The desktop
-        // build version lives only at desktop.figma.com/mac/RELEASE.json with no
-        // human notes, so this product feed is the best changelog surface; a parse
-        // miss just falls back to embedding the page (low stakes). The page is
-        // fully server-rendered. Each post is an <article> with
-        //   <time dateTime="Jun 3, 2026">…</time><h2>Title</h2>…<p>…</p>…
-        // We surface the post title as the entry "version" and the post date as
-        // `date`. Figma's CSS class names are hashed per deploy (fig-XXXX), so we
-        // anchor ONLY on generic tags. The item pattern requires <p + whitespace/`>`
-        // so it cannot match the SVG <path> elements inside the "Copy link" button.
+        // Figma (desktop) — read the vendor's own Atom feed rather than the HTML
+        // page: `https://www.figma.com/release-notes/feed/atom.xml`. The `Content-Type`
+        // header on that response reads `application/rss+xml`, but the body is a
+        // standard Atom document (`<feed xmlns="http://www.w3.org/2005/Atom">`) —
+        // don't trust the header, trust the markup. Switched away from the page
+        // (which the entryPattern below used to scrape) because the page's markup is
+        // a client-hydrated shell with CSS classes hashed per deploy — the same
+        // fragility class as every other "scrape the rendered page" recipe in this
+        // file — while the feed's element names (`entry`/`title`/`updated`/`content`)
+        // are a published, stable contract. It also fixes a real bug in the old
+        // recipe: the page lazy-loads posts as you scroll, so the live DOM only ever
+        // had ~8 `<article>` blocks to match against however large `maxEntries` was
+        // set — the feed carries hundreds, so the existing `maxEntries: 20` cap now
+        // actually engages.
+        //
+        // Each entry (captured verbatim 2026-08-19):
+        //   <entry>
+        //       <title type="html"><![CDATA[Recommend resources you want users to discover and use]]></title>
+        //       <id>dece0d00-5f03-4a5d-aa04-3b0fad21b5eb</id>
+        //       <link href="https://www.figma.com/release-notes/?title=…"/>
+        //       <updated>2026-08-17T00:00:00.000Z</updated>
+        //       <content type="html"><![CDATA[Admins can now choose which resources…]]></content>
+        //   </entry>
+        // This is still Figma's *product* release-notes feed (Figma Design / Make /
+        // FigJam announcements), NOT desktop-app build notes — there is no per-entry
+        // app version. The desktop build version lives only at
+        // desktop.figma.com/mac/RELEASE.json with no human notes, so this remains the
+        // best changelog surface, and the post title still fills `version` / the post
+        // date still fills `date` — same mapping as the old page recipe, just read
+        // from a sturdier document.
+        //
+        // Both `title` and `content` are `<![CDATA[…]]>`-wrapped. A naive `<[^>]*>`
+        // tag-stripper applied BEFORE the CDATA payload is pulled out will eat the
+        // whole `<![CDATA[…]]>` construct, because `[^>]*` happily reads through to
+        // the `>` that closes `]]>` — so the capture groups below land strictly
+        // *inside* the CDATA delimiters (`<!\[CDATA\[(?<…>.*?)\]\]>`), and the
+        // generic stripTags/decodeEntities cleanup only ever runs on text already
+        // isolated that way. Checked against the live feed (444 entries, 2026-08-19):
+        // no entry's title or content carries embedded HTML tags today, so that
+        // cleanup is currently a no-op — but the ordering is still correct for the
+        // day one does.
+        //
+        // `date` truncates the ISO timestamp to just its date portion (`[^T]+` before
+        // the literal `T`) — the same convention already used for the GitHub-releases
+        // recipes (Ollama, RustDesk) reading `<relative-time datetime="…">`, and the
+        // prevailing `YYYY-MM-DD` shape most recipes in this file use.
+        //
+        // Trade-off (accepted, not a regression): `content` is a one-sentence
+        // summary, not the fuller multi-paragraph prose the HTML page rendered for
+        // its top posts. Verified against the same 8 posts on 2026-08-19: combined
+        // item text drops from 3390 to 1062 characters (31%) versus the old
+        // `<article>`/`<p>` scrape, while every title and date matches byte-for-byte.
+        // Chosen deliberately for stability over completeness.
         ChangelogRecipe(
             bundleID: "com.figma.Desktop",
-            source: URL(string: "https://www.figma.com/release-notes/")!,
+            source: URL(string: "https://www.figma.com/release-notes/feed/atom.xml")!,
             entryPattern:
-                #"<article[^>]*>.*?"#
-                + #"<time[^>]*dateTime="(?<date>[^"]+)"[^>]*>[^<]*</time>\s*"#
-                + #"<h2[^>]*>(?<version>.*?)</h2>"#
-                + #"(?<body>.*?)</article>"#,
-            itemPatterns: [#"<p(?:\s[^>]*)?>(?<item>.*?)</p>"#],
+                #"<entry>\s*"#
+                + #"<title type="html"><!\[CDATA\[(?<version>.*?)\]\]></title>\s*"#
+                + #"<id>[^<]*</id>\s*"#
+                + #"<link[^>]*/>\s*"#
+                + #"<updated>(?<date>[^T]+)T[^<]*</updated>\s*"#
+                + #"(?<body><content type="html"><!\[CDATA\[.*?\]\]></content>)"#,
+            itemPatterns: [#"<content type="html"><!\[CDATA\[(?<item>.*?)\]\]></content>"#],
             maxEntries: 20),
 
         // 1Password 8 (Mac) — the STABLE channel's RSS feed, `…/mac/stable/index.xml`,
@@ -1306,47 +1508,40 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 20),
 
         // IntelliJ IDEA — same JetBrains data-services API as Toolbox (`IIU`
-        // product code, stable releases only via `type=release`). Each entry's
-        // `whatsnew` is well-structured HTML: a lead `<p>` summary then `<ul><li>`
-        // bug/feature bullets with YouTrack links. The item pattern sweeps `<li>`
-        // only — the lead `<p>` ("IntelliJ IDEA X is out with…") is a boilerplate
-        // intro, not a discrete change line, so skipping it is cleaner. Major
-        // releases (2026.1) carry a richer `whatsnew` with `<strong>` section
-        // headings inside `<p>` tags; those section labels are short enough to
-        // read as items, so the `<li>` pattern suffices for both shapes.
+        // product code, stable releases only via `type=release`). Structured decode
+        // (`StructuredChangelogDecoder.decodeJetBrainsProductReleases`): the old
+        // regex path read `whatsnew` as raw JSON-escaped text, where an embedded
+        // `\n` is a two-character escape a hand-written item pattern can silently
+        // mis-anchor on (the ChatWise-class bug this decoder family exists to avoid).
+        // `Decodable` unescapes the JSON string for us, so the decoder walks real
+        // HTML instead: `whatsnew` is a lead `<p>` summary then `<ul><li>` bullets,
+        // and only the `<li>` bullets count as discrete changes — the lead `<p>`
+        // is boilerplate ("IntelliJ IDEA X is out with…"). A hotfix release with no
+        // `<li>` at all (its content is plain `<p>` prose, or just a pointer to the
+        // release notes) yields zero items and is skipped, same as the regex did.
         ChangelogRecipe(
             bundleID: "com.jetbrains.intellij",
             source: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&type=release")!,
-            entryPattern:
-                #""date"\s*:\s*"(?<date>\d{4}-\d{2}-\d{2})".*?"#
-                + #""version"\s*:\s*"(?<version>[^"]+)".*?"#
-                + #""whatsnew"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
-            itemPatterns: [#"<li>(?<item>.*?)</li>"#],
-            mode: .json,
-            maxEntries: 20),
+            maxEntries: 20,
+            structuredFormat: .jetBrainsProductReleases),
 
         // JetBrains Toolbox App — JetBrains publishes no public changelog page
         // (long-requested: YouTrack TBX-2807), but the official product-releases
         // API the download site itself uses returns the full history as JSON. The
-        // `TBA` product code is the Toolbox App; each element of the TBA array is
-        // one release with `version` ("3.5"), `build` ("3.5.0.84344"), `date`, and
-        // a `whatsnew` HTML string. Fields run date … version … build … whatsnew,
-        // so the entry anchors date→version→whatsnew. The whatsnew HTML mixes <h4>
-        // section headings with <p> feature paragraphs and <ul><li> bullet lists,
-        // so the single item pattern sweeps BOTH <p> and <li> (the <h4> labels are
-        // skipped) and a negative lookahead drops the trailing "See the full list…"
-        // footer <p>. Older releases omit whatsnew and are silently skipped; the
-        // top entries we keep all carry it and stay correctly attributed.
+        // `TBA` product code is the Toolbox App; each element of the TBA array has
+        // `version` ("3.7.2"), `date`, and a `whatsnew` HTML string. Structured
+        // decode, same reason and same decoder as IntelliJ IDEA above (shared
+        // endpoint shape, JSON-escaped HTML the regex path used to scrape as text).
+        // Toolbox's `whatsnew` is CUMULATIVE — each release concatenates its own
+        // `<li>` bullets with the full prior minor release's `<h3>`/`<h4>` + `<p>`
+        // write-up — so the decoder sweeps BOTH `<li>` and `<p>` (the decoder
+        // branches on the response's own top-level key, "TBA" vs "IIU") and drops
+        // only the trailing "See the full list of release notes…" `<p>` footer.
         ChangelogRecipe(
             bundleID: "com.jetbrains.toolbox",
             source: URL(string: "https://data.services.jetbrains.com/products/releases?code=TBA")!,
-            entryPattern:
-                #""date"\s*:\s*"(?<date>\d{4}-\d{2}-\d{2})".*?"#
-                + #""version"\s*:\s*"(?<version>[^"]+)".*?"#
-                + #""whatsnew"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
-            itemPatterns: [#"<(?:li|p)>\s*(?!See the full list)(?<item>.*?)</(?:li|p)>"#],
-            mode: .json,
-            maxEntries: 20),
+            maxEntries: 20,
+            structuredFormat: .jetBrainsProductReleases),
 
         // OpenCode (desktop) — github.com/anomalyco/opencode/releases (the repo
         // moved from sst/opencode via GitHub's org-rename redirect; we pin the
@@ -1461,36 +1656,30 @@ public enum ChangelogRecipeRegistry {
         // plain JSON array, newest-first, each element:
         //   {"name":"","notes":["[Fixed] …- #22219", …],
         //    "pub_date":"2026-06-01T17:43:05Z","version":"3.5.12"}
-        // `version` is LAST in each object, so the entry pattern walks name→notes→
-        // pub_date→version in document order; `body` is the notes array, sliced into
-        // items by the JSON-string pattern (each note keeps its `[Fixed]`/`[Added]`
-        // prefix and trailing `- #issue`). Stable feed carries bare `3.5.12`; beta
-        // carries `3.5.12-beta2`. JSON mode + decodeEntities unescapes the `\"` some
-        // beta notes contain. A parse miss just falls back to embedding the SPA.
+        // `notes` is already an array of one-line strings (each keeping the vendor's
+        // own `[Fixed]`/`[Added]`/`[Improved]` prefix and trailing `- #issue`) — this
+        // feed was structured JSON all along, so it's decoded by
+        // `StructuredChangelogDecoder.decodeGitHubDesktop` rather than regex-scraped;
+        // see `.gitHubDesktopChangelog` for the shape. Stable feed carries bare
+        // `3.5.12`; beta carries `3.5.12-beta2`. A parse miss just falls back to
+        // embedding the SPA. `channel` here is only for the recipe-registry lookup
+        // (`ChangelogRecipeRegistry.recipe(forBundleID:channel:)` picks stable vs.
+        // beta by it) — the decoder itself takes no channel, since stable and beta
+        // are two different URLs, not one document split by a channel key.
         ChangelogRecipe(
             bundleID: "com.github.GitHubClient",
             source: URL(string: "https://central.github.com/deployments/desktop/desktop/changelog.json")!,
-            entryPattern:
-                #"\{"name":"[^"]*","notes":\[(?<body>.*?)\],"#
-                + #""pub_date":"(?<date>\d{4}-\d{2}-\d{2})[^"]*","version":"(?<version>[^"]+)"\}"#,
-            itemPatterns: [#""(?<item>(?:\\.|[^"\\])*)""#],
-            mode: .json,
-            stripTags: false,
-            channel: .stable),
+            channel: .stable,
+            structuredFormat: .gitHubDesktopChangelog),
 
         // GitHub Desktop Beta — same feed with `?env=beta`, matched by `channel:
         // .beta` so a `-betaN`-detected install gets beta notes (`3.5.12-beta2`)
-        // instead of the stable train. Identical structure/patterns.
+        // instead of the stable train. Identical structured decoder.
         ChangelogRecipe(
             bundleID: "com.github.GitHubClient",
             source: URL(string: "https://central.github.com/deployments/desktop/desktop/changelog.json?env=beta")!,
-            entryPattern:
-                #"\{"name":"[^"]*","notes":\[(?<body>.*?)\],"#
-                + #""pub_date":"(?<date>\d{4}-\d{2}-\d{2})[^"]*","version":"(?<version>[^"]+)"\}"#,
-            itemPatterns: [#""(?<item>(?:\\.|[^"\\])*)""#],
-            mode: .json,
-            stripTags: false,
-            channel: .beta),
+            channel: .beta,
+            structuredFormat: .gitHubDesktopChangelog),
 
         // (No Alcove recipe. It parsed the `body` of update.tryalcove.com, which the
         // vendor retired outright — NXDOMAIN. Its replacement as the public version

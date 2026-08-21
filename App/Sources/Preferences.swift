@@ -115,7 +115,14 @@ final class Preferences {
     /// `gh` CLI" — `GitHubToken.resolve` treats empty as no explicit value. Persisted
     /// to the Keychain (an empty value clears it).
     var githubToken: String {
-        didSet { Keychain.set(githubToken, account: Self.githubTokenKeychainAccount) }
+        didSet {
+            Keychain.set(githubToken, account: Self.githubTokenKeychainAccount)
+            // The changelog fetcher lives in the core package and cannot reach the
+            // Keychain; without this hand-off it resolves from the environment and
+            // `gh` only, which a launchd-started GUI has neither of. Pushed on
+            // every change so pasting or clearing a token takes effect immediately.
+            ChangelogService.setExplicitGitHubToken(githubToken)
+        }
     }
 
     /// The GitHub login the saved token last verified as, for display in
@@ -365,6 +372,11 @@ final class Preferences {
         self.stagedPackages =
             defaults.dictionary(forKey: Key.stagedPackages) as? [String: [String: String]] ?? [:]
         observeExternalWrites()
+        // `didSet` does not fire for assignments inside `init`, so the token read
+        // out of the Keychain a few lines up would otherwise never reach the core
+        // package — the launch path is precisely the one that has no environment
+        // and no `gh` to fall back on.
+        ChangelogService.setExplicitGitHubToken(self.githubToken)
     }
 
     // MARK: - Cross-process changes

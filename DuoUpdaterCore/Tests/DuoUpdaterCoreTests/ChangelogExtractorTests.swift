@@ -128,36 +128,38 @@ private let appCleanerFixture = """
 </div>
 """
 
-// Trimmed fixture from releases.chatwise.app/releases. The real endpoint is JSON,
-// with markdown changelog lines stored as escaped strings.
-private let chatWiseFixture = """
+// Two entries lifted VERBATIM (assets and hashes included) from a real
+// releases.chatwise.app/releases response fetched 2026-08-21, in the order the
+// endpoint emits them. Kept byte-for-byte, and in a raw literal so the `\n`
+// escapes inside `changelog` stay two characters, because the shape that broke
+// us was exactly that escaping: 26.6.0's notes do NOT end in a trailing `\n`,
+// which is what made the old regex item pattern lose its last (here: only)
+// bullet. 26.5.2 is the multi-bullet counterpart.
+private let chatWiseFixture = #"""
 [
-  {
-    "version":"26.5.3",
-    "changelog":"- Add Claude Opus 4.8 and adjust Claude reasoning support\\n",
-    "assets":[],
-    "date":"2026-05-29T07:02:44.116Z"
-  },
-  {
-    "version":"26.5.2",
-    "changelog":"- Add `curl.md` web fetch provider support\\n- Custom provider: add Responses API support for openai-compatible providers\\n- Set user-agent for LLM requests to `ChatWise/$version`\\n",
-    "assets":[],
-    "date":"2026-05-27T06:20:07.532Z"
-  }
+{"version":"26.6.0","changelog":"- new provider: cloudflare workers ai","assets":[{"name":"ChatWise-26.6.0-x64.zip","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-x64.zip","sha512":"hR0mkg45XrysNVY8TCDaXw3gqVeP+NAAvvYhlF5MYYZrhTTT7Y77FYDIoAHGAT7dEikSsmcuQ5nxXXbdBBGmOA=="},{"name":"ChatWise-26.6.0-arm64.zip","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-arm64.zip","sha512":"PdsVbVwbQgYdW2HcmR1U5FaKr3zslAGy82eYVb2iRwT875VlYNi9/MHvdZceSDEvRV8979cU2N8Q8sC6IPaA2g=="},{"name":"ChatWise-26.6.0-x64.dmg","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-x64.dmg","sha512":"iWgVJGPSlye6Ay7uJ08zhkBXY+h8FfD+sPY7C8rKQxO+jImxrWTF+qvbr9Lly9Rqu7Yyt32/04IucEXsmXAmXA=="},{"name":"ChatWise-26.6.0-arm64.dmg","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-arm64.dmg","sha512":"Ue2BUmAkDB2MfUFo89oQcrWXvOr2q9wlwA0zs4KZYhpvx6kWyZKer1sMFUAHLcuxzsmveRYj4NzWH5dPcUoysw=="},{"name":"ChatWise-26.6.0-setup.exe","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0-setup.exe","sha512":"3PfSmUXs9mtAs/25n3oZUKh6BOwXPYHuDna+mw6uZdfC7R+SzzAgWlDo8mHpEpNWB7//213UvPQArgwezwUqEg=="},{"name":"ChatWise-26.6.0.AppImage","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0.AppImage","sha512":"oDnIZ36PKHbm8ShzIxuHtdl2hHCUmbLm/9TR7+aUqd8XeslcteMS6BNtGgHfDIC1Jhqbg0pdaP/+mia4Bl6MVw=="},{"name":"ChatWise-26.6.0.deb","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0.deb","sha512":"u6eRy6Yx40P+D1GcTXf8e7wA5m71mpf5v3fnBFAEBGfE4dpcivJqxU5E+jVO2vPoIf5E7uEDgza5b5efaq7sGQ=="},{"name":"ChatWise-26.6.0.rpm","url":"https://releases.chatwise.app/26.6.0/ChatWise-26.6.0.rpm","sha512":"US8qTdbIf75Kh5K18g267WXH9BqGD2OOEPyPgel8cUaM5GDmbawqT0GIkOcn2kL5dP8X9xYEQwu5iFR3faN/ow=="}],"date":"2026-06-26T16:04:26.161Z"},
+{"version":"26.5.2","changelog":"- Add `curl.md` web fetch provider support\n- Custom provider: add Responses API support for openai-compatible providers\n- Set user-agent for LLM requests to `ChatWise/$version`\n- Add CJK-friendly remark plugins for better markdown rendering\n","assets":[{"name":"ChatWise-26.5.2-x64.zip","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-x64.zip","sha512":"O98u9F82JZ6ZSPjt8MHYt+GoEH7gAeyetStz04GVFIlkfQdSaplh0GoM8IxtWo05o0IXmt4jtHeIePYx4AOBzw=="},{"name":"ChatWise-26.5.2-arm64.zip","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-arm64.zip","sha512":"5thP89IXREnbenfzZRvT3p6amfPFW2zOB6/zFA410lHZBpjIx/PLirqVfhrGUTMLMTbb/YbJ+k8c2c4cDlskNw=="},{"name":"ChatWise-26.5.2-x64.dmg","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-x64.dmg","sha512":"aCHj9cCyz7i3jLd55WIDTWnVnMxpLNeG6nMRI6HE5CdQkXMOzsEN21o/3AMnNfM+TUgY0y7x/OBeg3bXCQR8Pw=="},{"name":"ChatWise-26.5.2-arm64.dmg","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-arm64.dmg","sha512":"0XFpaeX4d3skvOBtYkGo3hsMf0gpQxSkkIlFC3wxOVCB7uAGrPHRge6Gan0/B4QISJUuD2RU8LDR1H6dUK9YNw=="},{"name":"ChatWise-26.5.2-setup.exe","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2-setup.exe","sha512":"ybIFl3MghEN3Mx9odKS6hcjESib0IILBiMj6efcNXLxVc9//aMYRryTDjZSyjO4Bj9CHi4x9XqXaW4SzHso+Uw=="},{"name":"ChatWise-26.5.2.AppImage","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2.AppImage","sha512":"VhXtsqJ79aBxz2QiPCN6xuWGmINV//EnnUSqXlVniE21GeH/goL8oZf9HeJjrTEVWkAfQOZFYRoBAV+nM62QcA=="},{"name":"ChatWise-26.5.2.deb","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2.deb","sha512":"TNLNJ6EDdTV/ql3yAEiE1163hflarImlXVcg+6n/hNvucTk4oNo2oM53jFwZdKIjySWrWwNo5f7T7pWqCoKmCA=="},{"name":"ChatWise-26.5.2.rpm","url":"https://releases.chatwise.app/26.5.2/ChatWise-26.5.2.rpm","sha512":"nhaFrSermyq+eXqPddMElQIBKAk2nr2VFOe/Ukqs+bsi7VXeaDaBH930JODI83SAkvkC2tirFkTkDTj2gyVVog=="}],"date":"2026-05-27T06:20:07.532Z"}
 ]
-"""
+"""#
 
-// Trimmed real payloads from central.github.com/deployments/desktop/desktop/
-// changelog.json — the stable feed (bare semver) and the `?env=beta` feed
-// (`-betaN` versions). The beta note includes a JSON `\"` escape to prove the
-// json-mode string unescaper turns it into a real quote.
-private let ghDesktopStableFixture = """
-[{"name":"","notes":["[Fixed] Items in lists such as branches and changed files are properly announced by screen readers on Windows - #22219"],"pub_date":"2026-06-01T17:43:05Z","version":"3.5.12"},{"name":"","notes":["[Fixed] Fix launching custom shells"],"pub_date":"2026-05-26T00:00:00Z","version":"3.5.11"}]
-"""
+// Byte-for-byte slices of two adjacent array elements each, taken from a real
+// `curl` of central.github.com/deployments/desktop/desktop/changelog.json (stable)
+// and the same URL with `?env=beta` appended — captured 2026-08-21. Both feeds
+// are flat JSON arrays, newest-first, of `{name, notes, pub_date, version}` with
+// `notes` already an array of one-line strings — no markdown, nothing to regex.
+//
+// The stable slice's 3.6.3 entry happens to carry a real `\"@null\"` JSON escape
+// (a Git ref name quoted in the note text), so it doubles as the "does the decoder
+// see a literal quote, not a backslash-quote" proof — no constructed case needed.
+private let ghDesktopStableFixture = #"""
+[{"name":"","notes":["[Improved] Update Git for Windows to v2.53.0.windows.4","[Improved] Update Git Credential Manager to 2.9.0"],"pub_date":"2026-08-11T22:07:40Z","version":"3.6.4"},{"name":"","notes":["[Fixed] Resolve error that prevented Copilot-based features from working correctly on Windows - #22509","[Fixed] Keep commit message @-mention autocomplete from surfacing users without a profile name when typing queries like \"@null\" - #22414. Thanks @sukanth!","[Fixed] Resolve a crash where the truncated repository path text could enter an infinite re-render loop - #22458","[Fixed] Fall back to the main worktree so a repository no longer appears as missing when its linked worktree folder was deleted outside Desktop - #22474","[Fixed] Keep files visible in the Changes list after Desktop returns from being backgrounded - #22497","[Fixed] Show an error dialog instead of silently doing nothing when Copilot fails to generate a commit message due to a Git error - #22496","[Fixed] Copilot sessions from generating commit messages or resolving conflicts do not show up in VS Code - #22443","[Fixed] Repository list scrolling no longer gets stuck or jitters when scrolling over tall groups (e.g. large organizations) - #22438. Thanks @peteski22!","[Improved] Clarify the line-ending conversion warning to explain that Git will automatically convert the file's line endings on next checkout, with a link to learn more - #21446. Thanks @Whitebrim!"],"pub_date":"2026-07-14T17:47:41Z","version":"3.6.3"}]
+"""#
 
-private let ghDesktopBetaFixture = """
-[{"name":"","notes":["[Improved] Show \\"No newline at end of file\\" as visible text in the diff view instead of requiring a tooltip hover - #22204","[Fixed] Screen reader now correctly announces added and removed line counts in the pull request preview dialog - #22202"],"pub_date":"2026-05-29T09:38:07Z","version":"3.5.12-beta2"}]
-"""
+// Beta slice: two adjacent 3.6.3-beta entries, the first (beta3) also carrying a
+// real `\"@null\"` escape — same proof as the stable slice, on the beta feed.
+private let ghDesktopBetaFixture = #"""
+[{"name":"","notes":["[Fixed] Resolve error that prevented Copilot-based features from working correctly on Windows - #22509","[Fixed] Keep commit message @-mention autocomplete from surfacing users without a profile name when typing queries like \"@null\" - #22414. Thanks @sukanth!"],"pub_date":"2026-07-08T12:55:09Z","version":"3.6.3-beta3"},{"name":"","notes":["[Fixed] Resolve a crash where the truncated repository path text could enter an infinite re-render loop - #22458","[Fixed] Fall back to the main worktree so a repository no longer appears as missing when its linked worktree folder was deleted outside Desktop - #22474","[Fixed] Keep files visible in the Changes list after Desktop returns from being backgrounded - #22497","[Fixed] Show an error dialog instead of silently doing nothing when Copilot fails to generate a commit message due to a git error - #22496","[Fixed] Copilot sessions from generating commit messages or resolving conflicts do not show up in VS Code - #22443"],"pub_date":"2026-07-07T17:21:05Z","version":"3.6.3-beta2"}]
+"""#
 
 // Trimmed real markup from the latest VS Code updates page (v1_123): one release
 // header and its highlight bullets. Includes the trailing <blockquote> aside
@@ -220,44 +222,95 @@ private let codexFixture = """
 </section>
 """
 
-// Trimmed real response from client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM:
+// MARK: - SunLogin/AweSun (client-webapi.oray.com/softwares/… → structured decoder)
+
+// Trimmed real response from client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM
+// (re-verified live 2026-08-21: GET returns 200/~15KB, matching this shape):
 // three entries chosen to cover single-item (V16.5.0.30757), multi-item numbered
 // (v16.0.0.22931), and multi-item unnumbered (V16.3.0.29006). JSON uses \uXXXX
-// for all non-ASCII text and \/ for forward slashes inside HTML attributes — both
-// decoded by ChangelogExtractor.decodeEntities.
-// Fixture uses the raw server encoding: \uXXXX for non-ASCII, \/ for forward
-// slashes inside HTML strings — both must survive the extractor unchanged unless
-// decodeEntities resolves them.
+// for all non-ASCII text and \/ for forward slashes inside HTML strings — both
+// resolved for free by JSONDecoder before the fragment parser ever sees them,
+// which is why the structured decoder needs no entity/unicode-escape pass of
+// its own (unlike the regex path it replaces).
 private let aweSunFixture = #"""
 {"logs":[{"logid":3299,"softwareid":187,"versionid":"3239","lang":"zh","logs":"<ol><li>V16.5.0.30757<\/li><li>1、修复已知bug<\/li><\/ol>","memoen":"V16.5.0.30757\r\n1、修复已知bug","memo":"V16.5.0.30757\r\n1、修复已知bug","updatedate":"2026-05-28 00:00:00","createtime":"2026-05-28 14:41:53"},{"logid":2881,"softwareid":187,"versionid":"2822","lang":"zh","logs":"<ol><li>v16.0.0.22931<\/li><li>1、【优化】功能交互，提升操作体验<\/li><li>2、【修复】已知问题，提升稳定性<\/li><\/ol>","memoen":"v16.0.0.22931 \r\n1、【优化】功能交互，提升操作体验\r\n2、【修复】已知问题，提升稳定性","memo":"v16.0.0.22931 \r\n1、【优化】功能交互，提升操作体验\r\n2、【修复】已知问题，提升稳定性","updatedate":"2025-07-17 00:00:00","createtime":"2025-07-17 14:57:37"},{"logid":3212,"softwareid":187,"versionid":"3153","lang":"zh","logs":"<ol><li>V16.3.0.29006<\/li><li>【新增】向日葵 MCP<\/li><li>【新增】端上支持分组<\/li><li>【新增】网络代理<\/li><li>【新增】跟随被控鼠标自动切换屏幕<\/li><li>【新增】支持设置低 \/ 中 \/ 高码率<\/li><li>【新增】Mac 跨平台文件拖拽<\/li><li>【新增】Mac 主控 HDR 支持<\/li><li>【新增】远程控控支持切换触摸 \/ 鼠标模式<\/li><li>【新增】智能远控硬件线缆状态<\/li><li>【优化】若干操作交互体验<\/li><li>【修复】若干已知问题<\/li><\/ol>","memoen":"V16.3.0.29006\r\n【新增】向日葵 MCP","memo":"V16.3.0.29006\r\n【新增】向日葵 MCP","updatedate":"2026-03-26 00:00:00","createtime":"2026-03-26 16:53:17"}]}
 """#
 
-@Test func extractsAweSunEntriesAndDecodesJSONEscapes() throws {
+// The OLD regex-based recipe this format replaces. Kept only here (deliberately
+// NOT in the registry any more) so the new structured decoder can be
+// cross-checked against it on the exact same fixture below.
+private let aweSunLegacyRegexRecipe = ChangelogRecipe(
+    bundleID: "com.oray.sunlogin.macclient",
+    source: URL(string: "https://client-webapi.oray.com/softwares/SUNLOGIN_X_MAC_ARM?versiontype=stable")!,
+    entryPattern:
+        #""logid":\d+.*?"logs":"<ol><li>(?<version>[^<]+)<\\/li>(?<body>.*?)<\\/ol>".*?"updatedate":"(?<date>\d{4}-\d{2}-\d{2})"#,
+    itemPatterns: [#"<li>(?<item>.*?)<\\/li>"#],
+    mode: .json)
+
+@Test func sunLoginRecipeIsStructuredJSON() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.oray.sunlogin.macclient"))
-    let changelog = try #require(ChangelogExtractor.extract(from: aweSunFixture, using: recipe))
+    #expect(recipe.structuredFormat == .sunLoginSoftwareLogs)
+    #expect(recipe.mode == .json)
+}
+
+@Test func decodesSunLoginEntriesFromLogsArray() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        aweSunFixture, format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 40))
 
     #expect(changelog.entries.count == 3)
 
-    // Entry 0: single item, \uXXXX Chinese text decoded.
+    // Entry 0: single item, \uXXXX Chinese text decoded (by JSONDecoder).
     #expect(changelog.entries[0].version == "V16.5.0.30757")
     #expect(changelog.entries[0].date == "2026-05-28")
-    #expect(changelog.entries[0].items.count == 1)
-    #expect(changelog.entries[0].items[0] == "1、修复已知bug")
+    #expect(changelog.entries[0].items == ["1、修复已知bug"])
 
     // Entry 1: two numbered items.
     #expect(changelog.entries[1].version == "v16.0.0.22931")
     #expect(changelog.entries[1].date == "2025-07-17")
-    #expect(changelog.entries[1].items.count == 2)
-    #expect(changelog.entries[1].items[0] == "1、【优化】功能交互，提升操作体验")
-    #expect(changelog.entries[1].items[1] == "2、【修复】已知问题，提升稳定性")
+    #expect(changelog.entries[1].items == [
+        "1、【优化】功能交互，提升操作体验",
+        "2、【修复】已知问题，提升稳定性",
+    ])
 
-    // Entry 2: eleven unnumbered items; \/ inside text decoded to /.
-    #expect(changelog.entries[2].version == "V16.3.0.29006")
-    #expect(changelog.entries[2].date == "2026-03-26")
-    #expect(changelog.entries[2].items.count == 11)
-    #expect(changelog.entries[2].items[0] == "【新增】向日葵 MCP")
-    #expect(changelog.entries[2].items[4] == "【新增】支持设置低 / 中 / 高码率")
-    #expect(changelog.entries[2].items[10] == "【修复】若干已知问题")
+    // Entry 2: eleven unnumbered items; \/ inside text resolved to a literal /.
+    // The LAST item is pinned explicitly — a regex-based cut is exactly the
+    // kind of thing that silently drops the final bullet (see ChatWise).
+    let entry2 = changelog.entries[2]
+    #expect(entry2.version == "V16.3.0.29006")
+    #expect(entry2.date == "2026-03-26")
+    #expect(entry2.items.count == 11)
+    #expect(entry2.items[0] == "【新增】向日葵 MCP")
+    #expect(entry2.items[4] == "【新增】支持设置低 / 中 / 高码率")
+    #expect(entry2.items.last == "【修复】若干已知问题")
+}
+
+@Test func sunLoginDecodeRespectsMaxEntries() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        aweSunFixture, format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 1))
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "V16.5.0.30757")
+}
+
+@Test func sunLoginDecodeDegradesToNilOnGarbage() {
+    #expect(StructuredChangelogDecoder.decode(
+        "not json", format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 40) == nil)
+    #expect(StructuredChangelogDecoder.decode(
+        #"{"logs":[]}"#, format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 40) == nil)
+}
+
+// Old regex path vs new structured decoder, run against the SAME fixture:
+// version/date/item-count/exact-text must match entry for entry.
+@Test func sunLoginOldRegexAndNewDecoderAgree() throws {
+    let legacy = try #require(ChangelogExtractor.extract(from: aweSunFixture, using: aweSunLegacyRegexRecipe))
+    let structured = try #require(StructuredChangelogDecoder.decode(
+        aweSunFixture, format: .sunLoginSoftwareLogs, channel: nil, maxEntries: 40))
+
+    #expect(legacy.entries.count == structured.entries.count)
+    for (old, new) in zip(legacy.entries, structured.entries) {
+        #expect(old.version == new.version)
+        #expect(old.date == new.date)
+        #expect(old.items == new.items)
+    }
 }
 
 @Test func extractsAppCleanerEntriesInOrder() throws {
@@ -275,40 +328,74 @@ private let aweSunFixture = #"""
     #expect(changelog.entries[1].items[0] == "Fixed a bug causing SmartDelete to crash.")
 }
 
-@Test func extractsChatWiseEntriesFromJSON() throws {
+@Test func chatWiseRecipeIsStructuredJSON() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "app.chatwise"))
-    let changelog = try #require(ChangelogExtractor.extract(from: chatWiseFixture, using: recipe))
-
-    #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "26.5.3")
-    #expect(changelog.entries[0].date == "2026-05-29T07:02:44.116Z")
-    #expect(changelog.entries[0].items.count == 1)
-    #expect(changelog.entries[0].items[0] == "Add Claude Opus 4.8 and adjust Claude reasoning support")
-    #expect(changelog.entries[1].version == "26.5.2")
-    #expect(changelog.entries[1].items.count == 3)
-    #expect(changelog.entries[1].items[1] == "Custom provider: add Responses API support for openai-compatible providers")
+    #expect(recipe.structuredFormat == .chatwiseReleases)
+    #expect(recipe.source.absoluteString == "https://releases.chatwise.app/releases")
 }
 
-@Test func extractsGitHubDesktopPerChannelFromJSON() throws {
-    // Stable channel → bare semver versions, plain-text notes.
+@Test func decodesChatWiseKeepingTheLastBullet() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        chatWiseFixture, format: .chatwiseReleases, channel: nil, maxEntries: 20))
+
+    #expect(changelog.entries.count == 2)
+
+    // 26.6.0's changelog string has no trailing `\n` escape, so its only bullet
+    // IS its last bullet — the case the previous regex pattern dropped outright.
+    #expect(changelog.entries[0].version == "26.6.0")
+    #expect(changelog.entries[0].date == "2026-06-26")
+    #expect(changelog.entries[0].items == ["new provider: cloudflare workers ai"])
+
+    // Multi-bullet entry: pin the count AND the final item specifically, so a
+    // regression that silently truncates the tail fails here rather than merely
+    // shrinking a count somewhere.
+    let multi = changelog.entries[1]
+    #expect(multi.version == "26.5.2")
+    #expect(multi.date == "2026-05-27")
+    #expect(multi.items.count == 4)
+    #expect(multi.items.first == "Add `curl.md` web fetch provider support")
+    #expect(multi.items.last == "Add CJK-friendly remark plugins for better markdown rendering")
+}
+
+@Test func extractsGitHubDesktopPerChannelFromStructuredJSON() throws {
+    // Stable channel → recipe wiring: bundle id resolves to the .stable recipe,
+    // and it's declared structured (no regex left to exercise).
     let stable = try #require(ChangelogRecipeRegistry.recipe(
         forBundleID: "com.github.GitHubClient", channel: .stable))
-    let scl = try #require(ChangelogExtractor.extract(from: ghDesktopStableFixture, using: stable))
+    #expect(stable.structuredFormat == .gitHubDesktopChangelog)
+    let scl = try #require(StructuredChangelogDecoder.decode(
+        ghDesktopStableFixture, format: stable.structuredFormat!,
+        channel: stable.channel, maxEntries: stable.maxEntries))
     #expect(scl.entries.count == 2)
-    #expect(scl.entries[0].version == "3.5.12")
-    #expect(scl.entries[0].date == "2026-06-01")
-    #expect(scl.entries[0].items.count == 1)
-    #expect(scl.entries[0].items[0] == "[Fixed] Items in lists such as branches and changed files are properly announced by screen readers on Windows - #22219")
-    #expect(scl.entries[1].version == "3.5.11")
+    #expect(scl.entries[0].version == "3.6.4")
+    #expect(scl.entries[0].date == "2026-08-11")
+    #expect(scl.entries[0].items.count == 2)
+    #expect(scl.entries[0].items[0] == "[Improved] Update Git for Windows to v2.53.0.windows.4")
+    #expect(scl.entries[1].version == "3.6.3")
+    #expect(scl.entries[1].date == "2026-07-14")
+    #expect(scl.entries[1].items.count == 9)
+    // A real JSON `\"@null\"` escape inside the entry must decode to a literal
+    // quote, not survive as a backslash-quote.
+    #expect(scl.entries[1].items[1] == "[Fixed] Keep commit message @-mention autocomplete from surfacing users without a profile name when typing queries like \"@null\" - #22414. Thanks @sukanth!")
+    #expect(scl.entries[1].items.last == "[Improved] Clarify the line-ending conversion warning to explain that Git will automatically convert the file's line endings on next checkout, with a link to learn more - #21446. Thanks @Whitebrim!")
 
-    // Beta channel — SAME bundle id, selected by `channel: .beta`: -betaN version,
-    // and the JSON `\"` escape in the first note must decode to a real quote.
+    // Beta channel — SAME bundle id, a DIFFERENT recipe/URL (`?env=beta`),
+    // selected by `channel: .beta`. Same structured format.
     let beta = try #require(ChangelogRecipeRegistry.recipe(
         forBundleID: "com.github.GitHubClient", channel: .beta))
-    let bcl = try #require(ChangelogExtractor.extract(from: ghDesktopBetaFixture, using: beta))
-    #expect(bcl.entries[0].version == "3.5.12-beta2")
+    #expect(beta.structuredFormat == .gitHubDesktopChangelog)
+    let bcl = try #require(StructuredChangelogDecoder.decode(
+        ghDesktopBetaFixture, format: beta.structuredFormat!,
+        channel: beta.channel, maxEntries: beta.maxEntries))
+    #expect(bcl.entries.count == 2)
+    #expect(bcl.entries[0].version == "3.6.3-beta3")
+    #expect(bcl.entries[0].date == "2026-07-08")
     #expect(bcl.entries[0].items.count == 2)
-    #expect(bcl.entries[0].items[0] == "[Improved] Show \"No newline at end of file\" as visible text in the diff view instead of requiring a tooltip hover - #22204")
+    #expect(bcl.entries[0].items[0] == "[Fixed] Resolve error that prevented Copilot-based features from working correctly on Windows - #22509")
+    #expect(bcl.entries[0].items.last == "[Fixed] Keep commit message @-mention autocomplete from surfacing users without a profile name when typing queries like \"@null\" - #22414. Thanks @sukanth!")
+    #expect(bcl.entries[1].version == "3.6.3-beta2")
+    #expect(bcl.entries[1].items.count == 5)
+    #expect(bcl.entries[1].items.last == "[Fixed] Copilot sessions from generating commit messages or resolving conflicts do not show up in VS Code - #22443")
 }
 
 @Test func extractsLatestVSCodeReleaseHighlights() throws {
@@ -574,99 +661,201 @@ private let bionicFixture = """
     #expect(changelog?.entries.first?.version == "4.8.8")
 }
 
-// Trimmed real payload from mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json.
-// Content field is Markdown with \\r\\n line separators (raw JSON escapes). Two entries:
-// one with a #### feature heading + plain description + bug-fix line, and one with only
-// a plain bug-fix line (no #### heading) to cover the simpler layout.
-private let postmanFixture = """
-{"notes":[{"version":"12.12.7","content":"## Postman 12.12.7\\r\\nMay 30, 2026\\r\\n\\r\\n### Improvements\\r\\n#### Aggregated test results in Postman Flows run logs\\r\\nRun logs in Postman Flows now aggregate and display test results from all **Request** blocks in a single summary view.\\r\\n\\r\\n### Bug fixes\\r\\nResolved an issue in Postman Flows where the environment selector would not respond.\\r\\n","createdAt":"2026-05-30T04:43:09.000Z"},{"version":"12.13.2","content":"## Postman 12.13.2\\r\\nJune 2, 2026\\r\\n\\r\\n### Bug Fixes\\r\\nSome critical bug fixes and enhancements were added in this release.\\r\\n","createdAt":"2026-06-02T02:32:09.000Z"}]}
-"""
+// Byte-for-byte slice of the real feed (curled 2026-08-21 from
+// mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json), four
+// "notes[]" objects verbatim, covering every shape the decoder has to handle:
+//   - 12.24.3: a `#### ` feature heading (kept, prefix stripped) followed by a
+//     bold safety line, two prose paragraphs, and a trailing `[text](url)` link
+//     line — 5 items, `\r\n` separators.
+//   - 12.23.7: the same shape but with a `- ` bullet list in the middle — 8
+//     items, exercises "not just single-paragraph" bodies.
+//   - 12.17.3: the entry the OLD regex path truncated. Its one bug-fix line
+//     contains an escaped quote (`\"8000\"`) — the old itemPattern's
+//     `[^\\]{10,}` capture stopped at that backslash and silently dropped the
+//     rest of the sentence. This fixture pins the FULL, correct sentence.
+//   - 9.18.2: a legacy entry whose body uses a bare `\n` separator (only the
+//     very last blank line is `\r\n\r\n`) — the format older entries actually
+//     shipped in, which the old itemPattern (anchored on `\\r\\n`) could never
+//     match at all.
+private let postmanFeedFixture = #"""
+{"notes":[
+{"version":"12.24.3","content":"## Postman 12.24.3\r\nAugust 19, 2026\r\n\r\n### What’s New\r\n#### Mocks are now available in Cloud View\r\n**Available on Solo, Team, and Enterprise plans**\r\n\r\nMocks let you simulate APIs using custom JavaScript request handlers. In Cloud View, each mock receives a unique URL and is always available to handle requests.\r\n\r\nYou can also deploy a mock as a mock server, giving your team a cloud-hosted service they can send requests to at any time. By default, mock servers deployed from a mock are private and require workspace access or a valid Postman API key.\r\n\r\nTo learn more, see [Build API mocks with JavaScript](https://learning.postman.com/docs/design-apis/mock-apis/local-mock-servers).\r\n\r\n","createdAt":"2026-08-19T06:06:19.000Z"},
+{"version":"12.23.7","content":"## Postman 12.23.7\r\nAugust 14, 2026\r\n\r\n### What’s New\r\n#### Buy Postman from AWS Marketplace\r\n\r\nYou can now purchase Postman Team and Enterprise plans directly through the AWS Marketplace, consolidating Postman within your existing AWS billing.\r\n\r\nThere are two ways to get started:\r\n\r\n- Subscribe from the AWS Marketplace listing and complete setup on a Postman-hosted page.\r\n- In the Postman app, click **Buy with AWS** to purchase without leaving Postman.\r\n\r\nBoth flows support purchasing for your own team or on behalf of another team in your organization. All subscription changes are managed through the AWS Marketplace console.\r\n\r\nAvailable for net-new Team and Enterprise plans.\r\n\r\nTo learn more, see [Purchase AWS from AWS Marketplace](https://learning.postman.com/docs/billing/buying-aws).\r\n\r\n","createdAt":"2026-08-14T02:32:42.000Z"},
+{"version":"12.17.3","content":"## Postman 12.17.3\r\nJuly 2, 2026\r\n\r\n### Bug fixes\r\nFixed an issue in Postman Flows where configuration values typed as Number arrived as text at runtime (for example, 8000 became \"8000\" ), which could break blocks expecting a real number.\r\n","createdAt":"2026-07-02T02:32:20.000Z"},
+{"version":"9.18.2","content":"## Postman v9.18.2\n\n### Bug Fixes\n- Fixed the issue of cookies not showing up in the interceptor debug session - [Github #10901](https://github.com/postmanlabs/postman-app-support/issues/10901)\r\n\r\n","createdAt":"2022-05-11T10:42:53.000Z"}
+]}
+"""#
 
-@Test func extractsPostmanEntriesFromJSON() throws {
+@Test func postmanRecipeIsStructuredJSON() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.postmanlabs.mac"))
-    let changelog = try #require(ChangelogExtractor.extract(from: postmanFixture, using: recipe))
-
-    #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "12.12.7")
-    #expect(changelog.entries[0].date == "2026-05-30")
-    #expect(changelog.entries[0].items.count == 3)
-    #expect(changelog.entries[0].items[0] == "Aggregated test results in Postman Flows run logs")
-    #expect(changelog.entries[0].items[1].contains("Run logs in Postman Flows"))
-    #expect(changelog.entries[0].items[2].contains("Resolved an issue"))
-    #expect(changelog.entries[1].version == "12.13.2")
-    #expect(changelog.entries[1].date == "2026-06-02")
-    #expect(changelog.entries[1].items.count == 1)
-    #expect(changelog.entries[1].items[0].contains("critical bug fixes"))
+    #expect(recipe.structuredFormat == .postmanReleaseNotes)
+    #expect(recipe.maxEntries == 30)
+    #expect(recipe.entryPattern.isEmpty)
+    #expect(recipe.itemPatterns.isEmpty)
 }
 
-// Trimmed real markup from update.dcloud.net.cn/hbuilderx/changelog/<version>.html.
-// The page is cumulative — all versions in one file. Each version block starts with
-// an <h2>, categories are <h3>, and changes are <li>. No explicit date field;
-// the version string itself encodes YYYYMMDD (e.g. 5.07.2026041006 = 2026-04-10).
+@Test func decodesPostmanFeedSliceExactly() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        postmanFeedFixture, format: .postmanReleaseNotes, channel: nil, maxEntries: 10))
+
+    #expect(changelog.entries.count == 4)
+
+    let a = changelog.entries[0]
+    #expect(a.version == "12.24.3")
+    #expect(a.date == "2026-08-19")
+    #expect(a.items.count == 5)
+    #expect(a.items[0] == "Mocks are now available in Cloud View")
+    #expect(a.items[1] == "**Available on Solo, Team, and Enterprise plans**")
+    #expect(a.items.last == "To learn more, see [Build API mocks with JavaScript](https://learning.postman.com/docs/design-apis/mock-apis/local-mock-servers).")
+    // The "## Postman 12.24.3" title line, the "August 19, 2026" date line, and
+    // the "### What's New" section heading must all be filtered out — none of
+    // them are a change line.
+    #expect(!a.items.contains { $0.contains("## Postman") })
+    #expect(!a.items.contains { $0.contains("August 19, 2026") })
+    #expect(!a.items.contains { $0.contains("What’s New") })
+
+    let b = changelog.entries[1]
+    #expect(b.version == "12.23.7")
+    #expect(b.date == "2026-08-14")
+    #expect(b.items.count == 8)
+    #expect(b.items[0] == "Buy Postman from AWS Marketplace")
+    #expect(b.items[3] == "- Subscribe from the AWS Marketplace listing and complete setup on a Postman-hosted page.")
+    #expect(b.items.last == "To learn more, see [Purchase AWS from AWS Marketplace](https://learning.postman.com/docs/billing/buying-aws).")
+
+    // 12.17.3: the old regex path's item capture (`[^\\]{10,}`) stopped at the
+    // backslash in `\"8000\"`, truncating this to "...8000 became ". The
+    // structured decoder reads the real, unescaped string and must not lose the
+    // rest of the sentence.
+    let c = changelog.entries[2]
+    #expect(c.version == "12.17.3")
+    #expect(c.items.count == 1)
+    #expect(c.items[0] == "Fixed an issue in Postman Flows where configuration values typed as Number arrived as text at runtime (for example, 8000 became \"8000\" ), which could break blocks expecting a real number.")
+
+    // 9.18.2: legacy entry whose body is `\n`-separated (not `\r\n`) — a shape
+    // the old itemPattern could never match, so this release's notes were
+    // structurally invisible under the regex path. The decoder must still find it.
+    let d = changelog.entries[3]
+    #expect(d.version == "9.18.2")
+    #expect(d.date == "2022-05-11")
+    #expect(d.items == ["- Fixed the issue of cookies not showing up in the interceptor debug session - [Github #10901](https://github.com/postmanlabs/postman-app-support/issues/10901)"])
+}
+
+@Test func postmanDecodeRespectsMaxEntries() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        postmanFeedFixture, format: .postmanReleaseNotes, channel: nil, maxEntries: 2))
+    #expect(changelog.entries.count == 2)
+    #expect(changelog.entries.map(\.version) == ["12.24.3", "12.23.7"])
+}
+
+@Test func postmanMalformedBodyDecodesToNil() {
+    #expect(StructuredChangelogDecoder.decode(
+        "not json at all", format: .postmanReleaseNotes, channel: nil, maxEntries: 30) == nil)
+    #expect(StructuredChangelogDecoder.decode(
+        #"{"notes": []}"#, format: .postmanReleaseNotes, channel: nil, maxEntries: 30) == nil)
+}
+
+// Verbatim leading slice (lines 1-17, plus one trailing blank line so the last
+// item's line-end still has a following "\n" for the item pattern's lookahead —
+// see the note on that below) of the real response body from
+// https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_release.md,
+// fetched 2026-08-21. Two version blocks: 5.24.2026081301 has a single
+// link-free item; 5.23.2026080626 has 13 items, all but one carrying a
+// trailing `[详情](url)` markdown link, and one (the uni-network-cronet line)
+// carrying both a `[文档](url)` link AND a bare `<url>` autolink after it — the
+// item pattern must strip all of that, in sequence, off the end of the line.
+// No date field — the version itself encodes YYYYMMDD (5.23.2026080626 =
+// 2026-08-06), same as the old HTML source; this is not a regression.
 private let hbuilderxFixture = """
-<h1 id="hbuilder-x---release-notes">HBuilder X - Release Notes</h1>
-<p>======================================</p>
-<h2 id="5072026041006">5.07.2026041006</h2>
-<h3 id="hbuilder">HBuilder</h3>
-<ul>
-<li>修复 5.0版本引发的 uni-app iOS安心打包图标没有生效 <a href="https://issues.dcloud.net.cn/pages/issues/detail?id=27902">详情</a></li>
-</ul>
-<h3 id="uni-app-x">uni-app x</h3>
-<ul>
-<li>Android平台 修复 5.0版本引发的 API uni.showLoading 调用异常 <a href="https://issues.dcloud.net.cn/pages/issues/detail?id=27821">详情</a></li>
-</ul>
-<h2 id="5062026033105">5.06.2026033105</h2>
-<h3 id="hbuilder-1">HBuilder</h3>
-<ul>
-<li>macOS平台 修复 5.0版本引发的 iOS 安心打包功能中资源拷贝路径不正确的问题 <a href="https://issues.dcloud.net.cn/pages/issues/detail?id=27379">详情</a></li>
-</ul>
+## 5.24.2026081301
+* 修复 uniapp框架的一些Bug
+
+## 5.23.2026080626
+* Windows平台 修复 Windows 上使用在外部资源管理器打开文件时未选中目标文件 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=29907)
+* 修复 5.0版本引发的 AI对比工具栏缺少跟随移动，多窗口下进行部分操作导致工具栏不消失 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31128)
+* 修复 4.81版本引发的 部分git操作导致的文件变更无法在editor内同步 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=28392)
+* 修复 条件编译置灰和 对比选中文件/uni-agent插件代码修改 的预览样式冲突 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=26579)
+* 修复 在uniapp项目下uni.没有提示 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31477)
+* 新增 HBuilderX CLI 支持通过 config get/set 命令行工具动态查询与管理全局配置项 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31115)
+* 新增 HBuilderX CLI 独立编译 App 端 UTS 文件及 uni_modules 模块 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31116)
+* 修复 HBuilderX cli launch 命令运行鸿蒙元服务时会卡住 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31740)
+* 新增 manifest.json uni-app x Android平台 打包是否压缩so库的可视化选项 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31099)
+* 新增 manifest.json uni-app x iOS平台可选模块配置 uni-oauth apple登录 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31102)
+* 新增 manifest.json uni-app x 蒸汽模式 Android平台 可选模块配置 uni-network-cronet [文档](https://doc.dcloud.net.cn/uni-app-x/collocation/manifest-android.html#modulesnetwork) <https://issues.dcloud.net.cn/pages/issues/detail?id=31450>
+* 新增 鸿蒙App配置增加可选模块配置uni-requestMerchantTransfer [文档](https://doc.dcloud.net.cn/uni-app-x/api/request-merchant-transfer.html) <https://issues.dcloud.net.cn/pages/issues/detail?id=31481>
+* 新增 对应用打包所包含的动态库进行体积优化 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31285)
+
 """
 
-@Test func extractsHBuilderXEntriesInOrder() throws {
+@Test func extractsHBuilderXMarkdownEntriesWithLinksStripped() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "io.dcloud.HBuilderX"))
     let changelog = try #require(ChangelogExtractor.extract(from: hbuilderxFixture, using: recipe))
 
     #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "5.07.2026041006")
+    #expect(changelog.entries[0].version == "5.24.2026081301")
     #expect(changelog.entries[0].date == nil)
-    #expect(changelog.entries[0].items.count == 2)
-    #expect(changelog.entries[0].items[0].contains("uni-app iOS安心打包图标没有生效"))
-    #expect(changelog.entries[1].version == "5.06.2026033105")
-    #expect(changelog.entries[1].items.count == 1)
-    #expect(changelog.entries[1].items[0].contains("iOS 安心打包功能中资源拷贝路径不正确"))
+    #expect(changelog.entries[0].items.count == 1)
+    #expect(changelog.entries[0].items[0] == "修复 uniapp框架的一些Bug")
+
+    #expect(changelog.entries[1].version == "5.23.2026080626")
+    #expect(changelog.entries[1].date == nil)
+    #expect(changelog.entries[1].items.count == 13)
+    // First item: trailing `[详情](url)` stripped clean off the end.
+    #expect(
+        changelog.entries[1].items.first
+            == "Windows平台 修复 Windows 上使用在外部资源管理器打开文件时未选中目标文件")
+    // Last item: same — the trailing link is gone, not left as a literal
+    // "[详情](https://...)" tail.
+    #expect(changelog.entries[1].items.last == "新增 对应用打包所包含的动态库进行体积优化")
+    // The uni-network-cronet line carries a `[文档](url)` link immediately
+    // followed by a bare `<url>` autolink — both must be stripped, not just one.
+    let cronetItem = try #require(
+        changelog.entries[1].items.first { $0.contains("uni-network-cronet") })
+    #expect(
+        cronetItem
+            == "新增 manifest.json uni-app x 蒸汽模式 Android平台 可选模块配置 uni-network-cronet")
+    #expect(!cronetItem.contains("["))
+    #expect(!cronetItem.contains("<"))
 }
 
-// Trimmed real markup from the HBuilderX *Alpha* changelog page (followed from
-// alpha.json's `release` field). Same shape as the stable page, but every version
-// <h2> carries an "-alpha" suffix — which the alpha recipe's version group requires.
+// Verbatim leading slice (lines 1-13, plus trailing blank line for the same
+// lookahead reason as above) of
+// https://hx.dcloud.net.cn/zh-cn/Tutorial/changelog/ReleaseNote_alpha.md,
+// fetched 2026-08-21. Every version heading carries the "-alpha" suffix, which
+// the alpha recipe's version group requires (and the stable recipe's doesn't
+// allow) — confirms the suffix survives capture intact rather than being eaten
+// by the version pattern's dot-number matching.
 private let hbuilderxAlphaFixture = """
-<h1 id="hbuilder-x---release-notes">HBuilder X - Release Notes</h1>
-<h2 id="5112026052520-alpha">5.11.2026052520-alpha</h2>
-<h3 id="hbuilder">HBuilder</h3>
-<ul>
-<li>调整 内置node版本由v18.20.0升级到v22.22.2</li>
-</ul>
-<h3 id="uni-app-x">uni-app x</h3>
-<ul>
-<li>Android平台 修复 某些情况下编译报错的问题 <a href="https://issues.dcloud.net.cn/x">详情</a></li>
-</ul>
-<h2 id="5082026050815-alpha">5.08.2026050815-alpha</h2>
-<h3 id="hbuilder-1">HBuilder</h3>
-<ul>
-<li>修复 alpha 渠道某个崩溃问题</li>
-</ul>
+## 5.23.2026080313-alpha
+* 修复 cli launch 命令运行鸿蒙元服务时会卡住 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31740)
+
+## 5.22.2026072503-alpha
+* 修复 条件编译置灰和 对比选中文件/uni-agent插件代码修改 的预览样式冲突 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=26579)
+* 修复 5.0版本引发的 AI对比工具栏缺少跟随移动，多窗口下进行部分操作导致工具栏不消失 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31128)
+* 新增 HBuilderX CLI 支持通过 config get/set 命令行工具动态查询与管理全局配置项 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31115)
+* 新增 HBuilderX CLI 独立编译 App 端 UTS 文件及 uni_modules 模块 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31116)
+* 新增 manifest.json uni-app x Android平台 打包是否压缩so库的可视化选项 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31099)
+* 新增 manifest.json uni-app x iOS平台可选模块配置 uni-oauth apple登录 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31102)
+* 新增 manifest.json uni-app x 蒸汽模式 Android平台 可选模块配置 uni-network-cronet [文档](https://doc.dcloud.net.cn/uni-app-x/collocation/manifest-ios.html#modulesoauth) <https://issues.dcloud.net.cn/pages/issues/detail?id=31450>
+* 新增 鸿蒙App配置增加可选模块配置uni-requestMerchantTransfer [文档](https://doc.dcloud.net.cn/uni-app-x/api/request-merchant-transfer.html) <https://issues.dcloud.net.cn/pages/issues/detail?id=31481>
+* 新增 对应用打包所包含的动态库进行体积优化 [详情](https://issues.dcloud.net.cn/pages/issues/detail?id=31285)
+
 """
 
-@Test func extractsHBuilderXAlphaEntriesWithSuffix() throws {
+@Test func extractsHBuilderXAlphaMarkdownEntriesWithSuffix() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "io.dcloud.HBuilderXAlpha"))
     let changelog = try #require(ChangelogExtractor.extract(from: hbuilderxAlphaFixture, using: recipe))
 
     #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "5.11.2026052520-alpha")
-    #expect(changelog.entries[0].items.count == 2)
-    #expect(changelog.entries[0].items[0].contains("内置node版本"))
-    #expect(changelog.entries[1].version == "5.08.2026050815-alpha")
-    #expect(changelog.entries[1].items.count == 1)
+    #expect(changelog.entries[0].version == "5.23.2026080313-alpha")
+    #expect(changelog.entries[0].items.count == 1)
+    #expect(changelog.entries[0].items[0] == "修复 cli launch 命令运行鸿蒙元服务时会卡住")
+
+    #expect(changelog.entries[1].version == "5.22.2026072503-alpha")
+    #expect(changelog.entries[1].items.count == 9)
+    #expect(
+        changelog.entries[1].items.first
+            == "修复 条件编译置灰和 对比选中文件/uni-agent插件代码修改 的预览样式冲突")
+    #expect(changelog.entries[1].items.last == "新增 对应用打包所包含的动态库进行体积优化")
 }
 
 // Trimmed real markup from github.com/ollama/ollama/releases. Two sections:
@@ -824,36 +1013,103 @@ private let orbStackFixture = """
     #expect(changelog.entries[1].items[0] == "Activity Monitor TUI: orb top")
 }
 
-// Minimal but structurally faithful slice: one patch release (2 items) and one
-// feature release with section headers (2 items from nested <ul>).
-// Three entries: one with only a <p> note (no <li>), one plain patch, one with
-// section headers. Verifies both the <li> primary pattern and the <p> fallback.
-let zedPreviewFixture = """
-<div class="foo" id="zed-1.5.3" style="content-visibility:auto"><header class="p-3 font-zed-mono text-sm flex justify-between border-b default-border-color"><p class="high-contrast-text tabular-nums">1.5.3</p><p class="tabular-nums whitespace-nowrap">May 28, 2026</p></header><div class="content"><article class="p-3"><p>No public-facing changes in this release. <a href="https://github.com/zed-industries/zed/compare/v1.5.2-pre...v1.5.3-pre#commits_bucket">View the commits</a>.</p></article></div></div><div class="foo" id="zed-1.5.1" style="content-visibility:auto"><header class="p-3 font-zed-mono text-sm flex justify-between border-b default-border-color"><p class="high-contrast-text tabular-nums">1.5.1</p><p class="tabular-nums whitespace-nowrap">May 28, 2026</p></header><div class="content"><article class="p-3"><ul class="list-disc">\n<li class="mb-2">Fixed GitHub Copilot Chat showing an empty model dropdown for users on newer Copilot SDK builds (<a href="https://github.com/zed-industries/zed/pull/57964">#57964</a>)</li>\n<li class="mb-2">git: Fixed an issue where worktree creation would not be possible if resolving default branch fails (<a href="https://github.com/zed-industries/zed/pull/57960">#57960</a>)</li>\n</ul></article></div></div><div class="foo" id="zed-1.5.0" style="content-visibility:auto"><header class="p-3 font-zed-mono text-sm flex justify-between border-b default-border-color"><p class="high-contrast-text tabular-nums">1.5.0</p><p class="tabular-nums whitespace-nowrap">May 27, 2026</p></header><div class="content"><article class="p-3"><h2 class="h3" id="features">Features</h2>\n<ul class="list-disc">\n<li class="mb-2">Agent: Added support for importing skills from GitHub Markdown URLs in the Skill Creator. (<a href="https://github.com/zed-industries/zed/pull/57458">#57458</a>)</li>\n<li class="mb-2">Agent: Added commands for opening global and project-specific <code>AGENTS.md</code> rules. (<a href="https://github.com/zed-industries/zed/pull/57847">#57847</a>)</li>\n</ul></article></div></div>
-"""
+// Real (trimmed) slice of api.github.com/repos/zed-industries/zed/releases as of
+// 2026-08-21: 4 of the 100 sampled releases, in the API's actual newest-first
+// order — v1.17.0-pre, v1.16.1, v1.16.1-pre, v1.15.1 — so decode order is a real
+// property of this fixture, not something the test asserts into existence.
+// Bodies are truncated to their first 1-2 bullets (full bodies ran 700–14000
+// chars) and CRLF-normalized to LF (the live API mixes both across releases;
+// `GitHubMarkdownParser`/`CharacterSet.newlines` treat them identically, so this
+// is a lossless simplification for the fixture, not a behavior change). Tags,
+// dates, and every character of the kept bullets are verbatim from the real
+// response — including the real PR-link/attribution markdown, which is why the
+// items below still carry `([#62577](...); thanks [x](...))`.
+let zedGitHubReleasesFixture = #"""
+[
+  {
+    "tag_name": "v1.17.0-pre",
+    "prerelease": true,
+    "published_at": "2026-08-19T17:47:30Z",
+    "body": "This week's release includes tabular data previews for CSV, TSV, PSV, and SSV files with sortable and resizable columns, value-based row filtering, and right-click copying; new Git blame and stashing actions; and lower memory use when opening large files.\n\n## Shipped by the Zed Guild 🛡️\n\n- Added support for low reasoning effort for DeepSeek V4 Flash and V4 Pro. ([#62577](https://github.com/zed-industries/zed/pull/62577); thanks [lingyaochu](https://github.com/lingyaochu))\n- Improved JetBrains keymap behavior with CamelHump-style subword navigation for `alt-left`, `alt-right`, `shift-alt-left`, and `shift-alt-right` in editors. ([#51540](https://github.com/zed-industries/zed/pull/51540); thanks [loadingalias](https://github.com/loadingalias))"
+  },
+  {
+    "tag_name": "v1.16.1",
+    "prerelease": false,
+    "published_at": "2026-08-19T16:11:34Z",
+    "body": "This week's release includes Gemini 3.6 Flash support, collapsible grouped changes and optional stash messages in the Git Panel, zooming and horizontal scrolling for Mermaid diagrams, and a new setting for controlling whether the Terminal Panel opens automatically in new workspaces.\n\n## Shipped by the Zed Guild 🛡️\n\n- Improved Git Panel organization by making grouped change sections collapsible. ([#62441](https://github.com/zed-industries/zed/pull/62441); thanks [chirivelli](https://github.com/chirivelli))\n- Linux: Improved memory usage. ([#62192](https://github.com/zed-industries/zed/pull/62192); thanks [tidely](https://github.com/tidely))"
+  },
+  {
+    "tag_name": "v1.16.1-pre",
+    "prerelease": true,
+    "published_at": "2026-08-18T15:58:22Z",
+    "body": "- Fixed an issue where the Cursor ACP agent would fail to start ([#62826](https://github.com/zed-industries/zed/pull/62826))\n- Added git_gutter_width setting to the Settings UI with default (font-size-scaled) and custom (fixed pixel width) options ([#62813](https://github.com/zed-industries/zed/pull/62813))"
+  },
+  {
+    "tag_name": "v1.15.1",
+    "prerelease": false,
+    "published_at": "2026-08-18T16:05:04Z",
+    "body": "- Fixed an issue where the Cursor ACP agent would fail to start ([#62825](https://github.com/zed-industries/zed/pull/62825))\n- Git: Fixed the GPG passphrase modal appearing on every commit for users whose configured pinentry (e.g. pinentry-mac with the macOS Keychain) can supply the passphrase without Zed's help. Zed now only prompts when gpg cannot obtain the passphrase on its own. ([#62783](https://github.com/zed-industries/zed/pull/62783))"
+  }
+]
+"""#
 
-@Test func extractsZedPreviewEntriesInOrder() throws {
-    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.zed.Zed-Preview"))
-    let changelog = try #require(ChangelogExtractor.extract(from: zedPreviewFixture, using: recipe))
+@Test func zedRecipesAreStructuredJSONSharingOneURL() throws {
+    let stable = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.zed.Zed"))
+    let preview = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.zed.Zed-Preview"))
+    #expect(stable.structuredFormat == .zedGitHubReleases)
+    #expect(preview.structuredFormat == .zedGitHubReleases)
+    #expect(stable.channel == .stable)
+    #expect(preview.channel == .preview)
+    // Same endpoint for both — the whole reason `channel` exists on the format.
+    #expect(stable.source == preview.source)
+}
 
-    #expect(changelog.entries.count == 3)
-    // 1.5.3: no <li> items — falls back to <p> text
-    #expect(changelog.entries[0].version == "1.5.3")
-    #expect(changelog.entries[0].date == "May 28, 2026")
-    #expect(changelog.entries[0].items.count == 1)
-    #expect(changelog.entries[0].items[0] == "No public-facing changes in this release. View the commits.")
-    // 1.5.1: plain patch with <li> items
-    #expect(changelog.entries[1].version == "1.5.1")
-    #expect(changelog.entries[1].date == "May 28, 2026")
+@Test func decodesZedStableFromGitHubReleases() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        zedGitHubReleasesFixture, format: .zedGitHubReleases, channel: .stable, maxEntries: 15))
+
+    // Only the two non-prerelease entries, in the API's newest-first order.
+    #expect(changelog.entries.count == 2)
+    #expect(changelog.entries[0].version == "1.16.1")
+    #expect(changelog.entries[0].date == "2026-08-19")
+    #expect(changelog.entries[0].items.count == 2)
+    #expect(changelog.entries[0].items[0]
+        == "Improved Git Panel organization by making grouped change sections collapsible. ([#62441](https://github.com/zed-industries/zed/pull/62441); thanks [chirivelli](https://github.com/chirivelli))")
+    #expect(changelog.entries[1].version == "1.15.1")
+    #expect(changelog.entries[1].date == "2026-08-18")
     #expect(changelog.entries[1].items.count == 2)
-    #expect(changelog.entries[1].items[0] == "Fixed GitHub Copilot Chat showing an empty model dropdown for users on newer Copilot SDK builds (#57964)")
-    #expect(changelog.entries[1].items[1] == "git: Fixed an issue where worktree creation would not be possible if resolving default branch fails (#57960)")
-    // 1.5.0: feature release with section headers — <li> wins over <p>
-    #expect(changelog.entries[2].version == "1.5.0")
-    #expect(changelog.entries[2].date == "May 27, 2026")
-    #expect(changelog.entries[2].items.count == 2)
-    #expect(changelog.entries[2].items[0] == "Agent: Added support for importing skills from GitHub Markdown URLs in the Skill Creator. (#57458)")
-    #expect(changelog.entries[2].items[1] == "Agent: Added commands for opening global and project-specific AGENTS.md rules. (#57847)")
+    // Explicitly pin the last item: the version-normalization and the markdown
+    // link both survive to the end of the list, not just the first entry.
+    #expect(changelog.entries[1].items.last
+        == "Git: Fixed the GPG passphrase modal appearing on every commit for users whose configured pinentry (e.g. pinentry-mac with the macOS Keychain) can supply the passphrase without Zed's help. Zed now only prompts when gpg cannot obtain the passphrase on its own. ([#62783](https://github.com/zed-industries/zed/pull/62783))")
+}
+
+@Test func decodesZedPreviewFromGitHubReleasesNormalizingPreSuffix() throws {
+    let changelog = try #require(StructuredChangelogDecoder.decode(
+        zedGitHubReleasesFixture, format: .zedGitHubReleases, channel: .preview, maxEntries: 15))
+
+    #expect(changelog.entries.count == 2)
+    // "v1.17.0-pre" -> "1.17.0": leading `v` and trailing `-pre` both stripped so
+    // the rail version matches the installed CFBundleShortVersionString.
+    #expect(changelog.entries[0].version == "1.17.0")
+    #expect(changelog.entries[0].date == "2026-08-19")
+    #expect(changelog.entries[1].version == "1.16.1")
+    #expect(changelog.entries[1].date == "2026-08-18")
+    #expect(changelog.entries[1].items.last
+        == "Added git_gutter_width setting to the Settings UI with default (font-size-scaled) and custom (fixed pixel width) options ([#62813](https://github.com/zed-industries/zed/pull/62813))")
+}
+
+@Test func zedChannelsDoNotLeak() throws {
+    // A stable decode must never surface a `-pre`-tagged version, and vice versa
+    // — the whole point of routing both channels through one shared endpoint.
+    let stable = try #require(StructuredChangelogDecoder.decode(
+        zedGitHubReleasesFixture, format: .zedGitHubReleases, channel: .stable, maxEntries: 15))
+    #expect(!stable.entries.contains { $0.version.contains("17.0") })
+    #expect(stable.entries.allSatisfy { !$0.version.hasSuffix("-pre") })
+
+    let preview = try #require(StructuredChangelogDecoder.decode(
+        zedGitHubReleasesFixture, format: .zedGitHubReleases, channel: .preview, maxEntries: 15))
+    #expect(!preview.entries.contains { $0.version == "1.16.1" && $0.date == "2026-08-19" })
 }
 
 @Test func recipeDecodesFromTerseJSON() throws {
@@ -1274,8 +1530,34 @@ private let notionFixture = #"""
 <article class="release_release__p2Jug"><div class="release_releaseMeta__bvuES"><div class="release_dateRow__ew79j"><time class="release_date__P0TR_">May 26, 2026</time></div></div><div class="release_content__gxmgt"><a class="release_titleLink__zEwHf" href="/releases/2026-05-26"><h2 class="semanticTypography_semanticTypography__mWJkv release_title__o1nuh">Merge cells in simple tables</h2></a><article class="contentfulRichText_richText__rW7Oq"><p class="videoPlayer_errorLine__pR8bX">Uh-oh! Your ad blocker is preventing the video from playing.</p><p class="contentfulRichText_paragraph___hjRE">Finally! Merge cells in simple tables &amp; databases.</p><p class="contentfulRichText_paragraph___hjRE">Select multiple cells → open the cell menu → select <code class="contentfulRichText_code__RWBxk">Merge</code>.</p></article></div></article><article class="release_release__p2Jug"><div class="release_releaseMeta__bvuES"><div class="release_dateRow__ew79j"><time class="release_date__P0TR_">May 7, 2026</time></div></div><div class="release_content__gxmgt"><a class="release_titleLink__zEwHf" href="/releases/2026-05-07"><h2 class="semanticTypography_semanticTypography__mWJkv release_title__o1nuh">Plan Mode</h2></a><article class="contentfulRichText_richText__rW7Oq"><p class="contentfulRichText_paragraph___hjRE">Your agent now drafts a plan before making significant changes.</p></article></div></article></main>
 """#
 
+/// The regex recipe this fixture exercises is no longer the ACTIVE `notion.id`
+/// recipe in `ChangelogRecipeRegistry` — 2026-08-22 it was replaced by
+/// `.notionPageChunk` (see that recipe's comment), because this page has no
+/// build number at all and its post titles were standing in for one, which
+/// never matched the installed app's real version. The old pattern is kept
+/// commented out in the registry (not deleted) for reference, so it can no
+/// longer be fetched via `ChangelogRecipeRegistry.recipe(forBundleID:)` — this
+/// reconstructs it inline to keep the regression coverage for the pattern
+/// itself (the CSS-modules-rename fixture in `NotionChangelogRecipeTests`
+/// depends on the same pattern surviving).
+func notionProductAnnouncementsRecipe() -> ChangelogRecipe {
+    ChangelogRecipe(
+        bundleID: "notion.id",
+        source: URL(string: "https://www.notion.com/releases")!,
+        entryPattern:
+            #"<article class="(?:release_release__[^"]*|release-module-scss-module__[^"]*__release)">.*?"#
+            + #"<time class="(?:release_date__[^"]*|release-module-scss-module__[^"]*__date)">(?<date>[^<]+)</time>.*?"#
+            + #"<h2 class="[^"]*(?:release_title__[^"]*|release-module-scss-module__[^"]*__title)">(?<version>.*?)</h2>"#
+            + #"(?<body>.*?)(?=<article class="(?:release_release__|release-module-scss-module__[^"]*__release")|</main>|<footer)"#,
+        itemPatterns: [
+            #"<p class="(?:contentfulRichText_paragraph__[^"]*|contentfulRichText-module-scss-module__[^"]*__paragraph)">(?<item>.*?)</p>"#,
+        ],
+        maxEntries: 20,
+        minItemLength: 4)
+}
+
 @Test func extractsNotionEntries() throws {
-    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "notion.id"))
+    let recipe = notionProductAnnouncementsRecipe()
     let cl = try #require(ChangelogExtractor.extract(from: notionFixture, using: recipe))
     #expect(cl.entries.count == 2)
     #expect(cl.entries.first?.version == "Merge cells in simple tables")
@@ -1331,40 +1613,67 @@ private let obsidianFixture = #"""
     #expect(cl.entries.first?.items[2] == "Added appendBinary method to the vault and adapter API.")
 }
 
-// Figma — two product release-notes <article>s from figma.com/release-notes; the
-// first has a <strong> to strip and a `&#x27;` entity to decode. Title = version.
-private let figmaFixture = """
-<article aria-label="Plan smarter" class="fig-1ud82tx">\
-<div class="fig-1u7wo0i">\
-<time dateTime="Jun 3, 2026" class="fig-4tc1ef">Jun 3, 2026</time>\
-<h2 class="fig-1u8vp4l">Plan smarter with more context in Make</h2>\
-</div>\
-<div class="fig-k1i24q">\
-<p class="fig-jco665"><strong>Plan mode</strong></p>\
-<p class="fig-jco665">It&#x27;s most useful for complex work.</p>\
-</div></article>\
-<article aria-label="Sharper controls" class="fig-1ud82tx">\
-<div class="fig-1u7wo0i">\
-<time dateTime="Jun 1, 2026" class="fig-4tc1ef">Jun 1, 2026</time>\
-<h2 class="fig-1u8vp4l">Sharper controls for every slot</h2>\
-</div>\
-<div class="fig-k1i24q">\
-<p class="fig-jco665">New slot settings let you set guardrails.</p>\
-</div></article>
-"""
+// Figma — three verbatim <entry> blocks copied byte-for-byte from the live Atom
+// feed (https://www.figma.com/release-notes/feed/atom.xml, fetched 2026-08-19).
+// The third entry's content carries a raw apostrophe inside the CDATA ("We've
+// added…"), which exercises that the entry/item patterns land strictly inside
+// the `<![CDATA[…]]>` delimiters rather than swallowing them — a naive
+// `<[^>]*>` strip run before the CDATA is pulled out eats the whole
+// `<![CDATA[…]]>` construct (`[^>]*` reads through to the `>` that closes
+// `]]>`), which would otherwise corrupt exactly this kind of entry.
+private let figmaFixture = #"""
+    <entry>
+        <title type="html"><![CDATA[Recommend resources you want users to discover and use]]></title>
+        <id>dece0d00-5f03-4a5d-aa04-3b0fad21b5eb</id>
+        <link href="https://www.figma.com/release-notes/?title=recommend-resources-you-want-users-to-discover-and-use"/>
+        <updated>2026-08-17T00:00:00.000Z</updated>
+        <content type="html"><![CDATA[Admins can now choose which resources (skills, templates, libraries, and Make kits) are recommended to your organization or workspace.]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Get responsive text across screens with text wrap]]></title>
+        <id>fdeb868a-690e-4286-9075-bc4d7fb7f1f9</id>
+        <link href="https://www.figma.com/release-notes/?title=get-responsive-text-across-screens-with-text-wrap"/>
+        <updated>2026-08-14T00:00:00.000Z</updated>
+        <content type="html"><![CDATA[Text wrap makes your text responsive with two new options: Balance and Pretty. Set either on a text layer, a text style, or an individual paragraph in text settings.]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Try skills from the Community and make your own with the Figma agent]]></title>
+        <id>c6056d47-fcc7-497d-aa75-ee928836bfe4</id>
+        <link href="https://www.figma.com/release-notes/?title=weve-added-more-ways-to-discover-create-and-share-skills-for-the-figma-agent"/>
+        <updated>2026-08-13T00:00:00.000Z</updated>
+        <content type="html"><![CDATA[We've added more ways to discover, create, and share skills for the Figma agent.]]></content>
+    </entry>
+    """#
 
 @Test func extractsFigmaEntries() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.figma.Desktop"))
     let cl = try #require(ChangelogExtractor.extract(from: figmaFixture, using: recipe))
-    #expect(cl.entries.count == 2)
-    #expect(cl.entries.first?.version == "Plan smarter with more context in Make")
-    #expect(cl.entries.first?.date == "Jun 3, 2026")
-    #expect(cl.entries.first?.items.count == 2)
-    #expect(cl.entries.first?.items.first == "Plan mode")              // <strong> stripped
-    #expect(cl.entries.first?.items.last == "It's most useful for complex work.")  // &#x27; decoded
-    #expect(cl.entries.last?.version == "Sharper controls for every slot")
-    #expect(cl.entries.last?.items.count == 1)
+    #expect(cl.entries.count == 3)
+
+    let first = try #require(cl.entries.first)
+    #expect(first.version == "Recommend resources you want users to discover and use")
+    #expect(!first.version.contains("CDATA"))
+    #expect(!first.version.isEmpty)
+    #expect(first.date == "2026-08-17")
+    #expect(first.items.count == 1)
+    #expect(first.items.last == "Admins can now choose which resources (skills, templates, libraries, and Make kits) are recommended to your organization or workspace.")
+
+    let last = try #require(cl.entries.last)
+    #expect(last.version == "Try skills from the Community and make your own with the Figma agent")
+    #expect(!last.version.contains("CDATA"))
+    #expect(last.date == "2026-08-13")
+    #expect(last.items.count == 1)
+    // Raw apostrophe survives untouched — nothing to decode, and the CDATA
+    // delimiters themselves must not leak into the captured text.
+    #expect(last.items.last == "We've added more ways to discover, create, and share skills for the Figma agent.")
 }
+
+// Checked against the live 444-entry feed on 2026-08-19: no entry's <title> or
+// <content> carries an embedded HTML tag (e.g. <a>, <br>) inside its CDATA —
+// every post today is plain sentence-style text. So there is no real-world
+// fixture to pin that shape against; if the vendor starts embedding markup,
+// stripTags will clean it (same as every other HTML-sourced recipe here), but
+// there is nothing to regression-test until that actually happens.
 
 // 1Password's changelog moved from this page to the stable channel's RSS feed
 // on 2026-08-16 (see `OnePasswordFeedTests`), so the page fixture that used to
@@ -1680,28 +1989,38 @@ private let macupdaterFixture = """
     #expect(cl.entries[1].items.count == 1)
 }
 
-// Trimmed real bytes from the JetBrains TBA releases JSON. Raw string so the
-// JSON escapes (\\n between tags, \\" in attrs) stay literal as on the wire. The
-// whatsnew mixes a feature <p>, a <ul><li> bullet list, and the "See the full
-// list…" footer the item pattern must skip.
+// Trimmed real bytes from the live JetBrains TBA releases JSON
+// (data.services.jetbrains.com/products/releases?code=TBA, fetched 2026-08-21).
+// Raw string so the JSON escapes (\\n between tags, \\" in attrs) stay literal as
+// on the wire — `StructuredChangelogDecoder` decodes this with `JSONDecoder`
+// itself (not the regex `ChangelogExtractor`), so the escapes are unescaped by
+// `Decodable`, never by a hand-written item pattern. The whatsnew mixes a
+// feature <p>, a <ul><li> bullet list, and the "See the full list…" footer the
+// decoder must skip. Verified against the real recipe (`ChangelogExtractor` on
+// this same fixture with the pre-migration regex recipe): identical entry count,
+// versions, dates, item counts, and last item per entry.
 private let jbToolboxFixture = #"""
 {"TBA":[{"date":"2026-06-02","type":"release","downloads":{"mac":{"link":"https://x"}},"notesLink":"https://y","version":"3.5","majorVersion":"3.5","build":"3.5.0.84344","whatsnew":"<h3>What's New in Toolbox App 3.5</h3>\n<h4>Zoom controls</h4>\n<p>You can now zoom in and out with Cmd/Ctrl +. <a href=\"https://youtrack.jetbrains.com/issue/TBX-17170/\">TBX-17170</a></p>\n<h4>Bug fixes</h4>\n<ul>\n <li>IDEs no longer randomly disappear from the home view. <a href=\"https://x/TBX-10600/\">TBX-10600</a></li>\n</ul>\n<p>See the full list of release notes <a href=\"https://x\">here</a>.</p>"},{"date":"2026-04-15","type":"release","version":"3.4.3","majorVersion":"3.4","build":"3.4.3.81140","whatsnew":"<h3>Toolbox App 3.4.3</h3>\n<ul>\n <li>Fixed an internal error.</li>\n</ul>"}]}
 """#
 
-@Test func extractsJetBrainsToolboxReleasesFromJSON() throws {
+@Test func decodesJetBrainsToolboxReleases() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.toolbox"))
-    let cl = try #require(ChangelogExtractor.extract(from: jbToolboxFixture, using: recipe))
+    #expect(recipe.structuredFormat == .jetBrainsProductReleases)
+    let cl = try #require(StructuredChangelogDecoder.decode(
+        jbToolboxFixture, format: .jetBrainsProductReleases, channel: nil, maxEntries: nil))
 
     #expect(cl.entries.count == 2)
     #expect(cl.entries[0].version == "3.5")
     #expect(cl.entries[0].date == "2026-06-02")
-    // One feature <p> + one <li>, footer <p> dropped by the negative lookahead.
+    // One feature <p> + one <li>; footer <p> dropped.
     #expect(cl.entries[0].items.count == 2)
     #expect(cl.entries[0].items[0].hasPrefix("You can now zoom in and out with Cmd/Ctrl +."))
     #expect(cl.entries[0].items[1].hasPrefix("IDEs no longer randomly disappear"))
     #expect(!cl.entries[0].items.contains { $0.contains("See the full list") })
+    #expect(cl.entries[0].items.last == "IDEs no longer randomly disappear from the home view. TBX-10600")
     #expect(cl.entries[1].version == "3.4.3")
     #expect(cl.entries[1].items == ["Fixed an internal error."])
+    #expect(cl.entries[1].items.last == "Fixed an internal error.")
 }
 
 // Trimmed real markup from github.com/anomalyco/opencode/releases (GitHub
@@ -1744,15 +2063,23 @@ private let opencodeFixture = """
     #expect(cl.entries[1].items == ["ACP integrations can now send prompts through acp-next."])
 }
 
-// Trimmed real JSON from data.services.jetbrains.com/products/releases?code=IIU&type=release:
-// two stable releases — 2026.1.2 (bug-fix with <li> list) and 2026.1 (major with section headings).
+// Trimmed real bytes from the live JetBrains IIU releases JSON
+// (data.services.jetbrains.com/products/releases?code=IIU&type=release, fetched
+// 2026-08-21): two stable releases — 2026.1.2 (bug-fix with a <li> list, and a
+// boilerplate lead <p> the decoder must NOT count as an item) and 2026.1 (major,
+// same shape). Raw string so the JSON escapes stay literal as on the wire; see
+// `jbToolboxFixture` above for why that matters. Verified against the real
+// recipe (`ChangelogExtractor` on this same fixture with the pre-migration regex
+// recipe): identical entry count, versions, dates, item counts, and last item.
 private let intellijFixture = #"""
 {"IIU":[{"date":"2026-05-15","type":"release","notesLink":"https://youtrack.jetbrains.com/articles/IDEA-A-2100662679","version":"2026.1.2","majorVersion":"2026.1","build":"261.24374.151","whatsnew":"<p>IntelliJ IDEA 2026.1.2 is out with the following improvements:\n <br></p>\n<ul>\n <li>Projects can now be opened correctly via <code>.ipr</code> files. [<a href=\"https://youtrack.jetbrains.com/issue/IJPL-242321\">IJPL-242321</a>]</li>\n <li>The indentation for Java ternary expressions has been fixed. [<a href=\"https://youtrack.jetbrains.com/issue/IDEA-387867\">IDEA-387867</a>]</li>\n</ul>"},{"date":"2026-03-25","type":"release","version":"2026.1","majorVersion":"2026.1","build":"261.23610.47","whatsnew":"<p>IntelliJ IDEA 2026.1 is now out! The highlights include:</p>\n<ul>\n <li>ACP Registry: Browse and install AI agents in one click.</li>\n <li>Git worktrees: Work in parallel branches.</li>\n</ul>"}]}
 """#
 
-@Test func extractsIntelliJIDEAReleasesFromJSON() throws {
+@Test func decodesIntelliJIDEAReleases() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.jetbrains.intellij"))
-    let cl = try #require(ChangelogExtractor.extract(from: intellijFixture, using: recipe))
+    #expect(recipe.structuredFormat == .jetBrainsProductReleases)
+    let cl = try #require(StructuredChangelogDecoder.decode(
+        intellijFixture, format: .jetBrainsProductReleases, channel: nil, maxEntries: nil))
 
     #expect(cl.entries.count == 2)
     #expect(cl.entries[0].version == "2026.1.2")
@@ -1760,10 +2087,13 @@ private let intellijFixture = #"""
     #expect(cl.entries[0].items.count == 2)
     #expect(cl.entries[0].items[0].contains("Projects can now be opened correctly"))
     #expect(cl.entries[0].items[1].contains("ternary expressions"))
+    #expect(cl.entries[0].items.last == "The indentation for Java ternary expressions has been fixed. [IDEA-387867]")
+    #expect(!cl.entries[0].items.contains { $0.contains("is out with the following improvements") })
     #expect(cl.entries[1].version == "2026.1")
     #expect(cl.entries[1].date == "2026-03-25")
     #expect(cl.entries[1].items.count == 2)
     #expect(cl.entries[1].items[0].contains("ACP Registry"))
+    #expect(cl.entries[1].items.last == "Git worktrees: Work in parallel branches.")
 }
 
 // MARK: - Thunderbird (Mozilla) — Stable / ESR / Beta share one page structure

@@ -185,12 +185,39 @@ public enum ChangelogExtractor {
                 s = decodeEntities(s)
             }
         }
+        if recipe.markdownSource { s = unwrapMarkdownInlineCode(s) }
         return collapseWhitespace(s)
+    }
+
+    /// Drop the backticks around Markdown inline code, keeping the code text.
+    /// `` 通过`CLI pack cancel`取消打包 `` → `通过CLI pack cancel取消打包`, which is
+    /// what the same note looked like when it came from HTML and `stripTags`
+    /// removed the `<code>` wrapper.
+    ///
+    /// ONE pass, alternating double- then single-backtick spans — not two passes.
+    /// Two passes is the obvious shape and it is wrong: unwrapping ``` ``a `b` c`` ```
+    /// to ``` a `b` c ``` leaves inner backticks that the second pass then eats,
+    /// turning the escape hatch for code-containing-a-backtick into `a b c`. A
+    /// single alternation consumes each span once and never revisits what it
+    /// produced. (Caught by a test, not by reading — the two-pass version looked
+    /// right.)
+    ///
+    /// A lone unpaired backtick stays put: both alternatives are confined to one
+    /// line, so an unterminated span simply doesn't match. The `$1$2` template
+    /// works because a non-participating group substitutes as empty.
+    static func unwrapMarkdownInlineCode(_ s: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: "``([^\n]*?)``|`([^`\n]+?)`")
+        else { return s }
+        return regex.stringByReplacingMatches(
+            in: s, range: NSRange(location: 0, length: (s as NSString).length),
+            withTemplate: "$1$2")
     }
 
     /// Turn line-breaking tags into spaces, then drop every remaining tag. Done in
     /// that order so `<br>`/`</p>`/`</li>` don't glue adjacent words together.
-    private static func stripTags(_ s: String) -> String {
+    /// Internal (not `private`) so `StructuredChangelogDecoder` can reuse it for
+    /// vendor HTML that arrives already JSON-unescaped by `Decodable`.
+    static func stripTags(_ s: String) -> String {
         let breaks = try? NSRegularExpression(
             pattern: #"<\s*/?\s*(br|p|li|div|ul|ol)\b[^>]*>"#,
             options: [.caseInsensitive])
@@ -210,7 +237,8 @@ public enum ChangelogExtractor {
     /// Decode the handful of entities that actually show up in changelogs, plus
     /// numeric (`&#39;`, `&#x2019;`) escapes. Deliberately small and pure — we
     /// avoid `NSAttributedString` HTML decoding (heavy and main-thread-only).
-    private static func decodeEntities(_ s: String) -> String {
+    /// Internal (not `private`) — see `stripTags`.
+    static func decodeEntities(_ s: String) -> String {
         var out = s
         let named: [String: String] = [
             "&amp;": "&", "&lt;": "<", "&gt;": ">",
@@ -319,7 +347,8 @@ public enum ChangelogExtractor {
         return out
     }
 
-    private static func collapseWhitespace(_ s: String) -> String {
+    /// Internal (not `private`) — see `stripTags`.
+    static func collapseWhitespace(_ s: String) -> String {
         let collapsed = s.replacingOccurrences(
             of: #"\s+"#, with: " ", options: .regularExpression)
         return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)

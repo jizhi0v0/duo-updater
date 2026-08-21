@@ -126,8 +126,10 @@ public enum ChangelogService {
     ) async -> ChangelogDiagnostic {
         let resolved = recipe.resolvedSource(forVersion: version)
         // Fetch the entry page directly so a transport/status failure is
-        // distinguishable; `fetchAndParse` collapses both into nil.
-        let fetched = await fetch(resolved, session: session)
+        // distinguishable; `fetchAndParse` collapses both into nil. Pass the
+        // recipe through so a POST recipe (Notion) sends its body on this,
+        // its ONLY request — there is no second stage for a structured recipe.
+        let fetched = await fetch(resolved, recipe: recipe, session: session)
         guard fetched.body != nil else {
             await recordHealth(recipe, parsed: nil)
             return ChangelogDiagnostic(
@@ -171,11 +173,11 @@ public enum ChangelogService {
         _ recipe: ChangelogRecipe, resolved: URL, session: URLSession
     ) async -> Changelog? {
         if recipe.structuredFormat != nil {
-            return parse(recipe, body: await fetchBody(resolved, session: session))
+            return parse(recipe, body: await fetchBody(resolved, recipe: recipe, session: session))
         }
         guard let pageURL = await resolveDetailURL(recipe, source: resolved, session: session)
         else { return nil }
-        return parse(recipe, body: await fetchBody(pageURL, session: session))
+        return parse(recipe, body: await fetchBody(pageURL, recipe: recipe, session: session))
     }
 
     /// Turn a fetched page into entries, by whichever route the recipe declares.
@@ -283,16 +285,169 @@ public enum ChangelogService {
         return URL(string: String(body[r]), relativeTo: base)?.absoluteURL
     }
 
+
+    /// STRICTLY api.github.com. The Authorization header must never ride along to
+    /// some other vendor's changelog host just because a recipe happens to point
+    /// at a URL containing "github" (raw.githubusercontent.com hosts TablePro's
+    /// appcast, for one) — a credential leak is a much worse failure than a rate
+    /// limit.
+    static func isGitHubAPI(_ url: URL) -> Bool {
+        // Scheme checked too: `URL.host` is scheme-agnostic, so without this an
+        // `http://api.github.com/…` recipe would send the token in the clear. No
+        // such recipe exists and ATS would refuse the load anyway — but a CLI
+        // binary's ATS posture is not the app's, and this is one comparison.
+        url.scheme?.lowercased() == "https" && url.host?.lowercased() == "api.github.com"
+    }
+
+    /// The token the user pasted into Settings ▸ GitHub, pushed down by the app.
+    ///
+    /// `GitHubToken.resolve()` on its own reads only the process environment and
+    /// `gh auth token`. Neither exists for the shipped app: launchd starts it with
+    /// no shell environment, and a machine without `gh` installed keeps the token
+    /// in the Keychain, where only `Preferences` can reach it. Resolving without
+    /// an explicit value therefore came back nil for exactly the users who
+    /// configured a token the supported way, leaving the whole Authorization path
+    /// dead while Settings showed the token verified green. The CLI has no
+    /// Settings, so it keeps the env/`gh` path and nothing is set here.
+    private nonisolated(unsafe) static var explicitToken: String?
+
+    /// Hand the Settings token to the changelog fetcher. Called on load and from
+    /// `Preferences.githubToken`'s `didSet`, so pasting or clearing a token takes
+    /// effect without a relaunch (the next resolve sees a different explicit value
+    /// and re-resolves rather than serving the cached one).
+    public static func setExplicitGitHubToken(_ token: String?) {
+        let normalized = token?.trimmingCharacters(in: .whitespacesAndNewlines)
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        explicitToken = (normalized?.isEmpty ?? true) ? nil : normalized
+    }
+
+    /// A resolved token, remembered so `gh auth token` isn't re-spawned on every
+    /// changelog open. Keyed by the explicit value it was resolved from, and aged
+    /// out: a token revoked mid-session (`gh auth logout`, a rotated PAT) makes
+    /// GitHub answer 401, which is *worse* than sending nothing — the pane goes
+    /// empty where anonymous would still have rendered. A menubar app runs for
+    /// weeks, so "resolved once per process" would strand it there until relaunch.
+    private struct ResolvedToken {
+        let explicit: String?
+        let token: String?
+        let at: Date
+    }
+    private nonisolated(unsafe) static var cachedToken: ResolvedToken?
+    private static let tokenLock = NSLock()
+    /// Long enough that a burst of changelog opens shares one resolve, short
+    /// enough that a rotation recovers on its own within a coffee break.
+    static let tokenTTL: TimeInterval = 600
+
+    /// Lock-taking halves kept out of the async function on purpose: `NSLock`'s
+    /// `unlock()` is unavailable from an async context (holding a lock across a
+    /// suspension point is exactly the bug this whole change is about), so the
+    /// critical sections are these two synchronous calls with the `await` between
+    /// them, never inside them.
+    private static func rememberedToken(now: Date) -> (explicit: String?, hit: String??) {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        let explicit = explicitToken
+        if let cached = cachedToken,
+           cached.explicit == explicit,
+           now.timeIntervalSince(cached.at) < tokenTTL {
+            return (explicit, .some(cached.token))
+        }
+        return (explicit, nil)
+    }
+
+    private static func rememberToken(_ token: String?, explicit: String?, at now: Date) {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        cachedToken = ResolvedToken(explicit: explicit, token: token, at: now)
+    }
+
+    static func gitHubToken(now: Date = Date()) async -> String? {
+        let (explicit, hit) = rememberedToken(now: now)
+        if let hit { return hit }
+
+        // Resolved *outside* the lock and off the cooperative pool, with a
+        // deadline. `GitHubToken.resolve` runs `gh auth token` to completion with
+        // no timeout of its own, so a wedged credential helper (a keychain prompt
+        // nobody answers) would otherwise pin the lock forever and pile the whole
+        // changelog prewarm fan-out up behind it. `AppListModel.resolveGitHubToken`
+        // learned this already — "don't let a wedged `gh auth token` hold the
+        // whole refresh hostage forever" — and the lesson belongs here too.
+        let loader = Task.detached(priority: .utility) { GitHubToken.resolve(explicit: explicit) }
+        guard let resolved = await firstResult(of: loader, within: .seconds(2)) else {
+            // Timed out: deliberately *not* cached. Caching would extend one
+            // wedged `gh` into ten minutes of unauthenticated fetches; falling
+            // through unauthenticated for this one request is enough.
+            Log.source.error("changelog GitHub token resolve timed out — continuing anonymous")
+            return nil
+        }
+
+        rememberToken(resolved, explicit: explicit, at: now)
+
+        // `.notice`, not `.debug`: a third-party subsystem's debug/info lines are
+        // not persisted, and this one answers "am I exposed to the 60/hour
+        // unauthenticated limit right now?" — exactly what you want to be able to
+        // read back after the fact. At most once per TTL, so it costs nothing.
+        Log.source.notice(
+            "changelog GitHub auth: \(resolved != nil ? "token" : "anonymous", privacy: .public)")
+        return resolved
+    }
+
+    /// The value of `task` if it lands within `timeout`, else nil. The task is a
+    /// detached one on purpose (see the call site) so its blocking `waitUntilExit`
+    /// never occupies a cooperative-pool thread; cancelling the group cannot stop
+    /// it, and doesn't need to — it finishes into a discarded result.
+    private static func firstResult<T: Sendable>(
+        of task: Task<T, Never>, within timeout: Duration
+    ) async -> T? {
+        await withTaskGroup(of: T?.self) { group in
+            group.addTask { await task.value }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
+
+    /// Test seam: the normalized explicit token, without resolving anything.
+    static var explicitGitHubTokenForTesting: String? {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        return explicitToken
+    }
+
+    /// Test seam: forget any resolved token so the next call re-resolves.
+    static func resetGitHubTokenCache() {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        cachedToken = nil
+    }
+
     /// Fetch a URL with the browser-like UA and return its body as a string, or
     /// nil on network error / non-2xx. Shared by the index and detail fetches.
-    private static func fetchBody(_ url: URL, session: URLSession) async -> String? {
-        await fetch(url, session: session).body
+    /// `recipe` is nil for a plain GET (every regex/HTML recipe, and both stages
+    /// of a two-stage index/detail recipe); pass it only for the single request a
+    /// structured recipe makes, so a `.post` recipe's method/body actually rides
+    /// along (see `fetch(_:recipe:session:)`).
+    private static func fetchBody(
+        _ url: URL, recipe: ChangelogRecipe? = nil, session: URLSession
+    ) async -> String? {
+        await fetch(url, recipe: recipe, session: session).body
     }
 
     /// The same request, but keeping the status code so a verifier can tell a
     /// moved page from a restyled one.
+    ///
+    /// `recipe` supplies the HTTP method and body (see `ChangelogRecipe.httpMethod`/
+    /// `requestBody`) — nil means the plain-GET default every recipe used before
+    /// Notion. Only the one request a caller explicitly threads a recipe through
+    /// can ever be a POST; every other fetch in this file (the two-stage index
+    /// page, its detail page) is hard-coded to GET by simply not passing one.
     private static func fetch(
-        _ url: URL, session: URLSession
+        _ url: URL, recipe: ChangelogRecipe? = nil, session: URLSession
     ) async -> (body: String?, status: Int?) {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
@@ -302,6 +457,28 @@ public enum ChangelogService {
         // and just 304 here.)
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        if let recipe, recipe.httpMethod == .post {
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = recipe.requestBody
+        }
+        // A recipe may read the GitHub API (Zed's notes come from the same
+        // `/releases` endpoint the version check already uses). Unauthenticated
+        // that is 60 requests/hour PER IP, shared with every GitHub-sourced
+        // version check on the machine — and a full `duo verify` sweep spends two
+        // of them on Zed alone, so the recipes turned up as HTTP 403 "BROKEN"
+        // while a perfectly good token sat in `gh` unused. Same token the
+        // GitHub source sends; 5000/hour once attached.
+        if isGitHubAPI(url) {
+            // The same two headers `GitHubReleasesSource` sends: without them the
+            // API answers from whatever version it currently defaults to, which is
+            // exactly the kind of silent drift a pinned version exists to prevent.
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+            if let token = await gitHubToken() {
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
+        }
         guard let (data, response) = try? await session.data(for: request) else {
             return (nil, nil)
         }

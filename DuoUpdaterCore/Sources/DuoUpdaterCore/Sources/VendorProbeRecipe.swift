@@ -2402,7 +2402,13 @@ public enum VendorProbeRegistry {
             mode: .redirectFilename,
             versionPattern: #"Notion-([0-9]+\.[0-9]+\.[0-9]+)-"#,
             downloadURL: URL(string: "https://www.notion.com/desktop")!,
-            changelogURL: URL(string: "https://www.notion.com/releases")!,
+            // The desktop what's-new page, NOT www.notion.com/releases: that one is
+            // the product announcement feed whose "versions" are post titles with no
+            // build number, which is the mismatch the changelog recipe moved away
+            // from. This is the WebView fallback, so pointing it at the old page put
+            // the user right back on the feed that doesn't match their install.
+            changelogURL: URL(
+                string: "https://notion.notion.site/What-s-New-Mac-Windows-5936dabc8dd6497895786c91b9d6f12a")!,
             install: VendorInstallSpec(
                 urlSource: .redirect(URL(string: "https://www.notion.so/desktop/mac/download")!),
                 kind: .dmg),

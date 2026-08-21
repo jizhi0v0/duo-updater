@@ -2524,6 +2524,23 @@ final class AppListModel {
             if let diskBuild = result.app.buildVersion, let marketing = result.app.shortVersion {
                 freshHistory[Preferences.marketingByBuildKey(path: runKey, build: diskBuild)] = marketing
             }
+            // Both sides of the comparison below have to come from the SAME field.
+            // `running` is `lsappinfo`, which can only ever report `CFBundleVersion`;
+            // for the handful of apps where `AppScanner` stores a DIFFERENT build in
+            // `buildVersion` (Xcode's `ProductBuildVersion`, 豆包输入法's
+            // `Wave Build Version Number`), the disk side is a foreign namespace and
+            // the comparison is meaningless. 豆包输入法 showed exactly that: disk
+            // `90602` against a running `CFBundleVersion` of `1` read as newer, so a
+            // freshly-launched, perfectly current input method wore a permanent
+            // Restart badge and a "0.9.6 (1) → 0.9.6 (90602)" line.
+            //
+            // Skipping is the honest answer, not a lost feature: an app in this set
+            // has a `CFBundleVersion` that `lsappinfo` and the scan would BOTH have to
+            // read for the check to mean anything, and where they differ the
+            // disk-vs-running signal is blind either way. Landed packages still reach
+            // `packageRestartPending` below, which decides on launch TIME instead —
+            // the same escape hatch frozen-version apps like WeChat DevTools use.
+            if AppScanner.buildVersionIsOverridden(bundleID: result.app.bundleID) { continue }
             guard let runVersion = running[runKey],
                   let disk = result.app.buildVersion ?? result.app.shortVersion,
                   VersionComparator.isNewer(disk, than: runVersion) else { continue }

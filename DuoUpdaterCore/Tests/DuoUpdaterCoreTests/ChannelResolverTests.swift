@@ -91,19 +91,49 @@ import Foundation
     #expect(key == "a b&c")  // decodes back to the original
 }
 
-// MARK: - Tailscale (`UnstableUpdatesEnabled` Bool → channel tag, no feed swap)
+// MARK: - Tailscale (`UnstableUpdatesEnabled` / `RCUpdatesEnabled` Bools → channel
+// tag, no feed swap — three-way resolve, see `TailscaleChannel`)
 
 @Test func tailscaleUnstableEnabledMapsToUnstable() {
-    let r = TailscaleChannel.resolve(unstableEnabled: true)
+    let r = TailscaleChannel.resolve(unstableEnabled: true, rcEnabled: false)
     #expect(r.channel == .unstable)
     // Channel-tag app: never a feed override, the channel gate picks the recipe.
     #expect(r.feedOverride == nil)
 }
 
-@Test func tailscaleUnstableDisabledStaysStable() {
-    let r = TailscaleChannel.resolve(unstableEnabled: false)
+@Test func tailscaleRCEnabledMapsToRC() {
+    let r = TailscaleChannel.resolve(unstableEnabled: false, rcEnabled: true)
+    #expect(r.channel == .rc)
+    #expect(r.feedOverride == nil)
+}
+
+@Test func tailscaleBothDisabledStaysStable() {
+    let r = TailscaleChannel.resolve(unstableEnabled: false, rcEnabled: false)
     #expect(r.channel == .stable)
     #expect(r.feedOverride == nil)
+}
+
+// `resolve` takes plain Bools, so a key that is ABSENT from the plist and one
+// that is explicitly written `0` are indistinguishable once `readBoolPref`
+// has collapsed them (`?? false`) — both real shapes are confirmed on-disk
+// (Stable: RCUpdatesEnabled absent; Unstable: RCUpdatesEnabled explicitly 0,
+// read back with `defaults read` 2026-08-21/22), and both must resolve the
+// same way, which this pins at the `resolve` level.
+@Test func tailscaleBothKeysMissingOrExplicitlyZeroStaysStable() {
+    let r = TailscaleChannel.resolve(unstableEnabled: false, rcEnabled: false)
+    #expect(r.channel == .stable)
+}
+
+// Empirically, the GUI dropdown is exclusive — verified 2026-08-21/22 by
+// reading the plist through all three positions back to back, including that
+// leaving RC writes `RCUpdatesEnabled` back to 0 rather than removing it — so
+// this combination has not been observed from normal use. But the two keys
+// are still independent Bools on disk, not one tri-state enum enforced by
+// anything on our side, so pin the defensive tie-break anyway: unstable wins
+// (see the reasoning in `TailscaleChannel.resolve`).
+@Test func tailscaleBothEnabledPrefersUnstable() {
+    let r = TailscaleChannel.resolve(unstableEnabled: true, rcEnabled: true)
+    #expect(r.channel == .unstable)
 }
 
 // MARK: - IINA (`receiveBetaUpdate` Bool → feed swap)

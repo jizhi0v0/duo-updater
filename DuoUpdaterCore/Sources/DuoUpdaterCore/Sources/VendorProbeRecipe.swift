@@ -2000,9 +2000,12 @@ public enum VendorProbeRegistry {
 
         // Tailscale — official package index. `MacZipsVersion` is the macsys
         // build (top-level `Version` is the Linux/Windows train — wrong here).
-        // Two public tracks share `io.tailscale.ipn.macsys`; the channel gate
+        // Three public tracks share `io.tailscale.ipn.macsys`; the channel gate
         // routes each install to its own endpoint per the app's opt-in toggle
-        // (see `TailscaleChannel`). `pkgs.tailscale.com/rc` 404s — no third track.
+        // (see `TailscaleChannel`). `pkgs.tailscale.com/rc` 404s, but that's just
+        // the wrong guessed path — the real release-candidate track lives at
+        // `pkgs.tailscale.com/release-candidate/` (verified 2026-08-21: HTTP 200,
+        // same JSON shape as stable/unstable below).
         VendorProbeRecipe(
             bundleID: "io.tailscale.ipn.macsys",
             url: URL(string: "https://pkgs.tailscale.com/stable/?mode=json")!,
@@ -2017,6 +2020,24 @@ public enum VendorProbeRegistry {
                     base: URL(string: "https://pkgs.tailscale.com/stable/")!),
                 kind: .pkg),
             channel: .stable),
+        // Tailscale release candidate — same JSON shape on the
+        // `/release-candidate/` track. Only reached when the install opted in via
+        // `RCUpdatesEnabled`; the same Tailscale-signed pkg path. Note the vendor's
+        // RC build can trail stable in version number (both were 1.102.3 on
+        // 2026-08-21) — that's expected, RC is a promotion candidate, not
+        // necessarily newer.
+        VendorProbeRecipe(
+            bundleID: "io.tailscale.ipn.macsys",
+            url: URL(string: "https://pkgs.tailscale.com/release-candidate/?mode=json")!,
+            mode: .responseBody,
+            versionPattern: #""MacZipsVersion"\s*:\s*"([0-9.]+)""#,
+            changelogURL: URL(string: "https://tailscale.com/changelog"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #""universal-package"\s*:\s*"(Tailscale-[^"]+\.pkg)""#,
+                    base: URL(string: "https://pkgs.tailscale.com/release-candidate/")!),
+                kind: .pkg),
+            channel: .rc),
         // Tailscale unstable — same JSON shape on the `/unstable` track (odd
         // minor, e.g. 1.99.x). Only reached when the install opted in via
         // `UnstableUpdatesEnabled`; the same Tailscale-signed pkg path.

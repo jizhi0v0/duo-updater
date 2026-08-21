@@ -10,11 +10,21 @@ enum AppDockBadge {
     /// Note: the Dock badge only renders if the app holds the "Badges" notification
     /// permission — `NotificationController` must request `.badge` in its authorization
     /// options, or the system silently suppresses `badgeLabel` even when it's set.
+    ///
+    /// A no-op while the user has the Dock icon hidden (`DockIcon`): there is no
+    /// tile to badge then, and the count is already on the menu-bar icon.
     static func sync(count: Int) {
         lastCount = count
+        let show = count > 0 && NSApplication.shared.activationPolicy() == .regular
         let tile = NSApplication.shared.dockTile
-        tile.showsApplicationBadge = count > 0
-        tile.badgeLabel = count > 0 ? String(min(count, 99)) : nil
+        tile.showsApplicationBadge = show
+        tile.badgeLabel = show ? String(min(count, 99)) : nil
+    }
+
+    /// Re-push the last known count — for whoever just gave us a Dock tile back
+    /// (turning the Dock icon on) and doesn't itself know the number.
+    static func reassert() {
+        syncSoon(count: lastCount)
     }
 
     /// Re-pushes the badge, clearing it first so the Dock actually repaints.

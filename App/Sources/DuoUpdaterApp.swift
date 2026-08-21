@@ -82,6 +82,9 @@ private struct MenuBarLabel: View {
         .task {
             // Runs once at launch. Show onboarding only the first time, then never
             // again (the user can re-open it from Settings).
+            // Before the badge: with the Dock icon hidden there is no tile to
+            // badge, and `sync` checks the policy this sets.
+            DockIcon.apply(hidden: model.prefs.hideDockIcon)
             AppDockBadge.syncSoon(count: model.badgeCount)
             if let front = SilentSelfUpdateRelaunch.consume() { handTheFrontBack(to: front) }
             // What "a safe moment to replace ourselves" means, for the silent

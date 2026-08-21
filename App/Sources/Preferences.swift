@@ -77,6 +77,7 @@ final class Preferences {
         static let pruneOrphanBackups = "PruneOrphanBackups"
         static let notifyOnUpdates = "NotifyOnUpdates"
         static let autoRestartAfterUpdate = "AutoRestartAfterUpdate"
+        static let hideDockIcon = "HideDockIcon"
         static let appStoreUpdateStrategy = UpdateSettings.appStoreUpdateStrategyKey
         static let vendorInstallPolicy = UpdateSettings.vendorInstallPolicyKey
         static let customScanPaths = "CustomScanPaths"
@@ -182,6 +183,18 @@ final class Preferences {
     /// never force-kills or loses unsaved work. Default ON — an opt-out convenience.
     var autoRestartAfterUpdate: Bool {
         didSet { defaults.set(autoRestartAfterUpdate, forKey: Key.autoRestartAfterUpdate) }
+    }
+
+    /// Run without a Dock icon — menu bar only. **On by default**: this is a
+    /// menu-bar app, and the popover is how it is actually driven, so the Dock
+    /// slot is mostly noise. Turning it off brings back the Dock tile — and with
+    /// it the pending-update badge, which needs a tile to sit on. Applied
+    /// immediately so the Dock reacts to the toggle, not to the next launch.
+    var hideDockIcon: Bool {
+        didSet {
+            defaults.set(hideDockIcon, forKey: Key.hideDockIcon)
+            DockIcon.apply(hidden: hideDockIcon)
+        }
     }
 
     /// Which route to use for Mac App Store updates. See `AppStoreUpdateStrategy`.
@@ -332,6 +345,7 @@ final class Preferences {
         self.pruneOrphanBackups = defaults.object(forKey: Key.pruneOrphanBackups) as? Bool ?? true
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
+        self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
         let storedAppStoreStrategy = AppStoreUpdateStrategy(
             rawValue: defaults.string(forKey: Key.appStoreUpdateStrategy) ?? "") ?? .full
         self.appStoreUpdateStrategy = storedAppStoreStrategy == .incremental ? .full : storedAppStoreStrategy

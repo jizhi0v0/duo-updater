@@ -124,6 +124,26 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
     #expect(tl?.appName == "NewName")
 }
 
+@Test func sameVersionDisplayMetadataPersistsAcrossReload() async {
+    let url = tempFileURL()
+    let store = ReleaseTimelineStore(fileURL: url)
+    let id = "/Applications/Renamed.app"
+    await store.record(appID: id, appName: "OldName", bundleID: "com.old",
+        version: "1", sourceName: "Sparkle", publishedAt: d1)
+    await store.flush()
+
+    let added = await store.record(appID: id, appName: "NewName", bundleID: "com.new",
+        version: "1", sourceName: "Sparkle", publishedAt: d1)
+    #expect(!added)
+    await store.flush()
+
+    let reloaded = ReleaseTimelineStore(fileURL: url)
+    let timeline = await reloaded.timeline(forAppID: id)
+    #expect(timeline?.appName == "NewName")
+    #expect(timeline?.bundleID == "com.new")
+    await store.reset()
+}
+
 @Test func ignoresEmptyVersion() async {
     let store = ReleaseTimelineStore(fileURL: tempFileURL())
     let added = await store.record(appID: "/e.app", appName: "E", bundleID: nil,

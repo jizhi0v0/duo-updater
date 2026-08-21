@@ -656,16 +656,16 @@ final class AppListModel {
 
     /// Log every release in `checked` that arrived with a trustworthy vendor
     /// timestamp into the release timeline, then refresh the UI snapshot. The
-    /// store dedupes by (app, version), so re-checks are cheap no-ops and only a
-    /// genuinely new release writes to disk. Results without a `publishedAt`
-    /// (vendor probes, MAS, Homebrew) are skipped by the store.
+    /// store dedupes by (app, version), so re-checks are cheap; only a genuinely
+    /// new release or changed display metadata writes the timeline file. Results
+    /// without a `publishedAt` (vendor probes, MAS, Homebrew) use the observation
+    /// path below rather than this exact-timestamp path.
     private func recordReleaseTimeline(for checked: [UpdateResult]) async {
-        var added = false
         for result in checked {
             guard let remote = result.remote else { continue }
             // The latest release (when it carries a date)…
             if remote.publishedAt != nil {
-                let didAdd = await releaseTimelineStore.record(
+                await releaseTimelineStore.record(
                     appID: result.app.id,
                     appName: result.app.name,
                     bundleID: result.app.bundleID,
@@ -673,13 +673,12 @@ final class AppListModel {
                     sourceName: remote.sourceName,
                     publishedAt: remote.publishedAt
                 )
-                added = added || didAdd
             }
             // …plus any prior releases the source surfaced (Sparkle appcast items,
             // a GitHub releases list), so an app's history backfills in one shot.
             // The store dedupes by version, so the latest overlapping here is free.
             for entry in remote.releaseHistory {
-                let didAdd = await releaseTimelineStore.record(
+                await releaseTimelineStore.record(
                     appID: result.app.id,
                     appName: result.app.name,
                     bundleID: result.app.bundleID,
@@ -687,7 +686,6 @@ final class AppListModel {
                     sourceName: remote.sourceName,
                     publishedAt: entry.publishedAt
                 )
-                added = added || didAdd
             }
             // Detection-only sources (a vendor probe, a Homebrew cask, the App
             // Store) report a version but no date. We can't know when they shipped,
@@ -695,25 +693,23 @@ final class AppListModel {
             // the reported version and, on a change, log an estimated window.
             if remote.publishedAt == nil, remote.releaseHistory.isEmpty,
                let v = remote.displayVersion {
-                let didAdd = await releaseTimelineStore.observeForChange(
+                await releaseTimelineStore.observeForChange(
                     appID: result.app.id,
                     appName: result.app.name,
                     bundleID: result.app.bundleID,
                     version: v,
                     sourceName: remote.sourceName
                 )
-                added = added || didAdd
             }
         }
         // One write for the whole check. The store batches every `record` /
         // `observeForChange` above into dirty flags precisely so a 100-app check
         // doesn't turn into 100 full-file atomic rewrites.
         await releaseTimelineStore.flush()
-        // Always refresh on first run (snapshot starts empty); otherwise only when
-        // something actually changed.
-        if added || releaseTimelines.isEmpty {
-            releaseTimelines = await releaseTimelineStore.snapshot()
-        }
+        // A duplicate version can still refresh display metadata after an app rename
+        // or bundle-id correction. Refresh once per batch so that store-only change is
+        // visible even though `record` correctly reports that it added no new event.
+        releaseTimelines = await releaseTimelineStore.snapshot()
     }
 
     /// Per-app load state for a recipe-backed changelog, keyed by

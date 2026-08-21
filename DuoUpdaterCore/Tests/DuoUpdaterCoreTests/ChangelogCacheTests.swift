@@ -8,6 +8,30 @@ import Foundation
 /// re-fetching vendor changelog pages on repeated detail-window opens.
 struct ChangelogCacheTests {
 
+    private actor FetchGate {
+        private var resultContinuation: CheckedContinuation<Changelog?, Never>?
+        private var startWaiters: [CheckedContinuation<Void, Never>] = []
+
+        func fetch() async -> Changelog? {
+            await withCheckedContinuation { continuation in
+                resultContinuation = continuation
+                let waiters = startWaiters
+                startWaiters.removeAll()
+                waiters.forEach { $0.resume() }
+            }
+        }
+
+        func waitUntilStarted() async {
+            if resultContinuation != nil { return }
+            await withCheckedContinuation { startWaiters.append($0) }
+        }
+
+        func finish(with result: Changelog?) {
+            resultContinuation?.resume(returning: result)
+            resultContinuation = nil
+        }
+    }
+
     private static let url1 = URL(string: "https://example.com/releases")!
     private static let url2 = URL(string: "https://other.com/changelog")!
 
@@ -96,6 +120,22 @@ struct ChangelogCacheTests {
         let fresh = Self.makeChangelog(version: "2.0")
         await cache.set(fresh, for: Self.url1)
         #expect(await cache.get(for: Self.url1) == fresh)
+    }
+
+    @Test func invalidatedInflightFetchCannotRestoreItsStaleResult() async {
+        let cache = ChangelogCache(ttl: 3600)
+        let gate = FetchGate()
+        let stale = Self.makeChangelog(version: "1.0")
+
+        let loading = Task {
+            await cache.load(for: Self.url1) { await gate.fetch() }
+        }
+        await gate.waitUntilStarted()
+        await cache.invalidate(Self.url1)
+        await gate.finish(with: stale) // deliberately completes despite cancellation
+        _ = await loading.value
+
+        #expect(await cache.get(for: Self.url1) == nil)
     }
 
     // MARK: - invalidate(_:) — single key (used after an app updates on disk)

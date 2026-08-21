@@ -32,6 +32,10 @@ public actor HomebrewCaskCatalog {
     private var index: CaskIndex?
     private var indexLoadedAt: Date?
     private var loadTask: Task<CaskIndex, Error>?
+    /// A failed refresh should not make every subsequent lookup immediately retry
+    /// the same 5 MB request. While this is in the future, a stale index remains
+    /// usable and `isExpired` treats it as fresh enough to serve.
+    private var retryRefreshAfter: Date?
 
     /// How long a loaded index is reused before being refetched.
     ///
@@ -49,6 +53,7 @@ public actor HomebrewCaskCatalog {
     /// Only paid on machines that have casks installed at all; `HomebrewCaskSource`
     /// declines before touching the catalog when the Caskroom is empty.
     static let indexTTL: TimeInterval = 6 * 60 * 60
+    static let failedRefreshRetryDelay: TimeInterval = 5 * 60
 
     /// Test seam: an index seeded via `init(testIndex:)` never expires, so
     /// offline tests don't reach the network partway through.
@@ -67,6 +72,13 @@ public actor HomebrewCaskCatalog {
         self.indexNeverExpires = true
     }
 
+    /// Test seam for an expired, previously-good index plus a controlled session.
+    init(session: URLSession, staleTestIndex: CaskIndex, loadedAt: Date) {
+        self.session = session
+        self.index = staleTestIndex
+        self.indexLoadedAt = loadedAt
+    }
+
     /// Look up the cask that installs an app with the given bundle filename.
     public func entry(forAppFilename filename: String) async throws -> CaskEntry? {
         try await loadedIndex().byAppFilename[filename.lowercased()]
@@ -80,18 +92,31 @@ public actor HomebrewCaskCatalog {
     private func loadedIndex() async throws -> CaskIndex {
         if let index, !isExpired { return index }
         // Coalesce concurrent callers onto a single in-flight load.
-        if let loadTask { return try await loadTask.value }
+        if let loadTask { return try await resolve(loadTask) }
 
         let task = Task { try await Self.fetchAndIndex(session: session) }
         loadTask = task
+        return try await resolve(task)
+    }
+
+    /// Resolve the shared refresh for both its creator and every coalesced caller.
+    /// Keeping success/failure handling here is important: callers that merely join
+    /// the task must receive the same stale-on-error fallback as the creator.
+    private func resolve(_ task: Task<CaskIndex, Error>) async throws -> CaskIndex {
         do {
             let idx = try await task.value
-            index = idx
-            indexLoadedAt = Date()
-            loadTask = nil
+            if loadTask == task {
+                index = idx
+                indexLoadedAt = Date()
+                retryRefreshAfter = nil
+                loadTask = nil
+            }
             return idx
         } catch {
-            loadTask = nil
+            if loadTask == task {
+                loadTask = nil
+                retryRefreshAfter = Date().addingTimeInterval(Self.failedRefreshRetryDelay)
+            }
             // A refetch that fails keeps serving the last good index rather than
             // dropping every Homebrew row to "unknown" on one bad network moment.
             if let index { return index }
@@ -101,6 +126,7 @@ public actor HomebrewCaskCatalog {
 
     private var isExpired: Bool {
         guard !indexNeverExpires else { return false }
+        if let retryRefreshAfter, Date() < retryRefreshAfter { return false }
         guard let indexLoadedAt else { return true }
         return Date().timeIntervalSince(indexLoadedAt) >= Self.indexTTL
     }

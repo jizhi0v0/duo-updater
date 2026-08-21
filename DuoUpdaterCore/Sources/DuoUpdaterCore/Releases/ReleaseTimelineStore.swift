@@ -59,6 +59,7 @@ public actor ReleaseTimelineStore {
     /// gave no trustworthy date) or when we've already recorded this version for
     /// this app — each version is logged exactly once, at first sighting, so
     /// re-checks don't pile up duplicates or drift the recorded `detectedAt`.
+    /// Duplicate sightings may still refresh the timeline's display metadata.
     ///
     /// - Returns: true if this call added a new event (a release we hadn't seen).
     @discardableResult
@@ -80,6 +81,7 @@ public actor ReleaseTimelineStore {
         )
         // Keep display fields current — the app may have been renamed since an
         // earlier event was recorded.
+        let displayFieldsChanged = timeline.appName != appName || timeline.bundleID != bundleID
         timeline.appName = appName
         timeline.bundleID = bundleID
 
@@ -87,6 +89,7 @@ public actor ReleaseTimelineStore {
         guard !timeline.events.contains(where: { $0.version == version }) else {
             // Persist the refreshed name/bundle even when no event was added.
             timelines[appID] = timeline
+            if displayFieldsChanged { timelinesDirty = true }
             return false
         }
 
@@ -129,6 +132,16 @@ public actor ReleaseTimelineStore {
               !version.isEmpty else { return false }
 
         let prior = observations[appID]
+        // Display metadata can change while the reported version does not. Refresh
+        // an existing timeline before the version guard so that rename-only checks
+        // are still visible and persisted.
+        if var timeline = timelines[appID] {
+            let displayFieldsChanged = timeline.appName != appName || timeline.bundleID != bundleID
+            timeline.appName = appName
+            timeline.bundleID = bundleID
+            timelines[appID] = timeline
+            if displayFieldsChanged { timelinesDirty = true }
+        }
         // Update the baseline first; we always remember the latest sighting.
         defer {
             observations[appID] = Observation(version: version, lastSeenAt: now)
@@ -148,6 +161,7 @@ public actor ReleaseTimelineStore {
         var timeline = timelines[appID] ?? AppReleaseTimeline(
             appID: appID, appName: appName, bundleID: bundleID
         )
+        let displayFieldsChanged = timeline.appName != appName || timeline.bundleID != bundleID
         timeline.appName = appName
         timeline.bundleID = bundleID
 
@@ -155,6 +169,7 @@ public actor ReleaseTimelineStore {
         // landed for it earlier, or a beta flapped back).
         guard !timeline.events.contains(where: { $0.version == version }) else {
             timelines[appID] = timeline
+            if displayFieldsChanged { timelinesDirty = true }
             return false
         }
 

@@ -76,8 +76,13 @@ public actor ChangelogCache {
         // fresh task under this URL — clearing the slot unconditionally would then
         // unregister *that* task, and every subsequent concurrent caller would miss
         // the coalescing check and start yet another redundant fetch.
-        if inflight[url] == task { inflight[url] = nil }
-        if let result { set(result, for: url) }
+        // Cache only while this task still owns the slot. `invalidate` deliberately
+        // removes that ownership; a fetch that ignores cancellation must not put its
+        // stale result back after the caller explicitly cleared the cache.
+        if inflight[url] == task {
+            inflight[url] = nil
+            if let result { set(result, for: url) }
+        }
         return result
     }
 

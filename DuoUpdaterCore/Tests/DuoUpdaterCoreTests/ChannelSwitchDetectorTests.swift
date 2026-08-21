@@ -103,3 +103,23 @@ import Foundation
     #expect(!fp.contains(secret))
     #expect(fp.allSatisfy { $0.isHexDigit })
 }
+
+/// The launch/terminate gate. Derived from the registry, not a hand-written list,
+/// so a tenth bound app is covered the day it is added.
+@Test func onlyBoundAppsAreWorthRecheckingOnLaunchOrQuit() {
+    for id in ChannelBinding.boundBundleIDs {
+        #expect(ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: id))
+        // Bundle ids are case-insensitive, and TablePlus really does ship
+        // `com.tinyapp.TablePlus` while its prefs live under the lowercased
+        // domain — a case-sensitive gate would silently skip it.
+        #expect(ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: id.uppercased()))
+    }
+    // The overwhelming majority of these notifications: some other app entirely.
+    for other in ["com.apple.finder", "com.apple.Safari", "com.googlecode.iterm2"] {
+        #expect(!ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: other),
+                "\(other) has no channel binding — resolving nine prefs for it is waste")
+    }
+    // Fail toward doing the work when the notification carries no id: a wasted
+    // pass is cheap, a missed switch is the bug this detector exists to fix.
+    #expect(ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: nil))
+}

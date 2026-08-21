@@ -78,4 +78,22 @@ public enum ChannelSwitchDetector {
         }
         return (changed, current)
     }
+
+    /// Whether an app launching or quitting is worth resolving channels for.
+    ///
+    /// `NSWorkspace`'s launch/terminate notifications fire for EVERY process on
+    /// the machine — helpers, menu-bar utilities, anything the user opens all day
+    /// — while the pass behind them reads one vendor preference per bound app, and
+    /// Surge's resolver reads a plist off disk. Without this gate that ran on every
+    /// such event; with it, it runs on the nine apps whose channel can actually
+    /// change.
+    ///
+    /// A nil id — the notification arrived without a bundle identifier — returns
+    /// true. Fail toward doing the work: a wasted pass costs a few preference
+    /// reads, a skipped one leaves a stale verdict on screen, which is the bug
+    /// this whole detector exists to fix.
+    public static func isWorthRecheckingAfterLaunchOrQuit(of bundleID: String?) -> Bool {
+        guard let bundleID else { return true }
+        return ChannelBinding.boundBundleIDs.contains(bundleID.lowercased())
+    }
 }

@@ -4159,8 +4159,12 @@ final class AppListModel {
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didLaunchApplicationNotification,
                      NSWorkspace.didTerminateApplicationNotification] {
-            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in self?.handleRunningAppsChange() }
+            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                // Which app launched/quit, so the channel-switch pass below can skip
+                // the overwhelming majority of these events without doing any I/O.
+                let changed = (note.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication)?.bundleIdentifier?.lowercased()
+                Task { @MainActor in self?.handleRunningAppsChange(changedBundleID: changed) }
             }
             runningAppObservers.append(observer)
         }
@@ -4176,7 +4180,7 @@ final class AppListModel {
     /// notification is the only live event that marks it. Without recomputing here the
     /// "Relaunch" badge lingered until the 180s backstop (or the user reopening the
     /// popover) — the "I restarted it myself but it still shows Relaunch" report.
-    private func handleRunningAppsChange() {
+    private func handleRunningAppsChange(changedBundleID: String? = nil) {
         refreshRunningApps()
         // Before the needs-restart early-out below: a quit hand-off fires exactly
         // on a terminate event, and usually with `needsRestart` empty.
@@ -4185,9 +4189,18 @@ final class AppListModel {
         // `windowAppeared`) we use to notice its channel toggle flipped in the
         // vendor app itself — the common "open Settings, flip the toggle, quit"
         // flow. Independent of the needs-restart early-out below: a channel switch
-        // has nothing to do with a pending restart. Free unless something actually
-        // changed (see `recheckChannelSwitches`).
-        Task { await recheckChannelSwitches(trigger: "running-apps-change") }
+        // has nothing to do with a pending restart.
+        //
+        // Gated on the app that actually changed. This notification fires for EVERY
+        // app on the machine — every helper, every menu-bar utility, all day — and
+        // the pass behind it reads one vendor preference per bound app (Surge's is a
+        // plist read off disk). Nine of those on every launch/quit event on the
+        // system is not what "free unless something changed" meant. A nil id (the
+        // notification arrived without one) still runs the pass rather than
+        // silently skipping a real switch.
+        if ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: changedBundleID) {
+            Task { await recheckChannelSwitches(trigger: "running-apps-change") }
+        }
         // Nothing pending → nothing a relaunch could clear. A launch can't *create* a
         // needsRestart entry (that needs a newer on-disk build, which only a disk swap
         // produces — already covered by the FS watcher), so this stays a no-op on the
@@ -4311,18 +4324,29 @@ final class AppListModel {
     /// notifications can arrive back to back — queuing duplicate rechecks.
     @ObservationIgnored private var channelSwitchRecheckRunning = false
 
-    /// Freshly resolve every `ChannelBinding`-covered app currently on screen.
-    /// Cheap and network-free — each resolver just reads `CFPreferences` or a
-    /// small local plist (see `ChannelBinding`) — so this is safe to call from
-    /// any UI event; only an *actual* change goes on to spend a network request.
-    private func currentBoundChannelFingerprints() -> [String: String] {
+    /// The bound-app ids currently on screen. Main-actor (it reads `results`) but
+    /// pure memory — the disk-touching half is `fingerprints(forBoundIDs:)`.
+    private func onScreenBoundBundleIDs() -> [String] {
+        results.compactMap {
+            guard let id = $0.app.bundleID?.lowercased(),
+                  ChannelBinding.boundBundleIDs.contains(id)
+            else { return nil }
+            return id
+        }
+    }
+
+    /// Resolve each bound app's channel and fingerprint it. Network-free, but NOT
+    /// free: `ChannelBinding.resolve` reads another app's preferences, and Surge's
+    /// resolver reads a plist off disk with `Data(contentsOf:)`. Every other
+    /// `AppScanner`/resolver call site in this file is wrapped in `Task.detached`
+    /// for exactly that reason, and this one is called from an event that fires on
+    /// every app launch and quit on the machine — so it is `nonisolated` and runs
+    /// off the main actor like its neighbours, rather than being the one exception.
+    private nonisolated static func fingerprints(forBoundIDs ids: [String]) -> [String: String] {
         var out: [String: String] = [:]
-        for result in results {
-            guard let bundleID = result.app.bundleID?.lowercased(),
-                  ChannelBinding.boundBundleIDs.contains(bundleID),
-                  let resolved = ChannelBinding.resolve(bundleID: bundleID)
-            else { continue }
-            out[bundleID] = ChannelSwitchDetector.fingerprint(resolved)
+        for id in ids {
+            guard let resolved = ChannelBinding.resolve(bundleID: id) else { continue }
+            out[id] = ChannelSwitchDetector.fingerprint(resolved)
         }
         return out
     }
@@ -4354,7 +4378,11 @@ final class AppListModel {
         channelSwitchRecheckRunning = true
         defer { channelSwitchRecheckRunning = false }
 
-        let current = currentBoundChannelFingerprints()
+        let ids = onScreenBoundBundleIDs()
+        guard !ids.isEmpty else { return }
+        let current = await Task.detached(priority: .utility) {
+            Self.fingerprints(forBoundIDs: ids)
+        }.value
         let (changed, next) = ChannelSwitchDetector.changes(
             current: current, lastSeen: lastSeenChannelFingerprints)
         lastSeenChannelFingerprints = next

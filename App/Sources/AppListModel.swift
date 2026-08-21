@@ -3294,8 +3294,16 @@ final class AppListModel {
     /// Awaited by the AX installer when App Store asks to quit a running app to
     /// finish installing. Records the prompt state and suspends until the user acts
     /// via `confirmQuit(_:proceed:)`.
+    ///
+    /// The suspension is deliberately untimed (waiting on the user must not burn the
+    /// installer's poll budget), which makes it the one place an install can sit for
+    /// hours — holding the App Store gate, a download permit and, through
+    /// `installing`, the whole background check cadence. So it must never be a purely
+    /// in-menu prompt: post a banner too, with a Relaunch action that answers it
+    /// without the user having to open the popover and find the row.
     private func requestQuitConfirmation(id: String, appName: String) async -> Bool {
-        await withCheckedContinuation { cont in
+        UpdateNotifier.needsQuitConfirmation(app: appName, rowID: id)
+        return await withCheckedContinuation { cont in
             // A second sheet for the same app shouldn't strand the first continuation.
             quitContinuations.removeValue(forKey: id)?.resume(returning: false)
             awaitingQuitConfirm[id] = appName
@@ -3305,9 +3313,18 @@ final class AppListModel {
 
     /// Resolve a pending quit-to-install prompt: `proceed` true presses the App Store
     /// sheet's Continue (the app quits and the update lands), false presses Cancel.
-    /// Wired to the per-row "Relaunch to finish update" affordance.
+    /// Wired to the per-row "Relaunch to finish update" affordance and to the banner's
+    /// Relaunch action.
     func confirmQuit(_ id: String, proceed: Bool) {
+        // Nothing is waiting on an answer — a stale banner tapped after the install
+        // already settled. Bail before touching `reopenAfterQuit`/`relaunching`,
+        // which nothing would then clear.
+        guard quitContinuations[id] != nil else {
+            UpdateNotifier.clearQuitConfirmation(rowID: id)
+            return
+        }
         awaitingQuitConfirm[id] = nil
+        UpdateNotifier.clearQuitConfirmation(rowID: id)
         // App Store's Continue quits the app without reopening it; remember to
         // relaunch it ourselves once the install lands. Show the "Relaunching…"
         // indicator meanwhile (cleared when the install settles in `installApp`).

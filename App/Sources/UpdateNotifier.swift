@@ -61,6 +61,32 @@ enum UpdateNotifier {
              userInfo: [NotificationController.ID.appIDKey: appID])
     }
 
+    /// App Store has downloaded an incremental update and is asking to close the
+    /// running app to finish it. That prompt otherwise lives *only* in the menu
+    /// popover and the workbench row, and the installer suspends — untimed — until
+    /// it's answered, holding the App Store gate and pausing background checks for
+    /// as long as it waits. A user who doesn't happen to open the menu has no way to
+    /// learn any of that, so say it out loud, with the same Relaunch action the row
+    /// offers. Not gated on `notifyOnUpdates`: this isn't a nudge about something
+    /// new, it's the app asking a question it can't proceed without.
+    static func needsQuitConfirmation(app: String, rowID: String) {
+        post(title: app,
+             body: "The update is downloaded. Relaunch \(app) to finish installing it.",
+             categoryID: NotificationController.ID.quitConfirmCategory,
+             identifier: "quitconfirm:\(rowID)",
+             userInfo: [NotificationController.ID.appIDKey: rowID])
+    }
+
+    /// Drop the "Relaunch to finish installing" banner once the prompt is answered
+    /// (either way), so a delivered copy can't sit in Notification Center offering
+    /// an action that no longer has anything waiting on it.
+    static func clearQuitConfirmation(rowID: String) {
+        let id = "quitconfirm:\(rowID)"
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [id])
+        center.removeDeliveredNotifications(withIdentifiers: [id])
+    }
+
     /// Remove a self-download reminder (pending or already delivered) once the user
     /// has relaunched, so a stale "Relaunch to apply it" banner doesn't linger in
     /// Notification Center after it's been applied.

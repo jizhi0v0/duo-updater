@@ -5,6 +5,12 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.48
+
+**An app you ignored stops notifying you.** An app that updates itself leaves a "Relaunch to apply it" reminder in Notification Center and repeats it every few minutes until you act on it. That reminder never consulted the ignore list, so an app you had ignored went on sending it — hidden in Duo Updater's own list, still arriving every five minutes, with nothing on screen to explain where it was coming from. Ignoring an app now silences those reminders and clears any already waiting in Notification Center. Skipping a version does the same for that version.
+
+**A download no longer squeezes the app's name or its version off the row.** While an app was downloading, the progress bar and its percentage claimed enough of the row that a long name wrapped onto a second line, a long date-style version was clipped at both ends to something unreadable, and at 100% the percentage itself broke across two lines. The row now measures what the name and the version actually need and fits the progress readout into what's left: the bar gives way to a compact ring, and the percentage stays. Nothing is given up until there is genuinely no room for it.
+
 ## 0.3.47
 
 **An update no longer looks like it fired twice.** With one update pending, installing it briefly emptied the list: the row dropped out the moment the new version reached the disk, the "Everything is up to date" placeholder took its place and jumped the window's height, and then the row reappeared saying "Relaunching...". Nothing was actually wrong underneath — the app still had to be restarted to run the new code — but it read as though something had happened twice. The row now stays where it is from the click through to the relaunch. The step that used to announce "Done" while the app was still being restarted says "Installed" instead; "finished" is left for the confirmation at the end, where it belongs.

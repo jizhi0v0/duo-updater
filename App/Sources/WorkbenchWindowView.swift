@@ -158,7 +158,7 @@ struct WorkbenchWindowView: View {
     }
 
     private func bytes(for result: UpdateResult) -> Int64 {
-        model.trafficStats.first { $0.appID == result.app.id }?.totalBytes ?? 0
+        model.trafficBytes(forAppID: result.app.id)
     }
 
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,

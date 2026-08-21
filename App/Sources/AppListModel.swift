@@ -25,13 +25,16 @@ struct ChangelogCacheKey: Hashable {
 @Observable
 final class AppListModel {
     private(set) var results: [UpdateResult] = [] {
-        // Drop the elevation memo whenever the list itself is replaced. The memo's
-        // own key (the app paths) already catches a bundle moving to a location
-        // with different permissions; this catches the rarer case where the paths
-        // are identical but the PERMISSIONS changed under them, and bounds any
-        // staleness to one scan cycle — the same window every other derived fact
-        // in this model lives in.
-        didSet { elevationPathsCache = nil }
+        // Drop the derived memos whenever the list itself is replaced. This is the
+        // *only* thing that invalidates them, which is what lets their getters be a
+        // bare lookup: any change to an app — its path moving to a location with
+        // different permissions, or the permissions changing under an identical
+        // path — arrives as a write here, and staleness is bounded to one scan
+        // cycle, the same window every other derived fact in this model lives in.
+        didSet {
+            elevationPathsCache = nil
+            trafficBytesCache = nil
+        }
     }
     private(set) var isScanning = false
     private(set) var isChecking = false
@@ -384,7 +387,25 @@ final class AppListModel {
     private let trafficStore = TrafficStore()
     /// Snapshot of per-app traffic for the UI, refreshed after each recorded
     /// download. Sorted heaviest-app-first by the store.
-    private(set) var trafficStats: [AppTrafficStat] = []
+    private(set) var trafficStats: [AppTrafficStat] = [] {
+        didSet { trafficBytesCache = nil }
+    }
+
+    /// Downloaded bytes per app id. The sidebar asks per row, and a linear scan of
+    /// `trafficStats` per row made that O(rows x stats) on every arrow-key step —
+    /// the same shape as the elevation memo above, so it gets the same treatment.
+    /// `@ObservationIgnored` is what makes that true: `@Observable` instruments
+    /// `private` stored properties too, so without it every `didSet` clear below
+    /// invalidates each view that read the memo — for a derived value that hasn't
+    /// changed. Reading it must not invalidate a view.
+    @ObservationIgnored private var trafficBytesCache: [String: Int64]?
+    func trafficBytes(forAppID id: String) -> Int64 {
+        if let cache = trafficBytesCache { return cache[id] ?? 0 }
+        let value = Dictionary(
+            trafficStats.map { ($0.appID, $0.totalBytes) }, uniquingKeysWith: +)
+        trafficBytesCache = value
+        return value[id] ?? 0
+    }
     /// Grand total bytes downloaded across every app.
     private(set) var trafficTotalBytes: Int64 = 0
 
@@ -1195,16 +1216,29 @@ final class AppListModel {
     /// that moves its path, which changes the key. What it no longer does is
     /// recompute for a repaint that changed nothing.
     private var elevationRequiredPaths: Set<String> {
-        let key = results.map(\.app.path.path)
-        if let cache = elevationPathsCache, cache.key == key { return cache.value }
+        if let cache = elevationPathsCache { return cache }
         let value = InPlaceSwap.elevationRequiredPaths(for: results.map(\.app.path))
-        elevationPathsCache = (key, value)
+        elevationPathsCache = value
         return value
     }
 
-    /// Memo for `elevationRequiredPaths`, keyed by the exact paths it was built
-    /// from. Not `@Published`/observed — reading it must not invalidate a view.
-    private var elevationPathsCache: (key: [String], value: Set<String>)?
+    /// Memo for `elevationRequiredPaths`. Invalidated solely by `results.didSet`,
+    /// which is sufficient: the memo can only survive a stretch in which `results`
+    /// was never written, and `results` holds value types, so any change to an app
+    /// — including a path moving between `~/Applications` and a root-owned
+    /// location — is a write that clears this.
+    ///
+    /// It used to also carry the app paths as a key and compare them on every read.
+    /// That check could never fail (`didSet` had already cleared the memo in the
+    /// only case it guarded against) and it was not free: building the key meant
+    /// `URL.path` per app, which bridges to `NSURL`, and `policyEnvironment` is
+    /// rebuilt by every `isRunning` query — one per row. Scrubbing the workbench
+    /// sidebar with the arrow keys spent ~6% of the main thread in `-[NSURL path]`
+    /// alone, 124 apps x 124 rows of it per keypress. Reading it must not invalidate
+    /// a view, which is what `@ObservationIgnored` buys: `@Observable` instruments
+    /// `private` stored properties too, so an un-ignored memo makes every `didSet`
+    /// clear invalidate the views that read it.
+    @ObservationIgnored private var elevationPathsCache: Set<String>?
 
     /// True when this update installs seamlessly in place (Sparkle EdDSA, or a
     /// drag-to-Applications Homebrew cask). Excludes `pkg` casks, which need the

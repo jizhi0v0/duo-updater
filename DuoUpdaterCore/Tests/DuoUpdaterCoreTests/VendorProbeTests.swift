@@ -1347,6 +1347,119 @@ private let weTypeInstallInfoFixture = #"""
     #expect(weTypeInstallInfoFixture.contains("WeType_2.2.3_657.zip"))
 }
 
+// 豆包输入法 (DoubaoIme) — the real 2026-08-21 response of
+// `ime.doubao.com/api/v1/app/download_url?platform=macos`, verbatim (183 bytes).
+// It carries THREE numbers and only one of them is the app's version.
+private let doubaoImeDownloadURLFixture = #"""
+{"code":0,"data":{"url":"https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/DoubaoImeInstaller_v90602_release.zip","version_code":1002007,"version_name":"V0.9.6"},"msg":"success"}
+"""#
+
+/// Three numbers in one response, and only ONE of them has a local counterpart in
+/// the same namespace: the `v90602` in the zip filename, which the installed bundle
+/// repeats in its custom `Wave Build Version Number` key. That is the comparison
+/// pair. `version_name` is the string the row SHOWS, and `version_code` 1002007
+/// belongs to nothing on this machine.
+@Test func doubaoImeComparesTheVendorCodeAndShowsTheMarketingName() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.bytedance.inputmethod.doubaoime" })
+    #expect(recipe.versionIsBuild)
+    #expect(VendorProbeRecipe.extractVersion(
+        from: doubaoImeDownloadURLFixture, pattern: recipe.versionPattern) == "90602")
+    let display = try #require(recipe.displayVersionPattern)
+    #expect(VendorProbeRecipe.extractVersion(
+        from: doubaoImeDownloadURLFixture, pattern: display) == "0.9.6")
+
+    // The number that must never be picked up: it sits in the same response, next to
+    // the one that is right, and reads like a version code because it is one — just
+    // from the vendor's other namespace.
+    #expect(doubaoImeDownloadURLFixture.contains("\"version_code\":1002007"))
+    #expect(VendorProbeRecipe.extractVersion(
+        from: doubaoImeDownloadURLFixture, pattern: recipe.versionPattern) != "1002007")
+}
+
+/// `AppScanner` must hand `evaluate()` the vendor's code, never `CFBundleVersion`.
+/// The installed bundle stamps every build `CFBundleVersion = 1`, so the substitution
+/// is what makes this app comparable at all — and its ABSENCE (a future build that
+/// drops the custom key) has to degrade to the marketing branch, not to `90602 > 1`.
+@Test func doubaoImeBuildComesFromTheWaveKeyAndFallsBackToNothing() {
+    #expect(AppScanner.buildVersionIsOverridden(bundleID: "com.bytedance.inputmethod.doubaoime"))
+    #expect(AppScanner.waveBuildVersionNumber([
+        "CFBundleVersion": "1",
+        "Wave Build Version": "0.9.6.2",
+        "Wave Build Version Number": "90602",
+    ]) == "90602")
+    // Numeric plists round-trip as NSNumber; both spellings must work.
+    #expect(AppScanner.waveBuildVersionNumber(["Wave Build Version Number": 90602]) == "90602")
+    // Absent, empty, or non-numeric → nil, which is what sends `evaluate()` back to
+    // comparing marketing versions.
+    #expect(AppScanner.waveBuildVersionNumber(["CFBundleVersion": "1"]) == nil)
+    #expect(AppScanner.waveBuildVersionNumber(["Wave Build Version Number": ""]) == nil)
+    #expect(AppScanner.waveBuildVersionNumber(["Wave Build Version Number": "0.9.6.2"]) == nil)
+
+    // The shape a bundle without the scheme actually has. Taken from the 0.5.7 build
+    // (2026-03-26, payload of `DoubaoImeInstaller_v0.5.7.app`), whose Info.plist has
+    // no `Wave Build Version*` keys AND no `CFBundleVersion` at all; `channel-verify`
+    // against that real bundle reads `build version <none>` and lands on the
+    // marketing branch (`UPDATE 0.5.7 → 0.9.6`).
+    //
+    // Provenance, so nobody over-reads it: that build is from the 内测 period (Mac
+    // 内测 late March 2026, public launch 2026-05-12), so it is evidence of what a
+    // pre-scheme bundle looks like, NOT evidence that a shipped release might drop
+    // the keys. The no-fallback design does not rest on that prediction — it costs
+    // nothing and is strictly safer either way.
+    #expect(AppScanner.waveBuildVersionNumber([
+        "CFBundleIdentifier": "com.bytedance.inputmethod.doubaoime",
+        "CFBundleShortVersionString": "0.5.7",
+        "Doubaoime build version (short)": "0.5.7",
+    ]) == nil)
+}
+
+/// The end-to-end verdict, through the same `evaluate` the app uses — both with the
+/// custom key present (build namespace) and with it gone (marketing fallback). The
+/// second half is the one that matters: it pins that a bundle without the key is
+/// never compared as "1".
+@Test func doubaoImeVerdictIsExactWithTheKeyAndSafeWithoutIt() {
+    func app(build: String?) -> InstalledApp {
+        InstalledApp(
+            name: "DoubaoIme", bundleID: "com.bytedance.inputmethod.doubaoime",
+            shortVersion: "0.9.6", buildVersion: build,
+            path: URL(fileURLWithPath: "/Library/Input Methods/DoubaoIme.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+    }
+    func remote(_ build: String?, _ short: String) -> RemoteVersion {
+        RemoteVersion(shortVersion: short, version: build, downloadURL: nil, sourceName: "Vendor")
+    }
+
+    // Key present: exact, and a same-marketing-version respin is visible.
+    #expect(UpdateChecker.evaluate(
+        installed: app(build: "90602"), remote: remote("90602", "0.9.6")) == .upToDate)
+    #expect(UpdateChecker.evaluate(
+        installed: app(build: "90601"), remote: remote("90602", "0.9.6"))
+        == .updateAvailable(latest: "0.9.6"))
+
+    // Key gone: no build on either side of the comparison, so the marketing branch
+    // decides. NOT `90602 > 1`.
+    #expect(UpdateChecker.evaluate(
+        installed: app(build: nil), remote: remote(nil, "0.9.6")) == .upToDate)
+    #expect(UpdateChecker.evaluate(
+        installed: app(build: nil), remote: remote(nil, "0.9.7"))
+        == .updateAvailable(latest: "0.9.7"))
+}
+
+/// Detection-only, and — as with WeType — not because the artifact is missing: the
+/// response hands over a notarized installer zip. `UpdatePolicy.isInputMethod`
+/// refuses one-click for everything under `/Library/Input Methods` as a class.
+@Test func doubaoImeStaysDetectionOnlyUnderTheInputMethodGate() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.bytedance.inputmethod.doubaoime" })
+    #expect(recipe.install == nil)
+    #expect(recipe.displayVersionPattern != nil)
+    #expect(UpdatePolicy.isInputMethod(
+        URL(fileURLWithPath: "/Library/Input Methods/DoubaoIme.app")))
+    // The payload URL is right there in the same response the version comes from.
+    #expect(doubaoImeDownloadURLFixture.contains("DoubaoImeInstaller_v90602_release.zip"))
+}
+
 // Alcove — the old public endpoint (update.tryalcove.com) went NXDOMAIN, so the
 // no-credential probe now reads download.tryalcove.com/latest. Real 2026-07-29
 // response below (verbatim, 210 bytes). Two things this locks down:

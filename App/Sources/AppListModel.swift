@@ -2951,7 +2951,14 @@ final class AppListModel {
             // stayed closed and a badge that cleared itself on the way out.
             quitHandoffs[result.id] = QuitHandoff(
                 result: result, landing: .applied,
-                activates: wasFrontmost, armedAt: Date())
+                // Re-sample, the way the staged path does: `wasFrontmost` was taken
+                // with our own popover in front (the user had just clicked Restart in
+                // it), so on its own it says "background" for every menu-initiated
+                // restart. By now the app is holding its quit dialog up, which usually
+                // means it holds the front spot — and that is where it should return.
+                activates: wasFrontmost
+                    || AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app)),
+                armedAt: Date())
             Log.app.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (won't quit — relaunch if it does)")
         case .relaunched(let relaunched):
             needsRestart.remove(result.id)
@@ -3482,6 +3489,10 @@ final class AppListModel {
             ?? BackupStore.key(bundleID: result.app.bundleID, path: target)
         installErrors[id] = nil
         installing[id] = .installing
+        // Same reason as an install: this row's rank is about to change (it stops
+        // being up to date, or picks up a Restart badge) under whoever is clicking.
+        pinRowOrder()
+        defer { releaseRowOrder() }
         Log.install.info("rollback start: \(result.app.name, privacy: .public)")
         // A rollback replaces a bundle and reads the backup store, so it takes
         // the same machine-wide claim an install does. Without it, `duo backups
@@ -3729,6 +3740,13 @@ final class AppListModel {
             for target in targets where installing[target.id] == .queued {
                 installing[target.id] = nil
             }
+            // The batch is the LAST thing to clear `isInstallingAll`, so every
+            // `releaseRowOrder` inside it — each `runInstall`'s, each restart's — was
+            // still gated by this flag and no-opped. Without a release here the frozen
+            // order outlives the batch: a batch of running apps never calls
+            // `markJustUpdated` at all (they settle as `.awaitingBatchRestart`), so the
+            // two-second confirmation, the usual release point, never exists either.
+            releaseRowOrder()
         }
 
         // Three phases, in this order:
@@ -4338,8 +4356,13 @@ final class AppListModel {
     /// rest ride along, so a batch or a run of clicks shares one snapshot.
     private func pinRowOrder() {
         guard pinnedOrder.isEmpty else { return }
+        // `uniquingKeysWith:`, not `uniqueKeysWithValues:` — matching how this file
+        // builds every other id-keyed map. Duplicate ids should be impossible (the
+        // scanner dedupes on resolved path), but a freeze is a cosmetic nicety and
+        // must never be the thing that traps.
         pinnedOrder = Dictionary(
-            uniqueKeysWithValues: results.enumerated().map { ($0.element.id, $0.offset) })
+            results.enumerated().map { ($0.element.id, $0.offset) },
+            uniquingKeysWith: { first, _ in first })
     }
 
     /// Lift the freeze and re-sort once — but only when nothing is left in flight.

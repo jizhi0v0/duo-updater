@@ -81,19 +81,48 @@ public struct SparkleAppcastSource: UpdateSource {
         )
     }
 
-    /// Build a native changelog from the in-channel items that ship inline
-    /// Markdown notes, newest first. Returns nil when no item carries Markdown
-    /// (the HTML `<description>` / web-view paths stay in charge for those feeds).
+    /// Build a native changelog from the in-channel items that ship inline notes
+    /// — either `<markdownDescription>` (Surge) or HTML `<description>` that has
+    /// enough list structure to convert (`AppcastHTMLChangelogParser.isStructured`;
+    /// verified against real TablePro/Fork/TablePlus feeds in the parser's own
+    /// tests — a feed of pure `<p>` prose fails this and keeps rendering through
+    /// the HTML fallback instead). Markdown wins when a feed carries both. Newest
+    /// first, capped at `maxEntries` (this function has no caller-supplied cap, so
+    /// a trimmed-history feed like TablePro's 137-item appcast doesn't turn into
+    /// 137 rendered entries) — matches the cap-while-building style
+    /// `StructuredChangelogDecoder.decodeWarp`/`decodeTypeless` use.
+    ///
+    /// Returns nil when no item produced any notes at all (the HTML
+    /// `<description>` / web-view fallback paths stay in charge for those feeds).
     static func structuredChangelog(from usable: [SparkleAppcastItem]) -> Changelog? {
-        let entries: [Changelog.Entry] = usable.compactMap { item in
-            guard let md = item.markdownDescription else { return nil }
-            let notes = AppcastMarkdownParser.items(from: md)
-            guard !notes.isEmpty else { return nil }
+        let maxEntries = 40
+        var entries: [Changelog.Entry] = []
+        // One RELEASE can be several <item>s. TablePro publishes its 0.67.0 twice —
+        // once per architecture (…-arm64.zip / …-x86_64.zip), same build, same
+        // notes, `pubDate` one second apart — so walking items 1:1 rendered every
+        // version twice in the rail. Key on the version the entry will display and
+        // keep the first item that yields notes; that's the same defence
+        // `ChangelogExtractor` already applies to pages that repeat their content.
+        var seen: Set<String> = []
+        for item in usable {
+            if entries.count >= maxEntries { break }
             let version = item.shortVersionString ?? item.version ?? ""
-            return Changelog.Entry(
-                version: version,
-                date: AppcastMarkdownParser.displayDate(from: item.pubDate),
-                items: notes)
+            guard !version.isEmpty, !seen.contains(version) else { continue }
+            let date = AppcastMarkdownParser.displayDate(from: item.pubDate)
+
+            if let md = item.markdownDescription {
+                let notes = AppcastMarkdownParser.items(from: md)
+                guard !notes.isEmpty else { continue }
+                entries.append(Changelog.Entry(version: version, date: date, items: notes))
+                seen.insert(version)
+                continue
+            }
+
+            if let html = item.descriptionHTML,
+               let entry = AppcastHTMLChangelogParser.entry(html: html, version: version, date: date) {
+                entries.append(entry)
+                seen.insert(version)
+            }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)
     }
@@ -154,8 +183,20 @@ public struct SparkleAppcastSource: UpdateSource {
             }
             return true
         }
-        return usable.sorted { lhs, rhs in
-            VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) == .orderedDescending
+        // Deterministic tie-break on equal versions. `sorted(by:)` is NOT a stable
+        // sort in Swift, so per-architecture twins (TablePro publishes an arm64 and
+        // an x86_64 item per release) could come back in either order from run to
+        // run — and the changelog dedupe below keeps the FIRST item that yields
+        // notes. Identical bodies make that invisible today; the day a vendor writes
+        // per-arch notes it would silently alternate between them. Falling back to
+        // the enclosure URL is arbitrary but fixed, which is the property that
+        // matters.
+        return usable.sorted { (lhs: SparkleAppcastItem, rhs: SparkleAppcastItem) -> Bool in
+            switch VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) {
+            case .orderedDescending: return true
+            case .orderedAscending: return false
+            case .orderedSame: return (lhs.enclosureURL?.absoluteString ?? "") < (rhs.enclosureURL?.absoluteString ?? "")
+            }
         }
     }
 

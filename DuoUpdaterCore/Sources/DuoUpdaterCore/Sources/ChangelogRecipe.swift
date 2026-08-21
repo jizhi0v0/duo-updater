@@ -1450,42 +1450,23 @@ public enum ChangelogRecipeRegistry {
             ],
             minItemLength: 8),
 
-        // TablePro — the Mintlify `.md` twin of docs.tablepro.app/changelog (the
-        // page advertises it as `<link rel="alternate" type="text/markdown">`), the
-        // same trick the Claude Desktop recipe above uses. Every release is one
-        // block, newest-first:
-        //   <Update label="August 5, 2026" description="v0.63.0">
-        //     ### Improvements
-        //     * **Translations**: …
-        //     ### Bug Fixes
-        //     * `Cmd+Delete` … (#2022)
-        //   </Update>
-        // Note the fields are the OPPOSITE way round from Claude's Mintlify page:
-        // here `label` is the date and `description` the version (leading "v"
-        // dropped). The `###` section headings are ignored; only `* ` bullets
-        // surface. stripTags/decodeEntities are off because the source is markdown
-        // — a couple of notes carry literal angle brackets (``USE <database>``) that
-        // tag-stripping would eat, and `&` is always a literal ampersand ("Users &
-        // Roles"), never an entity. Inline `**bold**`/backticks stay as written,
-        // same as the Claude recipe.
+        // TablePro — deliberately NO recipe. The app ships a Sparkle feed
+        // (`SUFeedURL` = raw.githubusercontent.com/TableProApp/TablePro/main/
+        // appcast.xml) whose every `<item>` carries the full release notes inline
+        // in `<description>` (21 KB of `<h3>` + `<ul><li>` for 0.67.0, 137 items
+        // deep), so `SparkleAppcastSource` already hands the pane a changelog we
+        // fetched for the version check anyway — a recipe here would only preempt
+        // it (recipe beats `structuredChangelog`/`releaseNotesHTML` in the
+        // workbench) and cost a second request.
         //
-        // 2026-08-09: this replaces a scrape of the rendered HTML, which went to
-        // zero entries when Mintlify swapped the label element from
-        // `<div … data-component-part="update-label">June 2, 2026</div>` to a
-        // `<button …>` — the old pattern required the closing `</div>`. All three
-        // `data-component-part` hooks are still in the HTML, so this was pure
-        // rendered-markup churn; the `.md` form carries the same date + version +
-        // body with far less of it to churn.
-        ChangelogRecipe(
-            bundleID: "com.TablePro",
-            source: URL(string: "https://docs.tablepro.app/changelog.md")!,
-            entryPattern:
-                #"<Update label="(?<date>[^"]*)"\s+description="v?(?<version>[\d.]+)"[^>]*>"#
-                + #"(?<body>.*?)</Update>"#,
-            itemPatterns: [#"\n[ \t]*\*[ \t]+(?<item>[^\n]+)"#],
-            stripTags: false,
-            decodeEntities: false,
-            maxEntries: 20),
+        // The recipe this replaces scraped docs.tablepro.app and broke TWICE on
+        // pure vendor churn: once when Mintlify swapped the label element to a
+        // `<button>` (2026-08-09, fixed by moving to the `.md` twin), then again
+        // when TablePro flipped the `<Update>` attributes to `label="v0.67.0"
+        // description="August 21, 2026"` — the reverse of what the `.md` pattern
+        // required, and now the same order Claude's Mintlify page uses. Two breaks
+        // in two weeks on a source we did not need is why this is gone rather than
+        // re-patched.
 
         // MacUpdater — corecode.io/macupdater/history3.html is a single static
         // page of every release newest-first (no hydration). 3.5.0 is the final

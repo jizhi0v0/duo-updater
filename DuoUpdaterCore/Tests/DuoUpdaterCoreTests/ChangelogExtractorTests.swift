@@ -1904,65 +1904,11 @@ Wednesday, May 27, 2026
     #expect(cl.entries[1].items[1] == "CVE-2026-9873: Heap buffer overflow in Media & Audio.")
 }
 
-// Trimmed real text from docs.tablepro.app/changelog.md (the Mintlify markdown
-// twin): the docs-index preamble the file opens with, then two `<Update>` blocks —
-// `label` is the date and `description` the version, the reverse of Claude's
-// Mintlify page. Includes the `###` section headings the recipe must ignore, a
-// `<database>` angle-bracket note that must survive (stripTags is off), and a
-// literal `&` that must stay an ampersand (decodeEntities is off).
-private let tableproFixture = """
-> ## Documentation Index
-> Fetch the complete documentation index at: https://docs.tablepro.app/llms.txt
-
-# Changelog
-
-> Product updates and announcements for TablePro
-
-<Update label="August 5, 2026" description="v0.63.0">
-  ### Improvements
-
-  * **Translations**: Turkish, Vietnamese, and Simplified Chinese now cover the strings that still showed in English
-  * **SQL Server**: `USE <database>` switches databases
-
-  ### Bug Fixes
-
-  * `Cmd+Delete` in the SQL editor deletes to the start of the line again (#2022)
-</Update>
-
-<Update label="August 2, 2026" description="v0.62.0">
-  ### New Features
-
-  * **Users & Roles**: Manage database users, roles, and privileges from the sidebar
-</Update>
-"""
-
-@Test func extractsTableProMintlifyMarkdownReleases() throws {
-    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.TablePro"))
-    let cl = try #require(ChangelogExtractor.extract(from: tableproFixture, using: recipe))
-
-    #expect(cl.entries.count == 2)
-    #expect(cl.entries[0].version == "0.63.0")
-    #expect(cl.entries[0].date == "August 5, 2026")
-    // Three bullets across both `###` sections; the headings themselves don't surface.
-    #expect(cl.entries[0].items.count == 3)
-    #expect(cl.entries[0].items[0]
-        == "**Translations**: Turkish, Vietnamese, and Simplified Chinese now cover the strings that still showed in English")
-    // Angle brackets survive: tag-stripping would have eaten `<database>`.
-    #expect(cl.entries[0].items[1] == "**SQL Server**: `USE <database>` switches databases")
-    #expect(cl.entries[1].version == "0.62.0")
-    #expect(cl.entries[1].date == "August 2, 2026")
-    #expect(cl.entries[1].items == [
-        "**Users & Roles**: Manage database users, roles, and privileges from the sidebar"])
-}
-
-// The recipe must read the `.md` twin, not the rendered HTML page: Mintlify swapped
-// the release label from a `<div>` to a `<button>` in 2026-08 and silently zeroed the
-// HTML scrape. Pin the URL so a future edit doesn't drift back.
-@Test func tableProRecipeReadsTheMarkdownTwin() throws {
-    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.TablePro"))
-    #expect(recipe.source.absoluteString == "https://docs.tablepro.app/changelog.md")
-    #expect(!recipe.stripTags)
-    #expect(!recipe.decodeEntities)
+// TablePro deliberately has no recipe any more — the app's Sparkle appcast carries
+// the notes inline, so the pane reads them from the feed we already fetch. Pin that
+// absence: a future "add a changelog for TablePro" would silently preempt the feed.
+@Test func tableProHasNoChangelogRecipe() {
+    #expect(ChangelogRecipeRegistry.recipe(forBundleID: "com.TablePro") == nil)
 }
 
 // Trimmed real markup from corecode.io/macupdater/history3.html: two version

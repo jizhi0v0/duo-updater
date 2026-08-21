@@ -1327,6 +1327,10 @@ private struct ChangelogEntriesView: View {
         }
     }
 
+    /// Stable anchor for the detail pane's scroll-to-top. Constant on purpose —
+    /// the whole point is that switching versions must NOT change view identity.
+    private static let scrollTopAnchor = "changelog-entry-top"
+
     /// Master/detail: a content-sized version rail + the selected version's notes.
     private var columnsBody: some View {
         // Clamp: the same view can be reused when the user switches apps, so a stale
@@ -1336,14 +1340,33 @@ private struct ChangelogEntriesView: View {
             ChangelogVersionList(entries: changelog.entries, selection: $selection)
                 .frame(width: cachedRailWidth)
             Divider()
-            ScrollView {
-                ChangelogEntryView(entry: changelog.entries[index], syntax: changelog.itemSyntax)
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            // Scroll back to the top on switch WITHOUT changing identity. This used
+            // to be `.id(index)`, which reset the offset by destroying and rebuilding
+            // the whole ScrollView — measured at a ~18ms floor on every rail click
+            // (a dropped frame at 60Hz) regardless of how short the entry was, which
+            // is what made the rail feel detached from the pointer. Keeping one
+            // ScrollView and moving it instead lets SwiftUI update the notes in place.
+            ScrollViewReader { proxy in
+                ScrollView {
+                    ChangelogEntryView(entry: changelog.entries[index], syntax: changelog.itemSyntax)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .id(Self.scrollTopAnchor)
+                }
+                // BOTH triggers. `index` alone misses the most common switch there
+                // is: picking a different app resets `selection` to 0, so a user who
+                // was on entry 0 (the default) and had scrolled halfway down a long
+                // release's notes keeps that offset while the pane now shows a
+                // different app — `index` never changed, so the callback never ran.
+                // `.id(index)` had the identical hole; the commit that replaced it
+                // claimed a fix that only held for switching versions within one app.
+                .onChange(of: index) {
+                    proxy.scrollTo(Self.scrollTopAnchor, anchor: .top)
+                }
+                .onChange(of: changelog) {
+                    proxy.scrollTo(Self.scrollTopAnchor, anchor: .top)
+                }
             }
-            // Re-id on switch so the right pane scrolls back to the top instead of
-            // keeping the previous version's scroll offset.
-            .id(index)
         }
     }
 
@@ -1522,14 +1545,20 @@ private struct ChangelogEntryView: View {
             // Rich entries (notes interleaved with images, e.g. WeChat) walk `content`
             // so a screenshot lands between the change lines exactly as on the vendor's
             // page. Text-only entries (the common case) just bullet `items`.
+            // LAZY, not a plain VStack. An entry used to be a couple of dozen lines
+            // at most, because every changelog came from a recipe. A Sparkle feed's
+            // inline notes are not capped that way — TablePro's 0.67.0 carries 205
+            // change lines — and an eager stack built every one of them on each
+            // version switch. (The HTML fallback this path replaced was already
+            // lazy; going native must not lose that.)
             if entry.content.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
+                LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(entry.items.enumerated()), id: \.offset) { _, item in
                         noteRow(item)
                     }
                 }
             } else {
-                VStack(alignment: .leading, spacing: 8) {
+                LazyVStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(entry.content.enumerated()), id: \.offset) { _, block in
                         switch block {
                         case let .note(text): noteRow(text)

@@ -217,6 +217,54 @@ public enum ChangelogExtractor {
     /// that order so `<br>`/`</p>`/`</li>` don't glue adjacent words together.
     /// Internal (not `private`) so `StructuredChangelogDecoder` can reuse it for
     /// vendor HTML that arrives already JSON-unescaped by `Decodable`.
+    /// Element names a real HTML changelog uses. Anything not on this list is
+    /// left alone as text — which is the whole point (see `stripHTMLElements`).
+    private static let htmlElementNames = [
+        "a", "abbr", "article", "aside", "audio", "b", "blockquote", "br", "button",
+        "caption", "cite", "code", "col", "colgroup", "dd", "del", "details", "div",
+        "dl", "dt", "em", "figcaption", "figure", "footer", "h1", "h2", "h3", "h4",
+        "h5", "h6", "header", "hr", "i", "iframe", "img", "input", "ins", "kbd",
+        "li", "main", "mark", "nav", "ol", "p", "picture", "pre", "q", "s", "samp",
+        "section", "small", "source", "span", "strong", "sub", "summary", "sup",
+        "table", "tbody", "td", "tfoot", "th", "thead", "time", "tr", "u", "ul",
+        "var", "video",
+    ]
+
+    /// Strip only *known* HTML elements, turning the block-level ones into a space
+    /// so adjacent text doesn't glue together, and leave every other angle-bracket
+    /// run as literal text.
+    ///
+    /// The difference from `stripTags` is the second half: that one finishes with a
+    /// blind `<[^>]+>` sweep, which eats anything bracket-shaped. In a *recipe* that
+    /// is fine — a recipe reading a page that deliberately shows markup as text sets
+    /// `stripTags: false` and opts out wholesale. An appcast `<description>` has no
+    /// such switch: it is one body mixing real markup with prose, and TablePro's
+    /// notes contain `` `USE <database>` `` and `` `<unsupported: type>` `` inside
+    /// CDATA as literal text. The recipe this parser replaced protected them with
+    /// `stripTags: false`; a blind sweep here renders "SQL Server: `USE ` switches
+    /// DB", silently deleting the identifier the sentence is about.
+    ///
+    /// Not a full parser and not trying to be: an unknown element (a vendor's
+    /// `<custom-tag>`) survives as text, which is the safe direction — visible
+    /// noise beats invisible deletion.
+    static func stripHTMLElements(_ s: String) -> String {
+        let names = htmlElementNames.joined(separator: "|")
+        var out = s
+        // Block/line-breaking elements first, to a space.
+        if let breaks = try? NSRegularExpression(
+            pattern: #"<\s*/?\s*(?:br|p|li|div|ul|ol|tr|td|th|h[1-6])\b[^>]*>"#,
+            options: [.caseInsensitive]) {
+            out = breaks.stringByReplacingMatches(
+                in: out, range: NSRange(out.startIndex..., in: out), withTemplate: " ")
+        }
+        if let rest = try? NSRegularExpression(
+            pattern: #"<\s*/?\s*(?:\#(names))\b[^>]*>"#, options: [.caseInsensitive]) {
+            out = rest.stringByReplacingMatches(
+                in: out, range: NSRange(out.startIndex..., in: out), withTemplate: "")
+        }
+        return out
+    }
+
     static func stripTags(_ s: String) -> String {
         let breaks = try? NSRegularExpression(
             pattern: #"<\s*/?\s*(br|p|li|div|ul|ol)\b[^>]*>"#,
@@ -239,6 +287,16 @@ public enum ChangelogExtractor {
     /// avoid `NSAttributedString` HTML decoding (heavy and main-thread-only).
     /// Internal (not `private`) — see `stripTags`.
     static func decodeEntities(_ s: String) -> String {
+        decodeJSONUnicodeEscapes(decodeHTMLEntities(s))
+    }
+
+    /// The HTML half on its own: named entities plus numeric `&#NNN;` / `&#xHHH;`.
+    /// Split out from `decodeEntities` because the JSON `\uXXXX` pass that follows
+    /// it there has nothing to do with HTML — it exists for json-mode feeds whose
+    /// server escapes non-ASCII. A caller working on real markup (the Sparkle
+    /// appcast HTML parser) wants this half only: running the JSON pass over a
+    /// vendor's prose would rewrite a literal `\uXXXX` the vendor actually typed.
+    static func decodeHTMLEntities(_ s: String) -> String {
         var out = s
         let named: [String: String] = [
             "&amp;": "&", "&lt;": "<", "&gt;": ">",
@@ -252,9 +310,6 @@ public enum ChangelogExtractor {
         }
         // Numeric escapes: &#NNN; (decimal) and &#xHHH; (hex).
         out = decodeNumericEntities(out)
-        // JSON Unicode escapes: \uXXXX — appear in JSON-mode feeds whose server
-        // encodes non-ASCII characters as escape sequences rather than UTF-8.
-        out = decodeJSONUnicodeEscapes(out)
         return out
     }
 

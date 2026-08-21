@@ -3574,6 +3574,13 @@ final class AppListModel {
         guard let version = result.remote?.displayVersion else { return }
         prefs.skipVersion(version, result.app)
         syncDockBadge()
+        // Same cleanup as ignoring the app: a "Relaunch to apply it" banner already
+        // in Notification Center is for the version just declined (a banner only
+        // exists while the staged build is the latest, i.e. this very version), so
+        // it must not outlive the skip — and the reminder loop has to re-evaluate,
+        // or skipping the last nudgeable version leaves it ticking on nothing.
+        UpdateNotifier.clearSelfDownloaded(appID: result.id)
+        updateSelfUpdateReminder()
         Log.app.info("skip \(version, privacy: .public): \(result.app.name, privacy: .public)")
     }
 

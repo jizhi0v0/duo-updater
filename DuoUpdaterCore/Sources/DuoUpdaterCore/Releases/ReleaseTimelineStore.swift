@@ -27,6 +27,10 @@ public actor ReleaseTimelineStore {
     private struct Observation: Codable, Sendable {
         var version: String
         var lastSeenAt: Date
+        /// The source that established this baseline. Optional so observations
+        /// written before this field existed continue to decode and are adopted by
+        /// the next check.
+        var sourceName: String?
     }
     private var observations: [String: Observation]
     private let observationsURL: URL
@@ -109,7 +113,7 @@ public actor ReleaseTimelineStore {
     }
 
     /// Track a detection-only source's reported version for an app and, when it
-    /// *changes* from a previously-seen version, record an estimated release —
+    /// advances from a previously-seen version, record an estimated release —
     /// dated to the window `[last time we saw the old version, now]`. The first
     /// time we ever see an app there's no baseline to measure against, so nothing
     /// is recorded; we just remember the version for next time.
@@ -142,17 +146,43 @@ public actor ReleaseTimelineStore {
             timelines[appID] = timeline
             if displayFieldsChanged { timelinesDirty = true }
         }
-        // Update the baseline first; we always remember the latest sighting.
-        defer {
-            observations[appID] = Observation(version: version, lastSeenAt: now)
+
+        guard let prior else {
+            observations[appID] = Observation(
+                version: version, lastSeenAt: now, sourceName: sourceName)
+            observationsDirty = true
+            return false
+        }
+
+        // A different source is not evidence that this source just published a new
+        // version. Establish a fresh baseline instead of comparing unrelated version
+        // schemes (for example, a Homebrew build number against a vendor version).
+        if let priorSource = prior.sourceName, priorSource != sourceName {
+            observations[appID] = Observation(
+                version: version, lastSeenAt: now, sourceName: sourceName)
+            observationsDirty = true
+            return false
+        }
+
+        switch VersionComparator.compare(version, prior.version) {
+        case .orderedAscending:
+            // A transient endpoint rollback is not a release. Keep the higher
+            // high-water baseline so returning to it cannot be logged as one either.
+            return false
+        case .orderedSame:
+            // Equivalent spellings such as 1.2 and 1.2.0 are the same release. The
+            // latest confirmation still tightens the lower bound for a future update.
+            observations[appID] = Observation(
+                version: version, lastSeenAt: now, sourceName: sourceName)
+            observationsDirty = true
+            return false
+        case .orderedDescending:
+            observations[appID] = Observation(
+                version: version, lastSeenAt: now, sourceName: sourceName)
             observationsDirty = true
         }
 
-        // No baseline, or unchanged version → nothing to record (just (re)baseline
-        // via the defer; an unchanged sighting tightens the lower bound for later).
-        guard let prior, prior.version != version else { return false }
-
-        // The version moved. The release happened sometime after we last confirmed
+        // The version advanced. The release happened sometime after we last confirmed
         // the old version and by the time we first saw the new one. Guard against a
         // clock skew that would invert the interval.
         let start = min(prior.lastSeenAt, now)

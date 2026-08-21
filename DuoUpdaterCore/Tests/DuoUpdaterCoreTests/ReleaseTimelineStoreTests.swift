@@ -16,6 +16,7 @@ private func tempFileURL() -> URL {
 private let d1 = Date(timeIntervalSince1970: 1_700_000_000)
 private let d2 = Date(timeIntervalSince1970: 1_710_000_000)
 private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
+private let d4 = Date(timeIntervalSince1970: 1_730_000_000)
 
 @Test func recordsAReleaseWithItsPublishedDate() async {
     let store = ReleaseTimelineStore(fileURL: tempFileURL())
@@ -192,6 +193,57 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
         version: "2.0", sourceName: "Vendor", now: d3)
     #expect(!again)
     #expect(await store.totalEvents() == 0)
+}
+
+@Test func versionRegressionDoesNotBecomeAReleaseOrMoveTheHighWaterBaseline() async {
+    let store = ReleaseTimelineStore(fileURL: tempFileURL())
+    let id = "/v.app"
+    await store.observeForChange(appID: id, appName: "V", bundleID: nil,
+        version: "2.0", sourceName: "Vendor", now: d1)
+
+    let regressed = await store.observeForChange(appID: id, appName: "V", bundleID: nil,
+        version: "1.9", sourceName: "Vendor", now: d2)
+    let recovered = await store.observeForChange(appID: id, appName: "V", bundleID: nil,
+        version: "2.0", sourceName: "Vendor", now: d3)
+    #expect(!regressed)
+    #expect(!recovered)
+    #expect(await store.totalEvents() == 0)
+
+    let advanced = await store.observeForChange(appID: id, appName: "V", bundleID: nil,
+        version: "2.1", sourceName: "Vendor", now: d4)
+    #expect(advanced)
+    let event = await store.timeline(forAppID: id)?.events.first
+    #expect(event?.version == "2.1")
+    #expect(event?.estimatedRange?.start == d3)
+    #expect(event?.estimatedRange?.end == d4)
+}
+
+@Test func equivalentVersionSpellingsDoNotBecomeARelease() async {
+    let store = ReleaseTimelineStore(fileURL: tempFileURL())
+    let id = "/v.app"
+    await store.observeForChange(appID: id, appName: "V", bundleID: nil,
+        version: "1.2", sourceName: "Vendor", now: d1)
+    let equivalent = await store.observeForChange(appID: id, appName: "V", bundleID: nil,
+        version: "1.2.0", sourceName: "Vendor", now: d2)
+    #expect(!equivalent)
+    #expect(await store.totalEvents() == 0)
+}
+
+@Test func sourceChangeRebaselinesBeforeRecordingAnotherRelease() async {
+    let store = ReleaseTimelineStore(fileURL: tempFileURL())
+    let id = "/v.app"
+    await store.observeForChange(appID: id, appName: "V", bundleID: nil,
+        version: "100", sourceName: "Vendor", now: d1)
+    let changedSource = await store.observeForChange(
+        appID: id, appName: "V", bundleID: nil,
+        version: "2.0", sourceName: "Homebrew", now: d2)
+    #expect(!changedSource)
+
+    let advanced = await store.observeForChange(appID: id, appName: "V", bundleID: nil,
+        version: "2.1", sourceName: "Homebrew", now: d3)
+    #expect(advanced)
+    let event = await store.timeline(forAppID: id)?.events.first
+    #expect(event?.estimatedRange?.start == d2)
 }
 
 @Test func estimatedBaselinePersistsAcrossReload() async {

@@ -574,10 +574,7 @@ private struct AppRow: View {
         let installed = result.installedDisplay ?? "?"
         let from = bump.map { "\(installed) (\($0.installed))" } ?? installed
         let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
-        var natural = measure(from) + measure(to) + Self.versionArrowWidth
-        if let running = model.restartFromVersion(result.id) {
-            natural += measure(" · current \(running)")
-        }
+        let natural = measure(from) + measure(to) + Self.versionArrowWidth
         return 0.75 * natural + 0.25 * Self.versionArrowWidth
     }
 
@@ -802,17 +799,20 @@ private struct AppRow: View {
                 fromVersion(latest: latest)
                 Image(systemName: "arrow.right").font(.caption2)
                 toVersion(latest: latest)
-                // When an earlier update was installed but never restarted, the
-                // "from" above is the *staged* on-disk version — the live process
-                // is still older. Surface what's actually running so the row isn't
-                // misread as "you're on the staged build".
-                if let running = model.restartFromVersion(result.id) {
-                    Text("· current \(running)")
-                        .foregroundStyle(.tertiary)
-                        .help("Still running \(running) — restart pending from an earlier update")
-                }
             }
             .font(.caption)
+            // When an earlier update was installed but never restarted, the "from"
+            // above is the *staged* on-disk version — the live process is still
+            // older. That used to be spelled out inline as "· current <running>",
+            // but a third version number does not fit this row: at Chrome's four
+            // segments the line truncated to "current 151.0…", cutting off the only
+            // digits that differed from the two versions already on the line. The
+            // workbench's row never showed it either. So it lives on the hover
+            // instead, where it can be read in full, and the line keeps to the one
+            // comparison that decides the click: what you have vs what is offered.
+            .help(model.restartFromVersion(result.id).map {
+                "Still running \($0) — restart pending from an earlier update"
+            } ?? "")
             // Long date-style versions (Warp) would otherwise wrap mid-number;
             // keep it one line and shrink slightly instead.
             .lineLimit(1)

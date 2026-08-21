@@ -222,15 +222,31 @@ import DuoUpdaterCore
         #expect(stored?[InstallPreferenceKey.key(for: app())] == "2.0")
     }
 
-    /// Un-ignoring must clear the legacy bundle-id form too, or the app — which
-    /// matches either key — would still consider it ignored.
-    @Test func unignoringClearsTheLegacyKeyAsWell() {
+    /// Migration can leave both the current path key and the legacy bundle-id key.
+    /// Un-ignoring must clear both, or the app still matches the one left behind.
+    @Test func unignoringClearsCurrentAndLegacyKeysTogether() {
         let defaults = scratchDefaults()
+        let current = InstallPreferenceKey.key(for: app())
         let legacy = InstallPreferenceKey.legacyKey(for: app())
-        defaults.set([legacy], forKey: UpdateSettings.ignoredKeysKey)
+        defaults.set([current, legacy], forKey: UpdateSettings.ignoredKeysKey)
         guard case .success = Visibility.apply(.unignore, to: result(hasUpdate: true), in: defaults) else {
-            Issue.record("unignore should clear a legacy entry"); return
+            Issue.record("unignore should clear both entry forms"); return
         }
         #expect(defaults.stringArray(forKey: UpdateSettings.ignoredKeysKey)?.isEmpty == true)
+    }
+
+    @Test func unskippingClearsCurrentAndLegacyKeysTogether() {
+        let defaults = scratchDefaults()
+        let current = InstallPreferenceKey.key(for: app())
+        let legacy = InstallPreferenceKey.legacyKey(for: app())
+        defaults.set(
+            [current: "2.0", legacy: "2.0"],
+            forKey: UpdateSettings.skippedVersionsKey)
+        guard case .success = Visibility.apply(.unskip, to: result(hasUpdate: true), in: defaults) else {
+            Issue.record("unskip should clear both entry forms"); return
+        }
+        let stored = defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey)
+            as? [String: String]
+        #expect(stored?.isEmpty == true)
     }
 }

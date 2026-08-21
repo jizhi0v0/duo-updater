@@ -1446,6 +1446,30 @@ private let doubaoImeDownloadURLFixture = #"""
         == .updateAvailable(latest: "0.9.7"))
 }
 
+/// Why the disk-vs-running restart check must SKIP an app whose build `AppScanner`
+/// substitutes.
+///
+/// `lsappinfo` — the only source for what a running process is — reports
+/// `CFBundleVersion` and nothing else. For 豆包输入法 that is a flat `1`, while the
+/// scan reports `90602`. Compared against each other the disk side always wins, and
+/// a current, freshly-launched input method wears a permanent Restart badge reading
+/// `0.9.6 (1) → 0.9.6 (90602)`. That shipped, briefly, in the commit that introduced
+/// the substitution; `AppListModel.computeRestartInfo` now skips these apps.
+///
+/// This pins the PREMISE (the two namespaces really do compare that way), so the
+/// reason for the skip stays legible even though the skip itself lives in the app
+/// target, which has no test bundle.
+@Test func aSubstitutedBuildIsNotComparableWithTheRuntimeBuild() {
+    #expect(AppScanner.buildVersionIsOverridden(bundleID: "com.bytedance.inputmethod.doubaoime"))
+    #expect(AppScanner.buildVersionIsOverridden(bundleID: "com.apple.dt.Xcode"))
+    // The false "needs restart" in miniature.
+    #expect(VersionComparator.isNewer("90602", than: "1"))
+    // An app whose build is NOT substituted compares like-for-like and must keep
+    // working — this is the ordinary case the skip must not touch.
+    #expect(!AppScanner.buildVersionIsOverridden(bundleID: "com.tencent.inputmethod.wetype"))
+    #expect(VersionComparator.isNewer("657", than: "643"))
+}
+
 /// Detection-only, and — as with WeType — not because the artifact is missing: the
 /// response hands over a notarized installer zip. `UpdatePolicy.isInputMethod`
 /// refuses one-click for everything under `/Library/Input Methods` as a class.

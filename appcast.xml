@@ -17,6 +17,26 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.49</title>
+            <pubDate>Fri, 21 Aug 2026 22:16:44 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.49</link>
+            <sparkle:version>59</sparkle:version>
+            <sparkle:shortVersionString>0.3.49</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Confirming a quit late no longer leaves the app updated but closed.** Some apps guard their own quit with a dialog — Claude, for one, asks about an active conversation — and that dialog could land in the middle of a Relaunch. Duo Updater rightly refuses to sit there while you decide (and it still won't force the quit past your unsaved work), but once it stepped aside it also stopped listening. Answer the dialog a minute later and the quit went through, the app's own updater swapped in the new version — and then nothing happened: some updaters deliberately don't reopen the app after installing, Duo Updater was no longer watching, and you were left staring at an app that had simply closed. It now leaves a note for itself when it steps aside: if you do confirm that quit within the next few minutes, it waits for the update to finish landing and then brings the app back, in front if that's where it was. The note expires after a few minutes, so a quit hours later is just you closing the app, and stays that way.
+
+**The same late answer now works for a plain Restart.** A save prompt could block the Restart button (and the automatic restart that follows a one-click Update) in exactly the same way, with a worse ending: the new version was already on disk, so when you finally dismissed that prompt and the app closed, Duo Updater's next look around decided there was nothing left to restart and quietly dropped the badge too — an app closed, an update half-applied, and no trace that anything had been asked for. Answering a save prompt within a few minutes now finishes the restart it belonged to, and the app comes back on the new version.
+
+**App Store updates tell you they're waiting, and don't leave the app closed if you answer late.** When the App Store finishes downloading an update for an app you have open, it asks for that app to be closed before it can install — and Duo Updater waits, indefinitely and on purpose, for you to say when. Until now that request lived only inside the menu: if you never opened it, an update sat downloaded-but-not-installed all night, and background checks waited with it. It now also arrives as a notification with a Relaunch button, so you can answer it without hunting for the row. And if your app puts up a save prompt of its own after you tap Relaunch, answering it minutes later no longer strands the app closed — the update lands and the app is reopened, the same as if it had quit right away.
+
+**The list holds still while you are clicking down it.** Every finished update used to re-sort the list on the spot: the app that just landed left the pending group, or picked up a Restart badge and jumped to the top, and everything below it slid up a row — under the pointer of anyone working down a list of Update buttons. Click the top one, go for the next, and the next one had moved. Now the order is held from the first click until the whole round is done: an app that finishes shows its confirmation in place, nothing else moves, and the list settles once at the end, when the finished apps drop away as they always did.
+
+**One less version number on a row that needs a restart.** An app with an update waiting *and* an earlier update still needing a restart tried to print all three versions on one line — installed, available, and the older one still running. On four-part versions like Chrome's it did not fit, and the line was cut off exactly where the digits started to differ, so the part left visible said nothing at all. The line now sticks to the comparison that matters — what you have and what is offered — and the running version moved to the row's tooltip, where it fits.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.49/DuoUpdater-0.3.49-macos.zip" length="10612640" type="application/octet-stream" sparkle:edSignature="GnR5d6Hi5D4DKD7UyRN6McoH+w4aotDF7U3g6mIbCD45FObUAug08meZ20Ifoln+PJi3MgUutePyz4ZlanEtBw=="/>
+        </item>
+        <item>
             <title>0.3.48</title>
             <pubDate>Fri, 21 Aug 2026 18:39:00 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.48</link>
@@ -53,18 +73,6 @@
 **The action column lines up.** A checkmark or a small badge at the end of a row was centred in its slot while a wide button sat flush against the row's edge, so the right-hand column read as ragged — and visibly out of line with the Homebrew row pinned below it. Everything ends on the same edge now.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.47/DuoUpdater-0.3.47-macos.zip" length="10570425" type="application/octet-stream" sparkle:edSignature="Sb0PG6tK5KBphQObKAq5TLzTFu384QkimDskqnVnwlQ7WVbtxcT5u5M/kGfMWTarR+n0Y2+aEsbV8H84Yw2lAg=="/>
-        </item>
-        <item>
-            <title>0.3.46</title>
-            <pubDate>Thu, 20 Aug 2026 15:38:12 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.46</link>
-            <sparkle:version>56</sparkle:version>
-            <sparkle:shortVersionString>0.3.46</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**WeType (微信输入法) now reports the version you actually have.** Its version was being read off the name of the vendor's installer file, which turns out to carry the *installer's* version rather than the app's — the installer is a small downloader that fetches the real app separately, and the two numbers drift apart. Duo Updater now reads the same manifest the vendor's own installer reads, so the version matches your copy and new releases show up when they ship. WeType still has to be updated with the vendor's installer rather than in place: replacing the bundle skips the input-method registration step and was found to lose settings.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.46/DuoUpdater-0.3.46-macos.zip" length="10567616" type="application/octet-stream" sparkle:edSignature="BKHtG9dZ0nRszxQDke7GoV/gE+I2I5vKynBXWxvYJ6GhtXi2quYyx4v/VtujphsXLPIKvUdf9sNHHyM1v0sdAA=="/>
         </item>
     </channel>
 </rss>

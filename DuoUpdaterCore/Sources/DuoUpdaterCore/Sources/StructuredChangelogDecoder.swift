@@ -148,7 +148,12 @@ public enum StructuredChangelogDecoder {
     static func bulletItems(from markdown: String?) -> [String] {
         guard let markdown else { return [] }
         return markdown
-            .split(separator: "\n", omittingEmptySubsequences: true)
+            // `whereSeparator`, not `separator: "\n"` — see the note in
+            // `postmanItems`: Swift treats "\r\n" as one Character that does not
+            // equal "\n", so a CRLF body would come back as a single giant line.
+            // ChatWise's feed is LF today; this costs nothing and removes the
+            // trap for the next vendor that isn't.
+            .split(omittingEmptySubsequences: true, whereSeparator: { $0.isNewline })
             .map { line -> String in
                 var s = line.trimmingCharacters(in: .whitespaces)
                 s = s.replacingOccurrences(
@@ -328,21 +333,10 @@ public enum StructuredChangelogDecoder {
             let items = (entry.notes ?? []).filter { !$0.isEmpty }
             guard !items.isEmpty else { continue }
             entries.append(.init(
-                version: version, date: gitHubDesktopDate(entry.pubDate), items: items))
+                version: version, date: isoDay(entry.pubDate), items: items))
             if let cap = maxEntries, entries.count >= cap { break }
         }
         return entries.isEmpty ? nil : Changelog(entries: entries)
-    }
-
-    /// `2026-06-01T17:43:05Z` → `2026-06-01`, matching the old regex recipe's
-    /// `"pub_date":"(?<date>\d{4}-\d{2}-\d{2})[^"]*"` capture (day precision only,
-    /// no time-of-day shown in the UI). nil when the leading segment isn't a plain
-    /// date, rather than showing a raw ISO string.
-    static func gitHubDesktopDate(_ raw: String?) -> String? {
-        guard let raw, raw.count >= 10 else { return nil }
-        let ymd = String(raw.prefix(10))
-        return ymd.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
-            ? ymd : nil
     }
 
     // MARK: - Postman (mkt.cdn.postman.com/www-next/release-notes/app-release-notes.json)
@@ -419,8 +413,17 @@ public enum StructuredChangelogDecoder {
                     return nil
                 }
                 if postmanIsDateLine(line) { return nil }
-                guard line.count >= 10 else { return nil }
-                return line
+                // Trim/collapse BEFORE the length floor, not after. The regex path
+                // ended in `ChangelogExtractor.clean` → `collapseWhitespace`, so its
+                // `{10,}` quantifier counted the raw match but the *stored* item was
+                // normalized. Skipping this left 129 lines of today's feed with
+                // trailing spaces and 23 with internal double spaces — invisible in
+                // most renderings but a real diff against the old output — and made
+                // the floor measure untrimmed length, so a line of eleven spaces
+                // would have become a blank bullet where the old path dropped it.
+                let cleaned = ChangelogExtractor.collapseWhitespace(line)
+                guard cleaned.count >= 10 else { return nil }
+                return cleaned
             }
     }
 
@@ -478,14 +481,46 @@ public enum StructuredChangelogDecoder {
             // Reuse the same parser GitHub-release version detection already
             // uses for a single release's notes (`GitHubMarkdownParser`), rather
             // than a second bespoke bullet-extractor for the same markdown shape.
-            guard let parsed = GitHubMarkdownParser.parse(body: body, version: version, date: date),
-                  let entry = parsed.entries.first
-            else { continue }
-            entries.append(entry)
+            if let parsed = GitHubMarkdownParser.parse(body: body, version: version, date: date),
+               let entry = parsed.entries.first {
+                entries.append(entry)
+            } else if let prose = zedProseFallback(body: body) {
+                // `GitHubMarkdownParser` returns nil for a body with no bullets, and
+                // Zed ships such releases: 1 of the newest 100 today (`v1.5.3-pre`,
+                // whose whole body is "No public-facing changes in this release.").
+                // Skipping them left a Preview user sitting on exactly that build
+                // with NO entry for their own version — the retired zed.dev recipe
+                // had a `<p>` item pattern that covered this, so dropping them was a
+                // content regression against the source this replaced.
+                entries.append(.init(version: version, date: date, items: [prose]))
+            } else {
+                continue
+            }
             if let cap = maxEntries, entries.count >= cap { break }
         }
         guard !entries.isEmpty else { return nil }
         return Changelog(entries: entries, itemSyntax: .markdown)
+    }
+
+    /// The first non-empty, non-heading prose line of a release body that has no
+    /// bullets at all — Zed's "No public-facing changes in this release." shape.
+    /// Markdown links are flattened to their text so the trailing
+    /// "[View the commits](…)" doesn't render as raw bracket syntax; the entry is
+    /// emitted with `.markdown` syntax like every other Zed entry, so anything
+    /// left is rendered rather than shown literally. nil when the body is only
+    /// headings/links, in which case the release really is skipped.
+    static func zedProseFallback(body: String) -> String? {
+        for rawLine in body.split(omittingEmptySubsequences: true, whereSeparator: { $0.isNewline }) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty, !line.hasPrefix("#"), !line.hasPrefix("<") else { continue }
+            let flattened = ChangelogExtractor.collapseWhitespace(
+                line.replacingOccurrences(
+                    of: #"\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)"#, with: "$1",
+                    options: .regularExpression))
+            guard !flattened.isEmpty else { continue }
+            return flattened
+        }
+        return nil
     }
 
     /// `v1.17.0-pre` → `1.17.0`, `v1.16.1` → `1.16.1`: drop the leading `v` and
@@ -511,7 +546,14 @@ public enum StructuredChangelogDecoder {
     /// `<ol><li>version</li><li>item</li>…</ol>` HTML fragment; `updatedate` is a
     /// `YYYY-MM-DD HH:mm:ss` timestamp.
     private struct SunLoginLogEntry: Decodable {
-        let logs: String
+        /// Optional, like every other field every decoder in this file declares.
+        /// Non-optional here would make a single `"logs": null` anywhere in the
+        /// array throw out of `JSONDecoder.decode`, returning nil for the WHOLE
+        /// feed and dropping the user back to the embedded web page — where the
+        /// regex this replaced would simply have skipped that one entry. The
+        /// file's own contract is "an entry with no usable notes yields fewer
+        /// entries", not "yields none".
+        let logs: String?
         let updatedate: String?
     }
 
@@ -522,11 +564,12 @@ public enum StructuredChangelogDecoder {
 
         var entries: [Changelog.Entry] = []
         for entry in feed.logs {
-            let (version, items) = sunLoginParseLogHTML(entry.logs)
+            guard let logs = entry.logs else { continue }
+            let (version, items) = sunLoginParseLogHTML(logs)
             guard let version, !items.isEmpty else { continue }
             entries.append(.init(
                 version: version,
-                date: entry.updatedate.map { String($0.prefix(10)) },
+                date: isoDay(entry.updatedate),
                 items: items))
             if let cap = maxEntries, entries.count >= cap { break }
         }
@@ -538,6 +581,13 @@ public enum StructuredChangelogDecoder {
     /// line. JSONDecoder has already resolved the JSON string's `\uXXXX`/`\/`
     /// escapes by the time this runs, so the fragment is plain HTML with real
     /// UTF-8 text and unescaped slashes — no entity/unicode decoding needed here.
+    ///
+    /// Each `<li>`'s inner text goes through the same `stripTags` → `decodeEntities`
+    /// → `collapseWhitespace` the retired recipe's defaults applied, so a nested
+    /// `<b>`/`<a>` or an `&amp;` renders as text rather than as markup. (The
+    /// JetBrains decoder alongside this one already does; this was the odd sibling
+    /// out. Today's payload has neither, so it is a robustness fix, not a visible
+    /// one.)
     static func sunLoginParseLogHTML(_ html: String) -> (version: String?, items: [String]) {
         guard let regex = try? NSRegularExpression(
             pattern: #"<li>(.*?)</li>"#, options: [.dotMatchesLineSeparators])
@@ -546,8 +596,10 @@ public enum StructuredChangelogDecoder {
         let lines = regex.matches(in: html, range: NSRange(location: 0, length: ns.length))
             .compactMap { match -> String? in
                 guard match.numberOfRanges > 1 else { return nil }
-                let s = ns.substring(with: match.range(at: 1))
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let raw = ns.substring(with: match.range(at: 1))
+                let s = ChangelogExtractor.collapseWhitespace(
+                    ChangelogExtractor.decodeEntities(
+                        ChangelogExtractor.stripTags(raw)))
                 return s.isEmpty ? nil : s
             }
         guard let version = lines.first else { return (nil, []) }

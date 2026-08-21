@@ -80,6 +80,22 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// strip would eat exactly that.
     public var escapedMarkup: Bool
 
+    /// The captured text is Markdown source, not HTML — so the inline syntax that
+    /// `stripTags` would have removed from an HTML equivalent survives into the
+    /// rendered note as literal punctuation. HBuilderX's official release notes
+    /// spell inline code as `` `CLI pack cancel` ``; the HTML page they replaced
+    /// spelled it `<code>CLI pack cancel</code>`, which `stripTags` removed, so
+    /// without this the migration puts visible backticks in front of the user.
+    ///
+    /// Deliberately narrow: it unwraps inline code spans and nothing else. Bold,
+    /// emphasis and headings would need real Markdown rendering (`Changelog`
+    /// already has `.markdown` item syntax for producers that keep their source
+    /// intact); this flag exists for recipes whose *output contract is plain
+    /// text*, to restore the parity an HTML→Markdown source swap otherwise breaks.
+    /// Link syntax is not touched here — a recipe reading Markdown is expected to
+    /// consume links in its `itemPatterns`, as HBuilderX's does.
+    public var markdownSource: Bool
+
     /// Keep at most this many entries (changelogs run for years; the detail view
     /// only needs the recent ones). Nil = keep all. Default 40.
     public var maxEntries: Int?
@@ -277,6 +293,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         stripTags: Bool = true,
         decodeEntities: Bool = true,
         escapedMarkup: Bool = false,
+        markdownSource: Bool = false,
         maxEntries: Int? = 40,
         minItemLength: Int = 1,
         indexLinkPattern: String? = nil,
@@ -297,6 +314,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.stripTags = stripTags
         self.decodeEntities = decodeEntities
         self.escapedMarkup = escapedMarkup
+        self.markdownSource = markdownSource
         self.maxEntries = maxEntries
         self.minItemLength = minItemLength
         self.indexLinkPattern = indexLinkPattern
@@ -365,6 +383,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         stripTags = try c.decodeIfPresent(Bool.self, forKey: .stripTags) ?? true
         decodeEntities = try c.decodeIfPresent(Bool.self, forKey: .decodeEntities) ?? true
         escapedMarkup = try c.decodeIfPresent(Bool.self, forKey: .escapedMarkup) ?? false
+        markdownSource = try c.decodeIfPresent(Bool.self, forKey: .markdownSource) ?? false
         maxEntries = try c.decodeIfPresent(Int?.self, forKey: .maxEntries) ?? 40
         minItemLength = try c.decodeIfPresent(Int.self, forKey: .minItemLength) ?? 1
         indexLinkPattern = try c.decodeIfPresent(String.self, forKey: .indexLinkPattern)
@@ -845,6 +864,7 @@ public enum ChangelogRecipeRegistry {
             ],
             stripTags: false,
             decodeEntities: false,
+            markdownSource: true,
             // The doc is a years-long cumulative list (32 versions); cap to the
             // recent handful, same as before.
             maxEntries: 10,
@@ -872,6 +892,7 @@ public enum ChangelogRecipeRegistry {
             ],
             stripTags: false,
             decodeEntities: false,
+            markdownSource: true,
             // Alpha document lists 67 versions; same cap as stable.
             maxEntries: 10,
             minItemLength: 4),

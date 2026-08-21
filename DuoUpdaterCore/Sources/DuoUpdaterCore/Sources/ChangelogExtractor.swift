@@ -239,6 +239,16 @@ public enum ChangelogExtractor {
     /// avoid `NSAttributedString` HTML decoding (heavy and main-thread-only).
     /// Internal (not `private`) — see `stripTags`.
     static func decodeEntities(_ s: String) -> String {
+        decodeJSONUnicodeEscapes(decodeHTMLEntities(s))
+    }
+
+    /// The HTML half on its own: named entities plus numeric `&#NNN;` / `&#xHHH;`.
+    /// Split out from `decodeEntities` because the JSON `\uXXXX` pass that follows
+    /// it there has nothing to do with HTML — it exists for json-mode feeds whose
+    /// server escapes non-ASCII. A caller working on real markup (the Sparkle
+    /// appcast HTML parser) wants this half only: running the JSON pass over a
+    /// vendor's prose would rewrite a literal `\uXXXX` the vendor actually typed.
+    static func decodeHTMLEntities(_ s: String) -> String {
         var out = s
         let named: [String: String] = [
             "&amp;": "&", "&lt;": "<", "&gt;": ">",
@@ -252,9 +262,6 @@ public enum ChangelogExtractor {
         }
         // Numeric escapes: &#NNN; (decimal) and &#xHHH; (hex).
         out = decodeNumericEntities(out)
-        // JSON Unicode escapes: \uXXXX — appear in JSON-mode feeds whose server
-        // encodes non-ASCII characters as escape sequences rather than UTF-8.
-        out = decodeJSONUnicodeEscapes(out)
         return out
     }
 

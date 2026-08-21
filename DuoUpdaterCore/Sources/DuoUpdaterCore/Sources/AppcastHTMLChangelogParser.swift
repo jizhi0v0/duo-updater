@@ -129,68 +129,13 @@ enum AppcastHTMLChangelogParser {
             options: [.regularExpression, .caseInsensitive])
         s = s.replacingOccurrences(
             of: #"<[^>]+>"#, with: "", options: .regularExpression)
-        s = decodeEntities(s)
-        s = collapseWhitespace(s)
+        // Shared with the recipe extractor rather than reimplemented: this file
+        // originally carried its own copies because the batch that made these
+        // internal had not landed in that worktree yet. `decodeHTMLEntities` (not
+        // `decodeEntities`) on purpose — the JSON \uXXXX pass in the latter is for
+        // json-mode feeds and would rewrite a literal \uXXXX a vendor typed.
+        s = ChangelogExtractor.decodeHTMLEntities(s)
+        s = ChangelogExtractor.collapseWhitespace(s)
         return s.isEmpty ? nil : s
-    }
-
-    /// Decode the handful of HTML entities vendor notes actually use: the five
-    /// XML predefined entities, `&nbsp;`, and numeric decimal/hex escapes
-    /// (`&#39;`, `&#x27;`). Deliberately not a full HTML5 entity table — appcast
-    /// `<description>` bodies are simple release notes, not arbitrary web pages.
-    private static func decodeEntities(_ s: String) -> String {
-        var result = s
-        let named: [(String, String)] = [
-            ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
-            ("&quot;", "\""), ("&apos;", "'"), ("&nbsp;", " "),
-        ]
-        for (entity, replacement) in named {
-            result = result.replacingOccurrences(of: entity, with: replacement)
-        }
-        if let hexRegex = try? NSRegularExpression(pattern: "&#x([0-9a-fA-F]+);") {
-            result = replace(in: result, using: hexRegex) { hex in
-                guard let scalarValue = UInt32(hex, radix: 16),
-                      let scalar = Unicode.Scalar(scalarValue) else { return nil }
-                return String(Character(scalar))
-            }
-        }
-        if let decRegex = try? NSRegularExpression(pattern: "&#([0-9]+);") {
-            result = replace(in: result, using: decRegex) { dec in
-                guard let scalarValue = UInt32(dec), let scalar = Unicode.Scalar(scalarValue) else {
-                    return nil
-                }
-                return String(Character(scalar))
-            }
-        }
-        return result
-    }
-
-    /// Run `regex` over `text`, replacing each match with `transform` applied to
-    /// its first capture group; a match whose transform returns nil is left as-is
-    /// (never dropped or corrupted).
-    private static func replace(
-        in text: String, using regex: NSRegularExpression, transform: (String) -> String?
-    ) -> String {
-        let ns = text as NSString
-        var result = ""
-        var lastEnd = 0
-        let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
-        for match in matches {
-            guard match.numberOfRanges > 1, match.range(at: 1).location != NSNotFound else { continue }
-            let captured = ns.substring(with: match.range(at: 1))
-            guard let replacement = transform(captured) else { continue }
-            result += ns.substring(with: NSRange(location: lastEnd, length: match.range.location - lastEnd))
-            result += replacement
-            lastEnd = match.range.location + match.range.length
-        }
-        result += ns.substring(from: lastEnd)
-        return result
-    }
-
-    /// Collapse runs of whitespace (including the `&#xA;`-decoded newlines/tabs
-    /// XML entity-escaping introduces) to single spaces and trim the ends.
-    private static func collapseWhitespace(_ s: String) -> String {
-        let collapsed = s.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-        return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

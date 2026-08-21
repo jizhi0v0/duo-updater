@@ -218,6 +218,22 @@ final class AppcastHTMLChangelogParserTests: XCTestCase {
         XCTAssertEqual(changelog.entries.map(\.version), ["0.64.0"])
     }
 
+    /// The inline cleaner shares ChangelogExtractor's entity table instead of
+    /// carrying its own. That is not only deduplication: the local copy handled
+    /// six named entities, so a vendor writing `&rsquo;` or `&mdash;` — which real
+    /// release notes do — used to surface the raw entity to the reader.
+    func testSharedEntityTableDecodesTypographyEntitiesTheLocalCopyMissed() throws {
+        let html = """
+        <h3>Fixed</h3>
+        <ul>
+        <li>Don&rsquo;t drop the user&#39;s selection &mdash; see &quot;Editing&quot; &amp; friends</li>
+        </ul>
+        """
+        let entry = try XCTUnwrap(
+            AppcastHTMLChangelogParser.entry(html: html, version: "1.0.0", date: nil))
+        XCTAssertEqual(entry.items.last, "Don’t drop the user's selection — see \"Editing\" & friends")
+    }
+
     // MARK: - Fixtures (real bytes; see file-level doc comment)
 
     private static let tableProItem064Description = """

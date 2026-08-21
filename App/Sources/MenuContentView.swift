@@ -80,6 +80,15 @@ struct MenuContentView: View {
                     // Hold a just-completed row for its brief "Updated ✓" beat, even
                     // though it's no longer an actionable update, before it drops out.
                     || model.justUpdated.contains($0.id)
+                    // Work still in flight on this row. Without these it drops out the
+                    // instant `recheck` publishes the new, now up-to-date version —
+                    // which lands *before* `computeRestartInfo`'s lsappinfo sweep has
+                    // granted it a restart ticket. For a single pending update that
+                    // empties the list, so the "Everything is up to date" placeholder
+                    // and its fixed 200pt frame flash in for the length of that sweep
+                    // before the row jumps back as "Relaunching…".
+                    || model.installing[$0.id] != nil
+                    || model.relaunching.contains($0.id)
             }
     }
 

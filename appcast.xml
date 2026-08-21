@@ -17,6 +17,26 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.47</title>
+            <pubDate>Fri, 21 Aug 2026 13:44:04 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.47</link>
+            <sparkle:version>57</sparkle:version>
+            <sparkle:shortVersionString>0.3.47</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**An update no longer looks like it fired twice.** With one update pending, installing it briefly emptied the list: the row dropped out the moment the new version reached the disk, the "Everything is up to date" placeholder took its place and jumped the window's height, and then the row reappeared saying "Relaunching...". Nothing was actually wrong underneath — the app still had to be restarted to run the new code — but it read as though something had happened twice. The row now stays where it is from the click through to the relaunch. The step that used to announce "Done" while the app was still being restarted says "Installed" instead; "finished" is left for the confirmation at the end, where it belongs.
+
+**The workbench sidebar follows the arrow keys again.** Holding an arrow key walked the selection off the edge of the list and left it there, moving through apps that were never drawn and not catching up when the keys stopped. The selected app stays in view.
+
+**Moving through that sidebar is quicker.** Every keypress was re-deriving, once per app per row, a fact about the whole list that had not changed — on a machine with 124 apps that came to about fifteen thousand redundant filesystem-path lookups per keystroke. It is derived once now. Fast key repeat can still outrun the list; there is more to do here.
+
+**An App Store update says "Update", not "Get".** When the background helper has not been approved there is no way to install an App Store update in place, so the row hands off to the App Store app instead — but the button for that read "Get", which is what the store says about an app you do not own yet. Every row that reaches it is an app you already have, with an update waiting. It says "Update" now, and when the helper is what is missing the tooltip says so, since approving it in Settings is what turns those updates into one click.
+
+**The action column lines up.** A checkmark or a small badge at the end of a row was centred in its slot while a wide button sat flush against the row's edge, so the right-hand column read as ragged — and visibly out of line with the Homebrew row pinned below it. Everything ends on the same edge now.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.47/DuoUpdater-0.3.47-macos.zip" length="10570425" type="application/octet-stream" sparkle:edSignature="Sb0PG6tK5KBphQObKAq5TLzTFu384QkimDskqnVnwlQ7WVbtxcT5u5M/kGfMWTarR+n0Y2+aEsbV8H84Yw2lAg=="/>
+        </item>
+        <item>
             <title>0.3.46</title>
             <pubDate>Thu, 20 Aug 2026 15:38:12 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.46</link>
@@ -43,24 +63,6 @@
 **PureMac's updates are visible again.** The developer publishes a separate command-line tool from the same place as the app, and its release was being read as if it were the app — as version 1.0.0, which looks older than what you have installed, so the app reported itself up to date and every real update stayed hidden. It now reads only the app's own releases.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.45/DuoUpdater-0.3.45-macos.zip" length="10567581" type="application/octet-stream" sparkle:edSignature="VqMLQDY9u330DN7k+tvNZyo0F7KW2ucYdl3XnnMuRE0WX0txpfmLx53tOB21kytrdeeUPwDALBpHmzWC3tRWCQ=="/>
-        </item>
-        <item>
-            <title>0.3.44</title>
-            <pubDate>Thu, 20 Aug 2026 10:21:02 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.44</link>
-            <sparkle:version>54</sparkle:version>
-            <sparkle:shortVersionString>0.3.44</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**An update that only ever existed for phones no longer sits in your list.** Some apps share one version number across Mac, Windows, Linux and mobile, and sometimes a release goes out to the phones alone — the version number moves, but no Mac build is ever made. Duo Updater was reading that as a Mac update, which left an update you could never install and that never went away. It now looks for the Mac download itself rather than trusting the version number, so those releases are correctly ignored. LocalSend was the app affected; its row now reads as up to date, which it is.
-
-**LocalSend installed from its own website updates in one click.** Now that the right release is identified, its Mac disk image can be installed in place like the rest.
-
-**An App Store copy is never replaced with a build from elsewhere.** A few apps are published both on the Mac App Store and as a download from their developer, under the same identity — LocalSend is one. Those are genuinely different builds, and the App Store's copy has to keep updating through the App Store. Duo Updater now leaves those copies to the store instead of ever offering the developer's build over them.
-
-**Updates that the wider ecosystem never picks up get flagged for us.** Our nightly recipe sweep could only tell whether an app's version could still be read, not whether the answer made sense for a Mac — which is why the LocalSend problem had to be spotted by hand. It now also compares against Homebrew, and raises a flag when we are reporting a version that nobody else has packaged long after it was published. Nothing about this is visible on your Mac; it is how this class of mistake gets caught by machine next time.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.44/DuoUpdater-0.3.44-macos.zip" length="10567334" type="application/octet-stream" sparkle:edSignature="o2lkJUMHt/J0UCr5smUZSKmrkLP0IGZqg+WakKsQ9efJ6gxDI0OngClcZBTkoAqqVO2P0cZBJ2q9+VT183DXCg=="/>
         </item>
     </channel>
 </rss>

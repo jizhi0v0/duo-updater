@@ -103,7 +103,11 @@ public enum Visibility {
             var keys = Set(defaults.stringArray(forKey: UpdateSettings.ignoredKeysKey) ?? [])
             // Both forms, matching the app: un-ignoring must also clear a legacy
             // bundle-id entry, or the app would still consider it ignored.
-            let removed = keys.remove(key) != nil || keys.remove(legacy) != nil
+            // Evaluate both removals before combining the result. `||` short-circuits,
+            // which used to leave `legacy` behind whenever the path key also existed.
+            let removedCurrent = keys.remove(key) != nil
+            let removedLegacy = keys.remove(legacy) != nil
+            let removed = removedCurrent || removedLegacy
             guard removed else { return .failure("was not ignored") }
             defaults.set(Array(keys).sorted(), forKey: UpdateSettings.ignoredKeysKey)
             return .success("no longer ignored")
@@ -127,7 +131,11 @@ public enum Visibility {
         case .unskip:
             var skipped = defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey)
                 as? [String: String] ?? [:]
-            let had = skipped.removeValue(forKey: key) ?? skipped.removeValue(forKey: legacy)
+            // As above, remove both spellings even when the current one supplies the
+            // value we report. `??` would otherwise skip evaluating the legacy removal.
+            let currentVersion = skipped.removeValue(forKey: key)
+            let legacyVersion = skipped.removeValue(forKey: legacy)
+            let had = currentVersion ?? legacyVersion
             guard let had else { return .failure("no skipped version") }
             defaults.set(skipped, forKey: UpdateSettings.skippedVersionsKey)
             return .success("no longer skipping \(had)")

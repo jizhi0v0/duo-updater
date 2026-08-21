@@ -160,13 +160,31 @@ public struct AppScanner: Sendable {
     /// only need to correct store provenance: every other field came from the same
     /// bundle and is independent of TestFlight. Rebuilding those fields here avoids
     /// a second full directory/plist/receipt/channel scan.
+    /// True when `InstalledApp.buildVersion` for this app is not its `CFBundleVersion`.
+    ///
+    /// Xcode is the only case: its published build (`27A5237l`) lives in
+    /// `version.plist`, and that is the number worth showing, so the scan stores it
+    /// in place of the bundle's own. Anything keyed on the raw build — TestFlight's
+    /// database is — has to know that and not use the stored value.
+    static func buildVersionIsOverridden(bundleID: String?) -> Bool {
+        bundleID == "com.apple.dt.Xcode"
+    }
+
     public static func applyingTestFlightInventory(
         _ inventory: TestFlightInventory,
         to apps: [InstalledApp]
     ) -> [InstalledApp] {
         apps.map { app in
-            let isTestFlight = app.isTestFlightApp || inventory.isManaged(
-                bundleID: app.bundleID, installedBuild: app.buildVersion)
+            // TestFlight's database is keyed on the raw `CFBundleVersion`, which is
+            // what `readApp` matched against. `InstalledApp.buildVersion` is not
+            // always that value — where a build is overridden it carries the number
+            // the user should see instead, and asking the database with it would be
+            // asking a different question than the scan asked. Nothing overridden is
+            // distributed through TestFlight today, so this declines rather than
+            // guessing; the raw value is not recoverable from an already-scanned app.
+            let matchable = !Self.buildVersionIsOverridden(bundleID: app.bundleID)
+            let isTestFlight = app.isTestFlightApp || (matchable && inventory.isManaged(
+                bundleID: app.bundleID, installedBuild: app.buildVersion))
             guard isTestFlight, !app.isTestFlightApp else { return app }
 
             return InstalledApp(
@@ -367,7 +385,7 @@ public struct AppScanner: Sendable {
         // namespace) so from→to stay in one namespace: "262.43.15 → 262.43.17".
         // Xcode's published build (`27A5237l`), which is neither `CFBundleVersion`
         // nor `DTXcodeBuild` — see `effectiveBuildVersion`. nil for everything else.
-        let xcodeBuild = (bundleID == "com.apple.dt.Xcode")
+        let xcodeBuild = Self.buildVersionIsOverridden(bundleID: bundleID)
             ? Self.productBuildVersion(in: bundleURL) : nil
 
         let toolboxTool = toolbox.tool(forApp: bundleURL)

@@ -50,6 +50,30 @@ final class TestFlightInventoryTests: XCTestCase {
         XCTAssertEqual(retagged.appStoreAdamID, app.appStoreAdamID)
     }
 
+    /// `InstalledApp.buildVersion` for Xcode is its published `ProductBuildVersion`,
+    /// not the `CFBundleVersion` the scan matched TestFlight on. Asking the database
+    /// with the stored value would be asking a different question than the scan
+    /// asked, so the re-tag declines instead — even when the stored value happens to
+    /// collide with a row, as it does here.
+    func testApplyingInventoryDoesNotMatchAnOverriddenBuild() {
+        let xcode = InstalledApp(
+            name: "Xcode", bundleID: "com.apple.dt.Xcode",
+            shortVersion: "27.0", buildVersion: "27A5237l",
+            path: URL(fileURLWithPath: "/Applications/Xcode.app"),
+            isMASApp: true, isTestFlightApp: false,
+            sparkleFeedURL: nil, sparkleFeedHeaders: [:],
+            sparkleEdPublicKey: nil, hasSelfUpdater: false,
+            releaseChannel: .stable, channelIsAuthoritative: false,
+            toolboxInstalledBuild: nil, appStoreAdamID: 497799835)
+        let inventory = TestFlightInventory(macRows: [
+            (bundleID: "com.apple.dt.Xcode", shortVersion: "27.0", build: "27A5237l")
+        ])
+
+        let unchanged = AppScanner.applyingTestFlightInventory(inventory, to: [xcode])[0]
+        XCTAssertEqual(unchanged, xcode)
+        XCTAssertFalse(unchanged.isTestFlightApp)
+    }
+
     func testApplyingInventoryDoesNotTagADifferentInstalledBuild() {
         let app = installedApp(build: "99")
         let inventory = TestFlightInventory(macRows: [

@@ -329,6 +329,26 @@ public enum UpdatePolicy {
         return staged
     }
 
+    /// A staged self-update the user still wants to hear about.
+    ///
+    /// `actionableStaged` answers one question — is the staged build the latest?
+    /// — and knows nothing about the user's own verdict on the app. The periodic
+    /// "Relaunch to apply it" reminder used it directly, so an **ignored** app
+    /// kept posting a banner every reminder tick while its row showed nothing but
+    /// the Ignored tag: hidden in the app, still nagging in Notification Center.
+    /// Ignore and skip both mean "stop telling me about this", so both are gates
+    /// here, not just on the updates-available path.
+    public static func nudgeableStaged(
+        _ result: UpdateResult,
+        staged: StagedSelfUpdate?,
+        isIgnored: Bool,
+        isVersionSkipped: (String) -> Bool
+    ) -> StagedSelfUpdate? {
+        guard !isIgnored else { return nil }
+        guard let staged = actionableStaged(result, staged: staged) else { return nil }
+        return isVersionSkipped(staged.version) ? nil : staged
+    }
+
     /// Normalize app bundle paths reported by running processes back to the live
     /// installed bundle. macOS can keep a process mapped to DuoUpdater's temporary
     /// `replaceItemAt` staging name after a hot swap; treating that hidden/deleted

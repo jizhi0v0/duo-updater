@@ -514,6 +514,54 @@ private func storeAvailability(
     #expect(UpdatePolicy.isRunning(stagedPathApp, environment: environment(running: [fixturePath])))
 }
 
+// MARK: - nudgeableStaged
+
+/// The periodic "Relaunch to apply it" reminder fires every 5 minutes for as
+/// long as a build stays staged. It used to ask only `actionableStaged`, which
+/// knows nothing about ignore or skip — so an ignored app went on banner-nagging
+/// forever while its row in the app showed nothing but the Ignored tag.
+@Test func anIgnoredAppIsNeverNudgedAboutItsStagedBuild() {
+    let remote = fixtureResult(source: "Vendor", vendorInstallerKind: .zip)
+    let never: (String) -> Bool = { _ in false }
+
+    #expect(
+        UpdatePolicy.nudgeableStaged(
+            remote, staged: staged("2.0"), isIgnored: false, isVersionSkipped: never) != nil,
+        "a visible app with the latest staged is still worth a nudge")
+    #expect(
+        UpdatePolicy.nudgeableStaged(
+            remote, staged: staged("2.0"), isIgnored: true, isVersionSkipped: never) == nil,
+        "ignore means stop telling me about this app — including its staged build")
+}
+
+/// Skipping a version is the narrower form of the same "stop telling me": the
+/// user saw exactly this version and declined it.
+@Test func aSkippedVersionIsNotNudgedEither() {
+    let remote = fixtureResult(source: "Vendor", vendorInstallerKind: .zip)
+
+    #expect(
+        UpdatePolicy.nudgeableStaged(
+            remote, staged: staged("2.0"), isIgnored: false,
+            isVersionSkipped: { $0 == "2.0" }) == nil,
+        "the staged version is the one the user skipped")
+    #expect(
+        UpdatePolicy.nudgeableStaged(
+            remote, staged: staged("2.0"), isIgnored: false,
+            isVersionSkipped: { $0 == "1.9" }) != nil,
+        "a different version was skipped — this one still nudges")
+}
+
+/// The staged-vs-latest rule still applies underneath: visibility is an extra
+/// gate, not a replacement for it.
+@Test func nudgeableStagedStillRequiresTheStagedBuildToBeTheLatest() {
+    let remote = fixtureResult(source: "Vendor", vendorInstallerKind: .zip)
+    #expect(
+        UpdatePolicy.nudgeableStaged(
+            remote, staged: staged("1.5"), isIgnored: false,
+            isVersionSkipped: { _ in false }) == nil,
+        "staged trailing the latest is not nudgeable, ignored or not")
+}
+
 // MARK: - actionableStaged
 
 @Test func actionableStagedOnlyWhenTheStagedBuildIsTheLatest() {

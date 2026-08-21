@@ -2645,9 +2645,23 @@ final class AppListModel {
         }
     }
 
-    /// True when any row is surfacing a Relaunch (its staged build is the latest).
-    private var hasActionableStaged: Bool {
-        results.contains { actionableStaged($0) != nil }
+    /// A staged self-update the periodic reminder may nudge about: the staged
+    /// build is the latest *and* the user hasn't hidden the app or that version.
+    /// `actionableStaged` answers only the first half — see `nudgeableStaged` for
+    /// why the second half has to be applied here.
+    private func nudgeableStaged(_ result: UpdateResult) -> StagedSelfUpdate? {
+        UpdatePolicy.nudgeableStaged(
+            result,
+            staged: pendingSelfUpdate[result.id],
+            isIgnored: prefs.isIgnored(result.app),
+            isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) })
+    }
+
+    /// True when any row has a staged build still worth reminding about. Drives
+    /// whether the reminder loop runs at all, so it has to use the same gate the
+    /// loop does — otherwise the loop spins every 5 minutes finding nothing.
+    private var hasNudgeableStaged: Bool {
+        results.contains { nudgeableStaged($0) != nil }
     }
 
     /// Keep the periodic self-update reminder in sync with `pendingSelfUpdate`:
@@ -2657,7 +2671,7 @@ final class AppListModel {
     /// act on resurfaces instead of being forgotten. Each app's banner uses a stable
     /// identifier, so a re-nudge replaces the prior one rather than piling up.
     private func updateSelfUpdateReminder() {
-        guard hasActionableStaged else {
+        guard hasNudgeableStaged else {
             selfUpdateReminder?.cancel()
             selfUpdateReminder = nil
             return
@@ -2670,13 +2684,14 @@ final class AppListModel {
                 for result in self.results {
                     // Only nudge "relaunch to apply X" when X is actually the latest —
                     // a staged build that trails a newer release goes through the
-                    // normal updates-available path instead.
-                    guard let staged = self.actionableStaged(result) else { continue }
+                    // normal updates-available path instead — and only when the user
+                    // hasn't ignored the app or skipped that version.
+                    guard let staged = self.nudgeableStaged(result) else { continue }
                     UpdateNotifier.selfDownloaded(
                         app: result.app.name, version: staged.version, appID: result.id)
                 }
                 try? await Task.sleep(for: self.selfUpdateReminderInterval)
-                if !self.hasActionableStaged { self.selfUpdateReminder = nil; return }
+                if !self.hasNudgeableStaged { self.selfUpdateReminder = nil; return }
             }
         }
     }
@@ -3493,6 +3508,15 @@ final class AppListModel {
         let nowIgnored = !prefs.isIgnored(result.app)
         prefs.setIgnored(nowIgnored, result.app)
         syncDockBadge()
+        if nowIgnored {
+            // A "Relaunch to apply it" banner already sitting in Notification Center
+            // outlives the ignore on its own — clearing notifications isn't what
+            // anyone does next after ignoring an app.
+            UpdateNotifier.clearSelfDownloaded(appID: result.id)
+        }
+        // Re-evaluate the reminder loop in both directions: ignoring the last staged
+        // app should tear it down, and un-ignoring one should arm it again.
+        updateSelfUpdateReminder()
         Log.app.info("\(nowIgnored ? "ignore" : "unignore", privacy: .public): \(result.app.name, privacy: .public)")
     }
 

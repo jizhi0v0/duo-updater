@@ -18,6 +18,14 @@ test:
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI
 
+# The notarytool keychain profile both targets below need. Not a secret — the
+# credentials it names live in the keychain; this is only which of them to use.
+# `?=` so a one-off `NOTARYTOOL_PROFILE=other make release` still wins. Without a
+# default, `make release` fails at the first step every time, which is exactly how
+# v0.3.47 burned a run.
+NOTARYTOOL_PROFILE ?= duoupdater-notary
+export NOTARYTOOL_PROFILE
+
 # Build a notarization-ready Release app, submit it with notarytool, staple it,
 # and emit dist/DuoUpdater-notarized.zip.
 notarize:

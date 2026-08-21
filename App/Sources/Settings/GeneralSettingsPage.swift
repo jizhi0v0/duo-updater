@@ -69,7 +69,14 @@ struct GeneralSettingsPage: View {
             .settingsRow()
             // Re-arm the background loop with the new interval immediately.
             .onChange(of: prefs.checkFrequency) { _, _ in model.reschedule() }
+            SettingsDivider()
+            Toggle("Hide the Dock icon", isOn: $prefs.hideDockIcon)
+                .settingsRow()
         } footer: {
+            if prefs.hideDockIcon {
+                Text("Duo Updater runs from the menu bar only. The pending-update count moves to the menu-bar icon — the Dock badge needs a Dock icon to sit on.")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if prefs.checkFrequency.isHighFrequency && hasGitHubToken == false {
                 Label(
                     "No GitHub token: checking this often can hit GitHub’s rate limit (60/hour) and show errors on GitHub-sourced apps. Add a token or sign in with the gh CLI under GitHub.",

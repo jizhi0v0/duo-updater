@@ -433,8 +433,9 @@ final class AppListModel {
         }
     }
 
-    /// Call from a window's `.onDisappear`. Kept for symmetric lifecycle sites even
-    /// though the app now stays `.regular` permanently.
+    /// Call from a window's `.onDisappear`. Kept for symmetric lifecycle sites: the
+    /// activation policy now follows `Preferences.hideDockIcon` (see `DockIcon`)
+    /// rather than the window lifecycle, so there is nothing to undo here.
     func windowDisappeared() {
     }
 

@@ -274,7 +274,13 @@ struct WorkbenchWindowView: View {
             // A selection change means the user is working in the list — by arrow
             // key (already focused) or by clicking a row after the detail pane took
             // the keyboard, which is the case that left arrows dead until now.
-            appsListFocused = true
+            //
+            // Only claim the keyboard when we do not already hold it. Re-asserting it
+            // on a selection we caused by arrow key pushes focus down to AppKit again
+            // mid-keystroke, and the outline drops the `scrollRowToVisible` that
+            // normally follows an arrow-key selection — the highlight walks off the
+            // bottom of the viewport and never comes back, even after the keys stop.
+            if !appsListFocused { appsListFocused = true }
             let name = model.results.first { $0.id == newValue }?.app.name
             Log.changelog.info("perf selection → \(name ?? newValue ?? "nil", privacy: .public) [mode=\(mode.rawValue, privacy: .public)]")
             // Adaptive settle. A fixed 160 ms was shorter than a key REPEAT (~240 ms

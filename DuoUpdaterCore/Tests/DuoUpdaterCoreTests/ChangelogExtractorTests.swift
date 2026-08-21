@@ -1932,6 +1932,49 @@ private let weTypeFixture = """
     #expect(changelog.entries[0].items[1] == "- 自动去掉\"嗯、啊\"等口水词")
 }
 
+// 豆包输入法 (DoubaoIme) — the real 2026-08-21 response of
+// `ime.doubao.com/api/v1/version/list?channel=release&version_code=1&platform=macos`,
+// verbatim. One release object; six `- ` bullets joined by escaped `\n`; a
+// `push_message.title` carrying a SECOND "0.9.6" that the entry pattern must not
+// reach.
+private let doubaoImeVersionListFixture = #"""
+{"code":0,"data":{"list":[{"id":7673437500949397514,"channel":"release","platform":"macOS","version_name":"0.9.6","version_code":90601,"change_log":"- 新增账号登录，词库定时云端同步，换设备也不丢数据；\n- 新增离线语音，可在无网环境下语音输入，飞机、高铁上也能用；\n- 新增 ①、② 等符号，输入特殊符号更方便；\n- 优化磁盘写入策略，减少不必要的读写，更护设备更省电；\n- 修复开启全局语音后，按 Ctrl 无法发起识别优化中的问题；\n- 修复全局语音偶现无法调起的问题。","pkg_url":"https://lf3-static.bytednsdoc.com/obj/eden-cn/x/macOS/DoubaoImeInstaller_v90601_release_20260814_120854_64003a2e.zip","build_branch":"","commit":"","invalid":false,"back_id":"7673437500949397514","push_message":{"title":"豆包输入法已更新至 0.9.6 版本","subtitle":"新增账号登录，可跨设备同步个人词库","jump_url":"","jump_title":"立即体验"}}]},"msg":"success"}
+"""#
+
+/// The LAST bullet is the point of this test. The obvious item pattern to copy here
+/// is ChatWise's, whose tail alternative is `\\n?$` — a literal backslash, optionally
+/// followed by `n`, then end-of-string. A body that ends in text rather than a
+/// backslash never satisfies it, so the final bullet is silently dropped. Six in,
+/// six out.
+@Test func extractsAllDoubaoImeBulletsIncludingTheLast() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "com.bytedance.inputmethod.doubaoime"))
+    let changelog = try #require(
+        ChangelogExtractor.extract(from: doubaoImeVersionListFixture, using: recipe))
+
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "0.9.6")
+    #expect(changelog.entries[0].items.count == 6)
+    #expect(changelog.entries[0].items[0] == "新增账号登录，词库定时云端同步，换设备也不丢数据；")
+    #expect(changelog.entries[0].items[5] == "修复全局语音偶现无法调起的问题。")
+}
+
+/// The endpoint is a "what should a client on <version_code> be offered" query, not
+/// a page: drop any of its three parameters and it 400s. `version_code=1` is the
+/// load-bearing part — it says "I am an impossibly old client", so the newest
+/// release's notes come back no matter what the reader has installed. `channel` must
+/// stay on the user-facing `release` track (the installed bundle's Info.plist says
+/// `CHANNEL_NAME = release`); `inhouse` and `test` answer too, with ByteDance's
+/// internal builds.
+@Test func doubaoImeChangelogQueryAsksAsAnAncientReleaseClient() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: "com.bytedance.inputmethod.doubaoime"))
+    let query = try #require(recipe.source.query)
+    #expect(query.contains("version_code=1"))
+    #expect(query.contains("channel=release"))
+    #expect(query.contains("platform=macos"))
+}
+
 // WeChat's official updates site renders ONE Mac version per page (the recipe is
 // templated on `{version}`): a Nuxt SSR page with a `faq_title`, a `发布日期`, and
 // the change lines as `<h4>- …</h4>` inside `#page_center`. Trimmed but faithful.

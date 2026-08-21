@@ -1522,6 +1522,65 @@ public enum VendorProbeRegistry {
             versionIsBuild: true,
             displayVersionPattern: #""zip_version"\s*:\s*"([0-9]+(?:\.[0-9]+){2})\.[0-9]+""#),
 
+        // 豆包输入法 (DoubaoIme) — ByteDance's input method, installed from
+        // `shurufa.doubao.com` into `/Library/Input Methods`. No SUFeedURL, no MAS
+        // receipt, no Homebrew cask (the `doubao` cask ships `doubao.app`, the
+        // unrelated AI chat client), so nothing in the priority chain answered and
+        // the row sat on "unknown" — it was scanned but never checked.
+        //
+        // The site's own download button reads this endpoint (`platform` ∈
+        // android/ios/macos/windows), which is the vendor's statement of what the
+        // current shipping build is:
+        //
+        //   {"code":0,"data":{"url":".../DoubaoImeInstaller_v90602_release.zip",
+        //    "version_code":1002007,"version_name":"V0.9.6"},"msg":"success"}
+        //
+        // VERSION SCHEME — three numbers in this response, and which one to compare
+        // is the whole recipe:
+        //   * the `v90602` in the zip filename is the vendor's version code, and the
+        //     installed bundle carries THE SAME NUMBER in its custom Info.plist key
+        //     `Wave Build Version Number` (also spelled `0.9.6.2` in
+        //     `Wave Build Version`). `AppScanner` reads that key in place of
+        //     `CFBundleVersion`, which is a flat "1" on every build. This pair is
+        //     what we compare — exact, respins included.
+        //   * `version_name` "V0.9.6" is the marketing string, and is what the row
+        //     SHOWS (`displayVersionPattern`); it equals the installed
+        //     `CFBundleShortVersionString`.
+        //   * `version_code` 1002007 is a THIRD namespace that matches nothing local.
+        //     Never compare it.
+        //
+        // The first draft of this recipe compared only the marketing version, on the
+        // mistaken reading that 90602 had no local counterpart. It does — it is just
+        // not under a standard key. The cost of that draft was a blind spot for
+        // same-marketing-version respins (90601 → 90602, both "0.9.6"); comparing the
+        // vendor's own code closes it.
+        //
+        // If the vendor ever drops that Info.plist key, `AppScanner` reports NO build
+        // rather than falling back to "1", and `evaluate()` returns to comparing
+        // `version_name` against the installed marketing version — degraded, but
+        // never a phantom. See `AppScanner.waveBuildVersionNumber`.
+        //
+        // No `changelogURL` — the marketing site has no release-notes page at all.
+        // The notes come from the ChangelogRecipe over `ime.doubao.com`'s update
+        // feed, which is structured; there is nothing worth embedding as a fallback.
+        //
+        // DETECTION-ONLY, and not for want of an artifact: this response hands over a
+        // notarized installer zip. `UpdatePolicy.isInputMethod` refuses one-click for
+        // anything under `/Library/Input Methods` as a whole CLASS, after WeType's
+        // one-click was withdrawn for losing user settings — an input method is
+        // registered with the system by its vendor installer, not merely copied, and
+        // the payload here is exactly that: `DoubaoImeInstaller.app`, a 202 MB stub
+        // whose `Contents/Resources` holds `DoubaoIme.zip` + `install.sh`. Swapping
+        // the bundle would skip the registration step entirely.
+        VendorProbeRecipe(
+            bundleID: "com.bytedance.inputmethod.doubaoime",
+            url: URL(string: "https://ime.doubao.com/api/v1/app/download_url?platform=macos")!,
+            mode: .responseBody,
+            versionPattern: #"DoubaoImeInstaller_v([0-9]+)_release\.zip"#,
+            downloadURL: URL(string: "https://shurufa.doubao.com/"),
+            versionIsBuild: true,
+            displayVersionPattern: #""version_name"\s*:\s*"[Vv]?([0-9]+(?:\.[0-9]+)+)""#),
+
         // WeChat (微信, 官网版) — Tencent's flagship messenger, installed from the
         // official site (Developer ID, no MAS receipt, no SUFeedURL in Info.plist).
         // No standard source resolves it: the Homebrew cask is `auto_updates: true`

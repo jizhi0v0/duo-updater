@@ -157,10 +157,6 @@ struct WorkbenchWindowView: View {
         }
     }
 
-    private func bytes(for result: UpdateResult) -> Int64 {
-        model.trafficBytes(forAppID: result.app.id)
-    }
-
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,
     /// not the live `selection`, so fast arrow-key scrubbing doesn't rebuild it.
     private var selected: UpdateResult? {
@@ -513,8 +509,6 @@ struct WorkbenchWindowView: View {
             ForEach(filteredApps) { result in
                 WorkbenchSidebarRow(
                     result: result,
-                    mode: mode,
-                    bytes: bytes(for: result),
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
@@ -538,8 +532,6 @@ struct WorkbenchWindowView: View {
             ForEach(brewCasks) { result in
                 WorkbenchSidebarRow(
                     result: result,
-                    mode: mode,
-                    bytes: bytes(for: result),
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
@@ -803,8 +795,6 @@ private struct ModeSwitcher: NSViewRepresentable {
 
 private struct WorkbenchSidebarRow: View {
     let result: UpdateResult
-    let mode: WorkbenchWindowView.DetailMode
-    let bytes: Int64
     /// Whether this row is the selected one. The selection highlight is blue, and so
     /// is the update tint — so a selected update row was blue-on-blue (unreadable).
     /// When selected we render the version line in the emphasized foreground (white
@@ -834,10 +824,6 @@ private struct WorkbenchSidebarRow: View {
                 subtitle
             }
             Spacer()
-            if mode == .traffic, bytes > 0 {
-                Text(ByteFormat.string(bytes))
-                    .font(.caption).monospacedDigit().foregroundStyle(.secondary)
-            }
         }
         .padding(.vertical, 2)
     }

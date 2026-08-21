@@ -9,9 +9,10 @@ import DuoUpdaterCore
 /// instantly instead of streaming in on appear.
 ///
 /// Disk layer only (bytes, `Data` is Sendable so it crosses the actor boundary
-/// cleanly — `NSImage` is not). Decoding to `NSImage` happens on the main actor in
-/// ``ImageMemoryCache``. Best-effort throughout: any failure yields nil and the view
-/// just shows nothing, exactly as the old `AsyncImage` error branch did.
+/// cleanly — `NSImage` is not). Decoding happens in ``ImageMemoryCache`` on the
+/// caller's executor: off-main during prewarming, or from the view task on demand.
+/// Best-effort throughout: any failure yields nil and the view just shows nothing,
+/// exactly as the old `AsyncImage` error branch did.
 actor ImageStore {
     static let shared = ImageStore()
 
@@ -138,12 +139,48 @@ final class ImageMemoryCache: @unchecked Sendable {
     func image(for url: URL) -> NSImage? { cache.object(forKey: url as NSURL) }
 
     /// Decode `data` and cache it under `url`. Returns the decoded image (nil if the
-    /// bytes don't decode). Cost is the byte count — a coarse but adequate proxy.
+    /// bytes don't decode). `NSCache` cost follows the bitmap footprint rather than
+    /// the compressed PNG/JPEG byte count: a 2 MB screenshot can occupy tens of MB
+    /// once decoded, which is the memory the 64 MB limit is intended to bound.
     @discardableResult
     func store(_ data: Data, for url: URL) -> NSImage? {
         guard let image = NSImage(data: data) else { return nil }
-        cache.setObject(image, forKey: url as NSURL, cost: data.count)
+        cache.setObject(
+            image, forKey: url as NSURL,
+            cost: Self.decodedCost(of: image, encodedByteCount: data.count))
         return image
+    }
+
+    private static func decodedCost(of image: NSImage, encodedByteCount: Int) -> Int {
+        let representationCosts = image.representations.compactMap { representation -> Int? in
+            let width = representation.pixelsWide
+            let height = representation.pixelsHigh
+            guard width > 0, height > 0 else { return nil }
+
+            // AppKit commonly expands even 24-bit source images into 32-bit buffers.
+            // Preserve a larger native pixel width for high-depth bitmap reps.
+            let nativeBytesPerPixel: Int
+            if let bitmap = representation as? NSBitmapImageRep, bitmap.bitsPerPixel > 0 {
+                nativeBytesPerPixel = (bitmap.bitsPerPixel + 7) / 8
+            } else {
+                nativeBytesPerPixel = 4
+            }
+            let bytesPerPixel = max(4, nativeBytesPerPixel)
+            let minimumRowBytes = clampedProduct(width, bytesPerPixel)
+            let rowBytes = max(
+                minimumRowBytes,
+                (representation as? NSBitmapImageRep)?.bytesPerRow ?? 0)
+            return clampedProduct(rowBytes, height)
+        }
+
+        // NSImage may retain encoded backing data as well as a decoded rep. Taking
+        // the larger estimate stays conservative without double-counting both.
+        return max(encodedByteCount, representationCosts.max() ?? encodedByteCount)
+    }
+
+    private static func clampedProduct(_ lhs: Int, _ rhs: Int) -> Int {
+        let (result, overflow) = lhs.multipliedReportingOverflow(by: rhs)
+        return overflow ? Int.max : result
     }
 }
 

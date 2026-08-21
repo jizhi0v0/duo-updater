@@ -17,6 +17,24 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.48</title>
+            <pubDate>Fri, 21 Aug 2026 18:39:00 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.48</link>
+            <sparkle:version>58</sparkle:version>
+            <sparkle:shortVersionString>0.3.48</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**No more Dock icon.** Duo Updater is a menu-bar app — everything it does starts from the icon up there — but it also held a Dock slot, and the only thing that slot ever did was open the same window the menu bar opens. It now runs from the menu bar alone. If you would rather keep the Dock icon, Settings ▸ General ▸ "Hide the Dock icon" turns it back on, and with it the badge that shows the number of pending updates; hidden, that count lives on the menu-bar icon instead.
+
+**An app you ignored is no longer checked at all.** Ignoring an app hid its row, but every check still asked its vendor after it — one network request per app per round, spent on an answer nothing would ever be said about. On an unauthenticated GitHub budget of sixty requests an hour, those were requests taken from the apps you do watch. Ignoring now means not asking, which is what "hide an app from update checks" always claimed. Naming an app on the command line still checks it, and so does asking for hidden rows, since both are you asking about that app specifically. Skipping a *version* is unchanged and still checked — whether the version on offer is still the one you skipped can only be known by asking. And un-ignoring re-checks that app on the spot, instead of leaving the row blank until the next round comes due.
+
+**An app you ignored stops notifying you.** An app that updates itself leaves a "Relaunch to apply it" reminder in Notification Center and repeats it every few minutes until you act on it. That reminder never consulted the ignore list, so an app you had ignored went on sending it — hidden in Duo Updater's own list, still arriving every five minutes, with nothing on screen to explain where it was coming from. Ignoring an app now silences those reminders and clears any already waiting in Notification Center. Skipping a version does the same for that version.
+
+**A download no longer squeezes the app's name or its version off the row.** While an app was downloading, the progress bar and its percentage claimed enough of the row that a long name wrapped onto a second line, a long date-style version was clipped at both ends to something unreadable, and at 100% the percentage itself broke across two lines. The row now measures what the name and the version actually need and fits the progress readout into what's left: the bar gives way to a compact ring, and the percentage stays. Nothing is given up until there is genuinely no room for it.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.48/DuoUpdater-0.3.48-macos.zip" length="10587538" type="application/octet-stream" sparkle:edSignature="l8xNI3pOtTIH7uTuDMP5oKAfhL/LtQoQUoVzkoGyCpKFFpPUlSq/ROwKHO+yYy/0ILdnWb+1WqUWO6z22KDKAQ=="/>
+        </item>
+        <item>
             <title>0.3.47</title>
             <pubDate>Fri, 21 Aug 2026 13:44:04 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.47</link>
@@ -47,22 +65,6 @@
             <description sparkle:format="markdown"><![CDATA[**WeType (微信输入法) now reports the version you actually have.** Its version was being read off the name of the vendor's installer file, which turns out to carry the *installer's* version rather than the app's — the installer is a small downloader that fetches the real app separately, and the two numbers drift apart. Duo Updater now reads the same manifest the vendor's own installer reads, so the version matches your copy and new releases show up when they ship. WeType still has to be updated with the vendor's installer rather than in place: replacing the bundle skips the input-method registration step and was found to lose settings.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.46/DuoUpdater-0.3.46-macos.zip" length="10567616" type="application/octet-stream" sparkle:edSignature="BKHtG9dZ0nRszxQDke7GoV/gE+I2I5vKynBXWxvYJ6GhtXi2quYyx4v/VtujphsXLPIKvUdf9sNHHyM1v0sdAA=="/>
-        </item>
-        <item>
-            <title>0.3.45</title>
-            <pubDate>Thu, 20 Aug 2026 11:35:27 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.45</link>
-            <sparkle:version>55</sparkle:version>
-            <sparkle:shortVersionString>0.3.45</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**A beta build can never arrive on the stable channel.** The fix in 0.3.44 looks further back through an app's releases when the newest one has no Mac build attached. That wider search could also see the developer's beta and release-candidate builds, which the normal check never shows you — so an app that happened to publish a release without its Mac download could have offered you a beta. Nothing had actually hit this, and now nothing can: the wider search only ever considers finished releases.
-
-**Notion's release notes are readable again.** Notion restyled its releases page and Duo Updater could no longer pick the posts out of it, so the notes fell back to showing the raw web page. They render as proper entries again.
-
-**PureMac's updates are visible again.** The developer publishes a separate command-line tool from the same place as the app, and its release was being read as if it were the app — as version 1.0.0, which looks older than what you have installed, so the app reported itself up to date and every real update stayed hidden. It now reads only the app's own releases.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.45/DuoUpdater-0.3.45-macos.zip" length="10567581" type="application/octet-stream" sparkle:edSignature="VqMLQDY9u330DN7k+tvNZyo0F7KW2ucYdl3XnnMuRE0WX0txpfmLx53tOB21kytrdeeUPwDALBpHmzWC3tRWCQ=="/>
         </item>
     </channel>
 </rss>

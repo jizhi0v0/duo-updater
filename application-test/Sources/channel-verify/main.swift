@@ -224,7 +224,21 @@ guard let info = NSDictionary(contentsOf: infoURL) as? [String: Any] else {
 }
 var bundleID = info["CFBundleIdentifier"] as? String
 var shortVersion = info["CFBundleShortVersionString"] as? String
-let buildVersion = info["CFBundleVersion"] as? String
+// NOT always `CFBundleVersion`. `AppScanner` substitutes a different key for the
+// apps whose `CFBundleVersion` is not the number their vendor versions by — Xcode's
+// `version.plist` build, 豆包输入法's `Wave Build Version Number` (its
+// `CFBundleVersion` is a flat "1"). Reading the raw key here made this harness print
+// `build version 1` for an app production compares as `90602`, i.e. it reported a
+// blind spot the shipping chain does not have. Mirror the production override.
+let buildVersion: String? = {
+    let raw = info["CFBundleVersion"] as? String
+    guard AppScanner.buildVersionIsOverridden(bundleID: info["CFBundleIdentifier"] as? String)
+    else { return raw }
+    if (info["CFBundleIdentifier"] as? String) == AppScanner.doubaoImeBundleID {
+        return AppScanner.waveBuildVersionNumber(info)
+    }
+    return AppScanner.productBuildVersion(in: appPath) ?? raw
+}()
 let ksChannel = info["KSChannelID"] as? String
 // The display name AppScanner sees is the bundle's on-disk file name.
 let displayName = appPath.deletingPathExtension().lastPathComponent
@@ -315,20 +329,26 @@ if let remote {
     download        \(remote.downloadURL?.absoluteString ?? "<nil>")
     changelog       \(remote.changelogURL?.absoluteString ?? "<nil>")
 """)
-    // Verdict via the REAL engine gate (`VersionComparator.isNewer`), comparing on
-    // the same field the engine uses (build vs marketing). This matters for Mozilla:
-    // a feed's `140.11.1esr` sorts BELOW the install's suffix-less `140.11.1`, so the
-    // engine treats it as "up to date" even though the strings differ.
-    let remoteVer = remote.shortVersion ?? remote.version
-    let installed = remote.shortVersion != nil ? shortVersion : buildVersion
-    if let installed, let remoteVer {
-        if VersionComparator.isNewer(remoteVer, than: installed) {
-            print("    verdict       UPDATE \(installed) → \(remoteVer)")
-        } else {
-            print("    verdict       up to date (installed \(installed); latest \(remoteVer) not newer)")
-        }
-    } else {
-        print("    verdict       (insufficient version info)")
+    // Verdict from the PRODUCTION gate itself. This used to re-implement the
+    // comparison as "`isNewer(shortVersion)`, or the build if there is no short
+    // version" — which silently disagreed with the engine for every
+    // `versionIsBuild` recipe, because those carry BOTH (the build to compare and a
+    // marketing string to display), and `evaluate()` prefers the build while the
+    // re-implementation preferred the marketing string. A 豆包输入法 bundle stamped
+    // back to build 90601 read as "up to date" here while the shipping chain
+    // correctly offered 90602. Re-implementing the gate is how a harness certifies
+    // the thing it was built to catch; call the gate.
+    switch UpdateChecker.evaluate(installed: app, remote: remote) {
+    case .updateAvailable(let latest):
+        let from = remote.version != nil && buildVersion != nil
+            ? "\(shortVersion ?? "?") (\(buildVersion!))" : (shortVersion ?? "?")
+        let to = remote.version != nil && buildVersion != nil
+            ? "\(latest) (\(remote.version!))" : latest
+        print("    verdict       UPDATE \(from) → \(to)")
+    case .upToDate:
+        print("    verdict       up to date")
+    case let other:
+        print("    verdict       \(other)")
     }
 } else {
     print("""

@@ -2022,10 +2022,15 @@ public enum VendorProbeRegistry {
             channel: .stable),
         // Tailscale release candidate — same JSON shape on the
         // `/release-candidate/` track. Only reached when the install opted in via
-        // `RCUpdatesEnabled`; the same Tailscale-signed pkg path. Note the vendor's
-        // RC build can trail stable in version number (both were 1.102.3 on
-        // 2026-08-21) — that's expected, RC is a promotion candidate, not
-        // necessarily newer.
+        // `RCUpdatesEnabled`; the same Tailscale-signed pkg path.
+        //
+        // On version numbers: per Tailscale's own docs the RC track carries the
+        // *next patch of the current stable line*, so it normally reads equal to
+        // stable (right after a promotion — both were 1.102.3 on 2026-08-21) or
+        // ahead of it (while a patch is being tested), not behind. Either way
+        // nothing here depends on that: `VersionComparator.isNewer` requires
+        // strictly-greater, so an equal or lower RC version offers no update
+        // rather than proposing a downgrade.
         VendorProbeRecipe(
             bundleID: "io.tailscale.ipn.macsys",
             url: URL(string: "https://pkgs.tailscale.com/release-candidate/?mode=json")!,

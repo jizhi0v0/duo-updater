@@ -26,6 +26,10 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
         /// action that swaps in the staged build straight from the notification.
         static let selfUpdateCategory = "SELF_UPDATE_STAGED"
         static let relaunch = "RELAUNCH"
+        /// "App Store wants the app closed to finish installing" — the one banner
+        /// whose action answers a prompt the installer is actively suspended on.
+        static let quitConfirmCategory = "QUIT_TO_INSTALL"
+        static let confirmQuit = "CONFIRM_QUIT"
         /// userInfo key carrying the target row's id (its on-disk path) so the
         /// Relaunch action knows which app to restart.
         static let appIDKey = "appID"
@@ -70,7 +74,18 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
             actions: [relaunch],
             intentIdentifiers: [],
             options: [])
-        center.setNotificationCategories([category, selfUpdate])
+        // "Relaunch" here answers the App Store close-to-update prompt the AX
+        // installer is suspended on — the same thing the row's button does, reachable
+        // without opening the menu. No `.foreground`: the installer takes it from
+        // there; there's nothing for the user to look at in DuoUpdater.
+        let confirmQuit = UNNotificationAction(
+            identifier: ID.confirmQuit, title: "Relaunch", options: [])
+        let quitToInstall = UNNotificationCategory(
+            identifier: ID.quitConfirmCategory,
+            actions: [confirmQuit],
+            intentIdentifiers: [],
+            options: [])
+        center.setNotificationCategories([category, selfUpdate, quitToInstall])
 
         // `.badge` is required even though we never badge via UNUserNotificationCenter:
         // requesting authorization WITHOUT it makes the system deny badge permission for
@@ -106,6 +121,13 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
             // Restart the specific app named in the notification's userInfo.
             if let id = response.notification.request.content.userInfo[ID.appIDKey] as? String {
                 Task { @MainActor in await model?.restart(byID: id) }
+            }
+        case ID.confirmQuit:
+            // Answer the close-to-update prompt for the row named in userInfo.
+            // `confirmQuit` ignores an id nothing is waiting on, so a stale banner
+            // tapped after the install settled is a no-op.
+            if let id = response.notification.request.content.userInfo[ID.appIDKey] as? String {
+                Task { @MainActor in model?.confirmQuit(id, proceed: true) }
             }
         case ID.view, UNNotificationDefaultActionIdentifier:
             Task { @MainActor in

@@ -90,21 +90,70 @@ final class AppListModel {
     /// crucially, blocks re-entry: the swap can take tens of seconds, during which
     /// the Relaunch button must not fire a second quit.
     private(set) var relaunching: Set<String> = []
-    /// A staged relaunch that bailed because the app wouldn't quit within the
-    /// grace window — its own quit-confirmation dialog (a save prompt, Claude's
-    /// "active conversation" sheet) was up. If the user then confirms the quit by
-    /// hand, ShipIt swaps the bundle with nobody left to relaunch it: apps that
-    /// stage with `launchAfterInstallation=false` (Claude) end up updated but
-    /// closed, because `relaunchStagedUpdate` has long since returned and its
-    /// fallback launch never ran. This marker lets the NSWorkspace terminate
-    /// observer pick the hand-off back up — see `settleQuitHandoffs`.
-    struct StagedQuitHandoff: Sendable {
+    /// A quit we asked for that the app hasn't come back from yet.
+    ///
+    /// Every path that arms one of these has the same shape: DuoUpdater quits a
+    /// running app so an update can take effect, the app's own quit-confirmation
+    /// dialog (a save prompt, Claude's "active conversation" sheet) keeps it up,
+    /// and we deliberately give up waiting rather than force-kill unsaved work.
+    /// Giving up on *waiting* must not mean giving up on the *hand-off*: when the
+    /// user answers that dialog minutes later the quit finally goes through — the
+    /// swap lands, or was already on disk — and with nobody left watching, the app
+    /// simply stays closed. Worse, the only visible trace (the Restart badge, the
+    /// "Relaunch to apply it" banner) is cleared by the very rescan that observes
+    /// the app is gone. This marker lets the NSWorkspace terminate observer pick
+    /// the hand-off back up — see `settleQuitHandoffs`.
+    struct QuitHandoff: Sendable {
+        /// What has to be true on disk before the app is brought back.
+        enum Landing: Sendable {
+            /// Nothing to wait for: the new build was swapped in *before* we asked
+            /// for the quit (our own in-place install), so the quit was the last
+            /// step. Relaunch as soon as the app is actually gone.
+            case applied
+            /// The app's own updater swaps on quit. Launch only once disk shows
+            /// this exact staged version or newer — never before, or ShipIt aborts
+            /// with "App Still Running Error". If it never lands, leave the app
+            /// quit: the marker's promise was that specific build.
+            case stagedSwap(to: String)
+            /// App Store swaps once the app is gone (we quit it ourselves on the
+            /// user's Relaunch tap). Launch once disk moves past this pre-install
+            /// version — and launch anyway if it never does: we closed the user's
+            /// app for an update, so it comes back whether or not the store
+            /// delivered one.
+            case appStoreSwap(past: String)
+
+            /// True once the on-disk version satisfies this landing.
+            func isSatisfied(byDiskVersion disk: String?) -> Bool {
+                switch self {
+                case .applied:
+                    return true
+                case .stagedSwap(let target):
+                    guard let disk else { return false }
+                    return disk == target || VersionComparator.isNewer(disk, than: target)
+                case .appStoreSwap(let baseline):
+                    guard let disk else { return false }
+                    return VersionComparator.isNewer(disk, than: baseline)
+                }
+            }
+
+            /// Whether the app is brought back even if the landing never happens.
+            /// Only true where *we* are the reason it's closed and the update was
+            /// merely the occasion — leaving it shut would be the bigger failure.
+            var launchesWithoutLanding: Bool {
+                if case .appStoreSwap = self { return true }
+                return false
+            }
+
+            /// Whether this landing has to poll disk at all.
+            var waitsForDisk: Bool {
+                if case .applied = self { return false }
+                return true
+            }
+        }
         /// The row at bail time — the bundle to poll and the row to refresh.
         let result: UpdateResult
-        /// Version of the build staged at bail time. The relay launches only once
-        /// disk shows this version (or newer), so the marker can't resurrect the
-        /// app on some later unrelated quit unless that exact swap really landed.
-        let stagedVersion: String
+        /// What the relay waits for before launching.
+        let landing: Landing
         /// Whether relaunching should hand the app the front spot — it was
         /// frontmost when we bailed (its quit dialog was up, over our click).
         let activates: Bool
@@ -117,7 +166,7 @@ final class AppListModel {
     /// reset by the next relaunch attempt for the row, dropped by
     /// `computeSelfUpdateStaging` when the staging it was armed for goes away,
     /// and consumed (at most once) by `settleQuitHandoffs`.
-    private var stagedQuitHandoffs: [String: StagedQuitHandoff] = [:]
+    private var quitHandoffs: [String: QuitHandoff] = [:]
     /// How long an armed quit hand-off stays live. Generous enough to answer a
     /// quit dialog after stepping away; short enough that a quit hours later is
     /// clearly not this hand-off.
@@ -1113,6 +1162,11 @@ final class AppListModel {
         // power loss / force-quit on the non-admin install path). Restoring it here
         // means the about-to-run scan sees a working app rather than a missing one.
         recoverInterruptedSwapsOnce()
+        // A full check rewrites every row from scratch, and only runs when nothing is
+        // installing (`canRefresh`), so there is no click to protect: drop any frozen
+        // order outright rather than pinning the new list to an old layout. Also the
+        // backstop that guarantees a freeze can never outlive its round.
+        pinnedOrder = [:]
         // Snapshot the current count before we blank the rows below, so the menu-bar
         // badge holds it steady through the scan/check instead of flickering to 0.
         heldBadgeCount = updateCount
@@ -1688,6 +1742,9 @@ final class AppListModel {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
             self?.justUpdated.remove(id)
+            // Usually the last thing to clear after an install, so this is where the
+            // frozen order normally lifts.
+            self?.releaseRowOrder()
         }
     }
 
@@ -1740,6 +1797,11 @@ final class AppListModel {
     /// the actual installs.
     private func runInstall(_ result: UpdateResult, notify: Bool, deferBookkeeping: Bool) async -> Bool {
         let id = result.id
+        // Hold the list still for the duration — this row's rank is about to change
+        // under whoever is clicking down the list. Every exit below clears
+        // `installing[id]` first, so the release check here sees the settled state.
+        pinRowOrder()
+        defer { releaseRowOrder() }
         // The row was marked `.queued` by the caller before this suspension
         // point, so the UI already shows the wait and the re-entrancy guard
         // already rejects re-clicks; here we just park until a slot frees (the
@@ -2094,7 +2156,7 @@ final class AppListModel {
             // silent background relaunch). Apps that weren't running never enter
             // `reopenAfterQuit`, so this only reopens what we closed. Done before the
             // recheck so the running-version probe sees the relaunched process.
-            reopenIfQuitForUpdate(id: id, path: result.app.path)
+            reopenIfQuitForUpdate(result)
 
             // Re-read from disk to reflect the new version, then recompute the
             // Restart flag by comparing each running instance's launch version
@@ -2143,7 +2205,7 @@ final class AppListModel {
                 let target = result.remote?.displayVersion ?? result.remote?.shortVersion ?? "?"
                 Log.install.error("install applied nothing: \(updated.app.name, privacy: .public) still \(onDisk, privacy: .public) on disk after installing \(target, privacy: .public)")
                 installErrors[id] = "The install finished without an error, but \(updated.app.name) on disk is still \(onDisk) — what was downloaded wasn't \(target)."
-                reopenIfQuitForUpdate(id: id, path: result.app.path)
+                reopenIfQuitForUpdate(result)
                 installing[id] = nil
                 relaunching.remove(id)
                 return false
@@ -2243,7 +2305,7 @@ final class AppListModel {
                let onDisk = Self.readShortVersion(result.app.path),
                !VersionComparator.isNewer(target, than: onDisk) {
                 Log.install.notice("install: \(result.app.name, privacy: .public) reported a failure but is already at \(onDisk, privacy: .public) on disk (target \(target, privacy: .public)) — treating as already-current, clearing the stale row")
-                reopenIfQuitForUpdate(id: id, path: result.app.path)
+                reopenIfQuitForUpdate(result)
                 relaunching.remove(id)
                 await refreshRow(result)  // re-scan + re-check → up-to-date, error-free
                 installing[id] = nil       // clear the spinner last, matching the skip path
@@ -2257,7 +2319,7 @@ final class AppListModel {
         // already closed it and won't reopen it — so reopen it ourselves here too,
         // not only on the success path above. Idempotent: the success path removed
         // it from `reopenAfterQuit`, so this no-ops there.
-        reopenIfQuitForUpdate(id: id, path: result.app.path)
+        reopenIfQuitForUpdate(result)
         installing[id] = nil
         // Drop the "Relaunching…" indicator a confirmed App Store quit raised, on
         // every exit (success or error) so a failed/cancelled install can't strand it.
@@ -2518,13 +2580,16 @@ final class AppListModel {
             return map
         }.value
         pendingSelfUpdate = staged
-        // Drop armed quit hand-offs whose staging is gone or now points at a
-        // different version: each marker is bound to the exact build it was armed
-        // for, and must not outlive it. (A hand-off already relaying removed its
-        // marker synchronously in `settleQuitHandoffs`, so this can't cancel one
-        // in flight.)
-        stagedQuitHandoffs = stagedQuitHandoffs.filter {
-            pendingSelfUpdate[$0.key]?.version == $0.value.stagedVersion
+        // Drop armed staged-swap hand-offs whose staging is gone or now points at a
+        // different version: each such marker is bound to the exact build it was
+        // armed for, and must not outlive it. (A hand-off already relaying removed
+        // its marker synchronously in `settleQuitHandoffs`, so this can't cancel one
+        // in flight.) The other landings aren't derived from `pendingSelfUpdate` at
+        // all — their build is already on disk, or is App Store's to deliver — so
+        // this sweep must not touch them; only the age check retires those.
+        quitHandoffs = quitHandoffs.filter { id, handoff in
+            guard case .stagedSwap(let version) = handoff.landing else { return true }
+            return pendingSelfUpdate[id]?.version == version
         }
         // Dismiss delivered "Relaunch to apply it" banners for apps that are no
         // longer actionable-staged, so a stale one doesn't linger.
@@ -2862,15 +2927,39 @@ final class AppListModel {
         // worked. A second click would otherwise fire a second quit.
         guard !relaunching.contains(result.id) else { return }
         relaunching.insert(result.id)
-        defer { relaunching.remove(result.id) }
+        pinRowOrder()
+        defer { relaunching.remove(result.id); releaseRowOrder() }
         Log.app.info("restart: \(result.app.name, privacy: .public) [\(bundleID, privacy: .public)]")
+        // Sampled before the quit — once the instances are gone, so is the answer —
+        // so a hand-off armed below can put the app back where it was. `AppRestarter`
+        // samples this itself for the quit it completes; this copy is only for the
+        // quit it gives up on.
+        let wasFrontmost = AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app))
+        // A fresh attempt supersedes whatever a previous bail left armed.
+        quitHandoffs[result.id] = nil
         switch await AppRestarter.restart(result.app) {
         case .noBundleID, .notRunning:
             needsRestart.remove(result.id)
             pendingBatchRestart[result.id] = nil
             settlePackageRestart(result.id)
         case .stillRunning:
-            break  // still up (likely a save prompt) — leave the badge
+            // Still up (likely a save prompt) — leave the badge, and hand the quit
+            // off to the terminate observer. The new build is already on disk (the
+            // install finished long before this), so the only thing left is the
+            // quit: if the user answers that prompt in the next few minutes we
+            // relaunch then, instead of leaving them with an app that quietly
+            // stayed closed and a badge that cleared itself on the way out.
+            quitHandoffs[result.id] = QuitHandoff(
+                result: result, landing: .applied,
+                // Re-sample, the way the staged path does: `wasFrontmost` was taken
+                // with our own popover in front (the user had just clicked Restart in
+                // it), so on its own it says "background" for every menu-initiated
+                // restart. By now the app is holding its quit dialog up, which usually
+                // means it holds the front spot — and that is where it should return.
+                activates: wasFrontmost
+                    || AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app)),
+                armedAt: Date())
+            Log.app.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (won't quit — relaunch if it does)")
         case .relaunched(let relaunched):
             needsRestart.remove(result.id)
             pendingBatchRestart[result.id] = nil
@@ -2903,9 +2992,10 @@ final class AppListModel {
             return
         }
         relaunching.insert(result.id)
-        defer { relaunching.remove(result.id) }
+        pinRowOrder()
+        defer { relaunching.remove(result.id); releaseRowOrder() }
         // A fresh attempt supersedes whatever a previous bail left armed.
-        stagedQuitHandoffs[result.id] = nil
+        quitHandoffs[result.id] = nil
         let running = AppRestarter.runningInstances(of: result.app)
         guard !running.isEmpty else {
             // Not running: the staged swap applies on the app's own next quit, not
@@ -2953,9 +3043,9 @@ final class AppListModel {
                 // observer to finish the job (`settleQuitHandoffs`).
                 Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
                 if let staged = pendingSelfUpdate[result.id] {
-                    stagedQuitHandoffs[result.id] = StagedQuitHandoff(
+                    quitHandoffs[result.id] = QuitHandoff(
                         result: result,
-                        stagedVersion: staged.version,
+                        landing: .stagedSwap(to: staged.version),
                         // Its quit dialog is up right now, which usually means it
                         // holds the front spot even if it didn't when we started.
                         activates: wasFrontmost
@@ -2968,9 +3058,12 @@ final class AppListModel {
         }
         // Fallback: if ShipIt swapped but didn't relaunch (or never ran), bring the
         // app back so the user isn't left without it — in the background unless it
-        // was the app in front when we quit it.
+        // was the app in front when we quit it. Retried, because this is precisely
+        // where a launch fails: we may be racing a swap that's still rewriting the
+        // bundle, and LaunchServices can't open one mid-write. A single dropped
+        // `false` here left the app closed with nothing else watching.
         if AppRestarter.runningInstances(of: result.app).isEmpty {
-            await AppRestarter.launchApp(result.app.path, activates: wasFrontmost)
+            await relaunchAfterSwap(result.app, activates: wasFrontmost)
         }
         Log.app.info("relaunch-staged: \(result.app.name, privacy: .public) applied=\(applied, privacy: .public)")
         // Re-read disk: clears the staged flag + reminder banner if the swap landed
@@ -2986,22 +3079,44 @@ final class AppListModel {
         }
     }
 
+    /// Bring an app back up after its own updater (or App Store) swapped the
+    /// bundle, retrying while the bundle may still be being rewritten.
+    ///
+    /// `launchApp` returns false when LaunchServices can't open the bundle — and a
+    /// bundle mid-swap is exactly that. Every caller here runs at the one moment
+    /// nobody else is watching: the app is quit, the row's spinner is about to
+    /// drop, and a failed launch means the user's app is simply gone. Re-checks
+    /// `runningInstances` before each retry so an updater that *does* relaunch (or
+    /// a user reopening the app) never gets a second copy.
+    @discardableResult
+    private func relaunchAfterSwap(_ app: InstalledApp, activates: Bool) async -> Bool {
+        for attempt in 1...5 {
+            if attempt > 1 {
+                try? await Task.sleep(for: .seconds(2))
+                guard AppRestarter.runningInstances(of: app).isEmpty else { return true }
+            }
+            if await AppRestarter.launchApp(app.path, activates: activates) { return true }
+            Log.app.error("relaunch: \(app.name, privacy: .public) launch failed (attempt \(attempt, privacy: .public)/5) — bundle may still be mid-swap")
+        }
+        return false
+    }
+
     /// Pick up any armed quit hand-off whose app has now actually terminated —
-    /// the user answered the quit dialog after `relaunchStagedUpdate` gave up
-    /// waiting. Runs on every NSWorkspace launch/terminate event; a no-op unless
-    /// a hand-off is armed, which is rare and short-lived.
+    /// the user answered the quit dialog after we gave up waiting on it. Runs on
+    /// every NSWorkspace launch/terminate event; a no-op unless a hand-off is
+    /// armed, which is rare and short-lived.
     ///
     /// The marker is taken out of the map *synchronously, before any await*: it
     /// must fire at most once, and `computeSelfUpdateStaging`'s sweep (which
     /// drops markers once the staging disappears) must not be able to cancel a
     /// relay that is already under way.
     private func settleQuitHandoffs() {
-        guard !stagedQuitHandoffs.isEmpty else { return }
-        for (id, handoff) in stagedQuitHandoffs {
+        guard !quitHandoffs.isEmpty else { return }
+        for (id, handoff) in quitHandoffs {
             guard !relaunching.contains(id),
                   AppRestarter.runningInstances(of: handoff.result.app).isEmpty
             else { continue }
-            stagedQuitHandoffs[id] = nil
+            quitHandoffs[id] = nil
             guard Date().timeIntervalSince(handoff.armedAt) < Self.quitHandoffMaxAge else {
                 // Too long since the bail: this quit is the user closing the app,
                 // not a late answer to that dialog. ShipIt still swaps — we just
@@ -3013,57 +3128,71 @@ final class AppListModel {
         }
     }
 
-    /// Finish a bailed staged relaunch: the app has terminated, so its own
-    /// updater is (or will shortly be) swapping the bundle. Wait for the swap to
-    /// land on disk, then launch the app — the step ShipIt skips when the vendor
-    /// stages with `launchAfterInstallation=false`. Same cardinal rule as
-    /// `relaunchStagedUpdate`: never open the app before the swap has landed, or
-    /// ShipIt aborts with "App Still Running".
-    private func relayQuitHandoff(_ handoff: StagedQuitHandoff) async {
+    /// Finish a quit we asked for and stopped waiting on: the app has now
+    /// terminated, so whatever was going to swap the bundle is (or shortly will
+    /// be) doing it. Wait for that landing, then launch the app — the step nobody
+    /// else takes here, whether it's a ShipIt staged with
+    /// `launchAfterInstallation=false` or an App Store update whose "Continue"
+    /// closes the app without reopening it.
+    ///
+    /// The cardinal rule from `relaunchStagedUpdate` holds for every landing that
+    /// waits: never open the app before the swap has landed, or the updater aborts
+    /// with "App Still Running" (App Store parks its sheet the same way).
+    private func relayQuitHandoff(_ handoff: QuitHandoff) async {
         let app = handoff.result.app
         // Reuse the row spinner + re-entry block for the duration of the relay.
         guard !relaunching.contains(handoff.result.id) else { return }
         relaunching.insert(handoff.result.id)
-        defer { relaunching.remove(handoff.result.id) }
-        Log.app.info("relaunch-handoff: \(app.name, privacy: .public) quit after the prompt — waiting for the staged swap to land")
-        var applied = false
-        for _ in 0..<900 {  // same patience as `relaunchStagedUpdate`'s swap wait (~180s)
-            try? await Task.sleep(for: .milliseconds(200))
-            guard AppRestarter.runningInstances(of: app).isEmpty else {
-                // Back up without us — ShipIt relaunched it itself, or the user
-                // reopened it. Either way our job is done; just re-read the row.
-                Log.app.info("relaunch-handoff: \(app.name, privacy: .public) reappeared on its own — standing down")
-                await refreshRow(handoff.result)
-                return
-            }
-            if let disk = await Self.readShortVersionOffMain(app.path),
-               disk == handoff.stagedVersion
-                || VersionComparator.isNewer(disk, than: handoff.stagedVersion) {
-                applied = true
-                break
+        pinRowOrder()
+        defer { relaunching.remove(handoff.result.id); releaseRowOrder() }
+        var landed = !handoff.landing.waitsForDisk  // `.applied` has nothing to wait for
+        if handoff.landing.waitsForDisk {
+            Log.app.info("relaunch-handoff: \(app.name, privacy: .public) quit after the prompt — waiting for the swap to land")
+            for _ in 0..<900 {  // same patience as `relaunchStagedUpdate`'s swap wait (~180s)
+                try? await Task.sleep(for: .milliseconds(200))
+                guard AppRestarter.runningInstances(of: app).isEmpty else {
+                    // Back up without us — the updater relaunched it itself, or the
+                    // user reopened it. Either way our job is done; re-read the row.
+                    Log.app.info("relaunch-handoff: \(app.name, privacy: .public) reappeared on its own — standing down")
+                    await refreshRow(handoff.result)
+                    return
+                }
+                if handoff.landing.isSatisfied(byDiskVersion: await Self.readShortVersionOffMain(app.path)) {
+                    landed = true
+                    break
+                }
             }
         }
-        guard applied else {
+        guard landed || handoff.landing.launchesWithoutLanding else {
             // The swap never landed (or disk never reached the version this marker
-            // was armed for). Launching now could race a still-working ShipIt, and
+            // was armed for). Launching now could race a still-working updater, and
             // the marker's promise was specifically "that staged build" — so leave
-            // the app quit, exactly as if the user had closed it.
+            // the app quit, exactly as if the user had closed it. (An App Store
+            // hand-off doesn't come here: we closed that app ourselves, so it gets
+            // reopened regardless — see `Landing.launchesWithoutLanding`.)
             Log.app.info("relaunch-handoff: \(app.name, privacy: .public) swap never landed — leaving it quit")
             await refreshRow(handoff.result)
             return
         }
-        // One beat of grace: if this vendor's ShipIt *does* relaunch after
+        // One beat of grace: if this vendor's updater *does* relaunch after
         // installing, its open lands right after the swap — don't double-launch.
         try? await Task.sleep(for: .milliseconds(500))
         guard AppRestarter.runningInstances(of: app).isEmpty else {
             await refreshRow(handoff.result)
             return
         }
-        Log.app.info("relaunch-handoff: \(app.name, privacy: .public) staged \(handoff.stagedVersion, privacy: .public) landed — relaunching")
-        await AppRestarter.launchApp(app.path, activates: handoff.activates)
+        Log.app.info("relaunch-handoff: \(app.name, privacy: .public) relaunching (landed=\(landed, privacy: .public))")
+        let relaunched = await relaunchAfterSwap(app, activates: handoff.activates)
+        if landed {
+            // The update this hand-off was armed for is on disk after all, so a red
+            // "timed out" note left by the attempt that gave up is no longer true.
+            installErrors[handoff.result.id] = nil
+        }
         await refreshRow(handoff.result)
-        let version = await Self.readShortVersionOffMain(app.path)
-        UpdateNotifier.restarted(app: app.name, version: version, appID: app.bundleID)
+        if landed && relaunched {
+            let version = await Self.readShortVersionOffMain(app.path)
+            UpdateNotifier.restarted(app: app.name, version: version, appID: app.bundleID)
+        }
     }
 
     /// `readShortVersion` off the main actor. The staged-relaunch poll calls it
@@ -3188,8 +3317,16 @@ final class AppListModel {
     /// Awaited by the AX installer when App Store asks to quit a running app to
     /// finish installing. Records the prompt state and suspends until the user acts
     /// via `confirmQuit(_:proceed:)`.
+    ///
+    /// The suspension is deliberately untimed (waiting on the user must not burn the
+    /// installer's poll budget), which makes it the one place an install can sit for
+    /// hours — holding the App Store gate, a download permit and, through
+    /// `installing`, the whole background check cadence. So it must never be a purely
+    /// in-menu prompt: post a banner too, with a Relaunch action that answers it
+    /// without the user having to open the popover and find the row.
     private func requestQuitConfirmation(id: String, appName: String) async -> Bool {
-        await withCheckedContinuation { cont in
+        UpdateNotifier.needsQuitConfirmation(app: appName, rowID: id)
+        return await withCheckedContinuation { cont in
             // A second sheet for the same app shouldn't strand the first continuation.
             quitContinuations.removeValue(forKey: id)?.resume(returning: false)
             awaitingQuitConfirm[id] = appName
@@ -3199,9 +3336,18 @@ final class AppListModel {
 
     /// Resolve a pending quit-to-install prompt: `proceed` true presses the App Store
     /// sheet's Continue (the app quits and the update lands), false presses Cancel.
-    /// Wired to the per-row "Relaunch to finish update" affordance.
+    /// Wired to the per-row "Relaunch to finish update" affordance and to the banner's
+    /// Relaunch action.
     func confirmQuit(_ id: String, proceed: Bool) {
+        // Nothing is waiting on an answer — a stale banner tapped after the install
+        // already settled. Bail before touching `reopenAfterQuit`/`relaunching`,
+        // which nothing would then clear.
+        guard quitContinuations[id] != nil else {
+            UpdateNotifier.clearQuitConfirmation(rowID: id)
+            return
+        }
         awaitingQuitConfirm[id] = nil
+        UpdateNotifier.clearQuitConfirmation(rowID: id)
         // App Store's Continue quits the app without reopening it; remember to
         // relaunch it ourselves once the install lands. Show the "Relaunching…"
         // indicator meanwhile (cleared when the install settles in `installApp`).
@@ -3225,12 +3371,34 @@ final class AppListModel {
     /// the App Store sheet and the install, with App Store itself pulled to the
     /// front — whatever they've moved on to shouldn't be interrupted by their app
     /// popping back up. It's still there, just not in front.
-    private func reopenIfQuitForUpdate(id: String, path: URL) {
+    ///
+    /// An app that is *still running* when this fires never got the quit it was
+    /// asked for: its own save prompt outlasted the installer's ~12s terminate wait
+    /// and then the ~90s post-Continue cap, so we're here on the timeout path with
+    /// the app still up. Reopening a running app is a no-op, and consuming the entry
+    /// here is what made the late answer an orphan: the user dismisses the prompt
+    /// minutes later, the app finally quits, App Store swaps — and by then nothing
+    /// remembers that this app is only closed because we asked it to be. So hand it
+    /// to the terminate observer instead of dropping it (see `QuitHandoff`).
+    private func reopenIfQuitForUpdate(_ result: UpdateResult) {
+        let id = result.id
         guard reopenAfterQuit.remove(id) != nil else { return }
+        if !AppRestarter.runningInstances(of: result.app).isEmpty {
+            // Only armable against a known pre-install version — that's what tells
+            // the relay the store's swap has landed. Without one, fall through to
+            // today's behaviour rather than guess at a landing.
+            if let baseline = result.app.shortVersion {
+                quitHandoffs[id] = QuitHandoff(
+                    result: result, landing: .appStoreSwap(past: baseline),
+                    activates: false, armedAt: Date())
+                Log.install.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (still up past the App Store quit — reopen once it goes down)")
+                return
+            }
+        }
         let config = NSWorkspace.OpenConfiguration()
         config.activates = false
         NSWorkspace.shared.openApplication(
-            at: path, configuration: config, completionHandler: { _, _ in })
+            at: result.app.path, configuration: config, completionHandler: { _, _ in })
     }
 
     /// A small launch rect at the center of the window the user is currently
@@ -3321,6 +3489,10 @@ final class AppListModel {
             ?? BackupStore.key(bundleID: result.app.bundleID, path: target)
         installErrors[id] = nil
         installing[id] = .installing
+        // Same reason as an install: this row's rank is about to change (it stops
+        // being up to date, or picks up a Restart badge) under whoever is clicking.
+        pinRowOrder()
+        defer { releaseRowOrder() }
         Log.install.info("rollback start: \(result.app.name, privacy: .public)")
         // A rollback replaces a bundle and reads the backup store, so it takes
         // the same machine-wide claim an install does. Without it, `duo backups
@@ -3568,6 +3740,13 @@ final class AppListModel {
             for target in targets where installing[target.id] == .queued {
                 installing[target.id] = nil
             }
+            // The batch is the LAST thing to clear `isInstallingAll`, so every
+            // `releaseRowOrder` inside it — each `runInstall`'s, each restart's — was
+            // still gated by this flag and no-opped. Without a release here the frozen
+            // order outlives the batch: a batch of running apps never calls
+            // `markJustUpdated` at all (they settle as `.awaitingBatchRestart`), so the
+            // two-second confirmation, the usual release point, never exists either.
+            releaseRowOrder()
         }
 
         // Three phases, in this order:
@@ -4120,6 +4299,9 @@ final class AppListModel {
     /// Needs-restart is the most urgent action (the update already landed and
     /// only a restart stands between the user and the new version), so it sorts
     /// ahead of pending updates rather than sinking below them.
+    ///
+    /// …except while the order is frozen (see `pinRowOrder`), when every row the
+    /// user can already see keeps the slot it had, whatever its rank has become.
     private func sorted(_ list: [UpdateResult]) -> [UpdateResult] {
         func rank(_ r: UpdateResult) -> Int {
             if needsRestart.contains(r.id) { return 0 }
@@ -4131,10 +4313,79 @@ final class AppListModel {
             return 2
         }
         return list.sorted { a, b in
+            // Frozen: pinned rows hold their recorded slot, and anything that showed
+            // up since the freeze goes after them (inserting into the middle would
+            // push the pinned rows down, which is the thing being prevented).
+            if !pinnedOrder.isEmpty {
+                switch (pinnedOrder[a.id], pinnedOrder[b.id]) {
+                case let (pa?, pb?): return pa < pb
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): break  // both new — fall through to the normal order
+                }
+            }
             let ra = rank(a), rb = rank(b)
             if ra != rb { return ra < rb }
             return a.app.name.localizedCaseInsensitiveCompare(b.app.name) == .orderedAscending
         }
+    }
+
+    // MARK: - Frozen row order
+    //
+    // The list re-sorts on every rank change, and a row's rank changes the moment
+    // its install lands: it drops out of the pending tier, or picks up a Restart
+    // badge and jumps to the top. Either way every row below it shifts by one —
+    // under the pointer of someone who is working down the list clicking Update,
+    // which is how you end up updating the app you did not mean to. A single
+    // install fires that re-sort three times over (`replaceRow`,
+    // `computeRestartInfo`, `computeSelfUpdateStaging`), and the mid-install
+    // rescan that clears externally-updated apps can fire it at any moment on top.
+    //
+    // So while the user is acting on the list, freeze it: whatever happens to a
+    // row's rank, it stays where they last saw it, finishing in place with its
+    // "Installed ✓". When the round is over — nothing installing, queued,
+    // relaunching, or holding its confirmation — the freeze lifts and the list
+    // re-sorts *once*, which is when the finished rows drop to the bottom tier and
+    // filter out as they always have. One reflow at the end instead of one per app.
+
+    /// Row id → the slot it occupied when the order was frozen.
+    @ObservationIgnored private var pinnedOrder: [String: Int] = [:]
+
+    /// Freeze the current order, if it isn't already. Called wherever work starts
+    /// on a row (install, restart, staged relaunch) — the first one freezes and the
+    /// rest ride along, so a batch or a run of clicks shares one snapshot.
+    private func pinRowOrder() {
+        guard pinnedOrder.isEmpty else { return }
+        // `uniquingKeysWith:`, not `uniqueKeysWithValues:` — matching how this file
+        // builds every other id-keyed map. Duplicate ids should be impossible (the
+        // scanner dedupes on resolved path), but a freeze is a cosmetic nicety and
+        // must never be the thing that traps.
+        pinnedOrder = Dictionary(
+            results.enumerated().map { ($0.element.id, $0.offset) },
+            uniquingKeysWith: { first, _ in first })
+        // A freeze that failed to lift looks exactly like a freeze that never
+        // engaged — from outside, both are "the list stopped re-sorting". Say when
+        // it starts and when it ends, for the same reason `refreshLocal` says why it
+        // skipped: without it, the two are indistinguishable in a live-log session.
+        Log.app.debug("row order: frozen (\(self.pinnedOrder.count, privacy: .public) rows)")
+    }
+
+    /// Lift the freeze and re-sort once — but only when nothing is left in flight.
+    /// Safe to call from every settle point; it no-ops until the last one.
+    private func releaseRowOrder() {
+        guard !pinnedOrder.isEmpty else { return }
+        guard installing.isEmpty, !isInstallingAll, relaunching.isEmpty, justUpdated.isEmpty
+        else {
+            let holding = !installing.isEmpty ? "installing (\(installing.count))"
+                : isInstallingAll ? "batch install"
+                : !relaunching.isEmpty ? "relaunching (\(relaunching.count))"
+                : "just-updated confirmation"
+            Log.app.debug("row order: still frozen — \(holding, privacy: .public)")
+            return
+        }
+        pinnedOrder = [:]
+        results = sorted(results)
+        Log.app.debug("row order: released — re-sorted")
     }
 }
 

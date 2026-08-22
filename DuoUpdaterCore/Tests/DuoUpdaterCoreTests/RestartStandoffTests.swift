@@ -81,4 +81,18 @@ struct RestartStandoffTests {
             onDiskShortVersion: "1.0.0", onDiskBuildVersion: "100")
             == .holdBack(stagedVersion: "1.0.1"))
     }
+
+    /// The combination the case above leaves out, and the one the doc used to get
+    /// wrong: the marketing string is unreadable on disk but the build numbers are
+    /// there and agree. That is a real comparison, so it proceeds — an unreadable
+    /// *field* is not an unreadable bundle.
+    @Test func anUnreadableShortVersionStillProceedsOnAMatchingBuild() {
+        #expect(RestartStandoff.decide(
+            staged: staged("1.0.0", "100"),
+            onDiskShortVersion: nil, onDiskBuildVersion: "100") == .proceed)
+        #expect(RestartStandoff.decide(
+            staged: staged("1.0.0", "101"),
+            onDiskShortVersion: nil, onDiskBuildVersion: "100")
+            == .holdBack(stagedVersion: "1.0.0"))
+    }
 }

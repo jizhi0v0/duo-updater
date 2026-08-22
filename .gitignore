@@ -46,3 +46,7 @@ verify/triage.json
 # Nightly recipe sweep. Kept local: it targets a self-hosted runner that runs as
 # the desktop user, which is not a safe thing to expose from a public repo.
 /.github/workflows/recipe-verify.yml
+
+# Python bytecode from the release scripts
+__pycache__/
+*.pyc

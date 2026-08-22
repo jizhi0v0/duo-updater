@@ -204,12 +204,19 @@ final class AppListModel {
     /// App ids the user agreed to quit (via the confirm affordance) for an
     /// incremental App Store update — App Store's Continue quits but doesn't reopen,
     /// so we relaunch them ourselves once the new build is in place.
-    /// Why a row is expecting to be reopened. The distinction is load-bearing:
-    /// only `userAskedToQuit` means a quit was actually requested, and only that
-    /// case may hand an app still running to the terminate observer. Arming from
-    /// the App Store route alone says nothing has closed the app *yet* — treating
-    /// the two alike relaunched apps the user had quit themselves, minutes after
-    /// an install that failed and never closed anything.
+    /// Why a row is expecting to be reopened.
+    ///
+    /// The distinction only decides what to do with an app that is **still
+    /// running** when the install returns: `userAskedToQuit` means a quit was
+    /// explicitly agreed to and is merely late, so it can be handed to the
+    /// terminate observer on its own. `storeMayCloseIt` needs the install to have
+    /// succeeded before it earns the same treatment — otherwise a failed or
+    /// cancelled update relaunches an app the user closed themselves.
+    ///
+    /// It is *not* a proxy for "did anything close the app": `userAskedToQuit` is
+    /// reachable only through the App Store AX sheet, which the default strategy
+    /// never raises. Gating the relay on it alone left every `mas` update unable
+    /// to bring a running app back.
     enum ReopenReason: Sendable, Equatable {
         /// The user answered a quit-to-install prompt, so a quit is expected.
         case userAskedToQuit
@@ -219,6 +226,28 @@ final class AppListModel {
         case storeMayCloseIt
     }
     @ObservationIgnored private var reopenAfterQuit: [String: ReopenReason] = [:]
+    /// id → the exact hold-back text this model last wrote into `installNotes`,
+    /// so a later restart that goes through can retract its own note and nothing
+    /// else.
+    ///
+    /// `installNotes` is shared with `backupCurrent`, which uses it to say "this
+    /// update was applied without a rollback point". Clearing the whole entry on
+    /// every restart retracted that warning too — and since `autoRestartAfterUpdate`
+    /// defaults on, that meant a running app's backup warning was never readable
+    /// by anyone.
+    ///
+    /// The text, not a `Set` of ids. A set is a second copy of a fact that three
+    /// other places already change: `install`, `performInstall` and `installAll`
+    /// all clear `installNotes` without knowing this exists, so a member left
+    /// behind by any of them would later authorise the very blanket clear this
+    /// was added to prevent. Comparing against what we wrote cannot drift,
+    /// because whoever overwrote the note also invalidated the comparison.
+    @ObservationIgnored private var restartHoldBackNotes: [String: String] = [:]
+    /// id → the "App Store can't replace this while it's open" text this model wrote
+    /// into `installNotes`, so the install can retract exactly its own note when it
+    /// finishes. Same discipline as `restartHoldBackNotes`, and for the same reason:
+    /// `installNotes` has other writers, and a parallel `Set` of ids would drift.
+    @ObservationIgnored private var appStoreQuitNotes: [String: String] = [:]
     /// id → the build version the running instance launched with, for display.
     private var runningVersionByID: [String: String] = [:]
     /// id → the marketing version the running (pre-self-update) build corresponds to,
@@ -1507,6 +1536,16 @@ final class AppListModel {
     /// and clears, not just the restart badge.
     private func performLocalRescan() async {
         localRescanDeferred = false
+        // Re-derive which apps are running. `armRunningAppsMonitor` keeps this live
+        // off NSWorkspace's launch/terminate notifications, but the LAUNCH one is
+        // not reliably posted — measured on this machine: LocalSend never posts it
+        // (2/2), while its terminate posts every time and Calculator's launch posts
+        // normally. The set is a whole recompute rather than a diff, so a missed
+        // notification did self-heal — but only when some *unrelated* app happened
+        // to launch or quit, which is an unbounded wait for a row to admit the app
+        // beside it is open. This bounds it to the rescan cadence, and puts it on
+        // the path the menu itself takes when it opens.
+        refreshRunningApps()
         let extraScan = prefs.customScanLocations
         let found = await Task.detached(priority: .userInitiated) {
             AppScanner(extraLocations: extraScan).scan()
@@ -1975,6 +2014,16 @@ final class AppListModel {
         let id = result.id
         installErrors[id] = nil
         installNotes[id] = nil
+        // Retract the "App Store is waiting on you" note on every exit — the prompt
+        // it describes is gone once this returns, whichever way it returns. Matched
+        // on the text we wrote so a note someone else put there in the meantime
+        // (`backupCurrent`'s missing-rollback-point warning) stands.
+        defer {
+            if let mine = appStoreQuitNotes.removeValue(forKey: id),
+               installNotes[id] == mine {
+                installNotes[id] = nil
+            }
+        }
         Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
 
         // Defensive re-check: the app may already be current — e.g. a manual
@@ -2106,6 +2155,27 @@ final class AppListModel {
                 if AppStoreQuitPolicy.armsReopen(
                     route: route, wasRunningBeforeInstall: wasRunningBeforeInstall) {
                     reopenAfterQuit[id] = .storeMayCloseIt
+                    // Say what is about to happen, because nothing else will.
+                    //
+                    // The store cannot replace a running bundle, so it raises
+                    // "<app> cannot be open during installation" and waits — with no
+                    // timeout on our side and none on `mas` either. That prompt is a
+                    // small panel inside App Store's own window, which may be showing
+                    // some unrelated product page; App Store bounces its Dock icon a
+                    // few times and stops; and we are an accessory app with no Dock
+                    // icon to bounce. So the whole machine can sit on a prompt nobody
+                    // knows exists, holding a download permit and the install gate.
+                    //
+                    // No timeout is needed to say this, and no Accessibility grant:
+                    // the same predicate that arms the reopen — App Store route, app
+                    // running — is the one that predicts the prompt, and it is known
+                    // here, before anything has started.
+                    let note =
+                        "App Store can't replace \(result.app.name) while it's open. "
+                        + "If this looks stuck, switch to App Store and click Continue — "
+                        + "it waits until you do. \(result.app.name) reopens when the update lands."
+                    installNotes[id] = note
+                    appStoreQuitNotes[id] = note
                 }
                 installing[id] = .downloading(fraction: 0)
                 // Both routes download through the App Store daemon, so we never see
@@ -2238,7 +2308,7 @@ final class AppListModel {
             // shouldn't be interrupted. Apps that weren't running never enter
             // `reopenAfterQuit`, so this only reopens what was closed. Done before
             // the recheck so the running-version probe sees the relaunched process.
-            reopenIfQuitForUpdate(result)
+            reopenIfQuitForUpdate(result, installSucceeded: true)
 
             // Re-read from disk to reflect the new version, then recompute the
             // Restart flag by comparing each running instance's launch version
@@ -2287,7 +2357,7 @@ final class AppListModel {
                 let target = result.remote?.displayVersion ?? result.remote?.shortVersion ?? "?"
                 Log.install.error("install applied nothing: \(updated.app.name, privacy: .public) still \(onDisk, privacy: .public) on disk after installing \(target, privacy: .public)")
                 installErrors[id] = "The install finished without an error, but \(updated.app.name) on disk is still \(onDisk) — what was downloaded wasn't \(target)."
-                reopenIfQuitForUpdate(result)
+                reopenIfQuitForUpdate(result, installSucceeded: false)
                 installing[id] = nil
                 relaunching.remove(id)
                 return false
@@ -2338,6 +2408,11 @@ final class AppListModel {
             // `with*` helpers release on throw; the flag+defer covers the
             // apply side).
             Log.install.info("install cancelled: \(result.app.name, privacy: .public)")
+            // The fifth arm/consume site, and the one the earlier sweep missed:
+            // this returns before the trailing `reopenIfQuitForUpdate`, so a
+            // cancelled App Store install would leave its entry behind for some
+            // later install of the same row to consume.
+            reopenAfterQuit[id] = nil
             installing[id] = nil
             relaunching.remove(id)
             return false
@@ -2387,7 +2462,13 @@ final class AppListModel {
                let onDisk = Self.readShortVersion(result.app.path),
                !VersionComparator.isNewer(target, than: onDisk) {
                 Log.install.notice("install: \(result.app.name, privacy: .public) reported a failure but is already at \(onDisk, privacy: .public) on disk (target \(target, privacy: .public)) — treating as already-current, clearing the stale row")
-                reopenIfQuitForUpdate(result)
+                // `false`: OUR install threw and applied nothing. Something else
+                // brought the bundle up to date, and whatever that was is not
+                // waiting on a quit from us. An app still running here is one
+                // nobody has asked to close, so arming a relay would relaunch it
+                // whenever the user next quits it themselves. An app that is
+                // already down still gets reopened — that path ignores this flag.
+                reopenIfQuitForUpdate(result, installSucceeded: false)
                 relaunching.remove(id)
                 await refreshRow(result)  // re-scan + re-check → up-to-date, error-free
                 installing[id] = nil       // clear the spinner last, matching the skip path
@@ -2401,7 +2482,7 @@ final class AppListModel {
         // already closed it and won't reopen it — so reopen it ourselves here too,
         // not only on the success path above. Idempotent: the success path removed
         // it from `reopenAfterQuit`, so this no-ops there.
-        reopenIfQuitForUpdate(result)
+        reopenIfQuitForUpdate(result, installSucceeded: false)
         installing[id] = nil
         // Drop the "Relaunching…" indicator a confirmed App Store quit raised, on
         // every exit (success or error) so a failed/cancelled install can't strand it.
@@ -2663,8 +2744,10 @@ final class AppListModel {
     /// Flag apps whose own updater has downloaded and staged a newer build (the
     /// "Relaunch to update" state) that hasn't been swapped in yet — Squirrel's
     /// ShipIt cache, plus vendors with their own staging layout (Spotify). Reads
-    /// each candidate's staging area off-main — pure filesystem work, but enough of
-    /// it (a plist/json parse per candidate) to keep off the main actor.
+    /// each candidate's staging area off-main — mostly filesystem work (a
+    /// plist/json parse per candidate), plus one LaunchServices query for the
+    /// parked Sparkle installers, which is why it does not belong on the main
+    /// actor.
     private func computeSelfUpdateStaging() async {
         // Track which apps were surfacing a *Relaunch* (actionable staged = the
         // staged build is the latest) so we can clear their banner if they stop —
@@ -2672,9 +2755,14 @@ final class AppListModel {
         let previouslyActionable = Set(results.compactMap { actionableStaged($0) != nil ? $0.id : nil })
         let apps = results.map(\.app).filter(SelfUpdaterStaging.mayHaveStaging)
         let staged = await Task.detached(priority: .utility) {
+            // Asked once for the whole sweep rather than per app: the answer is a
+            // single global list either way, and `mayHaveStaging` admits every
+            // Sparkle app on the machine.
+            let parked = SelfUpdaterStaging.liveParkedSparkleInstallers()
             var map: [String: StagedSelfUpdate] = [:]
             for app in apps {
-                if let s = SelfUpdaterStaging.staged(for: app) { map[app.id] = s }
+                if let s = SelfUpdaterStaging.staged(
+                    for: app, parkedInstallerBundleURLs: parked) { map[app.id] = s }
             }
             return map
         }.value
@@ -3046,22 +3134,35 @@ final class AppListModel {
         // a staged build that differs from what is on disk is a problem; matching
         // builds make whoever writes second harmless. The `hasSparkleUpdater`
         // guard keeps every other app off the filesystem work entirely.
-        installNotes[result.id] = nil
         let staged = result.app.hasSparkleUpdater
             ? SelfUpdaterStaging.sparkleStagedBundle(for: result.app) : nil
+        // Both fields off the same read of the bundle as it stands NOW. The batch
+        // path calls this with a `result` snapshotted before any install ran, so
+        // anything taken from `result.app` here is a version or two behind.
+        let onDisk = Self.readBundleVersions(result.app.path)
         if case .holdBack(let stagedVersion) = RestartStandoff.decide(
             staged: staged,
-            onDiskShortVersion: Self.readShortVersion(result.app.path),
-            onDiskBuildVersion: result.app.buildVersion) {
+            onDiskShortVersion: onDisk.short,
+            onDiskBuildVersion: onDisk.build) {
             Log.app.notice(
                 "restart held back: \(result.app.name, privacy: .public) — its own updater has \(stagedVersion, privacy: .public) staged and is waiting for the quit")
             // Deliberately says "the version on disk" rather than "the version
             // just installed": this is also reached from the Restart button on a
             // row that updated itself, where we installed nothing.
-            installNotes[result.id] =
+            let note =
                 "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. "
                 + "Restarting from here would install that one over the version now on disk, so it wasn't restarted — quit \(result.app.name) yourself when you're ready to take theirs."
+            installNotes[result.id] = note
+            restartHoldBackNotes[result.id] = note
             return
+        }
+        // The standoff is over (or never existed): retract our own explanation if
+        // it is still the one showing, and nothing else. If someone replaced the
+        // note in between — `backupCurrent`'s "no rollback point", say — theirs
+        // stands.
+        if let mine = restartHoldBackNotes.removeValue(forKey: result.id),
+           installNotes[result.id] == mine {
+            installNotes[result.id] = nil
         }
         switch await AppRestarter.restart(result.app) {
         case .noBundleID, .notRunning:
@@ -3093,7 +3194,12 @@ final class AppListModel {
             settlePackageRestart(result.id)
             Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
             if relaunched {
-                UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion, appID: result.app.bundleID)
+                // `onDisk.short`, not `result.app.shortVersion`: the batch path
+                // hands this function a row snapshotted before any install ran,
+                // so the snapshot names the version we just replaced.
+                UpdateNotifier.restarted(
+                    app: result.app.name, version: onDisk.short ?? result.app.shortVersion,
+                    appID: result.app.bundleID)
             }
         }
     }
@@ -3332,12 +3438,27 @@ final class AppListModel {
     /// Read a bundle's `CFBundleShortVersionString` straight off disk — used to
     /// poll for a ShipIt swap landing while the app is quit.
     nonisolated private static func readShortVersion(_ bundle: URL) -> String? {
+        readBundleVersions(bundle).short
+    }
+
+    /// Both version fields, from **one** read of the bundle.
+    ///
+    /// Kept together on purpose. `RestartStandoff` compares each field it can
+    /// against what the app's own updater has staged, so the two must describe
+    /// the same moment: pairing a freshly-read short version with a
+    /// `buildVersion` carried over from the pre-install scan made "Update All"
+    /// hold back on apps with nothing staged against them, because the marketing
+    /// string matched and the stale build did not.
+    nonisolated private static func readBundleVersions(
+        _ bundle: URL
+    ) -> (short: String?, build: String?) {
         let info = bundle.appendingPathComponent("Contents/Info.plist")
         guard let data = try? Data(contentsOf: info),
               let dict = (try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil)) as? [String: Any]
-        else { return nil }
-        return dict["CFBundleShortVersionString"] as? String
+        else { return (nil, nil) }
+        return (dict["CFBundleShortVersionString"] as? String,
+                dict["CFBundleVersion"] as? String)
     }
 
     /// Open System Settings → Privacy & Security → App Management and float the
@@ -3506,15 +3627,27 @@ final class AppListModel {
     /// minutes later, the app finally quits, App Store swaps — and by then nothing
     /// remembers that this app is only closed because we asked it to be. So hand it
     /// to the terminate observer instead of dropping it (see `QuitHandoff`).
-    private func reopenIfQuitForUpdate(_ result: UpdateResult) {
+    private func reopenIfQuitForUpdate(_ result: UpdateResult, installSucceeded: Bool) {
         let id = result.id
         guard let reason = reopenAfterQuit.removeValue(forKey: id) else { return }
         if !AppRestarter.runningInstances(of: result.app).isEmpty {
-            // Still up, and nobody asked it to quit: the store either never got
-            // that far or the install failed outright. There is nothing to
-            // relay — arming one here is how a cancelled update ended up
-            // relaunching an app the user closed themselves ten minutes later.
-            guard reason == .userAskedToQuit else { return }
+            // Still up. Whether to hand this to the terminate observer turns on
+            // whether a quit is actually coming — not on who asked for one.
+            //
+            // Gating on `userAskedToQuit` alone looked equivalent and was not:
+            // that reason is only ever set by the App Store AX sheet, and the
+            // strategy preference coerces every non-region-locked update onto
+            // `mas`, which raises no sheet. So the arm was `storeMayCloseIt` in
+            // the shipping configuration, this dropped it, and a running app that
+            // `storedownloadd` terminated a few seconds after the install
+            // returned stayed closed with nothing recorded — the exact failure
+            // `AppStoreQuitPolicy` was written to end.
+            //
+            // A finished install means the store's swap has landed or is landing,
+            // so the quit is expected. A failed or cancelled one closed nothing,
+            // and arming there is how a cancelled update relaunched an app the
+            // user had closed themselves ten minutes later.
+            guard reason == .userAskedToQuit || installSucceeded else { return }
             // Only armable against a known pre-install version — that's what tells
             // the relay the store's swap has landed. Without one, fall through to
             // today's behaviour rather than guess at a landing.

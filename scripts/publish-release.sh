@@ -37,27 +37,32 @@ command -v mktemp >/dev/null || die "mktemp not found"
 gh repo view "$RELEASE_REPO" >/dev/null 2>&1 || die "release repo $RELEASE_REPO does not exist or is not accessible"
 [ -f "$PROJECT_YML" ] || die "missing project file: $PROJECT_YML"
 
-version="$(
-python3 - <<'PY' "$PROJECT_YML"
-import pathlib, re, sys
-text = pathlib.Path(sys.argv[1]).read_text()
-match = re.search(r'MARKETING_VERSION:\s*"([^"]+)"', text)
-if not match:
-    raise SystemExit(1)
-print(match.group(1))
+# Both keys appear once per target in project.yml, and the whole release turns
+# on the build number, so a half-done bump must not be readable as a decision.
+# `re.search` took the first match and said nothing: bump only the second
+# occurrence and the build check below compares the STALE number against the
+# feed and refuses; bump only the first and it passes on a number the app may
+# not carry (the zip check later is the only thing that catches that).
+read_project_setting() {
+    PROJECT_YML="$PROJECT_YML" SETTING="$1" python3 - <<'PY'
+import os, pathlib, re, sys
+text = pathlib.Path(os.environ["PROJECT_YML"]).read_text()
+setting = os.environ["SETTING"]
+found = re.findall(r'%s:\s*"([^"]+)"' % re.escape(setting), text)
+if not found:
+    sys.exit(f"no {setting} in the project file")
+if len(set(found)) != 1:
+    sys.exit(
+        f"{setting} disagrees with itself: {', '.join(found)}\n"
+        f"  All occurrences must be bumped together.")
+print(found[0])
 PY
-)" || die "failed to read MARKETING_VERSION from $PROJECT_YML"
+}
 
-build="$(
-python3 - <<'PY' "$PROJECT_YML"
-import pathlib, re, sys
-text = pathlib.Path(sys.argv[1]).read_text()
-match = re.search(r'CURRENT_PROJECT_VERSION:\s*"([^"]+)"', text)
-if not match:
-    raise SystemExit(1)
-print(match.group(1))
-PY
-)" || die "failed to read CURRENT_PROJECT_VERSION from $PROJECT_YML"
+version="$(read_project_setting MARKETING_VERSION)" \
+    || die "failed to read MARKETING_VERSION from $PROJECT_YML"
+build="$(read_project_setting CURRENT_PROJECT_VERSION)" \
+    || die "failed to read CURRENT_PROJECT_VERSION from $PROJECT_YML"
 
 TAG="${TAG:-v$version}"
 TITLE="${TITLE:-DuoUpdater $version}"
@@ -74,15 +79,47 @@ find_generate_appcast() {
     return 1
 }
 
-publish_sparkle_appcast() {
-    local generate_appcast clone_dir archives_dir sparkle_notes setting value
+# Maximum entries the feed keeps, per branch point.
+#
+# Passed explicitly because the check below has to know exactly when an entry
+# rolling off the end is legitimate, and a cap inferred from "how many there
+# happen to be" is not a cap, it is a guess. Note this is a real change, not a
+# restatement: `generate_appcast --help` gives the default as 3, which is why the
+# published feed has held three items. Five keeps a little more history.
+APPCAST_MAX_VERSIONS=5
+
+# Scratch directories for the appcast work. Deliberately file-scope, and cleaned
+# on EXIT rather than RETURN: the appcast is now prepared in one function and
+# pushed by another, and `die` exits the process without ever unwinding a RETURN
+# trap — so a failed check used to leak exactly the directories you want to open.
+appcast_clone_dir=""
+appcast_archives_dir=""
+cleanup_appcast_dirs() {
+    local rc=$?
+    if [ "$rc" != "0" ] && [ -n "$appcast_clone_dir" ]; then
+        printf '  left for inspection: %s %s\n' "$appcast_clone_dir" "$appcast_archives_dir" >&2
+        return
+    fi
+    [ -n "$appcast_clone_dir" ] && rm -rf "$appcast_clone_dir"
+    [ -n "$appcast_archives_dir" ] && rm -rf "$appcast_archives_dir"
+    return 0
+}
+trap cleanup_appcast_dirs EXIT
+
+# Build the new appcast and check it, WITHOUT publishing anything.
+#
+# Called before the GitHub Release is created. It used to run after, so every
+# way this can refuse — and it has several — left a live release with no feed
+# entry behind it. Nothing here touches the outside world: the clone is
+# throwaway and the push is `push_sparkle_appcast`'s job.
+prepare_sparkle_appcast() {
+    local generate_appcast sparkle_notes setting value
 
     generate_appcast="$(find_generate_appcast)" \
         || die "Sparkle generate_appcast not found under $DERIVED_DATA/SourcePackages. Re-run without SKIP_NOTARIZE so dependencies are built first."
 
-    clone_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-updater-appcast-clone.XXXXXX")"
-    archives_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-updater-appcast.XXXXXX")"
-    trap 'rm -rf "$clone_dir" "$archives_dir"' RETURN
+    appcast_clone_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-updater-appcast-clone.XXXXXX")"
+    appcast_archives_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-updater-appcast.XXXXXX")"
 
     # A throwaway shallow clone, even though this is now the same repository the
     # script is running from. Committing the appcast into the working tree would
@@ -90,7 +127,7 @@ publish_sparkle_appcast() {
     # whatever is uncommitted beside it; a clone keeps publishing independent of
     # the state of your checkout.
     say "Cloning $RELEASE_REPO to update Sparkle appcast"
-    gh repo clone "$RELEASE_REPO" "$clone_dir" -- --depth 1 >/dev/null
+    gh repo clone "$RELEASE_REPO" "$appcast_clone_dir" -- --depth 1 >/dev/null
 
     # Carry this repo's commit identity into the clone. A fresh clone otherwise
     # falls back to the global config, which is how the 0.3.18 appcast push was
@@ -99,41 +136,35 @@ publish_sparkle_appcast() {
     # address, the throwaway clone did not.
     for setting in user.name user.email; do
         value="$(git -C "$REPO_ROOT" config --get "$setting" || true)"
-        [ -n "$value" ] && git -C "$clone_dir" config "$setting" "$value"
+        [ -n "$value" ] && git -C "$appcast_clone_dir" config "$setting" "$value"
     done
 
-    cp "$ASSET_ZIP" "$archives_dir/"
-    sparkle_notes="$archives_dir/$(basename "${ASSET_ZIP%.*}").md"
+    cp "$ASSET_ZIP" "$appcast_archives_dir/"
+    sparkle_notes="$appcast_archives_dir/$(basename "${ASSET_ZIP%.*}").md"
     cp "$RELEASE_NOTES_FILE" "$sparkle_notes"
-    if [ -f "$clone_dir/appcast.xml" ]; then
-        cp "$clone_dir/appcast.xml" "$archives_dir/appcast.xml"
-        python3 - <<'PY' "$archives_dir/appcast.xml" "$build" "$version"
-import pathlib
-import re
-import sys
+    if [ -f "$appcast_clone_dir/appcast.xml" ]; then
+        cp "$appcast_clone_dir/appcast.xml" "$appcast_archives_dir/appcast.xml"
+        REPO_ROOT="$REPO_ROOT" APPCAST="$appcast_archives_dir/appcast.xml" \
+            BUILD="$build" VERSION="$version" \
+            python3 - <<'PY' || die "could not prepare the published appcast for regeneration"
+import os, pathlib, sys
+sys.path.insert(0, os.path.join(os.environ["REPO_ROOT"], "scripts"))
+import appcast_edit
 
-# Drop the item for the version being published, so generate_appcast writes a
-# fresh one rather than a duplicate.
-#
-# Split into whole items FIRST. The obvious single regex --
-# <item>.*?(<sparkle:version>BUILD</sparkle:version>|...).*?</item> with DOTALL --
-# is wrong in a way that only shows up when you republish something that is not
-# the newest entry: the lazy prefix starts at the FIRST <item> in the file and
-# swallows every item before the match. Republishing the newest costs one extra
-# entry, which is how 0.3.50 vanished from the feed on 2026-08-22; republishing
-# an older one empties the appcast completely. Verified against a three-item
-# feed: re-running the old form for the oldest build deleted all three.
-path, build, version = sys.argv[1:4]
-text = pathlib.Path(path).read_text()
+path = pathlib.Path(os.environ["APPCAST"])
+text = path.read_text()
 
-item = re.compile(r"<item>.*?</item>\s*", re.S)
-target = re.compile(
-    r"<sparkle:version>\s*%s\s*</sparkle:version>"
-    r"|<sparkle:shortVersionString>\s*%s\s*</sparkle:shortVersionString>"
-    % (re.escape(build), re.escape(version))
-)
-pathlib.Path(path).write_text(
-    item.sub(lambda m: "" if target.search(m.group()) else m.group(), text))
+# `strip_item` runs over the whole document while `generate_appcast` regenerates
+# a single channel, so on a multi-channel feed it would delete the other
+# channel's entry with nothing to put back. There has never been a second
+# channel here; if one appears, stop rather than guess at scoping.
+channels = appcast_edit.channel_count(text)
+if channels > 1:
+    sys.exit(
+        f"the published appcast has {channels} channels — this script only handles one.\n"
+        "  Scope the item strip to a channel before publishing again.")
+
+path.write_text(appcast_edit.strip_item(text, os.environ["BUILD"], os.environ["VERSION"]))
 PY
     fi
 
@@ -142,65 +173,78 @@ PY
         --account "$SPARKLE_KEY_ACCOUNT" \
         --download-url-prefix "$DOWNLOAD_PREFIX" \
         --link "$RELEASE_PAGE_URL" \
+        --maximum-versions "$APPCAST_MAX_VERSIONS" \
         --embed-release-notes \
-        "$archives_dir" >/dev/null
+        "$appcast_archives_dir" >/dev/null
 
-    # Nothing may vanish from the feed. At this point `$clone_dir/appcast.xml` is
-    # still the published copy and `$archives_dir/appcast.xml` is the regenerated
-    # one, so they can simply be counted against each other. A shrinking feed is
-    # how the strip step used to fail silently — and a lost entry is not cosmetic:
-    # it is a version nobody can be offered any more.
-    OLD_APPCAST="$clone_dir/appcast.xml" NEW_APPCAST="$archives_dir/appcast.xml" \
-        NEW_VERSION="$version" python3 - <<'PY' || die "appcast sanity check failed"
-import os, pathlib, re, sys
+    # What the regenerated feed has to look like. `$appcast_clone_dir/appcast.xml`
+    # is still the published copy and `$appcast_archives_dir/appcast.xml` is the
+    # new one, so they can be compared directly.
+    #
+    # The rule is an exact entry count, not "did anything vanish". Counting
+    # losses alone waved through 0.3.49 (one rolls off as one is added, so the
+    # count holds), and "at most one lost and it must be the oldest" is trivially
+    # true of a one-entry feed that lost its only entry. Knowing the cap makes it
+    # exact: the new feed holds everything the old one had plus this version,
+    # clipped to the window, and nothing else is acceptable.
+    OLD_APPCAST="$appcast_clone_dir/appcast.xml" NEW_APPCAST="$appcast_archives_dir/appcast.xml" \
+        NEW_VERSION="$version" NEW_BUILD="$build" ASSET_ZIP="$ASSET_ZIP" \
+        MAX_VERSIONS="$APPCAST_MAX_VERSIONS" REPO_ROOT="$REPO_ROOT" \
+        python3 - <<'PY' || die "appcast sanity check failed"
+import os, pathlib, sys
+sys.path.insert(0, os.path.join(os.environ["REPO_ROOT"], "scripts"))
+import appcast_edit
 
-def versions(path):
-    text = pathlib.Path(path).read_text()
-    return re.findall(r"<sparkle:shortVersionString>\s*([^<\s]+)\s*</sparkle:shortVersionString>", text)
+new_text = pathlib.Path(os.environ["NEW_APPCAST"]).read_text()
+# A first publish into a fresh release repo has no published appcast to compare
+# against. Treated as an empty feed rather than crashed on — this used to raise
+# FileNotFoundError and report it as "appcast sanity check failed", after the
+# release had already been created.
+old_path = pathlib.Path(os.environ["OLD_APPCAST"])
+old_text = old_path.read_text() if old_path.exists() else ""
+size = pathlib.Path(os.environ["ASSET_ZIP"]).stat().st_size
 
-old = versions(os.environ["OLD_APPCAST"])
-new = versions(os.environ["NEW_APPCAST"])
-want = os.environ["NEW_VERSION"]
+problems = appcast_edit.check_regenerated(
+    old_text, new_text, os.environ["NEW_VERSION"], os.environ["NEW_BUILD"],
+    size, int(os.environ["MAX_VERSIONS"]))
+old = appcast_edit.short_versions(old_text)
+new = appcast_edit.short_versions(new_text)
+if problems:
+    sys.exit("\n".join(problems)
+             + f"\n  before: {', '.join(old) or '(empty)'}"
+             + f"\n  after:  {', '.join(new) or '(empty)'}")
 
-if want not in new:
-    sys.exit(f"the regenerated appcast does not contain {want} — it would publish nothing")
-
-# generate_appcast keeps a rolling window, so the OLDEST entries legitimately
-# roll off the end: this feed has held three for as long as it has existed.
-# What is never legitimate is an entry disappearing from the front or the
-# middle, which is precisely how the old strip regex failed — its lazy prefix
-# began at the first <item> in the file and swallowed everything before the one
-# it was aiming at. So the test is not "did the count fall" (it does not, when
-# one rolls off as one is added, which is why counting alone waved through the
-# loss of 0.3.49) but "is what vanished a suffix of what we had".
-# A rolling window sheds at most one entry per publish, so more than one going
-# missing is not the window — it is the bug. (Written after the suffix rule
-# alone waved through a feed emptied down to the new entry: everything lost is
-# trivially a suffix of everything.)
 lost = [v for v in old if v not in new]
-if len(lost) > 1:
-    sys.exit(
-        f"the regenerated appcast lost {len(lost)} entries: {', '.join(lost)}\n"
-        f"  before: {', '.join(old)}\n  after:  {', '.join(new)}"
-    )
 if lost:
-    tail = old[len(old) - len(lost):]
-    if lost != tail:
-        sys.exit(
-            f"the regenerated appcast lost {', '.join(lost)} from the middle of the feed\n"
-            f"  before: {', '.join(old)}\n  after:  {', '.join(new)}"
-        )
-    print(f"  appcast: {', '.join(lost)} rolled off the end, {want} added")
-print(f"  appcast: {len(old)} -> {len(new)} entries, {want} present")
+    print(f"  appcast: {', '.join(lost)} rolled off the end of a {os.environ['MAX_VERSIONS']}-entry window")
+print(f"  appcast: {len(old)} -> {len(new)} entries, {os.environ['NEW_VERSION']} present, enclosure {size} bytes")
 PY
+}
 
-    cp "$archives_dir/appcast.xml" "$clone_dir/appcast.xml"
+# Commit and push the appcast prepared above. Split from the preparation so
+# every check runs before the release exists.
+push_sparkle_appcast() {
+    cp "$appcast_archives_dir/appcast.xml" "$appcast_clone_dir/appcast.xml"
 
-    if [ -n "$(git -C "$clone_dir" status --short -- appcast.xml)" ]; then
+    if [ -n "$(git -C "$appcast_clone_dir" status --short -- appcast.xml)" ]; then
         say "Publishing Sparkle appcast to $RELEASE_REPO"
-        git -C "$clone_dir" add appcast.xml
-        git -C "$clone_dir" commit -m "Update Sparkle appcast for $TAG" >/dev/null
-        git -C "$clone_dir" push origin HEAD >/dev/null
+        git -C "$appcast_clone_dir" add appcast.xml
+        git -C "$appcast_clone_dir" commit -m "Update Sparkle appcast for $TAG" >/dev/null
+        # The clone is taken before the release is created and the asset uploaded,
+        # so minutes pass before this runs and another push can land in between.
+        # (When this all lived in one function the window was too small to matter.)
+        local attempt
+        for attempt in 1 2 3; do
+            if git -C "$appcast_clone_dir" push origin HEAD >/dev/null 2>&1; then
+                return 0
+            fi
+            say "  appcast push rejected (attempt $attempt) — rebasing onto the current head"
+            git -C "$appcast_clone_dir" fetch origin --quiet 2>/dev/null || true
+            git -C "$appcast_clone_dir" pull --rebase --quiet origin HEAD 2>/dev/null || true
+        done
+        die "the GitHub Release for $TAG IS LIVE, but the Sparkle appcast could NOT be pushed.
+  Users will not be offered it until the feed is updated. Re-run this script — the
+  release will be updated in place and the appcast retried."
     else
         say "Sparkle appcast already up to date"
     fi
@@ -219,9 +263,31 @@ PY
 # blind to the failure "the last push did not land".
 preflight_build_is_newer() {
     local published
-    git -C "$REPO_ROOT" fetch origin main --quiet 2>/dev/null || true
-    published="$(git -C "$REPO_ROOT" show origin/main:appcast.xml 2>/dev/null || true)"
-    [ -n "$published" ] || { say "No published appcast yet — skipping the build-number check"; return 0; }
+    if [ "${SKIP_BUILD_CHECK:-0}" = "1" ]; then
+        say "SKIP_BUILD_CHECK=1 — NOT checking that this build is newer than the published one."
+        say "  Users already on the published build will not be offered this release."
+        return 0
+    fi
+    # Every failure below is fatal, and that is the whole point. "I could not read
+    # the published appcast" and "there is no published appcast" are different
+    # facts, and the old code reported both as the second and carried on. The
+    # appcast is pushed from a throwaway clone, so this checkout's `origin/main`
+    # only learns the last release through this fetch: swallow a failed fetch and
+    # the baseline silently rewinds to the release before last, which is enough to
+    # wave through the exact omission this check exists for. SKIP_BUILD_CHECK=1 is
+    # the way past it — loudly, and on purpose.
+    git -C "$REPO_ROOT" fetch origin main --quiet \
+        || die "could not fetch origin/main, so the published build number is unknown.
+  Publishing on a stale baseline is how 0.3.51 shipped unreachable. Fix the
+  network, or SKIP_BUILD_CHECK=1 if you have checked the feed by hand."
+    git -C "$REPO_ROOT" rev-parse --verify --quiet origin/main >/dev/null \
+        || die "no origin/main in this checkout, so the published appcast cannot be read.
+  SKIP_BUILD_CHECK=1 to publish anyway."
+    if ! published="$(git -C "$REPO_ROOT" show origin/main:appcast.xml 2>/dev/null)"; then
+        # The ref resolves but carries no appcast: a genuine first publish.
+        say "No appcast on origin/main yet — first publish, nothing to compare"
+        return 0
+    fi
 
     APPCAST_XML="$published" NEW_BUILD="$build" python3 - <<'PY' || die "build number check failed"
 import os, re, sys
@@ -229,23 +295,89 @@ xml = os.environ["APPCAST_XML"]
 new = os.environ["NEW_BUILD"]
 builds = [int(b) for b in re.findall(r"<sparkle:version>\s*(\d+)\s*</sparkle:version>", xml)]
 if not builds:
-    print("  no sparkle:version entries in the published appcast — nothing to compare")
+    # An empty feed is the documented starting state and is fine. A feed with
+    # items but no readable build number is not: Sparkle also permits
+    # `sparkle:version` as an enclosure attribute, and a format change that this
+    # pattern cannot read must not be reported as "nothing to compare".
+    if "<item" in xml:
+        sys.exit(
+            "the published appcast has items but no <sparkle:version> element.\n"
+            "  The format changed and this check can no longer read it — fix the\n"
+            "  pattern rather than publishing blind (SKIP_BUILD_CHECK=1 to override).")
+    print("  the published appcast is empty — nothing to compare")
     sys.exit(0)
 try:
     mine = int(new)
 except ValueError:
     sys.exit(f"CURRENT_PROJECT_VERSION {new!r} is not a number; Sparkle compares it numerically")
 top = max(builds)
+# Re-running a publish for a version that is already the newest entry is a
+# supported operation — `gh release edit`/`upload --clobber` on this side, and
+# `strip_item` plus an unchanged feed on the other. Only the exact same build
+# qualifies: anything lower really is unreachable for users on `top`.
+if mine == top and os.environ.get("REISSUE") == "1":
+    print(f"  REISSUE=1 — republishing build {mine}, already the newest published entry")
+    sys.exit(0)
 if mine <= top:
     sys.exit(
         f"CURRENT_PROJECT_VERSION is {mine}, but the published appcast already has {top}.\n"
         f"  Sparkle compares CFBundleVersion, so every user on build {top} would be told\n"
         f"  they are up to date and never offered this release. Bump\n"
-        f"  CURRENT_PROJECT_VERSION in App/project.yml (both occurrences)."
+        f"  CURRENT_PROJECT_VERSION in App/project.yml (both occurrences).\n"
+        f"  If you meant to re-publish build {top} rather than ship a new one, REISSUE=1."
     )
 print(f"  build {mine} > published {top}")
 PY
 }
+
+# The commit the artifact is built from, and the one the tag will point at.
+# Nothing else in this script tied the two together: the zip comes from the
+# working tree, the tag came from whatever the remote default branch happened to
+# be. A dirty tree means the zip contains code that is in no commit at all, so
+# the tag cannot be honest about it either way.
+RELEASE_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+if [ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]; then
+    if [ "${ALLOW_DIRTY_TREE:-0}" = "1" ]; then
+        say "ALLOW_DIRTY_TREE=1 — publishing from a dirty tree; the tag will NOT match the artifact."
+    else
+        die "the working tree has uncommitted changes, so tag $TAG would not describe
+  what is in the artifact. Commit them, or ALLOW_DIRTY_TREE=1 to publish anyway."
+    fi
+fi
+
+# Whether the tag may be pinned to this commit at all.
+#
+# Only when the release is going to the repository this commit lives in. The
+# documented RELEASE_REPO override points somewhere else, where a SHA from here
+# means nothing — GitHub answers 422 invalid target_commitish — so pinning would
+# quietly kill an escape hatch the header advertises. There, fall back to gh's
+# default (the remote's own default branch), which is what it always did.
+RELEASE_TARGET_FLAG=""
+origin_slug="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null \
+    | sed -E 's#^git@github\.com:#https://github.com/#; s#\.git$##; s#^https://github\.com/##' || true)"
+if [ "$origin_slug" = "$RELEASE_REPO" ]; then
+    RELEASE_TARGET_FLAG=1
+else
+    say "RELEASE_REPO ($RELEASE_REPO) is not this checkout's origin ($origin_slug)"
+    say "  — the tag will be created from that repo's default branch, not $RELEASE_COMMIT"
+fi
+
+# HEAD being committed is not the same as GitHub having it. An unpushed HEAD
+# answers 422 invalid target_commitish — cleanly, but only after build, notarize
+# and appcast preparation have run, i.e. tens of minutes in, as a raw API blob.
+if [ -n "$RELEASE_TARGET_FLAG" ]; then
+    git -C "$REPO_ROOT" fetch origin --quiet 2>/dev/null || true
+    if [ -z "$(git -C "$REPO_ROOT" branch -r --contains "$RELEASE_COMMIT" 2>/dev/null)" ]; then
+        if [ "${ALLOW_UNPUSHED:-0}" = "1" ]; then
+            say "ALLOW_UNPUSHED=1 — $RELEASE_COMMIT is on no remote branch;"
+            say "  the tag will be created from the default branch, which does NOT contain this build."
+            RELEASE_TARGET_FLAG=""
+        else
+            die "$RELEASE_COMMIT is on no remote branch, so GitHub cannot tag it.
+  Push the branch first, or ALLOW_UNPUSHED=1 to let gh tag the default branch instead."
+        fi
+    fi
+fi
 
 say "Checking the build number against the published appcast"
 preflight_build_is_newer
@@ -253,35 +385,52 @@ preflight_build_is_newer
 # The tests are the only gate this project has — there is no CI on pull
 # requests — and until now `make release` did not run them, so a release could
 # go out over a red suite without anyone being asked.
-if [ "${SKIP_TESTS:-0}" != "1" ]; then
+# Not under SKIP_TESTS: these cover the appcast surgery this script is about to
+# perform, they need no network, and they finish in milliseconds.
+say "Checking the appcast editing rules"
+python3 "$REPO_ROOT/scripts/test_appcast_edit.py" \
+    || die "the appcast edit tests failed — refusing to publish."
+
+if [ "${SKIP_TESTS:-0}" = "1" ]; then
+    say "SKIP_TESTS=1 — NOT running the test suite before publishing."
+else
     say "Running tests before publishing (SKIP_TESTS=1 to override)"
-    ( cd "$REPO_ROOT/DuoUpdaterCore" && swift test ) >/dev/null 2>&1 \
-        || die "swift test failed — refusing to publish. Run 'make test' to see it."
+    # `make test`, not one package: this ran only DuoUpdaterCore, so a red CLI
+    # suite published. Output is NOT swallowed — some of these tests hit the
+    # network, and swallowing makes "the network blipped" and "the suite is red"
+    # the same silence.
+    ( cd "$REPO_ROOT" && make test ) || die "tests failed — refusing to publish."
 fi
 
-if [ "$SKIP_NOTARIZE" != "1" ]; then
+if [ "$SKIP_NOTARIZE" = "1" ]; then
+    say "SKIP_NOTARIZE=1 — NOT rebuilding; reusing $FINAL_ZIP as it stands."
+    say "  (its version is checked below, but nothing else about it is.)"
+else
     say "Building and notarizing release artifact"
     "$REPO_ROOT/scripts/notarize.sh"
 fi
 
 [ -f "$FINAL_ZIP" ] || die "notarized zip not found: $FINAL_ZIP"
 mkdir -p "$DIST_DIR"
-cp "$FINAL_ZIP" "$ASSET_ZIP"
 
 # The zip must contain the versions we are about to tag. With SKIP_NOTARIZE=1
 # this script reuses whatever `dist/DuoUpdater-notarized.zip` is lying around,
 # which can be the previous build — a silent path to "the tag says A, the
 # binary is B".
+# Checked before it is copied to this version's name. Copying first left a
+# rejected stale zip sitting in dist/ renamed to the version it is NOT — a trap
+# for the next SKIP_NOTARIZE=1 run, which reuses whatever is lying around.
 say "Checking the artifact's own version"
-zip_info="$(unzip -Z1 "$ASSET_ZIP" | grep -m1 -E '^[^/]+\.app/Contents/Info\.plist$' || true)"
-[ -n "$zip_info" ] || die "no app Info.plist inside $ASSET_ZIP"
-zip_short="$(unzip -p "$ASSET_ZIP" "$zip_info" | plutil -extract CFBundleShortVersionString raw - 2>/dev/null || true)"
-zip_build="$(unzip -p "$ASSET_ZIP" "$zip_info" | plutil -extract CFBundleVersion raw - 2>/dev/null || true)"
+zip_info="$(unzip -Z1 "$FINAL_ZIP" | grep -m1 -E '^[^/]+\.app/Contents/Info\.plist$' || true)"
+[ -n "$zip_info" ] || die "no app Info.plist inside $FINAL_ZIP"
+zip_short="$(unzip -p "$FINAL_ZIP" "$zip_info" | plutil -extract CFBundleShortVersionString raw - 2>/dev/null || true)"
+zip_build="$(unzip -p "$FINAL_ZIP" "$zip_info" | plutil -extract CFBundleVersion raw - 2>/dev/null || true)"
 [ "$zip_short" = "$version" ] \
     || die "artifact is version $zip_short but this release is $version — stale zip? (rebuild, or unset SKIP_NOTARIZE)"
 [ "$zip_build" = "$build" ] \
     || die "artifact is build $zip_build but this release is build $build — stale zip? (rebuild, or unset SKIP_NOTARIZE)"
 
+cp "$FINAL_ZIP" "$ASSET_ZIP"
 checksum="$(shasum -a 256 "$ASSET_ZIP" | awk '{print $1}')"
 
 if [ -z "$RELEASE_NOTES_FILE" ]; then
@@ -355,30 +504,99 @@ if gh release view "$TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1; then
     release_exists=1
 fi
 
-extra_flags=()
-[ "$DRAFT_RELEASE" = "1" ] && extra_flags+=(--draft)
-[ "$PRERELEASE" = "1" ] && extra_flags+=(--prerelease)
-[ "$LATEST_RELEASE" = "1" ] && extra_flags+=(--latest)
+# A draft or prerelease is deliberately not for everyone, but the appcast is:
+# every installed copy reads it. Pushing a feed entry for a draft points Sparkle
+# at a download URL that 404s for anyone who is not the author, on every check.
+# Whether the release will be visible to users, read from GITHUB rather than
+# from this run's env vars — those describe what THIS invocation asked for, and
+# the release may already be something else.
+#
+# Two ways that bites. `gh release edit` is never given --draft=false, so a
+# release created with DRAFT_RELEASE=1 stays a draft when a later run "publishes"
+# it — and that later run, with the flag unset, would push a feed pointing at a
+# draft's download URL, which 404s for everyone but the author. And `gh release
+# create` with an asset creates a draft, uploads, then publishes, so an
+# interrupted upload leaves a draft behind that the next run adopts.
+is_draft=0
+is_prerelease=0
+if [ "$release_exists" = "1" ]; then
+    is_draft="$(gh release view "$TAG" --repo "$RELEASE_REPO" --json isDraft \
+        --jq 'if .isDraft then 1 else 0 end' 2>/dev/null || echo 1)"
+    is_prerelease="$(gh release view "$TAG" --repo "$RELEASE_REPO" --json isPrerelease \
+        --jq 'if .isPrerelease then 1 else 0 end' 2>/dev/null || echo 1)"
+fi
+[ "$DRAFT_RELEASE" = "1" ] && is_draft=1
+[ "$PRERELEASE" = "1" ] && is_prerelease=1
+
+publishes_appcast=1
+if [ "$is_draft" = "1" ] || [ "$is_prerelease" = "1" ]; then
+    publishes_appcast=0
+fi
+
+# Build and check the feed BEFORE the release exists, so a refusal here does not
+# leave a published release with nothing pointing at it.
+if [ "$publishes_appcast" = "1" ]; then
+    prepare_sparkle_appcast
+else
+    say "Draft/prerelease — the Sparkle appcast will NOT be updated"
+    say "  (a draft's download URL is not reachable by users; the feed stays as it is)"
+fi
+
+# GitHub refuses --latest on a draft or a prerelease ("Drafts and prereleases
+# cannot be set as latest"), and LATEST_RELEASE defaults to 1, so passing it
+# unconditionally meant relying on that refusal being silent.
+release_flags=()
+[ "$is_draft" = "1" ] && release_flags+=(--draft)
+[ "$is_prerelease" = "1" ] && release_flags+=(--prerelease)
+if [ "$LATEST_RELEASE" = "1" ] && [ "$is_draft" = "0" ] && [ "$is_prerelease" = "0" ]; then
+    release_flags+=(--latest)
+fi
 
 if [ "$release_exists" = "1" ]; then
     say "Updating existing release $TAG in $RELEASE_REPO"
+    # The state flags go on this path too. Without them `gh release edit` leaves
+    # draft/prerelease exactly as it found them, so nothing could ever promote a
+    # draft to a real release, and the appcast decision above would disagree with
+    # what GitHub actually serves.
     gh release edit "$TAG" \
         --repo "$RELEASE_REPO" \
         --title "$TITLE" \
-        --notes-file "$GITHUB_NOTES_FILE"
+        --notes-file "$GITHUB_NOTES_FILE" \
+        --draft="$([ "$is_draft" = "1" ] && echo true || echo false)" \
+        --prerelease="$([ "$is_prerelease" = "1" ] && echo true || echo false)"
     gh release upload "$TAG" "$ASSET_ZIP" \
         --repo "$RELEASE_REPO" \
         --clobber
 else
     say "Creating release $TAG in $RELEASE_REPO"
+    # `"${a[@]}"` on an empty array is an unbound-variable error under bash 3.2
+    # (what /usr/bin/env bash is on macOS) with `set -u`, so the guarded form has
+    # to be at the USE site — reassigning the array beforehand does nothing.
     gh release create "$TAG" "$ASSET_ZIP" \
         --repo "$RELEASE_REPO" \
+        ${RELEASE_TARGET_FLAG:+--target "$RELEASE_COMMIT"} \
         --title "$TITLE" \
         --notes-file "$GITHUB_NOTES_FILE" \
-        "${extra_flags[@]}"
+        "${release_flags[@]+"${release_flags[@]}"}"
+
+    # `--target` is documented as "Unused if the Git tag already exists", and
+    # `gh release delete` leaves the tag behind unless asked to remove it. So the
+    # delete-fix-republish loop can silently attach a new artifact to the old
+    # tag's commit — the exact "tag says A, binary is B" this flag was added to
+    # prevent. Verify rather than trust.
+    if [ -n "${RELEASE_TARGET_FLAG:-}" ]; then
+        tagged="$(gh api "repos/$RELEASE_REPO/git/ref/tags/$TAG" --jq '.object.sha' 2>/dev/null || true)"
+        if [ -n "$tagged" ] && [ "$tagged" != "$RELEASE_COMMIT" ]; then
+            die "tag $TAG points at $tagged, but this artifact was built from $RELEASE_COMMIT.
+  The tag already existed, so --target was ignored. Delete it with
+  'gh release delete $TAG --cleanup-tag --repo $RELEASE_REPO' and re-run."
+        fi
+    fi
 fi
 
-publish_sparkle_appcast
+if [ "$publishes_appcast" = "1" ]; then
+    push_sparkle_appcast
+fi
 
 cat <<EOF
 

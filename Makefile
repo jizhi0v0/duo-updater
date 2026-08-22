@@ -15,6 +15,7 @@ build:
 	cd DuoUpdaterCore && swift build
 
 test:
+	python3 scripts/test_appcast_edit.py
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI
 

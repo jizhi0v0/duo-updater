@@ -3016,6 +3016,22 @@ final class AppListModel {
         // samples this itself for the quit it completes; this copy is only for the
         // quit it gives up on.
         let wasFrontmost = AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app))
+        // Is anyone else waiting for this app to quit? Sparkle parks an installer
+        // on exactly that signal, so a restart meant to put OUR build into effect
+        // can instead apply THEIRS — see `RestartStandoff` for the timeline. Only
+        // a staged build that differs from what is on disk is a problem; matching
+        // versions make whoever writes second harmless.
+        let staged = SelfUpdaterStaging.sparkleStagedBundle(for: result.app)
+        if case .holdBack(let stagedVersion) = RestartStandoff.decide(
+            stagedVersion: staged?.version,
+            onDiskVersion: Self.readShortVersion(result.app.path)) {
+            Log.app.notice(
+                "restart held back: \(result.app.name, privacy: .public) — its own updater has \(stagedVersion, privacy: .public) staged and is waiting for the quit")
+            installNotes[result.id] =
+                "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. "
+                + "Restarting from here would install that one over the version just installed, so it wasn't restarted — quit \(result.app.name) yourself when you're ready to take theirs."
+            return
+        }
         // A fresh attempt supersedes whatever a previous bail left armed.
         quitHandoffs[result.id] = nil
         switch await AppRestarter.restart(result.app) {

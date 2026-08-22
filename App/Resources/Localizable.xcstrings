@@ -2213,25 +2213,25 @@
               "few": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld обновления доступно"
+                  "value": "%lld обновления"
                 }
               },
               "many": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld обновлений доступно"
+                  "value": "%lld обновлений"
                 }
               },
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld обновление доступно"
+                  "value": "%lld обновление"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld обновления доступно"
+                  "value": "%lld обновления"
                 }
               }
             }

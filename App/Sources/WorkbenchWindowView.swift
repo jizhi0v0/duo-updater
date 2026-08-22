@@ -1243,7 +1243,10 @@ private enum ChangelogLayout: String, CaseIterable {
 /// `columns` — a master/detail with a version list on the left and the selected
 /// version's notes on the right, best for content-heavy changelogs; or `list` — one
 /// long top-down scroll, better when each version is only a line or two.
-private struct ChangelogEntriesView: View {
+/// Internal, not private: the self-changelog window renders Duo Updater's own
+/// release notes through the very same view, so they look like every other app's
+/// rather than a second, drifting layout.
+struct ChangelogEntriesView: View {
     let changelog: Changelog
     @AppStorage("changelogLayout") private var layout: ChangelogLayout = .columns
     @State private var selection = 0

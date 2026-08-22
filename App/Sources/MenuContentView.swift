@@ -113,6 +113,10 @@ struct MenuContentView: View {
                 rateLimitBanner
                 Divider()
             }
+            if let version = model.silentSelfUpdate {
+                selfUpdateBanner(version)
+                Divider()
+            }
             // Only worth showing once the list is long enough to be hard to scan;
             // stays put while a query is active even if it filters down to a few.
             if model.results.count > 8 || isSearching {
@@ -241,6 +245,39 @@ struct MenuContentView: View {
 
     /// Aggregate counterpart to the per-row "Rate-limited" badge: one tap
     /// deep-links to Settings → GitHub to add a token (60/hour → 5000/hour).
+    /// "Duo Updater updated itself to X" — the one thing the silent self-update
+    /// design cannot tell you on its own.
+    ///
+    /// Shown until it is read, not for a fixed time: an update that landed while
+    /// the Mac was idle overnight would otherwise expire before the user ever
+    /// opened the menu, which is exactly the case this exists for. Opening the
+    /// notes clears it.
+    private func selfUpdateBanner(_ version: String) -> some View {
+        Button {
+            openWindow(id: SelfChangelogView.windowID)
+            model.surfaceWindow(sceneID: SelfChangelogView.windowID)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(.tint)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Duo Updater updated itself to \(version)")
+                        .font(.caption).fontWeight(.medium)
+                    Text("It installs its own updates quietly — see what changed")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private var rateLimitBanner: some View {
         Button {
             model.requestedSettingsSection = .github
@@ -350,6 +387,15 @@ struct MenuContentView: View {
             .buttonStyle(.borderless)
             .font(.caption)
             .help("Release Log — when the apps you track shipped each version")
+            Button {
+                openWindow(id: SelfChangelogView.windowID)
+                model.surfaceWindow(sceneID: SelfChangelogView.windowID)
+            } label: {
+                Image(systemName: "sparkles")
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+            .help("What's New — Duo Updater's own release notes")
             Button("Open Window") {
                 openWindow(id: WorkbenchWindowView.windowID)
                 model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)

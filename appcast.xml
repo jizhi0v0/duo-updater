@@ -17,6 +17,18 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.52</title>
+            <pubDate>Sat, 22 Aug 2026 17:00:55 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.52</link>
+            <sparkle:version>61</sparkle:version>
+            <sparkle:shortVersionString>0.3.52</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Same changes as 0.3.51, reissued so it can actually reach you.** 0.3.51 went out carrying the same internal build number as 0.3.50. That number, not the one in the version name, is what an update check compares — so anyone already running 0.3.50 was told they were up to date and never offered it. This release carries the changes below under a build number that is properly newer. If you are reading this on 0.3.51, nothing about the app changed between the two.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.52/DuoUpdater-0.3.52-macos.zip" length="10743671" type="application/octet-stream" sparkle:edSignature="lIJACHWFHJF1eU6YlsuvBVkCTMAyogRHo4u5DMNYQDsfQgI2IIebNCLaLltZI4vwZ2gqmgG49ozKGd5wMSJUBw=="/>
+        </item>
+        <item>
             <title>0.3.51</title>
             <pubDate>Sat, 22 Aug 2026 16:54:58 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.51</link>
@@ -51,24 +63,6 @@
 **One less version number on a row that needs a restart.** An app with an update waiting *and* an earlier update still needing a restart tried to print all three versions on one line — installed, available, and the older one still running. On four-part versions like Chrome's it did not fit, and the line was cut off exactly where the digits started to differ, so the part left visible said nothing at all. The line now sticks to the comparison that matters — what you have and what is offered — and the running version moved to the row's tooltip, where it fits.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.49/DuoUpdater-0.3.49-macos.zip" length="10612640" type="application/octet-stream" sparkle:edSignature="GnR5d6Hi5D4DKD7UyRN6McoH+w4aotDF7U3g6mIbCD45FObUAug08meZ20Ifoln+PJi3MgUutePyz4ZlanEtBw=="/>
-        </item>
-        <item>
-            <title>0.3.48</title>
-            <pubDate>Fri, 21 Aug 2026 18:39:00 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.48</link>
-            <sparkle:version>58</sparkle:version>
-            <sparkle:shortVersionString>0.3.48</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**No more Dock icon.** Duo Updater is a menu-bar app — everything it does starts from the icon up there — but it also held a Dock slot, and the only thing that slot ever did was open the same window the menu bar opens. It now runs from the menu bar alone. If you would rather keep the Dock icon, Settings ▸ General ▸ "Hide the Dock icon" turns it back on, and with it the badge that shows the number of pending updates; hidden, that count lives on the menu-bar icon instead.
-
-**An app you ignored is no longer checked at all.** Ignoring an app hid its row, but every check still asked its vendor after it — one network request per app per round, spent on an answer nothing would ever be said about. On an unauthenticated GitHub budget of sixty requests an hour, those were requests taken from the apps you do watch. Ignoring now means not asking, which is what "hide an app from update checks" always claimed. Naming an app on the command line still checks it, and so does asking for hidden rows, since both are you asking about that app specifically. Skipping a *version* is unchanged and still checked — whether the version on offer is still the one you skipped can only be known by asking. And un-ignoring re-checks that app on the spot, instead of leaving the row blank until the next round comes due.
-
-**An app you ignored stops notifying you.** An app that updates itself leaves a "Relaunch to apply it" reminder in Notification Center and repeats it every few minutes until you act on it. That reminder never consulted the ignore list, so an app you had ignored went on sending it — hidden in Duo Updater's own list, still arriving every five minutes, with nothing on screen to explain where it was coming from. Ignoring an app now silences those reminders and clears any already waiting in Notification Center. Skipping a version does the same for that version.
-
-**A download no longer squeezes the app's name or its version off the row.** While an app was downloading, the progress bar and its percentage claimed enough of the row that a long name wrapped onto a second line, a long date-style version was clipped at both ends to something unreadable, and at 100% the percentage itself broke across two lines. The row now measures what the name and the version actually need and fits the progress readout into what's left: the bar gives way to a compact ring, and the percentage stays. Nothing is given up until there is genuinely no room for it.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.48/DuoUpdater-0.3.48-macos.zip" length="10587538" type="application/octet-stream" sparkle:edSignature="l8xNI3pOtTIH7uTuDMP5oKAfhL/LtQoQUoVzkoGyCpKFFpPUlSq/ROwKHO+yYy/0ILdnWb+1WqUWO6z22KDKAQ=="/>
         </item>
     </channel>
 </rss>

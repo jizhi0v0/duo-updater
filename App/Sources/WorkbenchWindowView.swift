@@ -345,12 +345,23 @@ struct WorkbenchWindowView: View {
                     Image(systemName: systemImage)
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    // Holds its size instead of compressing: the accessory beside it
+                    // is a translated button, and "Обновить формулы" is wide enough
+                    // to squeeze this to nothing — at which point a four-letter
+                    // section name wraps to "Bre / w". The button truncates instead.
                     Text(title)
                         .font(.headline)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     Spacer(minLength: 8)
                     Text("\(count)")
                         .font(.caption.weight(.semibold)).monospacedDigit()
                         .foregroundStyle(.secondary)
+                        // Same reason as the title: with the title pinned, the
+                        // squeeze lands here next, and "52" came out stacked as
+                        // "5 / 2" inside the capsule.
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .padding(.horizontal, 7).padding(.vertical, 1)
                         .background(.quaternary, in: Capsule())
                 }

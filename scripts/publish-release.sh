@@ -164,14 +164,33 @@ want = os.environ["NEW_VERSION"]
 
 if want not in new:
     sys.exit(f"the regenerated appcast does not contain {want} — it would publish nothing")
-# One in, at most one out (generate_appcast caps how many it keeps), so the
-# count can never legitimately fall.
-if len(new) < len(old):
-    lost = [v for v in old if v not in new]
+
+# generate_appcast keeps a rolling window, so the OLDEST entries legitimately
+# roll off the end: this feed has held three for as long as it has existed.
+# What is never legitimate is an entry disappearing from the front or the
+# middle, which is precisely how the old strip regex failed — its lazy prefix
+# began at the first <item> in the file and swallowed everything before the one
+# it was aiming at. So the test is not "did the count fall" (it does not, when
+# one rolls off as one is added, which is why counting alone waved through the
+# loss of 0.3.49) but "is what vanished a suffix of what we had".
+# A rolling window sheds at most one entry per publish, so more than one going
+# missing is not the window — it is the bug. (Written after the suffix rule
+# alone waved through a feed emptied down to the new entry: everything lost is
+# trivially a suffix of everything.)
+lost = [v for v in old if v not in new]
+if len(lost) > 1:
     sys.exit(
-        f"the regenerated appcast lost {len(old) - len(new)} entrie(s): {', '.join(lost) or '?'}\n"
+        f"the regenerated appcast lost {len(lost)} entries: {', '.join(lost)}\n"
         f"  before: {', '.join(old)}\n  after:  {', '.join(new)}"
     )
+if lost:
+    tail = old[len(old) - len(lost):]
+    if lost != tail:
+        sys.exit(
+            f"the regenerated appcast lost {', '.join(lost)} from the middle of the feed\n"
+            f"  before: {', '.join(old)}\n  after:  {', '.join(new)}"
+        )
+    print(f"  appcast: {', '.join(lost)} rolled off the end, {want} added")
 print(f"  appcast: {len(old)} -> {len(new)} entries, {want} present")
 PY
 

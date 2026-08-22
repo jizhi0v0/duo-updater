@@ -40,6 +40,13 @@ public struct ProbeIdentity: Sendable {
         /// The contents are base64; decode, then trim. Claude's `ant-did` is a
         /// UUID wrapped this way.
         case base64
+        /// The contents are a JSON object; take this key's string value. ChatGPT
+        /// keeps its rollout id alongside an unrelated flag, in
+        /// `com.openai.codex/production-appcast-bootstrap.json`:
+        /// `{"backendAppcastEnabled":true,"installationId":"…"}`. A non-string
+        /// value, a missing key, or anything that isn't an object yields nil —
+        /// the same "doesn't look like itself" answer the other cases give.
+        case jsonKey(String)
     }
 
     /// Path to the file, relative to `~/Library/Application Support`.
@@ -111,6 +118,11 @@ public struct ProbeIdentity: Sendable {
             guard let bytes = Data(base64Encoded: raw) else { return nil }
             decoded = String(decoding: bytes, as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+        case .jsonKey(let key):
+            guard let object = try? JSONSerialization.jsonObject(with: data),
+                  let fields = object as? [String: Any],
+                  let value = fields[key] as? String else { return nil }
+            decoded = value.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         guard !decoded.isEmpty,
               decoded.unicodeScalars.allSatisfy(Self.allowedCharacters.contains),

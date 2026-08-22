@@ -243,6 +243,11 @@ final class AppListModel {
     /// was added to prevent. Comparing against what we wrote cannot drift,
     /// because whoever overwrote the note also invalidated the comparison.
     @ObservationIgnored private var restartHoldBackNotes: [String: String] = [:]
+    /// id → the "App Store can't replace this while it's open" text this model wrote
+    /// into `installNotes`, so the install can retract exactly its own note when it
+    /// finishes. Same discipline as `restartHoldBackNotes`, and for the same reason:
+    /// `installNotes` has other writers, and a parallel `Set` of ids would drift.
+    @ObservationIgnored private var appStoreQuitNotes: [String: String] = [:]
     /// id → the build version the running instance launched with, for display.
     private var runningVersionByID: [String: String] = [:]
     /// id → the marketing version the running (pre-self-update) build corresponds to,
@@ -1531,6 +1536,16 @@ final class AppListModel {
     /// and clears, not just the restart badge.
     private func performLocalRescan() async {
         localRescanDeferred = false
+        // Re-derive which apps are running. `armRunningAppsMonitor` keeps this live
+        // off NSWorkspace's launch/terminate notifications, but the LAUNCH one is
+        // not reliably posted — measured on this machine: LocalSend never posts it
+        // (2/2), while its terminate posts every time and Calculator's launch posts
+        // normally. The set is a whole recompute rather than a diff, so a missed
+        // notification did self-heal — but only when some *unrelated* app happened
+        // to launch or quit, which is an unbounded wait for a row to admit the app
+        // beside it is open. This bounds it to the rescan cadence, and puts it on
+        // the path the menu itself takes when it opens.
+        refreshRunningApps()
         let extraScan = prefs.customScanLocations
         let found = await Task.detached(priority: .userInitiated) {
             AppScanner(extraLocations: extraScan).scan()
@@ -1999,6 +2014,16 @@ final class AppListModel {
         let id = result.id
         installErrors[id] = nil
         installNotes[id] = nil
+        // Retract the "App Store is waiting on you" note on every exit — the prompt
+        // it describes is gone once this returns, whichever way it returns. Matched
+        // on the text we wrote so a note someone else put there in the meantime
+        // (`backupCurrent`'s missing-rollback-point warning) stands.
+        defer {
+            if let mine = appStoreQuitNotes.removeValue(forKey: id),
+               installNotes[id] == mine {
+                installNotes[id] = nil
+            }
+        }
         Log.install.info("install start: \(result.app.name, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(result.remote?.sourceName ?? "?", privacy: .public)")
 
         // Defensive re-check: the app may already be current — e.g. a manual
@@ -2130,6 +2155,27 @@ final class AppListModel {
                 if AppStoreQuitPolicy.armsReopen(
                     route: route, wasRunningBeforeInstall: wasRunningBeforeInstall) {
                     reopenAfterQuit[id] = .storeMayCloseIt
+                    // Say what is about to happen, because nothing else will.
+                    //
+                    // The store cannot replace a running bundle, so it raises
+                    // "<app> cannot be open during installation" and waits — with no
+                    // timeout on our side and none on `mas` either. That prompt is a
+                    // small panel inside App Store's own window, which may be showing
+                    // some unrelated product page; App Store bounces its Dock icon a
+                    // few times and stops; and we are an accessory app with no Dock
+                    // icon to bounce. So the whole machine can sit on a prompt nobody
+                    // knows exists, holding a download permit and the install gate.
+                    //
+                    // No timeout is needed to say this, and no Accessibility grant:
+                    // the same predicate that arms the reopen — App Store route, app
+                    // running — is the one that predicts the prompt, and it is known
+                    // here, before anything has started.
+                    let note =
+                        "App Store can't replace \(result.app.name) while it's open. "
+                        + "If this looks stuck, switch to App Store and click Continue — "
+                        + "it waits until you do. \(result.app.name) reopens when the update lands."
+                    installNotes[id] = note
+                    appStoreQuitNotes[id] = note
                 }
                 installing[id] = .downloading(fraction: 0)
                 // Both routes download through the App Store daemon, so we never see

@@ -312,18 +312,18 @@ struct MenuContentView: View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Duo Updater").font(.headline)
-                // Wraps to a second line rather than shrinking or clipping. The
-                // slot this gets is what's left after the Update All button, and
-                // a translated button is wider: Russian leaves 167pt for a line
-                // that wants 250. Scaling it to fit made it unreadable, and
-                // truncating drops the timestamp — the half most worth reading.
-                // Two lines cost the header 12pt in the languages that need it
-                // and nothing in the ones that don't.
+                // One line, at full size, truncating when it must. The slot is
+                // whatever the Update All button leaves, and a translated button
+                // is wider — Russian gets 167pt for a sentence that wants 247.
+                // Shrinking it to fit was unreadable and a second line unbalanced
+                // the header, so the tail gets cut and the tooltip carries the
+                // whole thing. Explicit, because without a limit the same
+                // sentence wrapped in one state and truncated in another.
                 Text(statusLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                    .help(Text(statusLine))
             }
             Spacer()
             if model.canUpdateAll {
@@ -366,17 +366,19 @@ struct MenuContentView: View {
         let base = updates == 0
             ? String(localized: "\(model.results.count) apps · up to date")
             : String(localized: "\(updates) updates available")
-        // One key with both halves in it, rather than appending a " · checked …"
-        // fragment: a leading-space fragment is a string no translator can move,
-        // and languages that want the timestamp first — or a different separator —
-        // have nowhere to say so.
+        // The timestamp joins on with a separator and no verb. "checked" was a
+        // word the relative time already implies, and it cost more room than the
+        // header has: translated, the line ran 247pt against the 167pt left over
+        // once "Обновить всё" had taken its width, so the half that says *when*
+        // was the half being cut off. Nothing to translate in " · ", so this is
+        // plain interpolation rather than a key with no words in it.
         if let last = model.lastCheck {
-            return String(localized: "\(base) · checked \(Self.checkedAgo(last))")
+            return "\(base) · \(Self.checkedAgo(last))"
         }
         return base
     }
 
-    /// "checked just now" / "checked 2m ago". Guards the just-finished case: the
+    /// "just now" / "2m ago". Guards the just-finished case: the
     /// relative formatter rounds a sub-second (or microscopically future, from
     /// clock jitter) interval to "in 0 seconds", which read as a wrong-tense
     /// "checked in 0s" right after a refresh. Anything within a few seconds is

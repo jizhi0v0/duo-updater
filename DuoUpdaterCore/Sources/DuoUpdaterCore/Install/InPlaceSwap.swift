@@ -143,9 +143,18 @@ public enum InPlaceSwap {
         defer {
             if replaced {
                 Log.install.notice("swap done: \(target.lastPathComponent, privacy: .public)")
-            } else {
+            } else if FileManager.default.fileExists(atPath: target.path) {
                 Log.install.error(
                     "swap did NOT replace \(target.lastPathComponent, privacy: .public) — the app on disk is unchanged")
+            } else {
+                // The privileged path moves the target aside before moving the new
+                // bundle in, and restores it if that fails. If the restore ALSO
+                // fails the app is missing from disk — and this is the one moment
+                // the line is load-bearing, so it must not claim the opposite.
+                // `recoverInterruptedSwaps` promotes the `.duoupdater-old` copy
+                // back on the next launch.
+                Log.install.error(
+                    "swap did NOT complete and \(target.lastPathComponent, privacy: .public) is MISSING from disk — its pre-swap copy should be recovered on next launch")
             }
         }
 

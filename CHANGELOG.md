@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.53
+
+**An app that already downloaded its own update is no longer asked to download it again.** Plenty of apps fetch their next version quietly in the background and hold it until you next quit them — that's the "relaunch to update" state you see inside Claude, TablePlus and others. Duo Updater has always recognised that state in Electron apps and offered you Relaunch instead of an Update, because the bytes are already on your disk. Apps built on Sparkle, which is most of the rest, were invisible to it: TablePlus sat there with a 133 MB download and an unpacked 382 MB copy of 26.9.11 in its cache, while its row offered to fetch 26.9.11 for you all over again. Those apps are now recognised too — the row offers Relaunch, and nothing is downloaded twice.
+
+**One thing it deliberately won't do is offer Relaunch for an older build.** An app can be holding a version *behind* the one you have, which happens when a vendor releases to some people before others and Duo Updater installed the newer one first. Relaunching there would quietly move you backwards, so the row doesn't offer it — and Duo Updater won't restart the app for you either, because that restart is the exact signal the app's own installer is waiting for.
+
+**Three ways an update could go wrong that a review caught before you did.** An App Store update that failed, or that you cancelled, could bring the app back to life minutes later — you would quit it yourself and it would reopen, because Duo Updater had noted "this app may need reopening" before anything had actually closed it. It now only reopens an app when a quit was genuinely asked for. Separately, the check added last release to stop an app's own updater undoing ours compared only the version *name*: a vendor that ships several builds under one version number slipped straight past it, which is the same failure it was written to prevent. It now compares the build number too. And an app's own updater is no longer assumed to be waiting just because a downloaded copy is sitting in its cache — Sparkle leaves those behind for ten days after an interrupted install, which could have left a Restart button that did nothing but explain itself.
+
 ## 0.3.52
 
 **Same changes as 0.3.51, reissued so it can actually reach you.** 0.3.51 went out carrying the same internal build number as 0.3.50. That number, not the one in the version name, is what an update check compares — so anyone already running 0.3.50 was told they were up to date and never offered it. This release carries the changes below under a build number that is properly newer. If you are reading this on 0.3.51, nothing about the app changed between the two.

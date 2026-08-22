@@ -21,7 +21,7 @@ import Foundation
 ///
 /// The decision therefore is not "is another installer armed" — that alone is
 /// harmless — but "is it armed with something OTHER than what we just wrote".
-/// When both sides hold the same version the quit is safe: whichever installer
+/// When both sides hold the same build the quit is safe: whichever installer
 /// runs second writes the same bytes. TablePlus was in exactly that state the
 /// same afternoon, staging 26.9.11 while we were about to install 26.9.11, and
 /// there was nothing to prevent.
@@ -35,18 +35,43 @@ public enum RestartStandoff {
         case holdBack(stagedVersion: String)
     }
 
-    /// `stagedVersion` is what the app's own updater will install on quit (nil if
-    /// nothing is staged); `onDiskVersion` is the bundle as it stands now, i.e.
-    /// what we just installed.
+    /// `staged` is what the app's own updater will install on quit (nil if
+    /// nothing is staged); the two `onDisk` values are the bundle as it stands
+    /// now, i.e. what we just installed.
     ///
-    /// An unreadable `onDiskVersion` holds back rather than proceeding. The whole
-    /// value of this check is knowing the two agree, and "we could not tell" is
-    /// not that — proceeding on it would be guessing with the user's app.
-    public static func decide(stagedVersion: String?, onDiskVersion: String?) -> Decision {
-        guard let staged = stagedVersion else { return .proceed }
-        guard let onDisk = onDiskVersion, staged == onDisk else {
-            return .holdBack(stagedVersion: staged)
+    /// **Every field that both sides carry must match**, not just the marketing
+    /// string. The first version of this compared `CFBundleShortVersionString`
+    /// alone, which is blind to the case it was written for: a vendor that keeps
+    /// the marketing version stable across builds could have 1.4.2 (5104) parked
+    /// while we install 1.4.2 (5120), the strings would agree, the restart would
+    /// be waved through, and 5104 would land on top of ours — the exact failure
+    /// this type exists to prevent, wearing a different version scheme.
+    ///
+    /// The bias is deliberate and one-directional. Holding back costs a manual
+    /// quit; proceeding when the builds differ silently undoes an install the
+    /// user asked for. So anything short of proof that the two agree — an
+    /// unreadable bundle, no field comparable on both sides — holds back.
+    public static func decide(
+        staged: StagedSelfUpdate?,
+        onDiskShortVersion: String?,
+        onDiskBuildVersion: String?
+    ) -> Decision {
+        guard let staged else { return .proceed }
+
+        // Only pairs where BOTH sides carry a value can be compared; a field
+        // missing on either side proves nothing either way.
+        let comparable: [(String, String)] = [
+            (staged.version, onDiskShortVersion),
+            (staged.buildVersion, onDiskBuildVersion),
+        ].compactMap { mine, theirs in
+            guard let theirs else { return nil }
+            guard let mine else { return nil }
+            return (mine, theirs)
         }
+
+        guard !comparable.isEmpty,
+              comparable.allSatisfy({ $0.0 == $0.1 })
+        else { return .holdBack(stagedVersion: staged.version) }
         return .proceed
     }
 }

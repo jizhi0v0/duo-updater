@@ -112,14 +112,28 @@ import pathlib
 import re
 import sys
 
+# Drop the item for the version being published, so generate_appcast writes a
+# fresh one rather than a duplicate.
+#
+# Split into whole items FIRST. The obvious single regex --
+# <item>.*?(<sparkle:version>BUILD</sparkle:version>|...).*?</item> with DOTALL --
+# is wrong in a way that only shows up when you republish something that is not
+# the newest entry: the lazy prefix starts at the FIRST <item> in the file and
+# swallows every item before the match. Republishing the newest costs one extra
+# entry, which is how 0.3.50 vanished from the feed on 2026-08-22; republishing
+# an older one empties the appcast completely. Verified against a three-item
+# feed: re-running the old form for the oldest build deleted all three.
 path, build, version = sys.argv[1:4]
 text = pathlib.Path(path).read_text()
-pattern = re.compile(
-    r"<item>.*?(?:<sparkle:version>\s*%s\s*</sparkle:version>|<sparkle:shortVersionString>\s*%s\s*</sparkle:shortVersionString>).*?</item>\s*"
-    % (re.escape(build), re.escape(version)),
-    re.S,
+
+item = re.compile(r"<item>.*?</item>\s*", re.S)
+target = re.compile(
+    r"<sparkle:version>\s*%s\s*</sparkle:version>"
+    r"|<sparkle:shortVersionString>\s*%s\s*</sparkle:shortVersionString>"
+    % (re.escape(build), re.escape(version))
 )
-pathlib.Path(path).write_text(pattern.sub("", text))
+pathlib.Path(path).write_text(
+    item.sub(lambda m: "" if target.search(m.group()) else m.group(), text))
 PY
     fi
 
@@ -130,6 +144,36 @@ PY
         --link "$RELEASE_PAGE_URL" \
         --embed-release-notes \
         "$archives_dir" >/dev/null
+
+    # Nothing may vanish from the feed. At this point `$clone_dir/appcast.xml` is
+    # still the published copy and `$archives_dir/appcast.xml` is the regenerated
+    # one, so they can simply be counted against each other. A shrinking feed is
+    # how the strip step used to fail silently — and a lost entry is not cosmetic:
+    # it is a version nobody can be offered any more.
+    OLD_APPCAST="$clone_dir/appcast.xml" NEW_APPCAST="$archives_dir/appcast.xml" \
+        NEW_VERSION="$version" python3 - <<'PY' || die "appcast sanity check failed"
+import os, pathlib, re, sys
+
+def versions(path):
+    text = pathlib.Path(path).read_text()
+    return re.findall(r"<sparkle:shortVersionString>\s*([^<\s]+)\s*</sparkle:shortVersionString>", text)
+
+old = versions(os.environ["OLD_APPCAST"])
+new = versions(os.environ["NEW_APPCAST"])
+want = os.environ["NEW_VERSION"]
+
+if want not in new:
+    sys.exit(f"the regenerated appcast does not contain {want} — it would publish nothing")
+# One in, at most one out (generate_appcast caps how many it keeps), so the
+# count can never legitimately fall.
+if len(new) < len(old):
+    lost = [v for v in old if v not in new]
+    sys.exit(
+        f"the regenerated appcast lost {len(old) - len(new)} entrie(s): {', '.join(lost) or '?'}\n"
+        f"  before: {', '.join(old)}\n  after:  {', '.join(new)}"
+    )
+print(f"  appcast: {len(old)} -> {len(new)} entries, {want} present")
+PY
 
     cp "$archives_dir/appcast.xml" "$clone_dir/appcast.xml"
 
@@ -143,6 +187,59 @@ PY
     fi
 }
 
+# Refuse to publish a build the updater cannot see as new.
+#
+# Sparkle decides "is this newer" from CFBundleVersion (sparkle:version), not
+# from the version name. 0.3.51 shipped with CURRENT_PROJECT_VERSION left at the
+# previous release's value, so every user already on 0.3.50 was told they were
+# up to date and never offered it; 0.3.52 exists only to correct that. Nothing
+# in this script noticed. It does now, before anything is built.
+#
+# Read the live appcast from git rather than the raw.githubusercontent URL: that
+# CDN lags several minutes and no cache-buster gets through it, so it is exactly
+# blind to the failure "the last push did not land".
+preflight_build_is_newer() {
+    local published
+    git -C "$REPO_ROOT" fetch origin main --quiet 2>/dev/null || true
+    published="$(git -C "$REPO_ROOT" show origin/main:appcast.xml 2>/dev/null || true)"
+    [ -n "$published" ] || { say "No published appcast yet — skipping the build-number check"; return 0; }
+
+    APPCAST_XML="$published" NEW_BUILD="$build" python3 - <<'PY' || die "build number check failed"
+import os, re, sys
+xml = os.environ["APPCAST_XML"]
+new = os.environ["NEW_BUILD"]
+builds = [int(b) for b in re.findall(r"<sparkle:version>\s*(\d+)\s*</sparkle:version>", xml)]
+if not builds:
+    print("  no sparkle:version entries in the published appcast — nothing to compare")
+    sys.exit(0)
+try:
+    mine = int(new)
+except ValueError:
+    sys.exit(f"CURRENT_PROJECT_VERSION {new!r} is not a number; Sparkle compares it numerically")
+top = max(builds)
+if mine <= top:
+    sys.exit(
+        f"CURRENT_PROJECT_VERSION is {mine}, but the published appcast already has {top}.\n"
+        f"  Sparkle compares CFBundleVersion, so every user on build {top} would be told\n"
+        f"  they are up to date and never offered this release. Bump\n"
+        f"  CURRENT_PROJECT_VERSION in App/project.yml (both occurrences)."
+    )
+print(f"  build {mine} > published {top}")
+PY
+}
+
+say "Checking the build number against the published appcast"
+preflight_build_is_newer
+
+# The tests are the only gate this project has — there is no CI on pull
+# requests — and until now `make release` did not run them, so a release could
+# go out over a red suite without anyone being asked.
+if [ "${SKIP_TESTS:-0}" != "1" ]; then
+    say "Running tests before publishing (SKIP_TESTS=1 to override)"
+    ( cd "$REPO_ROOT/DuoUpdaterCore" && swift test ) >/dev/null 2>&1 \
+        || die "swift test failed — refusing to publish. Run 'make test' to see it."
+fi
+
 if [ "$SKIP_NOTARIZE" != "1" ]; then
     say "Building and notarizing release artifact"
     "$REPO_ROOT/scripts/notarize.sh"
@@ -151,6 +248,20 @@ fi
 [ -f "$FINAL_ZIP" ] || die "notarized zip not found: $FINAL_ZIP"
 mkdir -p "$DIST_DIR"
 cp "$FINAL_ZIP" "$ASSET_ZIP"
+
+# The zip must contain the versions we are about to tag. With SKIP_NOTARIZE=1
+# this script reuses whatever `dist/DuoUpdater-notarized.zip` is lying around,
+# which can be the previous build — a silent path to "the tag says A, the
+# binary is B".
+say "Checking the artifact's own version"
+zip_info="$(unzip -Z1 "$ASSET_ZIP" | grep -m1 -E '^[^/]+\.app/Contents/Info\.plist$' || true)"
+[ -n "$zip_info" ] || die "no app Info.plist inside $ASSET_ZIP"
+zip_short="$(unzip -p "$ASSET_ZIP" "$zip_info" | plutil -extract CFBundleShortVersionString raw - 2>/dev/null || true)"
+zip_build="$(unzip -p "$ASSET_ZIP" "$zip_info" | plutil -extract CFBundleVersion raw - 2>/dev/null || true)"
+[ "$zip_short" = "$version" ] \
+    || die "artifact is version $zip_short but this release is $version — stale zip? (rebuild, or unset SKIP_NOTARIZE)"
+[ "$zip_build" = "$build" ] \
+    || die "artifact is build $zip_build but this release is build $build — stale zip? (rebuild, or unset SKIP_NOTARIZE)"
 
 checksum="$(shasum -a 256 "$ASSET_ZIP" | awk '{print $1}')"
 

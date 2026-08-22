@@ -53,6 +53,16 @@ struct SparkleStagingTests {
         return staged
     }
 
+    /// Where Sparkle's parked progress agent lives for this app — the evidence
+    /// that an installer is actually waiting on the quit.
+    private func parkedInstaller(in caches: URL) -> URL {
+        caches.appendingPathComponent(bundleID)
+            .appendingPathComponent("org.sparkle-project.Sparkle")
+            .appendingPathComponent("Launcher")
+            .appendingPathComponent("jRGjuao1o")
+            .appendingPathComponent("Updater.app")
+    }
+
     private func withScratch(_ body: (URL) throws -> Void) throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("SparkleStagingTest-\(UUID().uuidString)")
@@ -70,7 +80,8 @@ struct SparkleStagingTests {
 
             let found = SelfUpdaterStaging.sparkleStagedBundle(
                 for: app(at: installed, short: "26.9.9", build: "765"),
-                cachesDirectory: caches)
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)])
 
             #expect(found?.version == "26.9.11")
             #expect(found?.buildVersion == "769")
@@ -90,11 +101,13 @@ struct SparkleStagingTests {
 
             let found = SelfUpdaterStaging.sparkleStagedBundle(
                 for: app(at: installed, short: "26.818.41705", build: "6971"),
-                cachesDirectory: caches)
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)])
 
             #expect(found?.version == "26.818.41509")
             #expect(RestartStandoff.decide(
-                stagedVersion: found?.version, onDiskVersion: "26.818.41705")
+                staged: found,
+                onDiskShortVersion: "26.818.41705", onDiskBuildVersion: "6971")
                 == .holdBack(stagedVersion: "26.818.41509"))
         }
     }
@@ -113,7 +126,8 @@ struct SparkleStagingTests {
 
             #expect(SelfUpdaterStaging.sparkleStagedBundle(
                 for: app(at: installed, short: "1.0", build: "1"),
-                cachesDirectory: caches) == nil)
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)]) == nil)
         }
     }
 
@@ -131,7 +145,8 @@ struct SparkleStagingTests {
 
             #expect(SelfUpdaterStaging.sparkleStagedBundle(
                 for: app(at: installed, short: "1.0", build: "1"),
-                cachesDirectory: caches) == nil)
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)]) == nil)
         }
     }
 
@@ -145,7 +160,8 @@ struct SparkleStagingTests {
 
             #expect(SelfUpdaterStaging.sparkleStagedBundle(
                 for: app(at: installed, short: "1.0", build: "1"),
-                cachesDirectory: caches) == nil)
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)]) == nil)
         }
     }
 
@@ -166,7 +182,8 @@ struct SparkleStagingTests {
 
             let found = SelfUpdaterStaging.staged(
                 for: sparkleApp(at: installed, short: "26.9.9", build: "765"),
-                cachesDirectory: caches)
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)])
 
             #expect(found?.version == "26.9.11")
         }
@@ -184,9 +201,13 @@ struct SparkleStagingTests {
             try makeApp(at: installed, identifier: bundleID, short: "26.818.41705", build: "6971")
             let app = sparkleApp(at: installed, short: "26.818.41705", build: "6971")
 
-            #expect(SelfUpdaterStaging.staged(for: app, cachesDirectory: caches) == nil)
+            let parked = [parkedInstaller(in: caches)]
+            #expect(SelfUpdaterStaging.staged(
+                for: app, cachesDirectory: caches,
+                parkedInstallerBundleURLs: parked) == nil)
             #expect(SelfUpdaterStaging.sparkleStagedBundle(
-                for: app, cachesDirectory: caches)?.version == "26.818.41509")
+                for: app, cachesDirectory: caches,
+                parkedInstallerBundleURLs: parked)?.version == "26.818.41509")
         }
     }
 
@@ -207,5 +228,49 @@ struct SparkleStagingTests {
             name: "Sparkly", bundleID: bundleID, shortVersion: short, buildVersion: build,
             path: path, isMASApp: false, sparkleFeedURL: nil,
             hasSelfUpdater: false, hasSparkleUpdater: true)
+    }
+
+    /// Regression: an unpacked bundle in the cache is not evidence on its own.
+    /// Sparkle keeps abandoned staging for ten days and only sweeps it when a new
+    /// staging run happens, so a reboot or a killed installer leaves one behind.
+    /// Treating that as live gave a Restart button that held back — citing an
+    /// update that no longer existed — for up to ten days, and could quit the
+    /// user's app waiting for a swap nobody was going to perform.
+    @Test func aLeftoverWithNoParkedInstallerIsIgnored() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "26.9.11", build: "769")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "26.9.9", build: "765")
+            let app = sparkleApp(at: installed, short: "26.9.9", build: "765")
+
+            #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                for: app, cachesDirectory: caches,
+                parkedInstallerBundleURLs: []) == nil)
+            #expect(SelfUpdaterStaging.staged(
+                for: app, cachesDirectory: caches,
+                parkedInstallerBundleURLs: []) == nil)
+        }
+    }
+
+    /// An installer parked for a DIFFERENT app is not evidence for this one. Every
+    /// Sparkle app's agent shares one bundle identifier, so the location it runs
+    /// from is the only thing that ties it to an app.
+    @Test func anInstallerParkedForAnotherAppIsNotEvidence() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "26.9.11", build: "769")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "26.9.9", build: "765")
+            let elsewhere = caches.appendingPathComponent("com.other.app")
+                .appendingPathComponent("org.sparkle-project.Sparkle")
+                .appendingPathComponent("Launcher").appendingPathComponent("x")
+                .appendingPathComponent("Updater.app")
+
+            #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                for: sparkleApp(at: installed, short: "26.9.9", build: "765"),
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [elsewhere]) == nil)
+        }
     }
 }

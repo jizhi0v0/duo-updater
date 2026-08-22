@@ -24,6 +24,12 @@ public enum Redactor {
         "key", "token", "license", "auth", "sig", "signature",
         "access_token", "instance", "api_key", "apikey", "secret",
         "password", "pwd", "session", "credential",
+        // Rollout identifiers. These grant nothing, which is why a recipe may
+        // send one (see `ProbeIdentity`) — but they identify a machine, and the
+        // contract that they never appear in a log, a report or a public issue
+        // rested entirely on the resolved URL never leaving the fetch. That is
+        // one layer with nothing behind it; these put the net back under it.
+        "installation_id", "installationid", "device_id", "deviceid",
     ]
 
     /// Header names dropped whole — the value *is* the secret.

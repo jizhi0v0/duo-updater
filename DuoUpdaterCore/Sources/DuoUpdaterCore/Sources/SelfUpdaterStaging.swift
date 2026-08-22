@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// A Squirrel (Electron) self-update that has been fully downloaded and unpacked
@@ -58,6 +59,7 @@ public enum SelfUpdaterStaging {
         for app: InstalledApp,
         cachesDirectory: URL? = nil,
         applicationSupportDirectory: URL? = nil,
+        parkedInstallerBundleURLs: [URL]? = nil,
         fileManager: FileManager = .default
     ) -> StagedSelfUpdate? {
         guard let bundleID = app.bundleID else { return nil }
@@ -74,7 +76,9 @@ public enum SelfUpdaterStaging {
         guard app.hasSelfUpdater else {
             guard app.hasSparkleUpdater,
                   let staged = sparkleStagedBundle(
-                    for: app, cachesDirectory: cachesDirectory, fileManager: fileManager)
+                    for: app, cachesDirectory: cachesDirectory,
+                    parkedInstallerBundleURLs: parkedInstallerBundleURLs,
+                    fileManager: fileManager)
             else { return nil }
             // `sparkleStagedBundle` deliberately returns a staged build of ANY
             // version, because the restart check needs the ones that are older
@@ -217,24 +221,51 @@ public enum SelfUpdaterStaging {
     /// holds Sparkle's own `Updater.app`, which is not a staged copy of anything;
     /// the bundle-identifier check below independently rejects it.
     ///
-    /// Sparkle apps are NOT covered by `mayHaveStaging`, because `hasSelfUpdater`
-    /// is a Squirrel-only signal (`AppScanner` tests for `Squirrel.framework`) and
-    /// widening it would change `defersToSelfUpdater` for every Sparkle app on the
-    /// machine. So this is called directly, for one app, at the moment the answer
-    /// is needed.
+    /// **An unpacked bundle in the cache is not on its own evidence of anything.**
+    /// The Squirrel branch above demands a `ShipItState.plist` naming this bundle
+    /// as its target — positive proof an installer was armed. Sparkle writes no
+    /// such record, and it only garbage-collects its staging directory for entries
+    /// older than ten days, and then only when a new staging run happens
+    /// (`OLD_ITEM_DELETION_INTERVAL` in Sparkle's `SPULocalCacheDirectory.m`). So
+    /// an extraction abandoned by a reboot, a killed installer or a failed apply
+    /// stays on disk, and treating it as live meant a Restart button that held
+    /// back — pointing at an update that no longer existed — for up to ten days.
+    ///
+    /// The evidence used instead is the thing that actually does the work: an
+    /// installer process parked on this app's termination. Nothing applies on quit
+    /// without one, so where there is no parked installer there is nothing to
+    /// avoid, whatever is lying in the cache.
+    ///
+    /// **Known limitation.** Sparkle's cache is keyed by bundle identifier alone,
+    /// and so is the parked installer's own location, so two copies of one app
+    /// (this project's verification workflow keeps an older one in
+    /// `~/Applications`) share one cache and cannot be told apart here. For the
+    /// restart check that errs safe — both copies hold back. For the Relaunch
+    /// offer it can attribute a staged build to the wrong copy. The installer's
+    /// argv does name its target bundle, which would settle it, but that ordering
+    /// is undocumented and not worth depending on yet.
     public static func sparkleStagedBundle(
         for app: InstalledApp,
         cachesDirectory: URL? = nil,
+        parkedInstallerBundleURLs: [URL]? = nil,
         fileManager: FileManager = .default
     ) -> StagedSelfUpdate? {
         guard let bundleID = app.bundleID else { return nil }
         let caches = cachesDirectory
             ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
         guard let caches else { return nil }
-        let root = caches
+        let sparkleRoot = caches
             .appendingPathComponent(bundleID, isDirectory: true)
             .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
-            .appendingPathComponent("Installation", isDirectory: true)
+
+        // Cheapest discriminator first: no parked installer, nothing to avoid.
+        let parked = parkedInstallerBundleURLs ?? liveParkedSparkleInstallers()
+        let sparkleRootPath = sparkleRoot.standardizedFileURL.path
+        guard parked.contains(where: {
+            $0.standardizedFileURL.path.hasPrefix(sparkleRootPath + "/")
+        }) else { return nil }
+
+        let root = sparkleRoot.appendingPathComponent("Installation", isDirectory: true)
 
         // The directory itself survives every install — it is empty when nothing
         // is staged, which is why its existence proves nothing and its mtime
@@ -257,6 +288,19 @@ public enum SelfUpdaterStaging {
                 stagedBundlePath: url)
         }
         return nil
+    }
+
+    /// Sparkle's progress agent, which runs out of the staging cache of whichever
+    /// app it is installing — so its own bundle location is what ties a parked
+    /// installer to an app. Observed live: pid 27939 at
+    /// `…/Caches/com.tinyapp.TablePlus/org.sparkle-project.Sparkle/Launcher/<random>/Updater.app`.
+    private static let sparkleInstallerBundleID = "org.sparkle-project.Sparkle.Updater"
+
+    /// Bundle locations of every Sparkle installer currently parked, for any app.
+    private static func liveParkedSparkleInstallers() -> [URL] {
+        NSRunningApplication
+            .runningApplications(withBundleIdentifier: sparkleInstallerBundleID)
+            .compactMap(\.bundleURL)
     }
 
     /// ShipIt stores bundle locations as `file://` URL strings.

@@ -204,7 +204,21 @@ final class AppListModel {
     /// App ids the user agreed to quit (via the confirm affordance) for an
     /// incremental App Store update — App Store's Continue quits but doesn't reopen,
     /// so we relaunch them ourselves once the new build is in place.
-    @ObservationIgnored private var reopenAfterQuit: Set<String> = []
+    /// Why a row is expecting to be reopened. The distinction is load-bearing:
+    /// only `userAskedToQuit` means a quit was actually requested, and only that
+    /// case may hand an app still running to the terminate observer. Arming from
+    /// the App Store route alone says nothing has closed the app *yet* — treating
+    /// the two alike relaunched apps the user had quit themselves, minutes after
+    /// an install that failed and never closed anything.
+    enum ReopenReason: Sendable, Equatable {
+        /// The user answered a quit-to-install prompt, so a quit is expected.
+        case userAskedToQuit
+        /// An App Store install started with the app running. The store's daemon
+        /// may close it to swap the bundle — or the install may fail and close
+        /// nothing at all.
+        case storeMayCloseIt
+    }
+    @ObservationIgnored private var reopenAfterQuit: [String: ReopenReason] = [:]
     /// id → the build version the running instance launched with, for display.
     private var runningVersionByID: [String: String] = [:]
     /// id → the marketing version the running (pre-self-update) build corresponds to,
@@ -2091,7 +2105,7 @@ final class AppListModel {
                 // the reason the signal is "was it running", not "did they click".
                 if AppStoreQuitPolicy.armsReopen(
                     route: route, wasRunningBeforeInstall: wasRunningBeforeInstall) {
-                    reopenAfterQuit.insert(id)
+                    reopenAfterQuit[id] = .storeMayCloseIt
                 }
                 installing[id] = .downloading(fraction: 0)
                 // Both routes download through the App Store daemon, so we never see
@@ -2108,6 +2122,7 @@ final class AppListModel {
                 guard !Task.isCancelled else {
                     // Cancelled while parked on the permit: nothing started. The
                     // defer above hands it back.
+                    reopenAfterQuit[id] = nil
                     installing[id] = nil
                     return false
                 }
@@ -2121,6 +2136,7 @@ final class AppListModel {
                     // store hasn't surfaced the update into the list yet, the installer
                     // throws `.notInUpdatesList`, shown as a "try again later" hint.
                     guard AppStoreAXInstaller.isTrusted else {
+                        reopenAfterQuit[id] = nil
                         installing[id] = nil
                         installErrors[id] = AppStoreAXInstaller.AXError.notTrusted.errorDescription
                         presentAccessibilityPermissionFlow()
@@ -2162,6 +2178,7 @@ final class AppListModel {
                        await masInstaller.outdatedContains(adamID: adamID) != true {
                         Log.install.notice("App Store: \(result.app.name, privacy: .public) already current (on-disk \(onDisk, privacy: .public) ≥ target \(target, privacy: .public), not outdated per mas) — skipping install before download")
                         await refreshRow(result)
+                        reopenAfterQuit[id] = nil
                         installing[id] = nil
                         return false
                     }
@@ -2200,6 +2217,7 @@ final class AppListModel {
                         // Incremental, no Accessibility, and no mas to fall back to — we
                         // can't update at all. Surface the need and guide to the grant;
                         // the row's retry picks up once access is granted.
+                        reopenAfterQuit[id] = nil
                         installing[id] = nil
                         installErrors[id] = AppStoreAXInstaller.AXError.notTrusted.errorDescription
                         presentAccessibilityPermissionFlow()
@@ -3016,24 +3034,35 @@ final class AppListModel {
         // samples this itself for the quit it completes; this copy is only for the
         // quit it gives up on.
         let wasFrontmost = AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app))
+        // A fresh attempt supersedes whatever a previous bail left armed. This has
+        // to happen BEFORE the standoff below can return: a stale marker left by
+        // an earlier bail fires on the very quit the hold-back note asks the user
+        // to perform, relaunching the app straight into the installer we were
+        // trying not to disturb.
+        quitHandoffs[result.id] = nil
         // Is anyone else waiting for this app to quit? Sparkle parks an installer
         // on exactly that signal, so a restart meant to put OUR build into effect
         // can instead apply THEIRS — see `RestartStandoff` for the timeline. Only
         // a staged build that differs from what is on disk is a problem; matching
-        // versions make whoever writes second harmless.
-        let staged = SelfUpdaterStaging.sparkleStagedBundle(for: result.app)
+        // builds make whoever writes second harmless. The `hasSparkleUpdater`
+        // guard keeps every other app off the filesystem work entirely.
+        installNotes[result.id] = nil
+        let staged = result.app.hasSparkleUpdater
+            ? SelfUpdaterStaging.sparkleStagedBundle(for: result.app) : nil
         if case .holdBack(let stagedVersion) = RestartStandoff.decide(
-            stagedVersion: staged?.version,
-            onDiskVersion: Self.readShortVersion(result.app.path)) {
+            staged: staged,
+            onDiskShortVersion: Self.readShortVersion(result.app.path),
+            onDiskBuildVersion: result.app.buildVersion) {
             Log.app.notice(
                 "restart held back: \(result.app.name, privacy: .public) — its own updater has \(stagedVersion, privacy: .public) staged and is waiting for the quit")
+            // Deliberately says "the version on disk" rather than "the version
+            // just installed": this is also reached from the Restart button on a
+            // row that updated itself, where we installed nothing.
             installNotes[result.id] =
                 "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. "
-                + "Restarting from here would install that one over the version just installed, so it wasn't restarted — quit \(result.app.name) yourself when you're ready to take theirs."
+                + "Restarting from here would install that one over the version now on disk, so it wasn't restarted — quit \(result.app.name) yourself when you're ready to take theirs."
             return
         }
-        // A fresh attempt supersedes whatever a previous bail left armed.
-        quitHandoffs[result.id] = nil
         switch await AppRestarter.restart(result.app) {
         case .noBundleID, .notRunning:
             needsRestart.remove(result.id)
@@ -3449,7 +3478,7 @@ final class AppListModel {
         // relaunch it ourselves once the install lands. Show the "Relaunching…"
         // indicator meanwhile (cleared when the install settles in `installApp`).
         if proceed {
-            reopenAfterQuit.insert(id)
+            reopenAfterQuit[id] = .userAskedToQuit
             relaunching.insert(id)
         }
         let cont = quitContinuations.removeValue(forKey: id)
@@ -3479,8 +3508,13 @@ final class AppListModel {
     /// to the terminate observer instead of dropping it (see `QuitHandoff`).
     private func reopenIfQuitForUpdate(_ result: UpdateResult) {
         let id = result.id
-        guard reopenAfterQuit.remove(id) != nil else { return }
+        guard let reason = reopenAfterQuit.removeValue(forKey: id) else { return }
         if !AppRestarter.runningInstances(of: result.app).isEmpty {
+            // Still up, and nobody asked it to quit: the store either never got
+            // that far or the install failed outright. There is nothing to
+            // relay — arming one here is how a cancelled update ended up
+            // relaunching an app the user closed themselves ten minutes later.
+            guard reason == .userAskedToQuit else { return }
             // Only armable against a known pre-install version — that's what tells
             // the relay the store's swap has landed. Without one, fall through to
             // today's behaviour rather than guess at a landing.

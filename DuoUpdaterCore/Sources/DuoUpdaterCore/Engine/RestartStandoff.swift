@@ -49,8 +49,14 @@ public enum RestartStandoff {
     ///
     /// The bias is deliberate and one-directional. Holding back costs a manual
     /// quit; proceeding when the builds differ silently undoes an install the
-    /// user asked for. So anything short of proof that the two agree — an
-    /// unreadable bundle, no field comparable on both sides — holds back.
+    /// user asked for. So it takes at least one field the two sides agree on to
+    /// proceed, and any disagreement — or nothing comparable at all, as with an
+    /// unreadable bundle — holds back.
+    ///
+    /// "At least one", not "all of them present": a bundle whose build number is
+    /// readable and matches is proof enough even if its marketing string is
+    /// missing, and vice versa. Requiring both would hold back on every app whose
+    /// staged copy omits `CFBundleVersion`.
     public static func decide(
         staged: StagedSelfUpdate?,
         onDiskShortVersion: String?,

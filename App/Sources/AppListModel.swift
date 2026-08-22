@@ -226,6 +226,23 @@ final class AppListModel {
         case storeMayCloseIt
     }
     @ObservationIgnored private var reopenAfterQuit: [String: ReopenReason] = [:]
+    /// id → the exact hold-back text this model last wrote into `installNotes`,
+    /// so a later restart that goes through can retract its own note and nothing
+    /// else.
+    ///
+    /// `installNotes` is shared with `backupCurrent`, which uses it to say "this
+    /// update was applied without a rollback point". Clearing the whole entry on
+    /// every restart retracted that warning too — and since `autoRestartAfterUpdate`
+    /// defaults on, that meant a running app's backup warning was never readable
+    /// by anyone.
+    ///
+    /// The text, not a `Set` of ids. A set is a second copy of a fact that three
+    /// other places already change: `install`, `performInstall` and `installAll`
+    /// all clear `installNotes` without knowing this exists, so a member left
+    /// behind by any of them would later authorise the very blanket clear this
+    /// was added to prevent. Comparing against what we wrote cannot drift,
+    /// because whoever overwrote the note also invalidated the comparison.
+    @ObservationIgnored private var restartHoldBackNotes: [String: String] = [:]
     /// id → the build version the running instance launched with, for display.
     private var runningVersionByID: [String: String] = [:]
     /// id → the marketing version the running (pre-self-update) build corresponds to,
@@ -3071,22 +3088,35 @@ final class AppListModel {
         // a staged build that differs from what is on disk is a problem; matching
         // builds make whoever writes second harmless. The `hasSparkleUpdater`
         // guard keeps every other app off the filesystem work entirely.
-        installNotes[result.id] = nil
         let staged = result.app.hasSparkleUpdater
             ? SelfUpdaterStaging.sparkleStagedBundle(for: result.app) : nil
+        // Both fields off the same read of the bundle as it stands NOW. The batch
+        // path calls this with a `result` snapshotted before any install ran, so
+        // anything taken from `result.app` here is a version or two behind.
+        let onDisk = Self.readBundleVersions(result.app.path)
         if case .holdBack(let stagedVersion) = RestartStandoff.decide(
             staged: staged,
-            onDiskShortVersion: Self.readShortVersion(result.app.path),
-            onDiskBuildVersion: result.app.buildVersion) {
+            onDiskShortVersion: onDisk.short,
+            onDiskBuildVersion: onDisk.build) {
             Log.app.notice(
                 "restart held back: \(result.app.name, privacy: .public) — its own updater has \(stagedVersion, privacy: .public) staged and is waiting for the quit")
             // Deliberately says "the version on disk" rather than "the version
             // just installed": this is also reached from the Restart button on a
             // row that updated itself, where we installed nothing.
-            installNotes[result.id] =
+            let note =
                 "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. "
                 + "Restarting from here would install that one over the version now on disk, so it wasn't restarted — quit \(result.app.name) yourself when you're ready to take theirs."
+            installNotes[result.id] = note
+            restartHoldBackNotes[result.id] = note
             return
+        }
+        // The standoff is over (or never existed): retract our own explanation if
+        // it is still the one showing, and nothing else. If someone replaced the
+        // note in between — `backupCurrent`'s "no rollback point", say — theirs
+        // stands.
+        if let mine = restartHoldBackNotes.removeValue(forKey: result.id),
+           installNotes[result.id] == mine {
+            installNotes[result.id] = nil
         }
         switch await AppRestarter.restart(result.app) {
         case .noBundleID, .notRunning:
@@ -3118,7 +3148,12 @@ final class AppListModel {
             settlePackageRestart(result.id)
             Log.app.info("restart: \(result.app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
             if relaunched {
-                UpdateNotifier.restarted(app: result.app.name, version: result.app.shortVersion, appID: result.app.bundleID)
+                // `onDisk.short`, not `result.app.shortVersion`: the batch path
+                // hands this function a row snapshotted before any install ran,
+                // so the snapshot names the version we just replaced.
+                UpdateNotifier.restarted(
+                    app: result.app.name, version: onDisk.short ?? result.app.shortVersion,
+                    appID: result.app.bundleID)
             }
         }
     }
@@ -3357,12 +3392,27 @@ final class AppListModel {
     /// Read a bundle's `CFBundleShortVersionString` straight off disk — used to
     /// poll for a ShipIt swap landing while the app is quit.
     nonisolated private static func readShortVersion(_ bundle: URL) -> String? {
+        readBundleVersions(bundle).short
+    }
+
+    /// Both version fields, from **one** read of the bundle.
+    ///
+    /// Kept together on purpose. `RestartStandoff` compares each field it can
+    /// against what the app's own updater has staged, so the two must describe
+    /// the same moment: pairing a freshly-read short version with a
+    /// `buildVersion` carried over from the pre-install scan made "Update All"
+    /// hold back on apps with nothing staged against them, because the marketing
+    /// string matched and the stale build did not.
+    nonisolated private static func readBundleVersions(
+        _ bundle: URL
+    ) -> (short: String?, build: String?) {
         let info = bundle.appendingPathComponent("Contents/Info.plist")
         guard let data = try? Data(contentsOf: info),
               let dict = (try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil)) as? [String: Any]
-        else { return nil }
-        return dict["CFBundleShortVersionString"] as? String
+        else { return (nil, nil) }
+        return (dict["CFBundleShortVersionString"] as? String,
+                dict["CFBundleVersion"] as? String)
     }
 
     /// Open System Settings → Privacy & Security → App Management and float the

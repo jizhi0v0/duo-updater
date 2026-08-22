@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.56
+
+**Two Settings options read on one line again.** The two options under Install routing — how App Store updates install, and what happens to apps that ship their own updater — used to put their name to the left of the menu, the way options do everywhere else on macOS. Adding six languages moved both names above their menus instead, because a German or Russian option can be long enough to run off the end of the line, and the safe layout was applied to every language at once. Each row now decides for itself: the name stays beside the menu as long as the menu leaves room for it, and only moves above when the text genuinely needs the width. In English, Japanese and Chinese both rows are back on one line; in German and French they stay stacked, which is the only way they fit without being cut off.
+
 ## 0.3.55
 
 **Duo Updater now speaks Russian, Simplified Chinese, Japanese, German, French and Spanish.** It follows whatever language your Mac is set to, and switches with it — there is nothing to turn on. If you would rather read it in a language your Mac isn't set to, macOS can do that per app: System Settings ▸ General ▸ Language & Region ▸ Applications. Everything the app writes itself is translated: the menu-bar panel, every Settings page, the setup window, the notifications, the alerts, and the small print under each option. Counts are handled the way each language actually handles them rather than by bolting an "s" onto the end, which matters most in Russian, where "1 update", "2 updates" and "5 updates" take three different endings — and in Chinese and Japanese, where they take none.

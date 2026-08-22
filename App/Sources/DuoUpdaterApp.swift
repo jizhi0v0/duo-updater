@@ -52,6 +52,18 @@ struct DuoUpdaterApp: App {
         }
         .defaultSize(width: 520, height: 620)
         .windowResizability(.contentMinSize)
+
+        // Duo Updater's own release notes. Its own window, like the Release Log,
+        // so it survives the popover dismissing — you open it from the menu and
+        // then the menu goes away.
+        Window("What's New", id: SelfChangelogView.windowID) {
+            SelfChangelogView(model: model)
+        }
+        // Landscape by default: the notes are prose, and a narrow window turns each
+        // paragraph into a column of short lines. Wide enough that the rail plus a
+        // comfortable measure both fit without resizing on first open.
+        .defaultSize(width: 900, height: 620)
+        .windowResizability(.contentMinSize)
         .commands {
             // Restore the ⌘, "Settings…" app-menu item now that there's no Settings
             // scene to provide it automatically.

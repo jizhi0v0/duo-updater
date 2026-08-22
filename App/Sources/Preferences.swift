@@ -85,6 +85,7 @@ final class Preferences {
         static let declinedElevationKeys = UpdateSettings.declinedElevationKeysKey
         static let skippedVersions = UpdateSettings.skippedVersionsKey
         static let lastCheckDate = "LastCheckDate"
+        static let lastSeenSelfVersion = "LastSeenSelfVersion"   // our own version whose notes the user has seen
         static let notifiedVersions = "NotifiedVersions"
         static let notificationBaselineSeeded = "NotificationBaselineSeeded"
         static let marketingByBuild = "MarketingVersionByBuild"
@@ -246,6 +247,18 @@ final class Preferences {
     /// When the last full networked check completed. Persisted so the background
     /// scheduler survives relaunches — it schedules the next check relative to this
     /// rather than restarting the interval from zero on every launch.
+    /// The Duo Updater version whose release notes the user has already been
+    /// shown. Nil on a machine that predates this, and on a fresh install.
+    ///
+    /// Exists because Duo Updater updates ITSELF silently — the whole point of
+    /// that design is that nothing interrupts you — which leaves the user on a new
+    /// version they never agreed to and never saw the notes for. Every other app
+    /// in the list gets a "what changed" pane; without this, ours was the one app
+    /// that changed under you without saying so.
+    var lastSeenSelfVersion: String? {
+        didSet { defaults.set(lastSeenSelfVersion, forKey: Key.lastSeenSelfVersion) }
+    }
+
     var lastCheckDate: Date? {
         didSet { defaults.set(lastCheckDate, forKey: Key.lastCheckDate) }
     }
@@ -366,6 +379,7 @@ final class Preferences {
         self.declinedElevationKeys = Set(defaults.stringArray(forKey: Key.declinedElevationKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
         self.lastCheckDate = defaults.object(forKey: Key.lastCheckDate) as? Date
+        self.lastSeenSelfVersion = defaults.string(forKey: Key.lastSeenSelfVersion)
         self.notifiedVersions = defaults.dictionary(forKey: Key.notifiedVersions) as? [String: String] ?? [:]
         self.notificationBaselineSeeded = defaults.bool(forKey: Key.notificationBaselineSeeded)
         self.marketingByBuild = defaults.dictionary(forKey: Key.marketingByBuild) as? [String: String] ?? [:]

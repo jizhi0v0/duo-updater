@@ -504,6 +504,47 @@ final class AppListModel {
         AppDockBadge.sync(count: badgeCount)
     }
 
+    // MARK: - "We updated ourselves while you weren't looking"
+
+    /// The version Duo Updater silently updated itself to since the user last saw
+    /// release notes, or nil. Drives the menu banner.
+    ///
+    /// Computed once at launch rather than on every read: the running version
+    /// cannot change inside a process, and the record is cleared the moment the
+    /// user opens the notes, so a stored value is the honest model.
+    private(set) var silentSelfUpdate: String?
+
+    /// The version this build reports. One place, so the banner, the notes window
+    /// and the record can never disagree about what "running" means.
+    static var runningSelfVersion: String? {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    }
+
+    /// Resolve the banner state at launch. Seeds the record silently for a fresh
+    /// install or a rollback (see `SelfUpdateNotice`), and otherwise leaves it
+    /// alone — the record is what makes the banner reappear until it is read, so
+    /// it must NOT be cleared here.
+    func resolveSilentSelfUpdate() {
+        let running = Self.runningSelfVersion
+        if SelfUpdateNotice.shouldSeedSilently(running: running, lastSeen: prefs.lastSeenSelfVersion) {
+            prefs.lastSeenSelfVersion = running
+            silentSelfUpdate = nil
+            return
+        }
+        silentSelfUpdate = SelfUpdateNotice.announcement(
+            running: running, lastSeen: prefs.lastSeenSelfVersion)
+        if let silentSelfUpdate {
+            Log.app.notice(
+                "self-update noticed: now \(silentSelfUpdate, privacy: .public), last seen \(self.prefs.lastSeenSelfVersion ?? "—", privacy: .public)")
+        }
+    }
+
+    /// The user has seen the notes: stop announcing this version.
+    func markSelfUpdateSeen() {
+        prefs.lastSeenSelfVersion = Self.runningSelfVersion
+        silentSelfUpdate = nil
+    }
+
     /// Call from a window's `.onAppear`: keep the badge current and bring the
     /// first surfaced window to the front.
     func windowAppeared() {
@@ -676,6 +717,11 @@ final class AppListModel {
         // Track which apps are running so each row can show a live "running" dot,
         // kept current by NSWorkspace launch/terminate notifications.
         armRunningAppsMonitor()
+        // Did we swap ourselves out from under the user since they last read the
+        // notes? Resolved once here: the running version can't change inside a
+        // process, and doing it at launch means the banner is right the first time
+        // the menu opens rather than after some later event.
+        resolveSilentSelfUpdate()
     }
 
     /// The explicit GitHub token preference as the resolver should see it: nil when

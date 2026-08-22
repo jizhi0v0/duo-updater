@@ -17,6 +17,20 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.55</title>
+            <pubDate>Sun, 23 Aug 2026 00:15:50 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.55</link>
+            <sparkle:version>64</sparkle:version>
+            <sparkle:shortVersionString>0.3.55</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Duo Updater now speaks Russian, Simplified Chinese, Japanese, German, French and Spanish.** It follows whatever language your Mac is set to, and switches with it — there is nothing to turn on. If you would rather read it in a language your Mac isn't set to, macOS can do that per app: System Settings ▸ General ▸ Language & Region ▸ Applications. Everything the app writes itself is translated: the menu-bar panel, every Settings page, the setup window, the notifications, the alerts, and the small print under each option. Counts are handled the way each language actually handles them rather than by bolting an "s" onto the end, which matters most in Russian, where "1 update", "2 updates" and "5 updates" take three different endings — and in Chinese and Japanese, where they take none.
+
+**Two things stay in English on purpose.** Release notes are the vendor's own words, so they arrive in whatever language the vendor wrote them in — translating them would mean rewriting what a developer said about their own release. And the `duo` command-line tool stays English, the way command-line tools generally are.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.55/DuoUpdater-0.3.55-macos.zip" length="10904118" type="application/octet-stream" sparkle:edSignature="DWpGfcVAiJLNwFwn1b01v4iuFHHyxeygH3kU5nzRpw6cKhSnem1OKp2mrO2kK4K/fY4IKPClJC2DcgrmJye5Dw=="/>
+        </item>
+        <item>
             <title>0.3.54</title>
             <pubDate>Sat, 22 Aug 2026 21:05:33 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.54</link>

@@ -1959,18 +1959,65 @@ public enum VendorProbeRegistry {
                 urlSource: .bodyPatternLast(#"url="(https?://get\.videolan\.org/vlc/[^"]+arm64\.dmg)""#),
                 kind: .dmg)),
 
-        // Codex — OpenAI's Sparkle appcast (feed URL is baked into the app, not
-        // the Info.plist, so the Sparkle source can't see it).
+        // Codex — the endpoint ChatGPT's own updater asks, not the feed it ships
+        // configured with. Those are different answers, which is the whole reason
+        // this recipe looks like this.
+        //
+        // The app's `codexSparkleFeedUrl` is
+        // `persistent.oaistatic.com/codex-app-prod/appcast.xml`, and reading it is
+        // what we used to do. But `production-appcast-bootstrap.json` carries
+        // `backendAppcastEnabled: true`, and Sparkle then asks the endpoint below,
+        // which 307s to a per-target `appcast-<version>.xml`. The static file is a
+        // PUBLISHING manifest; the redirect target is what the vendor is actually
+        // shipping. On 2026-08-22 they disagreed for hours — the static feed listed
+        // 26.818.41705 (published 06:11Z, real zip, real signature) while every
+        // machine asking the endpoint was told 26.818.41509 was newest. Installing
+        // the published-but-unshipped build starts a fight the app wins: its own
+        // Sparkle stages 41509, waits for a quit, and our restart is the quit.
+        //
+        // That is also why this REPLACES the static feed rather than joining it as
+        // a second endpoint. `VendorProbeSource.best(of:)` takes the highest, sound
+        // only under its stated precondition — every endpoint must serve "a build
+        // this machine may legitimately install". The publishing manifest doesn't.
+        //
+        // `app_version` is required (omit it, or send something unparseable, and
+        // there is no redirect) but does not participate: 0.0.0, the installed
+        // version, and 99.999.99999 all resolved to the same target. A sentinel is
+        // deliberate — if OpenAI ever does step upgrades, 0.0.0 is the value most
+        // likely to be rejected outright, which `duo verify` reports, rather than
+        // to answer plausibly and wrongly. `installation_id` selects the rollout
+        // bucket and grants nothing; see `ProbeIdentity` for why it never reaches
+        // a log, a report, or the recipe's own recorded URL.
         VendorProbeRecipe(
             bundleID: "com.openai.codex",
-            url: URL(string: "https://persistent.oaistatic.com/codex-app-prod/appcast.xml")!,
+            url: URL(string: "https://chatgpt.com/backend-api/wham/app/appcast?installation_id=__IDENTITY__&arch=arm64&beta=false&app_version=0.0.0")!,
             mode: .responseBody,
             versionPattern: #"<sparkle:shortVersionString>([0-9][^<]*)</sparkle:shortVersionString>"#,
+            // Required of any identity recipe: without it `.responseBody` falls back
+            // to `recipe.url` as the download, which here is an unfetchable
+            // placeholder (`ProbeIdentityRedactionTests`). The vendor's own page,
+            // titled "Download ChatGPT" — behind a Cloudflare interstitial, so a
+            // script gets 403 and only a browser confirms it.
+            //
+            // The tempting alternative is the direct artifact the site's button
+            // serves, `codex-app-prod/Codex.dmg`. Do not use it, and not only
+            // because `PageURLTests` requires a page: that dmg tracks the
+            // PUBLISHING manifest. Its Last-Modified was 06:12:52Z on 2026-08-22,
+            // ninety seconds after 26.818.41705 published — the very build the
+            // rollout was still withholding. Pointing anything at it walks straight
+            // back into the fight this recipe exists to end.
+            downloadURL: URL(string: "https://chatgpt.com/download/"),
             changelogURL: URL(string: "https://developers.openai.com/codex/changelog?type=codex-app")!,
-            // Sparkle enclosure points at the full zip (ignore the `.delta` urls).
+            // Redirect followed (the default), so the body parsed here is the
+            // pinned appcast. Its enclosure points at the full zip; the `.delta`
+            // urls are ignored, unchanged from when this read the static feed.
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"url="([^"]+\.zip)""#),
-                kind: .zip)),
+                kind: .zip),
+            identity: ProbeIdentity(
+                applicationSupportPath: "com.openai.codex/production-appcast-bootstrap.json",
+                encoding: .jsonKey("installationId"),
+                validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#)),
 
         // ChatWise — Squirrel releases endpoint; array of versions, take highest.
         VendorProbeRecipe(

@@ -177,6 +177,69 @@ public enum SelfUpdaterStaging {
         return nil
     }
 
+    /// A bundle **Sparkle** has downloaded, unpacked and parked in its
+    /// installation cache, waiting for this app to quit. Returns it whatever its
+    /// version, including one OLDER than what is installed — which is not an
+    /// oversight but the case that matters most, so the version comparison is
+    /// deliberately the caller's:
+    ///
+    ///   - "should the row offer Relaunch instead of our own Update?" wants a
+    ///     staged build strictly newer than what is on disk, the way the Squirrel
+    ///     and Spotify branches above answer it.
+    ///   - "is it safe to quit this app to apply what we just installed?" wants
+    ///     any staged build that DIFFERS. On 2026-08-22 ChatGPT had 26.818.41509
+    ///     staged while disk held the 26.818.41705 we had just written; quitting
+    ///     it handed Sparkle the signal it was parked on and the older build
+    ///     landed on top of ours. A "strictly newer" filter here would have
+    ///     returned nil for exactly that.
+    ///
+    /// Layout, as observed: `Installation/<random>/<random>/<Name>.app`, beside
+    /// the `.dmg` it came from. `Launcher/` is deliberately not searched — it
+    /// holds Sparkle's own `Updater.app`, which is not a staged copy of anything;
+    /// the bundle-identifier check below independently rejects it.
+    ///
+    /// Sparkle apps are NOT covered by `mayHaveStaging`, because `hasSelfUpdater`
+    /// is a Squirrel-only signal (`AppScanner` tests for `Squirrel.framework`) and
+    /// widening it would change `defersToSelfUpdater` for every Sparkle app on the
+    /// machine. So this is called directly, for one app, at the moment the answer
+    /// is needed.
+    public static func sparkleStagedBundle(
+        for app: InstalledApp,
+        cachesDirectory: URL? = nil,
+        fileManager: FileManager = .default
+    ) -> StagedSelfUpdate? {
+        guard let bundleID = app.bundleID else { return nil }
+        let caches = cachesDirectory
+            ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+        guard let caches else { return nil }
+        let root = caches
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
+            .appendingPathComponent("Installation", isDirectory: true)
+
+        // The directory itself survives every install — it is empty when nothing
+        // is staged, which is why its existence proves nothing and its mtime
+        // (which does not follow its children) proves less.
+        guard let walker = fileManager.enumerator(
+            at: root, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return nil }
+
+        for case let url as URL in walker where url.pathExtension == "app" {
+            let info = url.appendingPathComponent("Contents/Info.plist", isDirectory: false)
+            guard let data = try? Data(contentsOf: info),
+                  let dict = dictionary(from: data),
+                  // Must be a staged copy of THIS app. Rejects Sparkle's own
+                  // Updater.app and anything else sharing the cache namespace.
+                  dict["CFBundleIdentifier"] as? String == bundleID,
+                  let short = dict["CFBundleShortVersionString"] as? String
+            else { continue }
+            return StagedSelfUpdate(
+                version: short, buildVersion: dict["CFBundleVersion"] as? String,
+                stagedBundlePath: url)
+        }
+        return nil
+    }
+
     /// ShipIt stores bundle locations as `file://` URL strings.
     private static func fileURL(from value: Any?) -> URL? {
         guard let string = value as? String, let url = URL(string: string),

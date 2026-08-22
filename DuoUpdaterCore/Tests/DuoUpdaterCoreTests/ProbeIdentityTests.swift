@@ -115,6 +115,63 @@ import Testing
             URL(string: "https://api.anthropic.com/x")!,
             applicationSupportDirectory: root) == nil)
     }
+
+    // MARK: - ChatGPT's shape: a key inside a JSON object
+
+    /// ChatGPT keeps its rollout id next to an unrelated flag, so unlike
+    /// `ant-did` the whole file is not the value.
+    private static let codexIdentity = ProbeIdentity(
+        applicationSupportPath: "com.openai.codex/production-appcast-bootstrap.json",
+        encoding: .jsonKey("installationId"),
+        validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#)
+
+    /// Write `contents` to `<tmp>/com.openai.codex/production-appcast-bootstrap.json`.
+    private func appSupport(withBootstrap contents: String?) throws -> URL {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("probe-identity-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("com.openai.codex"), withIntermediateDirectories: true)
+        if let contents {
+            try Data(contents.utf8).write(
+                to: root.appendingPathComponent("com.openai.codex/production-appcast-bootstrap.json"))
+        }
+        return root
+    }
+
+    /// The file as ChatGPT actually writes it, sibling flag and all.
+    @Test func readsTheInstallationIDOutOfTheBootstrapObject() throws {
+        let root = try appSupport(
+            withBootstrap: #"{"backendAppcastEnabled":true,"installationId":"\#(Self.uuid)"}"#)
+        #expect(Self.codexIdentity.value(applicationSupportDirectory: root) == Self.uuid)
+    }
+
+    /// A first run that has not been assigned an id yet writes the flag alone.
+    /// Absent is not an error — it is "this recipe doesn't cover this machine".
+    @Test func aBootstrapWithoutTheKeyYieldsNil() throws {
+        let root = try appSupport(withBootstrap: #"{"backendAppcastEnabled":true}"#)
+        #expect(Self.codexIdentity.value(applicationSupportDirectory: root) == nil)
+    }
+
+    /// The key is present but holds the wrong type. Coercing it with string
+    /// interpolation would put `12345` on the wire as though it were an id.
+    @Test func aNonStringValueYieldsNil() throws {
+        let root = try appSupport(withBootstrap: #"{"installationId":12345}"#)
+        #expect(Self.codexIdentity.value(applicationSupportDirectory: root) == nil)
+    }
+
+    /// The format changed under us, or we are pointed at the wrong file.
+    @Test func aFileThatIsNotJSONYieldsNil() throws {
+        let root = try appSupport(withBootstrap: Self.uuid)
+        #expect(Self.codexIdentity.value(applicationSupportDirectory: root) == nil)
+    }
+
+    /// Extraction does not exempt a value from validation: a string that is not
+    /// an id is refused the same as in every other encoding.
+    @Test func aJSONValueThatIsNotAUUIDIsRefused() throws {
+        let root = try appSupport(withBootstrap: #"{"installationId":"not-an-id"}"#)
+        #expect(Self.codexIdentity.value(applicationSupportDirectory: root) == nil)
+    }
+
 }
 
 /// The identity must not escape the fetch. Everything the verify sweep persists —

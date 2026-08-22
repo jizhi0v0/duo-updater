@@ -2083,6 +2083,16 @@ final class AppListModel {
                     installing[id] = nil
                     return false
                 }
+                // Arm the reopen before anything can quit the app. On this route
+                // the store's own daemon terminates a running app to replace its
+                // bundle and never brings it back, whether the user gave consent
+                // in our sheet or in App Store's own — and the `mas` path raises
+                // no sheet at all. `AppStoreQuitPolicy` carries the evidence and
+                // the reason the signal is "was it running", not "did they click".
+                if AppStoreQuitPolicy.armsReopen(
+                    route: route, wasRunningBeforeInstall: wasRunningBeforeInstall) {
+                    reopenAfterQuit.insert(id)
+                }
                 installing[id] = .downloading(fraction: 0)
                 // Both routes download through the App Store daemon, so we never see
                 // those bytes — intentionally not recorded (we only count measured).
@@ -2201,12 +2211,15 @@ final class AppListModel {
                 Self.installPermits.signalDownload()
                 downloadPermitHeld = false
             }
-            // An incremental App Store update the user OK'd quitting for: the app
-            // was open before we quit it to update, so bring it back — and to the
-            // front (the user clicked Relaunch; they expect to see it return, not a
-            // silent background relaunch). Apps that weren't running never enter
-            // `reopenAfterQuit`, so this only reopens what we closed. Done before the
-            // recheck so the running-version probe sees the relaunched process.
+            // An App Store update that closed a running app: bring it back. Not
+            // only the ones the user OK'd through our own prompt — the store quits
+            // the app on this route however consent was given, so the arming above
+            // keys off "was it running", not "did they click Relaunch". Reopened in
+            // the background (see `reopenIfQuitForUpdate`): App Store has been
+            // pulled to the front by then, and whatever the user moved on to
+            // shouldn't be interrupted. Apps that weren't running never enter
+            // `reopenAfterQuit`, so this only reopens what was closed. Done before
+            // the recheck so the running-version probe sees the relaunched process.
             reopenIfQuitForUpdate(result)
 
             // Re-read from disk to reflect the new version, then recompute the
@@ -3003,6 +3016,22 @@ final class AppListModel {
         // samples this itself for the quit it completes; this copy is only for the
         // quit it gives up on.
         let wasFrontmost = AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app))
+        // Is anyone else waiting for this app to quit? Sparkle parks an installer
+        // on exactly that signal, so a restart meant to put OUR build into effect
+        // can instead apply THEIRS — see `RestartStandoff` for the timeline. Only
+        // a staged build that differs from what is on disk is a problem; matching
+        // versions make whoever writes second harmless.
+        let staged = SelfUpdaterStaging.sparkleStagedBundle(for: result.app)
+        if case .holdBack(let stagedVersion) = RestartStandoff.decide(
+            stagedVersion: staged?.version,
+            onDiskVersion: Self.readShortVersion(result.app.path)) {
+            Log.app.notice(
+                "restart held back: \(result.app.name, privacy: .public) — its own updater has \(stagedVersion, privacy: .public) staged and is waiting for the quit")
+            installNotes[result.id] =
+                "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. "
+                + "Restarting from here would install that one over the version just installed, so it wasn't restarted — quit \(result.app.name) yourself when you're ready to take theirs."
+            return
+        }
         // A fresh attempt supersedes whatever a previous bail left armed.
         quitHandoffs[result.id] = nil
         switch await AppRestarter.restart(result.app) {

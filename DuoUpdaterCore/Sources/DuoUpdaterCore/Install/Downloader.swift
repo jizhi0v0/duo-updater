@@ -156,20 +156,45 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         // On any exit: a leftover partial is swept (on success it's already moved).
         defer { try? FileManager.default.removeItem(at: partial) }
 
+        // `.notice`, not `.debug`: this is the longest and least reliable step in
+        // the whole app, and the report it has to answer — "it said it updated and
+        // nothing changed" — arrives hours later, when only persisted levels are
+        // still readable. Host only, never the URL: a licensed feed (CleanShot)
+        // carries its key in the query.
+        Log.install.notice(
+            "download start: \(Redactor.host(url), privacy: .public)\(url.path, privacy: .public)")
+        let started = Date()
+
         var lastError: Error = URLError(.unknown)
         for attempt in 0..<maxAttempts {
             do {
-                return try await runAttempt(url: url, headers: headers, partial: partial)
+                let result = try await runAttempt(url: url, headers: headers, partial: partial)
+                let secs = Date().timeIntervalSince(started)
+                Log.install.notice(
+                    "download ok: \(self.bytesDownloaded, privacy: .public) bytes in \(Int(secs), privacy: .public)s from \(Redactor.host(url), privacy: .public) (attempt \(attempt + 1, privacy: .public))")
+                return result
             } catch {
                 lastError = error
+                // Bytes already on disk: the next attempt resumes from here, so it
+                // is the one number that says whether a retry is making progress.
+                let attrs = try? FileManager.default.attributesOfItem(atPath: partial.path)
+                let onDisk = (attrs?[.size] as? Int64) ?? 0
                 // Only transient mid-transfer failures are worth another pass; the
                 // partial file persists so the next attempt resumes from it.
-                guard attempt < maxAttempts - 1, Self.isTransient(error) else { throw error }
+                guard attempt < maxAttempts - 1, Self.isTransient(error) else {
+                    Log.install.error(
+                        "download failed: \(Redactor.host(url), privacy: .public) after attempt \(attempt + 1, privacy: .public)/\(self.maxAttempts, privacy: .public), \(onDisk, privacy: .public) bytes on disk, transient=\(Self.isTransient(error), privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                    throw error
+                }
+                Log.install.notice(
+                    "download retry \(attempt + 1, privacy: .public)/\(self.maxAttempts, privacy: .public): resuming from \(onDisk, privacy: .public) bytes — \(error.localizedDescription, privacy: .public)")
                 // Brief, growing backoff (0.5s, 1.0s, …) so we don't hammer a CDN
                 // that's momentarily resetting connections.
                 try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * 500_000_000)
             }
         }
+        Log.install.error(
+            "download gave up: \(Redactor.host(url), privacy: .public) after \(self.maxAttempts, privacy: .public) attempts — \(lastError.localizedDescription, privacy: .public)")
         throw lastError
     }
 

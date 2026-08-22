@@ -191,12 +191,19 @@ public actor MASInstaller {
     ) async throws {
         let maxAttempts = 4
         var lastError: Error = MASError.failed(code: -1, output: "")
+        // This route used to say nothing at all unless it retried, so a plain
+        // success was 105 seconds of silence between the coordinator's start and
+        // done lines — with no way afterwards to tell whether `mas` or the AX
+        // driver had run, which is the first thing you want to know when an App
+        // Store update misbehaves. `mas` also hands the work to the store's own
+        // daemon, so this is the only place its duration is observable at all.
+        Log.install.notice("mas ADAM \(adamID, privacy: .public): install start")
+        let started = Date()
         for attempt in 0..<maxAttempts {
             do {
                 try await runOnce(adamID: adamID, onStage: onStage)
-                if attempt > 0 {
-                    Log.install.info("mas ADAM \(adamID, privacy: .public): succeeded on retry \(attempt, privacy: .public)")
-                }
+                Log.install.notice(
+                    "mas ADAM \(adamID, privacy: .public): install ok in \(Int(Date().timeIntervalSince(started)), privacy: .public)s (attempt \(attempt + 1, privacy: .public))")
                 return
             } catch let error as MASError {
                 lastError = error
@@ -225,7 +232,11 @@ public actor MASInstaller {
                     allowRetry = false
                     reason = ""
                 }
-                guard allowRetry else { throw error }
+                guard allowRetry else {
+                    Log.install.error(
+                        "mas ADAM \(adamID, privacy: .public): install failed after \(attempt + 1, privacy: .public) attempt(s), \(Int(Date().timeIntervalSince(started)), privacy: .public)s (exit \(code, privacy: .public)) — \(reason.isEmpty ? "not retryable" : reason, privacy: .public)")
+                    throw error
+                }
                 Log.install.notice("mas ADAM \(adamID, privacy: .public): \(reason, privacy: .public) (exit \(code, privacy: .public)); retrying \(attempt + 1, privacy: .public)")
                 // Growing backoff (1s, 2s, 3s) so we ride over a proxy/CDN that's
                 // momentarily resetting connections rather than hammering it.

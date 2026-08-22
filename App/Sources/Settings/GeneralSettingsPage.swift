@@ -142,8 +142,7 @@ struct GeneralSettingsPage: View {
                 header: "Install routing",
                 footer: "Mac App Store updates currently use the full-download route via mas. It’s the more predictable option for release builds and doesn’t require Accessibility access."
             ) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("App Store updates").font(.callout)
+                AdaptivePickerRow(title: Text("App Store updates")) {
                     Picker("App Store updates", selection: $prefs.appStoreUpdateStrategy) {
                         ForEach(Preferences.AppStoreUpdateStrategy.availableCases) { strategy in
                             Text(strategy.label).tag(strategy)
@@ -158,8 +157,7 @@ struct GeneralSettingsPage: View {
             SettingsCard(
                 footer: "For apps that ship their own updater (Office, Teams, OneDrive, Edge, Chrome, VS Code, …). “Always replace” — the default — downloads the vendor’s own installer and applies it whether or not the app is running, quitting and relaunching it afterwards. Switch to “Defer while running” if you would rather nothing touched an app while it is open: it then installs only when the app is closed, and offers an Open button instead while it is running, leaving the update to the app itself."
             ) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Self-updating apps").font(.callout)
+                AdaptivePickerRow(title: Text("Self-updating apps")) {
                     Picker("Self-updating apps", selection: $prefs.vendorInstallPolicy) {
                         ForEach(Preferences.VendorInstallPolicy.allCases) { policy in
                             Text(policy.label).tag(policy)
@@ -171,5 +169,62 @@ struct GeneralSettingsPage: View {
                 .settingsRow()
             }
         }
+    }
+}
+
+// MARK: - Adaptive picker row
+
+/// Carries the measured width of a picker row up to the row itself, so the
+/// share-of-the-row rule below has a number to work with.
+private struct PickerRowWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// A settings picker that keeps its label and popup on one line — the way the
+/// rest of macOS lays these out — and only stacks the label above the popup when
+/// one line would be cramped.
+///
+/// "Cramped" is defined as the popup wanting more than `maxPopupShare` of the
+/// row: German and Russian option labels ("Immer herunterladen und ersetzen,
+/// dann neu starten") blow well past that, and the single-line layout was
+/// clipping them, which is why both rows were stacked unconditionally when
+/// localization landed.
+///
+/// The rule is expressed by reserving the rest of the row for the label with
+/// `minWidth`: a popup that needs more than its share pushes the HStack past
+/// the row, and `ViewThatFits` drops to the stacked candidate. `rowWidth` is 0
+/// on the first pass — the one-line candidate is then judged on its natural
+/// width alone, and the layout settles once the measurement lands.
+private struct AdaptivePickerRow<Content: View>: View {
+    let title: Text
+    @ViewBuilder var picker: Content
+
+    /// How much of the row the popup may take before the row stacks instead.
+    private let maxPopupShare: CGFloat = 0.6
+
+    @State private var rowWidth: CGFloat = 0
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                title
+                    .font(.callout)
+                    .frame(minWidth: rowWidth * (1 - maxPopupShare), alignment: .leading)
+                picker.fixedSize()
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                title.font(.callout)
+                picker
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: PickerRowWidthKey.self, value: geo.size.width)
+        })
+        .onPreferenceChange(PickerRowWidthKey.self) { rowWidth = $0 }
     }
 }

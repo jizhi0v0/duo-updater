@@ -100,7 +100,7 @@ struct AlcoveSettingsPage: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .help(revealKey ? "Hide" : "Reveal")
+            .help(revealKey ? String(localized: "Hide") : String(localized: "Reveal"))
         }
         .settingsRow()
 
@@ -170,8 +170,8 @@ struct AlcoveSettingsPage: View {
         case .idle, .resolving:
             EmptyView()
         case .ok(let consumed):
-            Label(consumed ? "Saved — using a new activation for this Mac."
-                           : "Saved — precise detection enabled.",
+            Label(consumed ? String(localized: "Saved — using a new activation for this Mac.")
+                           : String(localized: "Saved — precise detection enabled."),
                   systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green).font(.callout).lineLimit(2)
         case .atLimit(let usage, let limit):
@@ -196,8 +196,8 @@ struct AlcoveSettingsPage: View {
                 Text(maskSecret(prefs.alcoveLicenseKey))
                     .font(.system(.body, design: .monospaced))
                 Text(prefs.alcoveInstanceID.isEmpty
-                     ? "Saved"
-                     : "Active · instance …\(prefs.alcoveInstanceID.suffix(4))")
+                     ? String(localized: "Saved")
+                     : String(localized: "Active · instance …\(prefs.alcoveInstanceID.suffix(4))"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -238,7 +238,7 @@ struct AlcoveSettingsPage: View {
         status = .resolving
         let service = AlcoveLicenseService()
         guard let info = await service.validate(licenseKey: trimmedKey) else {
-            status = .failed("validation request failed"); return
+            status = .failed(String(localized: "validation request failed")); return
         }
         guard info.active else { status = .invalid; return }
         prefs.alcoveLicenseKey = trimmedKey

@@ -22,8 +22,8 @@ struct WorkbenchWindowView: View {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .releaseNotes: return "Release Notes"
-            case .traffic:      return "Traffic"
+            case .releaseNotes: return String(localized: "Release Notes")
+            case .traffic:      return String(localized: "Traffic")
             }
         }
     }
@@ -188,8 +188,8 @@ struct WorkbenchWindowView: View {
                     "Select an app",
                     systemImage: "sidebar.left",
                     description: Text(mode == .releaseNotes
-                        ? "Pick an app to read its changelog."
-                        : "Pick an app to see its download history."))
+                        ? String(localized: "Pick an app to read its changelog.")
+                        : String(localized: "Pick an app to see its download history.")))
             }
         }
         .navigationTitle("Duo Updater")
@@ -345,12 +345,23 @@ struct WorkbenchWindowView: View {
                     Image(systemName: systemImage)
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    // Holds its size instead of compressing: the accessory beside it
+                    // is a translated button, and "Обновить формулы" is wide enough
+                    // to squeeze this to nothing — at which point a four-letter
+                    // section name wraps to "Bre / w". The button truncates instead.
                     Text(title)
                         .font(.headline)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     Spacer(minLength: 8)
                     Text("\(count)")
                         .font(.caption.weight(.semibold)).monospacedDigit()
                         .foregroundStyle(.secondary)
+                        // Same reason as the title: with the title pinned, the
+                        // squeeze lands here next, and "52" came out stacked as
+                        // "5 / 2" inside the capsule.
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .padding(.horizontal, 7).padding(.vertical, 1)
                         .background(.quaternary, in: Capsule())
                 }
@@ -404,19 +415,19 @@ struct WorkbenchWindowView: View {
     }
 
     private var appsHeader: some View {
-        sectionHeader("Apps", systemImage: "square.grid.2x2.fill",
+        sectionHeader(String(localized: "Apps"), systemImage: "square.grid.2x2.fill",
                       count: filteredApps.count, expanded: $appsExpanded)
     }
 
     private var brewHeader: some View {
-        sectionHeader("Brew", systemImage: "mug.fill",
+        sectionHeader(String(localized: "Brew"), systemImage: "mug.fill",
                       count: brewItemCount, expanded: $brewExpanded) {
             brewBulkUpgrade
         }
     }
 
     private var rollbackHeader: some View {
-        sectionHeader("Rollback", systemImage: "arrow.uturn.backward",
+        sectionHeader(String(localized: "Rollback"), systemImage: "arrow.uturn.backward",
                       count: rollbackableApps.count, expanded: $rollbackExpanded)
     }
 
@@ -666,12 +677,12 @@ private struct WorkbenchActionView: View {
             // one-click. A Mac App Store app lands here when the privileged helper
             // isn't approved yet — still an installed app with a pending update, so
             // it says **Update** (what the store calls it), never "Get".
-            Button(result.app.isiOSAppOnMac ? "App Store" : "Update") {
+            Button(result.app.isiOSAppOnMac ? String(localized: "App Store") : String(localized: "Update")) {
                 if let url = info.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
             }
             .buttonStyle(.bordered)
             .help(result.app.isiOSAppOnMac
-                  ? "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here"
+                  ? String(localized: "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
                   : appStoreRedirectHelp)
         } else if let url = result.remote?.pageURL {
             Button("Open page") { NSWorkspace.shared.open(url) }
@@ -685,9 +696,9 @@ private struct WorkbenchActionView: View {
     /// user has, so say so when that's what's missing.
     private var appStoreRedirectHelp: String {
         if !model.helperEnabled {
-            return "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click."
+            return String(localized: "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click.")
         }
-        return "Update \(result.app.name) in the App Store"
+        return String(localized: "Update \(result.app.name) in the App Store")
     }
 
     @ViewBuilder
@@ -707,14 +718,14 @@ private struct WorkbenchActionView: View {
 
     private func stageLabel(_ stage: InstallStage) -> String {
         switch stage {
-        case .queued: return "Queued"
-        case .checking: return "Checking"
-        case .downloading(let f): return "\(Int(f * 100))%"
-        case .verifyingSignature, .verifyingCodeSignature: return "Verifying"
-        case .extracting: return "Extracting"
-        case .installing: return "Installing"
-        case .runningCommand: return "Installing"
-        case .done: return "Installed"
+        case .queued: return String(localized: "Queued")
+        case .checking: return String(localized: "Checking")
+        case .downloading(let f): return String(localized: "\(Int(f * 100))%")
+        case .verifyingSignature, .verifyingCodeSignature: return String(localized: "Verifying")
+        case .extracting: return String(localized: "Extracting")
+        case .installing: return String(localized: "Installing")
+        case .runningCommand: return String(localized: "Installing")
+        case .done: return String(localized: "Installed")
         }
     }
 }
@@ -876,7 +887,7 @@ private struct WorkbenchRollbackRow: View {
 
     private var inFlight: Bool { model.installing[result.id] != nil }
     private var error: String? { model.installErrors[result.id] }
-    private var targetLabel: String { target == "previous" ? "previous version" : "v\(target)" }
+    private var targetLabel: String { target == "previous" ? String(localized: "previous version") : String(localized: "v\(target)") }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1011,7 +1022,7 @@ private struct FormulaDetailPane: View {
             if upgrading {
                 HStack(spacing: 7) {
                     ProgressView().controlSize(.small)
-                    Text(model.formulaUpgradeNotes[formula.name] ?? "Updating…")
+                    Text(model.formulaUpgradeNotes[formula.name] ?? String(localized: "Updating…"))
                         .font(.callout).foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -1109,7 +1120,7 @@ private struct DetailHeader: View {
                         .buttonStyle(.link)
                 }
                 if model.showsHelperRestartFallback(result.id) {
-                    Button(model.restartingHelper ? "Restarting…" : "Restart Helper…") {
+                    Button(model.restartingHelper ? String(localized: "Restarting…") : String(localized: "Restart Helper…")) {
                         Task { await model.restartAppStoreHelper(result.id) }
                     }
                     .font(.caption)
@@ -1213,7 +1224,7 @@ private struct ReleaseNotesPane: View {
         ContentUnavailableView {
             Label("No release notes", systemImage: "doc.text.magnifyingglass")
         } description: {
-            Text("\(result.remote?.sourceName ?? "This source") doesn’t publish a changelog we can read.")
+            Text("\(result.remote?.sourceName ?? String(localized: "This source")) doesn’t publish a changelog we can read.")
         } actions: {
             if let dl = result.remote?.pageURL {
                 Link("Open download page", destination: dl)
@@ -1553,10 +1564,10 @@ private struct TrafficPane: View {
 
     private func versionTransition(_ event: TrafficEvent) -> String {
         switch (event.fromVersion, event.toVersion) {
-        case let (from?, to?): return "\(from) → \(to)"
+        case let (from?, to?): return String(localized: "\(from) → \(to)")
         case let (nil, to?): return to
         case let (from?, nil): return from
-        case (nil, nil): return "Update"
+        case (nil, nil): return String(localized: "Update")
         }
     }
 }

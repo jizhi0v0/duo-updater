@@ -64,7 +64,7 @@ struct IgnoredSettingsPage: View {
         }
     }
 
-    private func emptyRow(_ text: String) -> some View {
+    private func emptyRow(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.callout)
             .foregroundStyle(.secondary)

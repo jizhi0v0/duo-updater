@@ -1673,7 +1673,7 @@ final class AppListModel {
         guard upgradingFormulae.isEmpty else { return }
         brewUpgrading = true
         brewUpgradeError = nil
-        brewUpgradeNote = "Starting…"
+        brewUpgradeNote = String(localized: "Starting…")
         // Snapshot the target set so dependency formulae brew pulls in (which also
         // emit a 🍺 line) don't inflate the count past the user-visible total.
         let targets = Set(brewOutdatedFormulae.map(\.name))
@@ -1724,7 +1724,7 @@ final class AppListModel {
         guard !upgradingFormulae.contains(name) else { return }
         upgradingFormulae.insert(name)
         formulaUpgradeErrors[name] = nil
-        formulaUpgradeNotes[name] = "Starting…"
+        formulaUpgradeNotes[name] = String(localized: "Starting…")
         defer {
             upgradingFormulae.remove(name)
             formulaUpgradeNotes[name] = nil
@@ -1749,9 +1749,9 @@ final class AppListModel {
     /// available — the phase is the stable signal.
     nonisolated static func brewUpgradePhase(from line: String) -> String? {
         let l = line.lowercased()
-        if l.contains("pouring") || l.contains("installing") { return "Installing…" }
-        if l.contains("downloading") || l.contains("fetching") || l.contains("bottle") { return "Downloading…" }
-        if l.contains("cleaning") || l.contains("cleanup") { return "Cleaning up…" }
+        if l.contains("pouring") || l.contains("installing") { return String(localized: "Installing…") }
+        if l.contains("downloading") || l.contains("fetching") || l.contains("bottle") { return String(localized: "Downloading…") }
+        if l.contains("cleaning") || l.contains("cleanup") { return String(localized: "Cleaning up…") }
         return nil
     }
 
@@ -1760,7 +1760,7 @@ final class AppListModel {
     var brewBulkProgressText: String? {
         guard brewUpgrading, brewUpgradeTotal > 0 else { return nil }
         let current = min(brewUpgradeDone + 1, brewUpgradeTotal)
-        return "Upgrading… (\(current)/\(brewUpgradeTotal))"
+        return String(localized: "Upgrading… (\(current)/\(brewUpgradeTotal))")
     }
 
     /// Fetch a formula's release notes once, on first selection. Idempotent: a
@@ -2356,7 +2356,7 @@ final class AppListModel {
                 let onDisk = updated.app.shortVersion ?? updated.app.buildVersion ?? "?"
                 let target = result.remote?.displayVersion ?? result.remote?.shortVersion ?? "?"
                 Log.install.error("install applied nothing: \(updated.app.name, privacy: .public) still \(onDisk, privacy: .public) on disk after installing \(target, privacy: .public)")
-                installErrors[id] = "The install finished without an error, but \(updated.app.name) on disk is still \(onDisk) — what was downloaded wasn't \(target)."
+                installErrors[id] = String(localized: "The install finished without an error, but \(updated.app.name) on disk is still \(onDisk) — what was downloaded wasn't \(target).")
                 reopenIfQuitForUpdate(result, installSucceeded: false)
                 installing[id] = nil
                 relaunching.remove(id)
@@ -3499,14 +3499,14 @@ final class AppListModel {
             return
         }
         let alert = NSAlert()
-        alert.messageText = "Turn on DuoUpdater's background helper"
-        alert.informativeText = """
+        alert.messageText = String(localized: "Turn on DuoUpdater's background helper")
+        alert.informativeText = String(localized: """
             App Store updates install through a background item that macOS asks you to \
             approve once. Switch DuoUpdater on under Login Items & Extensions, then run \
             the update again — after that it stays on and never asks for your password.
-            """
-        alert.addButton(withTitle: "Open Login Items")
-        alert.addButton(withTitle: "Not Now")
+            """)
+        alert.addButton(withTitle: String(localized: "Open Login Items"))
+        alert.addButton(withTitle: String(localized: "Not Now"))
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn {
             helperClient.openLoginItems()

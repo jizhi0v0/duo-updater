@@ -55,9 +55,9 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
         center.delegate = self
 
         let installAll = UNNotificationAction(
-            identifier: ID.installAll, title: "Update All", options: [])
+            identifier: ID.installAll, title: String(localized: "Update All"), options: [])
         let view = UNNotificationAction(
-            identifier: ID.view, title: "View", options: [.foreground])
+            identifier: ID.view, title: String(localized: "View"), options: [.foreground])
         let category = UNNotificationCategory(
             identifier: ID.updatesCategory,
             actions: [installAll, view],
@@ -68,7 +68,7 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
         // No `.foreground`: the restart runs headless via NSWorkspace; we don't pull
         // DuoUpdater forward for it.
         let relaunch = UNNotificationAction(
-            identifier: ID.relaunch, title: "Relaunch", options: [])
+            identifier: ID.relaunch, title: String(localized: "Relaunch"), options: [])
         let selfUpdate = UNNotificationCategory(
             identifier: ID.selfUpdateCategory,
             actions: [relaunch],
@@ -79,7 +79,7 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
         // without opening the menu. No `.foreground`: the installer takes it from
         // there; there's nothing for the user to look at in DuoUpdater.
         let confirmQuit = UNNotificationAction(
-            identifier: ID.confirmQuit, title: "Relaunch", options: [])
+            identifier: ID.confirmQuit, title: String(localized: "Relaunch"), options: [])
         let quitToInstall = UNNotificationCategory(
             identifier: ID.quitConfirmCategory,
             actions: [confirmQuit],

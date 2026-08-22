@@ -102,12 +102,12 @@ struct SelfChangelogView: View {
         do {
             let (data, response) = try await URLSession.updates.data(for: request)
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                state = .failed("GitHub answered HTTP \(http.statusCode).")
+                state = .failed(String(localized: "GitHub answered HTTP \(http.statusCode)."))
                 return
             }
             let text = String(decoding: data, as: UTF8.self)
             guard let changelog = SelfChangelogParser.parse(text) else {
-                state = .failed("The file loaded but carried no release sections.")
+                state = .failed(String(localized: "The file loaded but carried no release sections."))
                 return
             }
             state = .loaded(changelog)

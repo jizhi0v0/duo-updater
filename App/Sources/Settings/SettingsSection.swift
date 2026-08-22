@@ -20,6 +20,16 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case accounts = "Accounts"
         case library = "Library"
         var id: String { rawValue }
+
+        /// Localized sidebar group header. `rawValue` stays a plain internal
+        /// identifier — this is the only form actually shown to the user.
+        var displayName: String {
+            switch self {
+            case .app:      return String(localized: "App")
+            case .accounts: return String(localized: "Accounts")
+            case .library:  return String(localized: "Library")
+            }
+        }
     }
 
     var group: Group {
@@ -32,13 +42,13 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .general:     return "General"
-        case .folders:     return "Folders"
-        case .updates:     return "Updates"
-        case .github:      return "GitHub"
-        case .alcove:      return "Alcove"
-        case .ignored:     return "Ignored"
-        case .diagnostics: return "Diagnostics"
+        case .general:     return String(localized: "General")
+        case .folders:     return String(localized: "Folders")
+        case .updates:     return String(localized: "Updates")
+        case .github:      return String(localized: "GitHub")
+        case .alcove:      return String(localized: "Alcove")
+        case .ignored:     return String(localized: "Ignored")
+        case .diagnostics: return String(localized: "Diagnostics")
         }
     }
 
@@ -69,13 +79,13 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     /// Short line under the page title.
     var subtitle: String {
         switch self {
-        case .general:     return "How often Duo Updater checks, and what it does when it finds something."
-        case .folders:     return "Where Duo Updater looks for installed apps."
-        case .updates:     return "Duo Updater's own version."
-        case .github:      return "Lift GitHub's anonymous rate limit for apps tracked through Releases."
-        case .alcove:      return "Alcove keeps release notes and installable builds behind its license."
-        case .ignored:     return "Apps and versions you've told Duo Updater to leave alone."
-        case .diagnostics: return "Permissions, last check, and the health of each detection recipe."
+        case .general:     return String(localized: "How often Duo Updater checks, and what it does when it finds something.")
+        case .folders:     return String(localized: "Where Duo Updater looks for installed apps.")
+        case .updates:     return String(localized: "Duo Updater's own version.")
+        case .github:      return String(localized: "Lift GitHub's anonymous rate limit for apps tracked through Releases.")
+        case .alcove:      return String(localized: "Alcove keeps release notes and installable builds behind its license.")
+        case .ignored:     return String(localized: "Apps and versions you've told Duo Updater to leave alone.")
+        case .diagnostics: return String(localized: "Permissions, last check, and the health of each detection recipe.")
         }
     }
 

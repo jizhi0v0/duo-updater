@@ -163,15 +163,16 @@ struct BackupsSheet: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            Button(allSelected ? "Deselect All" : "Select All") {
+            Button(allSelected ? String(localized: "Deselect All") : String(localized: "Select All")) {
                 selected = allSelected ? [] : Set(backups.map(\.key))
             }
             Spacer(minLength: 0)
             Button("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
-            Button(selected.isEmpty
-                   ? "Delete"
-                   : "Delete \(selected.count) (\(ByteCountFormatter.string(fromByteCount: selectedBytes, countStyle: .file)))") {
+            let deleteLabel = selected.isEmpty
+                ? String(localized: "Delete")
+                : String(localized: "Delete \(selected.count) (\(ByteCountFormatter.string(fromByteCount: selectedBytes, countStyle: .file)))")
+            Button(deleteLabel) {
                 onDelete(Array(selected))
                 dismiss()
             }

@@ -18,6 +18,7 @@ test:
 	python3 scripts/test_appcast_edit.py
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI
+	python3 scripts/check_localizable_keys.py
 
 # The notarytool keychain profile both targets below need. Not a secret — the
 # credentials it names live in the keychain; this is only which of them to use.

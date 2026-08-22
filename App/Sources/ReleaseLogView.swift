@@ -21,6 +21,15 @@ struct ReleaseLogView: View {
         case timeline = "Timeline"
         case patterns = "Patterns"
         var id: String { rawValue }
+
+        /// User-facing label. Kept separate from `rawValue` (which stays a stable,
+        /// English identifier) so the segmented control can be translated.
+        var displayName: String {
+            switch self {
+            case .timeline: return String(localized: "Timeline")
+            case .patterns: return String(localized: "Patterns")
+            }
+        }
     }
     @State private var mode: Mode = .timeline
 
@@ -51,7 +60,7 @@ struct ReleaseLogView: View {
             Spacer()
             if !events.isEmpty {
                 Picker("", selection: $mode) {
-                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(Mode.allCases) { Text($0.displayName).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -65,8 +74,8 @@ struct ReleaseLogView: View {
     private var summary: String {
         let releases = events.count
         let apps = Set(events.map(\.appID)).count
-        guard releases > 0 else { return "Releases appear here as the apps you track ship them" }
-        return "\(releases) release\(releases == 1 ? "" : "s") across \(apps) app\(apps == 1 ? "" : "s")"
+        guard releases > 0 else { return String(localized: "Releases appear here as the apps you track ship them") }
+        return String(localized: "\(releases) releases across \(apps) apps")
     }
 
     // MARK: - Feed
@@ -202,16 +211,16 @@ enum ReleaseTiming {
         if range.duration <= 36 * 3600 {
             let from = range.start.formatted(date: .omitted, time: .shortened)
             let to = range.end.formatted(date: .omitted, time: .shortened)
-            return "≈ \(from)–\(to)"
+            return String(localized: "≈ \(from)–\(to)")
         }
         let days = max(1, Int((range.duration / 86_400).rounded()))
-        return "≈ within \(days)d"
+        return String(localized: "≈ within \(days)d")
     }
 
     static func approxHelp(_ range: DateInterval) -> String {
         let from = range.start.formatted(date: .abbreviated, time: .shortened)
         let to = range.end.formatted(date: .abbreviated, time: .shortened)
-        return "Released sometime between \(from) and \(to) — estimated from when we detected the change, not a vendor date."
+        return String(localized: "Released sometime between \(from) and \(to) — estimated from when we detected the change, not a vendor date.")
     }
 }
 
@@ -284,8 +293,8 @@ private struct ReleasePatternsView: View {
         HStack(spacing: 8) {
             Image(systemName: "clock.badge.questionmark").foregroundStyle(.secondary)
             Text(selectedAppID == nil
-                 ? "No exact release times recorded yet — the heatmap fills in as Sparkle/GitHub apps ship."
-                 : "This app reports versions but no exact release time, so there's no habit heatmap — only the estimated windows below.")
+                 ? String(localized: "No exact release times recorded yet — the heatmap fills in as Sparkle/GitHub apps ship.")
+                 : String(localized: "This app reports versions but no exact release time, so there's no habit heatmap — only the estimated windows below."))
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -321,19 +330,22 @@ private struct ReleasePatternsView: View {
     }
 
     private var subtitle: String {
-        let base = "Across \(stats.total) recorded release\(stats.total == 1 ? "" : "s"). Times in your local zone."
         // A single-app pattern only means something with a handful of releases; say
-        // so plainly rather than over-reading one or two points.
+        // so plainly rather than over-reading one or two points. Each branch is a
+        // full sentence (rather than a concatenation) so it translates cleanly.
         if selectedAppID != nil && stats.total < 5 {
-            return base + " The pattern sharpens as this app ships more."
+            return String(localized: "Across \(stats.total) recorded releases. Times in your local zone. The pattern sharpens as this app ships more.")
         }
-        return base
+        return String(localized: "Across \(stats.total) recorded releases. Times in your local zone.")
     }
 
     private func peakSentence(_ peak: (weekday: Int, hour: Int, count: Int)) -> String {
         let day = Calendar.current.standaloneWeekdaySymbols[peak.weekday]
-        let lead = selectedAppID == nil ? "Most often ships" : "Usually ships"
-        return "\(lead) \(day), around \(hourLabel(peak.hour, long: true))."
+        let time = hourLabel(peak.hour, long: true)
+        if selectedAppID == nil {
+            return String(localized: "Most often ships \(day), around \(time).")
+        }
+        return String(localized: "Usually ships \(day), around \(time).")
     }
 
     // MARK: Per-app version list
@@ -396,7 +408,7 @@ private struct ReleasePatternsView: View {
         RoundedRectangle(cornerRadius: 2)
             .fill(cellColor(count: count, maxCount: maxCount))
             .frame(width: cellSize, height: cellSize)
-            .help(count > 0 ? "\(count) release\(count == 1 ? "" : "s")" : "")
+            .help(count > 0 ? String(localized: "\(count) releases") : "")
     }
 
     private func cellColor(count: Int, maxCount: Int) -> Color {
@@ -432,10 +444,11 @@ private struct ReleasePatternsView: View {
     /// readability regardless of locale's 24h preference.
     private func hourLabel(_ hour: Int, long: Bool) -> String {
         let h12 = hour % 12 == 0 ? 12 : hour % 12
-        let ampm = hour < 12 ? "a" : "p"
         if long {
-            return "\(h12) \(hour < 12 ? "AM" : "PM")"
+            let meridiem = hour < 12 ? String(localized: "AM") : String(localized: "PM")
+            return "\(h12) \(meridiem)"
         }
+        let ampm = hour < 12 ? String(localized: "a") : String(localized: "p")
         return "\(h12)\(ampm)"
     }
 }

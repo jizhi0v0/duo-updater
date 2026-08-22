@@ -86,10 +86,10 @@ struct GitHubSettingsPage: View {
 
     private var statusHeadline: String {
         switch cliStatus {
-        case .none:          return "Checking the gh CLI…"
-        case .authenticated: return "GitHub CLI is authenticated and ready."
-        case .notLoggedIn:   return "GitHub CLI is installed but not signed in. Run `gh auth login`, or paste a token below."
-        case .notInstalled:  return "GitHub CLI isn’t installed. Paste a personal access token below to lift the rate limit."
+        case .none:          return String(localized: "Checking the gh CLI…")
+        case .authenticated: return String(localized: "GitHub CLI is authenticated and ready.")
+        case .notLoggedIn:   return String(localized: "GitHub CLI is installed but not signed in. Run `gh auth login`, or paste a token below.")
+        case .notInstalled:  return String(localized: "GitHub CLI isn’t installed. Paste a personal access token below to lift the rate limit.")
         }
     }
 
@@ -153,7 +153,7 @@ struct GitHubSettingsPage: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .help(revealToken ? "Hide token" : "Show token")
+            .help(revealToken ? String(localized: "Hide token") : String(localized: "Show token"))
         }
     }
 
@@ -189,8 +189,8 @@ struct GitHubSettingsPage: View {
                 Text(maskSecret(prefs.githubToken))
                     .font(.system(.body, design: .monospaced))
                 Text(prefs.githubTokenAccount.isEmpty
-                     ? "Saved"
-                     : "Saved · belongs to \(prefs.githubTokenAccount)")
+                     ? String(localized: "Saved")
+                     : String(localized: "Saved · belongs to \(prefs.githubTokenAccount)"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -219,11 +219,13 @@ struct GitHubSettingsPage: View {
                 .foregroundStyle(.red)
                 .font(.callout)
                 .lineLimit(1)
+                .minimumScaleFactor(0.85)
         case .failed(let message):
             Label("Couldn’t verify: \(message)", systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
                 .font(.callout)
                 .lineLimit(1)
+                .minimumScaleFactor(0.85)
         case .none:
             EmptyView()
         }

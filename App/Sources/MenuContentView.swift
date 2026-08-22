@@ -159,8 +159,11 @@ struct MenuContentView: View {
     @ViewBuilder
     private var content: some View {
         if model.results.isEmpty {
+            let emptyTitle = model.isScanning
+                ? String(localized: "Scanning…")
+                : String(localized: "No apps yet")
             ContentUnavailableView(
-                model.isScanning ? "Scanning…" : "No apps yet",
+                emptyTitle,
                 systemImage: "magnifyingglass"
             )
             .frame(height: 200)
@@ -309,13 +312,24 @@ struct MenuContentView: View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Duo Updater").font(.headline)
+                // One line, at full size, truncating when it must. The slot is
+                // whatever the Update All button leaves, and a translated button
+                // is wider — Russian gets 167pt for a sentence that wants 247.
+                // Shrinking it to fit was unreadable and a second line unbalanced
+                // the header, so the tail gets cut and the tooltip carries the
+                // whole thing. Explicit, because without a limit the same
+                // sentence wrapped in one state and truncated in another.
                 Text(statusLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .help(Text(statusLine))
             }
             Spacer()
             if model.canUpdateAll {
                 Button("Update All") { Task { await model.installAll() } }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
                     .help("Install every pending update that can be applied automatically")
@@ -345,30 +359,54 @@ struct MenuContentView: View {
     }
 
     private var statusLine: String {
-        if model.isChecking { return "Checking \(model.results.count) apps…" }
+        if model.isChecking {
+            return String(localized: "Checking \(model.results.count) apps…")
+        }
         let updates = model.updateCount
         let base = updates == 0
-            ? "\(model.results.count) apps · up to date"
-            : "\(updates) update\(updates == 1 ? "" : "s") available"
+            ? String(localized: "\(model.results.count) apps · up to date")
+            : String(localized: "\(updates) updates available")
+        // The timestamp joins on with a separator and no verb. "checked" was a
+        // word the relative time already implies, and it cost more room than the
+        // header has: translated, the line ran 247pt against the 167pt left over
+        // once "Обновить всё" had taken its width, so the half that says *when*
+        // was the half being cut off. Nothing to translate in " · ", so this is
+        // plain interpolation rather than a key with no words in it.
         if let last = model.lastCheck {
-            return base + " · checked \(Self.checkedAgo(last))"
+            return "\(base) · \(Self.checkedAgo(last))"
         }
         return base
     }
 
-    /// "checked just now" / "checked 2m ago". Guards the just-finished case: the
+    /// "just now" / "2m ago". Guards the just-finished case: the
     /// relative formatter rounds a sub-second (or microscopically future, from
     /// clock jitter) interval to "in 0 seconds", which read as a wrong-tense
     /// "checked in 0s" right after a refresh. Anything within a few seconds is
     /// "just now"; older falls back to the relative formatter.
     private static func checkedAgo(_ date: Date) -> String {
-        if date.timeIntervalSinceNow > -5 { return "just now" }
-        return relative.localizedString(for: date, relativeTo: .now)
+        if date.timeIntervalSinceNow > -5 { return String(localized: "just now") }
+        let abbreviated = relative.localizedString(for: date, relativeTo: .now)
+        // CLDR spells the narrow past form as a signed number in some locales:
+        // Russian renders "7 seconds ago" as "-7 с" and French as "-7 s", where
+        // English gets "7s ago". Dropped into "checked …" that reads as a
+        // negative count, so those locales fall through to the next style up,
+        // which spells the direction out ("7 сек. назад", "il y a 7 s"). Every
+        // locale whose narrow form already reads as elapsed time keeps it —
+        // English, German, Spanish, Chinese and Japanese are untouched.
+        guard abbreviated.hasPrefix("-") || abbreviated.hasPrefix("\u{2212}") else { return abbreviated }
+        return spelledOut.localizedString(for: date, relativeTo: .now)
     }
 
     private static let relative: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .abbreviated
+        return f
+    }()
+
+    /// The fallback for locales whose abbreviated form comes out signed.
+    private static let spelledOut: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
         return f
     }()
 
@@ -402,10 +440,14 @@ struct MenuContentView: View {
             }
             .buttonStyle(.borderless)
             .font(.caption)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
             .help("Release notes, traffic, and settings")
             Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.borderless)
                 .font(.caption)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -436,7 +478,7 @@ struct MenuContentView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Upgrading Homebrew formulae")
                         .font(.caption).fontWeight(.medium)
-                    Text(model.brewBulkProgressText ?? "Running brew upgrade…")
+                    Text(model.brewBulkProgressText ?? String(localized: "Running brew upgrade…"))
                         .font(.caption2).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)
                         .monospacedDigit()
@@ -489,7 +531,7 @@ struct MenuContentView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     // "package", not "formula": this surface also carries casks that
                     // install no app (CLIs, fonts), which have no per-app row.
-                    Text("\(count) brew package\(count == 1 ? "" : "s") outdated")
+                    Text("\(count) brew packages outdated")
                         .font(.caption).fontWeight(.medium)
                     if let error = model.brewUpgradeError {
                         Text(error).font(.caption2).foregroundStyle(.red).lineLimit(1)
@@ -500,6 +542,8 @@ struct MenuContentView: View {
                 }
                 Spacer()
                 Button("Upgrade") { Task { await model.upgradeBrewFormulae() } }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
                     .help("Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
@@ -521,8 +565,8 @@ struct MenuContentView: View {
     /// line when the leaf count isn't available yet.
     private var brewUpToDateSummary: String {
         let n = model.brewFormulae.count
-        guard n > 0 else { return "All command-line formulae are current." }
-        return "\(n) top-level formula\(n == 1 ? "" : "e") · all current"
+        guard n > 0 else { return String(localized: "All command-line formulae are current.") }
+        return String(localized: "\(n) top-level formulae · all current")
     }
 }
 
@@ -721,7 +765,10 @@ private struct AppRow: View {
                             .buttonStyle(.link)
                     }
                     if model.showsHelperRestartFallback(result.id) {
-                        Button(model.restartingHelper ? "Restarting…" : "Restart Helper…") {
+                        let restartHelperLabel = model.restartingHelper
+                            ? String(localized: "Restarting…")
+                            : String(localized: "Restart Helper…")
+                        Button(restartHelperLabel) {
                             Task { await model.restartAppStoreHelper(result.id) }
                         }
                         .font(.caption2)
@@ -753,16 +800,17 @@ private struct AppRow: View {
         Button("Changelog") { openChangelog() }
         Divider()
         if result.hasUpdate {
-            let offered = result.remote?.displayVersion ?? "this version"
+            let offered = result.remote?.displayVersion ?? String(localized: "this version")
             if model.prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) {
                 Button("Don’t skip \(offered)") { model.prefs.clearSkip(result.app) }
             } else {
                 Button("Skip \(offered)") { model.skipThisVersion(result) }
             }
         }
-        Button(model.prefs.isIgnored(result.app)
-            ? "Stop ignoring \(result.app.name)"
-            : "Ignore \(result.app.name)") {
+        let ignoreLabel = model.prefs.isIgnored(result.app)
+            ? String(localized: "Stop ignoring \(result.app.name)")
+            : String(localized: "Ignore \(result.app.name)")
+        Button(ignoreLabel) {
             model.toggleIgnore(result)
         }
         // The way back out of a dismissed administrator prompt. Shown only while
@@ -857,7 +905,7 @@ private struct AppRow: View {
             // instead, where it can be read in full, and the line keeps to the one
             // comparison that decides the click: what you have vs what is offered.
             .help(model.restartFromVersion(result.id).map {
-                "Still running \($0) — restart pending from an earlier update"
+                String(localized: "Still running \($0) — restart pending from an earlier update")
             } ?? "")
             // Long date-style versions (Warp) would otherwise wrap mid-number;
             // keep it one line and shrink slightly instead.
@@ -1123,32 +1171,34 @@ private struct AppRow: View {
 
     private func stageLabel(_ stage: InstallStage) -> String {
         switch stage {
-        case .queued: return "Queued"
-        case .checking: return "Checking"
-        case .downloading(let f): return "\(Int(f * 100))%"
-        case .verifyingSignature, .verifyingCodeSignature: return "Verifying"
-        case .extracting: return "Extracting"
-        case .installing: return "Installing"
-        case .runningCommand: return "Installing"
-        case .done: return "Installed"
+        case .queued: return String(localized: "Queued")
+        case .checking: return String(localized: "Checking")
+        case .downloading(let f): return String(localized: "\(Int(f * 100))%")
+        case .verifyingSignature, .verifyingCodeSignature: return String(localized: "Verifying")
+        case .extracting: return String(localized: "Extracting")
+        case .installing: return String(localized: "Installing")
+        case .runningCommand: return String(localized: "Installing")
+        case .done: return String(localized: "Installed")
         }
     }
 
     private var autoUpdateButton: some View {
         Button("Update") { Task { await model.install(result) } }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .controlSize(.small)
             .buttonStyle(.borderedProminent)
     }
 
     /// Muted tag for an app the user has chosen to ignore — right-click to manage.
     private var ignoredTag: some View {
-        Text("Ignored").font(.caption2).foregroundStyle(.tertiary)
+        Text("Ignored").font(.caption2).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.7)
             .help("Hidden from update checks — right-click to stop ignoring")
     }
 
     /// Muted tag for an update whose offered version the user skipped.
     private var skippedTag: some View {
-        Text("Skipped").font(.caption2).foregroundStyle(.tertiary)
+        Text("Skipped").font(.caption2).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.7)
             .help("You skipped this version — right-click to un-skip")
     }
 
@@ -1156,6 +1206,8 @@ private struct AppRow: View {
     /// relaunch so the update actually takes effect.
     private var restartButton: some View {
         Button("Restart") { Task { await model.restart(result) } }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .controlSize(.small)
             .buttonStyle(.bordered)
             .tint(.orange)
@@ -1167,10 +1219,12 @@ private struct AppRow: View {
     /// a slow unrelated installer never makes this completed download look lost.
     private var pendingBatchRestartButton: some View {
         Button("Restart now") { Task { await model.restart(result) } }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .controlSize(.small)
             .buttonStyle(.bordered)
             .tint(.orange)
-            .help("Installed \(result.app.shortVersion ?? "the new version") — waiting for Update All to finish before restarting; click to restart now")
+            .help("Installed \(result.app.shortVersion ?? String(localized: "the new version")) — waiting for Update All to finish before restarting; click to restart now")
     }
 
     /// The app self-downloaded a newer build (Squirrel/ShipIt staged it); a
@@ -1180,6 +1234,8 @@ private struct AppRow: View {
     /// — the bytes are already staged on disk.
     private func relaunchToUpdateButton(_ staged: StagedSelfUpdate) -> some View {
         Button("Relaunch") { Task { await model.relaunchStagedUpdate(result) } }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .controlSize(.small)
             .buttonStyle(.bordered)
             .tint(.orange)
@@ -1192,6 +1248,8 @@ private struct AppRow: View {
     /// and we reopen it. Labelled "Relaunch" to match the other quit-to-apply action.
     private func quitToFinishButton(_ appName: String) -> some View {
         Button("Relaunch") { model.confirmQuit(result.id, proceed: true) }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .controlSize(.small)
             .buttonStyle(.bordered)
             .tint(.orange)
@@ -1218,15 +1276,15 @@ private struct AppRow: View {
                 .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
         .frame(minWidth: 64, alignment: .center)
-        .help("\(result.app.name) updated to \(result.app.shortVersion ?? "the latest version")")
+        .help("\(result.app.name) updated to \(result.app.shortVersion ?? String(localized: "the latest version"))")
     }
 
     private var restartHelp: String {
-        let disk = result.app.shortVersion ?? "the new version"
+        let disk = result.app.shortVersion ?? String(localized: "the new version")
         if let running = model.runningVersion(result.id) {
-            return "Running \(running) but \(disk) is installed — restart to apply it"
+            return String(localized: "Running \(running) but \(disk) is installed — restart to apply it")
         }
-        return "You’re running an older version — restart to finish updating"
+        return String(localized: "You’re running an older version — restart to finish updating")
     }
 
     /// pkg cask: download the official installer and open it (system installer
@@ -1239,11 +1297,15 @@ private struct AppRow: View {
             // make the user pull hundreds of megabytes down a second time because
             // they dismissed it.
             Button("Install") { Task { await model.openStagedPackage(result) } }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
                 .help("\(staged.url.lastPathComponent) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
         } else {
             Button("Update") { Task { await model.install(result) } }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .controlSize(.small)
                 .buttonStyle(.bordered)
                 .help("Downloads the official installer and opens it (asks for admin)")
@@ -1301,7 +1363,7 @@ private struct AppRow: View {
         Button("Open") { model.openSelfUpdater(result) }
             .controlSize(.small)
             .buttonStyle(.bordered)
-            .help("\(result.app.name) is running — open it and let its own updater apply \(result.remote?.displayVersion ?? "the update"). Quit it, or pick “Always replace” in Settings, to install directly.")
+            .help("\(result.app.name) is running — open it and let its own updater apply \(result.remote?.displayVersion ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly.")
     }
 
     private func openAction() {
@@ -1355,11 +1417,11 @@ private struct AppRow: View {
     }
 
     private var openHelp: String {
-        guard let url = result.remote?.pageURL else { return "Reveal in Finder" }
+        guard let url = result.remote?.pageURL else { return String(localized: "Reveal in Finder") }
         if let scheme = url.scheme, scheme != "http", scheme != "https" {
-            return "Open \(result.app.name)’s built-in updater (it updates itself)"
+            return String(localized: "Open \(result.app.name)’s built-in updater (it updates itself)")
         }
-        return "Open the official download page"
+        return String(localized: "Open the official download page")
     }
 
     /// App Store apps: when the app is in the signed-in region, a Get button
@@ -1419,9 +1481,9 @@ private struct AppRow: View {
     /// decline to do, with nothing to act on.
     private var appStoreRedirectHelp: String {
         if !model.helperEnabled {
-            return "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click."
+            return String(localized: "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click.")
         }
-        return "Update \(result.app.name) in the App Store"
+        return String(localized: "Update \(result.app.name) in the App Store")
     }
 
     private func openInAppStore(_ info: AppStoreAvailability) {
@@ -1431,12 +1493,12 @@ private struct AppRow: View {
     }
 
     private func regionHintPopover(_ info: AppStoreAvailability) -> some View {
-        let here = info.homeRegion.map(Self.regionName) ?? "your region"
+        let here = info.homeRegion.map(Self.regionName) ?? String(localized: "your region")
         let there = Self.regionName(info.availableRegion)
         return VStack(alignment: .leading, spacing: 8) {
             Label("Region-locked", systemImage: "globe.badge.chevron.backward")
                 .font(.headline)
-            Text("\(result.app.name) isn’t in your App Store region (\(here)). It’s listed in \(there)\(result.remote?.displayVersion.map { " — latest \($0)" } ?? "").")
+            Text("\(result.app.name) isn’t in your App Store region (\(here)). It’s listed in \(there)\(result.remote?.displayVersion.map { String(localized: " — latest \($0)") } ?? "").")
                 .font(.callout)
             // The region lock blocks a *fresh install* (the product page is "App Not
             // Available" under a \(here) account), but it does NOT block updating an
@@ -1468,7 +1530,7 @@ private struct AppRow: View {
                 .font(.headline)
             Text("\(result.app.name) is an iPhone/iPad app running on Apple Silicon. Its latest version\(result.remote?.displayVersion.map { " (\($0))" } ?? "") no longer supports Mac, so the App Store won't install it on this device.")
                 .font(.callout)
-            Text("You can keep using the installed version (\(result.app.shortVersion ?? "current")). Updating isn't possible until the developer ships a Mac-compatible build again — it's the vendor's choice, not a refresh problem.")
+            Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))). Updating isn't possible until the developer ships a Mac-compatible build again — it's the vendor's choice, not a refresh problem.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button("Open App Store anyway") { openInAppStore(info) }
@@ -1508,8 +1570,13 @@ private struct AppRow: View {
             // Name the failure inline so a wall of orange retry buttons isn't
             // indistinguishable — a rate-limit (the common no-token case) reads
             // differently from a one-off network error without needing a hover.
-            Text(result.status.isRateLimitError ? "Rate-limited" : "Failed")
+            let statusLabel = result.status.isRateLimitError
+                ? String(localized: "Rate-limited")
+                : String(localized: "Failed")
+            Text(statusLabel)
                 .font(.caption2)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .foregroundStyle(result.status.isRateLimitError ? Color.orange : Color.secondary)
             Button { Task { await model.retry(result) } } label: {
                 Image(systemName: "arrow.clockwise")
@@ -1518,8 +1585,8 @@ private struct AppRow: View {
             .buttonStyle(.bordered)
             .tint(.orange)
             .help(errorText.isEmpty
-                ? "Update check failed — click to retry"
-                : "\(errorText) — click to retry")
+                ? String(localized: "Update check failed — click to retry")
+                : String(localized: "\(errorText) — click to retry"))
         }
     }
 
@@ -1529,8 +1596,8 @@ private struct AppRow: View {
     }
 
     private var sourceHint: String {
-        if result.app.isMASApp { return "App Store" }
-        if result.app.sparkleFeedURL != nil { return "Sparkle" }
+        if result.app.isMASApp { return String(localized: "App Store") }
+        if result.app.sparkleFeedURL != nil { return String(localized: "Sparkle") }
         return "—"
     }
 }

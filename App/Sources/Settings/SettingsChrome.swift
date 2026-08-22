@@ -72,22 +72,22 @@ struct SettingsPage<Content: View>: View {
 /// `header` sits above the slab, `footer` below it, both outside it so long
 /// explanatory text reads as text.
 struct SettingsCard<Content: View>: View {
-    var header: String?
-    var footer: String?
+    var header: LocalizedStringKey?
+    var footer: LocalizedStringKey?
     @ViewBuilder var content: Content
 
     /// Footer as a view, for the rare case that needs a `Label` or a live warning
     /// rather than a static string.
     private var footerView: AnyView?
 
-    init(header: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
+    init(header: LocalizedStringKey? = nil, footer: LocalizedStringKey? = nil, @ViewBuilder content: () -> Content) {
         self.header = header
         self.footer = footer
         self.footerView = nil
         self.content = content()
     }
 
-    init(header: String? = nil, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> some View) {
+    init(header: LocalizedStringKey? = nil, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> some View) {
         self.header = header
         self.footer = nil
         self.footerView = AnyView(footer())
@@ -122,8 +122,8 @@ struct SettingsCard<Content: View>: View {
 /// Explanatory text under a card. Panes use this directly when a footnote needs
 /// to sit outside any card.
 struct SettingsFootnote: View {
-    private let text: String
-    init(_ text: String) { self.text = text }
+    private let text: LocalizedStringKey
+    init(_ text: LocalizedStringKey) { self.text = text }
 
     var body: some View {
         Text(text)
@@ -243,8 +243,8 @@ struct SettingsIconTile: View {
 /// A label/value row: title on the left, arbitrary trailing content on the right.
 /// `LabeledContent` in a non-`Form` context loses its alignment, so panes use this.
 struct SettingsField<Trailing: View>: View {
-    let title: String
-    var detail: String?
+    let title: LocalizedStringKey
+    var detail: LocalizedStringKey?
     @ViewBuilder var trailing: Trailing
 
     var body: some View {

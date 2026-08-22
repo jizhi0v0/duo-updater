@@ -115,8 +115,8 @@ struct FoldersSettingsPage: View {
         panel.canChooseFiles = true
         panel.allowedContentTypes = [.application]
         panel.allowsMultipleSelection = true
-        panel.prompt = "Add"
-        panel.message = "Choose a folder that contains apps to check for updates."
+        panel.prompt = String(localized: "Add")
+        panel.message = String(localized: "Choose a folder that contains apps to check for updates.")
 
         guard panel.runModal() == .OK else { return }
         var added = false

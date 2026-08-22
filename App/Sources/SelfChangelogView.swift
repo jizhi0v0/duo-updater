@@ -30,19 +30,18 @@ struct SelfChangelogView: View {
     }
     @State private var state: LoadState = .loading
 
-    /// The version actually running, so the list can say which entry is yours.
+    /// The version actually running. Marks its row in the rail — which is the only
+    /// place it is stated: a line of prose saying the same thing sat above a rail
+    /// that already showed it, and the window's title bar already says what this
+    /// window is.
     private var runningVersion: String? {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            content
-        }
-        .frame(minWidth: 520, minHeight: 420)
-        .task {
+        content
+            .frame(minWidth: 560, minHeight: 420)
+            .task {
             // Marked here rather than at the click: any route into this window —
             // the banner, the menu button, macOS restoring it after a relaunch —
             // means the notes were put in front of the user, and the banner should
@@ -53,34 +52,22 @@ struct SelfChangelogView: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("What's New in Duo Updater").font(.headline)
-                if let runningVersion {
-                    Text("You're running \(runningVersion)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            if case .loading = state {
-                ProgressView().controlSize(.small)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
-
     @ViewBuilder
     private var content: some View {
         switch state {
         case .loaded(let changelog):
-            ChangelogEntriesView(changelog: changelog)
+            // Paragraphs, not bullets: our notes are prose with a bold lead
+            // sentence, and a `•` in front of ten lines reads as a list item that
+            // forgot to end.
+            ChangelogEntriesView(
+                changelog: changelog,
+                itemStyle: .paragraphs,
+                runningVersion: runningVersion,
+                showsLayoutPicker: false)
         case .loading:
-            // No spinner here — the header carries one. A second, centred spinner
-            // makes a fast load flash twice.
-            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
             VStack(spacing: 10) {
                 Image(systemName: "wifi.exclamationmark")

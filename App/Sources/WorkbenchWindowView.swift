@@ -1247,7 +1247,32 @@ private enum ChangelogLayout: String, CaseIterable {
 /// release notes through the very same view, so they look like every other app's
 /// rather than a second, drifting layout.
 struct ChangelogEntriesView: View {
+    /// How an entry's items should read.
+    ///
+    /// A vendor changelog is a list of short lines, and a bullet in front of each
+    /// is exactly right. Duo Updater's own notes are not that shape: they are
+    /// prose paragraphs opening with a bold lead sentence, and a `•` in front of
+    /// ten lines of prose reads as a list item that forgot to end. Same data, same
+    /// view, different typesetting — this stays a presentation choice rather than
+    /// a field on `Changelog`, which is `Codable` and lands on disk.
+    enum ItemStyle {
+        case bulleted
+        case paragraphs
+    }
+
     let changelog: Changelog
+    var itemStyle: ItemStyle = .bulleted
+    /// The version the reader is on, marked in the rail. Nil for a vendor
+    /// changelog, where the row itself is already about the app they have.
+    var runningVersion: String?
+    /// Whether to offer the side-by-side / long-scroll switch.
+    ///
+    /// Off for our own notes: with 53 versions the rail is the only sane way to
+    /// read them, so the picker sat alone in an empty strip offering a layout
+    /// nobody would pick — cost in vertical space and visual noise, no benefit.
+    /// A vendor changelog is often a handful of entries where the long scroll is a
+    /// reasonable choice, so it keeps the switch.
+    var showsLayoutPicker: Bool = true
     @AppStorage("changelogLayout") private var layout: ChangelogLayout = .columns
     @State private var selection = 0
     /// Cached rail width. The measurement below runs AppKit text sizing over every
@@ -1289,7 +1314,7 @@ struct ChangelogEntriesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     ForEach(Array(changelog.entries.enumerated()), id: \.offset) { _, entry in
-                        ChangelogEntryView(entry: entry, syntax: changelog.itemSyntax)
+                        ChangelogEntryView(entry: entry, itemStyle: itemStyle, syntax: changelog.itemSyntax)
                     }
                 }
                 .padding(16)
@@ -1297,6 +1322,7 @@ struct ChangelogEntriesView: View {
             }
         } else {
             VStack(spacing: 0) {
+                if showsLayoutPicker {
                 // Slim header carrying the layout toggle, right-aligned.
                 HStack(spacing: 0) {
                     Spacer()
@@ -1314,10 +1340,15 @@ struct ChangelogEntriesView: View {
                 .padding(.vertical, 6)
 
                 Divider()
+                }
 
-                switch layout {
-                case .columns: columnsBody
-                case .list:    listBody
+                if showsLayoutPicker {
+                    switch layout {
+                    case .columns: columnsBody
+                    case .list:    listBody
+                    }
+                } else {
+                    columnsBody
                 }
             }
             // New changelog (app switch) → select the newest entry again, and
@@ -1340,7 +1371,9 @@ struct ChangelogEntriesView: View {
         // selection from a longer changelog must not index past a shorter one.
         let index = min(max(selection, 0), changelog.entries.count - 1)
         return HStack(spacing: 0) {
-            ChangelogVersionList(entries: changelog.entries, selection: $selection)
+            ChangelogVersionList(
+                entries: changelog.entries, selection: $selection,
+                runningVersion: runningVersion)
                 .frame(width: cachedRailWidth)
             Divider()
             // Scroll back to the top on switch WITHOUT changing identity. This used
@@ -1351,7 +1384,7 @@ struct ChangelogEntriesView: View {
             // ScrollView and moving it instead lets SwiftUI update the notes in place.
             ScrollViewReader { proxy in
                 ScrollView {
-                    ChangelogEntryView(entry: changelog.entries[index], syntax: changelog.itemSyntax)
+                    ChangelogEntryView(entry: changelog.entries[index], itemStyle: itemStyle, syntax: changelog.itemSyntax)
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .id(Self.scrollTopAnchor)
@@ -1379,7 +1412,7 @@ struct ChangelogEntriesView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
                 ForEach(Array(changelog.entries.enumerated()), id: \.offset) { _, entry in
-                    ChangelogEntryView(entry: entry, syntax: changelog.itemSyntax)
+                    ChangelogEntryView(entry: entry, itemStyle: itemStyle, syntax: changelog.itemSyntax)
                 }
             }
             .padding(16)
@@ -1393,6 +1426,10 @@ struct ChangelogEntriesView: View {
 private struct ChangelogVersionList: View {
     let entries: [Changelog.Entry]
     @Binding var selection: Int
+    /// The version the user is actually on, marked in the rail so a long history
+    /// says where they stand in it. Nil for a vendor changelog, where "the version
+    /// you have" is already the row's own subject and the rail is just navigation.
+    var runningVersion: String?
 
     var body: some View {
         let selected = min(max(selection, 0), entries.count - 1)
@@ -1401,10 +1438,21 @@ private struct ChangelogVersionList: View {
                 ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
                     Button { selection = index } label: {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(Self.label(for: entry))
-                                .font(.callout)
-                                .fontWeight(index == selected ? .semibold : .regular)
-                                .lineLimit(1)
+                            HStack(spacing: 5) {
+                                Text(Self.label(for: entry))
+                                    .font(.callout)
+                                    .fontWeight(index == selected ? .semibold : .regular)
+                                    .lineLimit(1)
+                                if isRunning(entry) {
+                                    // A filled dot, not the word "current": the rail
+                                    // is narrow and sized from its labels, so a word
+                                    // would widen every row to fit one of them.
+                                    Circle()
+                                        .fill(Color.accentColor)
+                                        .frame(width: 6, height: 6)
+                                        .help("The version you're running")
+                                }
+                            }
                             if let date = entry.date, !date.isEmpty {
                                 Text(date).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                             }
@@ -1422,6 +1470,11 @@ private struct ChangelogVersionList: View {
             }
             .padding(8)
         }
+    }
+
+    private func isRunning(_ entry: Changelog.Entry) -> Bool {
+        guard let runningVersion, !runningVersion.isEmpty else { return false }
+        return entry.version == runningVersion
     }
 
     /// Prefer the human title (post-style entries), else the version string.
@@ -1514,6 +1567,7 @@ private struct TrafficPane: View {
 /// with date/build metadata underneath.
 private struct ChangelogEntryView: View {
     let entry: Changelog.Entry
+    var itemStyle: ChangelogEntriesView.ItemStyle = .bulleted
     /// Carried down from the `Changelog` so a bullet knows whether its text is
     /// Markdown; see `rendered(_:syntax:)`.
     var syntax: Changelog.ItemSyntax = .plain
@@ -1555,7 +1609,7 @@ private struct ChangelogEntryView: View {
             // version switch. (The HTML fallback this path replaced was already
             // lazy; going native must not lose that.)
             if entry.content.isEmpty {
-                LazyVStack(alignment: .leading, spacing: 6) {
+                LazyVStack(alignment: .leading, spacing: itemStyle == .paragraphs ? 14 : 6) {
                     ForEach(Array(entry.items.enumerated()), id: \.offset) { _, item in
                         noteRow(item)
                     }
@@ -1576,10 +1630,17 @@ private struct ChangelogEntryView: View {
 
     @ViewBuilder
     private func noteRow(_ item: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text("•").foregroundStyle(.secondary)
+        switch itemStyle {
+        case .bulleted:
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("•").foregroundStyle(.secondary)
+                Text(Self.rendered(item, syntax: syntax))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case .paragraphs:
             Text(Self.rendered(item, syntax: syntax))
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

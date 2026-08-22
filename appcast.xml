@@ -17,6 +17,22 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.53</title>
+            <pubDate>Sat, 22 Aug 2026 18:42:30 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.53</link>
+            <sparkle:version>62</sparkle:version>
+            <sparkle:shortVersionString>0.3.53</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**An app that already downloaded its own update is no longer asked to download it again.** Plenty of apps fetch their next version quietly in the background and hold it until you next quit them — that's the "relaunch to update" state you see inside Claude, TablePlus and others. Duo Updater has always recognised that state in Electron apps and offered you Relaunch instead of an Update, because the bytes are already on your disk. Apps built on Sparkle, which is most of the rest, were invisible to it: TablePlus sat there with a 133 MB download and an unpacked 382 MB copy of 26.9.11 in its cache, while its row offered to fetch 26.9.11 for you all over again. Those apps are now recognised too — the row offers Relaunch, and nothing is downloaded twice.
+
+**One thing it deliberately won't do is offer Relaunch for an older build.** An app can be holding a version *behind* the one you have, which happens when a vendor releases to some people before others and Duo Updater installed the newer one first. Relaunching there would quietly move you backwards, so the row doesn't offer it — and Duo Updater won't restart the app for you either, because that restart is the exact signal the app's own installer is waiting for.
+
+**Three ways an update could go wrong that a review caught before you did.** An App Store update that failed, or that you cancelled, could bring the app back to life minutes later — you would quit it yourself and it would reopen, because Duo Updater had noted "this app may need reopening" before anything had actually closed it. It now only reopens an app when a quit was genuinely asked for. Separately, the check added last release to stop an app's own updater undoing ours compared only the version *name*: a vendor that ships several builds under one version number slipped straight past it, which is the same failure it was written to prevent. It now compares the build number too. And an app's own updater is no longer assumed to be waiting just because a downloaded copy is sitting in its cache — Sparkle leaves those behind for ten days after an interrupted install, which could have left a Restart button that did nothing but explain itself.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.53/DuoUpdater-0.3.53-macos.zip" length="10748601" type="application/octet-stream" sparkle:edSignature="Nw51dkkIERKbb966FY7QxyO1Pf+/JeuWEkDhW4ZqJD49ewDEI+aKAH1Ai1ZUFz1iXZpLTBIDwCb5V3MZaJrpDg=="/>
+        </item>
+        <item>
             <title>0.3.52</title>
             <pubDate>Sat, 22 Aug 2026 17:00:55 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.52</link>
@@ -43,26 +59,6 @@
 **An App Store update no longer leaves your app closed.** Updating an app you have open through the App Store means closing it — the store's own installer quits it to replace the bundle, and doesn't open it again afterwards. Duo Updater knew to reopen it, but only if you'd answered its own "quit to finish updating" prompt. Answer the identical prompt in the App Store window instead, or take an update that raises no prompt at all, and nothing remembered that your app had been open. It updated correctly, said "Updated ✓", and your app was simply gone — with no restart offered, because by then there was no running app to restart. What decides now is whether the app was running when the update started, which is the thing that was actually true, rather than which window you happened to click in.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.51/DuoUpdater-0.3.51-macos.zip" length="10743707" type="application/octet-stream" sparkle:edSignature="Lmyk1l/8pKhC0WU8wgoQQQahzD44AnFgnvIqUr6/VD6v3fprFy/n2kaqMYATauP3FuFf0JpRc/tm/WgWA2FMAQ=="/>
-        </item>
-        <item>
-            <title>0.3.49</title>
-            <pubDate>Fri, 21 Aug 2026 22:16:44 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.49</link>
-            <sparkle:version>59</sparkle:version>
-            <sparkle:shortVersionString>0.3.49</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Confirming a quit late no longer leaves the app updated but closed.** Some apps guard their own quit with a dialog — Claude, for one, asks about an active conversation — and that dialog could land in the middle of a Relaunch. Duo Updater rightly refuses to sit there while you decide (and it still won't force the quit past your unsaved work), but once it stepped aside it also stopped listening. Answer the dialog a minute later and the quit went through, the app's own updater swapped in the new version — and then nothing happened: some updaters deliberately don't reopen the app after installing, Duo Updater was no longer watching, and you were left staring at an app that had simply closed. It now leaves a note for itself when it steps aside: if you do confirm that quit within the next few minutes, it waits for the update to finish landing and then brings the app back, in front if that's where it was. The note expires after a few minutes, so a quit hours later is just you closing the app, and stays that way.
-
-**The same late answer now works for a plain Restart.** A save prompt could block the Restart button (and the automatic restart that follows a one-click Update) in exactly the same way, with a worse ending: the new version was already on disk, so when you finally dismissed that prompt and the app closed, Duo Updater's next look around decided there was nothing left to restart and quietly dropped the badge too — an app closed, an update half-applied, and no trace that anything had been asked for. Answering a save prompt within a few minutes now finishes the restart it belonged to, and the app comes back on the new version.
-
-**App Store updates tell you they're waiting, and don't leave the app closed if you answer late.** When the App Store finishes downloading an update for an app you have open, it asks for that app to be closed before it can install — and Duo Updater waits, indefinitely and on purpose, for you to say when. Until now that request lived only inside the menu: if you never opened it, an update sat downloaded-but-not-installed all night, and background checks waited with it. It now also arrives as a notification with a Relaunch button, so you can answer it without hunting for the row. And if your app puts up a save prompt of its own after you tap Relaunch, answering it minutes later no longer strands the app closed — the update lands and the app is reopened, the same as if it had quit right away.
-
-**The list holds still while you are clicking down it.** Every finished update used to re-sort the list on the spot: the app that just landed left the pending group, or picked up a Restart badge and jumped to the top, and everything below it slid up a row — under the pointer of anyone working down a list of Update buttons. Click the top one, go for the next, and the next one had moved. Now the order is held from the first click until the whole round is done: an app that finishes shows its confirmation in place, nothing else moves, and the list settles once at the end, when the finished apps drop away as they always did.
-
-**One less version number on a row that needs a restart.** An app with an update waiting *and* an earlier update still needing a restart tried to print all three versions on one line — installed, available, and the older one still running. On four-part versions like Chrome's it did not fit, and the line was cut off exactly where the digits started to differ, so the part left visible said nothing at all. The line now sticks to the comparison that matters — what you have and what is offered — and the running version moved to the row's tooltip, where it fits.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.49/DuoUpdater-0.3.49-macos.zip" length="10612640" type="application/octet-stream" sparkle:edSignature="GnR5d6Hi5D4DKD7UyRN6McoH+w4aotDF7U3g6mIbCD45FObUAug08meZ20Ifoln+PJi3MgUutePyz4ZlanEtBw=="/>
         </item>
     </channel>
 </rss>

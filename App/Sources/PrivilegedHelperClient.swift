@@ -62,26 +62,51 @@ final class PrivilegedHelperClient: ObservableObject {
         do {
             try service.register()
             lastRegisterError = nil
-            log.notice("helper register() ok — status \(self.service.status.rawValue, privacy: .public)")
+            refreshStatus()
+            log.notice("helper register() ok — status \(self.status.rawValue, privacy: .public)")
+            if status == .requiresApproval { openLoginItems() }
+            return
         } catch {
-            lastRegisterError = Self.explain(error)
-            log.error("helper register() failed: \(error.localizedDescription, privacy: .public)")
+            refreshStatus()
+            // Only when it left the helper off. A refusal on an item that is
+            // already switched on changes nothing the user has to act on, and
+            // posting a message would put red type next to the green "Enabled" —
+            // the same contradiction `refreshStatus()` exists to clear.
+            lastRegisterError = status == .enabled ? nil : Self.explain(error, status: status)
+            log.error("helper register() failed: \(error.localizedDescription, privacy: .public) — status \(self.status.rawValue, privacy: .public)")
+            // A refusal is not proof of a damaged record. macOS also refuses while
+            // a background item exists but sits switched OFF, and there the switch
+            // — not a system-wide reset — is the whole cure: reported 2026-08-23,
+            // register() was refused and turning Duo Updater on by hand in Login
+            // Items fixed it outright. `status` does not separate the two cases, so
+            // open the pane for both; on the damaged one that costs a window.
+            if Self.isRefusal(error) || status == .requiresApproval { openLoginItems() }
         }
-        refreshStatus()
-        if status == .requiresApproval { openLoginItems() }
     }
 
-    /// Turn a `SMAppService` failure into something a user can act on. The one worth
-    /// naming is a Background Task Management record macOS can no longer resolve
-    /// (its log line: "fullPath is nil, container=(null)"): registering is refused
-    /// with a bare "Operation not permitted", the Login Items switch has no effect on
-    /// it, and nothing an app is allowed to do will clear it — only a system-level
-    /// reset will.
-    private static func explain(_ error: Error) -> String {
-        let message = error.localizedDescription
-        guard (error as NSError).code == 1 || message.localizedCaseInsensitiveContains("not permitted")
-        else { return message }
-        return String(localized: "macOS refused the registration — its record of this background item is damaged. Fixing it needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.")
+    /// Whether macOS refused the registration outright — `SMAppService` reports
+    /// this as a bare "Operation not permitted" (code 1) with no indication of
+    /// which of its several causes applies.
+    private static func isRefusal(_ error: Error) -> Bool {
+        (error as NSError).code == 1
+            || error.localizedDescription.localizedCaseInsensitiveContains("not permitted")
+    }
+
+    /// Turn a `SMAppService` failure into something a user can act on.
+    ///
+    /// A refusal has more than one cause and macOS names none of them, so the
+    /// advice leads with the cheap, reversible fix (switch the item on in Login
+    /// Items) and keeps the drastic one (a Background Task Management record macOS
+    /// can no longer resolve — log line "fullPath is nil, container=(null)", curable
+    /// only by `sfltool resetbtm`) as the fallback for when that changed nothing.
+    /// Leading with the reset was wrong: it sent at least one user to reset every
+    /// app's background approvals for a problem one toggle solved.
+    private static func explain(_ error: Error, status: SMAppService.Status) -> String {
+        guard isRefusal(error) else { return error.localizedDescription }
+        if status == .requiresApproval {
+            return String(localized: "macOS is waiting for your approval. Switch Duo Updater on under “Allow in the Background” in Login Items & Extensions — it's open now.")
+        }
+        return String(localized: "macOS refused the registration. Switch Duo Updater on under “Allow in the Background” in Login Items & Extensions — that alone usually fixes it. If it isn't listed there, or switching it on changes nothing, macOS's record of this background item is damaged and needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.")
     }
 
     func unregister() {

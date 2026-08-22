@@ -16141,43 +16141,84 @@
         }
       }
     },
-    "macOS refused the registration — its record of this background item is damaged. Fixing it needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.": {
+    "macOS is waiting for your approval. Switch Duo Updater on under “Allow in the Background” in Login Items & Extensions — it's open now.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS hat die Registrierung abgelehnt – der Datensatz zu diesem Hintergrundelement ist beschädigt. Die Behebung erfordert einen systemweiten Reset: Führe „sudo sfltool resetbtm“ im Terminal aus und starte neu. Das löscht die Genehmigungen für Hintergrundelemente aller Apps, sodass du die anderen ebenfalls erneut genehmigen musst."
+            "value": "macOS wartet auf deine Zustimmung. Aktiviere Duo Updater unter „Im Hintergrund erlauben“ in „Anmeldeobjekte & Erweiterungen“ – das Fenster ist jetzt offen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS rechazó el registro; su registro de este elemento en segundo plano está dañado. Solucionarlo requiere un restablecimiento a nivel de sistema: ejecuta «sudo sfltool resetbtm» en Terminal y reinicia. Esto borra los permisos de elementos en segundo plano de todas las apps, así que tendrás que volver a aprobar las demás."
+            "value": "macOS espera tu aprobación. Activa Duo Updater en «Permitir en segundo plano», dentro de Ítems de inicio y extensiones: ya está abierto."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS a refusé l'enregistrement — son enregistrement de cet élément en arrière-plan est corrompu. La réparation nécessite une réinitialisation au niveau système : exécutez « sudo sfltool resetbtm » dans le Terminal et redémarrez. Cela efface les autorisations d'éléments en arrière-plan pour toutes les applications, vous devrez donc réapprouver les autres aussi."
+            "value": "macOS attend votre approbation. Activez Duo Updater sous « Autoriser en arrière-plan » dans Ouverture et extensions — la fenêtre est déjà ouverte."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOSが登録を拒否しました — このバックグラウンド項目に関する記録が破損しています。修復にはシステムレベルのリセットが必要です。ターミナルで「sudo sfltool resetbtm」を実行して再起動してください。これによりすべてのアプリのバックグラウンド項目の承認がクリアされるため、他のアプリも再承認が必要になります。"
+            "value": "macOSが承認を待っています。「ログイン項目と機能拡張」の「バックグラウンドでの実行を許可」でDuo Updaterをオンにしてください — いま開いています。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS отклонила регистрацию — её запись об этом фоновом элементе повреждена. Для исправления нужен сброс на уровне системы: выполните «sudo sfltool resetbtm» в Терминале и перезагрузитесь. Это очистит разрешения фоновых элементов для всех приложений, так что остальные придётся одобрить заново."
+            "value": "macOS ждёт вашего подтверждения. Включите Duo Updater в разделе «Разрешить в фоновом режиме» в «Объекты входа и расширения» — он уже открыт."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS 拒绝了注册 — 它关于此后台项目的记录已损坏。修复需要系统级重置：在终端中运行“sudo sfltool resetbtm”并重启。这会清除所有应用的后台项目授权，因此你需要重新批准其他应用。"
+            "value": "macOS 正在等待你批准。请在“登录项与扩展”的“允许在后台”中开启 Duo Updater — 该页面已为你打开。"
+          }
+        }
+      }
+    },
+    "macOS refused the registration. Switch Duo Updater on under “Allow in the Background” in Login Items & Extensions — that alone usually fixes it. If it isn't listed there, or switching it on changes nothing, macOS's record of this background item is damaged and needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS hat die Registrierung abgelehnt. Aktiviere Duo Updater unter „Im Hintergrund erlauben“ in „Anmeldeobjekte & Erweiterungen“ – das allein behebt es meistens. Wird Duo Updater dort nicht aufgeführt oder ändert das Aktivieren nichts, ist der Datensatz von macOS zu diesem Hintergrundelement beschädigt und erfordert einen systemweiten Reset: Führe „sudo sfltool resetbtm“ im Terminal aus und starte neu. Das löscht die Genehmigungen für Hintergrundelemente aller Apps, sodass du die anderen ebenfalls erneut genehmigen musst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS rechazó el registro. Activa Duo Updater en «Permitir en segundo plano», dentro de Ítems de inicio y extensiones: con eso suele bastar. Si Duo Updater no aparece ahí, o activarlo no cambia nada, el registro que macOS tiene de este elemento en segundo plano está dañado y requiere un restablecimiento a nivel de sistema: ejecuta «sudo sfltool resetbtm» en Terminal y reinicia. Esto borra los permisos de elementos en segundo plano de todas las apps, así que tendrás que volver a aprobar las demás."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS a refusé l'enregistrement. Activez Duo Updater sous « Autoriser en arrière-plan » dans Ouverture et extensions — cela suffit le plus souvent. Si Duo Updater n'y figure pas, ou si l'activer ne change rien, l'enregistrement de cet élément en arrière-plan est corrompu et nécessite une réinitialisation au niveau système : exécutez « sudo sfltool resetbtm » dans le Terminal et redémarrez. Cela efface les autorisations d'éléments en arrière-plan pour toutes les applications, vous devrez donc réapprouver les autres aussi."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOSが登録を拒否しました。「ログイン項目と機能拡張」の「バックグラウンドでの実行を許可」でDuo Updaterをオンにしてください — たいていはこれだけで直ります。そこにDuo Updaterが表示されない場合や、オンにしても変わらない場合は、このバックグラウンド項目に関するmacOSの記録が破損しており、システムレベルのリセットが必要です。ターミナルで「sudo sfltool resetbtm」を実行して再起動してください。これによりすべてのアプリのバックグラウンド項目の承認がクリアされるため、他のアプリも再承認が必要になります。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS отклонила регистрацию. Включите Duo Updater в разделе «Разрешить в фоновом режиме» в «Объекты входа и расширения» — обычно этого достаточно. Если Duo Updater там нет или включение ничего не меняет, запись macOS об этом фоновом элементе повреждена и нужен сброс на уровне системы: выполните «sudo sfltool resetbtm» в Терминале и перезагрузитесь. Это очистит разрешения фоновых элементов для всех приложений, так что остальные придётся одобрить заново."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS 拒绝了注册。请在“登录项与扩展”的“允许在后台”中开启 Duo Updater — 通常这样就能解决。如果那里没有 Duo Updater，或者开启后仍无效，说明 macOS 关于此后台项目的记录已损坏，需要系统级重置：在终端中运行“sudo sfltool resetbtm”并重启。这会清除所有应用的后台项目授权，因此你需要重新批准其他应用。"
           }
         }
       }

@@ -53,31 +53,11 @@ xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
 
 [ -d "$BUILD_APP" ] || die "build produced no app at $BUILD_APP"
 
-# Every language the catalog carries has to have arrived in the product, and
-# the build will not tell you when one hasn't. An incremental xcodebuild run
-# after an edit to Localizable.xcstrings has been seen to empty the compiled
-# .lproj folders and not refill them: the app ships with all seven language
-# directories present and all seven empty, every string quietly falls back to
-# its English source, and the build reports success. The fix is to delete the
-# derived-data directory; the cost of missing it is a release that is English
-# everywhere for everyone.
+# The compiled string catalog has to have landed, and the build will not tell
+# you when it hasn't — see scripts/verify-localizations.sh. Shipping is the one
+# place where missing it is unrecoverable, so it gates notarization.
 say "Verifying every language landed in the product"
-langs="$(CATALOG="$REPO/App/Resources/Localizable.xcstrings" python3 -c '
-import json, os
-catalog = json.load(open(os.environ["CATALOG"], encoding="utf-8"))
-langs = {lang for entry in catalog["strings"].values()
-              for lang in entry.get("localizations", {})}
-langs.add(catalog.get("sourceLanguage", "en"))
-print(" ".join(sorted(langs)))
-')"
-[ -n "$langs" ] || die "could not read the language list out of Localizable.xcstrings"
-for lang in $langs; do
-    compiled="$BUILD_APP/Contents/Resources/$lang.lproj/Localizable.strings"
-    [ -s "$compiled" ] || die "$lang.lproj/Localizable.strings is missing or empty in the build.
-   The compiled string catalog did not land, so this would ship English-only.
-   Delete $DD and build again."
-done
-printf '   %s\n' "$langs"
+"$REPO/scripts/verify-localizations.sh" "$BUILD_APP"
 
 
 say "Re-signing Sparkle helper tools"

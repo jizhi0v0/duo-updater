@@ -56,6 +56,12 @@ identity="$(codesign -dvv "$PRODUCT" 2>&1 | sed -n 's/^Authority=//p' | head -n 
 say "Verifying signature identity"
 "$REPO/scripts/verify-signature.sh" "$PRODUCT" "$TEAM"
 
+# Same bar as the release build. Here it matters for a different reason: an
+# app that has silently lost its translations looks exactly like a bug in the
+# localization you are in the middle of testing, and you will chase it there.
+say "Verifying every language landed in the product"
+"$REPO/scripts/verify-localizations.sh" "$PRODUCT"
+
 say "Quitting any running instance"
 osascript -e 'tell application "DuoUpdater" to quit' 2>/dev/null || true
 sleep 1

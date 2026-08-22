@@ -5276,43 +5276,43 @@
         }
       }
     },
-    "Delete %@ (%@)": {
+    "Delete %lld (%@)": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ löschen (%@)"
+            "value": "%lld löschen (%@)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eliminar %@ (%@)"
+            "value": "Eliminar %lld (%@)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Supprimer %@ (%@)"
+            "value": "Supprimer %lld (%@)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 件を削除（%@）"
+            "value": "%lld 件を削除（%@）"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Удалить %@ (%@)"
+            "value": "Удалить %lld (%@)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "删除 %@（%@）"
+            "value": "删除 %lld（%@）"
           }
         }
       }
@@ -8310,43 +8310,43 @@
         }
       }
     },
-    "License at activation limit (%@/%@). Key saved — set the instance ID below, or free a slot in Alcove.": {
+    "License at activation limit (%lld/%lld). Key saved — set the instance ID below, or free a slot in Alcove.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lizenz hat das Aktivierungslimit erreicht (%@/%@). Schlüssel gespeichert – Instanz-ID unten festlegen oder einen Platz in Alcove freigeben."
+            "value": "Lizenz hat das Aktivierungslimit erreicht (%lld/%lld). Schlüssel gespeichert – Instanz-ID unten festlegen oder einen Platz in Alcove freigeben."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La licencia alcanzó el límite de activaciones (%@/%@). Clave guardada; establece el ID de instancia abajo o libera una plaza en Alcove."
+            "value": "La licencia alcanzó el límite de activaciones (%lld/%lld). Clave guardada; establece el ID de instancia abajo o libera una plaza en Alcove."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La licence a atteint sa limite d'activation (%@/%@). Clé enregistrée — définissez l'ID d'instance ci-dessous, ou libérez un emplacement dans Alcove."
+            "value": "La licence a atteint sa limite d'activation (%lld/%lld). Clé enregistrée — définissez l'ID d'instance ci-dessous, ou libérez un emplacement dans Alcove."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ライセンスがアクティベーション上限（%@/%@）に達しています。キーは保存済みです — 下でインスタンスIDを設定するか、Alcoveでスロットを解放してください。"
+            "value": "ライセンスがアクティベーション上限（%lld/%lld）に達しています。キーは保存済みです — 下でインスタンスIDを設定するか、Alcoveでスロットを解放してください。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Лицензия достигла лимита активаций (%@/%@). Ключ сохранён — укажите ID экземпляра ниже или освободите слот в Alcove."
+            "value": "Лицензия достигла лимита активаций (%lld/%lld). Ключ сохранён — укажите ID экземпляра ниже или освободите слот в Alcove."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "许可证已达到激活上限（%@/%@）。密钥已保存 — 请在下方设置实例 ID，或在 Alcove 中释放一个名额。"
+            "value": "许可证已达到激活上限（%lld/%lld）。密钥已保存 — 请在下方设置实例 ID，或在 Alcove 中释放一个名额。"
           }
         }
       }
@@ -15403,43 +15403,43 @@
         }
       }
     },
-    "Upgrading… (%@/%@)": {
+    "Upgrading… (%lld/%lld)": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wird aktualisiert … (%@/%@)"
+            "value": "Wird aktualisiert … (%lld/%lld)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Actualizando… (%@/%@)"
+            "value": "Actualizando… (%lld/%lld)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mise à niveau en cours… (%@/%@)"
+            "value": "Mise à niveau en cours… (%lld/%lld)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アップグレード中…（%@/%@）"
+            "value": "アップグレード中…（%lld/%lld）"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обновление… (%@/%@)"
+            "value": "Обновление… (%lld/%lld)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在升级…（%@/%@）"
+            "value": "正在升级…（%lld/%lld）"
           }
         }
       }

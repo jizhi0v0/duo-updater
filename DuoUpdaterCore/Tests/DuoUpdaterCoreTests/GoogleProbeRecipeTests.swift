@@ -140,3 +140,61 @@ struct GoogleProbeRecipeTests {
         }
     }
 }
+
+/// Antigravity IDE is a SECOND app, not a channel of the one above: its own
+/// bundle id, its own version line (2.5.5 against 2.9.1), an Electron VS Code fork
+/// rather than the native hub. It was installed and scanned but matched no recipe,
+/// so its row had no source at all.
+@Test func antigravityIDEIsCoveredSeparatelyFromTheHub() throws {
+    let ide = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.google.antigravity-ide" })
+    let hub = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.google.antigravity" })
+    #expect(ide.url != hub.url, "two products, two endpoints")
+
+    // No machine identifier in the URL. The app sends a SHA-256 of the hostname in
+    // that slot; we send its own fallback literal instead, so nothing per-machine
+    // leaves here. Same reasoning as the `x-user-staging-id` header the hub omits.
+    #expect(ide.url.absoluteString.hasSuffix("/no_hostname"))
+    #expect(!ide.url.absoluteString.contains("sha256"))
+
+    // The commit slot is a hash that can never be real. VS Code's update API
+    // answers 204 for a current commit and the manifest otherwise, so naming a
+    // live commit would return nothing to compare against.
+    #expect(ide.url.absoluteString.contains("/0000000000000000000000000000000000000000/"))
+
+    // Detection only: the artifact has not been signature-checked and the URL is
+    // arm64-specific.
+    #expect(ide.install == nil)
+}
+
+/// The real response, verbatim (2026-08-22). Three traps in one body: the version
+/// fields are all the VS Code BASE version, and the only real version sits in the
+/// download path next to a build id that must not ride along.
+@Test func antigravityIDEReadsTheAppVersionNotTheVSCodeBase() throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.google.antigravity-ide" })
+    let body = #"""
+    {"timestamp":1786614782,"supportsFastUpdate":true,"version":"ecfbad74d93962fc8ca485d93ab9b4f3d4cb6cf8","ideVersion":"Antigravity IDE","productVersion":"1.107.0","name":"1.107.0","hash":"106a021b7e59064312712385cab3c035cee68399","sha256hash":"33338ced839cb00fcc779ab96e4cdc79e06c894bc21cdb02249715286700c648","url":"https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/2.5.5-4923483625488384/darwin-arm/Antigravity IDE.zip","displayName":"macOS for Apple Silicon (.zip)"}
+    """#
+    // 2.5.5 is what the shipped bundle reports. 1.107.0 (productVersion / name) is
+    // VS Code's base version — comparing THAT against the installed 2.5.5 would
+    // offer an update that can never be satisfied.
+    #expect(VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern) == "2.5.5")
+
+    // The build id after the dash must not be captured — the hub recipe documents
+    // the same trap for its own feed (`2.8.1-6512087774658560` vs a plain 2.8.1).
+    #expect(VendorProbeRecipe.extractVersion(
+        from: body, pattern: recipe.versionPattern)?.contains("-") != true)
+
+    // A body carrying only the VS Code fields, with no download URL, yields nothing
+    // rather than falling back to 1.107.0.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: #"{"productVersion":"1.107.0","name":"1.107.0"}"#,
+        pattern: recipe.versionPattern) == nil)
+
+    // Segment count isn't pinned, so a future 2.6 or 2.5.5.1 still reads.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: #"{"url":"https://x/antigravity/stable/2.6-123/darwin-arm/a.zip"}"#,
+        pattern: recipe.versionPattern) == "2.6")
+}

@@ -3031,6 +3031,69 @@ public enum VendorProbeRegistry {
                 kind: .zip,
                 checksumPattern: #"sha512:\s*([A-Za-z0-9+/=]+)"#)),
 
+        // Antigravity IDE — a SECOND, separate app from the one above. Different
+        // bundle id (`com.google.antigravity-ide`), different version line (2.5.5
+        // against the other's 2.9.1), different binary (Electron — it is a VS Code
+        // fork, the Windsurf/Codeium lineage Google acquired). It was installed and
+        // scanned but matched no recipe, so its row had no source and no notes at
+        // all. The sibling recipe's own comment had already noticed this product
+        // existed ("the IDE, under `.../antigravity/stable/`") without covering it.
+        //
+        // Nothing else covers it either: no `SUFeedURL`, no electron-updater
+        // `app-update.yml`, and its VS Code `product.json` sets `updateUrl` to the
+        // literal `https://example.com`, so the built-in update channel is inert.
+        // The real endpoint is in `out/main.js` — a sibling Cloud Run service under
+        // the same GCP project number as the hub updater above:
+        //   /api/update/{platform}/{quality}/{commit}/{sha256(hostname)}
+        //
+        // Two deliberate choices in the URL:
+        //
+        // The last path component is a per-machine identifier (the app sends a
+        // SHA-256 of the hostname). We send `no_hostname` — the app's OWN fallback
+        // literal from the same code, so it is a value the service already handles
+        // rather than something invented, and no machine fingerprint leaves here.
+        // Same reasoning as the `x-user-staging-id` header the sibling omits.
+        //
+        // The commit slot is all zeroes. This is VS Code's update API: it answers
+        // 204 No Content when the commit you name is already current, and the
+        // update JSON otherwise. Naming the installed commit would therefore return
+        // nothing to compare against — and we cannot name it anyway, since it lives
+        // in `product.json` inside the bundle, which the scanner does not read. A
+        // well-formed hash that can never be a real commit always gets the latest.
+        // Verified 2026-08-22: the real commit → 204, all-zeroes → 200 with the
+        // manifest.
+        //
+        // The version comes from the download URL, NOT from any version field in
+        // that response — every one of those is the VS Code base (`productVersion`
+        // and `name` are both 1.107.0, `version` is a commit hash), while the
+        // shipped bundle reports 2.5.5. Comparing 1.107.0 against 2.5.5 would be a
+        // permanent phantom update. The URL path carries the real one:
+        //   .../antigravity/stable/2.5.5-4923483625488384/darwin-arm/...
+        // and the pattern stops at the `-`, so the build id does not ride along —
+        // the exact trap the sibling recipe documents for the hub feed.
+        //
+        // Detection only for now: the artifact is a zip on Google's edgedl CDN with
+        // a `sha256hash` beside it, so an install spec is plausible, but it has not
+        // been downloaded and signature-checked yet, and the URL is arm64-specific.
+        VendorProbeRecipe(
+            bundleID: "com.google.antigravity-ide",
+            url: URL(string: "https://antigravity-ide-auto-updater-974169037036"
+                + ".us-central1.run.app/api/update/darwin-arm64/stable/"
+                + "0000000000000000000000000000000000000000/no_hostname")!,
+            mode: .responseBody,
+            versionPattern: #"/antigravity/stable/([0-9][0-9.]*)-"#,
+            // Detection-only rows have no install action, so the page link is the
+            // only thing the row can offer — a recipe without one is a dead end
+            // (`PageURLTests.detectionOnlyRecipesCarryAPage` enforces it, and
+            // caught this omission).
+            //
+            // No `changelogURL`: the hub's points at `antigravity.google/changelog`,
+            // but that page is JS-rendered — 88 KB with zero version strings in the
+            // served HTML — so there is no way to confirm from here that it even
+            // describes the IDE rather than only the hub. Linking it would be a
+            // guess dressed up as coverage.
+            downloadURL: URL(string: "https://antigravity.google/download")),
+
         // AnyDesk — the plain-text changelog its own Homebrew cask reads for
         // livecheck, and the one thing on that host a script can fetch: the
         // download page and `anydesk.com/en/changelog/mac-os` both answer 403 with

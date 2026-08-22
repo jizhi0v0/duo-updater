@@ -4317,47 +4317,6 @@
         }
       }
     },
-    "Check now": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jetzt prüfen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Comprobar ahora"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vérifier maintenant"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "今すぐ確認"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверить сейчас"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "立即检查"
-          }
-        }
-      }
-    },
     "Check up to %lld apps at once": {
       "extractionState": "manual",
       "localizations": {
@@ -5727,43 +5686,43 @@
         }
       }
     },
-    "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of Duo Updater's is open, and you are working in another app; it restarts itself there. Until such a moment comes it simply waits, and installs when you quit Duo Updater anyway.\n\nThe button below forces a check right now either way.": {
+    "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of Duo Updater's is open, and you are working in another app; it restarts itself there. Until such a moment comes it simply waits, and installs when you quit Duo Updater anyway.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater prüft eigenständig stündlich auf eigene Updates. Ausgeschaltet zeigt eine neue Version eine Aufforderung an und wartet auf dich.\n\nEingeschaltet wird sie heruntergeladen und dann in einem ruhigen Moment angewendet – ohne Aufforderung, ohne Klicken. Ein ruhiger Moment bedeutet: Es wird nichts geprüft oder installiert, kein Fenster von Duo Updater ist geöffnet, und du arbeitest in einer anderen App; dort startet es sich selbst neu. Bis ein solcher Moment kommt, wartet es einfach und installiert ohnehin, wenn du Duo Updater beendest.\n\nDie Schaltfläche unten erzwingt in jedem Fall sofort eine Prüfung."
+            "value": "Duo Updater prüft eigenständig stündlich auf eigene Updates. Ausgeschaltet zeigt eine neue Version eine Aufforderung an und wartet auf dich.\n\nEingeschaltet wird sie heruntergeladen und dann in einem ruhigen Moment angewendet – ohne Aufforderung, ohne Klicken. Ein ruhiger Moment bedeutet: Es wird nichts geprüft oder installiert, kein Fenster von Duo Updater ist geöffnet, und du arbeitest in einer anderen App; dort startet es sich selbst neu. Bis ein solcher Moment kommt, wartet es einfach und installiert ohnehin, wenn du Duo Updater beendest."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater comprueba sus propias actualizaciones cada hora por su cuenta. Si está desactivado, una versión nueva muestra un aviso y espera tu acción.\n\nSi está activado, se descarga y luego se aplica en un momento tranquilo, sin avisos ni clics. Un momento tranquilo significa que no se está comprobando ni instalando nada, que no hay ninguna ventana de Duo Updater abierta y que estás trabajando en otra app; entonces se reinicia por sí solo. Hasta que llegue ese momento, simplemente espera, e instala de todos modos cuando cierras Duo Updater.\n\nEl botón de abajo fuerza una comprobación ahora mismo en cualquier caso."
+            "value": "Duo Updater comprueba sus propias actualizaciones cada hora por su cuenta. Si está desactivado, una versión nueva muestra un aviso y espera tu acción.\n\nSi está activado, se descarga y luego se aplica en un momento tranquilo, sin avisos ni clics. Un momento tranquilo significa que no se está comprobando ni instalando nada, que no hay ninguna ventana de Duo Updater abierta y que estás trabajando en otra app; entonces se reinicia por sí solo. Hasta que llegue ese momento, simplemente espera, e instala de todos modos cuando cierras Duo Updater."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater vérifie lui-même ses propres mises à jour toutes les heures. Désactivé, une nouvelle version affiche une invite et attend votre action.\n\nActivé, elle est téléchargée puis appliquée à un moment calme — sans invite, sans clic. Un moment calme signifie que rien n'est en cours de vérification ni d'installation, qu'aucune fenêtre de Duo Updater n'est ouverte, et que vous travaillez dans une autre application ; il se redémarre alors lui-même. Tant qu'un tel moment n'arrive pas, il attend simplement et s'installe de toute façon quand vous quittez Duo Updater.\n\nLe bouton ci-dessous force une vérification immédiate dans tous les cas."
+            "value": "Duo Updater vérifie lui-même ses propres mises à jour toutes les heures. Désactivé, une nouvelle version affiche une invite et attend votre action.\n\nActivé, elle est téléchargée puis appliquée à un moment calme — sans invite, sans clic. Un moment calme signifie que rien n'est en cours de vérification ni d'installation, qu'aucune fenêtre de Duo Updater n'est ouverte, et que vous travaillez dans une autre application ; il se redémarre alors lui-même. Tant qu'un tel moment n'arrive pas, il attend simplement et s'installe de toute façon quand vous quittez Duo Updater."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaterは1時間ごとに自身の更新を自動的に確認します。オフの場合、新しいバージョンがあるとプロンプトが表示され、あなたの操作を待ちます。\n\nオンの場合、静かなタイミングでダウンロードされ適用されます — プロンプトもクリックも不要です。静かなタイミングとは、何も確認やインストールが行われておらず、Duo Updaterのウインドウが開かれておらず、あなたが他のアプリで作業していることを意味し、その際に自身を再起動します。そのタイミングが来るまでは単に待機し、いずれにせよDuo Updaterを終了したときにインストールされます。\n\n下のボタンは、いずれの場合も今すぐ確認を強制します。"
+            "value": "Duo Updaterは1時間ごとに自身の更新を自動的に確認します。オフの場合、新しいバージョンがあるとプロンプトが表示され、あなたの操作を待ちます。\n\nオンの場合、静かなタイミングでダウンロードされ適用されます — プロンプトもクリックも不要です。静かなタイミングとは、何も確認やインストールが行われておらず、Duo Updaterのウインドウが開かれておらず、あなたが他のアプリで作業していることを意味し、その際に自身を再起動します。そのタイミングが来るまでは単に待機し、いずれにせよDuo Updaterを終了したときにインストールされます。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater самостоятельно проверяет собственные обновления каждый час. Если выключено, новая версия показывает подсказку и ждёт вас.\n\nЕсли включено, обновление загружается и применяется в тихий момент — без подсказок и кликов. Тихий момент означает, что ничего не проверяется и не устанавливается, ни одно окно Duo Updater не открыто, а вы работаете в другом приложении; он перезапускается сам. Пока такой момент не наступит, он просто ждёт и устанавливает обновление, когда вы всё равно закрываете Duo Updater.\n\nКнопка ниже принудительно запускает проверку прямо сейчас в любом случае."
+            "value": "Duo Updater самостоятельно проверяет собственные обновления каждый час. Если выключено, новая версия показывает подсказку и ждёт вас.\n\nЕсли включено, обновление загружается и применяется в тихий момент — без подсказок и кликов. Тихий момент означает, что ничего не проверяется и не устанавливается, ни одно окно Duo Updater не открыто, а вы работаете в другом приложении; он перезапускается сам. Пока такой момент не наступит, он просто ждёт и устанавливает обновление, когда вы всё равно закрываете Duo Updater."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 会每小时自行检查自身的更新。关闭时，新版本会弹出提示并等待你操作。\n\n开启后，会在安静的时刻下载并应用更新 — 无提示、无需点击。安静的时刻是指没有正在进行的检查或安装、没有打开任何 Duo Updater 窗口，并且你正在其他应用中工作；届时它会自行重启。在这样的时刻到来之前它只会等待，并在你退出 Duo Updater 时顺便安装。\n\n无论如何，下方的按钮都会立即强制检查一次。"
+            "value": "Duo Updater 会每小时自行检查自身的更新。关闭时，新版本会弹出提示并等待你操作。\n\n开启后，会在安静的时刻下载并应用更新 — 无提示、无需点击。安静的时刻是指没有正在进行的检查或安装、没有打开任何 Duo Updater 窗口，并且你正在其他应用中工作；届时它会自行重启。在这样的时刻到来之前它只会等待，并在你退出 Duo Updater 时顺便安装。"
           }
         }
       }
@@ -5850,43 +5809,43 @@
         }
       }
     },
-    "Duo Updater updates itself separately from the managed app list, through Sparkle-signed direct downloads.": {
+    "Duo Updater updates itself separately from the managed app list, through Sparkle-signed direct downloads. The button above forces a check right now, whether or not automatic installs are on.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater aktualisiert sich getrennt von der verwalteten App-Liste über von Sparkle signierte Direktdownloads."
+            "value": "Duo Updater aktualisiert sich getrennt von der verwalteten App-Liste über von Sparkle signierte Direktdownloads. Die Schaltfläche oben erzwingt sofort eine Prüfung, unabhängig davon, ob automatische Installationen aktiviert sind."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater se actualiza por separado de la lista de apps gestionadas, mediante descargas directas firmadas con Sparkle."
+            "value": "Duo Updater se actualiza por separado de la lista de apps gestionadas, mediante descargas directas firmadas con Sparkle. El botón de arriba fuerza una comprobación ahora mismo, estén activadas o no las instalaciones automáticas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater se met à jour séparément de la liste des applications gérées, via des téléchargements directs signés par Sparkle."
+            "value": "Duo Updater se met à jour séparément de la liste des applications gérées, via des téléchargements directs signés par Sparkle. Le bouton ci-dessus force une vérification immédiate, que les installations automatiques soient activées ou non."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updaterは管理対象アプリの一覧とは別に、Sparkle署名済みの直接ダウンロードによって自身を更新します。"
+            "value": "Duo Updaterは管理対象アプリの一覧とは別に、Sparkle署名済みの直接ダウンロードによって自身を更新します。 上のボタンは、自動インストールのオン・オフにかかわらず、今すぐ確認を強制します。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater обновляет себя отдельно от списка управляемых приложений через прямые загрузки, подписанные Sparkle."
+            "value": "Duo Updater обновляет себя отдельно от списка управляемых приложений через прямые загрузки, подписанные Sparkle. Кнопка выше принудительно запускает проверку прямо сейчас, независимо от того, включена ли автоматическая установка."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 通过 Sparkle 签名的直接下载来更新自身，与受管理的应用列表分开处理。"
+            "value": "Duo Updater 通过 Sparkle 签名的直接下载来更新自身，与受管理的应用列表分开处理。 上方的按钮无论自动安装是否开启，都会立即强制检查一次。"
           }
         }
       }

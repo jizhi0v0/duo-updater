@@ -31,27 +31,16 @@ struct UpdatesSettingsPage: View {
     var body: some View {
         SettingsPage(section: .updates) {
             SettingsCard(
-                footer: "Duo Updater updates itself separately from the managed app list, through Sparkle-signed direct downloads."
+                footer: "Duo Updater updates itself separately from the managed app list, through Sparkle-signed direct downloads. The button above forces a check right now, whether or not automatic installs are on."
             ) {
                 versionRow
             }
 
             SettingsCard(
-                footer: "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of Duo Updater's is open, and you are working in another app; it restarts itself there. Until such a moment comes it simply waits, and installs when you quit Duo Updater anyway.\n\nThe button below forces a check right now either way."
+                footer: "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of Duo Updater's is open, and you are working in another app; it restarts itself there. Until such a moment comes it simply waits, and installs when you quit Duo Updater anyway."
             ) {
                 Toggle("Install Duo Updater's own updates silently", isOn: $installsAutomatically)
                     .settingsRow()
-                SettingsDivider()
-                HStack {
-                    Text("Check now")
-                    Spacer(minLength: 12)
-                    Button("Check for Updates…") {
-                        AppUpdater.shared.checkForUpdates()
-                    }
-                    .settingsGlassButton(prominent: true)
-                    .disabled(!AppUpdater.shared.canCheckForUpdates)
-                }
-                .settingsRow()
             }
         }
         .task { installsAutomatically = AppUpdater.shared.installsUpdatesAutomatically }
@@ -71,7 +60,12 @@ struct UpdatesSettingsPage: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 12)
+            Button("Check for Updates…") {
+                AppUpdater.shared.checkForUpdates()
+            }
+            .settingsGlassButton(prominent: true)
+            .disabled(!AppUpdater.shared.canCheckForUpdates)
         }
         .settingsRow()
         .padding(.vertical, 4)

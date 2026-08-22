@@ -65,3 +65,73 @@ import Foundation
         #expect(!CredentialBearingURL.inQuery(nil))
     }
 }
+
+/// The query check above was, for a long time, the *whole* test — on the reading
+/// that a header credential never enters the cache *key* and so never reaches disk.
+/// The key, no; the archived request, yes: CFNetwork writes the whole `URLRequest`
+/// into `cfurl_cache_blob_data`, headers and body included, and 85 blobs across the
+/// app's and the CLI's caches were found holding a live GitHub PAT in plaintext.
+/// These pin the two hiding places that discovery added.
+@Suite struct CredentialCachingRequestTests {
+
+    private func request(
+        _ url: String = "https://api.github.com/repos/o/r/releases/latest"
+    ) -> URLRequest {
+        URLRequest(url: URL(string: url)!)
+    }
+
+    /// The exact shape that leaked: `GitHubReleasesSource` setting a PAT as Bearer.
+    @Test func bearerTokenIsNotCacheable() {
+        var r = request()
+        r.setValue("Bearer ghp_notARealToken", forHTTPHeaderField: "Authorization")
+        #expect(CredentialBearingRequest.isCredentialed(r))
+    }
+
+    @Test(arguments: ["Authorization", "Proxy-Authorization"])
+    func credentialHeadersAreNotCacheable(_ field: String) {
+        var r = request()
+        r.setValue("Basic dXNlcjpwYXNz", forHTTPHeaderField: field)
+        #expect(CredentialBearingRequest.isCredentialed(r))
+    }
+
+    /// Header lookup is case-insensitive in `URLRequest`, so a source spelling the
+    /// field differently is still caught — worth pinning, since the check names one
+    /// exact spelling.
+    @Test func headerMatchIsCaseInsensitive() {
+        var r = request()
+        r.setValue("Bearer x", forHTTPHeaderField: "authorization")
+        #expect(CredentialBearingRequest.isCredentialed(r))
+    }
+
+    /// `AlcoveUpdateSource.issueToken` POSTs the licence key as JSON; that blob was
+    /// in the cache too, and no header or query check would have seen it.
+    @Test func requestBodyIsNotCacheable() {
+        var r = request("https://api.tryalcove.com/issue-token")
+        r.httpMethod = "POST"
+        r.httpBody = Data(#"{"license_key":"X","instance_id":"Y"}"#.utf8)
+        #expect(CredentialBearingRequest.isCredentialed(r))
+    }
+
+    /// The other half, as above: an ordinary unauthenticated feed must stay
+    /// cacheable, or the disk cache quietly stops doing its job.
+    @Test func plainFeedStaysCacheable() {
+        var r = request("https://formulae.brew.sh/api/cask.json")
+        r.setValue("application/json", forHTTPHeaderField: "Accept")
+        r.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
+        #expect(!CredentialBearingRequest.isCredentialed(r))
+    }
+
+    /// A cross-host redirect makes `willPerformHTTPRedirection` strip the header, so
+    /// by the time the response arrives the *current* request looks innocent while
+    /// the original was credentialed. Either one being dirty must veto the cache.
+    @Test func credentialOnEitherRequestVetoesCaching() {
+        var original = request()
+        original.setValue("Bearer ghp_notARealToken", forHTTPHeaderField: "Authorization")
+        let stripped = request("https://objects.githubusercontent.com/x")
+
+        #expect(CredentialBearingRequest.isCredentialed(original: original, current: stripped))
+        #expect(CredentialBearingRequest.isCredentialed(original: stripped, current: original))
+        #expect(!CredentialBearingRequest.isCredentialed(original: stripped, current: stripped))
+        #expect(!CredentialBearingRequest.isCredentialed(original: nil, current: nil))
+    }
+}

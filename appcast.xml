@@ -17,6 +17,40 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.50</title>
+            <pubDate>Sat, 22 Aug 2026 14:50:03 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.50</link>
+            <sparkle:version>60</sparkle:version>
+            <sparkle:shortVersionString>0.3.50</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**豆包输入法 now gets checked, and shows its release notes.** It was in the list — Duo Updater looks inside `/Library/Input Methods` — but nothing anywhere knew where to ask about it, so the row sat blank forever and read like "nothing to do". It now reads the same endpoint the vendor's own download button reads, and compares the same build number the vendor versions by — so even a re-release that keeps the version name unchanged shows up, rather than passing as the version you already have. The release notes come from the feed the input method's own updater polls, laid out as a proper list rather than a link to a page that doesn't exist. As with 微信输入法, Duo Updater will tell you a new version is out but will not install it for you: an input method is registered with the system by its installer, not merely copied into place, and quietly swapping the bundle is how you lose your personal dictionary.
+
+**Zed's release notes come back instead of an error.** Duo Updater asks GitHub about a lot of apps, and GitHub lets an unidentified caller ask only sixty questions an hour from one network — a budget every GitHub-hosted app on your machine shares. Zed's notes were the ones losing that race, and the panel showed a failure rather than the notes. Those requests now carry the GitHub token you saved in Settings ▸ GitHub, or the one the `gh` command-line tool already holds if you use it, which lifts the limit far out of the way. Without a token nothing gets worse: Zed's notes now come from a single, smaller source that covers both its channels, where before each one fetched its own web page.
+
+**Notion's release notes are about the app you have.** They were being read from Notion's product announcements — the page that introduces features as they launch. Those posts are titled by feature, not by version, so nothing on that page ever lined up with the version number on Notion's row, and the notes for the update you were being offered were never there to find. They now come from Notion's own "What's new" page for the Mac and Windows app, where the versions are the ones you can actually compare against.
+
+**Some release notes were quietly incomplete, and no longer are.** A release's final line could go missing from ChatWise's notes. Two of Postman's releases were cut off mid-sentence — both at the exact point where the text contained a quotation mark. Six apps' notes are now read from the same data the vendor's own site is built from, rather than picked out of the finished page, which is both sturdier and how those two ended up whole. HBuilderX is the one trade-off: its notes now come from the official release document, which covers the HBuilderX editor itself and not the bundled uni-app and uniCloud module logs, so its entries are shorter than before — the same releases, in the vendor's own words, minus the parts about other products.
+
+**Release notes that arrive inside an app's update feed are laid out properly.** A good number of apps ship their notes as a small piece of a web page tucked inside the feed their updater reads. Duo Updater used to hand that straight to the system's HTML renderer, which produced a serif font nothing else in the app uses, bullets indented into the margin, and — the part that mattered — a long list could be cut in half, with everything after the cut silently absent. Those notes are now read into the same list layout the rest of the panel uses: right font, right indentation, and nothing dropped. Where the markup is too tangled to be sure of, Duo Updater leaves it to the old renderer rather than risk showing you part of a list as if it were all of it. TablePro benefits most — its notes had stopped being found at all.
+
+**Four more apps show their release notes properly, instead of an embedded web page.** Alcove, Docker, Kiro and Waku each publish their notes somewhere a program can read them — Alcove and Docker on their own sites, Kiro as a feed, Waku on GitHub — but Duo Updater was showing you the web page instead, which meant the vendor's fonts, the vendor's navigation, and no way to move between versions. They now read as proper entries in the list, the same as everything else. Kiro's feed covers three separate products; only the notes for the app you have installed are shown.
+
+**A release whose notes are written as sentences no longer vanishes.** Some releases don't have a bulleted list of changes — they have a line or two of prose, sometimes only "no public-facing changes in this release". Duo Updater understood lists and nothing else, so those releases were skipped entirely: if you happened to be running exactly that version, the panel had no entry for it at all, as though your own build had never shipped. They're kept now. Where the notes are laid out in a way that still can't be read cleanly — a table, mostly — the page is shown as before rather than half-converted into something misleading.
+
+**Antigravity IDE gets checked.** It's a separate app from Antigravity, with its own version, and it was in your list but nothing ever checked it — the row just sat there with no version to compare against and no way to find out. It's checked now. Duo Updater won't install it for you; it will tell you when a new version is out and where to get it.
+
+**Duo Updater tells you when it updated itself, and what changed.** It installs its own updates quietly, on purpose — it waits until you're away from the machine and swaps itself without asking, because a tool that interrupts you to talk about itself is getting in the way of the work it's supposed to protect. The cost was that you'd end up on a new version you never agreed to and never saw the notes for: every other app in your list has a "what changed" panel, and the one app that changed under you in silence was this one. Now the menu says so once, and opens its release notes. It's shown until you read it rather than for a set time — the update this is for is the one that landed while you were asleep. A fresh install doesn't get told it was updated, because it wasn't, and going back to an older build on purpose doesn't either.
+
+**And you can read those notes any time.** The ✨ button at the bottom of the menu opens every release Duo Updater has ever shipped, with the one you're running marked in the list.
+
+**Switching an app's update channel in that app is noticed straight away.** Some apps let you choose between their stable and pre-release builds in their own settings — Tailscale, Fork, Surge, OrbStack, TablePlus, CleanShot, IINA, Alfred, DuoPaste. That choice lives in the app's own preferences, where nothing tells Duo Updater it has changed, so switching from a beta track back to stable left the row still comparing you against the beta — and still offering it — until the next scheduled check, up to an hour later. Duo Updater now re-reads that choice when one of those apps opens or quits, and when you come back to its own window, and re-checks just the app that changed.
+
+**Tailscale's Release Candidate track is one of the choices Duo Updater understands.** Tailscale publishes three: stable, release candidate, and unstable. Only two were known here, so a Mac opted into release candidates was quietly checked against stable instead, and reported up to date whenever a candidate build was newer than the stable one. All three are now checked against the track you actually chose.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.50/DuoUpdater-0.3.50-macos.zip" length="10729111" type="application/octet-stream" sparkle:edSignature="hnP3jImoCrArWNo8LtuQneBArx2Djfktl4uIoEDfBPo7wRVZCt18DF6qozgvgZiDz7xtq8U8HNXQnqEaV/0HBQ=="/>
+        </item>
+        <item>
             <title>0.3.49</title>
             <pubDate>Fri, 21 Aug 2026 22:16:44 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.49</link>
@@ -53,26 +87,6 @@
 **A download no longer squeezes the app's name or its version off the row.** While an app was downloading, the progress bar and its percentage claimed enough of the row that a long name wrapped onto a second line, a long date-style version was clipped at both ends to something unreadable, and at 100% the percentage itself broke across two lines. The row now measures what the name and the version actually need and fits the progress readout into what's left: the bar gives way to a compact ring, and the percentage stays. Nothing is given up until there is genuinely no room for it.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.48/DuoUpdater-0.3.48-macos.zip" length="10587538" type="application/octet-stream" sparkle:edSignature="l8xNI3pOtTIH7uTuDMP5oKAfhL/LtQoQUoVzkoGyCpKFFpPUlSq/ROwKHO+yYy/0ILdnWb+1WqUWO6z22KDKAQ=="/>
-        </item>
-        <item>
-            <title>0.3.47</title>
-            <pubDate>Fri, 21 Aug 2026 13:44:04 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.47</link>
-            <sparkle:version>57</sparkle:version>
-            <sparkle:shortVersionString>0.3.47</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**An update no longer looks like it fired twice.** With one update pending, installing it briefly emptied the list: the row dropped out the moment the new version reached the disk, the "Everything is up to date" placeholder took its place and jumped the window's height, and then the row reappeared saying "Relaunching...". Nothing was actually wrong underneath — the app still had to be restarted to run the new code — but it read as though something had happened twice. The row now stays where it is from the click through to the relaunch. The step that used to announce "Done" while the app was still being restarted says "Installed" instead; "finished" is left for the confirmation at the end, where it belongs.
-
-**The workbench sidebar follows the arrow keys again.** Holding an arrow key walked the selection off the edge of the list and left it there, moving through apps that were never drawn and not catching up when the keys stopped. The selected app stays in view.
-
-**Moving through that sidebar is quicker.** Every keypress was re-deriving, once per app per row, a fact about the whole list that had not changed — on a machine with 124 apps that came to about fifteen thousand redundant filesystem-path lookups per keystroke. It is derived once now. Fast key repeat can still outrun the list; there is more to do here.
-
-**An App Store update says "Update", not "Get".** When the background helper has not been approved there is no way to install an App Store update in place, so the row hands off to the App Store app instead — but the button for that read "Get", which is what the store says about an app you do not own yet. Every row that reaches it is an app you already have, with an update waiting. It says "Update" now, and when the helper is what is missing the tooltip says so, since approving it in Settings is what turns those updates into one click.
-
-**The action column lines up.** A checkmark or a small badge at the end of a row was centred in its slot while a wide button sat flush against the row's edge, so the right-hand column read as ragged — and visibly out of line with the Homebrew row pinned below it. Everything ends on the same edge now.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.47/DuoUpdater-0.3.47-macos.zip" length="10570425" type="application/octet-stream" sparkle:edSignature="Sb0PG6tK5KBphQObKAq5TLzTFu384QkimDskqnVnwlQ7WVbtxcT5u5M/kGfMWTarR+n0Y2+aEsbV8H84Yw2lAg=="/>
         </item>
     </channel>
 </rss>

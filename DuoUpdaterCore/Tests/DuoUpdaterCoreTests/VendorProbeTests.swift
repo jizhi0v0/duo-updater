@@ -111,11 +111,22 @@ import Foundation
     #expect(recipe.install == nil,
             "the public dmg lags this metadata — installing it would be a phantom update")
 
-    // Notes come from the vendor's page in a WebView: the retired host took the
-    // parseable feed with it and this endpoint carries no release notes.
+    // This probe endpoint carries no release notes, so `changelogURL` stays as the
+    // web-view fallback for a recipe miss.
     #expect(recipe.changelogURL?.absoluteString == "https://www.tryalcove.com/changelog")
-    #expect(ChangelogRecipeRegistry.recipe(forBundleID: "com.henrikruscon.Alcove") == nil,
-            "the changelog recipe pointed at the dead host and was removed")
+
+    // Notes now come from a RECIPE again, and not from the host this assertion
+    // used to say was gone. The old changelog recipe read `update.tryalcove.com`,
+    // which is NXDOMAIN, and was removed for that reason — but the reason was that
+    // one host, not "Alcove has no readable notes". `api.tryalcove.com/changelog`
+    // is a different surface: public, unauthenticated (unlike the license-gated
+    // update endpoint on the same host), and structured, with its newest release
+    // matching the installed copy on 2026-08-22.
+    let changelog = try! #require(
+        ChangelogRecipeRegistry.recipe(forBundleID: "com.henrikruscon.Alcove"))
+    #expect(changelog.structuredFormat == .alcoveChangelog)
+    #expect(changelog.source.host == "api.tryalcove.com")
+    #expect(!changelog.source.absoluteString.contains("update.tryalcove.com"))
 }
 
 @Test func extractsClaudeVersionFromRedirectLocationPath() {

@@ -185,7 +185,7 @@ public enum ChangelogExtractor {
                 s = decodeEntities(s)
             }
         }
-        if recipe.markdownSource { s = unwrapMarkdownInlineCode(s) }
+        if recipe.markdownSource { s = unwrapMarkdownInline(s) }
         return collapseWhitespace(s)
     }
 
@@ -205,6 +205,20 @@ public enum ChangelogExtractor {
     /// A lone unpaired backtick stays put: both alternatives are confined to one
     /// line, so an unterminated span simply doesn't match. The `$1$2` template
     /// works because a non-participating group substitutes as empty.
+    static func unwrapMarkdownInline(_ s: String) -> String {
+        flattenMarkdownLinks(unwrapMarkdownInlineCode(s))
+    }
+
+    /// `[text](url)` → `text`. The URL sub-pattern allows one level of nested
+    /// parens (a Wikipedia-style `..._(bar)` URL) so the match consumes the whole
+    /// link instead of leaving a dangling `)`. Same expression
+    /// `StructuredChangelogDecoder.bulletItems` already uses.
+    static func flattenMarkdownLinks(_ s: String) -> String {
+        s.replacingOccurrences(
+            of: #"\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)"#, with: "$1",
+            options: .regularExpression)
+    }
+
     static func unwrapMarkdownInlineCode(_ s: String) -> String {
         guard let regex = try? NSRegularExpression(pattern: "``([^\n]*?)``|`([^`\n]+?)`")
         else { return s }

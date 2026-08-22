@@ -38,6 +38,8 @@ public enum StructuredChangelogDecoder {
             return decodeZedGitHubReleases(body, channel: channel ?? .stable, maxEntries: maxEntries)
         case .gitHubReleases:
             return decodeGitHubReleases(body, maxEntries: maxEntries)
+        case .alcoveChangelog:
+            return decodeAlcoveChangelog(body, maxEntries: maxEntries)
         case .notionPageChunk:
             return decodeNotionPageChunk(body, maxEntries: maxEntries)
         }
@@ -497,6 +499,67 @@ public enum StructuredChangelogDecoder {
         }
         guard !entries.isEmpty else { return nil }
         return Changelog(entries: entries, itemSyntax: .markdown)
+    }
+
+    // MARK: - Alcove (api.tryalcove.com/changelog)
+
+    /// `{updated, entries:[{version, description, minors:[{version, date, note,
+    /// features[], fixes[]}]}]}` — majors, each holding its point releases. Public
+    /// and unauthenticated, unlike the rest of that host: the update endpoint next
+    /// to it is license-gated (see `AlcoveUpdateSource`), this one is not.
+    ///
+    /// Flattened to one entry per MINOR, because the minor is what a user is
+    /// offered and what their row shows (1.7.9 today, matching this feed's newest).
+    /// The major's `description` is deliberately dropped — it describes a release
+    /// line, not the release in front of you, and repeating it under every point
+    /// release would bury the actual changes.
+    ///
+    /// `features` and `fixes` are labelled in place, the same way
+    /// `decodeWeChatDevTools` folds its category titles in: the distinction is real
+    /// and the flat item list is the only place left to carry it.
+    static func decodeAlcoveChangelog(_ body: String, maxEntries: Int?) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let feed = try? JSONDecoder().decode(AlcoveFeed.self, from: data)
+        else { return nil }
+
+        var entries: [Changelog.Entry] = []
+        for major in feed.entries ?? [] {
+            for minor in major.minors ?? [] {
+                guard let version = minor.version?.trimmingCharacters(in: .whitespaces),
+                      !version.isEmpty else { continue }
+                var items: [String] = []
+                if let note = minor.note?.trimmingCharacters(in: .whitespaces), !note.isEmpty {
+                    items.append(note)
+                }
+                for (label, lines) in [("Features", minor.features), ("Fixes", minor.fixes)] {
+                    let clean = (lines ?? []).map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                    guard !clean.isEmpty else { continue }
+                    items.append(label)
+                    items.append(contentsOf: clean)
+                }
+                guard !items.isEmpty else { continue }
+                entries.append(.init(version: version, date: minor.date, items: items))
+                if let cap = maxEntries, entries.count >= cap { return Changelog(entries: entries) }
+            }
+        }
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    private struct AlcoveFeed: Decodable {
+        let entries: [AlcoveMajor]?
+    }
+    private struct AlcoveMajor: Decodable {
+        let minors: [AlcoveMinor]?
+    }
+    private struct AlcoveMinor: Decodable {
+        let version: String?
+        /// Already human-readable ("30 Jun 2026") and shown as-is — the rail's date
+        /// formatter normalizes ISO-8601 and otherwise prints what it is given.
+        let date: String?
+        let note: String?
+        let features: [String]?
+        let fixes: [String]?
     }
 
     // MARK: - Plain GitHub releases (api.github.com/repos/<owner>/<repo>/releases)

@@ -2083,6 +2083,16 @@ final class AppListModel {
                     installing[id] = nil
                     return false
                 }
+                // Arm the reopen before anything can quit the app. On this route
+                // the store's own daemon terminates a running app to replace its
+                // bundle and never brings it back, whether the user gave consent
+                // in our sheet or in App Store's own — and the `mas` path raises
+                // no sheet at all. `AppStoreQuitPolicy` carries the evidence and
+                // the reason the signal is "was it running", not "did they click".
+                if AppStoreQuitPolicy.armsReopen(
+                    route: route, wasRunningBeforeInstall: wasRunningBeforeInstall) {
+                    reopenAfterQuit.insert(id)
+                }
                 installing[id] = .downloading(fraction: 0)
                 // Both routes download through the App Store daemon, so we never see
                 // those bytes — intentionally not recorded (we only count measured).
@@ -2201,12 +2211,15 @@ final class AppListModel {
                 Self.installPermits.signalDownload()
                 downloadPermitHeld = false
             }
-            // An incremental App Store update the user OK'd quitting for: the app
-            // was open before we quit it to update, so bring it back — and to the
-            // front (the user clicked Relaunch; they expect to see it return, not a
-            // silent background relaunch). Apps that weren't running never enter
-            // `reopenAfterQuit`, so this only reopens what we closed. Done before the
-            // recheck so the running-version probe sees the relaunched process.
+            // An App Store update that closed a running app: bring it back. Not
+            // only the ones the user OK'd through our own prompt — the store quits
+            // the app on this route however consent was given, so the arming above
+            // keys off "was it running", not "did they click Relaunch". Reopened in
+            // the background (see `reopenIfQuitForUpdate`): App Store has been
+            // pulled to the front by then, and whatever the user moved on to
+            // shouldn't be interrupted. Apps that weren't running never enter
+            // `reopenAfterQuit`, so this only reopens what was closed. Done before
+            // the recheck so the running-version probe sees the relaunched process.
             reopenIfQuitForUpdate(result)
 
             // Re-read from disk to reflect the new version, then recompute the

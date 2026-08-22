@@ -152,8 +152,11 @@ struct FeedRevalidationTests {
         ]
         for file in feedSources {
             let text = try String(contentsOf: root.appendingPathComponent(file), encoding: .utf8)
-            // Count GET-able request builders vs. policy assignments. A POST
-            // (Alcove's issue-token) is never cached, so allow policy count < requests.
+            // Count GET-able request builders vs. policy assignments. Alcove's
+            // issue-token POST sets no policy; it is exempt here because the
+            // question is staleness, not caching — a POST body carries a licence
+            // key and was in fact being cached, which is why `URLSession.updates`
+            // now has no disk store at all.
             #expect(
                 text.contains("URLRequest.versionFeedCachePolicy"),
                 "\(file) builds a version-feed request without versionFeedCachePolicy")

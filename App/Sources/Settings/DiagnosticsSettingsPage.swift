@@ -176,6 +176,11 @@ private struct HelperStatusRow: View {
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)  // so the reset command can be copied
+                    // Same inset as `settingsRow()` and the reachability line above:
+                    // without it several lines of red type run edge to edge across
+                    // the card while every other row stops 14pt short.
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 6)
             }
         }
     }

@@ -259,10 +259,24 @@ public enum SelfUpdaterStaging {
             .appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true)
 
         // Cheapest discriminator first: no parked installer, nothing to avoid.
+        //
+        // Two locations, because Sparkle picks between them. `SUInstallerLauncher.m`
+        // does `BOOL rootUser = (geteuid() == 0)` and then
+        // `BOOL copyProgressTool = !rootUser` — so the usual case, including an
+        // install that needs administrator authorisation (that one is
+        // `inSystemDomain && !rootUser`), copies the agent into this app's staging
+        // cache. Only a launcher already running as euid 0 skips the copy and
+        // launches the agent out of the host bundle's own framework.
+        //
+        // That second case is rare, and accepting it is cheap. It is worth the two
+        // lines because this gate fails OPEN — no parked installer found means
+        // `.proceed` — so a location we cannot see is not a missing warning, it is
+        // the overwrite bug back again.
         let parked = parkedInstallerBundleURLs ?? liveParkedSparkleInstallers()
-        let sparkleRootPath = sparkleRoot.standardizedFileURL.path
-        guard parked.contains(where: {
-            $0.standardizedFileURL.path.hasPrefix(sparkleRootPath + "/")
+        let homes = [sparkleRoot, app.path].map { normalizedPath($0) + "/" }
+        guard parked.contains(where: { installer in
+            let path = normalizedPath(installer)
+            return homes.contains(where: path.hasPrefix)
         }) else { return nil }
 
         let root = sparkleRoot.appendingPathComponent("Installation", isDirectory: true)
@@ -290,17 +304,39 @@ public enum SelfUpdaterStaging {
         return nil
     }
 
-    /// Sparkle's progress agent, which runs out of the staging cache of whichever
-    /// app it is installing — so its own bundle location is what ties a parked
-    /// installer to an app. Observed live: pid 27939 at
+    /// The bundle identities a parked Sparkle installer can run under. Its own
+    /// bundle *location* is what ties it to an app; these are how it is found at
+    /// all.
+    ///
+    /// `…Updater` is Sparkle 2's progress agent — observed live as pid 27939 at
     /// `…/Caches/com.tinyapp.TablePlus/org.sparkle-project.Sparkle/Launcher/<random>/Updater.app`.
-    private static let sparkleInstallerBundleID = "org.sparkle-project.Sparkle.Updater"
+    /// `…Autoupdate` is Sparkle 1's, which ships as `Autoupdate.app` inside the
+    /// host's framework (VLC 1.16.0 on this machine). Sparkle 2 also has an
+    /// `Autoupdate`, but as a bare executable with no bundle — LaunchServices
+    /// cannot enumerate it, so it is not a usable signal and is not one of these.
+    ///
+    /// **Sparkle 1 is nonetheless not covered**, and not because of this list:
+    /// `sparkleStagedBundle` walks the `Caches/<id>/org.sparkle-project.Sparkle/`
+    /// layout, which is Sparkle 2's. Sparkle 1 apps have no such directory
+    /// (checked: VLC has a cache directory and no Sparkle subdirectory), so the
+    /// walk finds nothing for them whatever is parked. Listing Sparkle 1's
+    /// identity here costs nothing and errs toward holding back, which is the
+    /// safe direction; it is not a claim that Sparkle 1 staging is detected.
+    static let sparkleInstallerBundleIDs = [
+        "org.sparkle-project.Sparkle.Updater",
+        "org.sparkle-project.Sparkle.Autoupdate",
+    ]
 
     /// Bundle locations of every Sparkle installer currently parked, for any app.
-    private static func liveParkedSparkleInstallers() -> [URL] {
-        NSRunningApplication
-            .runningApplications(withBundleIdentifier: sparkleInstallerBundleID)
-            .compactMap(\.bundleURL)
+    ///
+    /// Public so a sweep over many apps can ask once and pass the answer down,
+    /// rather than repeating one global LaunchServices query per candidate.
+    public static func liveParkedSparkleInstallers() -> [URL] {
+        sparkleInstallerBundleIDs.flatMap { identifier in
+            NSRunningApplication
+                .runningApplications(withBundleIdentifier: identifier)
+                .compactMap(\.bundleURL)
+        }
     }
 
     /// ShipIt stores bundle locations as `file://` URL strings.
@@ -313,8 +349,15 @@ public enum SelfUpdaterStaging {
     /// Compare two bundle paths for identity, tolerant of trailing slashes and
     /// symlinks (`/var` vs `/private/var`, etc.).
     private static func samePath(_ a: URL, _ b: URL, _ fm: FileManager) -> Bool {
-        let lhs = a.resolvingSymlinksInPath().standardizedFileURL.path
-        let rhs = b.resolvingSymlinksInPath().standardizedFileURL.path
-        return lhs == rhs
+        normalizedPath(a) == normalizedPath(b)
+    }
+
+    /// The one spelling of a path this file compares on. `standardizedFileURL`
+    /// alone is not enough: it resolves `..` but leaves symlinks and the
+    /// `/private` prefix alone, so a home directory reached through a link makes
+    /// `FileManager.urls(for:)` and `NSRunningApplication.bundleURL` describe the
+    /// same directory with two different strings.
+    private static func normalizedPath(_ url: URL) -> String {
+        url.resolvingSymlinksInPath().standardizedFileURL.path
     }
 }

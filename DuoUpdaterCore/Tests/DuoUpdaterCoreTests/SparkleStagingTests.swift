@@ -273,4 +273,119 @@ struct SparkleStagingTests {
                 parkedInstallerBundleURLs: [elsewhere]) == nil)
         }
     }
+
+    /// Sparkle launches its progress agent out of the HOST BUNDLE's framework
+    /// rather than the staging cache when the installer runs as root
+    /// (`SUInstallerLauncher.m`: `BOOL copyProgressTool = !rootUser`). Accepting
+    /// only the cache location silently disabled the standoff for every
+    /// privileged install — and because this gate fails open, that is the
+    /// overwrite bug back again rather than a missing warning.
+    @Test func anInstallerParkedInsideTheAppsOwnFrameworkIsEvidence() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "26.9.11", build: "769")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "26.9.9", build: "765")
+            let inBundle = installed
+                .appendingPathComponent("Contents/Frameworks/Sparkle.framework")
+                .appendingPathComponent("Versions/B/Updater.app")
+
+            #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                for: sparkleApp(at: installed, short: "26.9.9", build: "765"),
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [inBundle])?.version == "26.9.11")
+        }
+    }
+
+    /// The two sides of the location comparison come from different APIs —
+    /// `FileManager.urls(for:)` for the cache root, `NSRunningApplication.bundleURL`
+    /// for the installer — and a home directory reached through a symlink makes
+    /// them spell the same directory differently. `standardizedFileURL` does not
+    /// resolve links or the `/private` prefix; only `resolvingSymlinksInPath` does.
+    @Test func aParkedInstallerReachedThroughASymlinkStillMatches() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "26.9.11", build: "769")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "26.9.9", build: "765")
+
+            // The installer bundle has to exist: `resolvingSymlinksInPath` resolves
+            // nothing on a path that is not on disk (measured — a link in a path
+            // whose leaf is missing comes back verbatim). Production always passes
+            // a real `NSRunningApplication.bundleURL`, so this is the honest shape.
+            try FileManager.default.createDirectory(
+                at: parkedInstaller(in: caches), withIntermediateDirectories: true)
+            let link = root.appendingPathComponent("CachesLink")
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: caches)
+            let viaLink = link.appendingPathComponent(bundleID)
+                .appendingPathComponent("org.sparkle-project.Sparkle")
+                .appendingPathComponent("Launcher").appendingPathComponent("jRGjuao1o")
+                .appendingPathComponent("Updater.app")
+
+            #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                for: sparkleApp(at: installed, short: "26.9.9", build: "765"),
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [viaLink])?.version == "26.9.11")
+        }
+    }
+
+    /// Every other test in this file injects `parkedInstallerBundleURLs`, so none
+    /// of them touches the argument production actually uses — the `nil` default
+    /// that queries LaunchServices. This exercises that path end to end.
+    ///
+    /// It is a smoke test and nothing more: a typo in the identifier queried for
+    /// would ALSO produce nil here, so this cannot catch one. The two tests below
+    /// are what guard the identifiers themselves.
+    @Test func theDefaultArgumentReachesTheLiveQuery() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "26.9.11", build: "769")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "26.9.9", build: "765")
+
+            // No real Sparkle installer can be parked under a scratch directory.
+            #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                for: sparkleApp(at: installed, short: "26.9.9", build: "765"),
+                cachesDirectory: caches) == nil)
+            // And the query must survive being called with none running at all.
+            _ = SelfUpdaterStaging.liveParkedSparkleInstallers()
+        }
+    }
+
+    /// Checks the identifier we query for against a Sparkle bundle **on disk**,
+    /// which is the only thing available here that Sparkle itself authored.
+    ///
+    /// Skipped rather than failed when the machine has no Sparkle 2 app: this is
+    /// opportunistic corroboration, and the tripwire below is what holds on a
+    /// machine where it finds nothing.
+    @Test func aRealSparkleUpdaterIdentifiesAsOneOfTheIdentitiesWeQueryFor() throws {
+        let fm = FileManager.default
+        let apps = (try? fm.contentsOfDirectory(
+            at: URL(fileURLWithPath: "/Applications"), includingPropertiesForKeys: nil)) ?? []
+        var checked = 0
+        for app in apps where app.pathExtension == "app" {
+            let updater = app.appendingPathComponent(
+                "Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/Info.plist")
+            guard let data = try? Data(contentsOf: updater),
+                  let dict = (try? PropertyListSerialization.propertyList(
+                    from: data, options: [], format: nil)) as? [String: Any],
+                  let identifier = dict["CFBundleIdentifier"] as? String
+            else { continue }
+            #expect(SelfUpdaterStaging.sparkleInstallerBundleIDs.contains(identifier),
+                    "\(app.lastPathComponent) ships a Sparkle installer identifying as \(identifier), which this gate does not look for")
+            checked += 1
+            if checked >= 3 { break }
+        }
+    }
+
+    /// A tripwire for the machines the test above finds nothing on: changing an
+    /// identifier fails loudly instead of turning the standoff off in silence.
+    /// `…Updater` was observed live on 2026-08-22 (pid 27939, parked for
+    /// TablePlus); `…Autoupdate` is Sparkle 1's, as shipped inside VLC 1.16.0.
+    @Test func theInstallerIdentitiesAreTheOnesSparkleShips() {
+        #expect(SelfUpdaterStaging.sparkleInstallerBundleIDs == [
+            "org.sparkle-project.Sparkle.Updater",
+            "org.sparkle-project.Sparkle.Autoupdate",
+        ])
+    }
 }

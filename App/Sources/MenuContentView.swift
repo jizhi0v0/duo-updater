@@ -312,9 +312,18 @@ struct MenuContentView: View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Duo Updater").font(.headline)
+                // Wraps to a second line rather than shrinking or clipping. The
+                // slot this gets is what's left after the Update All button, and
+                // a translated button is wider: Russian leaves 167pt for a line
+                // that wants 250. Scaling it to fit made it unreadable, and
+                // truncating drops the timestamp — the half most worth reading.
+                // Two lines cost the header 12pt in the languages that need it
+                // and nothing in the ones that don't.
                 Text(statusLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             if model.canUpdateAll {
@@ -357,8 +366,12 @@ struct MenuContentView: View {
         let base = updates == 0
             ? String(localized: "\(model.results.count) apps · up to date")
             : String(localized: "\(updates) updates available")
+        // One key with both halves in it, rather than appending a " · checked …"
+        // fragment: a leading-space fragment is a string no translator can move,
+        // and languages that want the timestamp first — or a different separator —
+        // have nowhere to say so.
         if let last = model.lastCheck {
-            return base + String(localized: " · checked \(Self.checkedAgo(last))")
+            return String(localized: "\(base) · checked \(Self.checkedAgo(last))")
         }
         return base
     }
@@ -370,12 +383,28 @@ struct MenuContentView: View {
     /// "just now"; older falls back to the relative formatter.
     private static func checkedAgo(_ date: Date) -> String {
         if date.timeIntervalSinceNow > -5 { return String(localized: "just now") }
-        return relative.localizedString(for: date, relativeTo: .now)
+        let abbreviated = relative.localizedString(for: date, relativeTo: .now)
+        // CLDR spells the narrow past form as a signed number in some locales:
+        // Russian renders "7 seconds ago" as "-7 с" and French as "-7 s", where
+        // English gets "7s ago". Dropped into "checked …" that reads as a
+        // negative count, so those locales fall through to the next style up,
+        // which spells the direction out ("7 сек. назад", "il y a 7 s"). Every
+        // locale whose narrow form already reads as elapsed time keeps it —
+        // English, German, Spanish, Chinese and Japanese are untouched.
+        guard abbreviated.hasPrefix("-") || abbreviated.hasPrefix("\u{2212}") else { return abbreviated }
+        return spelledOut.localizedString(for: date, relativeTo: .now)
     }
 
     private static let relative: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .abbreviated
+        return f
+    }()
+
+    /// The fallback for locales whose abbreviated form comes out signed.
+    private static let spelledOut: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
         return f
     }()
 

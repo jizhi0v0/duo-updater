@@ -149,4 +149,63 @@ struct SparkleStagingTests {
         }
     }
 
+
+    // MARK: - Reaching the shared `staged(for:)` entry point
+
+    /// A Sparkle app with a newer build staged now answers the same question a
+    /// Squirrel one does, which is what turns the row's Update into Relaunch and
+    /// stops us re-downloading bytes already in the cache. TablePlus had 133 MB of
+    /// dmg plus a 382 MB unpacked copy sitting there while we offered to fetch it
+    /// again.
+    @Test func aNewerSparkleStagedBuildIsReportedByStagedFor() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "26.9.11", build: "769")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "26.9.9", build: "765")
+
+            let found = SelfUpdaterStaging.staged(
+                for: sparkleApp(at: installed, short: "26.9.9", build: "765"),
+                cachesDirectory: caches)
+
+            #expect(found?.version == "26.9.11")
+        }
+    }
+
+    /// The ChatGPT case must NOT surface here. A staged build older than what is
+    /// installed is not an update waiting to be applied — offering Relaunch for it
+    /// would be offering a downgrade. The restart check still sees it, via
+    /// `sparkleStagedBundle`, because there it is precisely the danger.
+    @Test func anOlderSparkleStagedBuildIsNotReportedAsAnUpdate() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "26.818.41509", build: "6962")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "26.818.41705", build: "6971")
+            let app = sparkleApp(at: installed, short: "26.818.41705", build: "6971")
+
+            #expect(SelfUpdaterStaging.staged(for: app, cachesDirectory: caches) == nil)
+            #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                for: app, cachesDirectory: caches)?.version == "26.818.41509")
+        }
+    }
+
+    /// The candidate pre-filter has to let Sparkle apps through, or none of the
+    /// above is ever asked. It must keep saying no to an app with neither.
+    @Test func theCandidateFilterAdmitsSparkleApps() {
+        let path = URL(fileURLWithPath: "/Applications/Sparkly.app")
+        #expect(SelfUpdaterStaging.mayHaveStaging(
+            sparkleApp(at: path, short: "1.0", build: "1")))
+        #expect(!SelfUpdaterStaging.mayHaveStaging(
+            InstalledApp(
+                name: "Plain", bundleID: bundleID, shortVersion: "1.0", buildVersion: "1",
+                path: path, isMASApp: false, sparkleFeedURL: nil)))
+    }
+
+    private func sparkleApp(at path: URL, short: String, build: String) -> InstalledApp {
+        InstalledApp(
+            name: "Sparkly", bundleID: bundleID, shortVersion: short, buildVersion: build,
+            path: path, isMASApp: false, sparkleFeedURL: nil,
+            hasSelfUpdater: false, hasSparkleUpdater: true)
+    }
 }

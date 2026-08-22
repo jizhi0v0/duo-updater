@@ -40,7 +40,7 @@ public enum SelfUpdaterStaging {
     /// own staging layout (Spotify). Keeps `computeSelfUpdateStaging` from
     /// stat-ing every installed app.
     public static func mayHaveStaging(_ app: InstalledApp) -> Bool {
-        app.hasSelfUpdater || app.bundleID == spotifyBundleID
+        app.hasSelfUpdater || app.hasSparkleUpdater || app.bundleID == spotifyBundleID
     }
 
     private static let spotifyBundleID = "com.spotify.client"
@@ -68,7 +68,26 @@ public enum SelfUpdaterStaging {
                 fileManager: fileManager)
         }
 
-        guard app.hasSelfUpdater else { return nil }
+        // Sparkle apps reach the same answer by a different cache layout. Asked
+        // second because an app embeds one framework or the other, never both, so
+        // whichever guard fails costs a single `hasSelfUpdater` read.
+        guard app.hasSelfUpdater else {
+            guard app.hasSparkleUpdater,
+                  let staged = sparkleStagedBundle(
+                    for: app, cachesDirectory: cachesDirectory, fileManager: fileManager)
+            else { return nil }
+            // `sparkleStagedBundle` deliberately returns a staged build of ANY
+            // version, because the restart check needs the ones that are older
+            // (see `RestartStandoff`). This caller wants the opposite question —
+            // "is there an update waiting that a relaunch would apply?" — so the
+            // strictly-newer filter belongs here, matching the two branches below.
+            // Offering Relaunch for an older staged build would be offering a
+            // downgrade, which is exactly the ChatGPT case.
+            let stagedV = staged.buildVersion ?? staged.version
+            guard let installedV = app.buildVersion ?? app.shortVersion,
+                  VersionComparator.isNewer(stagedV, than: installedV) else { return nil }
+            return staged
+        }
 
         // Squirrel writes its staging area to ~/Library/Caches/<bundleID>.ShipIt/.
         let caches = cachesDirectory

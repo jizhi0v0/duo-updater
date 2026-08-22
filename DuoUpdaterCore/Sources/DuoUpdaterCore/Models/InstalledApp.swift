@@ -90,6 +90,21 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// `sparkleFeedURL`, which IS the app's own channel.)
     public let hasSelfUpdater: Bool
 
+    /// True when the bundle embeds Sparkle.
+    ///
+    /// Deliberately NOT folded into `hasSelfUpdater`, even though Sparkle is
+    /// self-updating by any plain reading of the words. That flag decides
+    /// `defersToSelfUpdater` — whether we hand a running app to its own updater
+    /// instead of installing over it — and hundreds of apps here embed Sparkle
+    /// while being updated perfectly well by us. Widening the flag to match its
+    /// name would change install policy for every one of them.
+    ///
+    /// What this is for is narrower: Sparkle stages a downloaded build and applies
+    /// it on the app's next quit, exactly as Squirrel does, and that state has to
+    /// be visible so the row can offer Relaunch instead of re-downloading bytes
+    /// already sitting in the cache. See `SelfUpdaterStaging`.
+    public let hasSparkleUpdater: Bool
+
     /// The release channel this install is on (Stable, Beta, Canary, …),
     /// detected at scan time. A source is only allowed to update this app from a
     /// recipe that targets the SAME channel — so a stable-channel recipe can
@@ -169,6 +184,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         sparkleFeedHeaders: [String: String] = [:],
         sparkleEdPublicKey: String? = nil,
         hasSelfUpdater: Bool = false,
+        hasSparkleUpdater: Bool = false,
         releaseChannel: ReleaseChannel = .stable,
         channelIsAuthoritative: Bool = false,
         toolboxInstalledBuild: String? = nil,
@@ -187,6 +203,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.sparkleFeedHeaders = sparkleFeedHeaders
         self.sparkleEdPublicKey = sparkleEdPublicKey
         self.hasSelfUpdater = hasSelfUpdater
+        self.hasSparkleUpdater = hasSparkleUpdater
         self.releaseChannel = releaseChannel
         self.channelIsAuthoritative = channelIsAuthoritative
         self.toolboxInstalledBuild = toolboxInstalledBuild

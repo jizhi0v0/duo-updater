@@ -17,6 +17,20 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.56</title>
+            <pubDate>Sun, 23 Aug 2026 01:35:52 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.56</link>
+            <sparkle:version>65</sparkle:version>
+            <sparkle:shortVersionString>0.3.56</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**A helper macOS wouldn't switch on no longer sends you to reset your whole Mac.** App Store updates install through a small background item macOS asks you to approve once. When that approval was refused, Duo Updater had exactly one explanation for it: the system's record of the item is damaged, and repairing it takes a Terminal command that clears the background-item approvals of *every* app on your Mac. That is one cause among several, and macOS never says which one applies — the ordinary one is that the switch is simply off. The message now leads with that instead: turn Duo Updater on under "Allow in the Background" in Login Items & Extensions, and Duo Updater opens the pane for you. The Terminal reset is still written down, as the fallback for when Duo Updater isn't listed there or switching it on changes nothing. The message also stopped running off the edge of its card.
+
+**Two Settings options read on one line again.** The two options under Install routing — how App Store updates install, and what happens to apps that ship their own updater — used to put their name to the left of the menu, the way options do everywhere else on macOS. Adding six languages moved both names above their menus instead, because a German or Russian option can be long enough to run off the end of the line, and the safe layout was applied to every language at once. Each row now decides for itself: the name stays beside the menu as long as the menu leaves room for it, and only moves above when the text genuinely needs the width. In English, Japanese and Chinese both rows are back on one line; in German and French they stay stacked, which is the only way they fit without being cut off.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.56/DuoUpdater-0.3.56-macos.zip" length="10910272" type="application/octet-stream" sparkle:edSignature="4LDVzbiroq0o84bMiR6sLXXG01j7CK+wQYD4AZYP9KG96mqPuUjAO+iS3m8eX1G9Xcvdm78ReDRrpzVaY/wNBQ=="/>
+        </item>
+        <item>
             <title>0.3.55</title>
             <pubDate>Sun, 23 Aug 2026 00:15:50 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.55</link>
@@ -75,22 +89,6 @@
             <description sparkle:format="markdown"><![CDATA[**Same changes as 0.3.51, reissued so it can actually reach you.** 0.3.51 went out carrying the same internal build number as 0.3.50. That number, not the one in the version name, is what an update check compares — so anyone already running 0.3.50 was told they were up to date and never offered it. This release carries the changes below under a build number that is properly newer. If you are reading this on 0.3.51, nothing about the app changed between the two.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.52/DuoUpdater-0.3.52-macos.zip" length="10743671" type="application/octet-stream" sparkle:edSignature="lIJACHWFHJF1eU6YlsuvBVkCTMAyogRHo4u5DMNYQDsfQgI2IIebNCLaLltZI4vwZ2gqmgG49ozKGd5wMSJUBw=="/>
-        </item>
-        <item>
-            <title>0.3.51</title>
-            <pubDate>Sat, 22 Aug 2026 16:54:58 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.51</link>
-            <sparkle:version>60</sparkle:version>
-            <sparkle:shortVersionString>0.3.51</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**An update that kept coming back.** ChatGPT would offer a new version, install it, restart — and a minute later the same update was waiting again. The install was never the problem: the new version really did land on disk. What happened next is that ChatGPT's own updater put a different one back. There are two lists involved, and Duo Updater was reading the wrong one. The first is everything the vendor has published; the second is what the vendor is actually handing out to your Mac today, which can be an earlier build while a release is still rolling out. Duo Updater was reading the published list — the same address ChatGPT itself is configured with, which is what made it look right — and offering you a build the vendor was still holding back. ChatGPT had meanwhile downloaded the build it *was* being offered and parked it, waiting for the app to close. Restarting to apply our update is what closed it. Duo Updater now asks the same question ChatGPT's own updater asks, so the two agree on what the current version is.
-
-**Restarting an app no longer applies somebody else's update.** That collision isn't unique to ChatGPT. A lot of apps download their next version quietly and install it the instant you quit them — the "relaunch to update" state you've seen in Claude, TablePlus and others. They'll wait hours for that quit; one was observed holding on for nearly seven. When Duo Updater restarts an app to put its own update into effect, that restart is exactly the signal they're waiting for, and theirs runs second. Before restarting, Duo Updater now checks whether anything is waiting, and what version it holds. If it's the same version — which is the common case, and harmless — nothing changes. If it's a different one, the app isn't restarted: the row says what's waiting and leaves the choice to you, rather than quietly swapping in a build you didn't pick.
-
-**An App Store update no longer leaves your app closed.** Updating an app you have open through the App Store means closing it — the store's own installer quits it to replace the bundle, and doesn't open it again afterwards. Duo Updater knew to reopen it, but only if you'd answered its own "quit to finish updating" prompt. Answer the identical prompt in the App Store window instead, or take an update that raises no prompt at all, and nothing remembered that your app had been open. It updated correctly, said "Updated ✓", and your app was simply gone — with no restart offered, because by then there was no running app to restart. What decides now is whether the app was running when the update started, which is the thing that was actually true, rather than which window you happened to click in.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.51/DuoUpdater-0.3.51-macos.zip" length="10743707" type="application/octet-stream" sparkle:edSignature="Lmyk1l/8pKhC0WU8wgoQQQahzD44AnFgnvIqUr6/VD6v3fprFy/n2kaqMYATauP3FuFf0JpRc/tm/WgWA2FMAQ=="/>
         </item>
     </channel>
 </rss>

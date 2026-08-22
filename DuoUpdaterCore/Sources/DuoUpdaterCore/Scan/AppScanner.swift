@@ -206,6 +206,7 @@ public struct AppScanner: Sendable {
                 sparkleFeedHeaders: app.sparkleFeedHeaders,
                 sparkleEdPublicKey: app.sparkleEdPublicKey,
                 hasSelfUpdater: app.hasSelfUpdater,
+                hasSparkleUpdater: app.hasSparkleUpdater,
                 releaseChannel: app.releaseChannel,
                 channelIsAuthoritative: app.channelIsAuthoritative,
                 toolboxInstalledBuild: app.toolboxInstalledBuild,
@@ -374,6 +375,14 @@ public struct AppScanner: Sendable {
         let squirrel = bundleURL.appendingPathComponent("Contents/Frameworks/Squirrel.framework")
         let hasSelfUpdater = !isiOSAppOnMac && fm.fileExists(atPath: squirrel.path)
 
+        // Sparkle gets its own flag rather than joining the one above: see
+        // `InstalledApp.hasSparkleUpdater` for why widening `hasSelfUpdater`
+        // would change install policy for every Sparkle app on the machine.
+        // Read here, next to Squirrel, because a `fileExists` during a scan that
+        // already stats this bundle is far cheaper than one per app later.
+        let sparkle = bundleURL.appendingPathComponent("Contents/Frameworks/Sparkle.framework")
+        let hasSparkleUpdater = !isiOSAppOnMac && fm.fileExists(atPath: sparkle.path)
+
         // For Toolbox-managed apps, show Toolbox's own `displayVersion`: the
         // on-disk `CFBundleShortVersionString` is either truncated (Android Studio
         // "2025.2" for 2025.2.3) or on a divergent track (Air reports its SHIP
@@ -492,6 +501,7 @@ public struct AppScanner: Sendable {
             sparkleEdPublicKey: (plist["SUPublicEDKey"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
             hasSelfUpdater: hasSelfUpdater,
+            hasSparkleUpdater: hasSparkleUpdater,
             releaseChannel: releaseChannel,
             channelIsAuthoritative: channelIsAuthoritative,
             toolboxInstalledBuild: toolboxTool.flatMap {

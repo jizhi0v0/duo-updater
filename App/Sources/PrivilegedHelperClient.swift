@@ -81,10 +81,7 @@ final class PrivilegedHelperClient: ObservableObject {
         let message = error.localizedDescription
         guard (error as NSError).code == 1 || message.localizedCaseInsensitiveContains("not permitted")
         else { return message }
-        return "macOS refused the registration — its record of this background item "
-            + "is damaged. Fixing it needs a system-level reset: run "
-            + "“sudo sfltool resetbtm” in Terminal and restart. That clears background-item "
-            + "approvals for every app, so you'll re-approve the others too."
+        return String(localized: "macOS refused the registration — its record of this background item is damaged. Fixing it needs a system-level reset: run “sudo sfltool resetbtm” in Terminal and restart. That clears background-item approvals for every app, so you'll re-approve the others too.")
     }
 
     func unregister() {

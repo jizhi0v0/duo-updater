@@ -80,7 +80,7 @@ struct DiagnosticsSettingsPage: View {
     private var lastCheckCard: some View {
         SettingsCard {
             SettingsField(title: "Last checked") {
-                Text(model.lastCheck.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Not yet")
+                Text(model.lastCheck.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? String(localized: "Not yet"))
                     .foregroundStyle(.secondary)
             }
         }
@@ -194,10 +194,10 @@ private struct HelperStatusRow: View {
             if checking || answering != nil {
                 statusIcon
                 Text(checking && answering == nil
-                     ? "Checking…"
+                     ? String(localized: "Checking…")
                      : (answering == true
-                        ? "Responding — App Store updates will work"
-                        : "Switched on but not responding — use Restart Helper"))
+                        ? String(localized: "Responding — App Store updates will work")
+                        : String(localized: "Switched on but not responding — use Restart Helper")))
                     .foregroundStyle(checking ? Color.secondary
                                      : (answering == true ? Color.green : Color.orange))
             }
@@ -270,7 +270,7 @@ private struct HelperStatusRow: View {
                 checkButton
                 // Disabled while the authorization panel is up: pressing again
                 // would stack a second prompt on the first and kickstart twice.
-                Button(restarting ? "Restarting…" : "Restart Helper…") {
+                Button(restarting ? String(localized: "Restarting…") : String(localized: "Restart Helper…")) {
                     guard !restarting else { return }
                     restarting = true
                     Task {

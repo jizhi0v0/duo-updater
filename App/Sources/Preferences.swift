@@ -28,12 +28,12 @@ final class Preferences {
 
         var label: String {
             switch self {
-            case .manual:      return "Only when I check"
-            case .every5Min:   return "Every 5 minutes"
-            case .every30Min:  return "Every 30 minutes"
-            case .hourly:      return "Every hour"
-            case .every6Hours: return "Every 6 hours"
-            case .daily:       return "Once a day"
+            case .manual:      return String(localized: "Only when I check")
+            case .every5Min:   return String(localized: "Every 5 minutes")
+            case .every30Min:  return String(localized: "Every 30 minutes")
+            case .hourly:      return String(localized: "Every hour")
+            case .every6Hours: return String(localized: "Every 6 hours")
+            case .daily:       return String(localized: "Once a day")
             }
         }
 

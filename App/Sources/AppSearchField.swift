@@ -8,7 +8,7 @@ import AppKit
 /// the standard rounded search-field appearance, magnifier, and built-in clear button.
 struct AppSearchField: NSViewRepresentable {
     @Binding var text: String
-    var prompt: String = "Search apps"
+    var prompt: String = String(localized: "Search apps")
 
     func makeNSView(context: Context) -> NSSearchField {
         let field = NSSearchField()

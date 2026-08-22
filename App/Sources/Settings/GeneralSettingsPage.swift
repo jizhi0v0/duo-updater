@@ -142,10 +142,15 @@ struct GeneralSettingsPage: View {
                 header: "Install routing",
                 footer: "Mac App Store updates currently use the full-download route via mas. It’s the more predictable option for release builds and doesn’t require Accessibility access."
             ) {
-                Picker("App Store updates", selection: $prefs.appStoreUpdateStrategy) {
-                    ForEach(Preferences.AppStoreUpdateStrategy.availableCases) { strategy in
-                        Text(strategy.label).tag(strategy)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("App Store updates").font(.callout)
+                    Picker("App Store updates", selection: $prefs.appStoreUpdateStrategy) {
+                        ForEach(Preferences.AppStoreUpdateStrategy.availableCases) { strategy in
+                            Text(strategy.label).tag(strategy)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
                 .settingsRow()
             }
@@ -153,10 +158,15 @@ struct GeneralSettingsPage: View {
             SettingsCard(
                 footer: "For apps that ship their own updater (Office, Teams, OneDrive, Edge, Chrome, VS Code, …). “Always replace” — the default — downloads the vendor’s own installer and applies it whether or not the app is running, quitting and relaunching it afterwards. Switch to “Defer while running” if you would rather nothing touched an app while it is open: it then installs only when the app is closed, and offers an Open button instead while it is running, leaving the update to the app itself."
             ) {
-                Picker("Self-updating apps", selection: $prefs.vendorInstallPolicy) {
-                    ForEach(Preferences.VendorInstallPolicy.allCases) { policy in
-                        Text(policy.label).tag(policy)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Self-updating apps").font(.callout)
+                    Picker("Self-updating apps", selection: $prefs.vendorInstallPolicy) {
+                        ForEach(Preferences.VendorInstallPolicy.allCases) { policy in
+                            Text(policy.label).tag(policy)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
                 .settingsRow()
             }

@@ -24,7 +24,7 @@ struct UpdatesSettingsPage: View {
         case let (_, build?) where !build.isEmpty:
             return build
         default:
-            return "Unknown"
+            return String(localized: "Unknown")
         }
     }
 

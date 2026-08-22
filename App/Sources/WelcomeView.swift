@@ -34,18 +34,25 @@ struct WelcomeView: View {
             auroraBackground
 
             VStack(spacing: 0) {
-                hero
-                    .padding(.top, 46)
-                    .padding(.horizontal, 36)
+                // A plain ScrollView here costs nothing when content fits (which is
+                // the common case, English included) — it just top-aligns like a
+                // VStack would. It's the safety net for languages whose permission-
+                // card text runs longer than English: this window is fixed-size and
+                // non-resizable, so without it, overflow would silently clip instead
+                // of scrolling.
+                ScrollView {
+                    hero
+                        .padding(.top, 46)
+                        .padding(.horizontal, 36)
 
-                cards
-                    .padding(.top, 30)
-                    .padding(.horizontal, 30)
-
-                Spacer(minLength: 20)
+                    cards
+                        .padding(.top, 30)
+                        .padding(.horizontal, 30)
+                }
 
                 footer
                     .padding(.horizontal, 24)
+                    .padding(.top, 20)
                     .padding(.bottom, 26)
             }
         }
@@ -131,18 +138,18 @@ struct WelcomeView: View {
         let stack = VStack(spacing: 14) {
             PermissionCard(
                 systemImage: "shippingbox",
-                title: "App Management",
+                title: String(localized: "App Management"),
                 detail: appManagementDetail,
                 status: appManagementCardStatus,
                 action: { model.presentAppManagementPermissionFlow() }
             )
             PermissionCard(
                 systemImage: "key",
-                title: "GitHub access",
+                title: String(localized: "GitHub access"),
                 detail: githubDetail,
                 status: githubCardStatus,
-                actionLabel: "Set Up…",
-                grantedLabel: "Connected",
+                actionLabel: String(localized: "Set Up…"),
+                grantedLabel: String(localized: "Connected"),
                 action: { openGitHubSetup() }
             )
         }
@@ -213,11 +220,10 @@ struct WelcomeView: View {
     }
 
     private var appManagementDetail: String {
-        let base = "Lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads)."
         if model.appManagementStatus == .unknown {
-            return base + " macOS isn’t reporting its status on this system — grant it to be safe."
+            return String(localized: "Lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads). macOS isn’t reporting its status on this system — grant it to be safe.")
         }
-        return base
+        return String(localized: "Lets Duo Updater replace apps updated outside the App Store (Sparkle, Homebrew, direct downloads).")
     }
 
     // MARK: - GitHub access (optional)
@@ -231,11 +237,10 @@ struct WelcomeView: View {
     }
 
     private var githubDetail: String {
-        let base = "Lifts GitHub’s anonymous 60-requests/hour limit to 5000/hour, so frequent checks of GitHub-hosted apps (RustDesk, Zed, Stats…) don’t hit rate-limit errors."
         if githubConnected == true {
-            return base + " A token is already active — you’re all set."
+            return String(localized: "Lifts GitHub’s anonymous 60-requests/hour limit to 5000/hour, so frequent checks of GitHub-hosted apps (RustDesk, Zed, Stats…) don’t hit rate-limit errors. A token is already active — you’re all set.")
         }
-        return base + " Optional: sign in with the gh CLI, or paste a token."
+        return String(localized: "Lifts GitHub’s anonymous 60-requests/hour limit to 5000/hour, so frequent checks of GitHub-hosted apps (RustDesk, Zed, Stats…) don’t hit rate-limit errors. Optional: sign in with the gh CLI, or paste a token.")
     }
 
     /// Deep-link straight to Settings → GitHub so the user lands on the token UI
@@ -265,9 +270,9 @@ private struct PermissionCard: View {
     let status: Status
     /// Label for the action button. Defaults to the permission wording; the
     /// optional GitHub card overrides it ("Set Up…").
-    var actionLabel: String = "Grant…"
+    var actionLabel: String = String(localized: "Grant…")
     /// Label for the satisfied state. Defaults to "Granted"; GitHub uses "Connected".
-    var grantedLabel: String = "Granted"
+    var grantedLabel: String = String(localized: "Granted")
     let action: () -> Void
 
     var body: some View {

@@ -14,27 +14,27 @@ enum UpdateNotifier {
     /// `NotificationController`). `total` is the full pending count; `newApps`
     /// names the ones that newly appeared since the last check.
     static func updatesAvailable(total: Int, newApps: [String]) {
-        let title = total == 1 ? "1 update available" : "\(total) updates available"
+        let title = String(localized: "\(total) updates available")
         let body: String
         switch newApps.count {
         case 0:  return  // nothing newly appeared — don't nag
-        case 1:  body = "\(newApps[0]) has an update."
-        case 2:  body = "\(newApps[0]) and \(newApps[1]) have updates."
-        default: body = "\(newApps[0]), \(newApps[1]), and \(newApps.count - 2) more have updates."
+        case 1:  body = String(localized: "\(newApps[0]) has an update.")
+        case 2:  body = String(localized: "\(newApps[0]) and \(newApps[1]) have updates.")
+        default: body = String(localized: "\(newApps[0]), \(newApps[1]), and \(newApps.count - 2) more have updates.")
         }
         post(title: title, body: body, categoryID: NotificationController.ID.updatesCategory)
     }
 
     /// A not-running app was updated in place — there's nothing left to do.
     static func updated(app: String, version: String?) {
-        post(title: app, body: version.map { "Updated to \($0)." } ?? "Updated.")
+        post(title: app, body: version.map { String(localized: "Updated to \($0).") } ?? String(localized: "Updated."))
     }
 
     /// "Update All" finished — one summary instead of a banner per app. Apps that
     /// were running show a Restart badge in the menu, so we don't enumerate them.
     static func batchUpdated(count: Int) {
-        post(title: "Updates installed",
-             body: count == 1 ? "1 app was updated." : "\(count) apps were updated.")
+        post(title: String(localized: "Updates installed"),
+             body: String(localized: "\(count) apps were updated."))
     }
 
     /// A running app was updated on disk, but its live process is still on the
@@ -43,8 +43,9 @@ enum UpdateNotifier {
     /// this banner in place once the new version is live, instead of leaving a
     /// stale "Restart to apply it" stacked under the "Now running" confirmation.
     static func readyToRestart(app: String, version: String?, appID: String?) {
-        let lead = version.map { "Update to \($0) is ready." } ?? "Update is ready."
-        post(title: app, body: lead + " Restart to apply it.",
+        let body = version.map { String(localized: "Update to \($0) is ready. Restart to apply it.") }
+            ?? String(localized: "Update is ready. Restart to apply it.")
+        post(title: app, body: body,
              identifier: appID.map { "restart:\($0)" })
     }
 
@@ -55,7 +56,7 @@ enum UpdateNotifier {
     /// previous banner in Notification Center rather than stacking copies.
     static func selfDownloaded(app: String, version: String, appID: String) {
         post(title: app,
-             body: "\(app) downloaded \(version) on its own. Relaunch to apply it.",
+             body: String(localized: "\(app) downloaded \(version) on its own. Relaunch to apply it."),
              categoryID: NotificationController.ID.selfUpdateCategory,
              identifier: "selfupdate:\(appID)",
              userInfo: [NotificationController.ID.appIDKey: appID])
@@ -71,7 +72,7 @@ enum UpdateNotifier {
     /// new, it's the app asking a question it can't proceed without.
     static func needsQuitConfirmation(app: String, rowID: String) {
         post(title: app,
-             body: "The update is downloaded. Relaunch \(app) to finish installing it.",
+             body: String(localized: "The update is downloaded. Relaunch \(app) to finish installing it."),
              categoryID: NotificationController.ID.quitConfirmCategory,
              identifier: "quitconfirm:\(rowID)",
              userInfo: [NotificationController.ID.appIDKey: rowID])
@@ -102,7 +103,7 @@ enum UpdateNotifier {
     /// "Restart to apply it" banner in Notification Center rather than stacking a
     /// second copy beneath it — one banner per app lifecycle, not two.
     static func restarted(app: String, version: String?, appID: String?) {
-        post(title: app, body: version.map { "Now running \($0)." } ?? "Restarted on the new version.",
+        post(title: app, body: version.map { String(localized: "Now running \($0).") } ?? String(localized: "Restarted on the new version."),
              identifier: appID.map { "restart:\($0)" })
     }
 

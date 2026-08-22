@@ -94,7 +94,7 @@ private struct SettingsSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppSearchField(text: $query, prompt: "Search")
+            AppSearchField(text: $query, prompt: String(localized: "Search"))
                 .frame(height: 24)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
@@ -106,7 +106,7 @@ private struct SettingsSidebar: View {
             } else {
                 List(selection: $selection) {
                     ForEach(groups, id: \.group.id) { entry in
-                        SwiftUI.Section(entry.group.rawValue) {
+                        SwiftUI.Section(entry.group.displayName) {
                             ForEach(entry.sections) { section in
                                 row(section).tag(section)
                             }

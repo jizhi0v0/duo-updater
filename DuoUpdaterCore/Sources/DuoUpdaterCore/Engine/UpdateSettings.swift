@@ -24,8 +24,8 @@ public enum AppStoreUpdateStrategy: String, CaseIterable, Identifiable, Sendable
 
     public var label: String {
         switch self {
-        case .full:        return "Full download (no extra permission)"
-        case .incremental: return "Incremental (needs Accessibility)"
+        case .full:        return String(localized: "Full download (no extra permission)")
+        case .incremental: return String(localized: "Incremental (needs Accessibility)")
         }
     }
 }
@@ -73,8 +73,8 @@ public enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
 
     public var label: String {
         switch self {
-        case .deferWhenRunning: return "Defer to the app’s own updater while it’s running"
-        case .alwaysOverwrite:  return "Always download & replace, then restart"
+        case .deferWhenRunning: return String(localized: "Defer to the app’s own updater while it’s running")
+        case .alwaysOverwrite:  return String(localized: "Always download & replace, then restart")
         }
     }
 }

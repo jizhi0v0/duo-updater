@@ -5,6 +5,12 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.55
+
+**Duo Updater now speaks Russian, Simplified Chinese, Japanese, German, French and Spanish.** It follows whatever language your Mac is set to, and switches with it — there is nothing to turn on. If you would rather read it in a language your Mac isn't set to, macOS can do that per app: System Settings ▸ General ▸ Language & Region ▸ Applications. Everything the app writes itself is translated: the menu-bar panel, every Settings page, the setup window, the notifications, the alerts, and the small print under each option. Counts are handled the way each language actually handles them rather than by bolting an "s" onto the end, which matters most in Russian, where "1 update", "2 updates" and "5 updates" take three different endings — and in Chinese and Japanese, where they take none.
+
+**Two things stay in English on purpose.** Release notes are the vendor's own words, so they arrive in whatever language the vendor wrote them in — translating them would mean rewriting what a developer said about their own release. And the `duo` command-line tool stays English, the way command-line tools generally are.
+
 ## 0.3.54
 
 **An App Store app that was open when you updated it comes back again.** Last release drew a line in the wrong place. It was fixing something real — an update that failed, or that you cancelled, could bring an app back to life minutes after you had closed it yourself — but it decided *whether to reopen* by asking whether someone had answered a quit prompt. Almost no App Store update shows one: the prompt only appears on a route Duo Updater stopped using a while ago. So from 0.3.53, updating an App Store app that was running closed it and left it closed, with nothing on screen to say why. The question it asks now is whether the update actually landed, which is the thing that decides whether a quit is coming at all. This is verified against a real App Store update rather than reasoned about: the store terminates your app to replace its files and never brings it back — despite its own prompt promising that it will.

@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.52
+
+**Same changes as 0.3.51, reissued so it can actually reach you.** 0.3.51 went out carrying the same internal build number as 0.3.50. That number, not the one in the version name, is what an update check compares — so anyone already running 0.3.50 was told they were up to date and never offered it. This release carries the changes below under a build number that is properly newer. If you are reading this on 0.3.51, nothing about the app changed between the two.
+
 ## 0.3.51
 
 **An update that kept coming back.** ChatGPT would offer a new version, install it, restart — and a minute later the same update was waiting again. The install was never the problem: the new version really did land on disk. What happened next is that ChatGPT's own updater put a different one back. There are two lists involved, and Duo Updater was reading the wrong one. The first is everything the vendor has published; the second is what the vendor is actually handing out to your Mac today, which can be an earlier build while a release is still rolling out. Duo Updater was reading the published list — the same address ChatGPT itself is configured with, which is what made it look right — and offering you a build the vendor was still holding back. ChatGPT had meanwhile downloaded the build it *was* being offered and parked it, waiting for the app to close. Restarting to apply our update is what closed it. Duo Updater now asks the same question ChatGPT's own updater asks, so the two agree on what the current version is.

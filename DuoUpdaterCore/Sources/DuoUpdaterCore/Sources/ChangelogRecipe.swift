@@ -40,6 +40,7 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// and majors ship every few weeks.
     public let sourceTemplate: String?
 
+
     /// Response shape. `.html` runs the regexes against the raw markup; `.json`
     /// is identical mechanically (regex over the body) but named separately so a
     /// future structured-JSON path can branch on it. Defaults to `.html`.
@@ -87,13 +88,18 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// spelled it `<code>CLI pack cancel</code>`, which `stripTags` removed, so
     /// without this the migration puts visible backticks in front of the user.
     ///
-    /// Deliberately narrow: it unwraps inline code spans and nothing else. Bold,
-    /// emphasis and headings would need real Markdown rendering (`Changelog`
-    /// already has `.markdown` item syntax for producers that keep their source
-    /// intact); this flag exists for recipes whose *output contract is plain
-    /// text*, to restore the parity an HTML→Markdown source swap otherwise breaks.
-    /// Link syntax is not touched here — a recipe reading Markdown is expected to
-    /// consume links in its `itemPatterns`, as HBuilderX's does.
+    /// Deliberately narrow: it unwraps inline code spans and flattens
+    /// `[text](url)` to `text`, and nothing else. Bold, emphasis and headings would
+    /// need real Markdown rendering (`Changelog` already has `.markdown` item
+    /// syntax for producers that keep their source intact); this flag exists for
+    /// recipes whose *output contract is plain text*, so that the syntax a plain
+    /// renderer would print literally is removed rather than shown.
+    ///
+    /// Link flattening was added for Docker, whose notes carry links mid-sentence
+    /// (`[Docker Compose v5.4.0](…)`) that no `itemPattern` can practically consume
+    /// — HBuilderX's trailing links are eaten by its own pattern, and flattening
+    /// was verified a no-op there before this widened: 0 of the 116 items in its
+    /// live top-10 window change.
     public var markdownSource: Bool
 
     /// Keep at most this many entries (changelogs run for years; the detail view
@@ -239,6 +245,19 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// unauthenticated (60/hour/IP) and `ChangelogService` doesn't attach a
         /// token.
         case zedGitHubReleases
+        /// A plain `api.github.com/repos/<owner>/<repo>/releases` array, decoded
+        /// with the same `GitHubMarkdownParser` the GitHub *version* source uses.
+        /// For an app whose real changelog is its GitHub releases but whose update
+        /// source is something else (Waku ships a Sparkle appcast, and its
+        /// `releaseNotesLink` points at a single per-version `.md` with no index —
+        /// so the feed alone can only ever show one version).
+        ///
+        /// Stable releases only: a prerelease is a track the user did not opt into,
+        /// and unlike `zedGitHubReleases` this format carries no channel split.
+        case gitHubReleases
+        /// Alcove's own changelog API, `api.tryalcove.com/changelog` — public and
+        /// unauthenticated, unlike the license-gated update endpoint beside it.
+        case alcoveChangelog
         /// Notion's own desktop "What's New" page,
         /// `notion.notion.site/What-s-New-Mac-Windows-…` — distinct from
         /// `www.notion.com/releases`, which is Notion's *product* announcement feed
@@ -1189,6 +1208,108 @@ public enum ChangelogRecipeRegistry {
                 (#"{"pageId":"5936dabc-8dd6-4978-9578-6c91b9d6f12a","limit":50,"#
                     + #""cursor":{"stack":[]},"chunkNumber":0,"verticalColumns":false}"#
                 ).utf8)),
+
+        // Waku — GitHub releases, not the appcast's own notes link.
+        //
+        // The appcast points `<sparkle:releaseNotesLink>` at a per-version file,
+        // `releases.waku.sh/Waku-<version>.md`, whose body is a bare Markdown
+        // bullet list — no heading, no title, no version in it — so it produced no
+        // entries and the pane fell back to a web view rendering raw `- ` lines.
+        // That file is fetchable for any version by name (0.1.9 … 0.1.12 all 200)
+        // but the site root 404s, so there is NO index: templating it can only ever
+        // show the one version being offered.
+        //
+        // github.com/egoist/waku carries the same bullets AND the history — seven
+        // releases, each with its published date. Same content, more of it, and it
+        // reuses the decoder every other GitHub-sourced app already goes through.
+        // Two of those seven (v0.1.9, v0.1.7) say only "See CHANGELOG.md for
+        // details."; they still get an entry, via `GitHubMarkdownParser`'s prose
+        // pass, rather than leaving a gap in the version rail.
+        ChangelogRecipe(
+            bundleID: "sh.waku",
+            source: URL(string: "https://api.github.com/repos/egoist/waku/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            structuredFormat: .gitHubReleases),
+
+        // Alcove — its own changelog API. Public and unauthenticated, unlike the
+        // update endpoint on the same host, which is license-gated (see
+        // `AlcoveUpdateSource`). Structured JSON: majors, each holding its point
+        // releases with date, note, features and fixes. Newest is 1.7.9, matching
+        // the installed copy on 2026-08-22.
+        //
+        // This replaces a web view on `tryalcove.com/changelog`, whose text lives
+        // in hash-named JS chunks — the reason that page was only ever linked, not
+        // read. The API is a different surface and a far better one.
+        ChangelogRecipe(
+            bundleID: "com.henrikruscon.Alcove",
+            source: URL(string: "https://api.tryalcove.com/changelog")!,
+            mode: .json,
+            maxEntries: 30,
+            structuredFormat: .alcoveChangelog),
+
+        // Docker Desktop — the release-notes page in its Markdown source form.
+        // `docs.docker.com/desktop/release-notes.md` serves `text/markdown`
+        // directly (the `.md` twin of the HTML page), 142 versions deep, newest
+        // 4.87.0 on 2026-08-17 — the installed version here.
+        //
+        // The `- [Windows](…)` / `- [Mac …]` / `- [Linux …]` installer links each
+        // release opens with are excluded by the item pattern's negative lookahead:
+        // they are the same seven download URLs every time and say nothing about
+        // what changed. Everything after them — the `### Updates` component list
+        // and the `### Bug fixes and enhancements` sections — is kept.
+        //
+        // `markdownSource` because the notes link out mid-sentence
+        // (`[Docker Compose v5.4.0](…)`); without it a plain-text render prints the
+        // brackets and the URL.
+        ChangelogRecipe(
+            bundleID: "com.docker.docker",
+            source: URL(string: "https://docs.docker.com/desktop/release-notes.md")!,
+            entryPattern:
+                #"## (?<version>[0-9]+\.[0-9]+\.[0-9]+)\n\n"#
+                + #"<em[^>]*>(?<date>[0-9-]+)</em>"#
+                + #"(?<body>[\s\S]*?)(?=\n## |\z)"#,
+            itemPatterns: [#"(?:^|\n)- (?!\[(?:Windows|Mac|Linux))(?<item>[^\n]+)"#],
+            stripTags: false,
+            decodeEntities: false,
+            markdownSource: true,
+            maxEntries: 20,
+            minItemLength: 6),
+
+        // Kiro — the changelog's RSS feed, filtered to the IDE.
+        //
+        // The feed mixes three products (`<category>` is IDE, CLI or Web) and the
+        // installed app is the IDE, so the entry pattern requires that category
+        // rather than filtering afterwards: a CLI release note under an IDE version
+        // heading would be worse than no note.
+        //
+        // Only some titles carry a version ("IDE 1.0.337: Agent Focus, …"); the
+        // rest are titled but unversioned ("IDE: Permission Improvements …"). Both
+        // shapes are kept — `Changelog.Entry` accepts a title without a version,
+        // and dropping the unversioned ones would silently lose 8 of the 15 IDE
+        // entries in today's feed. The `IDE` prefix is consumed either way so the
+        // rail doesn't repeat it on every row.
+        //
+        // Notes are prose paragraphs, not lists, so the whole description is one
+        // item — this feed has no bullets to find.
+        //
+        // `pubDate` is RFC-822 and the rail's date formatter only normalizes
+        // ISO-8601, so the weekday and the time are dropped in the capture rather
+        // than rendered verbatim as "Tue, 18 Aug 2026 20:04:00 GMT" under every
+        // version. What's left ("18 Aug 2026") matches the shape Alcove's feed
+        // already supplies.
+        ChangelogRecipe(
+            bundleID: "dev.kiro.desktop",
+            source: URL(string: "https://kiro.dev/changelog/feed.rss")!,
+            entryPattern:
+                #"<item>\s*<title>(?:IDE(?: (?<version>[0-9][0-9.]*))?: )?(?<title>[^<]*)</title>\s*"#
+                + #"<link>[^<]*</link>\s*<guid>[^<]*</guid>\s*"#
+                + #"<pubDate>[A-Za-z]{3}, (?<date>[0-9]{2} [A-Za-z]{3} [0-9]{4})[^<]*</pubDate>\s*"#
+                + #"<category>IDE</category>\s*"#
+                + #"<description><!\[CDATA\[(?<body>[\s\S]*?)\]\]></description>"#,
+            itemPatterns: [#"(?<item>[\s\S]+)"#],
+            maxEntries: 20,
+            minItemLength: 10),
 
         // Notion's OTHER changelog, deliberately not registered: www.notion.com/
         // releases is the *product* announcement feed (feature launches like "Plan

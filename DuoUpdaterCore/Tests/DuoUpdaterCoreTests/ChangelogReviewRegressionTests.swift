@@ -145,14 +145,28 @@ private let hbuilderXCodeSpanFixture = #"""
     let changelog = try #require(StructuredChangelogDecoder.decodeZedGitHubReleases(feed, channel: .preview, maxEntries: 15))
     let entry = try #require(changelog.entries.first)
     #expect(entry.version == "1.5.3")
-    #expect(entry.items == ["No public-facing changes in this release. View the commits"])
+    // The Markdown link is KEPT rather than flattened: the entry carries
+    // `.markdown` item syntax, so it renders as a link the reader can follow.
+    // (The Zed-only fallback this replaced flattened it to bare text, which was
+    // the wrong call for a `.markdown` entry.)
+    #expect(entry.items == [
+        "No public-facing changes in this release. "
+            + "[View the commits](https://github.com/zed-industries/zed/compare/v1.5.2-pre...v1.5.3-pre)",
+    ])
 }
 
 /// …but a body with nothing renderable at all is still skipped, rather than
 /// producing a bare version heading with an empty bullet under it.
-@Test func zedStillSkipsAReleaseWithNothingRenderable() {
-    #expect(StructuredChangelogDecoder.zedProseFallback(body: "## Heading only\n\n### Another\n") == nil)
-    #expect(StructuredChangelogDecoder.zedProseFallback(body: "   \n\n  \n") == nil)
+///
+/// The fallback that makes the test above pass now lives in `GitHubMarkdownParser`
+/// rather than in a Zed-only branch here — every GitHub-sourced app has the same
+/// shape and deserves the same treatment. Asserted through the public parser so
+/// this stays true wherever the implementation sits.
+@Test func aReleaseWithNothingRenderableIsStillSkipped() {
+    #expect(GitHubMarkdownParser.parse(
+        body: "## Heading only\n\n### Another\n", version: "1.0", date: nil) == nil)
+    #expect(GitHubMarkdownParser.parse(
+        body: "   \n\n  \n", version: "1.0", date: nil) == nil)
 }
 
 // MARK: - ChatWise: CRLF must not fold a whole entry into one line
@@ -183,4 +197,152 @@ private let hbuilderXCodeSpanFixture = #"""
         #expect(recipe.indexLinkPattern == nil,
                 "\(recipe.bundleID): structuredFormat skips the two-stage fetch, so indexLinkPattern is dead")
     }
+}
+
+// MARK: - Waku
+
+/// Waku's registered recipe reads GitHub releases, which carry the same bullets
+/// AND the history the per-version `.md` files can't enumerate (the site root
+/// 404s, so there is no index to walk).
+@Test func wakuReadsGitHubReleases() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "sh.waku"))
+    #expect(recipe.structuredFormat == .gitHubReleases)
+    #expect(recipe.source.host == "api.github.com")
+}
+
+/// The generic GitHub-releases decoder: stable only, newest first, `v` stripped,
+/// and a prose-only release still gets an entry rather than a gap in the rail.
+@Test func gitHubReleasesDecoderSkipsPrereleasesAndKeepsProseOnes() throws {
+    let feed = #"""
+    [{"tag_name":"v0.1.12","prerelease":false,"draft":false,"published_at":"2026-08-21T00:00:00Z",
+      "body":"- Stream live output from Claude background tasks\n- Fix model selection for Cursor"},
+     {"tag_name":"v0.2.0-rc1","prerelease":true,"draft":false,"published_at":"2026-08-21T00:00:00Z",
+      "body":"- Something on a track the user did not choose"},
+     {"tag_name":"v0.1.9","prerelease":false,"draft":false,"published_at":"2026-08-18T00:00:00Z",
+      "body":"See CHANGELOG.md for details."}]
+    """#
+    let log = try #require(StructuredChangelogDecoder.decodeGitHubReleases(feed, maxEntries: 20))
+    #expect(log.entries.map(\.version) == ["0.1.12", "0.1.9"])
+    #expect(log.entries.first?.date == "2026-08-21")
+    #expect(log.entries.last?.items == ["See CHANGELOG.md for details."])
+}
+
+// MARK: - Three apps moved off the web view (verbatim slices, fetched 2026-08-22)
+
+/// Alcove's changelog API: majors holding point releases. Flattened per MINOR,
+/// because the minor is what the row shows; the major's `description` describes a
+/// release line and is deliberately dropped.
+@Test func alcoveFlattensMinorsAndLabelsFeaturesAndFixes() throws {
+    let body = #"""
+    {"updated":"June 2026","entries":[
+      {"version":"1.7","description":"Duo mode, a pill shape for notchless displays.",
+       "minors":[
+         {"version":"1.7.9","date":"30 Jun 2026",
+          "note":"Banner suppression will come back soon, needs a rework.",
+          "features":["Added extended support for AirPlay"],
+          "fixes":["Removed banner suppression (temporarily)","Optimized focus on startup"]},
+         {"version":"1.7.8","date":"28 Jun 2026","note":null,
+          "features":["Added AutoMix support"],"fixes":[]}]}]}
+    """#
+    let log = try #require(StructuredChangelogDecoder.decodeAlcoveChangelog(body, maxEntries: 30))
+    #expect(log.entries.map(\.version) == ["1.7.9", "1.7.8"])
+    #expect(log.entries[0].date == "30 Jun 2026")
+    #expect(log.entries[0].items == [
+        "Banner suppression will come back soon, needs a rework.",
+        "Features", "Added extended support for AirPlay",
+        "Fixes", "Removed banner suppression (temporarily)", "Optimized focus on startup",
+    ])
+    // An empty group contributes no heading, and the major's description never appears.
+    #expect(log.entries[1].items == ["Features", "Added AutoMix support"])
+    #expect(!log.entries.contains { $0.items.contains { $0.contains("pill shape") } })
+}
+
+/// Docker's release notes in Markdown. The seven platform installer links each
+/// release opens with are the same URLs every time and say nothing about what
+/// changed — they must not become items. Everything after them must.
+@Test func dockerDropsTheInstallerLinksAndFlattensInlineOnes() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.docker.docker"))
+    let body = """
+    ## 4.87.0
+
+    <em class="text-gray-400 italic">2026-08-17</em>
+
+
+    Download Docker Desktop:
+    - [Windows](https://desktop.docker.com/win/main/amd64/236836/Docker%20Desktop%20Installer.exe)
+    - [Mac (Apple chip)](https://desktop.docker.com/mac/main/arm64/236836/Docker.dmg)
+    - [Linux (Debian)](https://desktop.docker.com/linux/main/amd64/236836/docker-desktop-amd64.deb)
+
+    ### Updates
+
+    - [Docker Compose v5.4.0](https://github.com/docker/compose/releases/tag/v5.4.0)
+    - Linux kernel `v7.0.12`
+
+    ### Bug fixes and enhancements
+
+    #### For all platforms
+
+    - Fixed a bug where the in-app update failed with identical paths.
+
+    ## 4.86.0
+
+    <em class="text-gray-400 italic">2026-08-10</em>
+
+    ### Updates
+
+    - Docker Engine v29.7.2
+    """
+    let log = try #require(ChangelogExtractor.extract(from: body, using: recipe))
+    #expect(log.entries.map(\.version) == ["4.87.0", "4.86.0"])
+    #expect(log.entries[0].date == "2026-08-17")
+    #expect(log.entries[0].items == [
+        "Docker Compose v5.4.0",          // link flattened, not `[…](…)`
+        "Linux kernel v7.0.12",           // backticks unwrapped
+        "Fixed a bug where the in-app update failed with identical paths.",
+    ])
+    #expect(!log.entries[0].items.contains { $0.contains("desktop.docker.com") })
+}
+
+/// Kiro's feed carries three products. The installed app is the IDE, so a CLI or
+/// Web note must never appear under an IDE version heading.
+@Test func kiroKeepsOnlyIDEEntriesAndNormalizesTheDate() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "dev.kiro.desktop"))
+    let body = """
+    <rss><channel>
+    <item>
+      <title>CLI: Spec Review Mouse Support and Automatic Stream Recovery</title>
+      <link>https://kiro.dev/changelog/cli/2-19</link>
+      <guid>https://kiro.dev/changelog/cli/2-19</guid>
+      <pubDate>Wed, 19 Aug 2026 21:00:00 GMT</pubDate>
+      <category>CLI</category>
+      <description><![CDATA[This release brings mouse support to the spec review screen.]]></description>
+    </item>
+    <item>
+      <title>IDE 1.0.337: Agent Focus, Permissions, Custom Agents, and More</title>
+      <link>https://kiro.dev/changelog/ide/1-0-337</link>
+      <guid>https://kiro.dev/changelog/ide/1-0-337</guid>
+      <pubDate>Tue, 18 Aug 2026 00:00:00 GMT</pubDate>
+      <category>IDE</category>
+      <description><![CDATA[Permission Improvements and Configured Windows Shells.]]></description>
+    </item>
+    <item>
+      <title>IDE: Nested AGENTS.md and Long-Session Efficiency</title>
+      <link>https://kiro.dev/changelog/ide/nested</link>
+      <guid>https://kiro.dev/changelog/ide/nested</guid>
+      <pubDate>Thu, 13 Aug 2026 00:00:00 GMT</pubDate>
+      <category>IDE</category>
+      <description><![CDATA[Agents can now read a nested AGENTS.md next to the files they touch.]]></description>
+    </item>
+    </channel></rss>
+    """
+    let log = try #require(ChangelogExtractor.extract(from: body, using: recipe))
+    #expect(log.entries.count == 2, "the CLI entry must not appear")
+    #expect(log.entries[0].version == "1.0.337")
+    #expect(log.entries[0].title == "Agent Focus, Permissions, Custom Agents, and More")
+    // RFC-822 narrowed: no weekday, no time, no zone.
+    #expect(log.entries[0].date == "18 Aug 2026")
+    // An unversioned IDE entry is kept — it has a title, and dropping it would
+    // silently lose more than half of the live feed's IDE entries.
+    #expect(log.entries[1].version.isEmpty)
+    #expect(log.entries[1].title == "Nested AGENTS.md and Long-Session Efficiency")
 }

@@ -545,6 +545,11 @@ public enum VendorProbeRegistry {
         // installer, so the user still confirms it there (same flow as ToDesk and
         // AweSun); the install spec re-resolves the redirect at download time so it
         // always fetches the current package, not this version's.
+        // No `changelogURL`: there is no such page. `uuyc.163.com/changelog` and
+        // `/update` both answer 200, but they return byte-identical content to a
+        // path that does not exist — an SPA catch-all serving the homepage, not a
+        // changelog. The download page is a distinct page but contains no
+        // 更新日志/更新说明/新增/修复 markers at all. (Checked 2026-08-22.)
         VendorProbeRecipe(
             bundleID: "com.netease.uuremote",
             url: URL(string: "https://api.nrd.nie.163.com/api/v1/release/dl/4?channel=gwqd")!,
@@ -1711,6 +1716,14 @@ public enum VendorProbeRegistry {
         // (template), on the vendor's own dl.todesk.com, signed by the same Team
         // KM56KD59W4 (Hainan Youqu Technology) as the installed app — the
         // VendorInstaller signature gate enforces it.
+        // No `changelogURL`: the vendor's macOS log page exists but is abandoned.
+        // `update.todesk.com/macos/uplog.html` is server-rendered with 30 real
+        // versions, and its newest is 4.8.1.0 (2025.9.5) — while the installed
+        // copy here is 4.10.0.0. It is not the whole site going stale: the same
+        // host's `windows/uplog.html` was current to 2026.8.18 on the same day.
+        // Pointing the pane at it would show notes for a version the user passed
+        // two minor releases ago, which is the version-mismatch failure the
+        // Notion and Figma changelogs were just moved away from.
         VendorProbeRecipe(
             bundleID: "com.youqu.todesk.mac",
             url: URL(string: "https://www.todesk.com/download.html")!,
@@ -1741,6 +1754,10 @@ public enum VendorProbeRegistry {
         // nil on purpose: spotify.com/release-notes tracks a DIFFERENT (mobile/web)
         // version scheme (`1.2.534.x`), so embedding it for a `1.2.92.x` desktop
         // build would show an unrelated page — better the honest "no notes" state.
+        // No `changelogURL`, and not an oversight: Spotify publishes no release
+        // notes for the desktop client anywhere. Checked 2026-08-22 — the only
+        // things that exist are one-off community forum posts from a decade ago
+        // (0.9.x, 1.0.9) and long-running threads asking for a changelog.
         VendorProbeRecipe(
             bundleID: "com.spotify.client",
             url: URL(string: "https://download.scdn.co/SpotifyInstaller.zip")!,
@@ -2951,6 +2968,12 @@ public enum VendorProbeRegistry {
         //
         // The manifest publishes a sha256, but `checksumPattern` verifies a
         // base64 SHA-512, so it goes unused; the signature gate still applies.
+        // No `changelogURL`: `gemini.google/release-notes` is the Gemini *Apps*
+        // product feed — model and feature announcements keyed by DATE
+        // (2023.04.10, …), with no desktop build number anywhere. The installed
+        // app reports 1.96.4.775, so nothing on that page can ever line up with
+        // the version on this row. Exactly the mismatch the Notion changelog was
+        // moved off of; wiring it here would reintroduce it. (Checked 2026-08-22.)
         VendorProbeRecipe(
             bundleID: "com.google.GeminiMacOS",
             url: URL(string: "https://update.googleapis.com/service/update2/json")!,
@@ -3007,6 +3030,69 @@ public enum VendorProbeRegistry {
                     #"url:\s*(https://storage\.googleapis\.com/\S+\.zip)"#),
                 kind: .zip,
                 checksumPattern: #"sha512:\s*([A-Za-z0-9+/=]+)"#)),
+
+        // Antigravity IDE — a SECOND, separate app from the one above. Different
+        // bundle id (`com.google.antigravity-ide`), different version line (2.5.5
+        // against the other's 2.9.1), different binary (Electron — it is a VS Code
+        // fork, the Windsurf/Codeium lineage Google acquired). It was installed and
+        // scanned but matched no recipe, so its row had no source and no notes at
+        // all. The sibling recipe's own comment had already noticed this product
+        // existed ("the IDE, under `.../antigravity/stable/`") without covering it.
+        //
+        // Nothing else covers it either: no `SUFeedURL`, no electron-updater
+        // `app-update.yml`, and its VS Code `product.json` sets `updateUrl` to the
+        // literal `https://example.com`, so the built-in update channel is inert.
+        // The real endpoint is in `out/main.js` — a sibling Cloud Run service under
+        // the same GCP project number as the hub updater above:
+        //   /api/update/{platform}/{quality}/{commit}/{sha256(hostname)}
+        //
+        // Two deliberate choices in the URL:
+        //
+        // The last path component is a per-machine identifier (the app sends a
+        // SHA-256 of the hostname). We send `no_hostname` — the app's OWN fallback
+        // literal from the same code, so it is a value the service already handles
+        // rather than something invented, and no machine fingerprint leaves here.
+        // Same reasoning as the `x-user-staging-id` header the sibling omits.
+        //
+        // The commit slot is all zeroes. This is VS Code's update API: it answers
+        // 204 No Content when the commit you name is already current, and the
+        // update JSON otherwise. Naming the installed commit would therefore return
+        // nothing to compare against — and we cannot name it anyway, since it lives
+        // in `product.json` inside the bundle, which the scanner does not read. A
+        // well-formed hash that can never be a real commit always gets the latest.
+        // Verified 2026-08-22: the real commit → 204, all-zeroes → 200 with the
+        // manifest.
+        //
+        // The version comes from the download URL, NOT from any version field in
+        // that response — every one of those is the VS Code base (`productVersion`
+        // and `name` are both 1.107.0, `version` is a commit hash), while the
+        // shipped bundle reports 2.5.5. Comparing 1.107.0 against 2.5.5 would be a
+        // permanent phantom update. The URL path carries the real one:
+        //   .../antigravity/stable/2.5.5-4923483625488384/darwin-arm/...
+        // and the pattern stops at the `-`, so the build id does not ride along —
+        // the exact trap the sibling recipe documents for the hub feed.
+        //
+        // Detection only for now: the artifact is a zip on Google's edgedl CDN with
+        // a `sha256hash` beside it, so an install spec is plausible, but it has not
+        // been downloaded and signature-checked yet, and the URL is arm64-specific.
+        VendorProbeRecipe(
+            bundleID: "com.google.antigravity-ide",
+            url: URL(string: "https://antigravity-ide-auto-updater-974169037036"
+                + ".us-central1.run.app/api/update/darwin-arm64/stable/"
+                + "0000000000000000000000000000000000000000/no_hostname")!,
+            mode: .responseBody,
+            versionPattern: #"/antigravity/stable/([0-9][0-9.]*)-"#,
+            // Detection-only rows have no install action, so the page link is the
+            // only thing the row can offer — a recipe without one is a dead end
+            // (`PageURLTests.detectionOnlyRecipesCarryAPage` enforces it, and
+            // caught this omission).
+            //
+            // No `changelogURL`: the hub's points at `antigravity.google/changelog`,
+            // but that page is JS-rendered — 88 KB with zero version strings in the
+            // served HTML — so there is no way to confirm from here that it even
+            // describes the IDE rather than only the hub. Linking it would be a
+            // guess dressed up as coverage.
+            downloadURL: URL(string: "https://antigravity.google/download")),
 
         // AnyDesk — the plain-text changelog its own Homebrew cask reads for
         // livecheck, and the one thing on that host a script can fetch: the

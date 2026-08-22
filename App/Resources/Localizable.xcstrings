@@ -534,43 +534,43 @@
         }
       }
     },
-    "%@ is running — open it and let its own updater apply %@.": {
+    "%@ is running — open it and let its own updater apply %@. Quit it, or pick “Always replace” in Settings, to install directly.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ läuft – öffnen und das integrierte Update-Tool %@ anwenden lassen."
+            "value": "%@ läuft – öffnen und das integrierte Update-Tool %@ anwenden lassen. Zum direkten Installieren die App beenden oder in den Einstellungen „Immer ersetzen“ wählen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ se está ejecutando; ábrela para que su propio actualizador aplique %@."
+            "value": "%@ se está ejecutando; ábrela para que su propio actualizador aplique %@. Ciérrala, o elige «Reemplazar siempre» en Ajustes, para instalar directamente."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ est en cours d'exécution — ouvrez-la pour laisser son propre outil appliquer %@."
+            "value": "%@ est en cours d'exécution — ouvrez-la pour laisser son propre outil appliquer %@. Quittez-la, ou choisissez « Toujours remplacer » dans les Réglages, pour installer directement."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ は実行中です — 開いて、独自の更新機能で %@ を適用してください。"
+            "value": "%@ は実行中です — 開いて、独自の更新機能で %@ を適用してください。終了するか、設定で「常に置き換える」を選ぶと直接インストールできます。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ запущено — откройте его, чтобы его собственный обновитель применил %@."
+            "value": "%@ запущено — откройте его, чтобы его собственный обновитель применил %@. Закройте его или выберите «Всегда заменять» в настройках, чтобы установить напрямую."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 正在运行 — 打开它，让它自己的更新程序应用 %@。"
+            "value": "%@ 正在运行 — 打开它，让它自己的更新程序应用 %@。退出它，或在设置中选择“始终替换”，即可直接安装。"
           }
         }
       }
@@ -989,47 +989,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "%@’s built-in updater": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "das integrierte Update-Tool von %@"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "el actualizador integrado de %@"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "le programme de mise à jour intégré de %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ の内蔵更新機能"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "встроенный обновитель %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 的内置更新程序"
           }
         }
       }
@@ -2452,6 +2411,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "当规则成功获取响应但无法读取版本时会被标记 — 这通常表示厂商更改了其页面。下次成功检查时会自动清除。"
+          }
+        }
+      }
+    },
+    "AM": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AM"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a. m."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AM"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AM"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AM"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AM"
           }
         }
       }
@@ -8392,88 +8392,6 @@
         }
       }
     },
-    "Lifts GitHub’s 60-requests/hour limit to 5000/hour, so frequent checks of GitHub-hosted apps (RustDesk, Zed, Stats…) don’t hit rate-limit errors. A token is already active — you’re all set.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erhöht das GitHub-Limit von 60 auf 5000 Anfragen pro Stunde, damit häufige Prüfungen von auf GitHub gehosteten Apps (RustDesk, Zed, Stats …) nicht an das Ratenlimit stoßen. Ein Token ist bereits aktiv – alles eingerichtet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aumenta el límite de GitHub de 60 a 5000 solicitudes por hora, para que las comprobaciones frecuentes de apps alojadas en GitHub (RustDesk, Zed, Stats…) no den errores de límite. Ya hay un token activo; todo listo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fait passer la limite de GitHub de 60 à 5000 requêtes par heure, afin que les vérifications fréquentes des applications hébergées sur GitHub (RustDesk, Zed, Stats…) n'atteignent pas la limite. Un jeton est déjà actif — tout est prêt."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHubの1時間あたり60リクエストの制限を5000リクエストに引き上げ、GitHubでホストされているアプリ（RustDesk、Zed、Statsなど）の頻繁な確認がレート制限エラーにならないようにします。トークンはすでに有効です — 準備は完了しています。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Повышает лимит GitHub с 60 до 5000 запросов в час, чтобы частые проверки приложений на GitHub (RustDesk, Zed, Stats…) не упирались в ограничение. Токен уже активен — всё готово."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "将 GitHub 每小时 60 次的请求限制提升到 5000 次，让频繁检查 GitHub 托管的应用（RustDesk、Zed、Stats 等）不会触发限速错误。令牌已生效 — 一切就绪。"
-          }
-        }
-      }
-    },
-    "Lifts GitHub’s 60-requests/hour limit to 5000/hour, so frequent checks of GitHub-hosted apps (RustDesk, Zed, Stats…) don’t hit rate-limit errors. Optional: sign in with the gh CLI, or paste a token.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erhöht das GitHub-Limit von 60 auf 5000 Anfragen pro Stunde, damit häufige Prüfungen von auf GitHub gehosteten Apps (RustDesk, Zed, Stats …) nicht an das Ratenlimit stoßen. Optional: mit gh CLI anmelden oder ein Token einfügen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aumenta el límite de GitHub de 60 a 5000 solicitudes por hora, para que las comprobaciones frecuentes de apps alojadas en GitHub (RustDesk, Zed, Stats…) no den errores de límite. Opcional: inicia sesión con gh CLI o pega un token."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fait passer la limite de GitHub de 60 à 5000 requêtes par heure, afin que les vérifications fréquentes des applications hébergées sur GitHub (RustDesk, Zed, Stats…) n'atteignent pas la limite. Facultatif : connectez-vous avec gh CLI, ou collez un jeton."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHubの1時間あたり60リクエストの制限を5000リクエストに引き上げ、GitHubでホストされているアプリ（RustDesk、Zed、Statsなど）の頻繁な確認がレート制限エラーにならないようにします。任意: gh CLIでサインインするか、トークンを貼り付けてください。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Повышает лимит GitHub с 60 до 5000 запросов в час, чтобы частые проверки приложений на GitHub (RustDesk, Zed, Stats…) не упирались в ограничение. Необязательно: войдите через gh CLI или вставьте токен."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "将 GitHub 每小时 60 次的请求限制提升到 5000 次，让频繁检查 GitHub 托管的应用（RustDesk、Zed、Stats 等）不会触发限速错误。可选：通过 gh CLI 登录，或粘贴令牌。"
-          }
-        }
-      }
-    },
     "Lifts GitHub’s anonymous 60-requests/hour limit to 5000/hour, so frequent checks of GitHub-hosted apps (RustDesk, Zed, Stats…) don’t hit rate-limit errors. A token is already active — you’re all set.": {
       "extractionState": "manual",
       "localizations": {
@@ -10438,6 +10356,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 App Store 中打开 %@。请在设置中启用后台助理，以便一键安装 App Store 更新。"
+          }
+        }
+      }
+    },
+    "PM": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PM"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p. m."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PM"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PM"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PM"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PM"
           }
         }
       }
@@ -16018,6 +15977,47 @@
         }
       }
     },
+    "a": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a"
+          }
+        }
+      }
+    },
     "create a personal access token": {
       "extractionState": "manual",
       "localizations": {
@@ -16219,6 +16219,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "macOS 拒绝了注册 — 它关于此后台项目的记录已损坏。修复需要系统级重置：在终端中运行“sudo sfltool resetbtm”并重启。这会清除所有应用的后台项目授权，因此你需要重新批准其他应用。"
+          }
+        }
+      }
+    },
+    "p": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "p"
           }
         }
       }

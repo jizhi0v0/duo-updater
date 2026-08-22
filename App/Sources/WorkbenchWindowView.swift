@@ -1224,7 +1224,7 @@ private struct ReleaseNotesPane: View {
         ContentUnavailableView {
             Label("No release notes", systemImage: "doc.text.magnifyingglass")
         } description: {
-            Text("\(result.remote?.sourceName ?? "This source") doesn’t publish a changelog we can read.")
+            Text("\(result.remote?.sourceName ?? String(localized: "This source")) doesn’t publish a changelog we can read.")
         } actions: {
             if let dl = result.remote?.pageURL {
                 Link("Open download page", destination: dl)

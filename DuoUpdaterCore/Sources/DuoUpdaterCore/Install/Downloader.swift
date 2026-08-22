@@ -325,6 +325,22 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         }
     }
 
+    // MARK: - Caching
+
+    /// Never cache a download. The bytes are streamed straight to disk, so a cache
+    /// copy is pure duplication — and the archived request would carry whatever
+    /// `headers` the caller passed, which for Alcove is a licensed `Authorization:
+    /// Bearer`. This session runs on `.default`, i.e. `URLCache.shared`, so without
+    /// this the credential's only protection is the installer being too big to cache.
+    func urlSession(
+        _ session: URLSession,
+        dataTask: URLSessionDataTask,
+        willCacheResponse proposedResponse: CachedURLResponse,
+        completionHandler: @escaping (CachedURLResponse?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+
     // MARK: - Redirects
 
     func urlSession(

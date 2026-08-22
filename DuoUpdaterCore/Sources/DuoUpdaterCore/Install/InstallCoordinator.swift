@@ -175,6 +175,38 @@ public actor InstallCoordinator {
         releaseAfterDownload: @Sendable () async -> Void = {},
         beforeInstallerOpen: @Sendable () async -> Void = {}
     ) async throws -> Outcome {
+        // The install path was silent end to end, which made "it said it updated
+        // and nothing changed" impossible to answer after the fact — the only
+        // evidence was the app's own mtime. `.notice`, so it is still readable when
+        // the report arrives hours later.
+        let label = "\(result.app.name) [\(result.app.bundleID ?? "?")]"
+        Log.install.notice(
+            "install start: \(label, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(String(describing: route), privacy: .public)")
+        do {
+            let outcome = try await performRoute(
+                result, route: route, progress: progress,
+                releaseAfterDownload: releaseAfterDownload,
+                beforeInstallerOpen: beforeInstallerOpen)
+            // `applied` is the load-bearing bit: false means the bytes are staged
+            // but nothing on disk has changed yet, which is exactly the state that
+            // used to be indistinguishable from a finished update.
+            Log.install.notice(
+                "install returned: \(label, privacy: .public) applied=\(outcome.applied, privacy: .public) bytes=\(outcome.bytesDownloaded, privacy: .public) staged=\(outcome.stagedPackageURL != nil, privacy: .public)")
+            return outcome
+        } catch {
+            Log.install.error(
+                "install failed: \(label, privacy: .public) via \(String(describing: route), privacy: .public) — \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+    }
+
+    private func performRoute(
+        _ result: UpdateResult,
+        route: Route,
+        progress: @Sendable @escaping (InstallStage) -> Void,
+        releaseAfterDownload: @Sendable () async -> Void,
+        beforeInstallerOpen: @Sendable () async -> Void
+    ) async throws -> Outcome {
         switch route {
         case .appStore:
             throw CoordinatorError.routeNotSupportedHere(.appStore)
@@ -275,21 +307,27 @@ public actor InstallCoordinator {
         download: @Sendable (UpdateResult, @Sendable @escaping (InstallStage) -> Void) async throws -> DownloadedUpdate,
         apply: @Sendable (UpdateResult, DownloadedUpdate, @Sendable @escaping (InstallStage) -> Void) async throws -> Void
     ) async throws -> Outcome {
+        let label = "\(result.app.name)"
         progress(.downloading(fraction: 0))
+        Log.install.debug("\(label, privacy: .public): waiting for a download permit")
         let downloaded = try await permits.withDownloadPermit {
             try Task.checkCancellation()
             return try await download(result, progress)
         }
         await releaseAfterDownload()
         defer { try? FileManager.default.removeItem(at: downloaded.workDir) }
+        Log.install.debug(
+            "\(label, privacy: .public): downloaded \(downloaded.bytesDownloaded, privacy: .public) bytes, waiting for the apply permit")
 
         await permits.waitForApply()
         var applyHeld = true
         defer { if applyHeld { permits.signalApply() } }
         try Task.checkCancellation()
+        Log.install.debug("\(label, privacy: .public): applying")
         try await apply(result, downloaded, progress)
         permits.signalApply()
         applyHeld = false
+        Log.install.debug("\(label, privacy: .public): applied")
 
         return Outcome(
             bytesDownloaded: downloaded.bytesDownloaded, finalHost: downloaded.finalHost,

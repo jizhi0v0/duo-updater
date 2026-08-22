@@ -128,8 +128,28 @@ public enum InPlaceSwap {
     static func replace(newApp: URL, over target: URL) throws {
         try validateTarget(target)
         stripQuarantine(newApp)
+        // The single moment the user's disk actually changes. Logged at `.notice`
+        // on both sides, because "the app was never replaced" — the state behind
+        // an update that reports done and changes nothing — was previously
+        // indistinguishable from "replaced successfully" in every record we kept.
+        //
+        // The completion flag matters: a bare `defer` would announce the same line
+        // whether the swap worked or threw, and "it said it finished" that means
+        // nothing either way is the exact ambiguity this is here to remove.
+        let elevated = needsElevatedReplace(target: target)
+        var replaced = false
+        Log.install.notice(
+            "swap start: \(target.lastPathComponent, privacy: .public) elevated=\(elevated, privacy: .public)")
+        defer {
+            if replaced {
+                Log.install.notice("swap done: \(target.lastPathComponent, privacy: .public)")
+            } else {
+                Log.install.error(
+                    "swap did NOT replace \(target.lastPathComponent, privacy: .public) — the app on disk is unchanged")
+            }
+        }
 
-        if !needsElevatedReplace(target: target) {
+        if !elevated {
             let fm = FileManager.default
             let parent = target.deletingLastPathComponent()
             // Stage the new bundle beside the target (same volume), then atomically
@@ -151,10 +171,12 @@ public enum InPlaceSwap {
                 }
                 throw SwapError.notReplaceable(error.localizedDescription)
             }
+            replaced = true
             return
         }
 
         try privilegedReplace(newApp: newApp, target: target)
+        replaced = true
     }
 
     /// Whether replacing `target` has to go through the administrator prompt.

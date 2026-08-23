@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.59
+
+**Download Traffic now says which build an update moved to, not just which version.** Plenty of apps ship several builds under one version name — Surge put four separate releases out as "6.9.0" — so those rows read "6.9.0 → 6.9.0" and told you nothing. They now read "6.9.0 (12028) → 6.9.0 (12030)", and only when the version name alone isn't enough; where the version already changed, the build number would just be noise and is left out.
+
+**The build recorded is the one that actually landed, read off the app itself once the update is in place.** Not the number the developer's update feed advertised — feeds do misreport, and this way it also works for the places that publish no build number at all: GitHub, Homebrew and the App Store. An update still waiting on macOS's installer window is never guessed at; nothing is recorded for it until it's real.
+
+**A download that changed nothing is now marked as such.** Occasionally an update fetches and installs the build that was already on your Mac — a version-number mismatch on the developer's side, a mirror serving what you already have. That is real bandwidth spent for no result, and the traffic window is where you would want to see it. Those rows now carry a "no change" tag. Downloads recorded before this release don't have build numbers to compare, so they are left alone rather than guessed at: unknown is not the same as unchanged.
+
 ## 0.3.58
 
 **Duo Updater now shows you what keeping your apps up to date has actually cost in downloads.** It has been counting, to the byte, every update it fetched for you — but the count had nowhere to appear, so the number sat in a file nobody could read. There is now a Download Traffic window, opened from the chart button at the bottom of the menu, with this month's figure printed next to that button so the most common question is answered without opening anything. Inside: the total, the last three months side by side with the change between them, a breakdown of where the bytes came from, and every app ranked by how much it has cost — click one to see each update it took, which version it went from and to, and how big that download was.

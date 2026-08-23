@@ -432,9 +432,23 @@ struct MenuContentView: View {
             }
             Spacer()
             if model.canUpdateAll {
+                // Deliberately no `minimumScaleFactor`. Offering one made the label
+                // *willing* to be squeezed, and SwiftUI took the offer: with a short
+                // list the button came out 67x17 instead of 75x20 — the same header,
+                // measured at 360x55 both times, with 82pt of Spacer sitting empty
+                // beside the shrunken label. The trigger is the popover's height, not
+                // the "Show all" toggle (a search that lengthens the list does it
+                // too), so it is SwiftUI resolving the window against a different
+                // proposal — and neither `layoutPriority` nor `fixedSize` stops it.
+                // Removing the option does.
+                //
+                // Safe for every language we ship: the widest label is French at
+                // ~115pt (measured off the built .strings at the small system font,
+                // 11pt), which still leaves the status line above the ~167pt its own
+                // comment budgets for it. A future translation wider than that would
+                // truncate rather than shrink — worth re-checking there, not here.
                 Button("Update All") { Task { await model.installAll() } }
                     .lineLimit(1)
-                    .minimumScaleFactor(0.85)
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
                     .help("Install every pending update that can be applied automatically")

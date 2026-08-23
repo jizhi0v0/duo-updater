@@ -76,10 +76,11 @@ public enum Install {
         print("Checking \(checkable.count) app\(checkable.count == 1 ? "" : "s")…")
         let results = await Inventory.checker(settings).check(checkable)
 
+        let staged = stagedSelfUpdates(for: results)
         let environment = InstallEnvironment(
             isHelperEnabled: false,
             runningAppPaths: Check.runningBundlePaths(),
-            stagedSelfUpdates: [:],
+            stagedSelfUpdates: staged,
             elevationRequiredPaths: InPlaceSwap.elevationRequiredPaths(
                 for: results.map(\.app.path)))
 
@@ -122,10 +123,12 @@ public enum Install {
         // Re-derive and drop anything that would now defer. Only ever removes work,
         // so a plan the user approved can never grow behind their back.
         if settings.updateSettings.vendorInstallPolicy == .deferWhenRunning {
+            // Staging is re-read too: the confirmation prompt blocks on stdin, and
+            // an app can finish staging its own update while the user reads it.
             let live = InstallEnvironment(
                 isHelperEnabled: false,
                 runningAppPaths: Check.runningBundlePaths(),
-                stagedSelfUpdates: [:],
+                stagedSelfUpdates: stagedSelfUpdates(for: plan.map(\.result)),
                 elevationRequiredPaths: environment.elevationRequiredPaths)
             let started = plan.filter {
                 UpdatePolicy.defersToSelfUpdater(
@@ -162,6 +165,32 @@ public enum Install {
         return code
     }
 
+
+    /// The staged self-updates the policy needs, keyed the way it looks them up.
+    ///
+    /// Built rather than left empty: `canAutoInstall` and `requiresInstaller` both
+    /// read `environment.stagedSelfUpdates[result.id]` to suppress a one-click when
+    /// the app has already staged the latest. Handing them an empty map made the CLI
+    /// offer installs the menu-bar app renders as Relaunch — the two hosts differing
+    /// by construction rather than by design, which is the thing `UpdatePolicy`
+    /// exists to prevent.
+    ///
+    /// One LaunchServices query for the whole sweep, mirroring
+    /// `computeSelfUpdateStaging` in the app; the rest is a plist read per candidate.
+    static func stagedSelfUpdates(for results: [UpdateResult]) -> [String: StagedSelfUpdate] {
+        let candidates = results.map(\.app).filter(SelfUpdaterStaging.mayHaveStaging)
+        guard !candidates.isEmpty else { return [:] }
+        let parked = SelfUpdaterStaging.liveParkedSparkleInstallers()
+        var map: [String: StagedSelfUpdate] = [:]
+        for app in candidates {
+            if let staged = SelfUpdaterStaging.staged(
+                for: app, parkedInstallerBundleURLs: parked) {
+                map[app.id] = staged
+            }
+        }
+        return map
+    }
+
     // MARK: - Planning
 
     struct Planned: Sendable {
@@ -192,6 +221,28 @@ public enum Install {
             result, settings: settings.updateSettings, environment: environment) {
             return .refuse("running, and your vendor policy defers to its own updater "
                 + "(quit it, or set Always download & replace)")
+        }
+        // The app's own updater already has bytes coming down for this release.
+        // Refused here rather than only in the menu-bar app for the same reason
+        // `InstallCoordinator` owns the backup decision: a safety net the CLI
+        // silently skips is not a safety net. Unlike the check above this ignores
+        // `vendorInstallPolicy` — "always replace" is a statement about who applies
+        // an update, not permission to pay for one transfer twice.
+        // Its own updater already has a build parked for the next quit; installing
+        // over it is undone when that lands. Asked here as well as in the menu-bar
+        // app because a gate only one host honours is not a gate.
+        if let staged = UpdatePolicy.stagedBlocksInstall(
+            result,
+            staged: SelfUpdaterStaging.staged(
+                for: result.app, requireNewerThanInstalled: false)) {
+            return .refuse("its own updater has \(staged.version) staged for the next quit "
+                + "— installing now would be undone (quit it to apply)")
+        }
+        if let inFlight = SelfUpdaterStaging.inFlightDownload(for: result.app) {
+            let megabytes = Double(inFlight.bytes) / 1_000_000
+            return .refuse(String(
+                format: "its own updater is downloading this release (%.1f MB so far) "
+                    + "— left it to finish", megabytes))
         }
         let route = InstallCoordinator.route(for: result, requiresInstaller: needsInstaller)
         if route == .appStore {

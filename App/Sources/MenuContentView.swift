@@ -866,6 +866,21 @@ private struct AppRow: View {
     /// The width the trailing slot reserves. 64pt is the shared one every button
     /// and badge uses; a readout that has already given up width for the name
     /// must give up its reservation too, or it hands back only the difference.
+    ///
+    /// A *floor*, not the control's width, and that distinction is what keeps
+    /// this honest in other languages. Measured on the real popover, the buttons
+    /// run past 64pt as soon as the labels are translated — Update is 58.5pt in
+    /// English, 73.0 in Russian, 88.0 in German; Relaunch is 68.5 / 102.5 / 81.5.
+    /// Because the HStack hands a control its ideal width and the `Spacer` eats
+    /// the slack, a wider button simply takes what it needs and the name column
+    /// gets the rest (227.5pt in English, 214.5 in German, 193.5 in Russian). So
+    /// the reservation being English-shaped costs nothing.
+    ///
+    /// What would cost something is a *decision* made against a stale number, and
+    /// there is exactly one localized thing on this path: the stage label. That is
+    /// why `showsStageLabel` measures its own text rather than assuming 64 —
+    /// everything else in the trailing slot during an install (the bar, the ring,
+    /// the fixed-width percentage) is the same size in every language.
     private var trailingSlot: CGFloat {
         guard let stage else { return 64 }
         if case .downloading = stage { return downloadReadout == .barAndPercent ? 64 : 24 }

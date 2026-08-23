@@ -195,30 +195,61 @@ struct MenuContentView: View {
                     .frame(height: 200)
                 }
             }
+        } else if listOverflows {
+            // Long enough that it scrolls no matter how the rows measure, so there
+            // is nothing left for the measurement below to decide: pin the frame and
+            // let a LazyVStack realize only the rows actually on screen.
+            //
+            // This is the "Show all" list, and sizing all of it through the non-lazy
+            // stack was the popover's one real stall: a 127-app list spent ~880ms of
+            // main-thread layout inside `ScrollViewLayoutComputer → StackLayout`
+            // asking every row for its size (sample, 2026-08-23) — on every toggle,
+            // not just the first.
+            ScrollView {
+                LazyVStack(spacing: 0) { rows }
+            }
+            .frame(height: Self.maxListHeight)
         } else {
             ScrollView {
                 // Plain VStack (not lazy) so the background GeometryReader measures
                 // the *full* content height — a LazyVStack only reports realized rows,
-                // which would feed back a too-short frame. Row counts here are small
-                // (apps with updates, or the Show-all list), so non-lazy is fine.
-                VStack(spacing: 0) {
-                    ForEach(Array(visible.enumerated()), id: \.element.id) { index, result in
-                        // Divider *between* rows only — a trailing one after the
-                        // last row left a dangling line floating over the empty
-                        // space below a short list.
-                        if index > 0 { Divider() }
-                        AppRow(result: result, model: model)
-                    }
-                }
-                .background(GeometryReader { geo in
-                    Color.clear.preference(key: ListHeightKey.self, value: geo.size.height)
-                })
+                // which would feed back a too-short frame. Only reached for lists too
+                // short to fill the cap, so sizing every row is cheap here.
+                VStack(spacing: 0) { rows }
+                    .background(GeometryReader { geo in
+                        Color.clear.preference(key: ListHeightKey.self, value: geo.size.height)
+                    })
             }
             // Hug the measured content exactly, capped at 380 (then it scrolls). Using
             // the true height — not a per-row estimate — means no dead space at the
             // bottom for short lists. 54 is just the pre-measurement placeholder.
-            .frame(height: min(380, listContentHeight == 0 ? 54 : listContentHeight))
+            .frame(height: min(Self.maxListHeight, listContentHeight == 0 ? 54 : listContentHeight))
             .onPreferenceChange(ListHeightKey.self) { listContentHeight = $0 }
+        }
+    }
+
+    /// Tallest the list gets before it scrolls.
+    private static let maxListHeight: CGFloat = 380
+
+    /// Shortest a row can possibly be: the 30pt icon plus its 7pt vertical padding.
+    /// A row with an install error or a note is taller, which only makes the list
+    /// overflow sooner — so this stays a lower bound in the safe direction.
+    private static let minRowHeight: CGFloat = 44
+
+    /// Whether the list must scroll whatever the rows measure. `count * minRowHeight`
+    /// is a floor on the content height, so this is only ever true when it genuinely
+    /// overflows — never a guess that hides rows behind a too-short frame.
+    private var listOverflows: Bool {
+        CGFloat(visible.count) * Self.minRowHeight >= Self.maxListHeight
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        ForEach(Array(visible.enumerated()), id: \.element.id) { index, result in
+            // Divider *between* rows only — a trailing one after the last row left
+            // a dangling line floating over the empty space below a short list.
+            if index > 0 { Divider() }
+            AppRow(result: result, model: model)
         }
     }
 

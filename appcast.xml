@@ -17,6 +17,22 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.59</title>
+            <pubDate>Sun, 23 Aug 2026 17:10:42 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.59</link>
+            <sparkle:version>68</sparkle:version>
+            <sparkle:shortVersionString>0.3.59</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Download Traffic now says which build an update moved to, not just which version.** Plenty of apps ship several builds under one version name — Surge put four separate releases out as "6.9.0" — so those rows read "6.9.0 → 6.9.0" and told you nothing. They now read "6.9.0 (12028) → 6.9.0 (12030)", and only when the version name alone isn't enough; where the version already changed, the build number would just be noise and is left out.
+
+**The build recorded is the one that actually landed, read off the app itself once the update is in place.** Not the number the developer's update feed advertised — feeds do misreport, and this way it also works for the places that publish no build number at all: GitHub, Homebrew and the App Store. An update still waiting on macOS's installer window is never guessed at; nothing is recorded for it until it's real.
+
+**A download that changed nothing is now marked as such.** Occasionally an update fetches and installs the build that was already on your Mac — a version-number mismatch on the developer's side, a mirror serving what you already have. That is real bandwidth spent for no result, and the traffic window is where you would want to see it. Those rows now carry a "no change" tag. Downloads recorded before this release don't have build numbers to compare, so they are left alone rather than guessed at: unknown is not the same as unchanged.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.59/DuoUpdater-0.3.59-macos.zip" length="11035355" type="application/octet-stream" sparkle:edSignature="ouoRn+JiodkO/aKL/USA1SBNvpk+Jhitn0r9qcVsurZAjhj1OzTMOcM10vGKe5EyMz9KmJqRSZ6DEECgEJKYAQ=="/>
+        </item>
+        <item>
             <title>0.3.58</title>
             <pubDate>Sun, 23 Aug 2026 16:06:05 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.58</link>
@@ -75,24 +91,6 @@
 **Two things stay in English on purpose.** Release notes are the vendor's own words, so they arrive in whatever language the vendor wrote them in — translating them would mean rewriting what a developer said about their own release. And the `duo` command-line tool stays English, the way command-line tools generally are.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.55/DuoUpdater-0.3.55-macos.zip" length="10904118" type="application/octet-stream" sparkle:edSignature="DWpGfcVAiJLNwFwn1b01v4iuFHHyxeygH3kU5nzRpw6cKhSnem1OKp2mrO2kK4K/fY4IKPClJC2DcgrmJye5Dw=="/>
-        </item>
-        <item>
-            <title>0.3.54</title>
-            <pubDate>Sat, 22 Aug 2026 21:05:33 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.54</link>
-            <sparkle:version>63</sparkle:version>
-            <sparkle:shortVersionString>0.3.54</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**An App Store app that was open when you updated it comes back again.** Last release drew a line in the wrong place. It was fixing something real — an update that failed, or that you cancelled, could bring an app back to life minutes after you had closed it yourself — but it decided *whether to reopen* by asking whether someone had answered a quit prompt. Almost no App Store update shows one: the prompt only appears on a route Duo Updater stopped using a while ago. So from 0.3.53, updating an App Store app that was running closed it and left it closed, with nothing on screen to say why. The question it asks now is whether the update actually landed, which is the thing that decides whether a quit is coming at all. This is verified against a real App Store update rather than reasoned about: the store terminates your app to replace its files and never brings it back — despite its own prompt promising that it will.
-
-**Duo Updater now tells you when App Store is waiting on you.** The store cannot replace an app while it is open, so it puts up a "cannot be open during installation" prompt and waits — with no time limit, holding the update and a download slot for as long as it takes. That prompt is a small panel inside App Store's own window, which may be sitting on some entirely unrelated page; App Store bounces its Dock icon a few times and gives up; and Duo Updater lives in the menu bar with no Dock icon to bounce. An update could sit there indefinitely with nothing anywhere telling you a click was needed — one took four and a half minutes here, ending only because someone thought to look. The row now says what is being waited for, from the moment the update starts.
-
-**The dot that marks an app as open no longer lags behind.** macOS does not reliably announce that an app has launched — some apps never trigger it at all, while quitting is always announced. Duo Updater listened only for those announcements, so a row could insist an app was closed while its window sat in front of you, and only correct itself when some unrelated app happened to open or quit. It now re-derives which apps are running whenever it rescans, which includes the moment you open the menu.
-
-**Two things a review caught before you did.** The warning that an update was applied without a rollback point was being erased before it could be read: restarting an app cleared the whole note, and restarting after an update is the default. It is now retracted only by whoever wrote it. And Update All could refuse to restart an app — telling you its own updater had a version staged and waiting — when nothing was staged at all: it compared what was on disk now against a build number recorded before the install, so an app whose version name had not changed looked like a conflict.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.54/DuoUpdater-0.3.54-macos.zip" length="10751207" type="application/octet-stream" sparkle:edSignature="mNKoGRXmTLp0/vQL6j0ExqES+4nF9NlUG9XshPKnXLZr179AvbpDCpKxNdS62XKvD9rxg3C66VFRElMCnarsDA=="/>
         </item>
     </channel>
 </rss>

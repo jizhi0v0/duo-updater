@@ -520,15 +520,39 @@ struct MenuContentView: View {
             .buttonStyle(.borderless)
             .font(.caption)
             .help("What's New — Duo Updater's own release notes")
-            Button("Open Window") {
-                openWindow(id: WorkbenchWindowView.windowID)
-                model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+            Button {
+                openWindow(id: TrafficWindowView.windowID)
+                model.surfaceWindow(sceneID: TrafficWindowView.windowID)
+            } label: {
+                Image(systemName: "chart.bar")
             }
             .buttonStyle(.borderless)
             .font(.caption)
-            .lineLimit(1)
-            .minimumScaleFactor(0.85)
-            .help("Release notes, traffic, and settings")
+            .help("Download Traffic — what keeping these apps updated has cost")
+            // "How much this month?" is the question asked most often, and putting
+            // the figure right here answers it without opening anything. Hidden
+            // until there's something to show so it never renders as a bare "Zero KB".
+            //
+            // `calendarMonths(1)`, not `months.last`: the latter is the last month
+            // that *had* a download, so in a quiet month it would keep showing an
+            // older total under a label that says "this month".
+            if let month = model.trafficSummary.calendarMonths(1).last, month.bytes > 0 {
+                Text(ByteFormat.string(month.bytes))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .help("Downloaded this month")
+            }
+            Button {
+                openWindow(id: WorkbenchWindowView.windowID)
+                model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+            } label: {
+                Image(systemName: "macwindow")
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+            .help("Open Window — release notes and settings")
             Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.borderless)
                 .font(.caption)

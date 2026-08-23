@@ -14,20 +14,6 @@ import DuoUpdaterCore
 struct WorkbenchWindowView: View {
     static let windowID = "workbench"
 
-    /// Which lens the detail pane shows. Shared across the selection, so flipping
-    /// the toggle keeps you on the same app and just re-frames it.
-    enum DetailMode: String, CaseIterable, Identifiable {
-        case releaseNotes
-        case traffic
-        var id: String { rawValue }
-        var label: String {
-            switch self {
-            case .releaseNotes: return String(localized: "Release Notes")
-            case .traffic:      return String(localized: "Traffic")
-            }
-        }
-    }
-
     @Bindable var model: AppListModel
     /// The sidebar selection — updated instantly on every arrow-key press so the
     /// highlight tracks the cursor with zero lag.
@@ -52,7 +38,6 @@ struct WorkbenchWindowView: View {
     /// keys had no destination. `defaultFocus` alone did not move it; setting this
     /// once the first results land does.
     @FocusState private var appsListFocused: Bool
-    @State private var mode: DetailMode = .releaseNotes
     /// Sidebar filter text. Empty shows every app; otherwise the list narrows to
     /// apps whose name (or bundle id) contains the query, case/diacritic-insensitively.
     @State private var searchText = ""
@@ -187,17 +172,13 @@ struct WorkbenchWindowView: View {
                 ContentUnavailableView(
                     "Select an app",
                     systemImage: "sidebar.left",
-                    description: Text(mode == .releaseNotes
-                        ? String(localized: "Pick an app to read its changelog.")
-                        : String(localized: "Pick an app to see its download history.")))
+                    description: Text("Pick an app to read its changelog."))
             }
         }
         .navigationTitle("Duo Updater")
         .toolbar {
-            // Traffic lens hidden for now — the metering wasn't pulling its weight, so
-            // the Release Notes/Traffic switcher is gone and the detail is always
-            // Release Notes. (Underlying TrafficStore still records; only the UI is
-            // hidden, so this is reversible.)
+            // Download traffic has its own window now (TrafficWindowView), so the
+            // detail pane is always Release Notes and needs no lens switcher.
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     openWindow(id: SettingsView.windowID)
@@ -278,7 +259,7 @@ struct WorkbenchWindowView: View {
             // bottom of the viewport and never comes back, even after the keys stop.
             if !appsListFocused { appsListFocused = true }
             let name = model.results.first { $0.id == newValue }?.app.name
-            Log.changelog.info("perf selection → \(name ?? newValue ?? "nil", privacy: .public) [mode=\(mode.rawValue, privacy: .public)]")
+            Log.changelog.info("perf selection → \(name ?? newValue ?? "nil", privacy: .public)")
             // Adaptive settle. A fixed 160 ms was shorter than a key REPEAT (~240 ms
             // measured from the perf log while scrubbing), so every press still paid
             // a full detail build — the debounce only ever helped for bursts faster
@@ -311,12 +292,10 @@ struct WorkbenchWindowView: View {
 
     /// Honor a pending "Changelog" deep-link to a specific app, then clear it so the
     /// selection isn't forced again on the next open. Bypasses the arrow-key debounce
-    /// (sets `detailSelection` directly) — a deliberate jump should land instantly —
-    /// and forces the Release Notes lens so it opens on the changelog, not Traffic.
+    /// (sets `detailSelection` directly) — a deliberate jump should land instantly.
     private func applyRequestedApp() {
         guard let id = model.requestedWorkbenchAppID else { return }
         model.requestedWorkbenchAppID = nil
-        mode = .releaseNotes
         selection = id
         detailSelection = id
     }
@@ -557,35 +536,14 @@ struct WorkbenchWindowView: View {
         .listStyle(.sidebar)
     }
 
-    /// Grand-total downloaded, carried over from the old Traffic window's header so
-    /// the byte count isn't lost in the app-centric layout.
-    private var totalFooter: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "arrow.down.circle")
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Total downloaded")
-                    .font(.caption2).foregroundStyle(.secondary)
-                Text(ByteFormat.string(model.trafficTotalBytes))
-                    .font(.callout.weight(.semibold)).monospacedDigit()
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-    }
-
     // MARK: - Detail
 
     @ViewBuilder
     private func detail(for result: UpdateResult) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            DetailHeader(result: result, mode: mode, model: model)
+            DetailHeader(result: result, model: model)
             Divider()
-            switch mode {
-            case .releaseNotes: ReleaseNotesPane(result: result, model: model)
-            case .traffic:      TrafficPane(result: result, model: model)
-            }
+            ReleaseNotesPane(result: result, model: model)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -767,40 +725,6 @@ private struct SplitViewAutosave: NSViewRepresentable {
 }
 
 // MARK: - Mode switcher
-
-/// The detail-lens switcher, wrapping a native `NSSegmentedControl`. SwiftUI's
-/// `.segmented` Picker sizes each segment to its label (so "Release Notes" and
-/// "Traffic" came out lopsided); `NSSegmentedControl.segmentDistribution =
-/// .fillEqually` makes both segments equal width, and the native control keeps the
-/// system's standard material/selection look rather than a hand-painted fill.
-private struct ModeSwitcher: NSViewRepresentable {
-    @Binding var mode: WorkbenchWindowView.DetailMode
-
-    private var modes: [WorkbenchWindowView.DetailMode] { WorkbenchWindowView.DetailMode.allCases }
-
-    func makeNSView(context: Context) -> NSSegmentedControl {
-        let control = NSSegmentedControl(
-            labels: modes.map(\.label),
-            trackingMode: .selectOne,
-            target: context.coordinator,
-            action: #selector(Coordinator.changed(_:)))
-        control.segmentDistribution = .fillEqually
-        control.setContentHuggingPriority(.defaultHigh, for: .vertical)
-        return control
-    }
-
-    func updateNSView(_ control: NSSegmentedControl, context: Context) {
-        context.coordinator.onChange = { mode = modes[$0] }
-        control.selectedSegment = modes.firstIndex(of: mode) ?? 0
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    final class Coordinator {
-        var onChange: ((Int) -> Void)?
-        @objc func changed(_ sender: NSSegmentedControl) { onChange?(sender.selectedSegment) }
-    }
-}
 
 // MARK: - Sidebar row
 
@@ -1069,10 +993,9 @@ private struct FormulaDetailPane: View {
 
 private struct DetailHeader: View {
     let result: UpdateResult
-    let mode: WorkbenchWindowView.DetailMode
     @Bindable var model: AppListModel
 
-    /// The vendor page to link out to in Release Notes mode.
+    /// The vendor page to link out to.
     private var changelogURL: URL? {
         ChangelogURLPolicy.displayable(
             result.remote?.changelogURL ?? ChangelogCatalog.url(forBundleID: result.app.bundleID))
@@ -1096,7 +1019,7 @@ private struct DetailHeader: View {
                 // so an update can be acted on right here while its notes are open —
                 // no trip back to the menu-bar popover.
                 WorkbenchActionView(result: result, model: model)
-                if mode == .releaseNotes, let url = changelogURL {
+                if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")
                     }
@@ -1497,80 +1420,6 @@ private struct ChangelogVersionList: View {
 }
 
 // MARK: - Traffic pane
-
-/// The Traffic lens: one app's per-update download history, newest first. When the
-/// app has never recorded a measured download we say so plainly — and why (brew,
-/// App Store, and "open the app's own updater" downloads aren't measured here).
-private struct TrafficPane: View {
-    let result: UpdateResult
-    @Bindable var model: AppListModel
-
-    private var stat: AppTrafficStat? {
-        model.trafficStats.first { $0.appID == result.app.id }
-    }
-
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        f.timeStyle = .short
-        return f
-    }()
-
-    var body: some View {
-        if let stat, !stat.events.isEmpty {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("\(ByteFormat.string(stat.totalBytes)) · \(stat.totalBytes) bytes")
-                        .font(.callout).foregroundStyle(.secondary).monospacedDigit()
-                    Divider()
-                    ForEach(events(stat), id: \.self) { event in
-                        eventRow(event)
-                        Divider()
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        } else {
-            ContentUnavailableView {
-                Label("No downloads measured", systemImage: "chart.bar")
-            } description: {
-                Text("Traffic appears here after an update we download ourselves (Sparkle, a vendor site, GitHub, or a pkg). Homebrew, the App Store, and apps that update through their own built-in updater aren’t measured.")
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private func events(_ stat: AppTrafficStat) -> [TrafficEvent] {
-        stat.events.sorted { $0.date > $1.date }
-    }
-
-    @ViewBuilder
-    private func eventRow(_ event: TrafficEvent) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(versionTransition(event)).font(.callout)
-                HStack(spacing: 6) {
-                    if let source = event.sourceName { Text(source) }
-                    Text(Self.dateFormatter.string(from: event.date))
-                }
-                .font(.caption2).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text("\(event.bytes) bytes")
-                .font(.callout).monospacedDigit().foregroundStyle(.secondary)
-        }
-    }
-
-    private func versionTransition(_ event: TrafficEvent) -> String {
-        switch (event.fromVersion, event.toVersion) {
-        case let (from?, to?): return String(localized: "\(from) → \(to)")
-        case let (nil, to?): return to
-        case let (from?, nil): return from
-        case (nil, nil): return String(localized: "Update")
-        }
-    }
-}
 
 // MARK: - One changelog entry
 

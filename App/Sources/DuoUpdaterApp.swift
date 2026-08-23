@@ -25,8 +25,8 @@ struct DuoUpdaterApp: App {
         .windowStyle(.hiddenTitleBar)  // chromeless, setup-assistant feel
 
         // The unified workbench — opened from the popover, lives on its own so it
-        // survives the popover dismissing. One window now holds release notes,
-        // per-app traffic, and Settings (via a toolbar gear). Shares the one model.
+        // survives the popover dismissing. Holds release notes and Settings (via a
+        // toolbar gear); download traffic moved to its own window. Shares the model.
         Window("Duo Updater", id: WorkbenchWindowView.windowID) {
             WorkbenchWindowView(model: model)
         }
@@ -51,6 +51,20 @@ struct DuoUpdaterApp: App {
             ReleaseLogView(model: model)
         }
         .defaultSize(width: 520, height: 620)
+        .windowResizability(.contentMinSize)
+
+        // The download ledger — how much bandwidth updating this machine has cost,
+        // by app and by month. Aggregate data, so it gets its own window next to
+        // the Release Log rather than living inside the app-centric workbench.
+        Window("Download Traffic", id: TrafficWindowView.windowID) {
+            TrafficWindowView(model: model)
+        }
+        // Wide by default: the header is a four-column stat strip and every row
+        // carries a name, a proportion bar, and three right-aligned figures — at
+        // the old 720pt the bar had no room to read as a bar. Tall for the same
+        // reason the list exists: seeing the ranking means seeing many rows at once.
+        // Kept under 800pt high so it still opens whole on a 1280x800 display.
+        .defaultSize(width: 1000, height: 780)
         .windowResizability(.contentMinSize)
 
         // Duo Updater's own release notes. Its own window, like the Release Log,

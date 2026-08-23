@@ -474,6 +474,12 @@ final class AppListModel {
     /// the periodic backstop below are network-free — they just trigger
     /// `refreshLocal` (disk rescan + restart/staging recompute).
     @ObservationIgnored private var appDirWatcher: AppDirectoryWatcher?
+    /// Watches the preference files behind `ChannelBinding` so flipping a channel
+    /// toggle inside the vendor app itself (Surge's "Include beta builds",
+    /// Tailscale's Unstable switch) re-checks that row promptly. Separate from
+    /// `appDirWatcher` because it watches different roots and runs a different,
+    /// much narrower pass — see `ChannelBinding.preferenceWatchPaths`.
+    @ObservationIgnored private var channelPrefsWatcher: AppDirectoryWatcher?
     /// Slow backstop in case an FS event is missed (a dir we don't watch, a
     /// coalesced burst we never saw). Re-derives restart state on a lazy cadence.
     @ObservationIgnored private var localRescanTimer: Task<Void, Never>?
@@ -4305,6 +4311,25 @@ final class AppListModel {
         watcher.start()
         Log.app.info("local rescan: watching \(paths.joined(separator: ", "), privacy: .public) + \(Int(self.localRescanInterval.components.seconds), privacy: .public)s backstop")
 
+        // Second stream, different roots: the vendor preferences that hold a
+        // `ChannelBinding` app's channel choice. A flip there changes which feed we
+        // read but touches no app bundle, so `appDirWatcher` above is blind to it,
+        // and the two events we relied on before both miss the ordinary case — see
+        // `ChannelBinding.preferenceWatchPaths` for the Surge timeline that made
+        // this necessary. A 1s debounce (vs the app watcher's 2s): a preference
+        // flush is one rename, not a multi-second bundle swap.
+        let prefPaths = ChannelBinding.preferenceWatchPaths
+        if !prefPaths.isEmpty {
+            let prefsWatcher = AppDirectoryWatcher(paths: prefPaths, debounce: 1) { [weak self] in
+                Task { @MainActor in
+                    await self?.recheckChannelSwitches(trigger: "prefs-watch")
+                }
+            }
+            channelPrefsWatcher = prefsWatcher
+            prefsWatcher.start()
+            Log.app.info("channel prefs: watching \(prefPaths.joined(separator: ", "), privacy: .public)")
+        }
+
         // Sleep is the one moment we KNOW the stream may have missed writes (a brew
         // upgrade or Keystone swap during sleep lands with no live event) — and it's
         // a plausible way for a stream to be left dead. Rebuild it on wake; the
@@ -4313,8 +4338,11 @@ final class AppListModel {
         let wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Log.app.debug("local rescan: re-arming FS watcher after wake")
+            Log.app.debug("local rescan: re-arming FS watchers after wake")
             self?.appDirWatcher?.rearm()
+            // Same treatment for the channel-preference stream: a toggle flipped
+            // just before the machine slept lands with no live event.
+            self?.channelPrefsWatcher?.rearm()
         }
         runningAppObservers.append(wakeObserver)
 

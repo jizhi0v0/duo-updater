@@ -33,6 +33,27 @@ final class AppListModel {
         // cycle, the same window every other derived fact in this model lives in.
         didSet {
             elevationPathsCache = nil
+            pruneSettledInstallErrors()
+        }
+    }
+
+    /// Drop the install errors that no longer describe anything real. Hung off the
+    /// same write that invalidates the memos above because that is the one place
+    /// every re-derivation of a row arrives — a scan, a check, a single-row
+    /// refresh — and an error has to stop being shown the moment its row settles,
+    /// whichever of those settled it.
+    ///
+    /// Nothing else clears one: every `installErrors` write site is the start of
+    /// another action on that row, so before this a refused install left its red
+    /// line under a row that had since gone "up to date ✓" and kept it there
+    /// through every rescan until the app was relaunched. `UpdatePolicy` owns
+    /// which rows count as settled (and, importantly, which do not).
+    private func pruneSettledInstallErrors() {
+        guard !installErrors.isEmpty else { return }
+        for id in UpdatePolicy.settledInstallErrorIDs(
+            installErrors.keys, results: results, installing: Set(installing.keys)
+        ) {
+            installErrors[id] = nil
         }
     }
     private(set) var isScanning = false
@@ -2539,12 +2560,20 @@ final class AppListModel {
         // not only on the success path above. Idempotent: the success path removed
         // it from `reopenAfterQuit`, so this no-ops there.
         reopenIfQuitForUpdate(result, installSucceeded: false)
+        // Read the outcome BEFORE dropping the spinner. `installing[id]` is what
+        // holds this row out of `pruneSettledInstallErrors`, so once it is nil the
+        // error is something a background rescan is allowed to delete — and this
+        // return value is what `installAll` counts as a success. Nothing can
+        // interleave between the two lines today (main actor, no suspension
+        // point), but a return value that silently depends on that is one `await`
+        // away from reporting a failed install as installed.
+        let failed = installErrors[id] != nil
         installing[id] = nil
         // Drop the "Relaunching…" indicator a confirmed App Store quit raised, on
         // every exit (success or error) so a failed/cancelled install can't strand it.
         relaunching.remove(id)
         // True only if we reached the install path without throwing.
-        return installErrors[id] == nil
+        return !failed
     }
 
     /// True when the row's install error is the mas receipt-import dead end — mas

@@ -55,8 +55,21 @@ public enum SelfUpdaterStaging {
     /// Spotify ships its OWN (non-Squirrel) updater, so it's handled by a separate
     /// branch reading its native staging layout — same "Relaunch, no re-download"
     /// outcome, different on-disk format.
+    /// - Parameter requireNewerThanInstalled: keep only a staged build that would
+    ///   move the app forward. True for the Relaunch affordance, which must never
+    ///   offer a downgrade. **False when deciding whether to install at all**: a
+    ///   staged build that trails what is on disk still gets applied on the next
+    ///   quit, so it overwrites whatever we install in the meantime.
+    ///
+    ///   That an older staged build really does win is not theoretical: on
+    ///   2026-08-22 the mini installed 6971 and ChatGPT's own updater later applied
+    ///   6962, leaving the machine on the OLDER version. (In that instance the
+    ///   staging happened *after* our install, so no gate here could have seen it —
+    ///   what it establishes is that a trailing staged build gets applied, which is
+    ///   why filtering on "newer" is the wrong question when one IS visible.)
     public static func staged(
         for app: InstalledApp,
+        requireNewerThanInstalled: Bool = true,
         cachesDirectory: URL? = nil,
         applicationSupportDirectory: URL? = nil,
         parkedInstallerBundleURLs: [URL]? = nil,
@@ -66,7 +79,8 @@ public enum SelfUpdaterStaging {
 
         if bundleID == spotifyBundleID {
             return spotifyStaged(
-                for: app, applicationSupportDirectory: applicationSupportDirectory,
+                for: app, requireNewerThanInstalled: requireNewerThanInstalled,
+                applicationSupportDirectory: applicationSupportDirectory,
                 fileManager: fileManager)
         }
 
@@ -87,9 +101,11 @@ public enum SelfUpdaterStaging {
             // strictly-newer filter belongs here, matching the two branches below.
             // Offering Relaunch for an older staged build would be offering a
             // downgrade, which is exactly the ChatGPT case.
-            let stagedV = staged.buildVersion ?? staged.version
-            guard let installedV = app.buildVersion ?? app.shortVersion,
-                  VersionComparator.isNewer(stagedV, than: installedV) else { return nil }
+            if requireNewerThanInstalled {
+                let stagedV = staged.buildVersion ?? staged.version
+                guard let installedV = app.buildVersion ?? app.shortVersion,
+                      VersionComparator.isNewer(stagedV, than: installedV) else { return nil }
+            }
             return staged
         }
 
@@ -124,9 +140,11 @@ public enum SelfUpdaterStaging {
         // `computeRestartInfo`'s build-then-short preference. Only a strictly newer
         // staged version counts — a leftover state file whose staged bundle equals
         // (or trails) what's on disk has already been applied.
-        let stagedV = stagedBuild ?? stagedShort
-        guard let installedV = app.buildVersion ?? app.shortVersion,
-              VersionComparator.isNewer(stagedV, than: installedV) else { return nil }
+        if requireNewerThanInstalled {
+            let stagedV = stagedBuild ?? stagedShort
+            guard let installedV = app.buildVersion ?? app.shortVersion,
+                  VersionComparator.isNewer(stagedV, than: installedV) else { return nil }
+        }
 
         return StagedSelfUpdate(
             version: stagedShort, buildVersion: stagedBuild, stagedBundlePath: staged)
@@ -142,6 +160,7 @@ public enum SelfUpdaterStaging {
     /// 164MB re-download of bytes Spotify already has on disk.
     private static func spotifyStaged(
         for app: InstalledApp,
+        requireNewerThanInstalled: Bool = true,
         applicationSupportDirectory: URL?,
         fileManager: FileManager
     ) -> StagedSelfUpdate? {
@@ -174,8 +193,10 @@ public enum SelfUpdaterStaging {
         // `.gHASH`, but they already differ at the build component). Only a
         // strictly newer staged version counts — once applied, on-disk equals
         // `version_to` and this returns nil. Mirrors the ShipIt branch.
-        guard let installedV = app.shortVersion ?? app.buildVersion,
-              VersionComparator.isNewer(versionTo, than: installedV) else { return nil }
+        if requireNewerThanInstalled {
+            guard let installedV = app.shortVersion ?? app.buildVersion,
+                  VersionComparator.isNewer(versionTo, than: installedV) else { return nil }
+        }
 
         // stagedBundlePath is informational here (the relaunch action quits the
         // app and lets Spotify perform the swap), so point it at the staged .tbz.

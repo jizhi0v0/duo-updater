@@ -401,6 +401,47 @@ public enum UpdatePolicy {
         return settled.filter { notes[$0] == inFlight[$0] }
     }
 
+    /// The staged self-update that makes installing pointless right now, or nil.
+    ///
+    /// Distinct from `actionableStaged`, and deliberately laxer: that one asks "is
+    /// a relaunch enough to get current?", which requires the staged build to be
+    /// the latest. This asks "will anything we install survive?", and the answer is
+    /// no for **any** staged build, including one that trails what is on disk. The
+    /// parked installer applies it on the next quit regardless of which way the
+    /// version comparison goes, so an install performed in the meantime is undone.
+    ///
+    /// That a trailing staged build still gets applied is established: on 2026-08-22
+    /// the mini installed 6971 and ChatGPT's own updater applied 6962 at 14:53,
+    /// finishing on the OLDER version. That particular collision was not preventable
+    /// from here — the staging happened after our install, so nothing was visible to
+    /// check — but it is why this must not filter on "newer": when a trailing build
+    /// IS already staged, installing over it is just as futile.
+    ///
+    /// Callers pass the staged build from
+    /// `SelfUpdaterStaging.staged(for:requireNewerThanInstalled: false)`.
+    public static func stagedBlocksInstall(
+        _ result: UpdateResult,
+        staged: StagedSelfUpdate?
+    ) -> StagedSelfUpdate? {
+        guard let staged else { return nil }
+        // A staged build EQUAL to what is on disk has already been applied; the
+        // directory just hasn't been swept yet. Dropping the "must be newer" filter
+        // to catch trailing builds would otherwise let such leftovers block installs
+        // forever, which is worse than the collision this prevents. Trailing-but-
+        // different still blocks: that one has not been applied and will be.
+        let stagedV = staged.buildVersion ?? staged.version
+        if let installedV = result.app.buildVersion ?? result.app.shortVersion,
+           stagedV == installedV { return nil }
+        // Nothing to protect on routes we do not swap ourselves — Homebrew, the App
+        // Store and Toolbox hand the install to something that owns the bundle, so a
+        // stale staging directory belonging to a different mechanism must not block
+        // them.
+        switch result.remote?.sourceName {
+        case "Vendor", "GitHub", "Sparkle": return staged
+        default:                            return nil
+        }
+    }
+
     /// The staged self-update to surface as **Relaunch** — but only when the staged
     /// build is actually the version the app's channel now offers. Apps download
     /// releases one at a time, so a staged build can already trail a newer release;
@@ -414,6 +455,22 @@ public enum UpdatePolicy {
         staged: StagedSelfUpdate?
     ) -> StagedSelfUpdate? {
         guard let staged else { return nil }
+        // Relaunching must move the app FORWARD. A staged build at or below what is
+        // installed would apply a downgrade, and `relaunchStagedUpdate` waits for the
+        // on-disk version to advance — so it would spin for its full timeout and
+        // report failure for a swap that did happen.
+        //
+        // Callers have always filled the staged map through
+        // `staged(requireNewerThanInstalled:)` at its default of `true`, which made
+        // this true by construction. It is asserted here because that is no longer
+        // the only way to get a `StagedSelfUpdate`: the install gate deliberately
+        // asks for trailing builds too (`stagedBlocksInstall`), and handing one of
+        // those to this function must not produce a Relaunch.
+        let stagedVersion = staged.buildVersion ?? staged.version
+        if let installed = result.app.buildVersion ?? result.app.shortVersion,
+           !VersionComparator.isNewer(stagedVersion, than: installed) {
+            return nil
+        }
         if let latest = result.remote?.displayVersion,
            VersionComparator.isNewer(latest, than: staged.version) {
             return nil  // staged trails the latest — show Update, not Relaunch

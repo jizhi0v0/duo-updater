@@ -46,3 +46,50 @@ import Foundation
     let usable = SparkleAppcastSource.usableItems(for: app, from: items, osVersion: "26.6.0")
     #expect(usable.count == 1)
 }
+
+/// The other half of the rule above: the patches are skipped as the item's
+/// download AND kept as patches. Verbatim from Keka's real appcast, fetched
+/// 2026-08-23 — eight deltas against a 32.9 MB archive, the smallest of them
+/// 519 KB for the immediately-preceding build.
+@Test func deltaEnclosuresAreCollectedAsPatches() throws {
+    let xml = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+      <item>
+        <title>Keka</title>
+        <sparkle:version>5729</sparkle:version>
+        <sparkle:shortVersionString>1.6.7</sparkle:shortVersionString>
+        <enclosure url="https://github.com/aonez/Keka/releases/download/v1.6.7/Keka-1.6.7.zip"
+                   length="32861805" type="application/octet-stream" sparkle:edSignature="full-sig"/>
+        <sparkle:deltas>
+          <enclosure url="https://github.com/aonez/Keka/releases/download/v1.6.7/1.6.4r5707-1.6.7r5729.delta"
+                     sparkle:version="5729" sparkle:deltaFrom="5707" length="1345567"
+                     type="application/octet-stream" sparkle:edSignature="sig-5707"/>
+          <enclosure url="https://github.com/aonez/Keka/releases/download/v1.6.7/1.6.5r5715-1.6.7r5729.delta"
+                     sparkle:version="5729" sparkle:deltaFrom="5715" length="519746"
+                     type="application/octet-stream" sparkle:edSignature="sig-5715"/>
+        </sparkle:deltas>
+      </item>
+    </channel>
+    </rss>
+    """
+    let items = SparkleAppcastParser.parse(Data(xml.utf8))
+    let item = try #require(items.first)
+
+    // The real download is still the archive, with the archive's own signature.
+    #expect(item.enclosureURL?.lastPathComponent == "Keka-1.6.7.zip")
+    #expect(item.enclosureLength == 32_861_805)
+    #expect(item.edSignature == "full-sig")
+
+    // And each patch is carried with the build it upgrades FROM.
+    #expect(item.deltas.count == 2)
+    let from5715 = try #require(item.deltas.first { $0.fromBuild == "5715" })
+    #expect(from5715.size == 519_746)
+    #expect(from5715.edSignature == "sig-5715")
+    #expect(from5715.url.lastPathComponent == "1.6.5r5715-1.6.7r5729.delta")
+
+    // A patch signature must never be mistaken for the archive's: they sign
+    // different bytes, and verifying one against the other fails closed.
+    #expect(from5715.edSignature != item.edSignature)
+}

@@ -292,5 +292,82 @@ class EmbeddedPythonCompiles(unittest.TestCase):
                 compile(block, f"<publish-release.sh heredoc {i}>", "exec")
 
 
+
+def signed_item(version, build, signature, deltas=(), length=1234):
+    """An item whose archive carries an EdDSA signature, optionally with patches
+    nested in `<sparkle:deltas>` — the shape `generate_appcast` writes once past
+    archives are present in its working directory."""
+    delta_block = ""
+    if deltas:
+        rows = "".join(
+            f'                <enclosure url="https://example/{build}-{frm}.delta"'
+            f' sparkle:deltaFrom="{frm}" length="4096"'
+            f' sparkle:edSignature="{sig}"/>\n'
+            for frm, sig in deltas)
+        delta_block = f"            <sparkle:deltas>\n{rows}            </sparkle:deltas>\n"
+    return (
+        "        <item>\n"
+        f"            <title>{version}</title>\n"
+        f"            <sparkle:version>{build}</sparkle:version>\n"
+        f"            <sparkle:shortVersionString>{version}</sparkle:shortVersionString>\n"
+        f"            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>\n"
+        f'            <enclosure url="https://example/{version}.zip" length="{length}"'
+        f' sparkle:edSignature="{signature}"/>\n'
+        f"{delta_block}"
+        "        </item>\n"
+    )
+
+
+class ArchiveSignatureTests(unittest.TestCase):
+    """Publishing with history present makes `generate_appcast` rewrite items that
+    are already public. These guard the one way that can go wrong."""
+
+    def test_reads_the_archive_signature_not_a_patchs(self):
+        text = feed(signed_item("0.3.61", "70", "ARCHIVE",
+                                deltas=[("69", "PATCH69"), ("68", "PATCH68")]))
+        self.assertEqual(ae.archive_signatures(text), {("0.3.61", "70"): "ARCHIVE"})
+
+    def test_a_rebuilt_archive_is_refused(self):
+        # Same version, different bytes: the feed would advertise a proof that
+        # does not match what the release serves, and every existing user's
+        # update fails verification.
+        old = feed(signed_item("0.3.60", "69", "ORIGINAL"))
+        new = feed(signed_item("0.3.60", "69", "REBUILT"))
+        problems = ae.check_signatures_unchanged(old, new)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("0.3.60", problems[0])
+        self.assertIn("already published", problems[0])
+
+    def test_an_unchanged_archive_passes(self):
+        old = feed(signed_item("0.3.60", "69", "SAME"))
+        new = feed(signed_item("0.3.60", "69", "SAME"), )
+        self.assertEqual(ae.check_signatures_unchanged(old, new), [])
+
+    def test_gaining_patches_is_not_a_change(self):
+        # The whole point of the change: an item that gains `<sparkle:deltas>`
+        # while its archive signature stays put is an ordinary, correct publish.
+        old = feed(signed_item("0.3.60", "69", "SAME"))
+        new = feed(signed_item("0.3.60", "69", "SAME",
+                               deltas=[("68", "P68"), ("67", "P67")]))
+        self.assertEqual(ae.check_signatures_unchanged(old, new), [])
+
+    def test_patch_signatures_may_change_freely(self):
+        # Patches are recut against whatever history is on disk; theirs moving is
+        # expected and must not block a release.
+        old = feed(signed_item("0.3.60", "69", "SAME", deltas=[("68", "OLD")]))
+        new = feed(signed_item("0.3.60", "69", "SAME", deltas=[("68", "NEW")]))
+        self.assertEqual(ae.check_signatures_unchanged(old, new), [])
+
+    def test_a_brand_new_item_has_nothing_to_compare(self):
+        old = feed(signed_item("0.3.60", "69", "SAME"))
+        new = feed(signed_item("0.3.61", "70", "FRESH"), signed_item("0.3.60", "69", "SAME"))
+        self.assertEqual(ae.check_signatures_unchanged(old, new), [])
+
+    def test_an_item_that_rolled_off_is_not_a_change(self):
+        old = feed(signed_item("0.3.60", "69", "SAME"), signed_item("0.3.55", "64", "GONE"))
+        new = feed(signed_item("0.3.60", "69", "SAME"))
+        self.assertEqual(ae.check_signatures_unchanged(old, new), [])
+
+
 if __name__ == "__main__":
     unittest.main()

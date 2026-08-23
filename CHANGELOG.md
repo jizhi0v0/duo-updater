@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.60
+
+**Turning on "Show all" no longer makes the menu hesitate.** The full list of every app you have was measured in its entirety each time it appeared — on a Mac with 127 apps that came to roughly a second of work, nearly all of it spent laying out rows far below the ones you can see. It was paid on every toggle, not just the first. Only the rows actually on screen are built now.
+
+**An explanation left over from a failed update no longer outlives the failure.** When an update couldn't be applied — because something else was already installing, say — the row said why, in red. Nothing ever took that line away: once the update did land and the row went back to a tick, the old explanation was still sitting underneath it, and it stayed there through every re-check until Duo Updater was restarted. It now goes as soon as the app is up to date. Reasons belonging to updates that are still waiting are left alone, so one you haven't read yet can't be wiped by a check running in the background.
+
+**The "Update All" button no longer changes size with the length of the list.** With only a few updates pending it was drawn a size smaller than it should have been, with eighty points of empty space beside it, and jumped back to its proper size whenever the list grew. It now stays the size it is meant to be.
+
 ## 0.3.59
 
 **Download Traffic now says which build an update moved to, not just which version.** Plenty of apps ship several builds under one version name — Surge put four separate releases out as "6.9.0" — so those rows read "6.9.0 → 6.9.0" and told you nothing. They now read "6.9.0 (12028) → 6.9.0 (12030)", and only when the version name alone isn't enough; where the version already changed, the build number would just be noise and is left out.

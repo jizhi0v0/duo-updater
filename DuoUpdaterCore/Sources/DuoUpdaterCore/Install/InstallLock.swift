@@ -17,13 +17,16 @@ import Foundation
 /// the lock file so a refusal can name it.
 public final class InstallLock: @unchecked Sendable {
 
-    public enum Failure: Error, CustomStringConvertible {
+    public enum Failure: Error, CustomStringConvertible, LocalizedError {
         /// Another process holds it. `pid` is nil when the file was locked but
         /// its contents were unreadable or not yet written — the lock is still
         /// held, we just cannot say by whom.
         case heldByAnother(pid: pid_t?)
         case unavailable(String)
 
+        /// The diagnostic form: English, and it names the pid. This is what
+        /// `duo` prints and what the log carries — a terminal is where a pid is
+        /// worth having, because `ps` is right there.
         public var description: String {
             switch self {
             case .heldByAnother(let pid):
@@ -31,6 +34,24 @@ public final class InstallLock: @unchecked Sendable {
                 return "another DuoUpdater install is in progress (\(who))"
             case .unavailable(let reason):
                 return "could not take the install lock: \(reason)"
+            }
+        }
+
+        /// The form shown in an app row, which is a different audience: it needs
+        /// translating, and a bare pid there is a number with nothing to do —
+        /// the row cannot act on it and the reader cannot look it up. What the
+        /// user needs is what to do next, which is the same either way.
+        ///
+        /// Kept separate from `description` rather than replacing it: `duo`
+        /// prints the error with `"\(error)"`, so folding the two together would
+        /// have translated the CLI's stderr into the GUI user's language and
+        /// dropped the pid a terminal can actually use.
+        public var errorDescription: String? {
+            switch self {
+            case .heldByAnother:
+                return String(localized: "Another update is being installed right now — by Duo Updater or by `duo` in a terminal. Try again once it finishes.")
+            case .unavailable(let reason):
+                return String(localized: "Couldn’t take the install lock: \(reason)")
             }
         }
     }

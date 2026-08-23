@@ -4035,6 +4035,47 @@
         }
       }
     },
+    "Another update is being installed right now — by Duo Updater or by `duo` in a terminal. Try again once it finishes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerade wird bereits ein Update installiert – von Duo Updater oder von `duo` im Terminal. Versuche es erneut, sobald es fertig ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya se está instalando otra actualización, desde Duo Updater o desde `duo` en el terminal. Inténtalo de nuevo cuando termine."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une autre mise à jour est en cours d’installation — par Duo Updater ou par `duo` dans un terminal. Réessaie une fois qu’elle est terminée."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在、別のアップデートをインストール中です（Duo Updater か、ターミナルの `duo`）。完了してからもう一度お試しください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сейчас уже устанавливается другое обновление — через Duo Updater или через `duo` в терминале. Повторите, когда оно завершится."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前已有一个更新正在安装 —— 来自 Duo Updater 或终端里的 `duo`。等它完成后再试一次。"
+          }
+        }
+      }
+    },
     "App": {
       "extractionState": "manual",
       "localizations": {
@@ -5775,6 +5816,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法连接到 Alcove：%@"
+          }
+        }
+      }
+    },
+    "Couldn’t take the install lock: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installationssperre konnte nicht übernommen werden: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo obtener el bloqueo de instalación: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’obtenir le verrou d’installation : %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストールロックを取得できませんでした: %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось получить блокировку установки: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法获取安装锁：%@"
           }
         }
       }

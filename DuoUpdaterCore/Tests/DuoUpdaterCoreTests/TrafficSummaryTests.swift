@@ -281,3 +281,81 @@ private func stat(_ path: String, _ events: [TrafficEvent]) -> AppTrafficStat {
     // A plain file at the path is not an installed bundle.
     #expect(!stat(plainFile.path, []).isOnDisk())
 }
+
+// MARK: - Version transition labelling
+
+/// Several builds under one marketing version is normal (Surge shipped four
+/// releases as "6.9.0"), and the row has to say which one moved — otherwise it
+/// claims the app updated from a version to itself.
+
+private func build(_ from: String?, _ to: String?,
+                   _ fromBuild: String?, _ toBuild: String?) -> TrafficEvent {
+    TrafficEvent(date: date(2026, 8, 12), fromVersion: from, toVersion: to,
+                 sourceName: "Sparkle", bytes: 1, fromBuild: fromBuild, toBuild: toBuild)
+}
+
+@Test func identicalMarketingVersionsFallBackToBuildNumbers() {
+    let sides = build("6.9.0", "6.9.0", "12028", "12030").versionSides
+    #expect(sides.from == "6.9.0 (12028)")
+    #expect(sides.to == "6.9.0 (12030)")
+}
+
+/// Builds on a row whose marketing versions already differ are noise.
+@Test func differingMarketingVersionsDoNotShowBuilds() {
+    let sides = build("6.8.0", "6.9.0", "11990", "12028").versionSides
+    #expect(sides.from == "6.8.0")
+    #expect(sides.to == "6.9.0")
+}
+
+/// Events written before builds were recorded still have to render.
+@Test func eventsWithoutBuildsKeepTheirMarketingStrings() {
+    let sides = build("6.9.0", "6.9.0", nil, nil).versionSides
+    #expect(sides.from == "6.9.0")
+    #expect(sides.to == "6.9.0")
+}
+
+/// Same version AND same build is a download that changed nothing. It must not
+/// render like an event whose builds were never recorded — that is the one case
+/// the log can prove, and collapsing them throws the proof away.
+@Test func aDownloadThatChangedNothingStillShowsItsBuilds() {
+    let event = build("6.9.0", "6.9.0", "12030", "12030")
+    #expect(event.versionSides.from == "6.9.0 (12030)")
+    #expect(event.versionSides.to == "6.9.0 (12030)")
+    #expect(event.changedNothing)
+}
+
+@Test func aRealBuildBumpIsNotReportedAsUnchanged() {
+    #expect(build("6.9.0", "6.9.0", "12028", "12030").changedNothing == false)
+}
+
+@Test func aMarketingVersionChangeIsNotReportedAsUnchanged() {
+    #expect(build("6.8.0", "6.9.0", "11990", "12030").changedNothing == false)
+}
+
+/// An older event carries no builds, so whether it changed anything is unknown —
+/// and unknown must never be reported as "no change".
+@Test func anEventWithoutBuildsIsUnknownRatherThanUnchanged() {
+    #expect(build("6.9.0", "6.9.0", nil, nil).changedNothing == false)
+    #expect(build("6.9.0", "6.9.0", "12030", nil).changedNothing == false)
+    #expect(build("6.9.0", "6.9.0", nil, "12030").changedNothing == false)
+}
+
+@Test func aMissingSideIsLeftAlone() {
+    #expect(build(nil, "6.9.0", nil, "12030").versionSides.from == nil)
+    #expect(build("6.9.0", nil, "12028", nil).versionSides.to == nil)
+}
+
+/// Old traffic.json files have no build keys at all; decoding must not fail.
+@Test func eventsDecodeFromJSONWrittenBeforeBuildsExisted() throws {
+    let legacy = """
+    {"date":"2026-08-12T02:07:00Z","fromVersion":"6.8.0","toVersion":"6.9.0",
+     "sourceName":"Sparkle","bytes":50755741}
+    """
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let event = try decoder.decode(TrafficEvent.self, from: Data(legacy.utf8))
+    #expect(event.bytes == 50_755_741)
+    #expect(event.fromBuild == nil)
+    #expect(event.toBuild == nil)
+    #expect(event.versionSides.to == "6.9.0")
+}

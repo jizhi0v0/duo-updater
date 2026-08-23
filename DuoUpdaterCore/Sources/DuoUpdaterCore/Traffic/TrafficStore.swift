@@ -42,6 +42,8 @@ public actor TrafficStore {
         toVersion: String?,
         sourceName: String?,
         bytes: Int64,
+        fromBuild: String? = nil,
+        toBuild: String? = nil,
         date: Date = Date()
     ) {
         guard bytes > 0 else { return }
@@ -51,7 +53,9 @@ public actor TrafficStore {
             fromVersion: fromVersion,
             toVersion: toVersion,
             sourceName: sourceName,
-            bytes: bytes
+            bytes: bytes,
+            fromBuild: fromBuild,
+            toBuild: toBuild
         )
 
         var stat = stats[appID] ?? AppTrafficStat(

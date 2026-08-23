@@ -14,19 +14,69 @@ public struct TrafficEvent: Codable, Sendable, Hashable {
     public let sourceName: String?
     /// Exact number of bytes transferred for this download.
     public let bytes: Int64
+    /// `CFBundleVersion` of the build being replaced, when known.
+    ///
+    /// Recorded because plenty of vendors ship several builds under one marketing
+    /// version — Surge put four separate releases out as "6.9.0" — and without the
+    /// build number those rows all read "6.9.0 → 6.9.0". Optional, and absent from
+    /// every event written before this was added.
+    public let fromBuild: String?
+    /// Build version the update moved to (a source's own canonical comparison key:
+    /// Sparkle's `sparkle:version`), when known.
+    public let toBuild: String?
 
     public init(
         date: Date,
         fromVersion: String?,
         toVersion: String?,
         sourceName: String?,
-        bytes: Int64
+        bytes: Int64,
+        fromBuild: String? = nil,
+        toBuild: String? = nil
     ) {
         self.date = date
         self.fromVersion = fromVersion
         self.toVersion = toVersion
         self.sourceName = sourceName
         self.bytes = bytes
+        self.fromBuild = fromBuild
+        self.toBuild = toBuild
+    }
+}
+
+extension TrafficEvent {
+    /// The two sides of this download's version transition, as they should read.
+    ///
+    /// Normally just the marketing versions. When those are identical the build
+    /// numbers are the only thing that actually changed, so they get folded in —
+    /// otherwise the row claims an app updated from a version to itself.
+    ///
+    /// Builds are never shown when the marketing versions already differ: they add
+    /// noise to a row that is already unambiguous. Events recorded before builds
+    /// were stored fall through to the plain marketing strings.
+    ///
+    /// Note the builds are folded in even when they are *equal*, which is what
+    /// separates a download that changed nothing from one whose builds were never
+    /// recorded — see ``changedNothing``. Rendering both as a bare "6.9.0 → 6.9.0"
+    /// would throw away the one case the log can actually prove.
+    public var versionSides: (from: String?, to: String?) {
+        guard let fromVersion, let toVersion, fromVersion == toVersion,
+              let fromBuild, let toBuild
+        else { return (fromVersion, toVersion) }
+        return ("\(fromVersion) (\(fromBuild))", "\(toVersion) (\(toBuild))")
+    }
+
+    /// True when this download provably landed on the build that was already
+    /// installed — same marketing version, same build, both measured.
+    ///
+    /// Real bytes spent for no change. It happens: a version-scheme mismatch, a
+    /// mirror advertising what is already on disk, a feed that moved backwards.
+    /// The traffic log is where that should be visible, and it is only knowable
+    /// for events recorded with both build numbers — an older event with no builds
+    /// is unknown, not unchanged, so it is never reported here.
+    public var changedNothing: Bool {
+        guard let fromVersion, let toVersion, let fromBuild, let toBuild else { return false }
+        return fromVersion == toVersion && fromBuild == toBuild
     }
 }
 

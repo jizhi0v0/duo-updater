@@ -194,6 +194,39 @@ import CryptoKit
     }
 }
 
+/// A Mac App Store copy must never be answered by a vendor probe — for ANY recipe.
+///
+/// The store build and the vendor's own download are two different distributions
+/// that share a bundle id, and the vendor's runs ahead: on 2026-08-23 the store
+/// had WhatsApp 26.32.75 while `web.whatsapp.com` redirected to
+/// `WhatsApp-2.26.33.19.dmg`. `MacAppStoreSource` sits first in `SourceStack`, but
+/// `UpdateChecker` falls through to the next source on a thrown error as well as
+/// on a miss — so a single flaky iTunes lookup (a proxy dropping, a storefront
+/// that 404s) is enough to hand the app to this source. That is not hypothetical:
+/// it is what pinned WhatsApp's row to 26.33.19, offering an Update button that
+/// would have swapped the store copy — `_MASReceipt`, sandbox entitlements and all
+/// — for a Developer ID build the store could never update again.
+///
+/// Derived from the registry rather than a hand-written list: the gate is
+/// unconditional, so a new recipe must not be able to opt out of it by omission.
+/// Instant and offline — the gate returns before any network work, which is also
+/// what makes a regression loud (without it every recipe here goes to the wire).
+@Test func appStoreCopiesAreNeverAnsweredByAVendorProbe() async throws {
+    let source = VendorProbeSource()
+    for recipe in VendorProbeRegistry.recipes {
+        let app = InstalledApp(
+            name: recipe.bundleID, bundleID: recipe.bundleID,
+            shortVersion: "0.0.0", buildVersion: "0",
+            path: URL(fileURLWithPath: "/Applications/\(recipe.bundleID).app"),
+            isMASApp: true, sparkleFeedURL: nil,
+            releaseChannel: recipe.channel)
+        let remote = try await source.latestVersion(for: app)
+        #expect(
+            remote == nil,
+            "\(recipe.bundleID) [\(recipe.channel.rawValue)]: vendor probe answered for an App Store copy with \(remote?.displayVersion ?? "?") — the store owns that app's updates")
+    }
+}
+
 /// AweSun's download host (`dw.oray.com`) sits behind an Aliyun WAF that serves
 /// the dmg only to requests carrying a `Referer` — otherwise an anti-bot JS
 /// challenge page (text/html). This proves (a) the recipe resolves a pkg plan

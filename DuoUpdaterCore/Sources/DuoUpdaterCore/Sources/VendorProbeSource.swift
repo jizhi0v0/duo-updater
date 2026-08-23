@@ -83,6 +83,38 @@ public struct VendorProbeSource: UpdateSource {
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+        // A Mac App Store copy updates through the store, full stop. The vendor's
+        // own download endpoint serves a *different distribution* that happens to
+        // share a bundle id — Developer ID signed, unsandboxed, no receipt — and
+        // it routinely runs ahead of the store build (WhatsApp: the store had
+        // 26.32.75 while `web.whatsapp.com` redirected to `WhatsApp-2.26.33.19.dmg`).
+        // Offering that as an update is a phantom update, and installing it would
+        // swap away the `_MASReceipt` and the app's store entitlements.
+        //
+        // Same gate, same reasoning as `GitHubReleasesSource` and
+        // `HomebrewCaskSource`, and it has to live here rather than in source
+        // ordering for the same reason: `MacAppStoreSource` going first only wins
+        // while it ANSWERS. `UpdateChecker` falls through on a thrown error too, not
+        // just on a miss, so one flaky iTunes lookup hands the app to this source —
+        // which is exactly how WhatsApp got pinned to 26.33.19 while a proxy was
+        // down. Better "unknown" than a cross-distribution offer.
+        //
+        // Deliberately in `latestVersion` and not in `probeDiagnostic`: the recipe
+        // sweeps (`duo verify`, the live channel tests) build synthetic apps and
+        // must keep exercising every recipe regardless of how it happens to be
+        // installed on the machine running them.
+        guard !app.isMASApp else {
+            // Only say "skip" when there was something to skip. The guard sits above
+            // the recipe lookup (deliberately — it must hold whether or not one
+            // exists), so without this every store app on the machine logged a line
+            // per round for a source that was never going to touch it, reading as if
+            // a recipe had been declined.
+            if let bundleID = app.bundleID, recipes[bundleID] != nil {
+                Log.source.info(
+                    "vendor probe skip \(bundleID, privacy: .public): App Store copy, the store owns its updates")
+            }
+            return nil
+        }
         // Swallow every failure: a probe that can't answer must look like "this
         // source doesn't apply", not like an error or a confident result.
         guard let bundleID = app.bundleID,

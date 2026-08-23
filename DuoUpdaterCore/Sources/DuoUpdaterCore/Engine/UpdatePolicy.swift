@@ -309,6 +309,64 @@ public enum UpdatePolicy {
         return result.remote?.displayVersion ?? remoteShort
     }
 
+    /// Which recorded install errors no longer describe anything real, and so
+    /// should be dropped when the row list is rebuilt.
+    ///
+    /// An install error is about one attempt at one version, and every place that
+    /// writes one is the *start of another action on that row* — install,
+    /// rollback, the helper buttons. Nothing on the refresh path cleared one, so a
+    /// failure message outlived the failure: reported against the machine-wide
+    /// install lock, where `duo install` finished the update, the row went to
+    /// "up to date ✓", and "another DuoUpdater install is in progress (process
+    /// 76712)" stayed under it through every rescan until the app was relaunched.
+    ///
+    /// The discriminator is the row's own verdict, and specifically NOT "the row
+    /// has no update pending": a networked refresh blanks every row to `.unknown`
+    /// before the check repopulates it, so that reading would quietly wipe every
+    /// error on every refresh — which is the behaviour this is meant to avoid. A
+    /// row that still has its update pending keeps its reason (a background check
+    /// must not erase "needs App Management permission" before it has been read),
+    /// and a row mid-install has not settled yet whatever its last verdict says.
+    ///
+    /// Only `.upToDate` settles. Every other verdict is a non-answer wearing a
+    /// different label: `UpdateChecker` reaches `.appStoreManaged`,
+    /// `.toolboxManaged` and `.testFlightManaged` from the *same* "no source could
+    /// answer" branch that produces `.unknown` for everything else, so treating
+    /// them as settlements would delete a live error on nothing more than a
+    /// transient lookup miss. That is not hypothetical for App Store rows, where
+    /// the error text is also what gates the row's recovery buttons
+    /// (`showsHelperApprovalFallback` and friends read `installErrors`): one
+    /// unanswered check would take away the message *and* the only route to the
+    /// fix, with the update still not installed.
+    ///
+    /// An id with no row at all is settled too — that app is no longer installed.
+    public static func settledInstallErrorIDs(
+        _ errorIDs: some Sequence<String>,
+        results: [UpdateResult],
+        installing: Set<String>
+    ) -> Set<String> {
+        // No rows at all is the pre-first-scan state, not "every app vanished".
+        guard !results.isEmpty else { return [] }
+        let byID = Dictionary(results.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var settled: Set<String> = []
+        for id in errorIDs where !installing.contains(id) {
+            guard let row = byID[id] else {
+                settled.insert(id)   // the app is gone from disk
+                continue
+            }
+            // Written out rather than `!hasUpdate` so a new status has to be
+            // classified here instead of silently defaulting either way.
+            switch row.status {
+            case .upToDate:
+                settled.insert(id)
+            case .updateAvailable, .unknown, .error,
+                 .appStoreManaged, .toolboxManaged, .testFlightManaged:
+                break
+            }
+        }
+        return settled
+    }
+
     /// The staged self-update to surface as **Relaunch** — but only when the staged
     /// build is actually the version the app's channel now offers. Apps download
     /// releases one at a time, so a staged build can already trail a newer release;

@@ -17,6 +17,24 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.61</title>
+            <pubDate>Sun, 23 Aug 2026 20:26:45 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.61</link>
+            <sparkle:version>70</sparkle:version>
+            <sparkle:shortVersionString>0.3.61</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Explanations left behind by an update now clear themselves.** When Duo Updater hands an app over to its own updater, the row says so — "brought it to the front so its own updater applies the update". That sentence used to stay there for good: the only thing that ever removed it was starting another update on the same app, so it was still sitting under the row long after the update had landed, describing something that finished hours ago. It now goes as soon as the app is up to date. A warning that an update was applied without a rollback point is deliberately left alone, because that one describes the update that already happened and only starts to matter once it is over.
+
+**An update that was refused now explains itself in your language.** When something else is already installing — Duo Updater working through a batch, or `duo` in a terminal — the row tells you so. That message was English only, in an otherwise translated window, and it ended with a process number: useful in a terminal, and nothing you can act on in a menu. It is now translated, and says what to do rather than who has the lock. The command-line tool still prints the process number, where you can do something with it.
+
+**The release-pattern line, and its clock, now follow your locale.** Release Log → Patterns summed everything up as "Most often ships Friday, around 6 PM". Languages that inflect the names of days cannot say that with the day dropped into the middle of the sentence, and got the wrong form of the word — Russian read "Чаще всего выходит пятница" where it needs "по пятницам". It is now a label: "Peak: Friday, around 6 PM", which is correct everywhere. The time goes with it — if your Mac writes clock times on a 24-hour dial, so does this, on the chart's axis too.
+
+**Settings search now understands the words on your screen.** The search field above the settings sidebar matched a list of extra terms that was written in English and never translated, so "rollback" reached General while "Zurücksetzen" and "回滚" reached nothing. Those terms now exist in every language Duo Updater speaks. The English ones still work in every language too, since the documentation they come from is in English.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.61/DuoUpdater-0.3.61-macos.zip" length="11055079" type="application/octet-stream" sparkle:edSignature="GiWxGsliVNeOXwkYYCBP+Ys7BKVO/hKOa/JU9SU5NUyV/WF3zVqo9FS0Qo7NMmKaZbnqmMW+Mwh/yrRRmCF9CA=="/>
+        </item>
+        <item>
             <title>0.3.60</title>
             <pubDate>Sun, 23 Aug 2026 19:02:44 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.60</link>
@@ -79,20 +97,6 @@
 **A check that couldn't reach anything no longer looks like a clean bill of health.** When every source failed — no network, or a proxy quietly refusing connections while the Wi-Fi icon still says everything is fine — the apps that failed were hidden and the panel said "127 apps · up to date". That is the same screen you get when everything genuinely is up to date, which made a failed check indistinguishable from a successful one. The panel now says how many apps it couldn't reach, shows what went wrong, and offers to try those again — just those, leaving everything it did manage to check alone.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.57/DuoUpdater-0.3.57-macos.zip" length="10933058" type="application/octet-stream" sparkle:edSignature="LHs4Qkd+JKi4rCYIjgM+KN6L+j1DNHBvQ5mg11OzSFPDUAcFqaRgN6YFIvRxWweRiq7UQQcJIhNEyHMNNM3jDw=="/>
-        </item>
-        <item>
-            <title>0.3.56</title>
-            <pubDate>Sun, 23 Aug 2026 01:35:52 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.56</link>
-            <sparkle:version>65</sparkle:version>
-            <sparkle:shortVersionString>0.3.56</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**A helper macOS wouldn't switch on no longer sends you to reset your whole Mac.** App Store updates install through a small background item macOS asks you to approve once. When that approval was refused, Duo Updater had exactly one explanation for it: the system's record of the item is damaged, and repairing it takes a Terminal command that clears the background-item approvals of *every* app on your Mac. That is one cause among several, and macOS never says which one applies — the ordinary one is that the switch is simply off. The message now leads with that instead: turn Duo Updater on under "Allow in the Background" in Login Items & Extensions, and Duo Updater opens the pane for you. The Terminal reset is still written down, as the fallback for when Duo Updater isn't listed there or switching it on changes nothing. The message also stopped running off the edge of its card.
-
-**Two Settings options read on one line again.** The two options under Install routing — how App Store updates install, and what happens to apps that ship their own updater — used to put their name to the left of the menu, the way options do everywhere else on macOS. Adding six languages moved both names above their menus instead, because a German or Russian option can be long enough to run off the end of the line, and the safe layout was applied to every language at once. Each row now decides for itself: the name stays beside the menu as long as the menu leaves room for it, and only moves above when the text genuinely needs the width. In English, Japanese and Chinese both rows are back on one line; in German and French they stay stacked, which is the only way they fit without being cut off.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.56/DuoUpdater-0.3.56-macos.zip" length="10910272" type="application/octet-stream" sparkle:edSignature="4LDVzbiroq0o84bMiR6sLXXG01j7CK+wQYD4AZYP9KG96mqPuUjAO+iS3m8eX1G9Xcvdm78ReDRrpzVaY/wNBQ=="/>
         </item>
     </channel>
 </rss>

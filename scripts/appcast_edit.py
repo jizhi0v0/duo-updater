@@ -130,6 +130,64 @@ def enclosure_length(text, build):
     return None
 
 
+_DELTAS = re.compile(r"<sparkle:deltas[\s>].*?</sparkle:deltas>", re.S)
+
+
+def archive_signatures(text):
+    """`(short, build)` -> the EdDSA signature of each item's own archive.
+
+    Only the item's release enclosure. The ones nested in `<sparkle:deltas>` sign
+    a different file each — patches appearing, changing, or rolling off is the
+    normal result of publishing with history present, and comparing those would
+    flag every ordinary release.
+
+    Exists because feeding past archives to `generate_appcast` (so it can cut
+    patches) makes it rewrite every item it can see, not just the new one. That
+    is safe only while those archives are byte-identical to what was published;
+    see `check_regenerated`.
+    """
+    out = {}
+    masked = _mask_cdata(text)
+    for item in _ITEM.finditer(masked):
+        body = text[item.start():item.end()]
+        short = re.search(
+            r"<sparkle:shortVersionString>\s*([^<\s]+)\s*</sparkle:shortVersionString>", body)
+        build = re.search(r"<sparkle:version>\s*([^<\s]+)\s*</sparkle:version>", body)
+        # Drop the nested patch enclosures before looking for the archive's.
+        release_only = _DELTAS.sub("", body)
+        signature = re.search(r'<enclosure[^>]*\ssparkle:edSignature="([^"]+)"', release_only)
+        if (short or build) and signature:
+            out[(short.group(1) if short else None,
+                 build.group(1) if build else None)] = signature.group(1)
+    return out
+
+
+def check_signatures_unchanged(old_text, new_text):
+    """Complaints about already-published items whose archive signature moved.
+
+    A regenerated item that keeps its version but changes its signature means the
+    archive on disk is not the archive users already have. Publishing that hands
+    every existing user a feed whose proof does not match the bytes the release
+    serves, and their update fails verification — a failure that lands on versions
+    nobody touched in this release.
+
+    Only entries present in BOTH feeds are compared: a new item has nothing to
+    differ from, and one that rolled off the window is gone either way.
+    """
+    old = archive_signatures(old_text)
+    new = archive_signatures(new_text)
+    problems = []
+    for entry, was in old.items():
+        now = new.get(entry)
+        if now is not None and now != was:
+            short, build = entry
+            problems.append(
+                f"the regenerated appcast changed the archive signature of {short or '?'}"
+                f" ({build or '?'}), which is already published — the local archive is not"
+                " the one users download, and republishing this would break their update")
+    return problems
+
+
 def check_regenerated(old_text, new_text, want, build, asset_size, cap):
     """What the regenerated feed has to look like. Returns a list of complaints;
     empty means it is publishable.
@@ -180,6 +238,8 @@ def check_regenerated(old_text, new_text, want, build, asset_size, cap):
                 f"the feed advertises {advertised} bytes for build {build} but the artifact"
                 f" is {asset_size} — the item was not regenerated, so its enclosure and"
                 " signature describe different bytes")
+
+    problems.extend(check_signatures_unchanged(old_text, new_text))
 
     expected = min(len(dict.fromkeys(old + [(want, build)])), cap)
     lost = [entry for entry in old if entry not in new]

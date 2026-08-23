@@ -140,6 +140,32 @@ prepare_sparkle_appcast() {
     done
 
     cp "$ASSET_ZIP" "$appcast_archives_dir/"
+    # Past archives alongside the new one, so `generate_appcast` can cut binary
+    # patches (`--maximum-deltas`, default 5). With only the new zip present there
+    # is nothing to diff against and the feed ships full downloads forever, which
+    # is what it did until now: 11 MB per release where the patch from the previous
+    # build is under 400 KB.
+    #
+    # The count is one more than the delta cap: the tool needs the new build plus
+    # the five it can cut patches from. Anything older would be copied, diffed, and
+    # then dropped by the cap.
+    #
+    # This makes `generate_appcast` rewrite the items for those older builds too,
+    # not just the new one. That is safe only while these archives are byte-for-byte
+    # what was published — `check_signatures_unchanged` (run below, before anything
+    # is pushed) refuses the feed if any already-published item's signature moved,
+    # which is exactly what a locally rebuilt zip would cause.
+    local asset_dir history
+    asset_dir="$(dirname "$ASSET_ZIP")"
+    history="$(ls -t "$asset_dir"/DuoUpdater-*-macos.zip 2>/dev/null | head -6)"
+    if [ -n "$history" ]; then
+        # `cp -n`: never clobber the asset just copied in, whose bytes are the ones
+        # being released.
+        printf '%s\n' "$history" | while IFS= read -r archive; do
+            [ -f "$archive" ] && cp -n "$archive" "$appcast_archives_dir/" 2>/dev/null || true
+        done
+        say "Appcast: $(printf '%s\n' "$history" | wc -l | tr -d ' ') archives available for delta generation"
+    fi
     sparkle_notes="$appcast_archives_dir/$(basename "${ASSET_ZIP%.*}").md"
     cp "$RELEASE_NOTES_FILE" "$sparkle_notes"
     if [ -f "$appcast_clone_dir/appcast.xml" ]; then

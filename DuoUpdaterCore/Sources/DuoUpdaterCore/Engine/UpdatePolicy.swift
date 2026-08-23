@@ -309,16 +309,20 @@ public enum UpdatePolicy {
         return result.remote?.displayVersion ?? remoteShort
     }
 
-    /// Which recorded install errors no longer describe anything real, and so
-    /// should be dropped when the row list is rebuilt.
+    /// Which rows have *settled* — reached a state where anything we recorded
+    /// about an attempt on them no longer describes something real, and so should
+    /// be dropped when the row list is rebuilt.
     ///
-    /// An install error is about one attempt at one version, and every place that
-    /// writes one is the *start of another action on that row* — install,
-    /// rollback, the helper buttons. Nothing on the refresh path cleared one, so a
-    /// failure message outlived the failure: reported against the machine-wide
-    /// install lock, where `duo install` finished the update, the row went to
-    /// "up to date ✓", and "another DuoUpdater install is in progress (process
-    /// 76712)" stayed under it through every rescan until the app was relaunched.
+    /// Two callers, one question. An install error is about one attempt at one
+    /// version, and every place that writes one is the *start of another action on
+    /// that row* — install, rollback, the helper buttons. Nothing on the refresh
+    /// path cleared one, so a failure message outlived the failure: reported
+    /// against the machine-wide install lock, where `duo install` finished the
+    /// update, the row went to "up to date ✓", and "another DuoUpdater install is
+    /// in progress (process 76712)" stayed under it through every rescan until the
+    /// app was relaunched. The in-flight *notes* ("brought it to the front so its
+    /// own updater applies the update") sit in the same place in the row and had
+    /// the same defect.
     ///
     /// The discriminator is the row's own verdict, and specifically NOT "the row
     /// has no update pending": a networked refresh blanks every row to `.unknown`
@@ -340,8 +344,8 @@ public enum UpdatePolicy {
     /// fix, with the update still not installed.
     ///
     /// An id with no row at all is settled too — that app is no longer installed.
-    public static func settledInstallErrorIDs(
-        _ errorIDs: some Sequence<String>,
+    public static func settledRowIDs(
+        _ ids: some Sequence<String>,
         results: [UpdateResult],
         installing: Set<String>
     ) -> Set<String> {
@@ -349,7 +353,7 @@ public enum UpdatePolicy {
         guard !results.isEmpty else { return [] }
         let byID = Dictionary(results.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var settled: Set<String> = []
-        for id in errorIDs where !installing.contains(id) {
+        for id in ids where !installing.contains(id) {
             guard let row = byID[id] else {
                 settled.insert(id)   // the app is gone from disk
                 continue
@@ -365,6 +369,36 @@ public enum UpdatePolicy {
             }
         }
         return settled
+    }
+
+    /// Which of the row notes this app wrote to describe *an action still in
+    /// progress* should now be retracted.
+    ///
+    /// `installNotes` carries two kinds of text that read the same in the row but
+    /// age in opposite directions:
+    ///
+    ///   * an action in flight — "brought it to the front so its own updater
+    ///     applies the update", "opened the installer … finish it there". True
+    ///     only until the thing it describes happens; afterwards it is a claim
+    ///     about the present that the user has no way to dismiss.
+    ///   * a standing fact about an install that already happened — "this update
+    ///     was applied without a rollback point". The row settling is exactly when
+    ///     that becomes *readable*, and clearing it then is how it once became
+    ///     unreadable to everyone (see `AppListModel.inFlightNotes`).
+    ///
+    /// Nothing about the text distinguishes them, so the caller registers the
+    /// in-flight ones as it writes them and passes that registry here. Matching on
+    /// the text and not just the id is what keeps this from retracting a note some
+    /// other writer put there in the meantime.
+    public static func retractableNoteIDs(
+        notes: [String: String],
+        writtenByUs inFlight: [String: String],
+        results: [UpdateResult],
+        installing: Set<String>
+    ) -> Set<String> {
+        guard !inFlight.isEmpty else { return [] }
+        let settled = settledRowIDs(inFlight.keys, results: results, installing: installing)
+        return settled.filter { notes[$0] == inFlight[$0] }
     }
 
     /// The staged self-update to surface as **Relaunch** — but only when the staged

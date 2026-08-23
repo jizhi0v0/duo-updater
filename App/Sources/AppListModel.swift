@@ -50,7 +50,7 @@ final class AppListModel {
     /// which rows count as settled (and, importantly, which do not).
     private func pruneSettledInstallErrors() {
         guard !installErrors.isEmpty else { return }
-        for id in UpdatePolicy.settledInstallErrorIDs(
+        for id in UpdatePolicy.settledRowIDs(
             installErrors.keys, results: results, installing: Set(installing.keys)
         ) {
             installErrors[id] = nil

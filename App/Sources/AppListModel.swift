@@ -2183,6 +2183,48 @@ final class AppListModel {
             return false
         }
 
+        // The app's own updater may already have this release in flight. Ours would
+        // be a second copy of the same bytes, and for a Sparkle app it is worse than
+        // wasteful: whichever finishes second overwrites the first, so a ChatGPT-sized
+        // pair of downloads can settle on the OLDER build (observed 2026-08-22 — we
+        // installed 6971, its own updater then landed the 6962 its backend was
+        // shipping, ~1.8 GB spent to move backwards).
+        //
+        // Deliberately NOT gated on `vendorInstallPolicy`: this isn't a preference
+        // about who should apply updates, it's an unconditional "those bytes are
+        // already coming". `.alwaysOverwrite` still means we install rather than
+        // hand off — it just doesn't mean racing a transfer already underway.
+        //
+        // Unconditional in the other direction too: a manual click yields the same
+        // way, because the alternative is the user paying twice for one update. The
+        // note says so, and the next check installs normally once the transfer has
+        // either landed (row goes current) or gone stale (detector stops matching).
+        // Its own updater may already have a build unpacked and parked on the next
+        // quit. Anything we install now is undone when that lands — including when
+        // the staged build is OLDER than ours, which is how the mini ended up back
+        // on 6962 after we installed 6971 twice. So this asks for any staged build,
+        // not just a newer one.
+        if let staged = UpdatePolicy.stagedBlocksInstall(
+            result,
+            staged: SelfUpdaterStaging.staged(
+                for: result.app, requireNewerThanInstalled: false)) {
+            Log.install.info("install yielded to staged self-update: \(result.app.name, privacy: .public) has \(staged.version, privacy: .public) waiting for a quit")
+            let note = String(localized: "\(result.app.name) has already downloaded \(staged.version) and will apply it when you quit it — installing now would be undone.")
+            installNotes[id] = note
+            inFlightNotes[id] = note
+            installing[id] = nil
+            return false
+        }
+
+        if let inFlight = SelfUpdaterStaging.inFlightDownload(for: result.app) {
+            Log.install.info("install yielded to in-flight self-update: \(result.app.name, privacy: .public) (\(inFlight.bytes, privacy: .public) bytes staged in \(inFlight.directory.lastPathComponent, privacy: .public))")
+            let note = String(localized: "\(result.app.name) is downloading this update itself — left it to finish rather than fetching the same bytes twice.")
+            installNotes[id] = note
+            inFlightNotes[id] = note
+            installing[id] = nil
+            return false
+        }
+
         // Back up the current bundle first (when enabled) so this update can be
         // rolled back. Only for in-place swaps we perform ourselves — Homebrew and
         // pkg installs go through their own tools and manage their own state.

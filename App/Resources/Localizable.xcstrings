@@ -370,6 +370,47 @@
         }
       }
     },
+    "%@ has already downloaded %@ and will apply it when you quit it — installing now would be undone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat %@ bereits heruntergeladen und installiert es beim Beenden – eine Installation jetzt würde überschrieben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya descargó %@ y lo instalará cuando lo cierres: instalarlo ahora quedaría sobrescrito."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a déjà téléchargé %@ et l’installera à sa fermeture — installer maintenant serait écrasé."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はすでに %@ をダウンロード済みで、終了時に適用します。今インストールしても上書きされます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже загрузил %@ и установит его при выходе — установка сейчас будет перезаписана."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已经下载好 %@，会在你退出它时安装 —— 现在装会被覆盖。"
+          }
+        }
+      }
+    },
     "%@ has an update.": {
       "extractionState": "manual",
       "localizations": {
@@ -530,6 +571,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 是运行在 Apple 芯片上的 iPhone/iPad 应用。其最新版本%@ 已不再支持 Mac，因此 App Store 不会在此设备上安装它。"
+          }
+        }
+      }
+    },
+    "%@ is downloading this update itself — left it to finish rather than fetching the same bytes twice.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ lädt dieses Update selbst herunter – wir lassen es zu Ende laufen, statt dieselben Daten ein zweites Mal zu holen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ está descargando esta actualización por su cuenta: la dejamos terminar en vez de descargar los mismos datos dos veces."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ télécharge lui-même cette mise à jour — nous le laissons terminer plutôt que de récupérer deux fois les mêmes données."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ が自身でこの更新をダウンロード中です。同じデータを二重に取得せず、完了を待ちます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже загружает это обновление сам — не стали качать те же данные во второй раз."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 正在自己下载此次更新 —— 交给它完成，避免重复下载同一份数据。"
           }
         }
       }

@@ -10120,47 +10120,6 @@
         }
       }
     },
-    "Most often ships %@, around %@.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erscheint am häufigsten %@, gegen %@."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se publica con más frecuencia el %@, alrededor de las %@."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sort le plus souvent %@, vers %@."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最も多いのは %@ の %@ 頃のリリースです。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Чаще всего выходит %@, около %@."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最常在 %@ 发布，大约 %@。"
-          }
-        }
-      }
-    },
     "No GitHub token: checking this often can hit GitHub’s rate limit (60/hour) and show errors on GitHub-sourced apps. Add a token or sign in with the gh CLI under GitHub.": {
       "extractionState": "manual",
       "localizations": {
@@ -11891,6 +11850,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "规律"
+          }
+        }
+      }
+    },
+    "Peak: %@, around %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spitze: %@, gegen %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pico: %@, alrededor de las %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pic : %@, vers %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ピーク: %@、%@ ごろ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пик: %@, около %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高峰：%@，%@ 前后"
           }
         }
       }
@@ -16853,47 +16853,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在升级…（%lld/%lld）"
-          }
-        }
-      }
-    },
-    "Usually ships %@, around %@.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erscheint gewöhnlich %@, gegen %@."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Suele publicarse el %@, alrededor de las %@."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sort généralement %@, vers %@."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通常は %@ の %@ 頃にリリースされます。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обычно выходит %@, около %@."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通常在 %@ 发布，大约 %@。"
           }
         }
       }

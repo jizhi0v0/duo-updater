@@ -339,13 +339,24 @@ private struct ReleasePatternsView: View {
         return String(localized: "Across \(stats.total) recorded releases. Times in your local zone.")
     }
 
+    /// "Peak: Friday, around 6 PM".
+    ///
+    /// A label rather than a sentence, and that is the fix rather than the style.
+    /// The day comes from `standaloneWeekdaySymbols`, which is nominative by
+    /// definition — that is what "standalone" means — and the catalog only ever
+    /// sees `%@`. So no translation of "Most often ships %@, around %@." could
+    /// inflect it: Russian needs `по пятницам` or `в пятницу` where it was getting
+    /// `пятница`, and every other case-marking language had the same problem.
+    /// After a colon the nominative is the right form in all of them.
+    ///
+    /// It also folds the all-apps and single-app variants into one string. The
+    /// distinction they drew ("most often" vs "usually") is already carried, more
+    /// honestly, by the subtitle underneath, which names how many releases the
+    /// pattern is drawn from.
     private func peakSentence(_ peak: (weekday: Int, hour: Int, count: Int)) -> String {
         let day = Calendar.current.standaloneWeekdaySymbols[peak.weekday]
         let time = hourLabel(peak.hour, long: true)
-        if selectedAppID == nil {
-            return String(localized: "Most often ships \(day), around \(time).")
-        }
-        return String(localized: "Usually ships \(day), around \(time).")
+        return String(localized: "Peak: \(day), around \(time)")
     }
 
     // MARK: Per-app version list
@@ -440,9 +451,18 @@ private struct ReleasePatternsView: View {
     private let cellSpacing: CGFloat = 3
     private let labelWidth: CGFloat = 30
 
-    /// "3 PM" (long) or "3p"/"12a" (compact axis). Uses 12-hour clock for
-    /// readability regardless of locale's 24h preference.
+    /// "3 PM" / "3p" where the locale writes clock times that way, "15:00" / "15"
+    /// where it doesn't.
+    ///
+    /// Asked of the locale rather than hard-coded: this used to render 12-hour
+    /// everywhere for compactness, which put "около 6 PM" in front of a Russian
+    /// reader who writes 18:00 — a foreign notation, not a shorter one. The
+    /// 24-hour forms are no wider than the ones they replace ("18" against "6p"),
+    /// so the axis keeps its `labelWidth`.
     private func hourLabel(_ hour: Int, long: Bool) -> String {
+        if uses24HourClock {
+            return long ? String(format: "%02d:00", hour) : "\(hour)"
+        }
         let h12 = hour % 12 == 0 ? 12 : hour % 12
         if long {
             let meridiem = hour < 12 ? String(localized: "AM") : String(localized: "PM")
@@ -450,5 +470,18 @@ private struct ReleasePatternsView: View {
         }
         let ampm = hour < 12 ? String(localized: "a") : String(localized: "p")
         return "\(h12)\(ampm)"
+    }
+
+    /// Whether this locale writes clock times on a 24-hour dial. The "j" template
+    /// is the documented way to ask: it resolves to the locale's own hour field,
+    /// and only the 12-hour ones carry a day-period ("a") beside it.
+    ///
+    /// Asked on every call rather than cached in a `static let`. macOS's 24-Hour
+    /// Time is a switch a user flips, and a value read once per process would
+    /// leave the chart on the old dial until the app was relaunched. A view render
+    /// asks for it five times (four axis ticks and the headline).
+    private var uses24HourClock: Bool {
+        let format = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: .current) ?? "h"
+        return !format.contains("a")
     }
 }

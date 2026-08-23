@@ -470,6 +470,16 @@ private struct TrafficRow: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    // Real bytes for no change. Only ever shown when both builds
+                    // were recorded, so it never guesses at an older event.
+                    if event.changedNothing {
+                        Text("no change")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Color.orange.opacity(0.13),
+                                        in: RoundedRectangle(cornerRadius: 4))
+                    }
                     if let source = event.sourceName {
                         Text(source)
                             .font(.system(size: 10, weight: .semibold))
@@ -501,7 +511,9 @@ private struct TrafficRow: View {
     }
 
     private func versionTransition(_ event: TrafficEvent) -> String {
-        switch (event.fromVersion, event.toVersion) {
+        // versionSides folds the build numbers in when the marketing versions are
+        // identical, which is the only case where they carry the change.
+        switch event.versionSides {
         case let (from?, to?): return String(localized: "\(from) → \(to)")
         case let (nil, to?):   return to
         case let (from?, nil): return from

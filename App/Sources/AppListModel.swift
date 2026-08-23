@@ -834,7 +834,25 @@ final class AppListModel {
     /// Record the bytes one install transferred, keyed to its app, then refresh
     /// the UI snapshot. `bytes <= 0` (e.g. an install that did no measured
     /// download) is ignored by the store.
-    private func recordTraffic(_ result: UpdateResult, bytes: Int64) async {
+    /// - Parameter applied: the coordinator's own answer to "is the new version on
+    ///   disk now". A staged `.pkg` is false — macOS's installer still has a window
+    ///   open — and the bundle there is still the build being replaced.
+    /// - Parameter fromBuild: the build measured off disk immediately before the
+    ///   install started. Passed in rather than read here because by now the swap
+    ///   has already happened and the bundle carries the new build.
+    private func recordTraffic(
+        _ result: UpdateResult, bytes: Int64, applied: Bool, fromBuild: String?
+    ) async {
+        // The build actually landed on beats the one the source advertised: feeds
+        // do misreport (a static appcast overridden by a backend list, a lagging
+        // mirror), and this is measured rather than claimed. It is also the only
+        // build number available at all for GitHub, Homebrew and the App Store,
+        // which publish none.
+        let toBuild = InstalledBuild.recorded(
+            applied: applied,
+            onDisk: { InstalledBuild.read(at: result.app.path) },
+            declared: result.remote?.version)
+
         await trafficStore.record(
             appID: result.app.id,
             appName: result.app.name,
@@ -842,7 +860,13 @@ final class AppListModel {
             fromVersion: result.app.shortVersion,
             toVersion: result.remote?.displayVersion,
             sourceName: result.remote?.sourceName,
-            bytes: bytes
+            bytes: bytes,
+            // Several builds can ship under one marketing version — Surge put four
+            // releases out as "6.9.0" — and the row reads "6.9.0 → 6.9.0" without
+            // these. Both sides are measured off the same bundle, one before the
+            // install and one after.
+            fromBuild: fromBuild,
+            toBuild: toBuild
         )
         await refreshTrafficStats()
     }
@@ -2122,6 +2146,16 @@ final class AppListModel {
             // a category exempt from it makes the number meaningless.
             var downloadPermitHeld = false
             defer { if downloadPermitHeld { Self.installPermits.signalDownload() } }
+            // Measured here, before any route touches the bundle, so both ends of
+            // the recorded transition come from the same place. `result` is a
+            // snapshot from the last refresh, and an app with its own updater can
+            // replace itself between that refresh and this click — the case the
+            // deferred-rescan work around external self-updates exists for. Taking
+            // the "from" side from that snapshot while the "to" side is read off
+            // disk would write a transition the machine never made.
+            let fromBuild = InstalledBuild.read(at: result.app.path)
+                ?? result.app.buildVersion
+
             let route = InstallCoordinator.route(
                 for: result, requiresInstaller: requiresInstaller(result))
 
@@ -2136,7 +2170,9 @@ final class AppListModel {
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })
                 recordEffectiveHost(result, finalHost: outcome.finalHost)
-                await recordTraffic(result, bytes: outcome.bytesDownloaded)
+                await recordTraffic(
+                    result, bytes: outcome.bytesDownloaded, applied: outcome.applied,
+                    fromBuild: fromBuild)
                 if let packageURL = outcome.stagedPackageURL {
                     // pkg casks: the actual install happens in macOS's installer
                     // under the user's control, so we don't mark it up to date —

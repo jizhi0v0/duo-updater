@@ -63,6 +63,7 @@ public actor SparkleInstaller {
     /// (or a cancellation landing between the phases) is done with it.
     public func download(
         _ result: UpdateResult,
+        preferDelta: Bool = true,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws -> DownloadedUpdate {
         guard let remote = result.remote, remote.sourceName == "Sparkle" else {
@@ -70,6 +71,27 @@ public actor SparkleInstaller {
         }
         guard let downloadURL = remote.downloadURL else {
             throw InstallError.noDownloadURL
+        }
+
+        // Prefer a patch when the feed published one for exactly this build and
+        // this build can apply it. `preferDelta` is false on the retry the
+        // coordinator makes after a patch route fails, so a broken patch degrades
+        // to the full archive rather than failing the install — the same fallback
+        // Sparkle itself performs.
+        let patch = preferDelta && DeltaApplier.isAvailable
+            ? DeltaApplier.patch(for: result.app, in: remote)
+            : nil
+        // Which route this install took is otherwise invisible: both end in the
+        // same swap, and the only outward difference is a byte count nothing prints.
+        if let patch {
+            // The comparison is what makes this line useful, so omit it rather
+            // than print a placeholder when the source publishes no archive size
+            // (vendor probes generally do not).
+            let saving = remote.downloadSize.map { " instead of \($0) B" } ?? ""
+            let patchSize = patch.size.map(String.init) ?? "unknown"
+            Log.install.info("delta route: \(result.app.name, privacy: .public) build \(patch.fromBuild, privacy: .public) → \(remote.version ?? "?", privacy: .public), patch \(patchSize, privacy: .public) B\(saving, privacy: .public)")
+        } else if preferDelta, !remote.deltas.isEmpty {
+            Log.install.info("delta unavailable: \(result.app.name, privacy: .public) build \(result.app.buildVersion ?? "?", privacy: .public) not among \(remote.deltas.count, privacy: .public) published patches — taking the full archive")
         }
 
         // Scratch dir we own. Removed up front so a retry starts clean; on
@@ -82,12 +104,13 @@ public actor SparkleInstaller {
             let downloader = Downloader(destinationDir: workDir) { fraction in
                 onStage(.downloading(fraction: fraction))
             }
-            let archive = try await downloader.download(downloadURL)
+            let archive = try await downloader.download(patch?.url ?? downloadURL)
             return DownloadedUpdate(
                 archiveURL: archive,
                 bytesDownloaded: downloader.bytesDownloaded,
                 workDir: workDir,
-                finalHost: downloader.finalHost)
+                finalHost: downloader.finalHost,
+                appliedPatch: patch)
         } catch {
             // A failed (or partially-written) download leaves nothing behind.
             try? FileManager.default.removeItem(at: workDir)
@@ -100,6 +123,31 @@ public actor SparkleInstaller {
     /// swapped in place ("the swap has landed"); everything the caller does
     /// after this is restart bookkeeping and needs no permit.
     public func apply(
+        _ result: UpdateResult,
+        download: DownloadedUpdate,
+        onStage: @Sendable @escaping (InstallStage) -> Void
+    ) throws {
+        guard download.appliedPatch != nil else {
+            return try applyVerified(result, download: download, onStage: onStage)
+        }
+        // Everything that can go wrong on the patch route is recoverable by taking
+        // the full archive instead — a patch that won't apply, a signature that
+        // won't verify, a reconstructed bundle that fails a gate. Sparkle makes the
+        // same choice ("in any case where a binary delta update fails to install,
+        // Sparkle falls back to downloading and installing the regular full
+        // update"), and it holds here for the same reason: the patch is an
+        // optimisation over a download that is always available, so nothing is lost
+        // by abandoning it. The full route's failures are NOT wrapped — there the
+        // gate really is telling us not to install.
+        do {
+            try applyVerified(result, download: download, onStage: onStage)
+        } catch {
+            throw DeltaRouteFailure(
+                underlying: error, bytesSpent: download.bytesDownloaded)
+        }
+    }
+
+    private func applyVerified(
         _ result: UpdateResult,
         download: DownloadedUpdate,
         onStage: @Sendable @escaping (InstallStage) -> Void
@@ -130,7 +178,11 @@ public actor SparkleInstaller {
         // new bundle (step 3b).
         var heldEdFailure: Error?
         var archiveData: Data?
-        if verifiesWithEdDSA {
+        // Skipped wholesale on the patch route: every line below reasons about the
+        // ARCHIVE's signature and the rotation it might reveal, neither of which
+        // describes a `.delta`. The patch carries its own proof and `reconstruct`
+        // checks it before the patch tool ever sees the file.
+        if verifiesWithEdDSA, download.appliedPatch == nil {
             onStage(.verifyingSignature)
             let fileData = try Data(contentsOf: download.archiveURL, options: .mappedIfSafe)
             do {
@@ -145,9 +197,25 @@ public actor SparkleInstaller {
             }
         }
 
-        // 3. Extract the .app
+        // 3. Produce the new .app — unpacked from the archive, or reconstructed
+        // from the installed bundle plus the patch. Either way what comes out is an
+        // ordinary bundle that must clear every gate below; the patch buys bytes,
+        // never trust. `result.app.path` is read only, so a patch that fails here
+        // leaves the installed app untouched for the full-archive retry.
         onStage(.extracting)
-        let newApp = try ArchiveExtractor.extractApp(from: download.archiveURL, workDir: download.workDir)
+        let newApp: URL
+        if let patch = download.appliedPatch {
+            newApp = try DeltaApplier.reconstruct(
+                installedApp: result.app.path,
+                patch: patch,
+                patchFile: download.archiveURL,
+                workDir: download.workDir,
+                edPublicKey: publicKey,
+                onStage: onStage)
+        } else {
+            newApp = try ArchiveExtractor.extractApp(
+                from: download.archiveURL, workDir: download.workDir)
+        }
 
         // 3b. The signature didn't match the key we hold. If the download ships a
         // DIFFERENT `SUPublicEDKey` and the feed's signature verifies against it,

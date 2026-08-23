@@ -66,6 +66,7 @@ public actor VendorInstaller {
     /// (or a cancellation landing between the phases) is done with it.
     public func download(
         _ result: UpdateResult,
+        preferDelta: Bool = true,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws -> DownloadedUpdate {
         // Accept any source whose RemoteVersion carries a resolved installer
@@ -84,6 +85,25 @@ public actor VendorInstaller {
             throw InstallError.unknownKind  // pkg goes through PackageInstaller
         }
 
+        // A patch published for exactly the build on disk. Vendors reached through
+        // a probe can still serve a Sparkle appcast — ChatGPT does, and every one
+        // of its installs comes through here rather than SparkleInstaller, so the
+        // delta route has to exist on this side too or it misses the app it was
+        // built for. `preferDelta` is false on the coordinator's retry.
+        let patch = preferDelta && DeltaApplier.isAvailable
+            ? DeltaApplier.patch(for: result.app, in: remote)
+            : nil
+        if let patch {
+            // The comparison is what makes this line useful, so omit it rather
+            // than print a placeholder when the source publishes no archive size
+            // (vendor probes generally do not).
+            let saving = remote.downloadSize.map { " instead of \($0) B" } ?? ""
+            let patchSize = patch.size.map(String.init) ?? "unknown"
+            Log.install.info("delta route: \(result.app.name, privacy: .public) build \(patch.fromBuild, privacy: .public) → \(remote.version ?? remote.shortVersion ?? "?", privacy: .public), patch \(patchSize, privacy: .public) B\(saving, privacy: .public)")
+        } else if preferDelta, !remote.deltas.isEmpty {
+            Log.install.info("delta unavailable: \(result.app.name, privacy: .public) build \(result.app.buildVersion ?? "?", privacy: .public) not among \(remote.deltas.count, privacy: .public) published patches — taking the full archive")
+        }
+
         // Scratch dir we own. Removed up front so a retry starts clean; on
         // failure we remove it again below; on success it stays for `apply`.
         let workDir = FileManager.default.temporaryDirectory
@@ -94,16 +114,22 @@ public actor VendorInstaller {
             let downloader = Downloader(destinationDir: workDir) { fraction in
                 onStage(.downloading(fraction: fraction))
             }
-            let downloaded = try await downloader.download(downloadURL, headers: remote.downloadHeaders)
+            let downloaded = try await downloader.download(
+                patch?.url ?? downloadURL, headers: remote.downloadHeaders)
 
             // Ensure the file carries an extension matching its kind, so the
             // extractor dispatches correctly even for extensionless CDN-asset URLs.
-            let archive = try normalizedArchive(downloaded, kind: kind, workDir: workDir)
+            // Skipped for a patch: `kind` describes the ARCHIVE, and renaming a
+            // `.delta` to `.zip` would only mislead the extractor it never reaches.
+            let archive = patch == nil
+                ? try normalizedArchive(downloaded, kind: kind, workDir: workDir)
+                : downloaded
             return DownloadedUpdate(
                 archiveURL: archive,
                 bytesDownloaded: downloader.bytesDownloaded,
                 workDir: workDir,
-                finalHost: downloader.finalHost)
+                finalHost: downloader.finalHost,
+                appliedPatch: patch)
         } catch {
             // A failed (or partially-written) download leaves nothing behind.
             try? FileManager.default.removeItem(at: workDir)
@@ -120,19 +146,57 @@ public actor VendorInstaller {
         download: DownloadedUpdate,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) throws {
+        guard download.appliedPatch != nil else {
+            return try applyVerified(result, download: download, onStage: onStage)
+        }
+        // Any failure on the patch route is recoverable by taking the full archive,
+        // which is always published alongside it; the coordinator retries on this
+        // type alone, so a real gate failure on the full route still stops.
+        do {
+            try applyVerified(result, download: download, onStage: onStage)
+        } catch {
+            throw DeltaRouteFailure(
+                underlying: error, bytesSpent: download.bytesDownloaded)
+        }
+    }
+
+    private func applyVerified(
+        _ result: UpdateResult,
+        download: DownloadedUpdate,
+        onStage: @Sendable @escaping (InstallStage) -> Void
+    ) throws {
         guard let remote = result.remote else {
             throw InstallError.notVendorUpdate
         }
 
-        // 2. Gate 1 (optional) — SHA-512 over the exact bytes we downloaded.
-        if let expected = remote.expectedSHA512 {
-            onStage(.verifyingSignature)
-            try verifyChecksum(download.archiveURL, expectedBase64: expected)
-        }
+        let newApp: URL
+        if let patch = download.appliedPatch {
+            // `expectedSHA512` describes the ARCHIVE, so it cannot speak for these
+            // bytes and is deliberately not applied here. `reconstruct` checks what
+            // can be checked — the baseline, then the patch's own EdDSA signature
+            // when the vendor publishes one and the app carries the key. ChatGPT
+            // does both (45 of 45 patches signed), so its patch route ends up better
+            // proven than this installer's full-archive path, which has no signature
+            // to check at all.
+            newApp = try DeltaApplier.reconstruct(
+                installedApp: result.app.path,
+                patch: patch,
+                patchFile: download.archiveURL,
+                workDir: download.workDir,
+                edPublicKey: result.app.sparkleEdPublicKey,
+                onStage: onStage)
+        } else {
+            // 2. Gate 1 (optional) — SHA-512 over the exact bytes we downloaded.
+            if let expected = remote.expectedSHA512 {
+                onStage(.verifyingSignature)
+                try verifyChecksum(download.archiveURL, expectedBase64: expected)
+            }
 
-        // 3. Unpack the .app.
-        onStage(.extracting)
-        let newApp = try ArchiveExtractor.extractApp(from: download.archiveURL, workDir: download.workDir)
+            // 3. Unpack the .app.
+            onStage(.extracting)
+            newApp = try ArchiveExtractor.extractApp(
+                from: download.archiveURL, workDir: download.workDir)
+        }
 
         // 4. Gate 2 + 3 + 4 — code signature valid, same Team ID, AND same signed
         // bundle identifier as the installed app. The bundle-id pin stops a

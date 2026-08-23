@@ -254,17 +254,63 @@ public actor InstallCoordinator {
                 bytesDownloaded: 0, finalHost: nil, stagedPackageURL: nil, applied: true)
 
         case .vendor:
-            return try await fetchThenSwap(
-                result, progress: progress, releaseAfterDownload: releaseAfterDownload,
-                download: { try await self.vendor.download($0, onStage: $1) },
-                apply: { _ = try await self.vendor.apply($0, download: $1, onStage: $2) })
+            do {
+                return try await fetchThenSwap(
+                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    download: {
+                        try await self.vendor.download($0, preferDelta: true, onStage: $1)
+                    },
+                    apply: { _ = try await self.vendor.apply($0, download: $1, onStage: $2) })
+            } catch let failure as DeltaRouteFailure {
+                Log.install.info("delta route failed, retrying with the full archive: \(result.app.name, privacy: .public) — \(failure.errorDescription ?? "unknown", privacy: .public)")
+                // The patch's bytes were spent whether or not it worked, so they
+                // belong in the total this install reports.
+                return try await withBytes(failure.bytesSpent) { try await fetchThenSwap(
+                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    download: {
+                        try await self.vendor.download($0, preferDelta: false, onStage: $1)
+                    },
+                    apply: { _ = try await self.vendor.apply($0, download: $1, onStage: $2) }) }
+            }
 
         case .sparkle:
-            return try await fetchThenSwap(
-                result, progress: progress, releaseAfterDownload: releaseAfterDownload,
-                download: { try await self.sparkle.download($0, onStage: $1) },
-                apply: { _ = try await self.sparkle.apply($0, download: $1, onStage: $2) })
+            do {
+                return try await fetchThenSwap(
+                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    download: {
+                        try await self.sparkle.download($0, preferDelta: true, onStage: $1)
+                    },
+                    apply: { _ = try await self.sparkle.apply($0, download: $1, onStage: $2) })
+            } catch let failure as DeltaRouteFailure {
+                // The patch route didn't work out; take the full archive, which is
+                // always published alongside it. Only `DeltaRouteFailure` lands here
+                // — a gate failure on the full route is a real refusal and must not
+                // be retried. The second pass re-acquires both permits, which is
+                // correct: it is a second download competing for the same budget.
+                Log.install.info("delta route failed, retrying with the full archive: \(result.app.name, privacy: .public) — \(failure.errorDescription ?? "unknown", privacy: .public)")
+                // The patch's bytes were spent whether or not it worked, so they
+                // belong in the total this install reports.
+                return try await withBytes(failure.bytesSpent) { try await fetchThenSwap(
+                    result, progress: progress, releaseAfterDownload: releaseAfterDownload,
+                    download: {
+                        try await self.sparkle.download($0, preferDelta: false, onStage: $1)
+                    },
+                    apply: { _ = try await self.sparkle.apply($0, download: $1, onStage: $2) }) }
+            }
         }
+    }
+
+    /// Add bytes already spent on an abandoned attempt to whatever the retry reports.
+    private func withBytes(
+        _ extra: Int64, _ body: () async throws -> Outcome
+    ) async rethrows -> Outcome {
+        let outcome = try await body()
+        guard extra > 0 else { return outcome }
+        return Outcome(
+            bytesDownloaded: outcome.bytesDownloaded + extra,
+            finalHost: outcome.finalHost,
+            stagedPackageURL: outcome.stagedPackageURL,
+            applied: outcome.applied)
     }
 
     /// Source-specific proof over a package route's original download. A Sparkle

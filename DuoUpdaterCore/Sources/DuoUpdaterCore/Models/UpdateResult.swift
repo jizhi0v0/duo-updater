@@ -55,6 +55,40 @@ public struct ReleaseHistoryEntry: Sendable, Hashable {
     }
 }
 
+/// A binary patch that upgrades ONE specific installed build to this release —
+/// Sparkle's `<sparkle:deltas><enclosure sparkle:deltaFrom="…">`.
+///
+/// Not an installer: applying it needs the exact bundle it was cut against, so a
+/// patch is only usable when `fromBuild` equals what is on disk right now. The
+/// vendor publishes a handful per release (ChatGPT 5, Docker 13, Keka 8), so the
+/// match either lands or it doesn't — and when it doesn't, the full archive is
+/// the answer, not a smaller patch.
+///
+/// Worth having because the ratio is not marginal: measured on the real feeds,
+/// Keka's 1.6.5→1.6.7 patch is 519 KB against a 32.9 MB archive, and ChatGPT's
+/// consecutive-build patch is 713 KB against 605 MB.
+public struct DeltaPatch: Sendable, Hashable {
+    /// `sparkle:deltaFrom` — the build this patch upgrades FROM. Compared against
+    /// the installed `CFBundleVersion`, which is what Sparkle cut the patch
+    /// against; a marketing-version match would be wrong on any app whose two
+    /// numbers differ.
+    public let fromBuild: String
+    public let url: URL
+    /// `length` — patch size in bytes, when declared.
+    public let size: Int64?
+    /// `sparkle:edSignature` over the patch file itself. A signed feed signs each
+    /// delta separately from the archive, so this is the one to verify when the
+    /// patch is what we downloaded.
+    public let edSignature: String?
+
+    public init(fromBuild: String, url: URL, size: Int64? = nil, edSignature: String? = nil) {
+        self.fromBuild = fromBuild
+        self.url = url
+        self.size = size
+        self.edSignature = edSignature
+    }
+}
+
 /// What a single update source reports as the newest available release.
 public struct RemoteVersion: Sendable, Hashable {
     /// Marketing version, e.g. "1.96.0" (`sparkle:shortVersionString`).
@@ -155,6 +189,12 @@ public struct RemoteVersion: Sendable, Hashable {
     /// store dedupes by version). Empty for sources that only resolve one release.
     public let releaseHistory: [ReleaseHistoryEntry]
 
+    /// Binary patches this release publishes, one per build it can upgrade from.
+    /// Empty for every source that doesn't publish them — which is most: of the
+    /// eleven Sparkle feeds readable on this machine only Keka's carried patches
+    /// usable by the installed build. See `DeltaPatch`.
+    public let deltas: [DeltaPatch]
+
     public init(
         shortVersion: String?,
         version: String?,
@@ -176,7 +216,8 @@ public struct RemoteVersion: Sendable, Hashable {
         structuredChangelog: Changelog? = nil,
         changelogURL: URL? = nil,
         publishedAt: Date? = nil,
-        releaseHistory: [ReleaseHistoryEntry] = []
+        releaseHistory: [ReleaseHistoryEntry] = [],
+        deltas: [DeltaPatch] = []
     ) {
         self.shortVersion = shortVersion
         self.version = version
@@ -199,6 +240,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.changelogURL = changelogURL
         self.publishedAt = publishedAt
         self.releaseHistory = releaseHistory
+        self.deltas = deltas
     }
 
     /// Best version string to show the user.

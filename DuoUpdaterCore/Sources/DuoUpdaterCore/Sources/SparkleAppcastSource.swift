@@ -77,7 +77,8 @@ public struct SparkleAppcastSource: UpdateSource {
             structuredChangelog: structured,
             changelogURL: best.releaseNotesLink,
             publishedAt: ReleaseDate.parse(best.pubDate),
-            releaseHistory: history
+            releaseHistory: history,
+            deltas: best.deltas
         )
     }
 
@@ -271,6 +272,9 @@ struct SparkleAppcastItem {
     var edSignature: String?
     var minimumSystemVersion: String?
     var deltaFrom: String?
+    /// Patches published alongside this release inside `<sparkle:deltas>`, each
+    /// naming the one build it upgrades from. Empty for the vast majority of feeds.
+    var deltas: [DeltaPatch] = []
     /// `<sparkle:channel>` — names a non-default release track (e.g. "beta").
     /// nil/absent means the default (stable) channel, which Sparkle always ships.
     var channel: String?
@@ -340,7 +344,23 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             deltasDepth += 1
         case "enclosure":
             // Inside <sparkle:deltas> this is a patch, not the release download.
-            guard deltasDepth == 0 else { break }
+            // Collected rather than merely skipped: it is the same release, reachable
+            // for a fraction of the bytes when its `deltaFrom` is the build on disk.
+            // Everything below still runs only for the real enclosure — letting a
+            // patch through would restore the hijack this depth counter exists to
+            // prevent (`deltaEnclosuresDontHijackTheItemsDownload`).
+            guard deltasDepth == 0 else {
+                if let urlString = attributeDict["url"],
+                   let url = URL(string: urlString),
+                   let from = attributeDict["sparkle:deltaFrom"] {
+                    current?.deltas.append(DeltaPatch(
+                        fromBuild: from,
+                        url: url,
+                        size: attributeDict["length"].flatMap { Int64($0) },
+                        edSignature: attributeDict["sparkle:edSignature"]))
+                }
+                break
+            }
             current?.enclosureURL = attributeDict["url"].flatMap { URL(string: $0) }
             if let length = attributeDict["length"], let n = Int64(length) {
                 current?.enclosureLength = n

@@ -64,19 +64,42 @@ targets:
           cp "$SRCROOT/Helper/com.duoupdater.helper.plist" \
              "$APP/Contents/Library/LaunchDaemons/com.duoupdater.helper.plist"
           cp "$BUILT_PRODUCTS_DIR/DuoUpdaterHelper" "$APP/Contents/MacOS/DuoUpdaterHelper"
+          # Sparkle's own BinaryDelta, the only reader of its patch format (see
+          # DeltaApplier). It ships in the Sparkle package's artifact bundle rather
+          # than as a build product, so it is located rather than referenced by a
+          # fixed path — the artifact directory is under whatever DerivedData this
+          # build is using.
+          #
+          # A missing tool FAILS THE BUILD instead of warning. The alternative is a
+          # product that looks fine and silently takes the full download for every
+          # update — precisely the class of "builds clean, quietly does less" defect
+          # the empty-.lproj incremental-build bug already cost us once.
+          DD="${BUILD_DIR%/Build/Products}"
+          BINARY_DELTA="$(find "$DD/SourcePackages/artifacts" -type f -name BinaryDelta -perm +111 2>/dev/null | head -1)"
+          if [ -z "$BINARY_DELTA" ]; then
+            echo "error: Sparkle's BinaryDelta not found under $DD/SourcePackages/artifacts —" >&2
+            echo "error: resolve package dependencies and rebuild." >&2
+            exit 1
+          fi
+          cp "$BINARY_DELTA" "$APP/Contents/MacOS/BinaryDelta"
           if [ -n "$EXPANDED_CODE_SIGN_IDENTITY" ] && [ "$EXPANDED_CODE_SIGN_IDENTITY" != "-" ]; then
             rt=""
             [ "$CONFIGURATION" = "Release" ] && rt="--options runtime"
             codesign --force $rt --sign "$EXPANDED_CODE_SIGN_IDENTITY" \
               "$APP/Contents/MacOS/DuoUpdaterHelper"
+            # Signed with the app's own identity: it arrives unsigned from the
+            # artifact bundle (TeamIdentifier=not set), and an unsigned executable
+            # inside a hardened-runtime bundle is refused by notarization.
+            codesign --force $rt --sign "$EXPANDED_CODE_SIGN_IDENTITY" \
+              "$APP/Contents/MacOS/BinaryDelta"
             codesign --force $rt --sign "$EXPANDED_CODE_SIGN_IDENTITY" "$APP"
           fi
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.app
-        MARKETING_VERSION: "0.3.61"
-        CURRENT_PROJECT_VERSION: "70"
+        MARKETING_VERSION: "0.3.62"
+        CURRENT_PROJECT_VERSION: "71"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Info.plist
         # Menu-bar-only app: no Dock icon, no main window.
@@ -188,8 +211,8 @@ targets:
         # plist's BundleProgram points at Contents/MacOS/DuoUpdaterHelper. The bundle
         # *identifier* (for signing / XPC pinning) is com.duoupdater.helper.
         PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.helper
-        MARKETING_VERSION: "0.3.61"
-        CURRENT_PROJECT_VERSION: "70"
+        MARKETING_VERSION: "0.3.62"
+        CURRENT_PROJECT_VERSION: "71"
         SWIFT_VERSION: "6.0"
         # Embed a generated Info.plist into the binary's __TEXT,__info_plist so the
         # helper has a bundle id/version (Bundle.main reads it) without a wrapper.

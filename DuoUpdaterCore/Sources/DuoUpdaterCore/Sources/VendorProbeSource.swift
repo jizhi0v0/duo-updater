@@ -380,7 +380,9 @@ public struct VendorProbeSource: UpdateSource {
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: spec, plan: plan,
                     resolvedDownload: body.resolvedDownload, display: display,
-                    publishedAt: publishedAt)
+                    publishedAt: publishedAt,
+                    deltas: VendorAppcastDeltas.patches(
+                        inBody: body.text, forVersion: version))
                 // A recipe that names a checksum pattern but no longer matches one
                 // still installs — unverified. Silent today; flag it.
                 if spec.checksumPattern != nil, plan.checksum == nil {
@@ -557,7 +559,8 @@ public struct VendorProbeSource: UpdateSource {
         plan: (url: URL, checksum: String?)?,
         resolvedDownload: URL?,
         display: String? = nil,
-        publishedAt: Date? = nil
+        publishedAt: Date? = nil,
+        deltas: [DeltaPatch] = []
     ) -> RemoteVersion {
         // A build-number recipe routes the value into `version` (compared against
         // the installed `CFBundleVersion`); `shortVersion` stays nil so a build
@@ -588,7 +591,11 @@ public struct VendorProbeSource: UpdateSource {
                 expectedSHA512: plan.checksum,
                 downloadHeaders: spec.requestHeaders,
                 changelogURL: recipe.changelogURL,
-                publishedAt: publishedAt
+                publishedAt: publishedAt,
+                // Only on the installable branch: a patch is an alternative route
+                // to an artifact we are going to fetch, so it is meaningless on a
+                // detection-only result that has no artifact to begin with.
+                deltas: deltas
             )
         }
 

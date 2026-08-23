@@ -22,10 +22,21 @@ public struct DownloadedUpdate: Sendable {
     /// response.
     public let finalHost: String?
 
-    public init(archiveURL: URL, bytesDownloaded: Int64, workDir: URL, finalHost: String? = nil) {
+    /// Set when `archiveURL` is a binary PATCH rather than a full archive — the
+    /// apply phase then reconstructs the new bundle from the installed one instead
+    /// of unpacking. Carries the patch's own `edSignature`, which signs different
+    /// bytes than the archive's and is the only one that can verify this file.
+    /// Nil for an ordinary full download.
+    public let appliedPatch: DeltaPatch?
+
+    public init(
+        archiveURL: URL, bytesDownloaded: Int64, workDir: URL,
+        finalHost: String? = nil, appliedPatch: DeltaPatch? = nil
+    ) {
         self.archiveURL = archiveURL
         self.bytesDownloaded = bytesDownloaded
         self.workDir = workDir
         self.finalHost = finalHost
+        self.appliedPatch = appliedPatch
     }
 }

@@ -17,6 +17,22 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.57</title>
+            <pubDate>Sun, 23 Aug 2026 14:33:09 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.57</link>
+            <sparkle:version>66</sparkle:version>
+            <sparkle:shortVersionString>0.3.57</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**An app you installed from the App Store is no longer offered the developer's own download.** Plenty of apps are published in two places at once — in the store, and as a direct download from the developer's own site — under the same identity but as genuinely different builds. The direct download usually runs ahead, because it doesn't wait for store review. Duo Updater checks the store first for a store-installed app, but when that check failed for any reason — a dropped connection, a storefront that didn't answer — it quietly moved on to the developer's site and offered you whatever was there. WhatsApp showed this as "26.32.75 → 26.33.19": a real version, from the wrong place. Taking it would have replaced your store copy with one the App Store could never update again. Store-installed apps are now checked against the store and nowhere else.
+
+**Switching an app's update channel inside that app now registers straight away.** Some apps let you choose between their normal releases and their beta ones — Surge, Tailscale, Fork, OrbStack, IINA, Alfred and others — and Duo Updater follows whichever you picked so it never offers you a build you didn't ask for. It used to notice the change only when you quit the app or opened one of Duo Updater's windows. Neither covers what people actually do: turn the setting off, leave the app running, and glance at the menu bar. Worse, apps save that setting to disk when it suits them rather than the moment you click — Surge took five minutes here — so even quitting could be read too early. Duo Updater now watches for the setting itself changing and re-checks that one app within a second or two. Switching Surge back to normal releases now clears the beta version from its row immediately, instead of leaving it there for up to an hour.
+
+**A check that couldn't reach anything no longer looks like a clean bill of health.** When every source failed — no network, or a proxy quietly refusing connections while the Wi-Fi icon still says everything is fine — the apps that failed were hidden and the panel said "127 apps · up to date". That is the same screen you get when everything genuinely is up to date, which made a failed check indistinguishable from a successful one. The panel now says how many apps it couldn't reach, shows what went wrong, and offers to try those again — just those, leaving everything it did manage to check alone.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.57/DuoUpdater-0.3.57-macos.zip" length="10933058" type="application/octet-stream" sparkle:edSignature="LHs4Qkd+JKi4rCYIjgM+KN6L+j1DNHBvQ5mg11OzSFPDUAcFqaRgN6YFIvRxWweRiq7UQQcJIhNEyHMNNM3jDw=="/>
+        </item>
+        <item>
             <title>0.3.56</title>
             <pubDate>Sun, 23 Aug 2026 01:35:52 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.56</link>
@@ -77,18 +93,6 @@
 **Three ways an update could go wrong that a review caught before you did.** An App Store update that failed, or that you cancelled, could bring the app back to life minutes later — you would quit it yourself and it would reopen, because Duo Updater had noted "this app may need reopening" before anything had actually closed it. It now only reopens an app when a quit was genuinely asked for. Separately, the check added last release to stop an app's own updater undoing ours compared only the version *name*: a vendor that ships several builds under one version number slipped straight past it, which is the same failure it was written to prevent. It now compares the build number too. And an app's own updater is no longer assumed to be waiting just because a downloaded copy is sitting in its cache — Sparkle leaves those behind for ten days after an interrupted install, which could have left a Restart button that did nothing but explain itself.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.53/DuoUpdater-0.3.53-macos.zip" length="10748601" type="application/octet-stream" sparkle:edSignature="Nw51dkkIERKbb966FY7QxyO1Pf+/JeuWEkDhW4ZqJD49ewDEI+aKAH1Ai1ZUFz1iXZpLTBIDwCb5V3MZaJrpDg=="/>
-        </item>
-        <item>
-            <title>0.3.52</title>
-            <pubDate>Sat, 22 Aug 2026 17:00:55 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.52</link>
-            <sparkle:version>61</sparkle:version>
-            <sparkle:shortVersionString>0.3.52</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Same changes as 0.3.51, reissued so it can actually reach you.** 0.3.51 went out carrying the same internal build number as 0.3.50. That number, not the one in the version name, is what an update check compares — so anyone already running 0.3.50 was told they were up to date and never offered it. This release carries the changes below under a build number that is properly newer. If you are reading this on 0.3.51, nothing about the app changed between the two.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.52/DuoUpdater-0.3.52-macos.zip" length="10743671" type="application/octet-stream" sparkle:edSignature="lIJACHWFHJF1eU6YlsuvBVkCTMAyogRHo4u5DMNYQDsfQgI2IIebNCLaLltZI4vwZ2gqmgG49ozKGd5wMSJUBw=="/>
         </item>
     </channel>
 </rss>

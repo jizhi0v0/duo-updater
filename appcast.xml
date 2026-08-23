@@ -17,6 +17,31 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.62</title>
+            <pubDate>Mon, 24 Aug 2026 02:36:51 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.62</link>
+            <sparkle:version>71</sparkle:version>
+            <sparkle:shortVersionString>0.3.62</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Updates now download only what changed, when the developer publishes it that way.** Some apps ship a small patch alongside each release — enough to turn the version you have into the new one, without fetching the whole thing again. Duo Updater used to ignore those and download the full package every time. It now takes the patch when one matches the exact build you're on. ChatGPT's last update came to 1.9 MB instead of 605 MB; Docker's to 87 MB instead of 582 MB. The result is the identical application either way — same signature, same bytes, verified against the full download before this shipped. When no patch fits what you have, or one fails to apply, the full download happens as before, so nothing can fail to install because of this.
+
+**Duo Updater no longer downloads an update an app is already downloading itself.** Many apps update themselves as well, and both of us reaching for the same 600 MB file at the same time cost you that file twice. Duo Updater now notices a download in progress and leaves it alone, saying so on the row rather than doing nothing silently. If that download turns out to be abandoned, it stops counting after ten minutes so nothing stays blocked.
+
+**An update an app has already prepared is no longer overwritten.** Apps that update themselves often download in the background and then wait for you to quit them before swapping the new version in. Installing over one of those looked like it worked and then came undone the moment you quit the app — and where the app's own pending version was older than what Duo Updater had just installed, you ended up further behind than when you started. Those updates are now left to finish, whichever version they carry.
+
+**Duo Updater's own updates got smaller too.** Its releases now ship the same kind of patch, so updating from a recent version fetches a few hundred kilobytes instead of eleven megabytes.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.62-macos.zip" length="11679057" type="application/octet-stream" sparkle:edSignature="1D62P87Z2k6ZdpqEdXwplWg3IrJrr67KbIMKPjGi4pjYqgVWKfxDCXmqcWdIRCsuktCbPpXjkCSzdtp6pYKgBQ=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater71-70.delta" sparkle:deltaFrom="70" length="919554" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="HtGSxvKmQWrdrvuH1HQqr7bN3HEO/I4yayh/ZttTe3IPjN32R8TJSV3MhVcSCPKidHbsDGAVSz7LK8ukMz1rAg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater71-69.delta" sparkle:deltaFrom="69" length="1002374" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="IHuzQmBLe75n2r9xiu7XV0uwGN1cx4toYZue+q6cGBqueMfhCT/Iao9NjvheCbMP+1JlSniApcK177/sSykXDw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater71-68.delta" sparkle:deltaFrom="68" length="1013950" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="tdupLobL6LrczjpnVd2NpcMZLPyoh/QZYEE3SajRdpHDjizHEX+yV6OP+fKw92BiGrwdULwVoUjcprnQCjmqBQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater71-67.delta" sparkle:deltaFrom="67" length="1039190" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="xwFPaonnDkaldq2jCAie4w62Si4O/xChNaT845rC5Nq76wq93Orujpei3t7O5XkevUS5o1OuclcXK35LLdkNDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater71-66.delta" sparkle:deltaFrom="66" length="1205562" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="p8YvZgp/NFkSQCgVP9SUBUSoA5XrS3JMH/lCWcEfyWoSNdFMzl2g+IKgkUhhfq6xwg6xIuVpA+YIL2+n3oZzDg=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.61</title>
             <pubDate>Sun, 23 Aug 2026 20:26:45 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.61</link>
@@ -24,15 +49,7 @@
             <sparkle:shortVersionString>0.3.61</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Explanations left behind by an update now clear themselves.** When Duo Updater hands an app over to its own updater, the row says so — "brought it to the front so its own updater applies the update". That sentence used to stay there for good: the only thing that ever removed it was starting another update on the same app, so it was still sitting under the row long after the update had landed, describing something that finished hours ago. It now goes as soon as the app is up to date. A warning that an update was applied without a rollback point is deliberately left alone, because that one describes the update that already happened and only starts to matter once it is over.
-
-**An update that was refused now explains itself in your language.** When something else is already installing — Duo Updater working through a batch, or `duo` in a terminal — the row tells you so. That message was English only, in an otherwise translated window, and it ended with a process number: useful in a terminal, and nothing you can act on in a menu. It is now translated, and says what to do rather than who has the lock. The command-line tool still prints the process number, where you can do something with it.
-
-**The release-pattern line, and its clock, now follow your locale.** Release Log → Patterns summed everything up as "Most often ships Friday, around 6 PM". Languages that inflect the names of days cannot say that with the day dropped into the middle of the sentence, and got the wrong form of the word — Russian read "Чаще всего выходит пятница" where it needs "по пятницам". It is now a label: "Peak: Friday, around 6 PM", which is correct everywhere. The time goes with it — if your Mac writes clock times on a 24-hour dial, so does this, on the chart's axis too.
-
-**Settings search now understands the words on your screen.** The search field above the settings sidebar matched a list of extra terms that was written in English and never translated, so "rollback" reached General while "Zurücksetzen" and "回滚" reached nothing. Those terms now exist in every language Duo Updater speaks. The English ones still work in every language too, since the documentation they come from is in English.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.61/DuoUpdater-0.3.61-macos.zip" length="11055079" type="application/octet-stream" sparkle:edSignature="GiWxGsliVNeOXwkYYCBP+Ys7BKVO/hKOa/JU9SU5NUyV/WF3zVqo9FS0Qo7NMmKaZbnqmMW+Mwh/yrRRmCF9CA=="/>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.61-macos.zip" length="11055079" type="application/octet-stream" sparkle:edSignature="GiWxGsliVNeOXwkYYCBP+Ys7BKVO/hKOa/JU9SU5NUyV/WF3zVqo9FS0Qo7NMmKaZbnqmMW+Mwh/yrRRmCF9CA=="/>
         </item>
         <item>
             <title>0.3.60</title>
@@ -42,13 +59,7 @@
             <sparkle:shortVersionString>0.3.60</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Turning on "Show all" no longer makes the menu hesitate.** The full list of every app you have was measured in its entirety each time it appeared — on a Mac with 127 apps that came to roughly a second of work, nearly all of it spent laying out rows far below the ones you can see. It was paid on every toggle, not just the first. Only the rows actually on screen are built now.
-
-**An explanation left over from a failed update no longer outlives the failure.** When an update couldn't be applied — because something else was already installing, say — the row said why, in red. Nothing ever took that line away: once the update did land and the row went back to a tick, the old explanation was still sitting underneath it, and it stayed there through every re-check until Duo Updater was restarted. It now goes as soon as the app is up to date. Reasons belonging to updates that are still waiting are left alone, so one you haven't read yet can't be wiped by a check running in the background.
-
-**The "Update All" button no longer changes size with the length of the list.** With only a few updates pending it was drawn a size smaller than it should have been, with eighty points of empty space beside it, and jumped back to its proper size whenever the list grew. It now stays the size it is meant to be.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.60/DuoUpdater-0.3.60-macos.zip" length="11040209" type="application/octet-stream" sparkle:edSignature="/Q8F+WL9mfeGTa8qOYKPvdSfhPx19ahvmNZ8BAWvbWqVbxq5g8PJj6lo1H7BIYHpd1SUPAoAPlQVvJTvbaqVBA=="/>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.60-macos.zip" length="11040209" type="application/octet-stream" sparkle:edSignature="/Q8F+WL9mfeGTa8qOYKPvdSfhPx19ahvmNZ8BAWvbWqVbxq5g8PJj6lo1H7BIYHpd1SUPAoAPlQVvJTvbaqVBA=="/>
         </item>
         <item>
             <title>0.3.59</title>
@@ -58,13 +69,7 @@
             <sparkle:shortVersionString>0.3.59</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Download Traffic now says which build an update moved to, not just which version.** Plenty of apps ship several builds under one version name — Surge put four separate releases out as "6.9.0" — so those rows read "6.9.0 → 6.9.0" and told you nothing. They now read "6.9.0 (12028) → 6.9.0 (12030)", and only when the version name alone isn't enough; where the version already changed, the build number would just be noise and is left out.
-
-**The build recorded is the one that actually landed, read off the app itself once the update is in place.** Not the number the developer's update feed advertised — feeds do misreport, and this way it also works for the places that publish no build number at all: GitHub, Homebrew and the App Store. An update still waiting on macOS's installer window is never guessed at; nothing is recorded for it until it's real.
-
-**A download that changed nothing is now marked as such.** Occasionally an update fetches and installs the build that was already on your Mac — a version-number mismatch on the developer's side, a mirror serving what you already have. That is real bandwidth spent for no result, and the traffic window is where you would want to see it. Those rows now carry a "no change" tag. Downloads recorded before this release don't have build numbers to compare, so they are left alone rather than guessed at: unknown is not the same as unchanged.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.59/DuoUpdater-0.3.59-macos.zip" length="11035355" type="application/octet-stream" sparkle:edSignature="ouoRn+JiodkO/aKL/USA1SBNvpk+Jhitn0r9qcVsurZAjhj1OzTMOcM10vGKe5EyMz9KmJqRSZ6DEECgEJKYAQ=="/>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.59-macos.zip" length="11035355" type="application/octet-stream" sparkle:edSignature="ouoRn+JiodkO/aKL/USA1SBNvpk+Jhitn0r9qcVsurZAjhj1OzTMOcM10vGKe5EyMz9KmJqRSZ6DEECgEJKYAQ=="/>
         </item>
         <item>
             <title>0.3.58</title>
@@ -74,29 +79,7 @@
             <sparkle:shortVersionString>0.3.58</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Duo Updater now shows you what keeping your apps up to date has actually cost in downloads.** It has been counting, to the byte, every update it fetched for you — but the count had nowhere to appear, so the number sat in a file nobody could read. There is now a Download Traffic window, opened from the chart button at the bottom of the menu, with this month's figure printed next to that button so the most common question is answered without opening anything. Inside: the total, the last three months side by side with the change between them, a breakdown of where the bytes came from, and every app ranked by how much it has cost — click one to see each update it took, which version it went from and to, and how big that download was.
-
-**The total is honest about what it cannot see.** Homebrew, the App Store, and apps that update through their own built-in updater fetch their own bytes, and Duo Updater never handles them — so the figure is a floor, not a full accounting. That has always been true; what changed is that the window says so permanently, rather than only on the empty screen you see before anything has been recorded.
-
-**Apps you have since renamed or deleted keep their history.** Traffic is recorded against where an app lives on disk, which is what lets two channels of the same app — Android Studio Canary and Beta, say — stay apart instead of being added together. The cost is that renaming an app leaves its past under a name that no longer exists. When OpenAI renamed Codex to ChatGPT, that split 30 GB of downloads across two entries that looked like duplicates. Those entries are now grouped and dimmed at the bottom of the list, under a heading that says what they are. Nothing is thrown away, and the total still includes them.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.58/DuoUpdater-0.3.58-macos.zip" length="11032758" type="application/octet-stream" sparkle:edSignature="xG4PUJBc5t2HTw2X+XSgOnyLWKKEb/HgABjO3T6NNAxeQN0hrBP+1DSz9G4WT429twG9/3jU4tjomCVR9tf1AA=="/>
-        </item>
-        <item>
-            <title>0.3.57</title>
-            <pubDate>Sun, 23 Aug 2026 14:33:09 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.57</link>
-            <sparkle:version>66</sparkle:version>
-            <sparkle:shortVersionString>0.3.57</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**An app you installed from the App Store is no longer offered the developer's own download.** Plenty of apps are published in two places at once — in the store, and as a direct download from the developer's own site — under the same identity but as genuinely different builds. The direct download usually runs ahead, because it doesn't wait for store review. Duo Updater checks the store first for a store-installed app, but when that check failed for any reason — a dropped connection, a storefront that didn't answer — it quietly moved on to the developer's site and offered you whatever was there. WhatsApp showed this as "26.32.75 → 26.33.19": a real version, from the wrong place. Taking it would have replaced your store copy with one the App Store could never update again. Store-installed apps are now checked against the store and nowhere else.
-
-**Switching an app's update channel inside that app now registers straight away.** Some apps let you choose between their normal releases and their beta ones — Surge, Tailscale, Fork, OrbStack, IINA, Alfred and others — and Duo Updater follows whichever you picked so it never offers you a build you didn't ask for. It used to notice the change only when you quit the app or opened one of Duo Updater's windows. Neither covers what people actually do: turn the setting off, leave the app running, and glance at the menu bar. Worse, apps save that setting to disk when it suits them rather than the moment you click — Surge took five minutes here — so even quitting could be read too early. Duo Updater now watches for the setting itself changing and re-checks that one app within a second or two. Switching Surge back to normal releases now clears the beta version from its row immediately, instead of leaving it there for up to an hour.
-
-**A check that couldn't reach anything no longer looks like a clean bill of health.** When every source failed — no network, or a proxy quietly refusing connections while the Wi-Fi icon still says everything is fine — the apps that failed were hidden and the panel said "127 apps · up to date". That is the same screen you get when everything genuinely is up to date, which made a failed check indistinguishable from a successful one. The panel now says how many apps it couldn't reach, shows what went wrong, and offers to try those again — just those, leaving everything it did manage to check alone.
-]]></description>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.57/DuoUpdater-0.3.57-macos.zip" length="10933058" type="application/octet-stream" sparkle:edSignature="LHs4Qkd+JKi4rCYIjgM+KN6L+j1DNHBvQ5mg11OzSFPDUAcFqaRgN6YFIvRxWweRiq7UQQcJIhNEyHMNNM3jDw=="/>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.58-macos.zip" length="11032758" type="application/octet-stream" sparkle:edSignature="xG4PUJBc5t2HTw2X+XSgOnyLWKKEb/HgABjO3T6NNAxeQN0hrBP+1DSz9G4WT429twG9/3jU4tjomCVR9tf1AA=="/>
         </item>
     </channel>
 </rss>

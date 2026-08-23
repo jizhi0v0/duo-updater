@@ -5,6 +5,16 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.61
+
+**Explanations left behind by an update now clear themselves.** When Duo Updater hands an app over to its own updater, the row says so — "brought it to the front so its own updater applies the update". That sentence used to stay there for good: the only thing that ever removed it was starting another update on the same app, so it was still sitting under the row long after the update had landed, describing something that finished hours ago. It now goes as soon as the app is up to date. A warning that an update was applied without a rollback point is deliberately left alone, because that one describes the update that already happened and only starts to matter once it is over.
+
+**An update that was refused now explains itself in your language.** When something else is already installing — Duo Updater working through a batch, or `duo` in a terminal — the row tells you so. That message was English only, in an otherwise translated window, and it ended with a process number: useful in a terminal, and nothing you can act on in a menu. It is now translated, and says what to do rather than who has the lock. The command-line tool still prints the process number, where you can do something with it.
+
+**The release-pattern line, and its clock, now follow your locale.** Release Log → Patterns summed everything up as "Most often ships Friday, around 6 PM". Languages that inflect the names of days cannot say that with the day dropped into the middle of the sentence, and got the wrong form of the word — Russian read "Чаще всего выходит пятница" where it needs "по пятницам". It is now a label: "Peak: Friday, around 6 PM", which is correct everywhere. The time goes with it — if your Mac writes clock times on a 24-hour dial, so does this, on the chart's axis too.
+
+**Settings search now understands the words on your screen.** The search field above the settings sidebar matched a list of extra terms that was written in English and never translated, so "rollback" reached General while "Zurücksetzen" and "回滚" reached nothing. Those terms now exist in every language Duo Updater speaks. The English ones still work in every language too, since the documentation they come from is in English.
+
 ## 0.3.60
 
 **Turning on "Show all" no longer makes the menu hesitate.** The full list of every app you have was measured in its entirety each time it appeared — on a Mac with 127 apps that came to roughly a second of work, nearly all of it spent laying out rows far below the ones you can see. It was paid on every toggle, not just the first. Only the rows actually on screen are built now.

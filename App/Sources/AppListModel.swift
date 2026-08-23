@@ -38,6 +38,13 @@ final class AppListModel {
     }
     private(set) var isScanning = false
     private(set) var isChecking = false
+    /// True for the whole of `performRefresh`, unlike `isScanning`/`isChecking`
+    /// which each cover only one leg of it. Between them sits the TestFlight read
+    /// (up to 2s on a user-present refresh), during which BOTH are false while
+    /// `results` still carries the previous round's `.error` rows — long enough for
+    /// a failure banner keyed on those to flash in and back out on every refresh.
+    /// Surfaces that must stay quiet for a whole round read this instead.
+    private(set) var isRefreshing = false
     private(set) var lastScan: Date?
 
     /// Per-app install progress, keyed by app id.
@@ -1257,6 +1264,8 @@ final class AppListModel {
 
     private func performRefresh(allowTestFlight: Bool = true) async {
         Log.app.info("refresh: start (scan + network check, testflight=\(allowTestFlight, privacy: .public))")
+        isRefreshing = true
+        defer { isRefreshing = false }
         // Once per session, before the scan: recover any app left at
         // `<App>.app.duoupdater-old` by a privileged swap that died mid-rename (a
         // power loss / force-quit on the non-admin install path). Restoring it here
@@ -1375,6 +1384,7 @@ final class AppListModel {
         }
         await refreshBackupIndex()
         isChecking = false
+        recordCheckOutcomes(checked)
         lastCheck = .now
         prefs.lastCheckDate = lastCheck  // persist so the scheduler survives relaunches
         // Announce anything newly pending — keyed off a persisted baseline, so it
@@ -4563,7 +4573,19 @@ final class AppListModel {
     /// enough to run right before installing, as a guard against acting on a
     /// stale row.
     private func recheck(_ result: UpdateResult) async -> UpdateResult {
-        let id = result.id
+        await recheckMany([result]).first ?? result
+    }
+
+    /// The batch form: one disk scan and one `UpdateChecker` for the whole set,
+    /// rather than `recheck` per row. `retryFailedChecks` can hand this a hundred
+    /// rows after an outage, and per-row it would mean a hundred full `AppScanner`
+    /// sweeps and a hundred GitHub-token resolves for one answer each.
+    ///
+    /// Rows that no longer scan (uninstalled between the failure and the retry)
+    /// simply come back missing, which is why callers keep their own copy.
+    private func recheckMany(_ targets: [UpdateResult]) async -> [UpdateResult] {
+        let ids = Set(targets.map(\.id))
+        guard !ids.isEmpty else { return [] }
         // Off-main and TestFlight-free: the post-install recheck must never block the
         // UI on the TestFlight container's TCC gate. The next full refresh re-applies
         // TestFlight tagging, so a single-app recheck just scans without it.
@@ -4574,13 +4596,139 @@ final class AppListModel {
         let apps = await Task.detached(priority: .userInitiated) {
             AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: testflight).scan()
         }.value
-        guard let fresh = apps.first(where: { $0.id == id }) else { return result }
+        let fresh = apps.filter { ids.contains($0.id) }
+        guard !fresh.isEmpty else { return [] }
         let checker = UpdateChecker(
             sources: makeSources(token: await githubToken),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)
         return await checker.check(fresh)
+    }
+
+    // MARK: - Failed checks
+
+    /// Rows whose last check ended in `.error` — every source either missed or
+    /// threw, so we do not know whether that app has an update.
+    ///
+    /// This has to be visible somewhere. A failed check used to be indistinguishable
+    /// from a clean one: `.error` rows are filtered out of the popover unless "Show
+    /// all" is on, and the header reads its text off `updateCount`, which counts
+    /// only actionable updates — so a round where every networked source failed
+    /// rendered as "127 apps · up to date". That is the worst possible way to be
+    /// wrong: it is the same screen the user gets when everything really is fine.
+    ///
+    /// `NetworkMonitor` does not cover this. It defers the *scheduled* check while
+    /// `NWPathMonitor` reports no path, but the failure that prompted this was a
+    /// local proxy dropping connections with the interface up and satisfied — the
+    /// path was fine, every request was not.
+    /// How many *completed* rounds in a row each row has come back `.error`. Keyed
+    /// by `UpdateResult.id` (the install path). In memory only — a fresh launch
+    /// starts everyone at zero, which is the right bias: after a relaunch we have no
+    /// evidence a failure is chronic and should say so once more.
+    @ObservationIgnored private var consecutiveCheckFailures: [String: Int] = [:]
+
+    /// Rows this many rounds deep stop driving the banner and the header count.
+    /// Three rounds of a check interval (an hour by default) is long past the point
+    /// where "retry" is the useful advice.
+    private static let chronicFailureThreshold = 3
+
+    /// Update the streaks from one completed round, and drop rows that are gone.
+    /// Called only from `performRefresh` — deliberately NOT from `retryFailedChecks`,
+    /// or a user clicking Retry a few times during an outage would mark the whole
+    /// outage chronic and hide the very banner they were responding to.
+    private func recordCheckOutcomes(_ checked: [UpdateResult]) {
+        var next: [String: Int] = [:]
+        for result in checked {
+            if case .error = result.status {
+                next[result.id] = (consecutiveCheckFailures[result.id] ?? 0) + 1
+            }
+        }
+        let newlyChronic = next.filter {
+            $0.value == Self.chronicFailureThreshold
+        }.keys.sorted()
+        if !newlyChronic.isEmpty {
+            Log.app.info(
+                "check failures now chronic (hidden from the banner): \(newlyChronic.joined(separator: ", "), privacy: .public)")
+        }
+        consecutiveCheckFailures = next
+    }
+
+    var failedCheckResults: [UpdateResult] {
+        results.filter {
+            guard case .error = $0.status else { return false }
+            // A vendor that retired its feed fails identically forever — Alfred's
+            // appcast 404'd for weeks. Left in, that pins the banner permanently with
+            // a Retry button that re-runs the same 404, and stops the header from
+            // ever reading "up to date" again. Those rows fall back to the old
+            // behaviour: visible under "Show all", reported by `RecipeHealth` and
+            // `duo verify`, and silent here.
+            return (consecutiveCheckFailures[$0.id] ?? 0) < Self.chronicFailureThreshold
+        }
+    }
+
+    var failedCheckCount: Int { failedCheckResults.count }
+
+    /// The error text the most failed rows share, for the banner's subtitle. One
+    /// cause usually explains the whole cluster ("Could not connect to the server."),
+    /// and naming it is the difference between "something went wrong" and knowing
+    /// to look at the network.
+    var failedCheckSummary: String? {
+        let texts = failedCheckResults.compactMap { result -> String? in
+            if case .error(let message) = result.status { return message }
+            return nil
+        }
+        return Dictionary(grouping: texts, by: { $0 })
+            .max { $0.value.count < $1.value.count }?.key
+    }
+
+    /// True while `retryFailedChecks` is in flight, so the banner can show a spinner
+    /// instead of an armed button.
+    private(set) var isRetryingFailedChecks = false
+
+    /// Re-check exactly the rows that failed, leaving every settled row alone.
+    ///
+    /// Deliberately not a plain `refresh()`: a full refresh blanks all ~130 rows to
+    /// `.unknown` and re-asks every source, when the thing that needs re-asking is
+    /// the handful that errored. Rows already busy with an install are skipped —
+    /// their own flow re-checks them.
+    func retryFailedChecks() async {
+        guard !isRetryingFailedChecks, !isRefreshing, !isInstallingAll, installing.isEmpty else { return }
+        // Same rule the full refresh applies: an ignored app is not asked after, so
+        // retrying must not spend the request `performRefresh` refuses to spend.
+        let targets = failedCheckResults.filter { prefs.deservesCheck($0.app) }
+        guard !targets.isEmpty else { return }
+        Log.app.info("retry failed: re-checking \(targets.count, privacy: .public) errored rows")
+
+        // `isChecking`, NOT per-row `installing` claims. `installing` is the app's
+        // global "something is in flight" predicate — `canRefresh`, `canUpdateAll`,
+        // `refreshLocal` and `installAll` all read `installing.isEmpty` — so claiming
+        // 120 rows after an outage would make Update All *vanish* from the header and
+        // grey out Refresh for minutes with nothing on screen saying why (the header
+        // spinner keys off `isScanning || isChecking`, which those claims never set).
+        // `isChecking` disables the same controls for the same duration, but it is
+        // what a check in flight actually is, and it shows the spinner while it runs.
+        // It also keeps the failed rows out of `visible`, which claims would have
+        // popped in as ~120 spinner rows and resized the popover twice.
+        isRetryingFailedChecks = true
+        isChecking = true
+        defer {
+            isRetryingFailedChecks = false
+            isChecking = false
+        }
+        let updated = await recheckMany(targets)
+        for result in updated { replaceRow(result) }
+        // A row can come back "already updated on disk, needs a restart"; without this
+        // it gets no Restart badge until the next rescan.
+        await computeRestartInfo()
+        syncDockBadge()
+        // `refreshLocal`/`backgroundLocalRescan` skip while `isChecking` and leave
+        // `localRescanDeferred` set, exactly as they do during an install. Drain it
+        // here for the same reason `install` does, rather than making an FS event
+        // that landed mid-retry wait for the 180s backstop.
+        await drainDeferredLocalRescan()
+        Log.app.info(
+            "retry failed: \(updated.count, privacy: .public) re-checked, \(self.failedCheckCount, privacy: .public) still failing")
     }
 
     // MARK: - Channel-switch recheck

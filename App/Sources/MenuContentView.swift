@@ -117,6 +117,10 @@ struct MenuContentView: View {
                 selfUpdateBanner(version)
                 Divider()
             }
+            if showCheckFailureBanner {
+                checkFailureBanner
+                Divider()
+            }
             // Only worth showing once the list is long enough to be hard to scan;
             // stays put while a query is active even if it filters down to a few.
             if model.results.count > 8 || isSearching {
@@ -172,12 +176,24 @@ struct MenuContentView: View {
                 ContentUnavailableView.search(text: searchText)
                     .frame(height: 200)
             } else {
-                ContentUnavailableView(
-                    "Everything is up to date",
-                    systemImage: "checkmark.seal.fill",
-                    description: Text("Toggle “Show all” to see every app.")
-                )
-                .frame(height: 200)
+                // Same rule as `statusLine`: with unanswered rows this is not a
+                // "clean run" screen, and the seal is the strongest success signal
+                // in the whole popover.
+                if model.failedCheckCount > 0 {
+                    ContentUnavailableView(
+                        "No updates found",
+                        systemImage: "questionmark.circle",
+                        description: Text("Some apps could not be checked — see above.")
+                    )
+                    .frame(height: 200)
+                } else {
+                    ContentUnavailableView(
+                        "Everything is up to date",
+                        systemImage: "checkmark.seal.fill",
+                        description: Text("Toggle “Show all” to see every app.")
+                    )
+                    .frame(height: 200)
+                }
             }
         } else {
             ScrollView {
@@ -244,6 +260,64 @@ struct MenuContentView: View {
     /// the real fix.
     private var showRateLimitBanner: Bool {
         !model.hasGitHubToken && rateLimitedCount >= 2
+    }
+
+    /// Show the "couldn't be checked" banner whenever any row errored — except when
+    /// the rate-limit banner above is already accounting for every one of them. That
+    /// banner is the more specific answer (add a token), so stacking a generic
+    /// "retry" underneath it in a 360pt popover would only cost room.
+    ///
+    /// Suppressed for the whole round, via `isRefreshing` rather than
+    /// `isScanning`/`isChecking`: rows carry the previous cycle's `.error` until the
+    /// new answer replaces them, and those two flags leave a gap between them (the
+    /// TestFlight read, up to 2s) where both are false and the stale errors are still
+    /// on screen — the banner flashed in and out on every refresh, which is exactly
+    /// what this was meant to prevent.
+    private var showCheckFailureBanner: Bool {
+        guard model.failedCheckCount > 0, !model.isRefreshing else { return false }
+        // Never stack with the rate-limit banner. That one is the more specific
+        // answer to the same rows (add a token) and wears the same orange triangle
+        // and tint; two of them would state one problem twice, with two different
+        // numbers, and the generic subtitle would just echo the rate-limit message
+        // (`failedCheckSummary` reports the modal error, which is that one whenever
+        // rate-limits dominate). Deliberately not the `==` it used to be: a cluster of
+        // rate-limits plus one unrelated DNS failure is the common case, not the
+        // exception, and it is the one where they doubled up.
+        if showRateLimitBanner { return false }
+        return true
+    }
+
+    /// The one thing a failed check has to do: not look like a successful one.
+    ///
+    /// `.error` rows are hidden unless "Show all" is on and the header counts only
+    /// actionable updates, so a round where every source failed used to render as
+    /// "127 apps · up to date" — see `AppListModel.failedCheckResults`. This says how
+    /// many rows we have no answer for, names the error most of them share, and
+    /// re-checks just those rows rather than everything.
+    private var checkFailureBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(model.failedCheckCount) apps could not be checked")
+                    .font(.caption).fontWeight(.medium)
+                Text(model.failedCheckSummary ?? String(localized: "Every update source failed"))
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+            Spacer()
+            if model.isRetryingFailedChecks {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("Retry") { Task { await model.retryFailedChecks() } }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Check these apps again — the settled rows are left alone")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.08))
     }
 
     /// Aggregate counterpart to the per-row "Rate-limited" badge: one tap
@@ -359,13 +433,25 @@ struct MenuContentView: View {
     }
 
     private var statusLine: String {
-        if model.isChecking {
+        // `isRefreshing`, not `isChecking`: the scan leg and the TestFlight read come
+        // first, and during those the line below would report the PREVIOUS round's
+        // unanswered rows as if they were this round's verdict.
+        if model.isRefreshing {
             return String(localized: "Checking \(model.results.count) apps…")
         }
         let updates = model.updateCount
-        let base = updates == 0
-            ? String(localized: "\(model.results.count) apps · up to date")
-            : String(localized: "\(updates) updates available")
+        let failed = model.failedCheckCount
+        // "up to date" is a claim about every app, and it is only true when every
+        // app actually answered. With rows still in `.error` the honest line names
+        // them instead — the banner above carries the reason and the retry.
+        let base: String
+        if updates > 0 {
+            base = String(localized: "\(updates) updates available")
+        } else if failed > 0 {
+            base = String(localized: "\(failed) of \(model.results.count) apps not checked")
+        } else {
+            base = String(localized: "\(model.results.count) apps · up to date")
+        }
         // The timestamp joins on with a separator and no verb. "checked" was a
         // word the relative time already implies, and it cost more room than the
         // header has: translated, the line ran 247pt against the 167pt left over

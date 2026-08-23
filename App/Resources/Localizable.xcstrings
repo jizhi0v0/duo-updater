@@ -411,6 +411,47 @@
         }
       }
     },
+    "%@ has its own update (%@) downloaded and waiting for the app to quit. Restarting from here would install that one over the version now on disk, so it wasn't restarted — quit %@ yourself when you're ready to take theirs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat ein eigenes Update (%@) heruntergeladen und wartet darauf, dass die App beendet wird. Ein Neustart von hier aus würde dieses über die Version installieren, die jetzt auf der Festplatte liegt – deshalb wurde nicht neu gestartet. Beende %@ selbst, wenn du deren Update übernehmen möchtest."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya ha descargado su propia actualización (%@) y espera a que la app se cierre. Reiniciar desde aquí instalaría esa por encima de la versión que hay ahora en el disco, así que no se reinició: cierra %@ tú cuando quieras aceptar la suya."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a téléchargé sa propre mise à jour (%@) et attend que l’app soit quittée. Redémarrer depuis ici installerait celle-ci par-dessus la version actuellement sur le disque, donc rien n’a été redémarré — quitte %@ toi-même quand tu veux prendre la leur."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は自前の更新（%@）をダウンロード済みで、アプリの終了を待っています。ここから再起動すると、現在ディスクにあるバージョンの上にそれが上書きされるため、再起動はしていません。相手側の更新を適用したくなったら、%@ を自分で終了してください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже скачало собственное обновление (%@) и ждёт, когда приложение будет закрыто. Перезапуск отсюда установил бы его поверх версии, которая сейчас на диске, поэтому перезапуск не выполнен — закройте %@ сами, когда захотите принять их обновление."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已经下载好它自己的更新（%@），正等着这个 app 退出。从这里重启会把那份更新覆盖到当前磁盘上的版本，所以没有重启 —— 想用它们那份的时候，请自己退出 %@。"
+          }
+        }
+      }
+    },
     "%@ is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.": {
       "extractionState": "manual",
       "localizations": {
@@ -489,6 +530,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 是运行在 Apple 芯片上的 iPhone/iPad 应用。其最新版本%@ 已不再支持 Mac，因此 App Store 不会在此设备上安装它。"
+          }
+        }
+      }
+    },
+    "%@ is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ läuft gerade – es wurde in den Vordergrund geholt, damit sein eigener Updater das Update einspielt. Beende es (oder stelle in den Einstellungen auf „Immer ersetzen“ um), um direkt zu installieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ está en ejecución: se ha traído al frente para que su propio actualizador aplique la actualización. Ciérrala (o cambia a «Reemplazar siempre» en Ajustes) para instalar directamente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est en cours d’exécution — l’app a été mise au premier plan pour que son propre programme de mise à jour applique la mise à jour. Quitte-la (ou passe sur « Toujours remplacer » dans les réglages) pour installer directement."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は実行中です。アプリ自身のアップデータが更新を適用できるよう、前面に出しました。直接置き換えてインストールするには、アプリを終了するか、設定で「常に置き換える」に切り替えてください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ запущено — приложение выведено на передний план, чтобы его собственный апдейтер установил обновление. Закройте его (или переключитесь на «Всегда заменять» в настройках), чтобы установить напрямую."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 正在运行 —— 已把它切到前台，让它自带的更新器来安装。想直接替换安装，请退出它（或在设置里改为「始终替换」）。"
           }
         }
       }
@@ -4240,6 +4322,47 @@
         }
       }
     },
+    "App Store can't replace %@ while it's open. If this looks stuck, switch to App Store and click Continue — it waits until you do. %@ reopens when the update lands.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der App Store kann %@ nicht ersetzen, solange es geöffnet ist. Wenn es hängen zu bleiben scheint: Wechsle in den App Store und klicke auf „Fortfahren“ – er wartet darauf. %@ wird wieder geöffnet, sobald das Update eingespielt ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store no puede reemplazar %@ mientras está abierta. Si parece bloqueado, cambia a App Store y haz clic en «Continuar»: espera a que lo hagas. %@ se volverá a abrir cuando llegue la actualización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’App Store ne peut pas remplacer %@ tant qu’elle est ouverte. Si cela semble bloqué, passe à l’App Store et clique sur « Continuer » — il attend que tu le fasses. %@ se rouvre une fois la mise à jour installée."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ が開いている間、App Store はそれを置き換えられません。止まって見えるときは App Store に切り替えて「続ける」をクリックしてください（クリックするまで待ち続けます）。更新が適用されると %@ は再び開きます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store не может заменить %@, пока оно открыто. Если кажется, что всё зависло, перейдите в App Store и нажмите «Продолжить» — он ждёт именно этого. %@ откроется снова, когда обновление установится."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 开着的时候 App Store 无法替换它。如果看起来卡住了，切到 App Store 点「继续」—— 它会一直等你点。更新装好后 %@ 会自动重新打开。"
+          }
+        }
+      }
+    },
     "App Store helper": {
       "extractionState": "manual",
       "localizations": {
@@ -5775,6 +5898,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法加载发行说明"
+          }
+        }
+      }
+    },
+    "Couldn’t back up the current version — this update will be applied without a rollback point.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die aktuelle Version konnte nicht gesichert werden – dieses Update wird ohne Rücksetzpunkt eingespielt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo hacer una copia de seguridad de la versión actual: esta actualización se aplicará sin punto de reversión."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de sauvegarder la version actuelle — cette mise à jour sera appliquée sans point de restauration."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在のバージョンをバックアップできませんでした。この更新はロールバック先なしで適用されます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось сделать резервную копию текущей версии — обновление будет установлено без точки отката."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能备份当前版本 —— 这次更新将在没有回滚点的情况下安装。"
           }
         }
       }
@@ -10366,6 +10530,47 @@
         }
       }
     },
+    "No rollback point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned).": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Rücksetzpunkt: Teile dieser App sind für dich nicht lesbar (üblich bei Apps, die per .pkg installiert wurden und oft root gehören)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin punto de reversión: hay partes de esta app que no puedes leer (habitual en apps instaladas con un .pkg, que suelen pertenecer a root)."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas de point de restauration : certaines parties de cette app ne te sont pas lisibles (fréquent pour les apps installées via un .pkg, souvent détenues par root)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ロールバック先はありません。このアプリの一部があなたの権限では読み取れません（.pkg でインストールされ root 所有になっているアプリでよくあります）。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Точки отката нет: часть файлов этой программы недоступна вам для чтения (обычное дело для программ, установленных через .pkg — они часто принадлежат root)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有回滚点：这个 app 有部分文件你无权读取（用 .pkg 安装的 app 常常属于 root，容易这样）。"
+          }
+        }
+      }
+    },
     "No skipped versions.": {
       "extractionState": "manual",
       "localizations": {
@@ -11358,6 +11563,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开官方下载页面"
+          }
+        }
+      }
+    },
+    "Opened %@ — its own updater is applying the update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ geöffnet – der eigene Updater der App spielt das Update ein."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se abrió %@: su propio actualizador está aplicando la actualización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ouvert — son propre programme de mise à jour applique la mise à jour."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を開きました。アプリ自身のアップデータが更新を適用します。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ открыт — собственный апдейтер приложения устанавливает обновление."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已打开 %@ —— 由它自带的更新器来安装此次更新。"
+          }
+        }
+      }
+    },
+    "Opened the installer for %@ %@ — finish it there.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installationsprogramm für %@ %@ geöffnet – schließe es dort ab."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se abrió el instalador de %@ %@: termina allí."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Programme d’installation de %@ %@ ouvert — termine l’opération là-bas."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ のインストーラを開きました。そちらで完了してください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыт установщик %@ %@ — завершите установку там."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已打开 %@ %@ 的安装器 —— 请在那里完成安装。"
           }
         }
       }

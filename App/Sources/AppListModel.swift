@@ -34,6 +34,7 @@ final class AppListModel {
         didSet {
             elevationPathsCache = nil
             pruneSettledInstallErrors()
+            pruneRetractedNotes()
         }
     }
 
@@ -55,6 +56,32 @@ final class AppListModel {
         ) {
             installErrors[id] = nil
         }
+    }
+
+    /// The notes half of the same problem. `installNotes` renders in the same
+    /// place in the row as the error and went stale the same way: "brought it to
+    /// the front so its own updater applies the update" outlived the hand-off it
+    /// described, because the only thing that ever took it down was the *next*
+    /// action on that row.
+    ///
+    /// Only the in-flight notes are eligible — `inFlightNotes` says which, and its
+    /// doc says what it deliberately leaves out — and only while they are still
+    /// the text on screen. `backupCurrent`'s "applied without a rollback point" is
+    /// never registered: it describes the install that just finished, so a settled
+    /// row is when it starts to matter, not when it stops.
+    ///
+    /// The second pass is housekeeping, not policy: a registration whose note some
+    /// other writer has already replaced can never be acted on again, and leaving
+    /// it would let the registry outlive every text in it.
+    private func pruneRetractedNotes() {
+        guard !inFlightNotes.isEmpty else { return }
+        for id in UpdatePolicy.retractableNoteIDs(
+            notes: installNotes, writtenByUs: inFlightNotes,
+            results: results, installing: Set(installing.keys)
+        ) {
+            installNotes[id] = nil
+        }
+        inFlightNotes = inFlightNotes.filter { installNotes[$0.key] == $0.value }
     }
     private(set) var isScanning = false
     private(set) var isChecking = false
@@ -275,6 +302,30 @@ final class AppListModel {
     /// finishes. Same discipline as `restartHoldBackNotes`, and for the same reason:
     /// `installNotes` has other writers, and a parallel `Set` of ids would drift.
     @ObservationIgnored private var appStoreQuitNotes: [String: String] = [:]
+    /// The notes this model wrote to describe an action still in progress *whose
+    /// row will tell us when it ended* — the self-updater hand-off, the re-opened
+    /// installer, and the App Store quit prompt — keyed by id, holding the exact
+    /// text. `pruneRetractedNotes` retracts whatever is left of these once the row
+    /// settles under them.
+    ///
+    /// Membership is the whole design, so it is worth saying what is out and why.
+    /// `restartHoldBackNotes`' text is not registered here: that row already has
+    /// the new build on disk, so it reads `.upToDate` for as long as the note is
+    /// up, and "settled" would fire on the first rescan while nothing about the
+    /// standoff had changed. A note whose row cannot report the end of the thing
+    /// it describes does not belong in this dictionary.
+    ///
+    /// Overlaps `appStoreQuitNotes` rather than replacing it, because that one
+    /// retracts at a *moment* (the install returning) and this one on a *verdict*,
+    /// and the moment does not generalise: the hand-off note is written from
+    /// inside `performInstall`, whose exit is precisely when the user starts
+    /// needing to read it. Folding them together would have made that install's
+    /// own `defer` erase the sentence it had just put there.
+    ///
+    /// Not cleared at that retraction site: an entry whose note somebody else has
+    /// already taken down can never be acted on again, and the housekeeping pass
+    /// in `pruneRetractedNotes` drops it on the next rebuild of the list.
+    @ObservationIgnored private var inFlightNotes: [String: String] = [:]
     /// id → the build version the running instance launched with, for display.
     private var runningVersionByID: [String: String] = [:]
     /// id → the marketing version the running (pre-self-update) build corresponds to,
@@ -1550,16 +1601,18 @@ final class AppListModel {
             NSWorkspace.shared.open(
                 [url], withApplicationAt: result.app.path,
                 configuration: NSWorkspace.OpenConfiguration())
-            installNotes[result.id] =
-                "Opened \(result.app.name) — its own updater is applying the update."
+            let note = String(localized: "Opened \(result.app.name) — its own updater is applying the update.")
+            installNotes[result.id] = note
+            inFlightNotes[result.id] = note
         } else {
             // Detached from this call so a slow LaunchServices activation doesn't
             // block the main actor (see `AppRestarter.launchApp`); the note below
             // is what the user actually waits on, and it lands immediately either way.
             let path = result.app.path
             Task { await AppRestarter.launchApp(path, activates: activating) }
-            installNotes[result.id] =
-                "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly."
+            let note = String(localized: "\(result.app.name) is running — brought it to the front so its own updater applies the update. Quit it (or switch to “Always replace” in Settings) to install directly.")
+            installNotes[result.id] = note
+            inFlightNotes[result.id] = note
         }
         Log.app.info("defer-to-self-updater: \(result.app.name, privacy: .public)")
     }
@@ -2247,12 +2300,10 @@ final class AppListModel {
                     // the same predicate that arms the reopen — App Store route, app
                     // running — is the one that predicts the prompt, and it is known
                     // here, before anything has started.
-                    let note =
-                        "App Store can't replace \(result.app.name) while it's open. "
-                        + "If this looks stuck, switch to App Store and click Continue — "
-                        + "it waits until you do. \(result.app.name) reopens when the update lands."
+                    let note = String(localized: "App Store can't replace \(result.app.name) while it's open. If this looks stuck, switch to App Store and click Continue — it waits until you do. \(result.app.name) reopens when the update lands.")
                     installNotes[id] = note
                     appStoreQuitNotes[id] = note
+                    inFlightNotes[id] = note
                 }
                 installing[id] = .downloading(fraction: 0)
                 // Both routes download through the App Store daemon, so we never see
@@ -3023,8 +3074,9 @@ final class AppListModel {
         do {
             try await packageInstaller.reopen(
                 package: staged.url, installedApp: result.app.path)
-            installNotes[result.id] =
-                "Opened the installer for \(result.app.name) \(staged.version) — finish it there."
+            let note = String(localized: "Opened the installer for \(result.app.name) \(staged.version) — finish it there.")
+            installNotes[result.id] = note
+            inFlightNotes[result.id] = note
             Log.install.info("package re-opened: \(result.app.name, privacy: .public) \(staged.version, privacy: .public)")
         } catch {
             // The local copy is unusable (swept, truncated, or it no longer passes the
@@ -3234,11 +3286,18 @@ final class AppListModel {
             // Deliberately says "the version on disk" rather than "the version
             // just installed": this is also reached from the Restart button on a
             // row that updated itself, where we installed nothing.
-            let note =
-                "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. "
-                + "Restarting from here would install that one over the version now on disk, so it wasn't restarted — quit \(result.app.name) yourself when you're ready to take theirs."
+            let note = String(localized: "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. Restarting from here would install that one over the version now on disk, so it wasn't restarted — quit \(result.app.name) yourself when you're ready to take theirs.")
             installNotes[result.id] = note
             restartHoldBackNotes[result.id] = note
+            // Deliberately NOT registered in `inFlightNotes`. A row offering a
+            // restart has the new build on disk already, so its verdict is
+            // normally `.upToDate` the whole time this note is up — the settle
+            // rule would take the explanation down on the next rescan while the
+            // standoff it describes had not changed at all. The condition that
+            // actually ends this one is the staged build going away, and the only
+            // reading of that we trust is the one three lines above, taken fresh
+            // off the bundle. So this note keeps its own retraction and nothing
+            // guesses on its behalf.
             return
         }
         // The standoff is over (or never existed): retract our own explanation if
@@ -3776,15 +3835,15 @@ final class AppListModel {
         }
         if case .unreadable(let path) = outcome {
             Log.install.notice("backup skipped: \(result.app.name, privacy: .public) — \(path, privacy: .public) unreadable")
-            installNotes[result.id] =
-                "No rollback point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned)."
+            installNotes[result.id] = String(
+                localized: "No rollback point: parts of this app aren’t readable by you (common for apps installed by a .pkg, which are often root-owned).")
         }
         if outcome == .failed {
             Log.install.error("backup failed: \(result.app.name, privacy: .public) — proceeding without a rollback point")
             // Tell the user their safety net is gone for this update, rather than
             // discovering it only when they later try to roll back and find nothing.
-            installNotes[result.id] =
-                "Couldn’t back up the current version — this update will be applied without a rollback point."
+            installNotes[result.id] = String(
+                localized: "Couldn’t back up the current version — this update will be applied without a rollback point.")
         }
     }
 

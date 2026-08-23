@@ -5,6 +5,16 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.62
+
+**Updates now download only what changed, when the developer publishes it that way.** Some apps ship a small patch alongside each release — enough to turn the version you have into the new one, without fetching the whole thing again. Duo Updater used to ignore those and download the full package every time. It now takes the patch when one matches the exact build you're on. ChatGPT's last update came to 1.9 MB instead of 605 MB; Docker's to 87 MB instead of 582 MB. The result is the identical application either way — same signature, same bytes, verified against the full download before this shipped. When no patch fits what you have, or one fails to apply, the full download happens as before, so nothing can fail to install because of this.
+
+**Duo Updater no longer downloads an update an app is already downloading itself.** Many apps update themselves as well, and both of us reaching for the same 600 MB file at the same time cost you that file twice. Duo Updater now notices a download in progress and leaves it alone, saying so on the row rather than doing nothing silently. If that download turns out to be abandoned, it stops counting after ten minutes so nothing stays blocked.
+
+**An update an app has already prepared is no longer overwritten.** Apps that update themselves often download in the background and then wait for you to quit them before swapping the new version in. Installing over one of those looked like it worked and then came undone the moment you quit the app — and where the app's own pending version was older than what Duo Updater had just installed, you ended up further behind than when you started. Those updates are now left to finish, whichever version they carry.
+
+**Duo Updater's own updates got smaller too.** Its releases now ship the same kind of patch, so updating from a recent version fetches a few hundred kilobytes instead of eleven megabytes.
+
 ## 0.3.61
 
 **Explanations left behind by an update now clear themselves.** When Duo Updater hands an app over to its own updater, the row says so — "brought it to the front so its own updater applies the update". That sentence used to stay there for good: the only thing that ever removed it was starting another update on the same app, so it was still sitting under the row long after the update had landed, describing something that finished hours ago. It now goes as soon as the app is up to date. A warning that an update was applied without a rollback point is deliberately left alone, because that one describes the update that already happened and only starts to matter once it is over.

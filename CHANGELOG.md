@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.58
+
+**Duo Updater now shows you what keeping your apps up to date has actually cost in downloads.** It has been counting, to the byte, every update it fetched for you — but the count had nowhere to appear, so the number sat in a file nobody could read. There is now a Download Traffic window, opened from the chart button at the bottom of the menu, with this month's figure printed next to that button so the most common question is answered without opening anything. Inside: the total, the last three months side by side with the change between them, a breakdown of where the bytes came from, and every app ranked by how much it has cost — click one to see each update it took, which version it went from and to, and how big that download was.
+
+**The total is honest about what it cannot see.** Homebrew, the App Store, and apps that update through their own built-in updater fetch their own bytes, and Duo Updater never handles them — so the figure is a floor, not a full accounting. That has always been true; what changed is that the window says so permanently, rather than only on the empty screen you see before anything has been recorded.
+
+**Apps you have since renamed or deleted keep their history.** Traffic is recorded against where an app lives on disk, which is what lets two channels of the same app — Android Studio Canary and Beta, say — stay apart instead of being added together. The cost is that renaming an app leaves its past under a name that no longer exists. When OpenAI renamed Codex to ChatGPT, that split 30 GB of downloads across two entries that looked like duplicates. Those entries are now grouped and dimmed at the bottom of the list, under a heading that says what they are. Nothing is thrown away, and the total still includes them.
+
 ## 0.3.57
 
 **An app you installed from the App Store is no longer offered the developer's own download.** Plenty of apps are published in two places at once — in the store, and as a direct download from the developer's own site — under the same identity but as genuinely different builds. The direct download usually runs ahead, because it doesn't wait for store review. Duo Updater checks the store first for a store-installed app, but when that check failed for any reason — a dropped connection, a storefront that didn't answer — it quietly moved on to the developer's site and offered you whatever was there. WhatsApp showed this as "26.32.75 → 26.33.19": a real version, from the wrong place. Taking it would have replaced your store copy with one the App Store could never update again. Store-installed apps are now checked against the store and nowhere else.

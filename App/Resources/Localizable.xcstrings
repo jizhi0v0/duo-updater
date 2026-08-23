@@ -17513,6 +17513,47 @@
         }
       }
     },
+    "hidden, skip, skipped, versions, unignore": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ausgeblendet, überspringen, übersprungen, Versionen, wieder einblenden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "oculto, omitir, omitido, versiones, dejar de ignorar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "masqué, ignorer, ignoré, versions, ne plus ignorer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非表示, スキップ, スキップ済み, バージョン, 無視を解除"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "скрытые, пропустить, пропущено, версии, вернуть"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏, 跳过, 已跳过, 版本, 取消忽略"
+          }
+        }
+      }
+    },
     "instance_id (UUID)": {
       "extractionState": "manual",
       "localizations": {
@@ -17591,6 +17632,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "刚刚"
+          }
+        }
+      }
+    },
+    "launch, login, frequency, notify, restart, backup, rollback, concurrency, app store, self-updating, vendor": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start, Anmeldung, Häufigkeit, Benachrichtigung, Neustart, Backup, Zurücksetzen, Parallelität, App Store, Selbstaktualisierung, Anbieter"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "inicio, sesión, frecuencia, notificar, reiniciar, copia de seguridad, revertir, concurrencia, App Store, autoactualización, proveedor"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "démarrage, connexion, fréquence, notification, redémarrer, sauvegarde, restauration, simultanéité, App Store, mise à jour automatique, éditeur"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "起動, ログイン, 頻度, 通知, 再起動, バックアップ, ロールバック, 同時実行, App Store, 自動更新, 提供元"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "запуск, вход, частота, уведомления, перезапуск, резервная копия, откат, параллельность, App Store, самообновление, разработчик"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动, 登录, 频率, 通知, 重启, 备份, 回滚, 并发, App Store, 自更新, 厂商"
+          }
+        }
+      }
+    },
+    "license, key, instance, activation": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lizenz, Schlüssel, Instanz, Aktivierung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "licencia, clave, instancia, activación"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "licence, clé, instance, activation"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライセンス, キー, インスタンス, アクティベーション"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "лицензия, ключ, экземпляр, активация"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "许可证, 密钥, 实例, 激活"
           }
         }
       }
@@ -17765,6 +17888,47 @@
         }
       }
     },
+    "permissions, app management, helper, recipe, health, relaunch, setup": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berechtigungen, App-Verwaltung, Hilfsprogramm, Rezept, Zustand, Neustart, Einrichtung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "permisos, gestión de apps, ayudante, receta, estado, reiniciar, configuración"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "autorisations, gestion des apps, assistant, recette, état, relancer, configuration"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "権限, App 管理, ヘルパー, レシピ, 状態, 再起動, セットアップ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "разрешения, управление программами, помощник, рецепт, состояние, перезапуск, настройка"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限, 应用管理, 助手, 配方, 健康, 重启, 设置"
+          }
+        }
+      }
+    },
     "previous version": {
       "extractionState": "manual",
       "localizations": {
@@ -17802,6 +17966,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "先前版本"
+          }
+        }
+      }
+    },
+    "scan, locations, applications, path, directory": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan, Orte, Programme, Pfad, Verzeichnis"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "escanear, ubicaciones, aplicaciones, ruta, directorio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "analyse, emplacements, applications, chemin, dossier"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スキャン, 場所, アプリケーション, パス, ディレクトリ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сканирование, расположения, программы, путь, каталог"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扫描, 位置, 应用程序, 路径, 目录"
           }
         }
       }
@@ -18017,6 +18222,47 @@
         }
       }
     },
+    "token, personal access token, rate limit": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token, persönliches Zugriffstoken, Ratenbegrenzung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "token, token de acceso personal, límite de peticiones"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "jeton, jeton d’accès personnel, limite de requêtes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トークン, 個人用アクセストークン, レート制限"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "токен, персональный токен доступа, ограничение запросов"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "令牌, 个人访问令牌, 速率限制"
+          }
+        }
+      }
+    },
     "v%@": {
       "extractionState": "manual",
       "localizations": {
@@ -18177,6 +18423,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "验证请求失败"
+          }
+        }
+      }
+    },
+    "version, about, self": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version, Über, selbst"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "versión, acerca de, propio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "version, à propos, lui-même"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バージョン, このアプリについて, 自身"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "версия, о программе, себя"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本, 关于, 自身"
           }
         }
       }

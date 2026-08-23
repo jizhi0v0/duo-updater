@@ -33,7 +33,6 @@ final class AppListModel {
         // cycle, the same window every other derived fact in this model lives in.
         didSet {
             elevationPathsCache = nil
-            trafficBytesCache = nil
         }
     }
     private(set) var isScanning = false
@@ -524,25 +523,19 @@ final class AppListModel {
     private let trafficStore = TrafficStore()
     /// Snapshot of per-app traffic for the UI, refreshed after each recorded
     /// download. Sorted heaviest-app-first by the store.
-    private(set) var trafficStats: [AppTrafficStat] = [] {
-        didSet { trafficBytesCache = nil }
-    }
+    private(set) var trafficStats: [AppTrafficStat] = []
 
-    /// Downloaded bytes per app id. The sidebar asks per row, and a linear scan of
-    /// `trafficStats` per row made that O(rows x stats) on every arrow-key step —
-    /// the same shape as the elevation memo above, so it gets the same treatment.
-    /// `@ObservationIgnored` is what makes that true: `@Observable` instruments
-    /// `private` stored properties too, so without it every `didSet` clear below
-    /// invalidates each view that read the memo — for a derived value that hasn't
-    /// changed. Reading it must not invalidate a view.
-    @ObservationIgnored private var trafficBytesCache: [String: Int64]?
-    func trafficBytes(forAppID id: String) -> Int64 {
-        if let cache = trafficBytesCache { return cache[id] ?? 0 }
-        let value = Dictionary(
-            trafficStats.map { ($0.appID, $0.totalBytes) }, uniquingKeysWith: +)
-        trafficBytesCache = value
-        return value[id] ?? 0
-    }
+    /// The aggregate the Traffic window's header reads — grand total, month
+    /// buckets, per-source split. Recomputed with the snapshot rather than in the
+    /// view, which would redo the whole pass on every redraw.
+    private(set) var trafficSummary: TrafficSummary = .empty
+
+    /// `trafficStats` split into apps still installed and entries whose recorded
+    /// path no longer resolves. Held rather than derived in the view because the
+    /// split stats each path on disk — one filesystem hit per app, which a redraw
+    /// must not repeat.
+    private(set) var trafficPresent: [AppTrafficStat] = []
+    private(set) var trafficRemoved: [AppTrafficStat] = []
     /// Grand total bytes downloaded across every app.
     private(set) var trafficTotalBytes: Int64 = 0
 
@@ -825,6 +818,17 @@ final class AppListModel {
         let total = await trafficStore.totalBytes()
         trafficStats = snapshot
         trafficTotalBytes = total
+        trafficSummary = TrafficSummary(stats: snapshot)
+        let partition = TrafficPartition(stats: snapshot)
+        trafficPresent = partition.present
+        trafficRemoved = partition.removed
+    }
+
+    /// Re-read the traffic log from disk. The window calls this on appear: an app
+    /// deleted or renamed since the last recorded download moves between the
+    /// present and removed groups, and nothing else would notice.
+    func reloadTrafficStats() async {
+        await refreshTrafficStats()
     }
 
     /// Record the bytes one install transferred, keyed to its app, then refresh

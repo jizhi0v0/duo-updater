@@ -609,3 +609,41 @@ $(printf '\033[1;32m✓ Published successfully.\033[0m')
    notes    : $RELEASE_NOTES_FILE (in-app) / $GITHUB_NOTES_FILE (release page)
    sha256   : $checksum
 EOF
+
+# duoupdater.app is a separate repo that keeps a COMMITTED COPY of CHANGELOG.md,
+# refreshed by its own `npm run sync` — nothing about publishing here touches it.
+# So the site silently stops at whatever version was last synced, and "remember to
+# sync" has now failed twice: 0.3.50–0.3.53 went unpublished for days, the rule was
+# written down on 2026-08-22, and 0.3.56 — the very next release — was missed the
+# same way. A note nobody reads at the right moment is not a fix; this prints at
+# the one moment it is actionable, and says what the site actually has rather than
+# reminding in the abstract.
+#
+# The trap underneath it: the site's own guard drops changelog sections newer than
+# the newest LOCAL git tag, and `gh release create` makes the tag on GitHub. Without
+# a fetch first, that guard holds back the release that was just published, prints
+# one `held back` line, and exits 0 — so `npm run sync` looks like it worked.
+site_repo="${DUO_SITE_REPO:-$REPO_ROOT/../duo-updater-site}"
+if [ -d "$site_repo/.git" ]; then
+    synced="$(git -C "$site_repo" log -1 --pretty=%s 2>/dev/null || true)"
+    case "$synced" in
+        *"through $version"*)
+            printf '\033[1;32m   site     : duoupdater.app already synced through %s\033[0m\n' "$version"
+            ;;
+        *)
+            cat <<EOF
+
+$(printf '\033[1;33m! duoupdater.app is NOT synced yet.\033[0m') Its last sync commit reads:
+     ${synced:-<no commits>}
+
+  Run these, in this order — the fetch is load-bearing, not hygiene:
+
+    git -C "$REPO_ROOT" fetch --tags
+    cd "$site_repo" && npm run sync
+
+  Then check the sync printed "through $version" and did NOT print "held back",
+  and finish with: npm run build && git commit -am "Sync content through $version" && git push
+EOF
+            ;;
+    esac
+fi

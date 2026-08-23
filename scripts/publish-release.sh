@@ -203,6 +203,20 @@ PY
         --embed-release-notes \
         "$appcast_archives_dir" >/dev/null
 
+    # The patches generate_appcast just cut. They live beside the archive and are
+    # referenced BY URL from the appcast, so a release that ships the feed without
+    # them advertises downloads that 404 — Sparkle then falls back to the full
+    # archive, which still installs but saves nothing and costs every client a
+    # failed request first. Caught exactly that way on 0.3.62: the feed listed five
+    # patches, the release had none of them, and fetching one returned "Not Found".
+    delta_assets=()
+    while IFS= read -r d; do
+        [ -n "$d" ] && delta_assets+=("$d")
+    done < <(find "$appcast_archives_dir" -maxdepth 1 -name '*.delta' -type f | sort)
+    if [ ${#delta_assets[@]} -gt 0 ]; then
+        say "Appcast: ${#delta_assets[@]} binary patches to upload alongside the archive"
+    fi
+
     # What the regenerated feed has to look like. `$appcast_clone_dir/appcast.xml`
     # is still the published copy and `$appcast_archives_dir/appcast.xml` is the
     # new one, so they can be compared directly.
@@ -590,7 +604,7 @@ if [ "$release_exists" = "1" ]; then
         --notes-file "$GITHUB_NOTES_FILE" \
         --draft="$([ "$is_draft" = "1" ] && echo true || echo false)" \
         --prerelease="$([ "$is_prerelease" = "1" ] && echo true || echo false)"
-    gh release upload "$TAG" "$ASSET_ZIP" \
+    gh release upload "$TAG" "$ASSET_ZIP" "${delta_assets[@]+"${delta_assets[@]}"}" \
         --repo "$RELEASE_REPO" \
         --clobber
 else
@@ -598,7 +612,7 @@ else
     # `"${a[@]}"` on an empty array is an unbound-variable error under bash 3.2
     # (what /usr/bin/env bash is on macOS) with `set -u`, so the guarded form has
     # to be at the USE site — reassigning the array beforehand does nothing.
-    gh release create "$TAG" "$ASSET_ZIP" \
+    gh release create "$TAG" "$ASSET_ZIP" "${delta_assets[@]+"${delta_assets[@]}"}" \
         --repo "$RELEASE_REPO" \
         ${RELEASE_TARGET_FLAG:+--target "$RELEASE_COMMIT"} \
         --title "$TITLE" \

@@ -31,12 +31,22 @@ enum AlfredChannel {
         resolve(prereleases: readPrereleases())
     }
 
+    /// The tree `readPrereleases` walks. Exposed so
+    /// `ChannelBinding.preferenceWatchCandidates` watches the same place the reader
+    /// reads, rather than a second hand-written copy of this path that can drift
+    /// out from under it. The `<hash>` directory below is machine-specific, which
+    /// is why the watch is on the subtree and not on one file.
+    static var preferencesBaseURL: URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?
+            .appendingPathComponent("Alfred/Alfred.alfredpreferences/preferences/local")
+    }
+
     /// Read `prereleases` from Alfred's machine-specific plist. Returns false (stable)
     /// when the file is missing or the key is not present.
     static func readPrereleases() -> Bool {
         // Locate the machine-specific plist: Alfred.alfredpreferences/preferences/local/<hash>/update/prefs.plist
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        guard let base = appSupport?.appendingPathComponent("Alfred/Alfred.alfredpreferences/preferences/local") else {
+        guard let base = preferencesBaseURL else {
             return false
         }
         guard let localDirs = try? FileManager.default.contentsOfDirectory(atPath: base.path) else {

@@ -78,6 +78,73 @@ public enum ChannelBinding {
         AlfredChannel.bundleID.lowercased(),
     ]
 
+    /// The directories holding every preference a resolver above reads, for a
+    /// filesystem watcher to sit on.
+    ///
+    /// Why watching is needed at all: the two moments we used to notice a channel
+    /// flip — the vendor app launching/quitting, and a DuoUpdater *window*
+    /// appearing — both miss the ordinary case. The user opens Surge's settings,
+    /// turns "Include beta builds" off and leaves Surge running; the only surface
+    /// that ever shows them the result is the menu-bar popover, which is not a
+    /// window and so never called `windowAppeared`. Worse, Surge writes
+    /// `KDDefaults.plist` lazily: on 2026-08-23 it relaunched at 13:03:40 and the
+    /// plist did not land until 13:08, so even the launch event read the OLD value
+    /// off disk. The row stayed pinned to the beta build (6.9.0) while the app had
+    /// been on release (6.8.1) for minutes.
+    ///
+    /// Cheap despite the breadth: `~/Library/Preferences` is shared with every
+    /// unsandboxed app on the machine, but it is quiet — measured on this machine
+    /// on 2026-08-23, one write burst in a 60-second window on an otherwise busy
+    /// system — and the pass behind an event is a handful of `CFPreferences`/plist
+    /// reads that does nothing at all unless a fingerprint actually changed.
+    ///
+    /// Two sources of self-inflicted events that measurement does NOT cover, both
+    /// accepted rather than engineered around. Our own preference domain lives in
+    /// that same directory, and `kFSEventStreamCreateFlagIgnoreSelf` does not filter
+    /// it — `UserDefaults` writes are performed by `cfprefsd`, not by us — so every
+    /// `prefs.lastCheckDate` write at the end of a check, and every ignore/skip
+    /// toggle, costs one extra pass. And `AppDirectoryWatcher` re-arms on a 900s
+    /// timer and on wake, each of which fires one more. A pass is ten reads and
+    /// writes nothing back, so it cannot loop; the wake one is actively wanted,
+    /// since a toggle flipped just before sleep arrives with no live event.
+    ///
+    /// Three roots, not ten files, because a preference file is *replaced* rather
+    /// than written in place (cfprefsd writes a temp file and renames), so a
+    /// per-file watch would go deaf the first time the file changed.
+    ///
+    /// Every root, whether or not it exists on this machine — `preferenceWatchPaths`
+    /// below narrows to the ones a stream can be built from. Derived from the
+    /// resolvers themselves (`SurgeChannel.defaultsFileURL`,
+    /// `AlfredChannel.preferencesBaseURL`) rather than restating their paths, so the
+    /// watcher cannot end up aimed somewhere the reader does not read.
+    public static var preferenceWatchCandidates: [URL] {
+        var roots: [URL] = [
+            // Every `CFPreferencesCopyAppValue` resolver — DuoPaste, Fork, OrbStack,
+            // TablePlus, CleanShot, Tailscale, IINA — reads a domain backed by
+            // `~/Library/Preferences/<bundle id>.plist`. None of them is sandboxed,
+            // so none lives in a container.
+            FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/Preferences", isDirectory: true)
+        ]
+        // Surge keeps its choice out of UserDefaults entirely, in its own
+        // `KDDefaults.plist` under Application Support (see `SurgeChannel`).
+        roots.append(SurgeChannel.defaultsFileURL.deletingLastPathComponent())
+        // Alfred's is nested deeper still, under a machine-specific `<hash>`
+        // directory, so the watch is on the subtree rather than on one file.
+        if let alfred = AlfredChannel.preferencesBaseURL { roots.append(alfred) }
+        return roots
+    }
+
+    /// The subset an FSEvents stream can actually be built from. A stream is
+    /// created from a fixed path list and a missing entry is dead weight; a
+    /// resolver's app installing later is picked up on the next launch.
+    public static var preferenceWatchPaths: [String] {
+        var seen = Set<String>()
+        return preferenceWatchCandidates
+            .map(\.path)
+            .filter { FileManager.default.fileExists(atPath: $0) && seen.insert($0).inserted }
+    }
+
     /// The user-chosen channel (and feed, for feed-swap apps) for `bundleID`, or
     /// nil when no bespoke resolver exists.
     ///

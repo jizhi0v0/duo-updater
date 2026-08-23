@@ -27,13 +27,21 @@ enum SurgeChannel {
         resolve(includeBeta: readIncludeBeta())
     }
 
-    /// Read `IncludeBetaBuilds` from Surge's Application Support plist. Returns
-    /// false (release) if the file or key is missing — the conservative default.
-    static func readIncludeBeta() -> Bool {
-        let url = FileManager.default.homeDirectoryForCurrentUser
+    /// The file `readIncludeBeta` reads. Exposed because it is also what
+    /// `ChannelBinding.preferenceWatchCandidates` has to sit on — a watcher aimed
+    /// somewhere else than the reader reads is a guard with the wrong discriminator,
+    /// and nothing about it would look wrong.
+    static var defaultsFileURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support", isDirectory: true)
             .appendingPathComponent(bundleID, isDirectory: true)
             .appendingPathComponent("KDDefaults.plist", isDirectory: false)
+    }
+
+    /// Read `IncludeBetaBuilds` from Surge's Application Support plist. Returns
+    /// false (release) if the file or key is missing — the conservative default.
+    static func readIncludeBeta() -> Bool {
+        let url = defaultsFileURL
         guard
             let data = try? Data(contentsOf: url),
             let plist = try? PropertyListSerialization.propertyList(

@@ -123,3 +123,63 @@ import Foundation
     // pass is cheap, a missed switch is the bug this detector exists to fix.
     #expect(ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: nil))
 }
+
+/// The detector only ever runs when something calls it, and until 2026-08-23 the
+/// only two callers were "a bound app launched or quit" and "a DuoUpdater *window*
+/// appeared". Both miss the ordinary flow: flip the toggle inside the vendor app,
+/// leave it running, and look at the menu-bar popover — which is not a window. Surge
+/// made it worse by writing `KDDefaults.plist` lazily (relaunch at 13:03:40, plist
+/// at 13:08), so even the launch event read the pre-flip value off disk. The row
+/// stayed on the beta build for minutes after the user had moved to release.
+///
+/// The fix is a filesystem watcher, and its whole correctness rests on one thing:
+/// the roots it watches must contain the files the resolvers actually read. That is
+/// the discriminator, and a watcher aimed one directory away would look completely
+/// healthy while never firing. So this asks the resolvers for their own paths
+/// (`SurgeChannel.defaultsFileURL`, `AlfredChannel.preferencesBaseURL`) rather than
+/// restating them, and covers every bound id rather than a hand-picked few.
+@Test func everyChannelPreferenceSitsUnderAWatchedRoot() {
+    let roots = ChannelBinding.preferenceWatchCandidates.map(\.standardizedFileURL.path)
+    #expect(!roots.isEmpty)
+
+    func isWatched(_ path: String) -> Bool {
+        roots.contains { path == $0 || path.hasPrefix($0 + "/") }
+    }
+
+    // The two resolvers that read a path directly rather than through CFPreferences.
+    #expect(
+        isWatched(SurgeChannel.defaultsFileURL.standardizedFileURL.path),
+        "Surge's KDDefaults.plist — the file its resolver reads — is not under any watched root")
+    if let alfred = AlfredChannel.preferencesBaseURL {
+        #expect(
+            isWatched(alfred.standardizedFileURL.path),
+            "Alfred's preferences tree is not under any watched root")
+    }
+
+    // Everyone else resolves through `CFPreferencesCopyAppValue`, backed by
+    // `~/Library/Preferences/<domain>.plist` for an unsandboxed app.
+    //
+    // Be honest about what this half proves: it builds the expected path from the
+    // same `~/Library/Preferences` the source lists as a root, so it catches that
+    // root being dropped or narrowed, and nothing else. It does NOT ask
+    // `DuoPasteChannel` & co. where they actually read — they don't expose that the
+    // way `SurgeChannel` and `AlfredChannel` now do — so a bound app that turned out
+    // to be sandboxed (domain under `~/Library/Containers/…`) would slip past. Giving
+    // every resolver a `preferenceURL` is what would close it; until then those two
+    // assertions above are the only ones here with a real discriminator.
+    let prefsDir = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Preferences", isDirectory: true)
+    for id in ChannelBinding.boundBundleIDs {
+        let domain = prefsDir.appendingPathComponent("\(id).plist").standardizedFileURL.path
+        #expect(isWatched(domain), "\(id)'s preference domain is not under any watched root")
+    }
+
+    // What the stream is actually built from: a subset of the candidates, each one
+    // real. FSEvents takes a fixed path list, so a non-existent entry is dead weight.
+    let watched = ChannelBinding.preferenceWatchPaths
+    #expect(Set(watched).isSubset(of: Set(roots)))
+    #expect(watched.count == Set(watched).count, "duplicate root in the watch list")
+    for path in watched {
+        #expect(FileManager.default.fileExists(atPath: path), "\(path) does not exist")
+    }
+}

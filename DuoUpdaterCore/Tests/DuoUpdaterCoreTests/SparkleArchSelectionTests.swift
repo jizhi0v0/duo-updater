@@ -97,6 +97,19 @@ struct SparkleArchSelectionTests {
         #expect(usable.isEmpty)
     }
 
+    @Test func structuredArmRequirementWinsOverProductNameTokens() {
+        var item = tableProPair().first {
+            $0.hardwareRequirements.contains("arm64")
+        }!
+        // `intel` is a supported Intel marker, but here it is embedded inside
+        // the product name rather than standing alone as an architecture marker.
+        item.enclosureURL = URL(string: "https://example.com/IntelliJ-0.67.1-arm64.zip")
+        let usable = SparkleAppcastSource.usableItems(
+            for: app(), from: [item], osVersion: "28.0.0",
+            hostArch: .arm64, allowingIntelTranslation: false)
+        #expect(usable.count == 1)
+    }
+
     // MARK: - Filename-token fallback (no hardwareRequirements tag at all)
     //
     // Most Sparkle vendors don't use the tag; some still ship a genuine
@@ -179,6 +192,23 @@ struct SparkleArchSelectionTests {
             let best = SparkleAppcastSource.bestItem(
                 for: app(), from: items, osVersion: "14.0.0", hostArch: arch, allowingIntelTranslation: false)
             #expect(best?.enclosureURL?.lastPathComponent == "App.zip")
+        }
+    }
+
+    @Test func explicitDualArchitectureFilenameIsUniversal() {
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+        <channel><item><sparkle:version>4</sparkle:version><sparkle:shortVersionString>4.0</sparkle:shortVersionString>
+          <enclosure url="https://example.com/App-4.0-arm64-x86_64.zip" sparkle:edSignature="s" length="1" type="application/octet-stream"/></item></channel>
+        </rss>
+        """
+        let items = SparkleAppcastParser.parse(Data(xml.utf8))
+        for arch: HostArch in [.arm64, .x86_64] {
+            let best = SparkleAppcastSource.bestItem(
+                for: app(), from: items, osVersion: "14.0.0",
+                hostArch: arch, allowingIntelTranslation: false)
+            #expect(best?.enclosureURL?.lastPathComponent == "App-4.0-arm64-x86_64.zip")
         }
     }
 }

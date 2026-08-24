@@ -37,6 +37,24 @@ struct ArchSelectionTests {
         #expect(url?.url.lastPathComponent == "app-1.0-universal.dmg")
     }
 
+    @Test func architectureMarkersRequireFilenameBoundaries() {
+        let a = assets(["IntelliJ-1.0-arm64.dmg"])
+        let url = GitHubReleaseRule.installableAsset(
+            from: a, matching: #"\.dmg$"#, preferring: .arm64,
+            allowingIntelTranslation: false)
+        #expect(url?.url.lastPathComponent == "IntelliJ-1.0-arm64.dmg")
+    }
+
+    @Test func filenameNamingBothArchitecturesIsUniversal() {
+        let a = assets(["app-1.0-arm64-x86_64.dmg"])
+        for arch: HostArch in [.arm64, .x86_64] {
+            let url = GitHubReleaseRule.installableAsset(
+                from: a, matching: #"\.dmg$"#, preferring: arch,
+                allowingIntelTranslation: false)
+            #expect(url?.url.lastPathComponent == "app-1.0-arm64-x86_64.dmg")
+        }
+    }
+
     @Test func fallsBackToForeignArchWhileRosettaCanRunIt() {
         // Only an Intel build exists for this release — better to offer it than
         // nothing, but ONLY while the machine can still run it.

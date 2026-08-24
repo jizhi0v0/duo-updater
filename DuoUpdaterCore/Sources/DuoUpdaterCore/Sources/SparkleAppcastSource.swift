@@ -238,13 +238,20 @@ public struct SparkleAppcastSource: UpdateSource {
     private static func archVerdict(
         for item: SparkleAppcastItem, hostArch: HostArch, canRunIntel: Bool
     ) -> ArchVerdict {
-        if item.hardwareRequirements.contains("arm64"), hostArch != .arm64 {
-            return .unrunnable
+        // Sparkle's structured requirement is authoritative. On Apple silicon it
+        // proves the item is compatible even if an unrelated part of the product
+        // name resembles a filename token (for example, `IntelliJ-…-arm64.zip`).
+        if item.hardwareRequirements.contains("arm64") {
+            return hostArch == .arm64 ? .native : .unrunnable
         }
         let name = (item.enclosureURL?.lastPathComponent ?? "").lowercased()
-        func has(_ tokens: [String]) -> Bool { tokens.contains { name.contains($0) } }
-        if has(hostArch.assetTokens), !has(hostArch.foreignTokens) { return .native }
-        if !has(hostArch.assetTokens), !has(hostArch.foreignTokens) { return .neutral }
+        let native = hostArch.isMarked(inAssetName: name)
+        let foreignArch: HostArch = hostArch == .arm64 ? .x86_64 : .arm64
+        let foreign = foreignArch.isMarked(inAssetName: name)
+        if native && !foreign { return .native }
+        // Neither marker means an ordinary neutral name; both markers explicitly
+        // describe a fat/universal artifact.
+        if native == foreign { return .neutral }
         // Named for the other architecture. Only Apple silicon can still run an
         // Intel build (via Rosetta, and only while `canRunIntel` holds) — the
         // reverse direction has never worked, an arm64 build has never run on

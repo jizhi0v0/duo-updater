@@ -456,11 +456,40 @@ struct MenuContentView: View {
             Button {
                 Task { await model.refresh() }
             } label: {
-                if model.isScanning || model.isChecking {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "arrow.clockwise")
+                // One box, both states — so the button cannot resize mid-check.
+                // Left as an if/else the two states sized themselves (`arrow.clockwise`
+                // 14pt, a `.small` ProgressView 16pt), and since this row is
+                // trailing-aligned behind a `Spacer` the extra 2pt came off the LEADING
+                // edge: the spinner appeared ~1pt left of the icon it replaced and the
+                // row twitched on every check. Measured, in layout points, off a
+                // screenshot of the real controls (ink centres, not frames):
+                // if/else dx=-1.31, this dx=-0.31 — under half a pixel at 2x.
+                //
+                // 16pt, not the symbol's 14: an overlay on the narrower frame clipped
+                // 1.5pt off the spinner (busy ink 14.3 wide vs 15.8 here).
+                //
+                // No positional nudge, in either axis: the two ink centres already
+                // coincide (dx=-0.31, dy=0.00, stable across three captured animation
+                // frames). What reads as "it jumped left / up" is a SIZE difference —
+                // a `.small` spinner inks 15.8x15.9 against the arrow's 11.4x13.9, so
+                // it spills ~2pt past the arrow on every side. The gear pins the right
+                // side, so the growth only has room to show on the left, which is why
+                // it reads as drifting there. Offsetting to "correct" that would move a
+                // correctly centred spinner off centre; scaling it is the real fix.
+                //
+                // 0.72 = 11.4/15.8 — the arrow's ink width over the spinner's, so the
+                // two footprints match. Verified crisp at 1:1 against a nearest-
+                // neighbour blow-up of the real controls; `.mini` (9.9) undershoots the
+                // arrow and renders thin. `scaleEffect` is render-only, so the 16pt box
+                // — and the button's width — stay put.
+                Group {
+                    if model.isScanning || model.isChecking {
+                        ProgressView().controlSize(.small).scaleEffect(0.72)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
                 }
+                .frame(width: 16, height: 16)
             }
             .buttonStyle(.borderless)
             .disabled(!model.canRefresh)

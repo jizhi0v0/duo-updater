@@ -259,7 +259,7 @@ public enum Reconcile {
     /// sloppy in a title you'll scan a list of.
     static func reason(for finding: Finding) -> String {
         if let kind = finding.failureKind { return kind }
-        guard let first = finding.warnings.first else { return "degraded" }
+        guard let first = finding.publicWarnings.first else { return "degraded" }
         // Warnings are written as "<claim> — <explanation>"; the claim is the
         // headline, and it is already a complete thought.
         let claim = first.components(separatedBy: " — ").first ?? first
@@ -297,9 +297,9 @@ public enum Reconcile {
         }
         out += "| consecutive sweeps | \(entry.consecutiveActionable) |\n"
 
-        if !finding.warnings.isEmpty {
+        if !finding.publicWarnings.isEmpty {
             out += "\n**Warnings**\n\n"
-            for warning in finding.warnings { out += "- \(warning)\n" }
+            for warning in finding.publicWarnings { out += "- \(warning)\n" }
         }
         if let sample = finding.bodySample {
             out += "\n<details><summary>Captured response (redacted, truncated)</summary>\n\n"

@@ -69,6 +69,17 @@ public struct Finding: Codable, Sendable {
     /// Every string here is scrubbed at construction rather than at the point of
     /// output, so there is no path from a sweep to a report, an issue body or a
     /// model prompt that skips redaction.
+    /// Warnings minus machine notes — the subset that may be published.
+    ///
+    /// A note names this machine's state (a file it could not read), and a
+    /// GitHub issue about a vendor's recipe is exactly the wrong audience for
+    /// it. `Report` prints the full set and `report.json` keeps it; everything
+    /// that writes vendor-facing text uses this instead. See
+    /// `Finding.machineNotePrefix`.
+    public var publicWarnings: [String] {
+        warnings.filter { !$0.hasPrefix(Finding.machineNotePrefix) }
+    }
+
     public init(        recipeID: String, registry: Registry, bundleID: String, channel: String,
         status: FindingStatus, version: String? = nil,
         failureKind: String? = nil, failureDetail: String? = nil,

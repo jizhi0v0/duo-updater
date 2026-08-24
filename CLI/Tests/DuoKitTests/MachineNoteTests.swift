@@ -55,6 +55,22 @@ struct MachineNoteTests {
         #expect(baseline.isReportable(warned.recipeID))
     }
 
+    /// A note must not reach anything vendor-facing. It says this machine could
+    /// not read a file; a GitHub issue about OpenAI's appcast recipe is the
+    /// wrong audience, and the sweep publishes those bodies verbatim.
+    @Test func aNoteIsKeptOutOfPublishedText() {
+        let mixed = finding()
+            .adding(warning: "remote is BEHIND the installed copy — check the scheme")
+            .observing(note)
+        #expect(mixed.warnings.count == 2)
+        #expect(mixed.publicWarnings.count == 1)
+        #expect(mixed.publicWarnings.first?.contains("BEHIND") == true)
+
+        let body = Reconcile.body(for: mixed, entry: Baseline.Entry())
+        #expect(!body.contains("rolloutTrackDefaulted"))
+        #expect(body.contains("BEHIND"))
+    }
+
     /// The note survives `Finding`'s redactor intact — it names a path, and a
     /// note nobody can read is the silence this was built to end.
     @Test func theNoteSurvivesRedaction() {

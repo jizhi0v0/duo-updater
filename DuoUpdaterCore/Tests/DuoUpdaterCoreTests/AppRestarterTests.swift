@@ -62,4 +62,52 @@ import Foundation
         let outcome = await AppRestarter.restart(app())
         #expect(outcome == .notRunning)
     }
+
+    // MARK: - The launch timeout
+
+    /// The ordinary case: the work finishes well inside the budget, so its own
+    /// answer stands and the timeout never enters into it.
+    @Test func anOperationThatFinishesInTimeKeepsItsAnswer() async {
+        let value = await AppRestarter.firstToFinish(timeout: .seconds(10), fallback: false) {
+            true
+        }
+        #expect(value)
+    }
+
+    /// Past the budget the caller gets `fallback` instead of waiting forever.
+    @Test func anOperationPastTheBudgetAnswersWithTheFallback() async {
+        let value = await AppRestarter.firstToFinish(timeout: .milliseconds(50), fallback: false) {
+            try? await Task.sleep(for: .seconds(30))
+            return true
+        }
+        #expect(!value)
+    }
+
+    /// The property the whole thing exists for, and the one a `withTaskGroup`
+    /// would quietly fail: giving up must not mean *waiting* for the abandoned
+    /// operation. If this regressed, the call would take the operation's 30s
+    /// rather than the timeout's 50ms — which is exactly the wedged-launch
+    /// behaviour the timeout was added to prevent.
+    @Test func givingUpDoesNotWaitForTheAbandonedOperation() async {
+        let started = ContinuousClock.now
+        _ = await AppRestarter.firstToFinish(timeout: .milliseconds(50), fallback: false) {
+            try? await Task.sleep(for: .seconds(30))
+            return true
+        }
+        #expect(ContinuousClock.now - started < .seconds(5))
+    }
+
+    /// `onTimeout` is the log line, so it must fire only when the budget really
+    /// ran out — an operation that answered in time must not be reported as a
+    /// timed-out launch.
+    @Test func onTimeoutFiresOnlyWhenTheBudgetActuallyRanOut() async {
+        let timedOut = Once()
+        _ = await AppRestarter.firstToFinish(
+            timeout: .seconds(10), fallback: false, onTimeout: { _ = timedOut.claim() }
+        ) {
+            true
+        }
+        // Still unclaimed, so `onTimeout` never ran.
+        #expect(timedOut.claim())
+    }
 }

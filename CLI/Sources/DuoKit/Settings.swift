@@ -33,6 +33,29 @@ public struct Settings: Sendable {
         defaults.set(Array(keys).sorted(), forKey: UpdateSettings.declinedElevationKeysKey)
     }
 
+    /// Point `BackupStore` at whatever disk the user configured in the app.
+    ///
+    /// Separate from ``load()`` and called once from `main`, before any command
+    /// runs, because forgetting it does not fail — it quietly reads a different
+    /// store than the app writes. `duo backups list` would then report "No
+    /// backups stored." for a machine whose backups are all sitting on an
+    /// external disk, which reads as data loss rather than as a missing call.
+    public static func configureBackupStore() {
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        BackupStore.configure(BackupDestination.load(from: defaults))
+    }
+
+    /// How hard to squeeze a bundle on its way to the backup disk, as the app
+    /// has it set. Read here rather than passed in so `duo backups sync` writes
+    /// archives the app would have written — a CLI that quietly used a different
+    /// algorithm would leave a store whose sizes nobody could explain.
+    public static func backupCompression() -> BundleArchive.Compression {
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        return defaults.string(forKey: UpdateSettings.backupCompressionKey)
+            .flatMap(BundleArchive.Compression.init(rawValue:))
+            ?? UpdateSettings.backupCompressionDefault
+    }
+
     public var updateSettings: UpdateSettings
     public var ignoredKeys: Set<String>
     /// App preference key → the version the user chose to skip.

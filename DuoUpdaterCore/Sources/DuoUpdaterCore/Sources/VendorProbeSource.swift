@@ -308,11 +308,14 @@ public struct VendorProbeSource: UpdateSource {
         // account is not a defect.
         guard mine.url != contrast.url else { return .indeterminate }
 
-        async let mineVersion = trackVersion(recipe, at: mine.url)
-        async let contrastVersion = trackVersion(recipe, at: contrast.url)
-        guard let ours = await mineVersion, let theirs = await contrastVersion else {
-            return .indeterminate
-        }
+        // Sequential on purpose. `Verify.byHost` walks one host's recipes one at
+        // a time with a delay and jitter so "a host serving several recipes
+        // doesn't see a metronome"; firing these two together would make the one
+        // endpoint we ask about a track also the one endpoint we burst. The cost
+        // is a single extra round trip on a path that only runs in a sweep.
+        guard let ours = await trackVersion(recipe, at: mine.url),
+              let theirs = await trackVersion(recipe, at: contrast.url)
+        else { return .indeterminate }
         return ours == theirs
             ? .converged(ours)
             : .diverged(ours: ours, contrast: theirs)

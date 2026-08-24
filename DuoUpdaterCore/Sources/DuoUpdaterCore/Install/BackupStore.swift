@@ -169,7 +169,7 @@ public enum BackupStore {
         // across a crashed prior attempt.
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         let staging = root.appendingPathComponent(".staging-\(key)", isDirectory: true)
-        try? fm.removeItem(at: staging)
+        forceRemove(staging)
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
 
         let name = appPath.lastPathComponent
@@ -183,7 +183,7 @@ public enum BackupStore {
         // nothing worth storing.
         let unreadable = BackupManifest.unreadableFiles(in: appPath)
         guard unreadable.sealed.isEmpty else {
-            try? fm.removeItem(at: staging)
+            forceRemove(staging)
             throw BackupError.payloadUnreadable(unreadable.sealed.first ?? appPath.path)
         }
 
@@ -197,7 +197,7 @@ public enum BackupStore {
             // Without this, a source that does not exist produced an empty copy
             // that passed the omission check and got stored as a backup.
             guard !unreadable.unsealed.isEmpty else {
-                try? fm.removeItem(at: staging)
+                forceRemove(staging)
                 throw BackupError.copyFailed(appPath.path)
             }
             let unexpected = BackupManifest.unexpectedOmissions(
@@ -205,7 +205,7 @@ public enum BackupStore {
             guard unexpected.isEmpty else {
                 Log.install.error(
                     "backup: copy of \(name, privacy: .public) lost \(unexpected.count, privacy: .public) file(s) it should have kept")
-                try? fm.removeItem(at: staging)
+                forceRemove(staging)
                 throw BackupError.copyFailed(appPath.path)
             }
         }
@@ -232,7 +232,7 @@ public enum BackupStore {
         guard let metaData = try? JSONEncoder().encode(meta),
               (try? metaData.write(to: staging.appendingPathComponent("backup.json"),
                                    options: .atomic)) != nil else {
-            try? fm.removeItem(at: staging)
+            forceRemove(staging)
             throw BackupError.copyFailed(appPath.path)
         }
 
@@ -246,7 +246,7 @@ public enum BackupStore {
                 try fm.moveItem(at: staging, to: dir)
             }
         } catch {
-            try? fm.removeItem(at: staging)
+            forceRemove(staging)
             throw BackupError.copyFailed(appPath.path)
         }
         let dest = dir.appendingPathComponent(name)
@@ -292,9 +292,9 @@ public enum BackupStore {
         let fm = FileManager.default
         let scratch = fm.temporaryDirectory
             .appendingPathComponent("DuoUpdater-rollback-\(key)", isDirectory: true)
-        try? fm.removeItem(at: scratch)
+        forceRemove(scratch)
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: scratch) }
+        defer { forceRemove(scratch) }
 
         let staged = scratch.appendingPathComponent(backup.bundlePath.lastPathComponent)
         guard runDitto(from: backup.bundlePath, to: staged) else {
@@ -383,8 +383,7 @@ public enum BackupStore {
 
     /// Drop the backup for `key` (e.g. the user dismissed it).
     public static func remove(forKey key: String) {
-        try? FileManager.default.removeItem(
-            at: root.appendingPathComponent(key, isDirectory: true))
+        forceRemove(root.appendingPathComponent(key, isDirectory: true))
     }
 
     /// One stored backup, described for a UI that has to let someone choose which
@@ -481,7 +480,7 @@ public enum BackupStore {
             else { continue }
             guard !fm.fileExists(atPath: meta.originalPath) else { continue }
             freed += directorySize(dir)
-            try? fm.removeItem(at: dir)
+            forceRemove(dir)
         }
         return freed
     }
@@ -530,10 +529,62 @@ public enum BackupStore {
         }
     }
 
+    /// Remove something inside our own store, including when a file in it is
+    /// flagged immutable.
+    ///
+    /// `ditto` faithfully copies BSD file flags, which is what we want of a
+    /// backup — and it means a `uchg` file inside an app bundle comes along into
+    /// the store. `removeItem` then fails with EPERM on that one file and, with
+    /// `try?`, fails silently: the backup stays, the space is never reclaimed,
+    /// and the delete sheet reports success while deleting nothing. Found on a
+    /// real machine, where ToDesk's `advInfo.json` had been locked by hand and
+    /// every ToDesk backup had become undeletable.
+    ///
+    /// Clearing the flag is safe **here specifically** because the target is
+    /// always a copy this store made, never the user's own file — and only the
+    /// user-settable flags are touched, since the system ones need root and
+    /// their presence is a genuine reason to stop. A restore is unaffected: it
+    /// copies its own bundle out, flags and all.
+    @discardableResult
+    private static func forceRemove(_ url: URL) -> Bool {
+        let fm = FileManager.default
+        do { try fm.removeItem(at: url); return true } catch {}
+        guard fm.fileExists(atPath: url.path) else { return true }
+
+        clearUserFlags(at: url)
+        do {
+            try fm.removeItem(at: url)
+            return true
+        } catch {
+            Log.install.error(
+                "backup: could not remove \(url.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Clear `uchg`/`uappnd` from `url` and everything under it.
+    ///
+    /// `lstat`/`lchflags` rather than the follow-the-link pair: a symlink inside
+    /// a bundle must have its own flags cleared, and following one would let a
+    /// link reach outside the store.
+    private static func clearUserFlags(at url: URL) {
+        let clearable = UInt32(UF_IMMUTABLE) | UInt32(UF_APPEND)
+        func clear(_ path: String) {
+            var info = stat()
+            guard lstat(path, &info) == 0, info.st_flags & clearable != 0 else { return }
+            _ = lchflags(path, info.st_flags & ~clearable)
+        }
+        clear(url.path)
+        guard let walker = FileManager.default.enumerator(
+            at: url, includingPropertiesForKeys: nil, options: [], errorHandler: nil)
+        else { return }
+        for case let child as URL in walker { clear(child.path) }
+    }
+
     /// `ditto src dst`, returning true on success. Faithfully duplicates a bundle
     /// including its code signature, unlike `FileManager.copyItem`.
     private static func runDitto(from src: URL, to dst: URL) -> Bool {
-        try? FileManager.default.removeItem(at: dst)
+        forceRemove(dst)
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
         p.arguments = [src.path, dst.path]

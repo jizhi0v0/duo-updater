@@ -46,7 +46,8 @@ public enum Report {
             if let version = finding.version {
                 print("      resolved  \(version)")
             }
-            for warning in finding.warnings {
+            for warning in finding.warnings
+            where !warning.hasPrefix(Finding.machineNotePrefix) {
                 print("      warning   \(warning)")
             }
             if showSamples, let sample = finding.bodySample {
@@ -54,6 +55,23 @@ public enum Report {
                 for line in sample.split(separator: "\n", omittingEmptySubsequences: false).prefix(40) {
                     print("      | \(line.prefix(160))")
                 }
+            }
+        }
+
+        // Notes ride on findings that are otherwise fine, so the loop above —
+        // which prints only actionable statuses — would never show them. They
+        // describe the machine doing the sweeping rather than the recipe, and a
+        // reader who cannot see them is back to the silent fallback this exists
+        // to end.
+        let notes = findings.flatMap { finding in
+            finding.warnings
+                .filter { $0.hasPrefix(Finding.machineNotePrefix) }
+                .map { (finding.recipeID, String($0.dropFirst(Finding.machineNotePrefix.count))) }
+        }
+        if !notes.isEmpty {
+            print("\n  \u{24D8} NOTES (about this machine, not the recipe)")
+            for (recipeID, note) in notes {
+                print("      \(recipeID) — \(note)")
             }
         }
 

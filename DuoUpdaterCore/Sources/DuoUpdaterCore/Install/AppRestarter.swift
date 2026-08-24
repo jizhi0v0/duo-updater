@@ -116,16 +116,90 @@ public enum AppRestarter {
     /// foreground state instead (see `isFrontmost`), so an app that was in the
     /// background comes back in the background.
     @discardableResult
-    public static func launchApp(_ bundle: URL, activates: Bool = true) async -> Bool {
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = activates
-        do {
-            _ = try await NSWorkspace.shared.openApplication(at: bundle, configuration: config)
-            return true
-        } catch {
+    public static func launchApp(
+        _ bundle: URL, activates: Bool = true, timeout: Duration = launchTimeout
+    ) async -> Bool {
+        return await firstToFinish(timeout: timeout, fallback: false) {
             Log.install.error(
-                "app-restarter: launch failed: \(bundle.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
-            return false
+                "app-restarter: launch timed out: \(bundle.lastPathComponent, privacy: .public) — LaunchServices never came back")
+        } operation: {
+            // Built inside the operation, not captured: `OpenConfiguration` is a
+            // non-Sendable class, and the operation has to cross an isolation
+            // boundary to race the timer.
+            let config = NSWorkspace.OpenConfiguration()
+            config.activates = activates
+            do {
+                _ = try await NSWorkspace.shared.openApplication(at: bundle, configuration: config)
+                return true
+            } catch {
+                Log.install.error(
+                    "app-restarter: launch failed: \(bundle.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                return false
+            }
         }
+    }
+
+    /// How long `launchApp` gives LaunchServices before it stops waiting.
+    ///
+    /// `openApplication` has no timeout of its own, and a launch that never comes
+    /// back is not a local failure. `restart(_:)` never returns either, so its
+    /// caller's `defer` never runs and the row stays on "Relaunching…"
+    /// indefinitely: its Restart button is dead behind the re-entry guard, and the
+    /// self-update idle probe — which refuses to fire while anything is still
+    /// waiting to be relaunched — keeps Duo Updater from updating *itself* until
+    /// it is quit. Giving up does not get the app open, but it stops one wedged
+    /// launch from taking the rest of the app down with it.
+    ///
+    /// A minute is deliberately far past a normal launch. The slow case we know
+    /// of is a bundle we just replaced: nothing of it is in the page cache and
+    /// Gatekeeper re-validates the whole thing, which is seconds even at WeChat's
+    /// half a gigabyte.
+    public static let launchTimeout: Duration = .seconds(60)
+
+    /// Await `operation`, or answer `fallback` once `timeout` elapses — **without
+    /// waiting for the abandoned operation to finish**.
+    ///
+    /// That last part is the whole point, and it is why this is not a
+    /// `withTaskGroup`: a group awaits every child before it returns, so a child
+    /// wedged in a system call that ignores cancellation would hold the group open
+    /// and the timeout would be decorative. Here whichever side finishes first
+    /// resumes the continuation and the loser runs on unobserved.
+    static func firstToFinish<T: Sendable>(
+        timeout: Duration,
+        fallback: T,
+        onTimeout: @Sendable @escaping () -> Void = {},
+        operation: @Sendable @escaping () async -> T
+    ) async -> T {
+        let once = Once()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<T, Never>) in
+            let timer = Task {
+                try? await Task.sleep(for: timeout)
+                guard !Task.isCancelled, once.claim() else { return }
+                onTimeout()
+                continuation.resume(returning: fallback)
+            }
+            Task {
+                let value = await operation()
+                guard once.claim() else { return }
+                timer.cancel()
+                continuation.resume(returning: value)
+            }
+        }
+    }
+}
+
+/// One-shot latch: the first caller to `claim()` gets true, every later one gets
+/// false. Guards a `CheckedContinuation` that two racing tasks can reach, where a
+/// second `resume` would trap.
+final class Once: @unchecked Sendable {
+    private let lock = NSLock()
+    private var taken = false
+
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if taken { return false }
+        taken = true
+        return true
     }
 }

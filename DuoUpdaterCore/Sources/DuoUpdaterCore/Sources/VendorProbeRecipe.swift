@@ -171,10 +171,12 @@ public struct VendorProbeRecipe: Sendable {
     /// keeps the machine's identifier out of them.
     public let url: URL
 
-    /// Set when the endpoint only answers for a specific machine and the app
-    /// keeps that machine's id on disk. See `ProbeIdentity` for why a synthesized
-    /// id is not an acceptable substitute, and for the handling rules.
-    public let identity: ProbeIdentity?
+    /// Set when the endpoint only answers for a specific machine — or a specific
+    /// rollout track — and the app keeps what it keys on, on disk. Each entry
+    /// substitutes its own placeholder, and all are applied before the request.
+    /// See `ProbeIdentity` for why a synthesized value is not an acceptable
+    /// substitute, and for the handling rules.
+    public let identities: [ProbeIdentity]
 
     /// How to recover the version from the endpoint's response.
     public let mode: Mode
@@ -316,13 +318,13 @@ public struct VendorProbeRecipe: Sendable {
         requestHeaders: [String: String] = [:],
         followRedirects: Bool = true,
         channel: ReleaseChannel = .stable,
-        identity: ProbeIdentity? = nil,
+        identities: [ProbeIdentity] = [],
         variant: String? = nil
     ) {
         self.bundleID = bundleID
         self.channel = channel
         self.url = url
-        self.identity = identity
+        self.identities = identities
         self.variant = variant
         self.mode = mode
         self.versionPattern = versionPattern
@@ -1938,10 +1940,10 @@ public enum VendorProbeRegistry {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"(https://downloads\.claude\.ai/releases/darwin/universal/[0-9.]+/Claude-[0-9a-f]+\.zip)"#),
                 kind: .zip),
-            identity: ProbeIdentity(
+            identities: [ProbeIdentity(
                 applicationSupportPath: "Claude/ant-did",
                 encoding: .base64,
-                validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#),
+                validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#)],
             variant: "rollout"),
 
         // VLC — official Sparkle appcast. Lists releases ascending, so
@@ -1988,9 +1990,41 @@ public enum VendorProbeRegistry {
         // to answer plausibly and wrongly. `installation_id` selects the rollout
         // bucket and grants nothing; see `ProbeIdentity` for why it never reaches
         // a log, a report, or the recipe's own recorded URL.
+        //
+        // `plan_type` is the second thing the endpoint keys on, and unlike
+        // `app_version` it decides the answer. Measured 2026-08-24, same
+        // installation_id, only this parameter varying:
+        //
+        //     free | go | plus | pro | team   → appcast-26.818.61809.xml
+        //     business | enterprise | ent26   → appcast-26.818.41509.xml
+        //     unknown | omitted | nonsense    → appcast-26.818.41509.xml
+        //
+        // Two rollout tracks, not per-tier builds: the five consumer values
+        // return byte-identical XML, as do the three enterprise ones. The
+        // enterprise feed does not merely sort 61809 lower — it has no such
+        // item. This is the "enterprise-plan recognition" of openai/codex
+        // 0.146.0 (PRs #35238, #35537): business tiers roll out behind consumer
+        // ones so IT can qualify a build.
+        //
+        // So omitting it is not neutral — it silently books this machine onto
+        // the enterprise track. That is what made `duo verify` report "remote is
+        // BEHIND the installed copy" while ChatGPT itself was installing 61809.
+        // And hardcoding a consumer value is worse than omitting: on an actual
+        // business account we would offer a build that account's own updater
+        // refuses, which is precisely the fight described above — its Sparkle
+        // stages the older build, waits for a quit, and our restart is the quit.
+        //
+        // Hence reading the real value. It is an account attribute rather than a
+        // machine id, so it lives with the account state in `~/.codex/auth.json`
+        // (ChatGPT.app and the `codex` CLI are one product and share that file);
+        // `ProbeIdentity.jwtClaim` reaches that one claim and nothing else.
+        // Absent — never signed in, or the file moved — falls back to "unknown",
+        // which is what OpenAI's own `codex doctor` hardcodes
+        // (codex-rs/cli/src/doctor/updates.rs) and which lands on the cautious
+        // track: the same answer we gave before this parameter existed.
         VendorProbeRecipe(
             bundleID: "com.openai.codex",
-            url: URL(string: "https://chatgpt.com/backend-api/wham/app/appcast?installation_id=__IDENTITY__&arch=arm64&beta=false&app_version=0.0.0")!,
+            url: URL(string: "https://chatgpt.com/backend-api/wham/app/appcast?installation_id=__IDENTITY__&arch=arm64&beta=false&app_version=0.0.0&plan_type=__PLANTYPE__")!,
             mode: .responseBody,
             versionPattern: #"<sparkle:shortVersionString>([0-9][^<]*)</sparkle:shortVersionString>"#,
             // Required of any identity recipe: without it `.responseBody` falls back
@@ -2014,10 +2048,26 @@ public enum VendorProbeRegistry {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"url="([^"]+\.zip)""#),
                 kind: .zip),
-            identity: ProbeIdentity(
-                applicationSupportPath: "com.openai.codex/production-appcast-bootstrap.json",
-                encoding: .jsonKey("installationId"),
-                validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#)),
+            identities: [
+                ProbeIdentity(
+                    applicationSupportPath: "com.openai.codex/production-appcast-bootstrap.json",
+                    encoding: .jsonKey("installationId"),
+                    validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#),
+                // Deliberately permissive: we are a passthrough, not an authority
+                // on OpenAI's tier names. A slug we have never seen is forwarded
+                // as-is and the vendor decides; only something that isn't a slug
+                // at all falls back. `maxBytes` is raised because this file holds
+                // JWTs — see `.jwtClaim` for what is and isn't read out of it.
+                ProbeIdentity(
+                    location: .home(".codex/auth.json"),
+                    encoding: .jwtClaim(
+                        tokenPath: ["tokens", "access_token"],
+                        claimPath: ["https://api.openai.com/auth", "chatgpt_plan_type"]),
+                    validationPattern: #"[a-z0-9_]{1,32}"#,
+                    placeholder: "__PLANTYPE__",
+                    fallback: "unknown",
+                    maxBytes: 32768),
+            ]),
 
         // ChatWise — Squirrel releases endpoint; array of versions, take highest.
         VendorProbeRecipe(

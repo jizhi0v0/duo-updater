@@ -420,15 +420,12 @@ public struct VendorProbeSource: UpdateSource {
         // this function so the machine's identifier reaches the request and
         // nothing else — `recipe.url` (the placeholder) is what every log line,
         // finding and outcome keeps carrying.
-        let endpoint: URL
-        if let identity = recipe.identity {
-            guard let resolved = identity.resolve(recipe.url) else {
-                return .failure(.notApplicable(
-                    "no device identity at ~/Library/Application Support/\(identity.applicationSupportPath)"))
+        var endpoint = recipe.url
+        for identity in recipe.identities {
+            guard let resolved = identity.resolve(endpoint) else {
+                return .failure(.notApplicable("no device identity at \(identity.displayPath)"))
             }
             endpoint = resolved
-        } else {
-            endpoint = recipe.url
         }
 
         switch recipe.mode {

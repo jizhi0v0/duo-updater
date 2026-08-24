@@ -247,6 +247,18 @@ public struct GitHubReleasesSource: UpdateSource {
     /// is the tag list — for a GitHub rule the tags *are* the surface a version
     /// pattern is written against, and they're what you need to repair one.
     public func resolveDiagnostic(_ rule: GitHubReleaseRule) async -> ProbeOutcome {
+        await resolveDiagnostic(
+            rule, preferring: .current,
+            allowingIntelTranslation: HostArch.canRunIntelBuilds)
+    }
+
+    /// Host parameters are injectable for the architecture-only diagnostic
+    /// regression tests; production callers use `resolveDiagnostic(_:)` above.
+    func resolveDiagnostic(
+        _ rule: GitHubReleaseRule,
+        preferring hostArch: HostArch,
+        allowingIntelTranslation canRunIntel: Bool
+    ) async -> ProbeOutcome {
         let started = DispatchTime.now()
         func elapsed() -> Int {
             Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
@@ -263,9 +275,18 @@ public struct GitHubReleasesSource: UpdateSource {
         }
 
         do {
-            let resolved = try await resolve(rule)
+            let resolved = try await resolve(
+                rule, preferring: hostArch,
+                allowingIntelTranslation: canRunIntel)
             if let remote = resolved.remote {
                 return outcome(remote: remote, failure: nil, tags: resolved.tags)
+            }
+            if resolved.archIncompatible {
+                return outcome(
+                    remote: nil,
+                    failure: .notApplicable(
+                        "the latest matching release only ships an asset this host cannot run"),
+                    tags: resolved.tags)
             }
             // Fetched fine, no tag matched — the shape a tag-format change makes.
             return outcome(
@@ -330,11 +351,19 @@ public struct GitHubReleasesSource: UpdateSource {
         return Self.releases(from: data, list: list)
     }
 
+    private struct Resolution {
+        let remote: RemoteVersion?
+        let tags: [String]
+        let archIncompatible: Bool
+    }
+
     private func resolve(
-        _ rule: GitHubReleaseRule
-    ) async throws -> (remote: RemoteVersion?, tags: [String]) {
+        _ rule: GitHubReleaseRule,
+        preferring hostArch: HostArch = .current,
+        allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds
+    ) async throws -> Resolution {
         guard var releases = try await fetchReleases(rule, list: rule.usePrereleases) else {
-            return (nil, [])
+            return Resolution(remote: nil, tags: [], archIncompatible: false)
         }
 
         // A rule that names a macOS installer asks a stricter question than "what
@@ -404,7 +433,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 if let pattern = rule.installAssetPattern,
                    GitHubReleaseRule.isArchIncompatibleOnly(
                        assets: release.assets, matching: pattern,
-                       preferring: .current, allowingIntelTranslation: HostArch.canRunIntelBuilds) {
+                       preferring: hostArch, allowingIntelTranslation: canRunIntel) {
                     archIncompatible = true
                     break
                 }
@@ -419,12 +448,14 @@ public struct GitHubReleasesSource: UpdateSource {
                 // gate in VendorInstaller still guards the swap). Otherwise stay
                 // detection-only: link to the releases page, install nothing.
                 let asset = rule.installAssetPattern.flatMap {
-                    GitHubReleaseRule.installableAsset(from: release.assets, matching: $0)
+                    GitHubReleaseRule.installableAsset(
+                        from: release.assets, matching: $0,
+                        preferring: hostArch, allowingIntelTranslation: canRunIntel)
                 }
                 let installable = asset?.url != nil && rule.installerKind != nil
 
                 await RecipeHealth.shared.recordSuccess(id: rule.slug, source: name)
-                return (RemoteVersion(
+                return Resolution(remote: RemoteVersion(
                     shortVersion: version,
                     version: nil,
                     downloadURL: asset?.url
@@ -440,7 +471,7 @@ public struct GitHubReleasesSource: UpdateSource {
                     changelogURL: page,
                     publishedAt: ReleaseDate.parse(release.publishedAt),
                     releaseHistory: history
-                ), releases.map(\.tag))
+                ), tags: releases.map(\.tag), archIncompatible: false)
             }
         }
         // Not a recipe failure — the vendor did ship a macOS build for the
@@ -450,7 +481,8 @@ public struct GitHubReleasesSource: UpdateSource {
         if archIncompatible {
             Log.source.debug(
                 "GitHub \(rule.slug, privacy: .public): latest matching release only ships an asset for the other architecture, which this host cannot run — not offering it")
-            return (nil, releases.map(\.tag))
+            return Resolution(
+                remote: nil, tags: releases.map(\.tag), archIncompatible: true)
         }
         // Two different breakages end up here and they need different words: a
         // tag-format change (nothing matched the version pattern) versus an
@@ -465,7 +497,8 @@ public struct GitHubReleasesSource: UpdateSource {
                 detail: "\(skippedForMissingAsset.count) release(s) matched the version pattern but "
                     + "none carried an asset matching the install pattern (\(tags)) — the vendor may "
                     + "have renamed the macOS artifact")
-            return (nil, releases.map(\.tag))
+            return Resolution(
+                remote: nil, tags: releases.map(\.tag), archIncompatible: false)
         }
         Log.source.error("GitHub \(rule.slug, privacy: .public): \(releases.count, privacy: .public) releases fetched, none matched /\(rule.versionPattern, privacy: .public)/")
         // Fetched fine but nothing matched the version pattern — the breakage
@@ -473,7 +506,8 @@ public struct GitHubReleasesSource: UpdateSource {
         await RecipeHealth.shared.recordMiss(
             id: rule.slug, source: name,
             detail: "\(releases.count) releases fetched, none matched the version pattern")
-        return (nil, releases.map(\.tag))
+        return Resolution(
+            remote: nil, tags: releases.map(\.tag), archIncompatible: false)
     }
 
     /// A GitHub release reduced to the fields we use: tag, notes body, page URL,

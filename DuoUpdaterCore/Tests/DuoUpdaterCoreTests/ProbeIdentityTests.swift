@@ -211,14 +211,24 @@ import Testing
         return root
     }
 
-    /// The file as the app actually writes it: the claim is namespaced, and the
-    /// token sits beside a refresh token this must never touch.
+    /// The file as the app actually writes it, mirrored from a real
+    /// `~/.codex/auth.json` (read 2026-08-24): the claim is namespaced two
+    /// levels down inside the access token, and it shares the file with an id
+    /// token, a refresh token, and `OPENAI_API_KEY` at the TOP LEVEL.
+    ///
+    /// That last one is why this fixture is worth keeping honest. The previous
+    /// version put only nested secrets in the file, which made a test asserting
+    /// "a recipe cannot reach the refresh token" pass for the wrong reason —
+    /// `.jsonKey` reads top-level keys, so it missed on the PATH, not on any
+    /// protection.
     private func authJSON(plan: String) throws -> String {
         let token = try jwt(claims: [
             "https://api.openai.com/auth": ["chatgpt_plan_type": plan],
         ])
         return """
-            {"auth_mode":"chatgpt","tokens":{"access_token":"\(token)",\
+            {"OPENAI_API_KEY":"sk-must-not-be-read","auth_mode":"chatgpt",\
+            "last_refresh":"2026-08-24T15:26:45Z",\
+            "tokens":{"access_token":"\(token)","id_token":"\(token)",\
             "refresh_token":"rt-must-not-be-read","account_id":"acct"}}
             """
     }
@@ -295,21 +305,55 @@ import Testing
         #expect(Self.planIdentity.value(homeDirectory: root) == nil)
     }
 
-    /// The one rule that makes reading this file acceptable: `.jwtClaim` reaches
-    /// the claim a recipe names and can return nothing else — least of all a
-    /// credential sitting beside it.
-    @Test func aRecipeCannotReachTheRefreshToken() throws {
+    /// What `.jwtClaim` actually guarantees: it walks to the claim a recipe
+    /// names and can return nothing else — not the token it decoded, not a
+    /// sibling of that token.
+    @Test func theClaimEncodingCannotReturnTheTokenItDecoded() throws {
         let root = try home(withAuth: authJSON(plan: "team"))
+        let value = try #require(Self.planIdentity.value(homeDirectory: root))
+        #expect(value == "team")
+
+        // Aimed at the token itself rather than at a claim inside it: there is
+        // no claim path to walk, so there is no answer to give.
         let reachingForTheToken = ProbeIdentity(
             location: .home(".codex/auth.json"),
-            encoding: .jsonKey("refresh_token"),
+            encoding: .jwtClaim(tokenPath: ["tokens", "access_token"], claimPath: []),
             validationPattern: ".+",
             maxBytes: 32768)
         #expect(reachingForTheToken.value(homeDirectory: root) == nil)
-        // And what the real identity yields is the plan, never the token.
-        let value = try #require(Self.planIdentity.value(homeDirectory: root))
-        #expect(value == "team")
-        #expect(!value.contains("rt-must-not-be-read"))
+
+        // A sibling that is not a JWT decodes to nothing either.
+        let reachingForTheRefreshToken = ProbeIdentity(
+            location: .home(".codex/auth.json"),
+            encoding: .jwtClaim(
+                tokenPath: ["tokens", "refresh_token"], claimPath: ["anything"]),
+            validationPattern: ".+",
+            maxBytes: 32768)
+        #expect(reachingForTheRefreshToken.value(homeDirectory: root) == nil)
+    }
+
+    /// The hazard the allow-list exists for, written as a test rather than left
+    /// as a comment: a DIFFERENT encoding aimed at this same file reaches the
+    /// API key at its top level, and the character backstop waves it through
+    /// (an `sk-` key is URL-unreserved end to end).
+    ///
+    /// Nothing in `ProbeIdentity`'s types prevents this, which is the point —
+    /// what prevents it is `RegistrySecurity.credentialBearingFileReads` plus
+    /// the registry-derived check in `RegistrySecurityTests`. If this test ever
+    /// goes red the hazard moved, and that guard needs re-reading before it is
+    /// trusted again.
+    @Test func anotherEncodingWouldReachTheAPIKeyBesideTheClaim() throws {
+        let root = try home(withAuth: authJSON(plan: "team"))
+        let reachingForTheKey = ProbeIdentity(
+            location: .home(".codex/auth.json"),
+            encoding: .jsonKey("OPENAI_API_KEY"),
+            validationPattern: ".+",
+            maxBytes: 32768)
+        #expect(reachingForTheKey.value(homeDirectory: root) == "sk-must-not-be-read")
+        #expect(
+            RegistrySecurity.credentialBearingFileReads["~/.codex/auth.json"]?
+                .contains(reachingForTheKey.readPath) != true,
+            "this read must never appear in the allow-list")
     }
 
 }

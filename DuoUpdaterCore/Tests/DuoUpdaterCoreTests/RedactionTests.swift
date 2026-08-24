@@ -139,4 +139,39 @@ import Foundation
             }
         }
     }
+
+    /// A recipe may read out of a file that also holds credentials only at a
+    /// path somebody has looked at. `ProbeIdentity`'s types cannot express that
+    /// rule — `.jsonKey` reaches any top-level key, and `~/.codex/auth.json`
+    /// keeps `OPENAI_API_KEY` at its top level — so the registry is checked
+    /// against the allow-list directly.
+    @Test func noRecipeReadsAnUnreviewedPathOutOfACredentialFile() {
+        for recipe in VendorProbeRegistry.recipes {
+            for identity in recipe.identities {
+                guard let allowed =
+                    RegistrySecurity.credentialBearingFileReads[identity.displayPath]
+                else { continue }
+                #expect(
+                    allowed.contains(identity.readPath),
+                    "\(recipe.bundleID) reads '\(identity.readPath)' out of \(identity.displayPath); confirm it is not a credential, then allow-list it")
+            }
+        }
+    }
+
+    /// And the allow-list must describe the registry rather than outlive it. An
+    /// entry no recipe performs is a standing permission for a read nobody
+    /// makes, which the next reader would take as "this was decided to be fine".
+    @Test func everyAllowedCredentialFileReadIsActuallyPerformed() {
+        let performed = Set(
+            VendorProbeRegistry.recipes
+                .flatMap(\.identities)
+                .map { "\($0.displayPath)|\($0.readPath)" })
+        for (file, reads) in RegistrySecurity.credentialBearingFileReads {
+            for read in reads {
+                #expect(
+                    performed.contains("\(file)|\(read)"),
+                    "the allow-list permits '\(read)' out of \(file), but no recipe reads it; drop the entry")
+            }
+        }
+    }
 }

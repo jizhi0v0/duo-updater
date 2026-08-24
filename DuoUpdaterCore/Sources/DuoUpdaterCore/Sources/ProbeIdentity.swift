@@ -161,6 +161,24 @@ public struct ProbeIdentity: Sendable {
         }
     }
 
+    /// What this reaches INSIDE the file, written as a path. Pairs with
+    /// `displayPath` so `RegistrySecurity` can allow-list a specific read out of
+    /// a file that also holds credentials, rather than the whole file — the
+    /// distinction that matters when the file is `~/.codex/auth.json`.
+    ///
+    /// Only ever compared against a literal in that allow-list, so the exact
+    /// spelling is arbitrary; what it must be is *distinct* — two different
+    /// reads must never render alike.
+    public var readPath: String {
+        switch encoding {
+        case .plain: return "<whole file>"
+        case .base64: return "<whole file, base64>"
+        case .jsonKey(let key): return key
+        case .jwtClaim(let tokenPath, let claimPath):
+            return tokenPath.joined(separator: ".") + " → " + claimPath.joined(separator: ".")
+        }
+    }
+
     /// The characters a value may contain, regardless of what
     /// `validationPattern` allows. These are URL-unreserved, so substituting the
     /// value into a query needs no escaping and cannot smuggle in a second

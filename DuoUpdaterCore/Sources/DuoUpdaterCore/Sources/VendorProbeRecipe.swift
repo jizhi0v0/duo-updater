@@ -1987,9 +1987,15 @@ public enum VendorProbeRegistry {
         // version, and 99.999.99999 all resolved to the same target. A sentinel is
         // deliberate — if OpenAI ever does step upgrades, 0.0.0 is the value most
         // likely to be rejected outright, which `duo verify` reports, rather than
-        // to answer plausibly and wrongly. `installation_id` selects the rollout
-        // bucket and grants nothing; see `ProbeIdentity` for why it never reaches
-        // a log, a report, or the recipe's own recorded URL.
+        // to answer plausibly and wrongly. The app also sends `os-version` and a
+        // `codex_cache_bust` counter; neither changes the redirect target
+        // (measured 2026-08-24: os-version 13.0.0 / 26.0.0 / 27.0.0 / omitted
+        // resolve alike, and the counter is not stable even across the app's own
+        // checks — 8, then 2, then 4), so this URL stays as short as it can be.
+        //
+        // `installation_id` selects the rollout bucket and grants nothing; see
+        // `ProbeIdentity` for why it never reaches a log, a report, or the
+        // recipe's own recorded URL.
         //
         // `plan_type` is the second thing the endpoint keys on, and unlike
         // `app_version` it decides the answer. Measured 2026-08-24, same
@@ -2006,6 +2012,14 @@ public enum VendorProbeRegistry {
         // 0.146.0 (PRs #35238, #35537): business tiers roll out behind consumer
         // ones so IT can qualify a build.
         //
+        // The split is a WINDOW, not a standing structure: by 15:29Z the same
+        // day every value above — `business`, `enterprise` and omitted included
+        // — resolved to 26.818.61809. So nothing can assert on the split, and
+        // `duo verify` cannot tell whether this parameter is doing anything:
+        // outside the window both answers agree. It earns its place only inside
+        // the window, which is exactly when getting it wrong starts the fight
+        // described below.
+        //
         // So omitting it is not neutral — it silently books this machine onto
         // the enterprise track. That is what made `duo verify` report "remote is
         // BEHIND the installed copy" while ChatGPT itself was installing 61809.
@@ -2016,12 +2030,58 @@ public enum VendorProbeRegistry {
         //
         // Hence reading the real value. It is an account attribute rather than a
         // machine id, so it lives with the account state in `~/.codex/auth.json`
-        // (ChatGPT.app and the `codex` CLI are one product and share that file);
-        // `ProbeIdentity.jwtClaim` reaches that one claim and nothing else.
-        // Absent — never signed in, or the file moved — falls back to "unknown",
-        // which is what OpenAI's own `codex doctor` hardcodes
+        // — ChatGPT.app bundles the `codex` CLI at `Contents/Resources/codex`
+        // and both resolve `CODEX_HOME ?? ~/.codex`, so it is one file for one
+        // product. `ProbeIdentity.jwtClaim` reaches that one claim and nothing
+        // else. Absent — never signed in, or the file moved — falls back to
+        // "unknown", which is what OpenAI's own `codex doctor` hardcodes
         // (codex-rs/cli/src/doctor/updates.rs) and which lands on the cautious
         // track: the same answer we gave before this parameter existed.
+        //
+        // What is shared is the FILE and the LOGIN EVENTS. The VALUE is not.
+        // Measured on one machine, 2026-08-24:
+        //
+        //   * signing out of ChatGPT.app DELETES `~/.codex/auth.json`, after
+        //     which `codex login status` reports "Not logged in" — the app
+        //     drives that file;
+        //   * signing in again through `codex` recreates it, and the app returns
+        //     to a signed-in state on its own;
+        //   * but with the file holding a `team` token while the app's session
+        //     was `free`, the app sent `plan_type=free` and never touched the
+        //     file (mtime unchanged). It does not consult this file to answer.
+        //
+        // The app builds its value from the live session of the ACTIVE account
+        // (`setSparkleQueryParams({beta, planType})`, fed from the account
+        // object; default `unknown`), and that plan is not persisted anywhere we
+        // can read — `~/Library/Application Support/com.openai.codex/` holds
+        // only the bootstrap json above and a web session directory. So this
+        // claim is the best local source that exists, not the app's own value.
+        //
+        // Ours is right whenever the login is the one the app is using — the
+        // ordinary case, and strictly better than omitting the parameter (which
+        // books every machine onto the enterprise track) or hardcoding one
+        // (wrong in the dangerous direction on a business account). But four
+        // things drift it, all silently:
+        //
+        //   * `codex login --with-api-key` — auth_mode becomes apikey and the
+        //     token carries no `chatgpt_plan_type` at all, so we send "unknown"
+        //     while the app sends the account's real plan;
+        //   * a plan change between token refreshes leaves the claim stale;
+        //   * switching the active workspace inside the app is not a re-login,
+        //     so the minted claim need not follow it. UNVERIFIED: the account on
+        //     hand belonged to no workspace, so no switcher appeared;
+        //   * `CODEX_HOME` moves the file, and this path is hardcoded. Real
+        //     setups do it — openai/codex#35817 is an XDG-style
+        //     `CODEX_HOME=$HOME/.local/share/codex` on macOS whose `~/.codex`
+        //     holds nothing but a stray Desktop sqlite dir. Those machines get
+        //     the pre-fix behaviour. Reading the variable is NOT the fix: the
+        //     GUI app is launched by launchd and does not inherit the user's
+        //     shell environment, so `duo verify` (which does) would go green
+        //     over a machine where the app still falls back.
+        //
+        // All four fail toward "unknown" or a stale consumer value, never toward
+        // claiming enterprise on a consumer account, so the blast radius is the
+        // cautious track — where omitting the parameter put everyone anyway.
         VendorProbeRecipe(
             bundleID: "com.openai.codex",
             url: URL(string: "https://chatgpt.com/backend-api/wham/app/appcast?installation_id=__IDENTITY__&arch=arm64&beta=false&app_version=0.0.0&plan_type=__PLANTYPE__")!,

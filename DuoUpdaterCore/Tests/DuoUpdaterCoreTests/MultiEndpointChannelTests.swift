@@ -132,14 +132,14 @@ import Testing
     /// `ant-did` we can't read, and the reason the pair degrades gracefully.
     @Test func theGAEndpointNeedsNoIdentity() throws {
         let ga = try #require(recipes.first { $0.variant == "ga" })
-        #expect(ga.identity == nil)
+        #expect(ga.identities.isEmpty)
         #expect(!ga.url.absoluteString.contains("device_id"))
     }
 
     @Test func theRolloutEndpointReadsClaudesOwnDeviceID() throws {
         let rollout = try #require(recipes.first { $0.variant == "rollout" })
-        let identity = try #require(rollout.identity)
-        #expect(identity.applicationSupportPath == "Claude/ant-did")
+        let identity = try #require(rollout.identities.first)
+        #expect(identity.displayPath == "~/Library/Application Support/Claude/ant-did")
         #expect(rollout.url.absoluteString.contains("device_id=\(identity.placeholder)"))
     }
 

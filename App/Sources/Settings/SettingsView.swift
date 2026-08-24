@@ -56,6 +56,7 @@ struct SettingsView: View {
     private func page(for section: SettingsSection) -> some View {
         switch section {
         case .general:     GeneralSettingsPage(prefs: prefs, model: model)
+        case .backups:     BackupsSettingsPage(prefs: prefs, model: model)
         case .folders:     FoldersSettingsPage(prefs: prefs, model: model)
         case .updates:     UpdatesSettingsPage()
         case .github:      GitHubSettingsPage(prefs: prefs)

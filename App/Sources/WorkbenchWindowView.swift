@@ -385,10 +385,16 @@ struct WorkbenchWindowView: View {
             // disturbs that draggable divider). Only shown when something is
             // restorable; the always-visible header is the discovery surface for
             // apps that have already updated and dropped out of the lists above.
-            if hasRollback {
+            // Shown when the backup disk is away even with nothing restorable
+            // locally: that is precisely the case where the section would
+            // otherwise vanish along with every rollback point on the disk.
+            if hasRollback || model.offlineBackupDisk != nil {
                 Divider()
                 rollbackHeader
-                if rollbackExpanded { rollbackListView }
+                if rollbackExpanded {
+                    if let disk = model.offlineBackupDisk { offlineBackupNotice(disk) }
+                    if hasRollback { rollbackListView }
+                }
             }
         }
     }
@@ -408,6 +414,22 @@ struct WorkbenchWindowView: View {
     private var rollbackHeader: some View {
         sectionHeader(String(localized: "Rollback"), systemImage: "arrow.uturn.backward",
                       count: rollbackableApps.count, expanded: $rollbackExpanded)
+    }
+
+    /// Says why this list is shorter than the store. Without it an unplugged disk
+    /// and an empty store look the same on screen — and the second reading is the
+    /// one that makes a user think their backups are gone.
+    private func offlineBackupNotice(_ disk: String) -> some View {
+        Label {
+            Text("Backups on “\(disk)” aren’t available right now — showing only what’s on this Mac.")
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "externaldrive.badge.xmark")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.bottom, hasRollback ? 2 : 8)
     }
 
     /// The Rollback list: every app with a backup we can restore, each with an inline

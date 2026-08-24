@@ -244,8 +244,47 @@ public enum Verify {
                let complaint = await brewComplaint(bundleID: recipe.bundleID, version: version) {
                 finding = finding.adding(warning: complaint)
             }
+            if let note = await rolloutTrackComplaint(recipe, source: source) {
+                finding = finding.observing(note)
+            }
             return finding
         }
+    }
+
+    /// The one question a normal probe cannot answer for a recipe whose track is
+    /// picked by a value on disk: did we actually read that value, and is it
+    /// still deciding anything?
+    ///
+    /// Only the combination is worth reporting. Falling back while the vendor's
+    /// tracks are converged costs nothing — every value gets the same answer.
+    /// Falling back while they have SPLIT means we are on the cautious track by
+    /// accident, offering whatever that track holds to a machine whose own
+    /// updater may well be on the other one. That is the failure
+    /// `ChannelArtifactProof` describes for channel recipes, and it is otherwise
+    /// silent all the way through: the version resolves, the URL resolves, the
+    /// download is a real notarized build from the same vendor.
+    ///
+    /// Reported as a machine note, not a warning: it accuses nobody. The recipe
+    /// is fine — this machine is the thing that cannot read its plan, and on a
+    /// sweep box nobody signs into ChatGPT that is the permanent state. Letting
+    /// it promote the finding to `.warn` would add an actionable streak and,
+    /// after two sweeps inside one rollout window, file a public issue against a
+    /// recipe that is working. `installURLTransient` is exempted from
+    /// `actionable` in `classify` for the same reason.
+    ///
+    /// Costs two extra requests, and only for recipes that declare a track.
+    private static func rolloutTrackComplaint(
+        _ recipe: VendorProbeRecipe, source: VendorProbeSource
+    ) async -> String? {
+        guard let track = recipe.track,
+              source.trackProvenance(recipe) == .fallback,
+              case .diverged(let ours, let contrast)? =
+                await source.rolloutTrackVerdict(recipe)
+        else { return nil }
+        return Finding.machineNotePrefix
+            + "rolloutTrackDefaulted: no value at \(track.selector.displayPath), so this"
+            + " machine is asking as `\(track.selector.fallback ?? "?")` while the vendor is"
+            + " serving two tracks (\(ours) vs \(contrast) for \(track.contrastTrackName))"
     }
 
     // MARK: - GitHub rules
@@ -696,6 +735,28 @@ public enum Verify {
 }
 
 extension Finding {
+    /// Marks a warning that describes the SWEEPING MACHINE rather than the
+    /// recipe. Carried as a prefix on the string because `Finding` is the
+    /// persisted report schema and a new field would have to be threaded
+    /// through every construction site.
+    ///
+    /// It survives `Baseline.signature`, which keys on the first 40 characters,
+    /// so a note stays one stable signature rather than a new one per sweep.
+    public static let machineNotePrefix = "machine-note: "
+
+    /// Attach a note without touching the status — see `machineNotePrefix`. A
+    /// finding that accuses nobody must not accumulate an actionable streak, so
+    /// this deliberately does NOT promote `ok` to `warn`; `Report` surfaces
+    /// notes in their own section instead.
+    public func observing(_ note: String) -> Finding {
+        Finding(
+            recipeID: recipeID, registry: registry, bundleID: bundleID, channel: channel,
+            status: status, version: version,
+            failureKind: failureKind, failureDetail: failureDetail,
+            warnings: warnings + [note], endpointHost: endpointHost, pattern: pattern,
+            attempts: attempts, elapsedMs: elapsedMs, bodySample: bodySample)
+    }
+
     /// Attach a warning discovered after the fact (the baseline's history checks
     /// run once every finding exists), promoting `ok` to `warn`.
     public func adding(warning: String) -> Finding {

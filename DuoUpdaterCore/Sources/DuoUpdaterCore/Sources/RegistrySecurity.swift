@@ -20,6 +20,12 @@ import Foundation
 ///    `com.henrikruscon.Alcove` entry that *is* in `VendorProbeRegistry` is the
 ///    public, unauthenticated CDN mirror.)
 ///
+/// A second dimension arrived with the Codex recipe: an app that is perfectly
+/// safe to sweep, reading one non-credential value out of a file that also holds
+/// tokens. That is not "this app carries a secret", it is "this read must stay
+/// exactly the read it is", so it is allow-listed separately below in
+/// `credentialBearingFileReads`.
+///
 /// So this type is a guard against future drift, not a filter for the present —
 /// which is exactly when a guard is cheap to add.
 public enum RegistrySecurity {
@@ -52,4 +58,36 @@ public enum RegistrySecurity {
     public static func isCredentialBearing(bundleID: String) -> Bool {
         credentialBearingBundleIDs.contains(bundleID)
     }
+
+    /// Local files that hold real credentials but also hold one value a recipe
+    /// legitimately needs, mapped to the exact reads allowed out of each.
+    ///
+    /// `credentialBearingBundleIDs` answers "may this app be swept at all".
+    /// This answers a narrower question the same class of mistake hides behind:
+    /// the app is fine to sweep, the endpoint keys on a value that lives in a
+    /// file which ALSO holds tokens, and nothing in `ProbeIdentity`'s types
+    /// stops a later recipe from reaching for a different key in that same file.
+    ///
+    /// `~/.codex/auth.json` is the instance and it is not a hypothetical hazard:
+    /// `OPENAI_API_KEY` sits at its TOP LEVEL, so `.jsonKey("OPENAI_API_KEY")`
+    /// would read it, and the character backstop would wave it through — an
+    /// `sk-` key is URL-unreserved end to end. What makes the one allowed read
+    /// safe is not the file, it is the path: `.jwtClaim` walks two literal paths
+    /// to one claim and can return nothing else.
+    ///
+    /// So this allow-lists the READ, not the file. Keyed by
+    /// `ProbeIdentity.displayPath`, valued by `ProbeIdentity.readPath`; every
+    /// read in `VendorProbeRecipe.localReads` that points into one of these files
+    /// must be listed here, which `RegistrySecurityTests` asserts against the
+    /// registry as it stands. Derived from `localReads` rather than from
+    /// `identities` on purpose — the day the plan moved from one to the other,
+    /// an enumerated guard would have gone quiet instead of red.
+    public static let credentialBearingFileReads: [String: Set<String>] = [
+        "~/.codex/auth.json": [
+            // The rollout track ChatGPT's appcast keys on. Authenticates
+            // nothing; see the Codex recipe in `VendorProbeRegistry` for why it
+            // is needed and what it can and cannot tell us.
+            "tokens.access_token → https://api.openai.com/auth.chatgpt_plan_type",
+        ],
+    ]
 }

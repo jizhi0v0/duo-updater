@@ -125,7 +125,7 @@ struct GoogleProbeRecipeTests {
     /// that header is a per-machine identifier.
     @Test func antigravitySendsNoMachineIdentifier() throws {
         let recipe = try #require(googleRecipe("com.google.antigravity"))
-        #expect(recipe.identity == nil)
+        #expect(recipe.identities.isEmpty)
         #expect(recipe.requestBody == nil)
         #expect(!recipe.url.absoluteString.contains("staging"))
     }

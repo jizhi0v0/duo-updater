@@ -171,10 +171,36 @@ public struct VendorProbeRecipe: Sendable {
     /// keeps the machine's identifier out of them.
     public let url: URL
 
-    /// Set when the endpoint only answers for a specific machine and the app
-    /// keeps that machine's id on disk. See `ProbeIdentity` for why a synthesized
-    /// id is not an acceptable substitute, and for the handling rules.
-    public let identity: ProbeIdentity?
+    /// Set when the endpoint only answers for a specific machine, and the app
+    /// keeps the identifier it keys on, on disk. Each entry substitutes its own
+    /// placeholder, and all are applied before the request. See `ProbeIdentity`
+    /// for why a synthesized value is not an acceptable substitute, and for the
+    /// handling rules.
+    ///
+    /// Identities only. A value that selects which BUILDS come back rather than
+    /// which bucket this machine is in belongs in `track` — the two look alike
+    /// in the URL and behave nothing alike when they are wrong.
+    public let identities: [ProbeIdentity]
+
+    /// Set when the endpoint serves several tracks off one URL and a
+    /// request-borne value picks between them. Substituted exactly like an
+    /// identity; kept apart from one because it is not a machine identifier and
+    /// because it carries what a verification sweep needs to tell whether it is
+    /// doing anything. See `RolloutTrack`.
+    public let track: RolloutTrack?
+
+    /// Every local value this recipe substitutes into its URL: its identities,
+    /// plus its track's selector if it has one.
+    ///
+    /// Exists so the rules that apply to "a value read off this machine and put
+    /// on the wire" — distinct placeholders, a fallback that survives its own
+    /// validation, nothing baked into `recipe.url`, no unreviewed read out of a
+    /// credential file — are checked against ONE derived list. Splitting the
+    /// plan out of `identities` broke two such guards the day it happened, which
+    /// is the argument for deriving rather than enumerating.
+    public var localReads: [ProbeIdentity] {
+        identities + (track.map { [$0.selector] } ?? [])
+    }
 
     /// How to recover the version from the endpoint's response.
     public let mode: Mode
@@ -316,13 +342,15 @@ public struct VendorProbeRecipe: Sendable {
         requestHeaders: [String: String] = [:],
         followRedirects: Bool = true,
         channel: ReleaseChannel = .stable,
-        identity: ProbeIdentity? = nil,
+        identities: [ProbeIdentity] = [],
+        track: RolloutTrack? = nil,
         variant: String? = nil
     ) {
         self.bundleID = bundleID
         self.channel = channel
         self.url = url
-        self.identity = identity
+        self.identities = identities
+        self.track = track
         self.variant = variant
         self.mode = mode
         self.versionPattern = versionPattern
@@ -1938,10 +1966,10 @@ public enum VendorProbeRegistry {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"(https://downloads\.claude\.ai/releases/darwin/universal/[0-9.]+/Claude-[0-9a-f]+\.zip)"#),
                 kind: .zip),
-            identity: ProbeIdentity(
+            identities: [ProbeIdentity(
                 applicationSupportPath: "Claude/ant-did",
                 encoding: .base64,
-                validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#),
+                validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#)],
             variant: "rollout"),
 
         // VLC — official Sparkle appcast. Lists releases ascending, so
@@ -1985,12 +2013,110 @@ public enum VendorProbeRegistry {
         // version, and 99.999.99999 all resolved to the same target. A sentinel is
         // deliberate — if OpenAI ever does step upgrades, 0.0.0 is the value most
         // likely to be rejected outright, which `duo verify` reports, rather than
-        // to answer plausibly and wrongly. `installation_id` selects the rollout
-        // bucket and grants nothing; see `ProbeIdentity` for why it never reaches
-        // a log, a report, or the recipe's own recorded URL.
+        // to answer plausibly and wrongly. The app also sends `os-version` and a
+        // `codex_cache_bust` counter; neither changes the redirect target
+        // (measured 2026-08-24: os-version 13.0.0 / 26.0.0 / 27.0.0 / omitted
+        // resolve alike, and the counter is not stable even across the app's own
+        // checks — 8, then 2, then 4), so this URL stays as short as it can be.
+        //
+        // `installation_id` selects the rollout bucket and grants nothing; see
+        // `ProbeIdentity` for why it never reaches a log, a report, or the
+        // recipe's own recorded URL.
+        //
+        // `plan_type` is the second thing the endpoint keys on, and unlike
+        // `app_version` it decides the answer. Measured 2026-08-24, same
+        // installation_id, only this parameter varying:
+        //
+        //     free | go | plus | pro | team   → appcast-26.818.61809.xml
+        //     business | enterprise | ent26   → appcast-26.818.41509.xml
+        //     unknown | omitted | nonsense    → appcast-26.818.41509.xml
+        //
+        // Two rollout tracks, not per-tier builds: the five consumer values
+        // return byte-identical XML, as do the three enterprise ones. The
+        // enterprise feed does not merely sort 61809 lower — it has no such
+        // item. This is the "enterprise-plan recognition" of openai/codex
+        // 0.146.0 (PRs #35238, #35537): business tiers roll out behind consumer
+        // ones so IT can qualify a build.
+        //
+        // The split is a WINDOW, not a standing structure: by 15:29Z the same
+        // day every value above — `business`, `enterprise` and omitted included
+        // — resolved to 26.818.61809. So nothing can assert on the split, and
+        // `duo verify` cannot tell whether this parameter is doing anything:
+        // outside the window both answers agree. It earns its place only inside
+        // the window, which is exactly when getting it wrong starts the fight
+        // described below.
+        //
+        // So omitting it is not neutral — it silently books this machine onto
+        // the enterprise track. That is what made `duo verify` report "remote is
+        // BEHIND the installed copy" while ChatGPT itself was installing 61809.
+        // And hardcoding a consumer value is worse than omitting: on an actual
+        // business account we would offer a build that account's own updater
+        // refuses, which is precisely the fight described above — its Sparkle
+        // stages the older build, waits for a quit, and our restart is the quit.
+        //
+        // Hence reading the real value. It is an account attribute rather than a
+        // machine id, so it lives with the account state in `~/.codex/auth.json`
+        // — ChatGPT.app bundles the `codex` CLI at `Contents/Resources/codex`
+        // and both resolve `CODEX_HOME ?? ~/.codex`, so it is one file for one
+        // product. `ProbeIdentity.jwtClaim` reaches that one claim and nothing
+        // else. Absent — never signed in, or the file moved — falls back to
+        // "unknown", which is what OpenAI's own `codex doctor` hardcodes
+        // (codex-rs/cli/src/doctor/updates.rs) and which lands on the cautious
+        // track: the same answer we gave before this parameter existed.
+        //
+        // What is shared is the FILE and the LOGIN EVENTS. The VALUE is not.
+        // Measured on one machine, 2026-08-24:
+        //
+        //   * signing out of ChatGPT.app DELETES `~/.codex/auth.json`, after
+        //     which `codex login status` reports "Not logged in" — the app
+        //     drives that file;
+        //   * signing in again through `codex` recreates it, and the app returns
+        //     to a signed-in state on its own;
+        //   * but with the file holding a `team` token while the app's session
+        //     was `free`, the app sent `plan_type=free` and never touched the
+        //     file (mtime unchanged). It does not consult this file to answer.
+        //
+        // The app builds its value from the live session of the ACTIVE account
+        // (`setSparkleQueryParams({beta, planType})`, fed from the account
+        // object; default `unknown`), and that plan is not persisted anywhere we
+        // can read — `~/Library/Application Support/com.openai.codex/` holds
+        // only the bootstrap json above and a web session directory. So this
+        // claim is the best local source that exists, not the app's own value.
+        //
+        // Ours is right whenever the login is the one the app is using — the
+        // ordinary case, and strictly better than omitting the parameter (which
+        // books every machine onto the enterprise track) or hardcoding one
+        // (wrong in the dangerous direction on a business account). But four
+        // things drift it, all silently:
+        //
+        //   * `codex login --with-api-key` — auth_mode becomes apikey and the
+        //     token carries no `chatgpt_plan_type` at all, so we send "unknown"
+        //     while the app sends the account's real plan;
+        //   * a plan change between token refreshes leaves the claim stale;
+        //   * switching the active workspace inside the app is not a re-login,
+        //     so the minted claim need not follow it. UNVERIFIED: the account on
+        //     hand belonged to no workspace, so no switcher appeared;
+        //   * `CODEX_HOME` moves the file, and this path is hardcoded. Real
+        //     setups do it — openai/codex#35817 is an XDG-style
+        //     `CODEX_HOME=$HOME/.local/share/codex` on macOS whose `~/.codex`
+        //     holds nothing but a stray Desktop sqlite dir. Those machines get
+        //     the pre-fix behaviour. Reading the variable is NOT the fix: the
+        //     GUI app is launched by launchd and does not inherit the user's
+        //     shell environment, so `duo verify` (which does) would go green
+        //     over a machine where the app still falls back.
+        //
+        // All four fail toward "unknown" or a stale consumer value, never toward
+        // claiming enterprise on a consumer account, so the blast radius is the
+        // cautious track — where omitting the parameter put everyone anyway.
+        //
+        // The first of the four is no longer silent, at least in a sweep: this
+        // rides in `track` rather than `identities`, and `duo verify` reports a
+        // machine that fell back WHILE the vendor's two tracks are actually
+        // apart. See `RolloutTrack` for why that combination is the only one
+        // worth a finding.
         VendorProbeRecipe(
             bundleID: "com.openai.codex",
-            url: URL(string: "https://chatgpt.com/backend-api/wham/app/appcast?installation_id=__IDENTITY__&arch=arm64&beta=false&app_version=0.0.0")!,
+            url: URL(string: "https://chatgpt.com/backend-api/wham/app/appcast?installation_id=__IDENTITY__&arch=arm64&beta=false&app_version=0.0.0&plan_type=__PLANTYPE__")!,
             mode: .responseBody,
             versionPattern: #"<sparkle:shortVersionString>([0-9][^<]*)</sparkle:shortVersionString>"#,
             // Required of any identity recipe: without it `.responseBody` falls back
@@ -2014,10 +2140,38 @@ public enum VendorProbeRegistry {
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"url="([^"]+\.zip)""#),
                 kind: .zip),
-            identity: ProbeIdentity(
-                applicationSupportPath: "com.openai.codex/production-appcast-bootstrap.json",
-                encoding: .jsonKey("installationId"),
-                validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#)),
+            identities: [
+                ProbeIdentity(
+                    applicationSupportPath: "com.openai.codex/production-appcast-bootstrap.json",
+                    encoding: .jsonKey("installationId"),
+                    validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#),
+            ],
+            // The plan is NOT an identity — it names which builds come back, not
+            // which bucket this machine is in — so it rides here, where the
+            // sweep can also check whether it is still deciding anything.
+            //
+            // `business` is the contrast because it is the value the two-track
+            // split is actually about; when the endpoint answers it the same way
+            // it answers ours, the rollout has merged and today's value cannot be
+            // wrong. `validationPattern` is deliberately permissive: we are a
+            // passthrough, not an authority on OpenAI's tier names. A slug we
+            // have never seen is forwarded as-is and the vendor decides; only
+            // something that isn't a slug at all falls back. `maxBytes` is raised
+            // because this file holds JWTs — see `.jwtClaim` for what is and is
+            // not read out of it, and `RegistrySecurity` for the allow-list that
+            // keeps it that way.
+            track: RolloutTrack(
+                selector: ProbeIdentity(
+                    location: .home(".codex/auth.json"),
+                    encoding: .jwtClaim(
+                        tokenPath: ["tokens", "access_token"],
+                        claimPath: ["https://api.openai.com/auth", "chatgpt_plan_type"]),
+                    validationPattern: #"[a-z0-9_]{1,32}"#,
+                    placeholder: "__PLANTYPE__",
+                    fallback: "unknown",
+                    maxBytes: 32768),
+                contrastValue: "business",
+                contrastTrackName: "the enterprise track")),
 
         // ChatWise — Squirrel releases endpoint; array of versions, take highest.
         VendorProbeRecipe(

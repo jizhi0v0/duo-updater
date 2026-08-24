@@ -172,6 +172,190 @@ import Testing
         #expect(Self.codexIdentity.value(applicationSupportDirectory: root) == nil)
     }
 
+    // MARK: - ChatGPT's plan: a claim inside a JWT, under the home directory
+
+    /// The rollout track the endpoint keys on. Omitting it books the machine onto
+    /// the enterprise track, so it is read rather than guessed — see the Codex
+    /// recipe in `VendorProbeRegistry`.
+    private static let planIdentity = ProbeIdentity(
+        location: .home(".codex/auth.json"),
+        encoding: .jwtClaim(
+            tokenPath: ["tokens", "access_token"],
+            claimPath: ["https://api.openai.com/auth", "chatgpt_plan_type"]),
+        validationPattern: #"[a-z0-9_]{1,32}"#,
+        placeholder: "__PLANTYPE__",
+        fallback: "unknown",
+        maxBytes: 32768)
+
+    /// Build a JWT whose payload is `claims`. Signature is a fixed stand-in: the
+    /// decoder never reads it, which is itself part of the contract.
+    private func jwt(claims: [String: Any]) throws -> String {
+        let payload = try JSONSerialization.data(withJSONObject: claims)
+        let encoded = payload.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "eyJhbGciOiJSUzI1NiJ9.\(encoded).c2lnbmF0dXJl"
+    }
+
+    /// Write `contents` to `<tmp>/.codex/auth.json` and hand back the tmp root to
+    /// pass as the home directory.
+    private func home(withAuth contents: String?) throws -> URL {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("probe-identity-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent(".codex"), withIntermediateDirectories: true)
+        if let contents {
+            try Data(contents.utf8).write(to: root.appendingPathComponent(".codex/auth.json"))
+        }
+        return root
+    }
+
+    /// The file as the app actually writes it, mirrored from a real
+    /// `~/.codex/auth.json` (read 2026-08-24): the claim is namespaced two
+    /// levels down inside the access token, and it shares the file with an id
+    /// token, a refresh token, and `OPENAI_API_KEY` at the TOP LEVEL.
+    ///
+    /// That last one is why this fixture is worth keeping honest. The previous
+    /// version put only nested secrets in the file, which made a test asserting
+    /// "a recipe cannot reach the refresh token" pass for the wrong reason —
+    /// `.jsonKey` reads top-level keys, so it missed on the PATH, not on any
+    /// protection.
+    private func authJSON(plan: String) throws -> String {
+        let token = try jwt(claims: [
+            "https://api.openai.com/auth": ["chatgpt_plan_type": plan],
+        ])
+        return """
+            {"OPENAI_API_KEY":"sk-must-not-be-read","auth_mode":"chatgpt",\
+            "last_refresh":"2026-08-24T15:26:45Z",\
+            "tokens":{"access_token":"\(token)","id_token":"\(token)",\
+            "refresh_token":"rt-must-not-be-read","account_id":"acct"}}
+            """
+    }
+
+    @Test func readsThePlanClaimOutOfTheAccessToken() throws {
+        let root = try home(withAuth: authJSON(plan: "team"))
+        #expect(Self.planIdentity.value(homeDirectory: root) == "team")
+    }
+
+    /// Every tier we measured on 2026-08-24 must survive the pattern — the two
+    /// tracks are only meaningful if both sides can actually be sent.
+    @Test func everyKnownTierPassesValidation() throws {
+        for plan in ["free", "go", "plus", "pro", "team", "business", "enterprise", "ent26"] {
+            let root = try home(withAuth: authJSON(plan: plan))
+            #expect(Self.planIdentity.value(homeDirectory: root) == plan)
+        }
+    }
+
+    /// Never signed in, or the file moved. The probe must still run — falling
+    /// back to the cautious track rather than skipping ChatGPT entirely.
+    @Test func aMissingAuthFileFallsBackToUnknown() throws {
+        let root = try home(withAuth: nil)
+        #expect(Self.planIdentity.value(homeDirectory: root) == nil)
+        let resolved = Self.planIdentity.resolve(
+            URL(string: "https://example.com/?plan_type=__PLANTYPE__")!, homeDirectory: root)
+        #expect(resolved?.absoluteString == "https://example.com/?plan_type=unknown")
+    }
+
+    /// A tier name we have never seen is forwarded verbatim: the vendor decides
+    /// what its own slugs mean, and downgrading a new consumer tier to "unknown"
+    /// would silently park those users on the enterprise track.
+    @Test func anUnrecognizedTierIsForwardedRatherThanFlattened() throws {
+        let root = try home(withAuth: authJSON(plan: "pro_max_2027"))
+        #expect(Self.planIdentity.value(homeDirectory: root) == "pro_max_2027")
+    }
+
+    /// The claim is namespaced; a payload that puts it at the top level is not
+    /// the shape this recipe declared.
+    @Test func aClaimAtTheWrongPathYieldsNil() throws {
+        let token = try jwt(claims: ["chatgpt_plan_type": "team"])
+        let root = try home(withAuth: #"{"tokens":{"access_token":"\#(token)"}}"#)
+        #expect(Self.planIdentity.value(homeDirectory: root) == nil)
+    }
+
+    /// Not a JWT at all — three dot-separated parts are the whole structural
+    /// check, and a bare string fails it rather than being base64-decoded blind.
+    @Test func aTokenThatIsNotAJWTYieldsNil() throws {
+        let root = try home(withAuth: #"{"tokens":{"access_token":"not-a-jwt"}}"#)
+        #expect(Self.planIdentity.value(homeDirectory: root) == nil)
+    }
+
+    /// The claim holds the wrong type. Coercing it would put `true` on the wire.
+    @Test func aNonStringClaimYieldsNil() throws {
+        let token = try jwt(claims: ["https://api.openai.com/auth": ["chatgpt_plan_type": true]])
+        let root = try home(withAuth: #"{"tokens":{"access_token":"\#(token)"}}"#)
+        #expect(Self.planIdentity.value(homeDirectory: root) == nil)
+    }
+
+    /// The structural backstop applies here too: a claim rewritten into something
+    /// URL-significant must not reach the query, pattern or no pattern.
+    @Test func aHostileClaimIsRefused() throws {
+        for hostile in ["team&admin=1", "team/../x", "TEAM", "a b"] {
+            let root = try home(withAuth: authJSON(plan: hostile))
+            #expect(
+                Self.planIdentity.value(homeDirectory: root) == nil,
+                "'\(hostile)' must not reach a request URL")
+        }
+    }
+
+    /// Pointed at something far larger than an auth file, we stop before parsing.
+    @Test func anOversizedAuthFileFallsBackRatherThanParsing() throws {
+        let padding = String(repeating: "p", count: 40000)
+        let root = try home(withAuth: #"{"pad":"\#(padding)","tokens":{}}"#)
+        #expect(Self.planIdentity.value(homeDirectory: root) == nil)
+    }
+
+    /// What `.jwtClaim` actually guarantees: it walks to the claim a recipe
+    /// names and can return nothing else — not the token it decoded, not a
+    /// sibling of that token.
+    @Test func theClaimEncodingCannotReturnTheTokenItDecoded() throws {
+        let root = try home(withAuth: authJSON(plan: "team"))
+        let value = try #require(Self.planIdentity.value(homeDirectory: root))
+        #expect(value == "team")
+
+        // Aimed at the token itself rather than at a claim inside it: there is
+        // no claim path to walk, so there is no answer to give.
+        let reachingForTheToken = ProbeIdentity(
+            location: .home(".codex/auth.json"),
+            encoding: .jwtClaim(tokenPath: ["tokens", "access_token"], claimPath: []),
+            validationPattern: ".+",
+            maxBytes: 32768)
+        #expect(reachingForTheToken.value(homeDirectory: root) == nil)
+
+        // A sibling that is not a JWT decodes to nothing either.
+        let reachingForTheRefreshToken = ProbeIdentity(
+            location: .home(".codex/auth.json"),
+            encoding: .jwtClaim(
+                tokenPath: ["tokens", "refresh_token"], claimPath: ["anything"]),
+            validationPattern: ".+",
+            maxBytes: 32768)
+        #expect(reachingForTheRefreshToken.value(homeDirectory: root) == nil)
+    }
+
+    /// The hazard the allow-list exists for, written as a test rather than left
+    /// as a comment: a DIFFERENT encoding aimed at this same file reaches the
+    /// API key at its top level, and the character backstop waves it through
+    /// (an `sk-` key is URL-unreserved end to end).
+    ///
+    /// Nothing in `ProbeIdentity`'s types prevents this, which is the point —
+    /// what prevents it is `RegistrySecurity.credentialBearingFileReads` plus
+    /// the registry-derived check in `RegistrySecurityTests`. If this test ever
+    /// goes red the hazard moved, and that guard needs re-reading before it is
+    /// trusted again.
+    @Test func anotherEncodingWouldReachTheAPIKeyBesideTheClaim() throws {
+        let root = try home(withAuth: authJSON(plan: "team"))
+        let reachingForTheKey = ProbeIdentity(
+            location: .home(".codex/auth.json"),
+            encoding: .jsonKey("OPENAI_API_KEY"),
+            validationPattern: ".+",
+            maxBytes: 32768)
+        #expect(reachingForTheKey.value(homeDirectory: root) == "sk-must-not-be-read")
+        #expect(
+            RegistrySecurity.credentialBearingFileReads["~/.codex/auth.json"]?
+                .contains(reachingForTheKey.readPath) != true,
+            "this read must never appear in the allow-list")
+    }
+
 }
 
 /// The identity must not escape the fetch. Everything the verify sweep persists —
@@ -180,22 +364,92 @@ import Testing
 @Suite struct ProbeIdentityRedactionTests {
 
     private var identityRecipes: [VendorProbeRecipe] {
-        VendorProbeRegistry.recipes.filter { $0.identity != nil }
+        VendorProbeRegistry.recipes.filter { !$0.localReads.isEmpty }
     }
 
     /// `recipe.url` is what `Verify` reads the endpoint host from and what the
     /// log lines carry. It must still hold the placeholder, never a value.
     @Test func theRegistryHoldsPlaceholdersNotValues() throws {
         for recipe in identityRecipes {
-            let identity = try #require(recipe.identity)
-            #expect(
-                recipe.url.absoluteString.contains(identity.placeholder),
-                "\(recipe.recipeID) declares an identity its URL never uses")
-            // The real value, if this machine has one, must not be baked in.
-            if let value = identity.value() {
-                #expect(!recipe.url.absoluteString.contains(value))
+            for identity in recipe.localReads {
+                #expect(
+                    recipe.url.absoluteString.contains(identity.placeholder),
+                    "\(recipe.recipeID) declares an identity its URL never uses")
+                // The real value, if this machine has one, must not be baked in.
+                if let value = identity.value() {
+                    #expect(!recipe.url.absoluteString.contains(value))
+                }
             }
         }
+    }
+
+    /// Two identities on one recipe must not share a placeholder: the first
+    /// substitution would consume both slots and the second would then find no
+    /// placeholder and fail the whole probe.
+    @Test func placeholdersAreDistinctWithinARecipe() throws {
+        for recipe in identityRecipes {
+            let placeholders = recipe.localReads.map(\.placeholder)
+            #expect(
+                Set(placeholders).count == placeholders.count,
+                "\(recipe.recipeID) reuses a placeholder across identities")
+        }
+    }
+
+    /// A declared fallback must survive its own recipe's validation. It is only
+    /// checked at substitution time, so a typo would otherwise sit in the
+    /// registry looking fine and turn into a skipped probe the day the file it
+    /// stands in for goes missing — the one day it was supposed to help.
+    @Test func everyDeclaredFallbackWouldActuallySubstitute() throws {
+        // A directory with nothing in it: every read fails, so what comes out is
+        // the fallback or nothing.
+        let empty = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("probe-identity-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+
+        for recipe in identityRecipes {
+            for identity in recipe.localReads {
+                guard let fallback = identity.fallback else { continue }
+                let resolved = identity.resolve(
+                    URL(string: "https://example.com/?x=\(identity.placeholder)")!,
+                    applicationSupportDirectory: empty, homeDirectory: empty)
+                #expect(
+                    resolved?.absoluteString == "https://example.com/?x=\(fallback)",
+                    "\(recipe.recipeID)'s fallback '\(fallback)' fails its own validation")
+            }
+        }
+    }
+
+    /// The asymmetry that makes the two Codex reads safe, pinned so a later edit
+    /// cannot quietly swap it. The machine id must keep skipping when it is
+    /// unreadable — a synthesized one picks a stranger's rollout bucket. The plan
+    /// must keep falling back — without it, a signed-out machine would lose
+    /// ChatGPT coverage entirely rather than land on the cautious track.
+    @Test func codexKeepsTheIDStrictAndThePlanForgiving() throws {
+        let codex = try #require(
+            VendorProbeRegistry.recipes.first { $0.bundleID == "com.openai.codex" })
+        let byPlaceholder = Dictionary(
+            uniqueKeysWithValues: codex.localReads.map { ($0.placeholder, $0) })
+
+        let machineID = try #require(byPlaceholder["__IDENTITY__"])
+        #expect(machineID.fallback == nil, "a fabricated installation_id must never be sent")
+
+        let plan = try #require(byPlaceholder["__PLANTYPE__"])
+        #expect(
+            plan.fallback == "unknown",
+            "an unreadable plan must fall back to the value OpenAI's own doctor sends")
+    }
+
+    /// And the two must stay in different slots. `installation_id` names a
+    /// rollout BUCKET inside one track; `plan_type` names the TRACK. They look
+    /// alike in the URL and behave nothing alike when wrong, and only the second
+    /// gets the sweep's divergence check.
+    @Test func theCodexPlanIsATrackAndTheIDIsNot() throws {
+        let codex = try #require(
+            VendorProbeRegistry.recipes.first { $0.bundleID == "com.openai.codex" })
+        #expect(codex.identities.map(\.placeholder) == ["__IDENTITY__"])
+        let track = try #require(codex.track)
+        #expect(track.selector.placeholder == "__PLANTYPE__")
+        #expect(track.contrastValue == "business")
     }
 
     /// An identity recipe must not use a mode that routes the fetched URL into

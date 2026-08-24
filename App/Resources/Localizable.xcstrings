@@ -3117,6 +3117,47 @@
         }
       }
     },
+    "A different disk is mounted here": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hier ist eine andere Festplatte eingebunden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aquí hay montado otro disco"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un autre disque est monté ici"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別のディスクがマウントされています"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Здесь подключён другой диск"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此处挂载的是另一块磁盘"
+          }
+        }
+      }
+    },
     "A few quick steps let Duo Updater keep your apps updated without interrupting you. You set these once — they persist across launches.": {
       "extractionState": "manual",
       "localizations": {
@@ -3789,43 +3830,43 @@
         }
       }
     },
-    "After updating a running app, restart it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Restart” button.\n\nBackups keep one previous version of each app under Application Support, so an update can be undone. Retention is one backup per app — the previous version is replaced, not accumulated.": {
+    "After updating a running app, restart it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Restart” button.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nach dem Update einer laufenden App wird sie für dich neu gestartet, damit die neue Version wirksam wird – ohne zweiten Klick. Die App wird ganz normal zum Beenden aufgefordert, sodass Hinweise auf ungesicherte Arbeit weiterhin erscheinen; alles, was sich nicht beenden lässt, behält einfach seine Schaltfläche „Neu starten“.\n\nBackups bewahren eine vorherige Version jeder App unter Application Support auf, sodass ein Update rückgängig gemacht werden kann. Es wird ein Backup pro App aufbewahrt – die vorherige Version wird ersetzt, nicht angesammelt."
+            "value": "Nach dem Update einer laufenden App wird sie für dich neu gestartet, damit die neue Version wirksam wird – ohne zweiten Klick. Die App wird normal zum Beenden aufgefordert, sodass Rückfragen zu ungesicherten Änderungen weiterhin erscheinen; was sich nicht beenden lässt, behält einfach seinen Knopf „Neu starten“."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tras actualizar una app en ejecución, se reinicia por ti para que la versión nueva surta efecto, sin un segundo clic. Se le pide a la app que se cierre con normalidad, así que los avisos de trabajo sin guardar siguen apareciendo, y cualquier app que no se cierre simplemente conserva su botón «Reiniciar».\n\nLas copias de seguridad conservan una versión anterior de cada app en Application Support, para poder deshacer una actualización. Se conserva una copia por app; la versión anterior se reemplaza, no se acumula."
+            "value": "Tras actualizar una app en ejecución, se reinicia por ti para que la nueva versión surta efecto, sin un segundo clic. Se le pide salir con normalidad, así que los avisos de trabajo sin guardar siguen apareciendo y lo que no pueda salir conserva su botón «Reiniciar»."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Après la mise à jour d'une application en cours d'exécution, elle est redémarrée pour vous afin que la nouvelle version prenne effet — sans second clic. Il est demandé à l'application de quitter normalement, donc les invites de travail non enregistré apparaissent toujours, et tout ce qui ne quitte pas conserve simplement son bouton « Redémarrer ».\n\nLes sauvegardes conservent une version précédente de chaque application sous Application Support, afin qu'une mise à jour puisse être annulée. La rétention est d'une sauvegarde par application — la version précédente est remplacée, pas accumulée."
+            "value": "Après la mise à jour d’une app en cours d’exécution, elle est redémarrée pour vous afin que la nouvelle version prenne effet — sans second clic. L’app reçoit une demande de fermeture normale, donc les alertes de travail non enregistré s’affichent toujours, et ce qui refuse de quitter conserve son bouton « Redémarrer »."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "実行中のアプリを更新した後、新しいバージョンを反映させるために自動的に再起動します — 追加のクリックは不要です。アプリには通常どおり終了が要求されるため、未保存の作業に関するプロンプトは引き続き表示され、終了しないものはその「再起動」ボタンを保持したままになります。\n\nバックアップは各アプリの直前のバージョンをApplication Support配下に1つ保持するため、更新を元に戻せます。保持数はアプリごとに1つで、直前のバージョンが置き換えられ、蓄積はされません。"
+            "value": "起動中の App を更新した後、新しいバージョンを有効にするために自動で再起動します（2 回目のクリックは不要）。App には通常の終了を要求するため、保存していない作業の確認は従来どおり表示され、終了しない App には「再起動」ボタンが残ります。"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "После обновления запущенного приложения оно перезапускается автоматически, чтобы новая версия вступила в силу — без второго клика. Приложению отправляется обычный запрос на закрытие, поэтому подсказки о несохранённой работе по-прежнему появляются, а всё, что не закрывается, просто сохраняет свою кнопку «Перезапустить».\n\nРезервные копии хранят одну предыдущую версию каждого приложения в Application Support, поэтому обновление можно отменить. Хранится одна копия на приложение — предыдущая версия заменяется, а не накапливается."
+            "value": "После обновления запущенной программы она перезапускается автоматически, чтобы новая версия вступила в силу, — без второго щелчка. Программе отправляется обычный запрос на завершение, поэтому запросы о несохранённой работе по-прежнему появляются, а то, что не закрывается, сохраняет кнопку «Перезапустить»."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新正在运行的应用后，会自动为你重启它，让新版本生效 — 无需再次点击。系统会正常请求该应用退出，因此未保存工作的提示仍会出现，任何拒绝退出的应用只会保留其“重启”按钮。\n\n备份会在“应用程序支持”中保留每个应用的一个先前版本，以便撤销更新。保留策略是每个应用一份备份 — 会替换先前版本，而不是不断累积。"
+            "value": "更新正在运行的 App 后自动为你重启它，让新版本生效——不用点第二次。App 会收到正常的退出请求，因此未保存内容的提示照常出现；拒绝退出的 App 会保留「重新启动」按钮。"
           }
         }
       }
@@ -4814,43 +4855,289 @@
         }
       }
     },
-    "Backups are using %@": {
+    "Backups": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Backups belegen %@"
+            "value": "Backups"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las copias de seguridad usan %@"
+            "value": "Copias de seguridad"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les sauvegardes utilisent %@"
+            "value": "Sauvegardes"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "バックアップの使用容量: %@"
+            "value": "バックアップ"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Резервные копии занимают %@"
+            "value": "Резервные копии"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "备份占用 %@"
+            "value": "备份"
+          }
+        }
+      }
+    },
+    "Backups are copied here in the background, after an update is installed, so nothing waits on the disk.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups werden nach der Installation eines Updates im Hintergrund hierher kopiert, sodass nichts auf die Festplatte wartet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias se copian aquí en segundo plano, después de instalar una actualización, así que nada espera al disco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sauvegardes sont copiées ici en arrière-plan, après l’installation d’une mise à jour, donc rien n’attend le disque."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップは更新のインストール後にバックグラウンドでここへコピーされるため、ディスクを待つ処理はありません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Копии переносятся сюда в фоне, уже после установки обновления, поэтому ничего не ждёт диск."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份在更新安装完成后于后台复制到这里，因此不会有任何操作等待磁盘。"
+          }
+        }
+      }
+    },
+    "Backups are copies of whole apps, so they are large. Keeping them on an external disk or a network share frees that space on this Mac without giving up the ability to undo an update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups sind Kopien vollständiger Apps und entsprechend groß. Wenn du sie auf einer externen Festplatte oder einem Netzlaufwerk aufbewahrst, wird dieser Speicherplatz auf diesem Mac frei, ohne dass du auf das Rückgängigmachen von Updates verzichten musst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias son copias de apps completas, así que ocupan mucho. Guardarlas en un disco externo o en un recurso de red libera ese espacio en este Mac sin renunciar a poder deshacer una actualización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sauvegardes sont des copies d’apps entières, donc volumineuses. Les conserver sur un disque externe ou un partage réseau libère cet espace sur ce Mac sans renoncer à la possibilité d’annuler une mise à jour."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップは App 全体のコピーなので容量が大きくなります。外付けディスクやネットワーク共有に置けば、更新を取り消せる機能はそのままに、この Mac の容量を空けられます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервные копии — это копии программ целиком, поэтому они большие. Хранение их на внешнем диске или в сетевой папке освобождает это место на Mac, не лишая возможности отменить обновление."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份是整个 App 的完整副本，因此很占地方。把它们放到外接磁盘或网络共享上，可以在不放弃撤销更新能力的前提下腾出这台 Mac 的空间。"
+          }
+        }
+      }
+    },
+    "Backups are kept on this Mac": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups werden auf diesem Mac aufbewahrt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias se guardan en este Mac"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sauvegardes sont conservées sur ce Mac"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップはこの Mac に保存されます"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Копии хранятся на этом Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份保存在这台 Mac 上"
+          }
+        }
+      }
+    },
+    "Backups keep one previous version of each app, so an update can be undone. Retention is one per app — the previous version is replaced, not accumulated.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups bewahren je App eine vorherige Version auf, sodass ein Update rückgängig gemacht werden kann. Aufbewahrt wird genau eine pro App – die vorherige Version wird ersetzt, nicht angesammelt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias conservan una versión anterior de cada app, de modo que una actualización pueda deshacerse. Se conserva una por app: la versión anterior se sustituye, no se acumula."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sauvegardes conservent une version précédente de chaque app, afin qu’une mise à jour puisse être annulée. Une seule par app est conservée : la version précédente est remplacée, non accumulée."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップは各 App の以前のバージョンを 1 つ保持し、更新を取り消せるようにします。保持数は App ごとに 1 つで、以前のバージョンは蓄積されず置き換えられます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервные копии хранят одну предыдущую версию каждой программы, чтобы обновление можно было отменить. Хранится по одной на программу: предыдущая версия заменяется, а не накапливается."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份为每个 App 保留一个此前的版本，以便撤销更新。每个 App 只留一份——旧版本会被替换，不会累积。"
+          }
+        }
+      }
+    },
+    "Backups on another disk are stored as a single compressed archive. That is what lets a disk formatted for Windows, or a network share, hold one at all — and it is usually less than half the size of the app.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups auf einer anderen Festplatte werden als einzelnes komprimiertes Archiv abgelegt. Genau dadurch kann eine für Windows formatierte Festplatte oder ein Netzlaufwerk überhaupt eines aufnehmen – und es ist meist weniger als halb so groß wie die App."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias en otro disco se guardan como un único archivo comprimido. Eso es lo que permite que un disco formateado para Windows, o un recurso de red, pueda alojarlas, y suele ocupar menos de la mitad que la app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sauvegardes sur un autre disque sont stockées sous forme d’une seule archive compressée. C’est ce qui permet à un disque formaté pour Windows, ou à un partage réseau, d’en contenir une — et elle fait généralement moins de la moitié de la taille de l’app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別のディスク上のバックアップは、単一の圧縮アーカイブとして保存されます。Windows 用にフォーマットされたディスクやネットワーク共有でも保存できるのはこのためで、サイズは通常 App の半分未満になります。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Копии на другом диске хранятся в виде одного сжатого архива. Именно поэтому их может принять диск, отформатированный для Windows, или сетевая папка, — и обычно архив занимает меньше половины размера программы."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存放在另一块磁盘上的备份是单个压缩归档。正因如此，为 Windows 格式化的磁盘或网络共享才能存得下它——而且通常不到 App 体积的一半。"
+          }
+        }
+      }
+    },
+    "Backups on “%@” aren’t available right now — showing only what’s on this Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups auf „%@“ sind derzeit nicht verfügbar — es wird nur gezeigt, was auf diesem Mac liegt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias en «%@» no están disponibles ahora mismo; solo se muestra lo que hay en este Mac."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sauvegardes sur « %@ » sont indisponibles pour le moment ; seul ce qui se trouve sur ce Mac est affiché."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」のバックアップは現在利用できません。この Mac にあるものだけを表示しています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервные копии на «%@» сейчас недоступны — показано только то, что есть на этом Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”上的备份现在读不到 —— 只显示这台 Mac 上的。"
           }
         }
       }
@@ -5056,6 +5343,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新日志"
+          }
+        }
+      }
+    },
+    "Change…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ändern …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifier…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改…"
           }
         }
       }
@@ -5697,6 +6025,47 @@
         }
       }
     },
+    "Choose a folder on an external disk or a network share. Backups are kept inside it, and moving them there is what frees space on this Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle einen Ordner auf einer externen Festplatte oder einem Netzlaufwerk. Die Backups werden darin aufbewahrt, und genau dieses Verschieben schafft Speicherplatz auf diesem Mac."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige una carpeta en un disco externo o en un recurso de red. Las copias se guardan dentro de ella, y es ese traslado lo que libera espacio en este Mac."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez un dossier sur un disque externe ou un partage réseau. Les sauvegardes y sont conservées, et c’est ce déplacement qui libère de l’espace sur ce Mac."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外付けディスクまたはネットワーク共有上のフォルダを選んでください。バックアップはその中に保存され、そこへ移すことでこの Mac の容量が空きます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите папку на внешнем диске или в сетевой папке. Копии хранятся внутри неё, и именно этот перенос освобождает место на этом Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择外接磁盘或网络共享上的文件夹。备份会存放在其中，正是这次搬移才腾出这台 Mac 的空间。"
+          }
+        }
+      }
+    },
     "Choose a folder that contains apps to check for updates.": {
       "extractionState": "manual",
       "localizations": {
@@ -5861,6 +6230,47 @@
         }
       }
     },
+    "Compression": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komprimierung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compresión"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compression"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "圧縮"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сжатие"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "压缩"
+          }
+        }
+      }
+    },
     "Connected": {
       "extractionState": "manual",
       "localizations": {
@@ -5939,6 +6349,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "仅当它是免费的，或你的许可证覆盖新版本时才继续。当前版本会被移到废纸篓，因此你可以还原它。"
+          }
+        }
+      }
+    },
+    "Copy Now": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt kopieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar ahora"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier maintenant"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今すぐコピー"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Копировать сейчас"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即复制"
+          }
+        }
+      }
+    },
+    "Copying %@…": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wird kopiert …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiando %@…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copie de %@…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ をコピー中…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Копирование %@…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在复制 %@…"
           }
         }
       }
@@ -7496,6 +7988,47 @@
         }
       }
     },
+    "Everything is on the backup disk": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alles liegt auf der Backup-Festplatte"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todo está en el disco de copias"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout est sur le disque de sauvegarde"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてバックアップディスク上にあります"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Всё находится на диске для копий"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部已在备份磁盘上"
+          }
+        }
+      }
+    },
     "Everything is up to date": {
       "extractionState": "manual",
       "localizations": {
@@ -7615,6 +8148,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "失败"
+          }
+        }
+      }
+    },
+    "Faster": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schneller"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más rápida"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus rapide"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高速"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Быстрее"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更快"
           }
         }
       }
@@ -9300,6 +9874,47 @@
         }
       }
     },
+    "Keep a copy of the previous version so an update can be undone — here or on another disk.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Kopie der vorherigen Version aufbewahren, damit ein Update rückgängig gemacht werden kann – hier oder auf einer anderen Festplatte."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda una copia de la versión anterior para poder deshacer una actualización, aquí o en otro disco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conserver une copie de la version précédente pour pouvoir annuler une mise à jour — ici ou sur un autre disque."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新を取り消せるように、以前のバージョンのコピーを保持します（この Mac または別のディスク）。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Хранить копию предыдущей версии, чтобы обновление можно было отменить — здесь или на другом диске."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留上一个版本的副本，以便撤销更新——存在本机或另一块磁盘上。"
+          }
+        }
+      }
+    },
     "Last checked": {
       "extractionState": "manual",
       "localizations": {
@@ -10161,6 +10776,47 @@
         }
       }
     },
+    "Measured at about %@/s. Backups are copied here in the background, after an update is installed, so nothing waits on the disk.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gemessen bei etwa %@/s. Backups werden nach der Installation eines Updates im Hintergrund hierher kopiert, sodass nichts auf die Festplatte wartet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medido en unos %@/s. Las copias se copian aquí en segundo plano, después de instalar una actualización, así que nada espera al disco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesuré à environ %@/s. Les sauvegardes sont copiées ici en arrière-plan, après l’installation d’une mise à jour, donc rien n’attend le disque."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実測で約 %@/秒。バックアップは更新のインストール後にバックグラウンドでここへコピーされるため、ディスクを待つ処理はありません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Измерено около %@/с. Копии переносятся сюда в фоне, уже после установки обновления, поэтому ничего не ждёт диск."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实测约 %@/秒。备份在更新安装完成后于后台复制到这里，因此不会有任何操作等待磁盘。"
+          }
+        }
+      }
+    },
     "More": {
       "extractionState": "manual",
       "localizations": {
@@ -10198,6 +10854,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "较多"
+          }
+        }
+      }
+    },
+    "New backups stay on this Mac until the disk is back, then move on their own. If this Mac runs low on space while the disk is away, updates are installed without a rollback point rather than filling the startup disk.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Backups bleiben auf diesem Mac, bis die Festplatte wieder da ist, und wandern dann von selbst weiter. Wird der Speicherplatz auf diesem Mac knapp, während die Festplatte fehlt, werden Updates ohne Wiederherstellungspunkt installiert, statt das Startvolume zu füllen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias nuevas se quedan en este Mac hasta que vuelva el disco y luego se trasladan solas. Si a este Mac le queda poco espacio mientras el disco no está, las actualizaciones se instalan sin punto de reversión en lugar de llenar el disco de arranque."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les nouvelles sauvegardes restent sur ce Mac jusqu’au retour du disque, puis migrent d’elles-mêmes. Si l’espace vient à manquer sur ce Mac pendant l’absence du disque, les mises à jour sont installées sans point de restauration plutôt que de remplir le disque de démarrage."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいバックアップは、ディスクが戻るまでこの Mac に残り、その後は自動的に移動します。ディスクがない間にこの Mac の空き容量が少なくなった場合は、起動ディスクを埋めるのではなく、巻き戻しポイントなしで更新をインストールします。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новые копии остаются на этом Mac, пока диск не вернётся, а затем переносятся сами. Если места на этом Mac станет мало, пока диска нет, обновления будут устанавливаться без точки отката, вместо того чтобы заполнять загрузочный диск."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新的备份会先留在这台 Mac 上，等磁盘回来后自动搬走。如果磁盘不在期间本机空间告急，更新会在没有回滚点的情况下安装，而不是把启动磁盘塞满。"
           }
         }
       }
@@ -10612,6 +11309,47 @@
         }
       }
     },
+    "No rollback point: the backup disk isn’t connected and this Mac is low on space.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Wiederherstellungspunkt: Die Backup-Festplatte ist nicht angeschlossen und auf diesem Mac ist wenig Speicherplatz frei."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin punto de reversión: el disco de copias no está conectado y a este Mac le queda poco espacio."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun point de restauration : le disque de sauvegarde n’est pas connecté et l’espace disponible sur ce Mac est faible."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "巻き戻しポイントはありません: バックアップディスクが接続されておらず、この Mac の空き容量も少なくなっています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Точки отката нет: диск для копий не подключён, а на этом Mac мало свободного места."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有回滚点：备份磁盘未连接，且这台 Mac 剩余空间不足。"
+          }
+        }
+      }
+    },
     "No skipped versions.": {
       "extractionState": "manual",
       "localizations": {
@@ -10946,6 +11684,47 @@
         }
       }
     },
+    "On another disk": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf einer anderen Festplatte"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En otro disco"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur un autre disque"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別のディスク上"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На другом диске"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在另一块磁盘上"
+          }
+        }
+      }
+    },
     "On the %@ channel — its version can lead or differ from the stable release.": {
       "extractionState": "manual",
       "localizations": {
@@ -10983,6 +11762,129 @@
           "stringUnit": {
             "state": "translated",
             "value": "处于 %@ 渠道 — 其版本可能领先或不同于稳定版。"
+          }
+        }
+      }
+    },
+    "On the backup disk": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf der Backup-Festplatte"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En el disco de copias"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur le disque de sauvegarde"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップディスク上"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На диске для копий"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在备份磁盘上"
+          }
+        }
+      }
+    },
+    "On this Mac": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf diesem Mac"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En este Mac"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur ce Mac"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac 上"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На этом Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这台 Mac 上"
+          }
+        }
+      }
+    },
+    "On “%@”": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf „%@“"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En «%@»"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur « %@ »"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」上"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На «%@»"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「%@」上"
           }
         }
       }
@@ -13676,6 +14578,47 @@
         }
       }
     },
+    "Rollback points": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederherstellungspunkte"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puntos de reversión"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Points de restauration"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "巻き戻しポイント"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Точки отката"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回滚点"
+          }
+        }
+      }
+    },
     "Run Setup Again…": {
       "extractionState": "manual",
       "localizations": {
@@ -14912,6 +15855,47 @@
         }
       }
     },
+    "Smaller": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kleiner"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más pequeña"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plus petite"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小容量"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Меньше"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更小"
+          }
+        }
+      }
+    },
     "Some apps could not be checked — see above.": {
       "extractionState": "manual",
       "localizations": {
@@ -15170,6 +16154,47 @@
         }
       }
     },
+    "Storage": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speicherplatz"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Almacenamiento"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stockage"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ストレージ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Хранилище"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储占用"
+          }
+        }
+      }
+    },
     "Switch between side-by-side and long-scroll layouts": {
       "extractionState": "manual",
       "localizations": {
@@ -15330,6 +16355,129 @@
           "stringUnit": {
             "state": "translated",
             "value": "该文件夹已被覆盖。"
+          }
+        }
+      }
+    },
+    "That folder wasn’t used: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Ordner wurde nicht verwendet: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa carpeta no se ha usado: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce dossier n’a pas été utilisé : %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このフォルダは使用されませんでした: %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта папка не была использована: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该文件夹未被使用：%@"
+          }
+        }
+      }
+    },
+    "The backup disk isn’t connected": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Backup-Festplatte ist nicht angeschlossen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El disco de copias no está conectado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le disque de sauvegarde n’est pas connecté"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップディスクが接続されていません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Диск для резервных копий не подключён"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份磁盘未连接"
+          }
+        }
+      }
+    },
+    "The disk mounted at this path isn’t the one the backups were set up on. Nothing has been written to it. Reconnect the original disk, or choose this one to start using it instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die unter diesem Pfad eingebundene Festplatte ist nicht die, auf der die Backups eingerichtet wurden. Es wurde nichts darauf geschrieben. Schließe die ursprüngliche Festplatte wieder an oder wähle diese aus, um künftig sie zu verwenden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El disco montado en esta ruta no es aquel en el que se configuraron las copias. No se ha escrito nada en él. Vuelve a conectar el disco original o elige este para empezar a usarlo en su lugar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le disque monté à cet emplacement n’est pas celui sur lequel les sauvegardes ont été configurées. Rien n’y a été écrit. Reconnectez le disque d’origine, ou choisissez celui-ci pour l’utiliser à la place."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このパスにマウントされているディスクは、バックアップを設定したディスクではありません。何も書き込まれていません。元のディスクを接続し直すか、こちらを選んで今後はこのディスクを使ってください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Диск, подключённый по этому пути, — не тот, на котором настраивались копии. На него ничего не записано. Подключите исходный диск или выберите этот, чтобы использовать его вместо прежнего."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "挂载在此路径的磁盘不是当初设置备份的那一块。我们没有往它上面写入任何内容。请重新接上原来的磁盘，或者选择这一块以改用它。"
           }
         }
       }
@@ -15658,6 +16806,170 @@
           "stringUnit": {
             "state": "translated",
             "value": "此应用会报告版本，但没有确切的发布时间，因此没有习惯热力图 — 仅有下方的估计区间。"
+          }
+        }
+      }
+    },
+    "This disk’s format caps a single file at %@, so a very large app may not fit. Reformatting it as APFS or Mac OS Extended removes that limit.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Format dieser Festplatte begrenzt eine einzelne Datei auf %@, sodass eine sehr große App möglicherweise nicht hineinpasst. Ein Neuformatieren als APFS oder Mac OS Extended hebt diese Grenze auf."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El formato de este disco limita cada archivo a %@, así que una app muy grande puede no caber. Reformatearlo como APFS o Mac OS Plus elimina ese límite."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le format de ce disque limite un fichier à %@, si bien qu’une app très volumineuse risque de ne pas tenir. Le reformater en APFS ou Mac OS étendu supprime cette limite."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクのフォーマットは 1 ファイルあたり %@ が上限のため、非常に大きな App は収まらないことがあります。APFS または Mac OS 拡張でフォーマットし直すと、この制限はなくなります。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Формат этого диска ограничивает размер одного файла значением %@, поэтому очень большая программа может не поместиться. Переформатирование в APFS или Mac OS Extended снимает это ограничение."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这块磁盘的格式把单个文件限制在 %@，因此非常大的 App 可能放不下。重新格式化为 APFS 或 Mac OS 扩展可解除该限制。"
+          }
+        }
+      }
+    },
+    "This folder can’t be written to": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In diesen Ordner kann nicht geschrieben werden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede escribir en esta carpeta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’écrire dans ce dossier"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このフォルダには書き込めません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В эту папку нельзя записывать"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法写入此文件夹"
+          }
+        }
+      }
+    },
+    "This folder is on the same disk as this Mac, so it frees no space. Backups there are only stored compressed, at roughly half the size. To move them off this Mac, choose a folder on an external disk or a network share.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Ordner liegt auf derselben Festplatte wie dieser Mac und schafft daher keinen Speicherplatz. Backups werden dort lediglich komprimiert abgelegt, mit etwa halber Größe. Wähle einen Ordner auf einer externen Festplatte oder einem Netzlaufwerk, um sie von diesem Mac wegzubewegen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta carpeta está en el mismo disco que este Mac, así que no libera espacio. Allí las copias solo se guardan comprimidas, con aproximadamente la mitad del tamaño. Para sacarlas de este Mac, elige una carpeta en un disco externo o en un recurso de red."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce dossier se trouve sur le même disque que ce Mac : il ne libère donc aucun espace. Les sauvegardes y sont seulement stockées compressées, pour environ la moitié de la taille. Pour les sortir de ce Mac, choisissez un dossier sur un disque externe ou un partage réseau."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このフォルダはこの Mac と同じディスク上にあるため、容量は空きません。そこではバックアップが圧縮して保存されるだけで、サイズはおよそ半分になります。この Mac の外へ移すには、外付けディスクまたはネットワーク共有上のフォルダを選んでください。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта папка находится на том же диске, что и сам Mac, поэтому места она не освобождает. Копии там лишь хранятся в сжатом виде, примерно вдвое меньшего размера. Чтобы вынести их за пределы этого Mac, выберите папку на внешнем диске или в сетевой папке."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文件夹和这台 Mac 在同一块磁盘上，因此不会腾出任何空间。备份在那里只是被压缩存放，体积约为一半。要把它们移出这台 Mac，请选择外接磁盘或网络共享上的文件夹。"
+          }
+        }
+      }
+    },
+    "This folder is on this Mac’s disk": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Ordner liegt auf der Festplatte dieses Mac"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta carpeta está en el disco de este Mac"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce dossier se trouve sur le disque de ce Mac"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このフォルダはこの Mac のディスク上にあります"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта папка находится на диске этого Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文件夹位于这台 Mac 的磁盘上"
           }
         }
       }
@@ -16939,6 +18251,47 @@
         }
       }
     },
+    "Use This Folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diesen Ordner verwenden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar esta carpeta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utiliser ce dossier"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このフォルダを使用"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использовать эту папку"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用此文件夹"
+          }
+        }
+      }
+    },
     "Valid — belongs to **%@**": {
       "extractionState": "manual",
       "localizations": {
@@ -17144,6 +18497,47 @@
         }
       }
     },
+    "Waiting to be copied: %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warten auf Kopieren: %lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendientes de copiar: %lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente de copie : %lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コピー待ち: %lld"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидают копирования: %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待复制：%lld"
+          }
+        }
+      }
+    },
     "Welcome to Duo Updater": {
       "extractionState": "manual",
       "localizations": {
@@ -17304,6 +18698,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "Duo Updater 在哪里查找已安装的应用。"
+          }
+        }
+      }
+    },
+    "Where backups are kept": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speicherort der Backups"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dónde se guardan las copias"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Emplacement des sauvegardes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップの保存先"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Где хранятся копии"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份存放位置"
           }
         }
       }
@@ -17513,6 +18948,47 @@
         }
       }
     },
+    "backup, rollback, roll back, undo, restore, previous version, external disk, drive, nas, archive, storage, space": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "backup, sicherung, wiederherstellen, zurücksetzen, rückgängig, vorherige version, externe festplatte, laufwerk, nas, archiv, speicherplatz"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "copia de seguridad, respaldo, revertir, deshacer, restaurar, versión anterior, disco externo, unidad, nas, archivo, almacenamiento, espacio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sauvegarde, restauration, revenir, annuler, version précédente, disque externe, lecteur, nas, archive, stockage, espace"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップ, 巻き戻し, 復元, 取り消し, 以前のバージョン, 外付けディスク, ドライブ, nas, アーカイブ, ストレージ, 空き容量"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "резервная копия, откат, откатить, отменить, восстановить, предыдущая версия, внешний диск, накопитель, nas, архив, хранилище, место"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份, 回滚, 撤销, 还原, 恢复, 上一版本, 外接磁盘, 硬盘, 移动硬盘, nas, 归档, 存储, 空间"
+          }
+        }
+      }
+    },
     "create a personal access token": {
       "extractionState": "manual",
       "localizations": {
@@ -17718,43 +19194,43 @@
         }
       }
     },
-    "launch, login, frequency, notify, restart, backup, rollback, concurrency, app store, self-updating, vendor": {
+    "launch, login, frequency, notify, restart, concurrency, app store, self-updating, vendor": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Start, Anmeldung, Häufigkeit, Benachrichtigung, Neustart, Backup, Zurücksetzen, Parallelität, App Store, Selbstaktualisierung, Anbieter"
+            "value": "starten, anmeldung, häufigkeit, intervall, benachrichtigung, neustart, parallel, app store, selbstaktualisierend, hersteller"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "inicio, sesión, frecuencia, notificar, reiniciar, copia de seguridad, revertir, concurrencia, App Store, autoactualización, proveedor"
+            "value": "inicio, sesión, frecuencia, intervalo, notificación, reinicio, simultáneo, app store, autoactualizable, fabricante"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "démarrage, connexion, fréquence, notification, redémarrer, sauvegarde, restauration, simultanéité, App Store, mise à jour automatique, éditeur"
+            "value": "démarrage, connexion, fréquence, intervalle, notification, redémarrage, simultané, app store, auto-mise à jour, éditeur"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "起動, ログイン, 頻度, 通知, 再起動, バックアップ, ロールバック, 同時実行, App Store, 自動更新, 提供元"
+            "value": "起動, ログイン, 頻度, 間隔, 通知, 再起動, 同時実行, app store, 自動更新, ベンダー"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "запуск, вход, частота, уведомления, перезапуск, резервная копия, откат, параллельность, App Store, самообновление, разработчик"
+            "value": "запуск, вход, частота, интервал, уведомление, перезапуск, параллельно, app store, самообновление, поставщик"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "启动, 登录, 频率, 通知, 重启, 备份, 回滚, 并发, App Store, 自更新, 厂商"
+            "value": "启动, 登录, 频率, 间隔, 通知, 重启, 并发, app store, 自更新, 厂商"
           }
         }
       }
@@ -18669,6 +20145,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "· 不可用，记录缺失"
+          }
+        }
+      }
+    },
+    "“%@” is connected": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ ist angeschlossen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«%@» está conectado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » est connecté"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」が接続されています"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«%@» подключён"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」已连接"
+          }
+        }
+      }
+    },
+    "“%@” isn’t connected": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ ist nicht angeschlossen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«%@» no está conectado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » n’est pas connecté"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」が接続されていません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«%@» не подключён"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」未连接"
           }
         }
       }

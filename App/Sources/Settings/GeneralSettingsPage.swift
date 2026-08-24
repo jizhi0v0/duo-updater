@@ -11,11 +11,6 @@ struct GeneralSettingsPage: View {
     /// rate-limit caution — a developer with `gh` authenticated never sees it.
     @State private var hasGitHubToken: Bool?
 
-    /// Total on-disk size of the backup store, refreshed on appear and after
-    /// every cleanup so the footer stays truthful without polling.
-    @State private var backupBytes: Int64?
-    @State private var isCleaningBackups = false
-
     var body: some View {
         SettingsPage(section: .general) {
             scheduleCard
@@ -31,29 +26,6 @@ struct GeneralSettingsPage: View {
                 GitHubToken.resolve(explicit: explicit) != nil
             }.value
         }
-        .task {
-            backupBytes = await Task.detached(priority: .utility) { BackupStore.totalSize() }.value
-        }
-        .sheet(isPresented: $showingBackups) {
-            BackupsSheet(backups: backupListing) { keys in
-                Task {
-                    await model.deleteBackups(keys: keys)
-                    backupBytes = await Task.detached(priority: .utility) {
-                        BackupStore.totalSize()
-                    }.value
-                }
-            }
-        }
-    }
-
-    /// Presented by "Clean Up…", loaded on demand because measuring every backup
-    /// walks the disk.
-    @State private var showingBackups = false
-    @State private var backupListing: [BackupStore.Listing] = []
-
-    private var backupSizeLabel: String {
-        guard let backupBytes else { return "…" }
-        return ByteCountFormatter.string(fromByteCount: backupBytes, countStyle: .file)
     }
 
     private var scheduleCard: some View {
@@ -89,39 +61,13 @@ struct GeneralSettingsPage: View {
     private var afterUpdateCard: some View {
         SettingsCard(
             header: "After an update",
-            footer: "After updating a running app, restart it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Restart” button.\n\nBackups keep one previous version of each app under Application Support, so an update can be undone. Retention is one backup per app — the previous version is replaced, not accumulated."
+            footer: "After updating a running app, restart it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Restart” button."
         ) {
             Toggle("Notify me when updates are found", isOn: $prefs.notifyOnUpdates)
                 .settingsRow()
             SettingsDivider()
             Toggle("Restart updated apps automatically", isOn: $prefs.autoRestartAfterUpdate)
                 .settingsRow()
-            SettingsDivider()
-            Toggle("Keep a backup so updates can be rolled back", isOn: $prefs.keepBackups)
-                .settingsRow()
-            SettingsDivider()
-            Toggle("Delete a backup once its app is uninstalled", isOn: $prefs.pruneOrphanBackups)
-                .settingsRow()
-            SettingsDivider()
-            HStack {
-                Text("Backups are using \(backupSizeLabel)")
-                    .foregroundStyle(.secondary)
-                Spacer()
-                // Opens the list rather than acting immediately: every backup is
-                // somebody's rollback, and the old behaviour (prune orphans only)
-                // usually deleted nothing and said nothing, which read as broken.
-                Button("Clean Up…") {
-                    guard !isCleaningBackups else { return }
-                    isCleaningBackups = true
-                    Task {
-                        backupListing = await model.backupListing()
-                        isCleaningBackups = false
-                        showingBackups = !backupListing.isEmpty
-                    }
-                }
-                .disabled(isCleaningBackups || backupBytes == 0)
-            }
-            .settingsRow()
         }
     }
 

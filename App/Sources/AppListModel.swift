@@ -339,6 +339,16 @@ final class AppListModel {
     /// result.id → the version we have a rollback backup for, refreshed from the
     /// on-disk backup store whenever the list changes.
     private(set) var backupVersions: [String: String] = [:]
+    /// The name of the backup disk we are configured for but cannot see right now,
+    /// or nil when the store is fully readable.
+    ///
+    /// Exists because an unreachable disk degrades the read paths to "show what is
+    /// on this Mac" — the right behaviour, but indistinguishable on screen from
+    /// having no backups. A user who moved fifty rollback points to a stick and
+    /// then unplugged it sees the Rollback section shrink to whatever was taken
+    /// since, with nothing saying why. Naming the disk turns a vanished list into
+    /// a plugged-out cable.
+    private(set) var offlineBackupDisk: String?
     /// Bundle *paths* of apps with at least one live process right now. Kept current
     /// by `NSWorkspace`'s launch/terminate notifications, so a row's running dot
     /// lights up/clears the moment the user opens or quits the app — no refresh
@@ -1482,6 +1492,16 @@ final class AppListModel {
         if prefs.pruneOrphanBackups {
             await Task.detached(priority: .utility) { BackupStore.pruneOrphans() }.value
         }
+        // Not behind `pruneOrphanBackups`, deliberately. That setting governs
+        // retention — whether a backup whose app is gone is still worth keeping —
+        // and this removes things that are not backups at all: a `.staging-` dir
+        // from a save that was cut off, and key directories with no sidecar,
+        // which no read path can see and no other cleanup would ever touch. There
+        // is no rollback point to lose here, only bytes nobody can spend.
+        let inFlight = await BackupTransferQueue.shared.protectedKeys
+        await Task.detached(priority: .utility) {
+            BackupStore.sweepStaleScratch(excluding: inFlight)
+        }.value
         await refreshBackupIndex()
         isChecking = false
         recordCheckOutcomes(checked)
@@ -3871,7 +3891,31 @@ final class AppListModel {
     /// so the update can be undone. Best-effort: a failed backup logs and proceeds
     /// (the user opted into the update; a missing safety net mustn't block it).
     private func backupCurrent(_ result: UpdateResult, route: InstallCoordinator.Route) async {
+        // With the store pointed at a disk that is not here, a backup still gets
+        // taken — it just waits locally for the disk to come back. That is the
+        // agreed degradation, and it is the right one until the boot volume is
+        // the thing under pressure, which is usually the very reason the store
+        // was moved. Past that point the honest answer is to skip, and say so.
+        let diskIsHere: Bool
+        if case .ready = BackupStore.availability() { diskIsHere = true } else { diskIsHere = false }
+        if prefs.backupDestination.kind == .external, !diskIsHere, isBootVolumeTight {
+            Log.install.notice(
+                "backup skipped: \(result.app.name, privacy: .public) — backup disk away and this Mac is low on space")
+            installNotes[result.id] = String(
+                localized: "No rollback point: the backup disk isn’t connected and this Mac is low on space.")
+            return
+        }
+
         let outcome = await InstallCoordinator.backUp(result.app, route: route)
+        // Anything that landed is owed to the disk. Draining reads what is owed
+        // from the sidecars rather than from this call, so a backup taken while
+        // the disk was away is picked up here too.
+        if outcome != .failed, prefs.backupDestination.kind == .external {
+            Task.detached(priority: .utility) {
+                await BackupTransferQueue.shared.resumePending()
+                await BackupTransferQueue.shared.drain()
+            }
+        }
         if case .savedWithoutRuntimeState(let omitted) = outcome {
             Log.install.notice("backup: \(result.app.name, privacy: .public) stored without \(omitted, privacy: .public) runtime file(s)")
         }
@@ -3893,6 +3937,84 @@ final class AppListModel {
     /// auto-prune preference, and refreshes the on-screen backup index so any
     /// rollback affordance that pointed at a just-removed orphan disappears.
     /// Returns the bytes freed, for the confirmation the button shows.
+    /// Free space on the boot volume below which we stop adding to the local
+    /// outbox. A backup that fills the startup disk is not a safety net.
+    private static let bootVolumeFloorBytes: Int64 = 10 << 30
+
+    private var isBootVolumeTight: Bool {
+        let free = (try? URL(fileURLWithPath: NSHomeDirectory())
+            .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+            .volumeAvailableCapacityForImportantUsage
+        guard let free else { return false }
+        return free < Self.bootVolumeFloorBytes
+    }
+
+    // MARK: - Backup destination
+
+    /// Whether the configured backup disk can be written to right now.
+    func backupAvailability() -> BackupStore.Availability { BackupStore.availability() }
+
+    /// Sizes of the two stores, for the Settings page. Walks both, so off-main.
+    func backupStoreSizes() async -> (outbox: Int64, destination: Int64) {
+        await Task.detached(priority: .utility) { BackupStore.storeSizes() }.value
+    }
+
+    /// How many backups are still waiting to move.
+    func pendingBackupTransfers() async -> Int {
+        await Task.detached(priority: .utility) { BackupStore.pendingTransferKeys().count }.value
+    }
+
+    /// Adopt `url` as the backup disk: probe it, mark it, persist it, and start
+    /// moving anything already owed. Throws so the page can show why a folder
+    /// was refused rather than silently doing nothing.
+    func useBackupDisk(at url: URL) async throws -> BackupDestinationProbe.Report {
+        let (destination, report) = try await Task.detached(priority: .userInitiated) {
+            try BackupDestinationProbe.adopt(directory: url)
+        }.value
+        prefs.backupDestination = destination
+        await syncBackupsNow()
+        await refreshBackupIndex()
+        return report
+    }
+
+    /// Switch back to a disk already adopted once. No probe and no marker write:
+    /// it was verified when it was chosen, and re-verifying would mean failing
+    /// here for a disk that is merely unplugged — which is a state this feature
+    /// is built to sit in, not an error.
+    func useBackupDisk(_ destination: BackupDestination) async {
+        prefs.backupDestination = destination
+        await syncBackupsNow()
+        await refreshBackupIndex()
+    }
+
+    /// Go back to keeping backups on this Mac. Copies already on the disk are
+    /// left where they are — they are still perfectly good rollback points, and
+    /// deleting someone's backups because they changed a setting would be its own
+    /// kind of wrong.
+    func useLocalBackups() async {
+        prefs.backupDestination = .local
+        await refreshBackupIndex()
+    }
+
+    /// What the transfer queue is doing right now, for a progress line.
+    func backupTransferState() async -> BackupTransferQueue.State {
+        await BackupTransferQueue.shared.state
+    }
+
+    /// Move everything that is owed, now. Also the launch path, which is why it
+    /// sweeps: a run that was killed mid-transfer left its scratch behind, and
+    /// the next launch is the first moment anything can be sure that work is not
+    /// still going on somewhere.
+    func syncBackupsNow() async {
+        let inFlight = await BackupTransferQueue.shared.protectedKeys
+        await Task.detached(priority: .utility) {
+            BackupStore.sweepStaleScratch(excluding: inFlight)
+        }.value
+        await BackupTransferQueue.shared.resumePending()
+        await BackupTransferQueue.shared.drain()
+        await refreshBackupIndex()
+    }
+
     /// Every stored backup, measured, for the delete sheet. Off the main actor:
     /// sizing walks each bundle.
     func backupListing() async -> [BackupStore.Listing] {
@@ -3913,7 +4035,14 @@ final class AppListModel {
     /// Re-read which apps have a rollback backup on disk (one directory scan),
     /// mapping it onto the current rows.
     func refreshBackupIndex() async {
-        let map = await Task.detached(priority: .utility) { BackupStore.allBackups() }.value
+        let scan = await Task.detached(priority: .utility) {
+            // Both in the same hop off the main actor: they read the same two
+            // directories, and asking separately would let the list and the
+            // "disk isn't there" note disagree about a disk unplugged between them.
+            (map: BackupStore.allBackups(), state: BackupStore.availability())
+        }.value
+        let map = scan.map
+        offlineBackupDisk = scan.state.unreachableDiskName
         var byID: [String: String] = [:]
         for result in results {
             for key in BackupStore.keyCandidates(

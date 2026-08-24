@@ -26,6 +26,12 @@ public enum Backups {
             /// path, then bundle id, then name prefix — but must land on
             /// exactly one install, since a restore needs a single target.
             case restore(app: String)
+            /// Move everything still sitting on this Mac onto the backup disk.
+            case sync
+            /// Re-check stored backups against what was recorded for them.
+            case verify(deep: Bool)
+            /// Ask whether a folder could hold the store, without adopting it.
+            case probe(path: String)
         }
         public var operation: Operation
         public var json = false
@@ -39,6 +45,12 @@ public enum Backups {
             return await list(json: options.json)
         case .restore(let query):
             return await restore(query, assumeYes: options.assumeYes, json: options.json)
+        case .sync:
+            return sync(json: options.json)
+        case .verify(let deep):
+            return verify(deep: deep, json: options.json)
+        case .probe(let path):
+            return probe(path: path, json: options.json)
         }
     }
 
@@ -58,8 +70,36 @@ public enum Backups {
         let settings = Settings.load()
         let installed = await Inventory.scan(settings)
         let rows = rows(installed: installed, backups: BackupStore.allBackups())
+        // Said before the rows, and on stderr so it cannot corrupt `--json`.
+        // Without it a store that lives on a disk in someone's bag prints "No
+        // backups stored.", which is a sentence about their data rather than
+        // about a cable, and is the difference between reaching for the disk and
+        // concluding the backups are gone.
+        note(unreachableDestination())
         json ? emitJSON(rows) : emitText(rows)
         return 0
+    }
+
+    /// A line explaining why the listing may be short, or nil when it is whole.
+    static func unreachableDestination() -> String? {
+        switch BackupStore.availability() {
+        case .localOnly, .ready:
+            return nil
+        case .volumeNotMounted(let name, _):
+            return "the backup disk \u{201C}\(name ?? "?")\u{201D} isn't connected — "
+                + "showing only what is on this Mac"
+        case .identityMismatch(_, _, let path):
+            return "a different disk is mounted at \u{201C}\(path)\u{201D} — "
+                + "showing only what is on this Mac"
+        case .notWritable(let path):
+            return "\u{201C}\(path)\u{201D} can't be written to — "
+                + "showing only what is on this Mac"
+        }
+    }
+
+    static func note(_ message: String?) {
+        guard let message else { return }
+        FileHandle.standardError.write(Data("duo: \(message)\n".utf8))
     }
 
     /// Pair every backup on disk with the installed app it belongs to, the same
@@ -96,7 +136,17 @@ public enum Backups {
 
     /// `BackupStore.totalSize()` only sums every backup at once; there is no
     /// public per-backup size, so this walks the one bundle the same way.
+    ///
+    /// A backup on the external destination is a single archive file, not a
+    /// directory, and a directory enumerator over a file yields nothing — so
+    /// without the branch every such backup would be reported as 0 bytes, which
+    /// looks like an empty backup rather than a compressed one.
     static func backupSize(_ backup: BackupStore.Backup) -> Int64 {
+        if backup.location == .destination {
+            let size = try? FileManager.default.attributesOfItem(
+                atPath: backup.bundlePath.path)[.size] as? Int64
+            return size.flatMap { $0 } ?? 0
+        }
         guard let enumerator = FileManager.default.enumerator(
             at: backup.bundlePath, includingPropertiesForKeys: [.fileSizeKey],
             options: [], errorHandler: nil)
@@ -259,6 +309,232 @@ public enum Backups {
     static func resolveKey(for app: InstalledApp) -> String? {
         BackupStore.keyCandidates(bundleID: app.bundleID, path: app.path)
             .first { BackupStore.backup(forKey: $0) != nil }
+    }
+
+    // MARK: - Sync
+
+    /// Move every backup still sitting on this Mac onto the backup disk, now.
+    ///
+    /// Synchronous and in this process, not handed to `BackupTransferQueue`.
+    /// The queue's whole job — running in the background, holding an App Nap
+    /// assertion, backing off around a cable that comes and goes — is only
+    /// meaningful for a process that stays alive, and `duo` exits. So this walks
+    /// what is owed and reports each move as it lands, which is what a command
+    /// line can actually offer: a line per app and an exit code.
+    ///
+    /// The menu-bar app's queue may be moving the same backups at the same
+    /// time. A key that disappears from the outbox mid-run is therefore reported
+    /// as already moved rather than as a failure — the outcome is the one that
+    /// was asked for, whoever produced it.
+    static func sync(json: Bool) -> Int32 {
+        // Sweep before asking about the disk, so this is worth running even with
+        // no disk configured: a save that was cut off leaves its scratch in the
+        // outbox whether or not the store was ever moved, and this is the only
+        // command a machine without the menu-bar app running can use to clear it.
+        //
+        // Without an `excluding` set — this process knows of no transfer in
+        // flight, and cannot ask the app's queue — so the age gate is the only
+        // guard. The cost of getting that wrong is bounded: a `.partial` removed
+        // out from under a live transfer makes that one transfer fail and be
+        // redone, never a backup lost.
+        BackupStore.sweepStaleScratch()
+
+        switch BackupStore.availability() {
+        case .localOnly:
+            note("no backup disk is configured — backups stay on this Mac")
+            return 0
+        case .ready:
+            break
+        case .volumeNotMounted, .identityMismatch, .notWritable:
+            note(unreachableDestination())
+            return 1
+        }
+
+        let keys = BackupStore.pendingTransferKeys()
+        let compression = Settings.backupCompression()
+        if json { NDJSON.begin("backups sync") }
+        guard !keys.isEmpty else {
+            if !json { print("Nothing to move — every backup is already on the disk.") }
+            return 0
+        }
+
+        var moved = 0
+        var movedBytes: Int64 = 0
+        var failures = 0
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        for key in keys {
+            let name = BackupStore.displayName(forKey: key) ?? key
+            do {
+                let backup = try BackupStore.transferToDestination(
+                    forKey: key, compression: compression)
+                let bytes = (try? FileManager.default.attributesOfItem(
+                    atPath: backup.bundlePath.path)[.size] as? Int64).flatMap { $0 } ?? 0
+                moved += 1
+                movedBytes += bytes
+                if json {
+                    NDJSON.emit(["app": name, "key": key, "moved": true, "bytes": bytes])
+                } else {
+                    print("  \(name)  →  \(formatter.string(fromByteCount: bytes))")
+                }
+            } catch {
+                // Gone from the outbox means somebody else moved it, which is the
+                // result this command wanted. Anything else is a real failure.
+                if BackupStore.backup(forKey: key)?.location == .destination {
+                    if json { NDJSON.emit(["app": name, "key": key, "moved": true, "byOther": true]) }
+                    continue
+                }
+                failures += 1
+                let message = (error as? LocalizedError)?.errorDescription
+                    ?? error.localizedDescription
+                if json {
+                    NDJSON.emit(["app": name, "key": key, "moved": false, "error": message])
+                } else {
+                    FileHandle.standardError.write(Data("  \(name): \(message)\n".utf8))
+                }
+            }
+        }
+        if !json {
+            print("\n  \(moved) moved, \(formatter.string(fromByteCount: movedBytes)) on the disk"
+                + (failures == 0 ? "." : ", \(failures) failed."))
+        }
+        return failures == 0 ? 0 : 1
+    }
+
+    // MARK: - Verify
+
+    /// Re-check every stored backup against what was recorded when it was
+    /// stored, and say plainly which ones could not be checked at all.
+    ///
+    /// Exits 1 only for a backup that is damaged or unreadable. One that predates
+    /// fingerprints is reported and does not fail the run: it is not evidence of
+    /// a problem, and making it an error would train anyone scripting this to
+    /// ignore the exit code.
+    static func verify(deep: Bool, json: Bool) -> Int32 {
+        note(unreachableDestination())
+        let outcomes = BackupStore.verify(deep: deep)
+        if json {
+            NDJSON.begin("backups verify")
+            for outcome in outcomes { NDJSON.emit(payload(outcome)) }
+        } else {
+            emitVerifyText(outcomes)
+        }
+        return outcomes.contains { $0.result.isFailure } ? 1 : 0
+    }
+
+    static func payload(_ outcome: BackupStore.VerifyOutcome) -> [String: Any] {
+        var row: [String: Any] = [
+            "app": outcome.name,
+            "key": outcome.key,
+            "where": outcome.location == .outbox ? "this Mac" : "backup disk",
+            "status": status(outcome.result),
+        ]
+        if let version = outcome.version { row["version"] = version }
+        if let detail = detail(outcome.result) { row["detail"] = detail }
+        return row
+    }
+
+    static func status(_ result: BackupStore.VerifyOutcome.Result) -> String {
+        switch result {
+        case .ok:           return "ok"
+        case .mismatch:     return "mismatch"
+        case .unverifiable: return "unverifiable"
+        case .unreadable:   return "unreadable"
+        }
+    }
+
+    static func detail(_ result: BackupStore.VerifyOutcome.Result) -> String? {
+        switch result {
+        case .ok: return nil
+        case .mismatch(let why), .unverifiable(let why), .unreadable(let why): return why
+        }
+    }
+
+    static func emitVerifyText(_ outcomes: [BackupStore.VerifyOutcome]) {
+        guard !outcomes.isEmpty else {
+            print("No backups stored.")
+            return
+        }
+        let width = min(38, outcomes.map(\.name.count).max() ?? 10)
+        for outcome in outcomes.sorted(by: {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }) {
+            let name = outcome.name.count > width
+                ? String(outcome.name.prefix(width - 1)) + "\u{2026}"
+                : outcome.name.padding(toLength: width, withPad: " ", startingAt: 0)
+            let mark: String
+            switch outcome.result {
+            case .ok:           mark = "ok"
+            case .mismatch:     mark = "DAMAGED"
+            case .unverifiable: mark = "not checkable"
+            case .unreadable:   mark = "UNREADABLE"
+            }
+            let place = outcome.location == .outbox ? "this Mac" : "backup disk"
+            print("  \(name)  \(mark)  (\(place))"
+                + (detail(outcome.result).map { " — \($0)" } ?? ""))
+        }
+        let damaged = outcomes.filter { $0.result.isFailure }.count
+        let unchecked = outcomes.filter {
+            if case .unverifiable = $0.result { return true }
+            return false
+        }.count
+        print("\n  \(outcomes.count) checked, \(damaged) damaged"
+            + (unchecked == 0 ? "." : ", \(unchecked) with nothing to check against."))
+    }
+
+    // MARK: - Probe
+
+    /// Report what a folder could do as a backup store, without claiming it.
+    ///
+    /// Deliberately does not adopt: no marker is written and no preference
+    /// changes, so this is safe to point at a share you are only considering.
+    /// It is also the honest answer to "will this work on my NAS?" — SMB and NFS
+    /// cannot be faked in a test, so the project ships the measurement rather
+    /// than a claim.
+    static func probe(path: String, json: Bool) -> Int32 {
+        let directory = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+            .standardizedFileURL
+        let report: BackupDestinationProbe.Report
+        do {
+            report = try BackupDestinationProbe.run(at: directory)
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+            FileHandle.standardError.write(Data("duo: \(message)\n".utf8))
+            return 1
+        }
+
+        if json {
+            NDJSON.begin("backups probe")
+            var row: [String: Any] = ["path": directory.path]
+            if let free = report.freeBytes { row["freeBytes"] = free }
+            if let max = report.maxFileBytes { row["maxFileBytes"] = max }
+            if let speed = report.writeBytesPerSecond { row["writeBytesPerSecond"] = speed }
+            if let fs = report.filesystem { row["filesystem"] = fs }
+            if let removable = report.isRemovable { row["isRemovable"] = removable }
+            if let local = report.isLocal { row["isLocal"] = local }
+            NDJSON.emit(row)
+            return 0
+        }
+
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        print("  \(directory.path)")
+        print("  filesystem       \(report.filesystem ?? "?")"
+            + (report.isLocal == false ? "  (network)" : "")
+            + (report.isRemovable == true ? "  (removable)" : ""))
+        print("  free             "
+            + (report.freeBytes.map { formatter.string(fromByteCount: $0) } ?? "?"))
+        // Stated as the number, not as a verdict. Whether it is enough depends on
+        // the largest app being backed up, which this command has no way to know.
+        print("  largest file     "
+            + (report.maxFileBytes.map { formatter.string(fromByteCount: $0) }
+               ?? "no declared limit"))
+        print("  write speed      "
+            + (report.writeBytesPerSecond
+                .map { "\(formatter.string(fromByteCount: Int64($0)))/s" }
+               ?? "too fast to measure"))
+        return 0
     }
 
     /// Ask before overwriting the installed bundle. Mirrors `Install.confirm`:

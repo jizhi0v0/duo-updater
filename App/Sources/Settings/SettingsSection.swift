@@ -9,7 +9,7 @@ import SwiftUI
 /// sidebar search beyond the visible label, so "token" finds GitHub and
 /// "rollback" finds General.
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, folders, updates
+    case general, backups, folders, updates
     case github, alcove
     case ignored, diagnostics
 
@@ -35,7 +35,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var group: Group {
         switch self {
-        case .general, .folders, .updates: return .app
+        case .general, .backups, .folders, .updates: return .app
         case .github, .alcove:             return .accounts
         case .ignored, .diagnostics:       return .library
         }
@@ -44,6 +44,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .general:     return String(localized: "General")
+        case .backups:     return String(localized: "Backups")
         case .folders:     return String(localized: "Folders")
         case .updates:     return String(localized: "Updates")
         case .github:      return String(localized: "GitHub")
@@ -56,6 +57,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general:     return "gearshape.fill"
+        case .backups:     return "clock.arrow.circlepath"
         case .folders:     return "folder.fill"
         case .updates:     return "arrow.triangle.2.circlepath"
         case .github:      return "key.fill"
@@ -68,6 +70,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .general:     return .gray
+        case .backups:     return .indigo
         case .folders:     return .blue
         case .updates:     return .green
         case .github:      return .purple
@@ -81,6 +84,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .general:     return String(localized: "How often Duo Updater checks, and what it does when it finds something.")
+        case .backups:     return String(localized: "Keep a copy of the previous version so an update can be undone — here or on another disk.")
         case .folders:     return String(localized: "Where Duo Updater looks for installed apps.")
         case .updates:     return String(localized: "Duo Updater's own version.")
         case .github:      return String(localized: "Lift GitHub's anonymous rate limit for apps tracked through Releases.")
@@ -106,7 +110,8 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     private var localizedKeywords: [String] {
         let list: String
         switch self {
-        case .general:     list = String(localized: "launch, login, frequency, notify, restart, backup, rollback, concurrency, app store, self-updating, vendor", comment: "Comma-separated extra search terms for the General settings page")
+        case .general:     list = String(localized: "launch, login, frequency, notify, restart, concurrency, app store, self-updating, vendor", comment: "Comma-separated extra search terms for the General settings page")
+        case .backups:     list = String(localized: "backup, rollback, roll back, undo, restore, previous version, external disk, drive, nas, archive, storage, space", comment: "Comma-separated extra search terms for the Backups settings page")
         case .folders:     list = String(localized: "scan, locations, applications, path, directory", comment: "Comma-separated extra search terms for the Folders settings page")
         case .updates:     list = String(localized: "version, about, self", comment: "Comma-separated extra search terms for the Updates settings page")
         case .github:      list = String(localized: "token, personal access token, rate limit", comment: "Comma-separated extra search terms for the GitHub settings page")
@@ -136,7 +141,8 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     /// before still finds it, and the localized terms are new ground.
     private var englishAliases: [String] {
         switch self {
-        case .general:     return ["launch", "login", "frequency", "notify", "restart", "backup", "rollback", "concurrency", "app store", "mas", "self-updating", "vendor"]
+        case .general:     return ["launch", "login", "frequency", "notify", "restart", "concurrency", "app store", "mas", "self-updating", "vendor"]
+        case .backups:     return ["backup", "rollback", "roll back", "undo", "restore", "previous version", "external disk", "drive", "nas", "archive", "storage", "space"]
         case .folders:     return ["scan", "locations", "applications", "path", "directory"]
         case .updates:     return ["version", "sparkle", "about", "self"]
         case .github:      return ["token", "personal access token", "pat", "gh", "cli", "rate limit"]

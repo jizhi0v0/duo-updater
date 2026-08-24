@@ -32,17 +32,185 @@ public enum BackupStore {
     /// they interleave. Production never binds it and always gets nil.
     @TaskLocal public static var rootOverride: URL?
 
-    public static var root: URL {
+    /// Test seam for the *destination*, bound the same way and for the same
+    /// reason as `rootOverride`. Production never binds it and reads
+    /// ``configure(_:)``'s value instead.
+    @TaskLocal public static var destinationOverride: BackupDestination?
+
+    /// Where backups are written first, always on the boot volume.
+    ///
+    /// This is the store as it has always been — the name changed, the meaning
+    /// did not. When no external destination is configured it is also where they
+    /// stay; when one is configured it is the staging area a transfer drains.
+    /// Keeping it as the first stop is what lets an unreachable disk degrade to
+    /// "the rollback point is on this Mac for now" rather than "there is no
+    /// rollback point", and it keeps every existing backup exactly where it is.
+    public static var outboxRoot: URL {
         if let rootOverride { return rootOverride }
         return DuoStateDirectory.base
             .appendingPathComponent("DuoUpdater/Backups", isDirectory: true)
     }
 
-    /// A stored backup: the bundle on disk plus the metadata we show in the UI.
+    /// Former name of ``outboxRoot``, kept so existing callers and tests read
+    /// unchanged.
+    public static var root: URL { outboxRoot }
+
+    // MARK: - Destination
+
+    private nonisolated(unsafe) static var configuredDestination: BackupDestination = .local
+    private static let destinationLock = NSLock()
+
+    /// Point the store at a destination. Called once per process — the app at
+    /// launch, `duo` in `main` — so no command can forget and silently use a
+    /// different store than the one the user configured.
+    public static func configure(_ destination: BackupDestination) {
+        destinationLock.lock()
+        defer { destinationLock.unlock() }
+        configuredDestination = destination
+    }
+
+    public static var destination: BackupDestination {
+        if let destinationOverride { return destinationOverride }
+        destinationLock.lock()
+        defer { destinationLock.unlock() }
+        return configuredDestination
+    }
+
+    /// Whether the configured destination can be written to right now.
+    ///
+    /// Every case is reported rather than collapsed into a bool because the
+    /// difference matters to the user: a disk that is merely unplugged will come
+    /// back on its own, one holding a different volume needs a decision, and a
+    /// read-only mount needs a different fix again. Collapsing them is how a UI
+    /// ends up saying "no backups" when the truthful answer is "your backup disk
+    /// isn't connected".
+    public enum Availability: Sendable, Equatable {
+        /// No external destination configured; the outbox is the store.
+        case localOnly(URL)
+        case ready(URL)
+        case volumeNotMounted(volumeName: String?, path: String)
+        case identityMismatch(expected: String?, found: String?, path: String)
+        case notWritable(path: String)
+
+        /// The disk's name when its copies cannot be read right now, else nil.
+        ///
+        /// One accessor for all three unreachable cases on purpose. They differ
+        /// in what the user has to do about it — which the Backups settings page
+        /// spells out — but they are identical in the fact a list somewhere else
+        /// is now shorter than the store, and that is the only thing the rollback
+        /// surface needs to say.
+        public var unreachableDiskName: String? {
+            switch self {
+            case .localOnly, .ready:
+                return nil
+            case .volumeNotMounted(let name, let path):
+                return name ?? Self.diskName(fromPath: path)
+            case .identityMismatch(_, _, let path), .notWritable(let path):
+                return Self.diskName(fromPath: path)
+            }
+        }
+
+        /// "Archive" out of "/Volumes/Archive/DuoUpdater Backups". Falls back to
+        /// the whole path rather than inventing a name, since a destination need
+        /// not live under `/Volumes` at all.
+        private static func diskName(fromPath path: String) -> String {
+            let parts = URL(fileURLWithPath: path).pathComponents
+            guard let volumes = parts.firstIndex(of: "Volumes"),
+                  parts.indices.contains(volumes + 1) else { return path }
+            return parts[volumes + 1]
+        }
+    }
+
+    /// Resolve the destination's state **without creating anything**.
+    ///
+    /// The order is deliberate: existence is checked before any thought of
+    /// writing. `save` used to reach the destination through
+    /// `createDirectory(withIntermediateDirectories: true)`, which on a detached
+    /// disk does not fail — it happily builds the whole path on the boot volume.
+    /// That is worse than losing the backup: the directory now squats the mount
+    /// point, so when the real disk is plugged in macOS mounts it beside the
+    /// decoy as `Archive 1`, and the user's backups are split across two places
+    /// that each look correct.
+    public static func availability(
+        _ destination: BackupDestination = BackupStore.destination
+    ) -> Availability {
+        guard let directory = destination.directory else {
+            return .localOnly(outboxRoot)
+        }
+        let fm = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return .volumeNotMounted(
+                volumeName: destination.volumeName, path: directory.path)
+        }
+
+        // A marker we cannot read means this is not the place we configured —
+        // most often nothing is mounted and something else made the directory.
+        // Treating that as "not mounted" rather than "corrupt" is the reading
+        // that matches what the user has to do about it: plug the disk in.
+        let marker = BackupVolumeMarker.read(at: directory)
+        if let expected = destination.identity {
+            guard let marker else {
+                return .volumeNotMounted(
+                    volumeName: destination.volumeName, path: directory.path)
+            }
+            guard marker.identity == expected else {
+                return .identityMismatch(
+                    expected: expected, found: marker.identity, path: directory.path)
+            }
+        }
+
+        guard fm.isWritableFile(atPath: directory.path) else {
+            return .notWritable(path: directory.path)
+        }
+        return .ready(directory)
+    }
+
+    /// The destination directory, or nil when backups are local-only.
+    /// Throws when one is configured but unreachable — never a URL that merely
+    /// looks usable.
+    static func destinationRoot() throws -> URL? {
+        switch availability() {
+        case .localOnly:
+            return nil
+        case .ready(let url):
+            return url
+        case .volumeNotMounted(let name, let path):
+            throw BackupError.destinationUnavailable(name ?? path)
+        case .identityMismatch(_, _, let path):
+            throw BackupError.destinationIsADifferentDisk(path)
+        case .notWritable(let path):
+            throw BackupError.destinationNotWritable(path)
+        }
+    }
+
+    /// The destination directory when it happens to be reachable, else nil.
+    /// For read paths, which must degrade to "show what is on this Mac" rather
+    /// than fail.
+    static var reachableDestinationRoot: URL? {
+        if case .ready(let url) = availability() { return url }
+        return nil
+    }
+
+    /// A stored backup: what is on disk plus the metadata we show in the UI.
     public struct Backup: Sendable, Equatable {
+        /// Which of the two stores this copy came out of.
+        public enum Location: Sendable, Equatable {
+            /// A plain `.app` directory on the boot volume.
+            case outbox
+            /// A `.aar` archive on the configured external destination.
+            case destination
+        }
+
         public let key: String
         public let version: String?
+        /// Where the stored copy lives: the `.app` directory for an outbox
+        /// backup, the archive file for one on the destination. Read `location`
+        /// before assuming which — a destination copy is a single file, so
+        /// walking it as a directory yields nothing rather than failing.
         public let bundlePath: URL
+        public let location: Location
         public let savedAt: Date
         /// Whether the update this backup was taken for was applied by a `.pkg`
         /// through the system installer.
@@ -53,6 +221,18 @@ public enum BackupStore {
         /// which is worth saying out loud rather than presenting as a clean
         /// rollback. Nil for backups written before this was recorded.
         public let fromPackageInstall: Bool?
+
+        public init(
+            key: String, version: String?, bundlePath: URL,
+            location: Location = .outbox, savedAt: Date, fromPackageInstall: Bool?
+        ) {
+            self.key = key
+            self.version = version
+            self.bundlePath = bundlePath
+            self.location = location
+            self.savedAt = savedAt
+            self.fromPackageInstall = fromPackageInstall
+        }
     }
 
     /// JSON sidecar persisted next to a backed-up bundle.
@@ -77,6 +257,26 @@ public enum BackupStore {
         /// vendor-signature gate at restore, which is the best that can be said
         /// about a copy we never fingerprinted.
         var manifest: BackupManifest?
+        /// Name of the archive holding this backup at the destination, e.g.
+        /// `Slack-4.35.121.aar`. Optional for the same reason as the fields
+        /// above — an outbox-only backup has none, and neither does one written
+        /// before there were destinations.
+        var archiveName: String?
+        /// SHA-256 of that archive as written.
+        ///
+        /// This is the integrity gate for the copy on the destination, and it is
+        /// deliberately a different question from `manifest`. One digest over one
+        /// file is something no filesystem can disagree about, which is the whole
+        /// reason a backup can live on a volume that could never hold the bundle
+        /// itself. `manifest` still guards the restore, but it is computed on the
+        /// unpacked tree — on APFS, both times.
+        var archiveSHA256: String?
+        /// Size of the archive on disk, so the UI can show what the move bought.
+        var archiveBytes: Int64?
+        /// True while a copy still exists only in the outbox and is waiting to be
+        /// moved to the destination. Absent means "not waiting", which is the
+        /// right reading for every backup written before transfers existed.
+        var pendingTransfer: Bool?
     }
 
     /// A filesystem-safe directory name for one installed copy of an app. It keeps
@@ -159,7 +359,11 @@ public enum BackupStore {
         fromPackageInstall: Bool = false
     ) throws -> Backup {
         let fm = FileManager.default
-        let dir = root.appendingPathComponent(key, isDirectory: true)
+        // Always the outbox, never the destination — even when one is configured.
+        // Writing here first is what makes an unplugged disk a delay rather than a
+        // missing rollback point, and it keeps the manifest recorded below computed
+        // on APFS, which is what lets the same manifest gate a restore later.
+        let dir = outboxRoot.appendingPathComponent(key, isDirectory: true)
         // Build the new backup in a hidden staging dir FIRST, then swap it into place
         // atomically. Retention = 1 must not delete the prior rollback point until the
         // new copy is fully written — otherwise a failed/interrupted re-backup (disk
@@ -167,8 +371,8 @@ public enum BackupStore {
         // about to change versions. The staging name is hidden (`.`-prefixed, so it's
         // skipped by `allBackups`' directory scan) and keyed per app, so it self-cleans
         // across a crashed prior attempt.
-        try fm.createDirectory(at: root, withIntermediateDirectories: true)
-        let staging = root.appendingPathComponent(".staging-\(key)", isDirectory: true)
+        try fm.createDirectory(at: outboxRoot, withIntermediateDirectories: true)
+        let staging = outboxRoot.appendingPathComponent(".staging-\(key)", isDirectory: true)
         forceRemove(staging)
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
 
@@ -225,7 +429,12 @@ public enum BackupStore {
             originalPath: appPath.path, bundleName: name, savedAt: savedAt,
             fromPackageInstall: fromPackageInstall,
             omittedFiles: unreadable.unsealed.isEmpty ? nil : unreadable.unsealed,
-            manifest: manifest)
+            manifest: manifest,
+            // Marked from the destination *setting*, not from whether the disk
+            // happens to be plugged in: the copy is owed either way, and a backup
+            // taken while the disk was out would otherwise never be picked up when
+            // it came back.
+            pendingTransfer: destination.kind == .external ? true : nil)
         // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
         // without it), so a backup whose sidecar didn't write is unusable. Fail the
         // save (leaving the prior backup intact) rather than leave an invisible bundle.
@@ -262,19 +471,218 @@ public enum BackupStore {
             fromPackageInstall: fromPackageInstall)
     }
 
+    // MARK: - Transfer
+
+    /// Keys whose backup is still sitting in the outbox owing a copy to the
+    /// destination — what a drain works through.
+    ///
+    /// **Everything in the outbox**, once a destination is configured, not only
+    /// what was saved since. The outbox is a staging area by definition, so
+    /// anything left in it is owed. Filtering on the `pendingTransfer` flag
+    /// written at save time looked tidier and was wrong in the case that matters:
+    /// backups taken before the disk was ever chosen would never move, which on a
+    /// real machine meant the 23.87 GB the user was trying to reclaim was exactly
+    /// the part that stayed put. The flag remains in the sidecar of the copy on
+    /// the disk, where it records that the move is settled.
+    ///
+    /// A directory only counts when it is actually a backup — a readable sidecar
+    /// and the bundle it names. Skipping that check to save the reads was a false
+    /// economy: `save` leaves a directory behind when it refuses a bundle it
+    /// cannot fully read (ToDesk and VSCodium both do this, keeping root-owned
+    /// state inside their own bundles), and those remnants went into the queue as
+    /// work that could never succeed.
+    public static func pendingTransferKeys() -> [String] {
+        guard destination.kind == .external else { return [] }
+        return storedKeys(in: outboxRoot).filter { key in
+            let dir = outboxRoot.appendingPathComponent(key, isDirectory: true)
+            guard let meta = readMeta(in: dir) else { return false }
+            return FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent(meta.bundleName).path)
+        }
+    }
+
+    /// The app's name for a key, for a progress line someone can read.
+    /// `com.pais.handy-1551b69e…` is an identity, not a name.
+    public static func displayName(forKey key: String) -> String? {
+        for root in [outboxRoot, reachableDestinationRoot].compactMap({ $0 }) {
+            if let meta = readMeta(in: root.appendingPathComponent(key, isDirectory: true)) {
+                return (meta.bundleName as NSString).deletingPathExtension
+            }
+        }
+        return nil
+    }
+
+    /// Archive the outbox copy of `key` onto the destination and drop the local
+    /// one. Throws — without touching either copy — when the disk is not there.
+    ///
+    /// The order is the whole of the safety argument, so it is worth stating
+    /// plainly: the archive lands, then its digest is read back **from the
+    /// destination**, then the sidecar is written, and only then is the local
+    /// copy removed. At every point before that last step there is a complete,
+    /// restorable backup somewhere. Reversing any two of them would open a
+    /// window where a yanked cable leaves the user with no rollback point for an
+    /// app that has just been updated — which is the one outcome this whole
+    /// feature exists to avoid.
+    ///
+    /// The digest is deliberately computed by reading the file back off the
+    /// destination rather than from the bytes we just had in hand. It costs one
+    /// sequential read and it is the only thing here that actually proves the
+    /// write arrived; hashing the source would certify something we did not
+    /// store, which is the same mistake `save` explicitly avoids.
+    @discardableResult
+    public static func transferToDestination(
+        forKey key: String,
+        compression: BundleArchive.Compression = UpdateSettings.backupCompressionDefault
+    ) throws -> Backup {
+        guard let root = try destinationRoot() else {
+            throw BackupError.destinationUnavailable(destination.volumeName ?? "backup disk")
+        }
+        let fm = FileManager.default
+        let outboxDir = outboxRoot.appendingPathComponent(key, isDirectory: true)
+        guard let meta = readMeta(in: outboxDir) else { throw BackupError.noBackup(key) }
+        let bundle = outboxDir.appendingPathComponent(meta.bundleName)
+        guard fm.fileExists(atPath: bundle.path) else { throw BackupError.noBackup(key) }
+
+        // Safe to create: `destinationRoot()` has already established that the
+        // root exists and carries our marker, so this cannot conjure a path on
+        // the boot volume.
+        let targetDir = root.appendingPathComponent(key, isDirectory: true)
+        try fm.createDirectory(at: targetDir, withIntermediateDirectories: true)
+
+        let archiveName = (meta.bundleName as NSString).deletingPathExtension + ".aar"
+        let archive = targetDir.appendingPathComponent(archiveName)
+        // Straight to the destination rather than via a local staging file:
+        // `BundleArchive` already writes a `.partial` beside the target and
+        // renames it, so the atomicity is the same, and streaming the compressed
+        // output over means a transfer never needs a second bundle-sized hole on
+        // the boot volume — which is usually the reason the store was moved.
+        try BundleArchive.archive(bundle: bundle, to: archive, compression: compression)
+
+        let digest = try BundleArchive.sha256(of: archive)
+        let bytes = (try? fm.attributesOfItem(atPath: archive.path)[.size] as? Int64) ?? nil
+
+        var moved = meta
+        moved.archiveName = archiveName
+        moved.archiveSHA256 = digest
+        moved.archiveBytes = bytes
+        moved.pendingTransfer = false
+        guard let data = try? JSONEncoder().encode(moved),
+              (try? data.write(to: targetDir.appendingPathComponent("backup.json"),
+                               options: .atomic)) != nil else {
+            // No sidecar means no readable backup, so leave nothing half-made.
+            forceRemove(targetDir)
+            throw BackupError.copyFailed(archive.path)
+        }
+
+        forceRemove(outboxDir)
+        Log.install.info(
+            "backup: moved \(key, privacy: .public) to the backup disk (\(bytes ?? 0, privacy: .public) bytes)")
+        return Backup(
+            key: key, version: meta.version, bundlePath: archive, location: .destination,
+            savedAt: meta.savedAt, fromPackageInstall: meta.fromPackageInstall)
+    }
+
+    // MARK: - Cleanup of interrupted work
+
+    /// Remove scratch left behind by a transfer that was cut off — a yanked
+    /// disk, a crash, a sleep the copy did not survive.
+    ///
+    /// Age is the only usable signal across processes, but a network volume's
+    /// timestamps come from the server's clock and can be skewed, so this is the
+    /// backstop and not the guard: `excluding` carries the keys a queue knows
+    /// are in flight right now, and those are skipped regardless of what their
+    /// mtime claims.
+    public static func sweepStaleScratch(
+        olderThan age: TimeInterval = 24 * 60 * 60, excluding inFlight: Set<String> = []
+    ) {
+        sweepStaleScratch(in: outboxRoot, age: age, inFlight: inFlight)
+        if let destination = reachableDestinationRoot {
+            sweepStaleScratch(in: destination, age: age, inFlight: inFlight)
+        }
+    }
+
+    private static func sweepStaleScratch(in root: URL, age: TimeInterval, inFlight: Set<String>) {
+        let fm = FileManager.default
+        let cutoff = Date().addingTimeInterval(-age)
+        let keys: [URLResourceKey] = [.contentModificationDateKey]
+
+        func isStale(_ url: URL) -> Bool {
+            guard let modified = (try? url.resourceValues(forKeys: Set(keys)))?
+                .contentModificationDate else { return false }
+            return modified < cutoff
+        }
+
+        guard let entries = try? fm.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: keys, options: []) else { return }
+        for entry in entries {
+            let name = entry.lastPathComponent
+            // A save that never finished: `.staging-<key>` at the store root.
+            if name.hasPrefix(".staging-") {
+                let key = String(name.dropFirst(".staging-".count))
+                if !inFlight.contains(key), isStale(entry) { forceRemove(entry) }
+                continue
+            }
+            // A transfer that never finished: the archive's `.partial` lives one
+            // level down, inside the key's own directory, because that is where
+            // it has to be for the rename into place to stay on one volume.
+            guard !name.hasPrefix("."), !inFlight.contains(name) else { continue }
+            guard let inner = try? fm.contentsOfDirectory(
+                at: entry, includingPropertiesForKeys: keys, options: []) else { continue }
+            for file in inner where file.lastPathComponent.hasSuffix(".partial") {
+                if isStale(file) { forceRemove(file) }
+            }
+            // A key directory with no sidecar is not a backup — no read path can
+            // see it and no other sweep would ever remove it. It is what an
+            // interrupted transfer leaves when the archive landed but the sidecar
+            // never did: dead bytes that would sit on the disk forever. Only ever
+            // true inside our own store root, which is why the store owns a
+            // subdirectory rather than the folder the user picked.
+            if readMeta(in: entry) == nil, isStale(entry) {
+                forceRemove(entry)
+            }
+        }
+    }
+
     // MARK: - Query
 
-    /// The current backup for `key`, or nil if none exists.
-    public static func backup(forKey key: String) -> Backup? {
+    private static func readMeta(in dir: URL) -> Meta? {
+        guard let data = try? Data(contentsOf: dir.appendingPathComponent("backup.json"))
+        else { return nil }
+        return try? JSONDecoder().decode(Meta.self, from: data)
+    }
+
+    /// The backup for `key` held under a specific root.
+    private static func backup(
+        forKey key: String, in root: URL, location: Backup.Location
+    ) -> Backup? {
         let dir = root.appendingPathComponent(key, isDirectory: true)
-        let metaURL = dir.appendingPathComponent("backup.json")
-        guard let data = try? Data(contentsOf: metaURL),
-              let meta = try? JSONDecoder().decode(Meta.self, from: data) else { return nil }
-        let bundle = dir.appendingPathComponent(meta.bundleName)
-        guard FileManager.default.fileExists(atPath: bundle.path) else { return nil }
+        guard let meta = readMeta(in: dir) else { return nil }
+        let payload: URL
+        switch location {
+        case .outbox:
+            payload = dir.appendingPathComponent(meta.bundleName)
+        case .destination:
+            // No archive name means the sidecar was copied but the archive was
+            // not — nothing to restore from, so this is not a backup.
+            guard let archiveName = meta.archiveName else { return nil }
+            payload = dir.appendingPathComponent(archiveName)
+        }
+        guard FileManager.default.fileExists(atPath: payload.path) else { return nil }
         return Backup(
-            key: key, version: meta.version, bundlePath: bundle, savedAt: meta.savedAt,
-            fromPackageInstall: meta.fromPackageInstall)
+            key: key, version: meta.version, bundlePath: payload, location: location,
+            savedAt: meta.savedAt, fromPackageInstall: meta.fromPackageInstall)
+    }
+
+    /// The current backup for `key`, or nil if none exists.
+    ///
+    /// The outbox wins when a key exists in both. It is the newer copy by
+    /// construction — a transfer only clears it after the destination copy is
+    /// complete — and restoring from it is a local directory copy rather than
+    /// unpacking an archive across a cable.
+    public static func backup(forKey key: String) -> Backup? {
+        if let local = backup(forKey: key, in: outboxRoot, location: .outbox) { return local }
+        guard let destination = reachableDestinationRoot else { return nil }
+        return backup(forKey: key, in: destination, location: .destination)
     }
 
     // MARK: - Restore
@@ -290,15 +698,27 @@ public enum BackupStore {
             throw BackupError.noBackup(key)
         }
         let fm = FileManager.default
+        // Per-invocation, not per-key. Keying the scratch directory on the app
+        // alone meant two restores of the same key shared one working directory,
+        // and since each one deletes it on the way in and again on the way out,
+        // the second would pull the tree out from under the first mid-copy. The
+        // `defer` below then removes only this run's directory, so a concurrent
+        // restore is no longer able to destroy it.
         let scratch = fm.temporaryDirectory
-            .appendingPathComponent("DuoUpdater-rollback-\(key)", isDirectory: true)
-        forceRemove(scratch)
+            .appendingPathComponent(
+                "DuoUpdater-rollback-\(key)-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
         defer { forceRemove(scratch) }
 
-        let staged = scratch.appendingPathComponent(backup.bundlePath.lastPathComponent)
-        guard runDitto(from: backup.bundlePath, to: staged) else {
-            throw BackupError.copyFailed(backup.bundlePath.path)
+        let staged: URL
+        switch backup.location {
+        case .outbox:
+            staged = scratch.appendingPathComponent(backup.bundlePath.lastPathComponent)
+            guard runDitto(from: backup.bundlePath, to: staged) else {
+                throw BackupError.copyFailed(backup.bundlePath.path)
+            }
+        case .destination:
+            staged = try unpackFromDestination(backup, key: key, into: scratch)
         }
         // Integrity gate before swapping a backup over the live app: a stored copy
         // that has changed since we wrote it has been corrupted or tampered with,
@@ -306,11 +726,175 @@ public enum BackupStore {
         // restore it — a rollback that knowingly installs a damaged bundle is worse
         // than leaving the (working) current app in place. See `integrityHolds` for
         // why this asks about our own copy rather than the vendor's signature.
-        guard integrityHolds(for: key, staged: staged) else {
+        let metaRoot = backup.location == .outbox
+            ? outboxRoot : backup.bundlePath.deletingLastPathComponent().deletingLastPathComponent()
+        guard integrityHolds(for: key, in: metaRoot, staged: staged) else {
             throw BackupError.backupCorrupted(backup.bundlePath.lastPathComponent)
         }
         try InPlaceSwap.replace(newApp: staged, over: target)
         return backup.version
+    }
+
+    /// Unpack a destination archive into `scratch`, returning the bundle.
+    ///
+    /// The digest is checked **before** unpacking rather than after. It is the
+    /// only integrity question that can be asked about bytes sitting on a
+    /// foreign filesystem, it costs one sequential read of a file we are about
+    /// to read anyway, and failing here means the manifest gate downstream never
+    /// has to explain a difference that a truncated transfer already accounts for.
+    private static func unpackFromDestination(
+        _ backup: Backup, key: String, into scratch: URL
+    ) throws -> URL {
+        let dir = backup.bundlePath.deletingLastPathComponent()
+        guard let meta = readMeta(in: dir) else { throw BackupError.noBackup(key) }
+
+        if let expected = meta.archiveSHA256 {
+            let actual = try BundleArchive.sha256(of: backup.bundlePath)
+            guard actual == expected else {
+                Log.install.error(
+                    "rollback: the archive for \(key, privacy: .public) on the backup disk does not match what was written — refusing to restore")
+                throw BackupError.backupCorrupted(backup.bundlePath.lastPathComponent)
+            }
+        }
+
+        let staged = scratch.appendingPathComponent(meta.bundleName)
+        try BundleArchive.extract(archive: backup.bundlePath, into: staged)
+        return staged
+    }
+
+    // MARK: - Verification
+
+    /// What a stored backup would do if it were needed right now.
+    ///
+    /// The distinction between the cases is the whole point. "Not verifiable" is
+    /// not a pass and not a failure — a backup written before fingerprints were
+    /// recorded genuinely cannot be checked, and reporting it as fine would be a
+    /// reassurance nobody earned. Only ``mismatch`` means the bytes changed.
+    public struct VerifyOutcome: Sendable, Equatable {
+        public enum Result: Sendable, Equatable {
+            case ok
+            /// The stored copy is not what was stored.
+            case mismatch(String)
+            /// Nothing to compare against.
+            case unverifiable(String)
+            /// The copy could not be read at all.
+            case unreadable(String)
+
+            public var isFailure: Bool {
+                if case .mismatch = self { return true }
+                if case .unreadable = self { return true }
+                return false
+            }
+        }
+        public let key: String
+        public let name: String
+        public let version: String?
+        public let location: Backup.Location
+        public let result: Result
+    }
+
+    /// Check every stored backup without restoring anything.
+    ///
+    /// Each store is asked the strongest question that is cheap there. An outbox
+    /// copy is a bundle on APFS, so its recorded manifest is recomputed in place —
+    /// the same comparison a rollback would make, at the same fidelity, for the
+    /// cost of a tree walk. A destination copy is one archive on a filesystem we
+    /// deliberately assume nothing about, so the digest recorded when it was
+    /// written is recomputed: that proves the bytes on the disk are the bytes we
+    /// sent, which is the only question those bytes can answer without unpacking.
+    ///
+    /// `deep` closes the remaining gap on the destination by extracting the
+    /// archive to a scratch directory and comparing the manifest — exactly what a
+    /// restore does, without the swap. It needs room for a full bundle and takes
+    /// as long as a rollback would, which is why it is not the default.
+    public static func verify(deep: Bool = false) -> [VerifyOutcome] {
+        var out = verify(in: outboxRoot, location: .outbox, deep: deep)
+        if let destination = reachableDestinationRoot {
+            out += verify(in: destination, location: .destination, deep: deep)
+        }
+        return out
+    }
+
+    private static func verify(
+        in root: URL, location: Backup.Location, deep: Bool
+    ) -> [VerifyOutcome] {
+        let fm = FileManager.default
+        return storedKeys(in: root).compactMap { key -> VerifyOutcome? in
+            let dir = root.appendingPathComponent(key, isDirectory: true)
+            // No sidecar is not a damaged backup, it is not a backup — the sweeper
+            // deals with those, and reporting them here would put remnants in a
+            // list whose every other row is something the user can act on.
+            guard let meta = readMeta(in: dir) else { return nil }
+            func outcome(_ result: VerifyOutcome.Result) -> VerifyOutcome {
+                VerifyOutcome(
+                    key: key, name: (meta.bundleName as NSString).deletingPathExtension,
+                    version: meta.version, location: location, result: result)
+            }
+
+            switch location {
+            case .outbox:
+                let bundle = dir.appendingPathComponent(meta.bundleName)
+                guard fm.fileExists(atPath: bundle.path) else {
+                    return outcome(.unreadable("the stored bundle is gone"))
+                }
+                guard let recorded = meta.manifest else {
+                    return outcome(.unverifiable("taken before fingerprints were recorded"))
+                }
+                guard let current = BackupManifest.compute(for: bundle) else {
+                    return outcome(.unreadable("the stored bundle could not be fingerprinted"))
+                }
+                guard current == recorded else {
+                    return outcome(.mismatch(
+                        "\(current.fileCount) files now, \(recorded.fileCount) when it was stored"))
+                }
+                return outcome(.ok)
+
+            case .destination:
+                guard let archiveName = meta.archiveName else {
+                    return outcome(.unreadable("the sidecar names no archive"))
+                }
+                let archive = dir.appendingPathComponent(archiveName)
+                guard fm.fileExists(atPath: archive.path) else {
+                    return outcome(.unreadable("the archive is gone"))
+                }
+                guard let expected = meta.archiveSHA256 else {
+                    return outcome(.unverifiable("moved before digests were recorded"))
+                }
+                guard let actual = try? BundleArchive.sha256(of: archive) else {
+                    return outcome(.unreadable("the archive could not be read"))
+                }
+                guard actual == expected else {
+                    return outcome(.mismatch("the archive is not the one that was written"))
+                }
+                guard deep else { return outcome(.ok) }
+                return outcome(deepCheck(archive: archive, meta: meta))
+            }
+        }
+    }
+
+    private static func deepCheck(archive: URL, meta: Meta) -> VerifyOutcome.Result {
+        guard let recorded = meta.manifest else {
+            return .unverifiable("taken before fingerprints were recorded")
+        }
+        let fm = FileManager.default
+        let scratch = fm.temporaryDirectory.appendingPathComponent(
+            "DuoUpdater-verify-\(UUID().uuidString)", isDirectory: true)
+        defer { forceRemove(scratch) }
+        let staged = scratch.appendingPathComponent(meta.bundleName)
+        do {
+            try BundleArchive.extract(archive: archive, into: staged)
+        } catch {
+            return .unreadable("the archive would not unpack — "
+                + ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
+        }
+        guard let current = BackupManifest.compute(for: staged) else {
+            return .unreadable("the unpacked bundle could not be fingerprinted")
+        }
+        guard current == recorded else {
+            return .mismatch(
+                "\(current.fileCount) files unpacked, \(recorded.fileCount) when it was stored")
+        }
+        return .ok
     }
 
     /// Whether the staged copy is still what we stored.
@@ -321,11 +905,14 @@ public enum BackupStore {
     /// apps which break their own seal by writing state inside their bundle
     /// (ToDesk, EasyConnect), so a faithful copy of what the user was running
     /// was rejected as "corrupted".
-    private static func integrityHolds(for key: String, staged: URL) -> Bool {
-        let metaURL = root.appendingPathComponent(key, isDirectory: true)
-            .appendingPathComponent("backup.json")
-        let recorded = (try? Data(contentsOf: metaURL))
-            .flatMap { try? JSONDecoder().decode(Meta.self, from: $0) }?.manifest
+    /// `root` is whichever store the backup came out of. The recorded manifest
+    /// and the recomputation are both taken on APFS — the sidecar's was computed
+    /// on the outbox copy, and `staged` is in the temporary directory — so this
+    /// comparison never straddles two filesystems no matter where the bytes were
+    /// parked in between. That is what keeps a backup on an exFAT stick or an SMB
+    /// share restorable rather than only apparently stored.
+    private static func integrityHolds(for key: String, in root: URL, staged: URL) -> Bool {
+        let recorded = readMeta(in: root.appendingPathComponent(key, isDirectory: true))?.manifest
 
         if let recorded {
             guard let current = BackupManifest.compute(for: staged) else {
@@ -363,27 +950,53 @@ public enum BackupStore {
         }
     }
 
-    /// Every current backup, keyed by app key — one scan of the backups root.
-    /// Lets the UI light up rollback affordances without a stat per app.
-    public static func allBackups() -> [String: Backup] {
-        let fm = FileManager.default
-        guard let dirs = try? fm.contentsOfDirectory(
+    /// Keys that have a directory under `root`, hidden entries skipped so the
+    /// `.staging-` scratch and the volume marker never read as backups.
+    private static func storedKeys(in root: URL) -> [String] {
+        guard let dirs = try? FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]) else { return [:] }
+            options: [.skipsHiddenFiles]) else { return [] }
+        return dirs.filter {
+            (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+        }.map(\.lastPathComponent)
+    }
+
+    /// Every current backup, keyed by app key — one scan of each store.
+    /// Lets the UI light up rollback affordances without a stat per app.
+    ///
+    /// The union matters more than it looks. A read path that saw only the
+    /// destination would report "no backups" whenever the disk was detached,
+    /// which is indistinguishable, on screen, from having none — and the copies
+    /// waiting in the outbox to be transferred would be invisible precisely
+    /// while they were the only ones present.
+    public static func allBackups() -> [String: Backup] {
         var out: [String: Backup] = [:]
-        for dir in dirs {
-            guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
-            else { continue }
-            if let backup = backup(forKey: dir.lastPathComponent) {
-                out[dir.lastPathComponent] = backup
+        if let destination = reachableDestinationRoot {
+            for key in storedKeys(in: destination) {
+                out[key] = backup(forKey: key, in: destination, location: .destination)
             }
         }
-        return out
+        // Outbox second so it wins a collision: it is the newer copy, and
+        // restoring from it does not go over the cable.
+        for key in storedKeys(in: outboxRoot) {
+            if let local = backup(forKey: key, in: outboxRoot, location: .outbox) {
+                out[key] = local
+            }
+        }
+        return out.compactMapValues { $0 }
     }
 
     /// Drop the backup for `key` (e.g. the user dismissed it).
+    ///
+    /// Removes it from both stores. Dropping only one would leave the other to
+    /// reappear at the next refresh, which reads as the deletion having silently
+    /// failed.
     public static func remove(forKey key: String) {
-        forceRemove(root.appendingPathComponent(key, isDirectory: true))
+        let fm = FileManager.default
+        forceRemove(outboxRoot.appendingPathComponent(key, isDirectory: true))
+        if let destination = reachableDestinationRoot {
+            forceRemove(destination.appendingPathComponent(key, isDirectory: true))
+        }
     }
 
     /// One stored backup, described for a UI that has to let someone choose which
@@ -412,6 +1025,26 @@ public enum BackupStore {
         /// the point — they are invisible to every other surface, which is how one
         /// grew to 272 MB unnoticed, counted in the total but impossible to remove.
         public let isRestorable: Bool
+        /// Which store this row came out of, so a sheet about reclaiming space
+        /// can say *whose* space — the boot volume's or the backup disk's.
+        public let location: Backup.Location
+
+        public init(
+            key: String, name: String, version: String?, currentVersion: String?,
+            savedAt: Date?, sizeBytes: Int64, bundlePath: URL?, appStillInstalled: Bool,
+            isRestorable: Bool, location: Backup.Location = .outbox
+        ) {
+            self.key = key
+            self.name = name
+            self.version = version
+            self.currentVersion = currentVersion
+            self.savedAt = savedAt
+            self.sizeBytes = sizeBytes
+            self.bundlePath = bundlePath
+            self.appStillInstalled = appStillInstalled
+            self.isRestorable = isRestorable
+            self.location = location
+        }
     }
 
     /// `CFBundleShortVersionString` of the app currently at `path`, or nil if it
@@ -427,33 +1060,47 @@ public enum BackupStore {
 
     /// Every stored backup with its size, newest first. Walks each directory to
     /// measure it, so call it off the main thread.
+    ///
+    /// Both stores are listed, and a key present in both appears **twice** — one
+    /// row per copy. That is deliberate for a sheet whose job is reclaiming
+    /// space: a backup mid-transfer really is occupying both disks, and merging
+    /// the rows would hide half of what deleting it would free.
     public static func listing() -> [Listing] {
-        let fm = FileManager.default
-        guard let dirs = try? fm.contentsOfDirectory(
-            at: root, includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]) else { return [] }
-        var out: [Listing] = []
-        for dir in dirs {
-            guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
-            else { continue }
-            let bundle = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))?
-                .first { $0.pathExtension == "app" }
-            let meta = (try? Data(contentsOf: dir.appendingPathComponent("backup.json")))
-                .flatMap { try? JSONDecoder().decode(Meta.self, from: $0) }
-            out.append(Listing(
-                key: dir.lastPathComponent,
-                name: meta?.bundleName ?? bundle?.lastPathComponent ?? dir.lastPathComponent,
-                version: meta?.version,
-                currentVersion: meta.flatMap { installedShortVersion(atPath: $0.originalPath) },
-                savedAt: meta?.savedAt,
-                sizeBytes: directorySize(dir),
-                bundlePath: bundle,
-                appStillInstalled: meta.map { fm.fileExists(atPath: $0.originalPath) } ?? false,
-                isRestorable: meta != nil))
+        var out = listing(in: outboxRoot, location: .outbox)
+        if let destination = reachableDestinationRoot {
+            out += listing(in: destination, location: .destination)
         }
         // Undated (sidecar-less) entries sort last: they are the ones to clear out,
         // not the ones to reason about.
         return out.sorted { ($0.savedAt ?? .distantPast) > ($1.savedAt ?? .distantPast) }
+    }
+
+    private static func listing(in root: URL, location: Backup.Location) -> [Listing] {
+        let fm = FileManager.default
+        var out: [Listing] = []
+        for key in storedKeys(in: root) {
+            let dir = root.appendingPathComponent(key, isDirectory: true)
+            let meta = readMeta(in: dir)
+            // The payload is a directory in the outbox and a single file on the
+            // destination, so what stands in for "the bundle" differs; on the
+            // destination there is no `.app` to take an icon from.
+            let payload: URL? = location == .outbox
+                ? (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))?
+                    .first { $0.pathExtension == "app" }
+                : meta?.archiveName.map { dir.appendingPathComponent($0) }
+            out.append(Listing(
+                key: key,
+                name: meta?.bundleName ?? payload?.lastPathComponent ?? key,
+                version: meta?.version,
+                currentVersion: meta.flatMap { installedShortVersion(atPath: $0.originalPath) },
+                savedAt: meta?.savedAt,
+                sizeBytes: directorySize(dir),
+                bundlePath: payload,
+                appStillInstalled: meta.map { fm.fileExists(atPath: $0.originalPath) } ?? false,
+                isRestorable: meta != nil,
+                location: location))
+        }
+        return out
     }
 
     // MARK: - Cleanup
@@ -464,20 +1111,30 @@ public enum BackupStore {
     /// the only unbounded growth left is these orphans: nothing ever revisits a
     /// key once its app is gone, and a large app bundle backup left behind is
     /// pure disk waste with no path left to restore onto. Returns the bytes freed.
+    /// Prunes both stores, and simply skips the destination when the disk is not
+    /// connected — a detached disk is not an orphan, and deleting on the strength
+    /// of "I could not see it" is how a backup disk gets emptied by being left at
+    /// the office.
+    ///
+    /// Note that "nothing to prune" and "could not look at the destination" both
+    /// return zero. Nothing distinguishes them today because nothing asks; the
+    /// caller discards this value entirely. Give this a richer return type when
+    /// a surface exists that would say something different about the two.
     @discardableResult
     public static func pruneOrphans() -> Int64 {
+        var freed = pruneOrphans(in: outboxRoot)
+        if let destination = reachableDestinationRoot {
+            freed += pruneOrphans(in: destination)
+        }
+        return freed
+    }
+
+    private static func pruneOrphans(in root: URL) -> Int64 {
         let fm = FileManager.default
-        guard let dirs = try? fm.contentsOfDirectory(
-            at: root, includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]) else { return 0 }
         var freed: Int64 = 0
-        for dir in dirs {
-            guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
-            else { continue }
-            let metaURL = dir.appendingPathComponent("backup.json")
-            guard let data = try? Data(contentsOf: metaURL),
-                  let meta = try? JSONDecoder().decode(Meta.self, from: data)
-            else { continue }
+        for key in storedKeys(in: root) {
+            let dir = root.appendingPathComponent(key, isDirectory: true)
+            guard let meta = readMeta(in: dir) else { continue }
             guard !fm.fileExists(atPath: meta.originalPath) else { continue }
             freed += directorySize(dir)
             forceRemove(dir)
@@ -486,9 +1143,25 @@ public enum BackupStore {
     }
 
     /// Total on-disk size of every stored backup, for display in Settings.
+    ///
+    /// Both stores together. Settings shows them apart — the point of moving the
+    /// store is to watch one number shrink — but the sum is what the existing
+    /// callers ask for, so ``storeSizes()`` answers the split question.
     public static func totalSize() -> Int64 {
-        let fm = FileManager.default
-        guard let dirs = try? fm.contentsOfDirectory(
+        let sizes = storeSizes()
+        return sizes.outbox + sizes.destination
+    }
+
+    /// On-disk size of each store separately. `destination` is zero when the
+    /// disk is not connected, which is indistinguishable from "empty" and should
+    /// be presented alongside ``availability()`` rather than on its own.
+    public static func storeSizes() -> (outbox: Int64, destination: Int64) {
+        (storeSize(of: outboxRoot),
+         reachableDestinationRoot.map(storeSize(of:)) ?? 0)
+    }
+
+    private static func storeSize(of root: URL) -> Int64 {
+        guard let dirs = try? FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
         else { return 0 }
         return dirs.reduce(into: 0) { $0 += directorySize($1) }
@@ -513,9 +1186,18 @@ public enum BackupStore {
         case noBackup(String)
         case backupCorrupted(String)
         case payloadUnreadable(String)
+        case destinationUnavailable(String)
+        case destinationIsADifferentDisk(String)
+        case destinationNotWritable(String)
 
         public var errorDescription: String? {
             switch self {
+            case .destinationUnavailable(let name):
+                return "The backup disk “\(name)” isn’t connected."
+            case .destinationIsADifferentDisk(let path):
+                return "A different disk is mounted at “\(path)”, so it was left alone."
+            case .destinationNotWritable(let path):
+                return "“\(path)” can’t be written to."
             case .copyFailed(let path):
                 return "Could not copy the app bundle at “\(path)”."
             case .noBackup(let key):
@@ -535,16 +1217,16 @@ public enum BackupStore {
     /// `ditto` faithfully copies BSD file flags, which is what we want of a
     /// backup — and it means a `uchg` file inside an app bundle comes along into
     /// the store. `removeItem` then fails with EPERM on that one file and, with
-    /// `try?`, fails silently: the backup stays, the space is never reclaimed,
-    /// and the delete sheet reports success while deleting nothing. Found on a
-    /// real machine, where ToDesk's `advInfo.json` had been locked by hand and
-    /// every ToDesk backup had become undeletable.
+    /// `try?`, fails silently: the backup stays, the sweeper appears to run, the
+    /// space is never reclaimed, and Clean Up reports success while deleting
+    /// nothing. Found on a real machine, where ToDesk's `advInfo.json` had been
+    /// locked by hand and every ToDesk backup had become undeletable.
     ///
     /// Clearing the flag is safe **here specifically** because the target is
     /// always a copy this store made, never the user's own file — and only the
     /// user-settable flags are touched, since the system ones need root and
     /// their presence is a genuine reason to stop. A restore is unaffected: it
-    /// copies its own bundle out, flags and all.
+    /// unpacks its own copy, flags and all.
     @discardableResult
     private static func forceRemove(_ url: URL) -> Bool {
         let fm = FileManager.default

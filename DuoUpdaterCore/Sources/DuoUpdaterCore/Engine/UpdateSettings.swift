@@ -121,6 +121,39 @@ public struct UpdateSettings: Sendable {
     /// user already refused in the menu bar.
     public static let declinedElevationKeysKey = "DeclinedElevatedInstalls"
 
+    /// Where rollback backups are kept, and how they are packed. See
+    /// ``BackupDestination`` and ``BundleArchive/Compression``.
+    ///
+    /// Shared for a sharper reason than the keys above. `duo backups` reads and
+    /// writes the same store the menu bar does, so a drifted name here would not
+    /// read as "unset and therefore local" in any visible way — the CLI would
+    /// keep writing backups to the boot volume while the app wrote them to the
+    /// external disk, each product listing a store the other cannot see. The
+    /// first symptom would be a rollback offered in one place and missing in the
+    /// other, long after the divergence started.
+    /// Renamed from `BackupDestinationPath`, which stored the folder the user
+    /// picked rather than the store directory inside it. Any value under the old
+    /// name points at somewhere that belongs to the user, so it is ignored
+    /// outright instead of migrated — re-picking is one click, and silently
+    /// repointing a store at someone's Documents folder is not a risk worth
+    /// taking to save it.
+    public static let backupDestinationPathKey = "BackupDestinationFolder"
+    public static let backupDestinationIdentityKey = "BackupDestinationIdentity"
+    public static let backupDestinationVolumeNameKey = "BackupDestinationVolumeName"
+    /// Whether backups currently go to that folder.
+    ///
+    /// Separate from the folder itself so switching back to "on this Mac" is a
+    /// switch and not an erasure: the disk stays remembered, and turning it on
+    /// again does not mean finding it in a file picker a second time.
+    public static let backupDestinationEnabledKey = "BackupsGoToAnotherDisk"
+    public static let backupCompressionKey = "BackupCompression"
+
+    /// What the compression setting resolves to when its key is absent.
+    /// Shared for the same reason ``vendorInstallPolicyDefault`` is: the app and
+    /// the CLI resolve it independently, and a default that drifted would mean
+    /// the same update archived two different ways depending on who ran it.
+    public static let backupCompressionDefault: BundleArchive.Compression = .fast
+
     public init(
         appStoreUpdateStrategy: AppStoreUpdateStrategy,
         vendorInstallPolicy: VendorInstallPolicy,

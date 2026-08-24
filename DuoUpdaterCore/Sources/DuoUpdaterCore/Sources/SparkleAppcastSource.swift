@@ -146,9 +146,14 @@ public struct SparkleAppcastSource: UpdateSource {
     static func bestItem(
         for app: InstalledApp,
         from items: [SparkleAppcastItem],
-        osVersion: String
+        osVersion: String,
+        hostArch: HostArch = .current,
+        allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds
     ) -> SparkleAppcastItem? {
-        usableItems(for: app, from: items, osVersion: osVersion).first
+        usableItems(
+            for: app, from: items, osVersion: osVersion,
+            hostArch: hostArch, allowingIntelTranslation: canRunIntel
+        ).first
     }
 
     /// The runnable, in-channel items for an app, highest version first. The head
@@ -156,7 +161,9 @@ public struct SparkleAppcastSource: UpdateSource {
     static func usableItems(
         for app: InstalledApp,
         from items: [SparkleAppcastItem],
-        osVersion: String
+        osVersion: String,
+        hostArch: HostArch = .current,
+        allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds
     ) -> [SparkleAppcastItem] {
         guard !items.isEmpty else { return [] }
         // Sparkle's real rule: the default (untagged) channel is allowed to
@@ -179,26 +186,82 @@ public struct SparkleAppcastSource: UpdateSource {
             // Default channel ∪ the user's channel — never a higher one.
             guard allowed.contains(normalizeChannel(item.channel)) else { return false }
             // Honor minimum system version when declared.
-            if let minOS = item.minimumSystemVersion, !minOS.isEmpty {
-                return VersionComparator.compare(osVersion, minOS) != .orderedAscending
+            if let minOS = item.minimumSystemVersion, !minOS.isEmpty,
+               VersionComparator.compare(osVersion, minOS) == .orderedAscending {
+                return false
             }
-            return true
+            // A per-architecture twin (TablePro publishes an arm64 and an x86_64
+            // item per release, same version) this Mac cannot run at all — never
+            // offer it, changelog history included. See `archVerdict`.
+            return archVerdict(for: item, hostArch: hostArch, canRunIntel: canRunIntel) != .unrunnable
         }
         // Deterministic tie-break on equal versions. `sorted(by:)` is NOT a stable
-        // sort in Swift, so per-architecture twins (TablePro publishes an arm64 and
-        // an x86_64 item per release) could come back in either order from run to
-        // run — and the changelog dedupe below keeps the FIRST item that yields
-        // notes. Identical bodies make that invisible today; the day a vendor writes
-        // per-arch notes it would silently alternate between them. Falling back to
-        // the enclosure URL is arbitrary but fixed, which is the property that
-        // matters.
+        // sort in Swift, so per-architecture twins could come back in either order
+        // from run to run — and the changelog dedupe below keeps the FIRST item
+        // that yields notes. Rank the twin built for this Mac first; only fall
+        // back to the enclosure URL when architecture doesn't disambiguate
+        // (identical bodies, or neither item names an architecture at all).
         return usable.sorted { (lhs: SparkleAppcastItem, rhs: SparkleAppcastItem) -> Bool in
             switch VersionComparator.compare(lhs.comparisonKey, rhs.comparisonKey) {
             case .orderedDescending: return true
             case .orderedAscending: return false
-            case .orderedSame: return (lhs.enclosureURL?.absoluteString ?? "") < (rhs.enclosureURL?.absoluteString ?? "")
+            case .orderedSame:
+                let lRank = archVerdict(for: lhs, hostArch: hostArch, canRunIntel: canRunIntel)
+                let rRank = archVerdict(for: rhs, hostArch: hostArch, canRunIntel: canRunIntel)
+                if lRank != rRank { return lRank < rRank }
+                return (lhs.enclosureURL?.absoluteString ?? "") < (rhs.enclosureURL?.absoluteString ?? "")
             }
         }
+    }
+
+    /// How well an item's download suits this Mac, cheapest-to-worst. Two
+    /// signals feed it, in priority order:
+    ///
+    ///  1. `<sparkle:hardwareRequirements>` — Sparkle's own structured gate
+    ///     (comma-delimited; today the only value it defines is "arm64").
+    ///     TablePro's real appcast sets it on exactly the arm64-native item of
+    ///     each release pair and leaves the x86_64 twin untagged
+    ///     (fetched 2026-08-24: raw.githubusercontent.com/TableProApp/TablePro/
+    ///     main/appcast.xml). It requires Apple-silicon hardware — never
+    ///     satisfiable on a real Intel Mac, which has no reverse Rosetta — so a
+    ///     tagged item is `.unrunnable` there regardless of anything else.
+    ///     https://sparkle-project.org/documentation/publishing/#minimum-system-version-requirements
+    ///  2. Filename tokens on the enclosure, exactly like
+    ///     `GitHubReleaseRule.installableAsset`: native beats an arch-neutral
+    ///     build beats a foreign-arch one, and a foreign-arch build is only
+    ///     `.foreignButRunnable` (never preferred, but not excluded) while this
+    ///     Mac can still translate it — i.e. only Apple silicon, and only
+    ///     `HostArch.canRunIntelBuilds`. This is the fallback for the vendors
+    ///     that don't set the Sparkle tag at all, and it's also what actually
+    ///     resolves the TablePro pair: only the arm64 item carries the tag, so
+    ///     without this the untagged x86_64 twin would tie with it.
+    private static func archVerdict(
+        for item: SparkleAppcastItem, hostArch: HostArch, canRunIntel: Bool
+    ) -> ArchVerdict {
+        // Sparkle's structured requirement is authoritative. On Apple silicon it
+        // proves the item is compatible even if an unrelated part of the product
+        // name resembles a filename token (for example, `IntelliJ-…-arm64.zip`).
+        if item.hardwareRequirements.contains("arm64") {
+            return hostArch == .arm64 ? .native : .unrunnable
+        }
+        let name = (item.enclosureURL?.lastPathComponent ?? "").lowercased()
+        let native = hostArch.isMarked(inAssetName: name)
+        let foreignArch: HostArch = hostArch == .arm64 ? .x86_64 : .arm64
+        let foreign = foreignArch.isMarked(inAssetName: name)
+        if native && !foreign { return .native }
+        // Neither marker means an ordinary neutral name; both markers explicitly
+        // describe a fat/universal artifact.
+        if native == foreign { return .neutral }
+        // Named for the other architecture. Only Apple silicon can still run an
+        // Intel build (via Rosetta, and only while `canRunIntel` holds) — the
+        // reverse direction has never worked, an arm64 build has never run on
+        // an Intel Mac.
+        return (hostArch == .arm64 && canRunIntel) ? .foreignButRunnable : .unrunnable
+    }
+
+    private enum ArchVerdict: Int, Comparable {
+        case native, neutral, foreignButRunnable, unrunnable
+        static func < (lhs: ArchVerdict, rhs: ArchVerdict) -> Bool { lhs.rawValue < rhs.rawValue }
     }
 
     /// The Sparkle channel the installed build sits on, found by matching the
@@ -278,6 +341,12 @@ struct SparkleAppcastItem {
     /// `<sparkle:channel>` — names a non-default release track (e.g. "beta").
     /// nil/absent means the default (stable) channel, which Sparkle always ships.
     var channel: String?
+    /// `<sparkle:hardwareRequirements>` — a comma-delimited list Sparkle itself
+    /// defines and enforces client-side; today the only value it recognizes is
+    /// "arm64", meaning this item's build requires Apple-silicon hardware.
+    /// Lowercased on parse. Empty for the vast majority of feeds (only vendors
+    /// publishing separate per-architecture items, like TablePro, set it).
+    var hardwareRequirements: Set<String> = []
     /// `<sparkle:minimumAutoupdateVersion>` — the vendor-declared build version
     /// below which this release must never silently auto-install. Sparkle derives
     /// `SUAppcastItem.majorUpgrade` from it, and vendors set it at a paid/license
@@ -414,6 +483,12 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             current?.minimumSystemVersion = text
         case "sparkle:channel":
             if current?.channel == nil, !text.isEmpty { current?.channel = text }
+        case "sparkle:hardwareRequirements":
+            if !text.isEmpty {
+                current?.hardwareRequirements = Set(
+                    text.lowercased().split(separator: ",")
+                        .map { $0.trimmingCharacters(in: .whitespaces) })
+            }
         case "sparkle:minimumAutoupdateVersion":
             if current?.minimumAutoupdateVersion == nil, !text.isEmpty {
                 current?.minimumAutoupdateVersion = text

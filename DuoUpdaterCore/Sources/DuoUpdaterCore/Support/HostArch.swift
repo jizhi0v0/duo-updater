@@ -25,7 +25,7 @@ public enum HostArch: Sendable, Equatable {
         return .x86_64
     }
 
-    /// Lowercased substrings that mark an asset *filename* as built for this
+    /// Lowercased markers that identify an asset *filename* as built for this
     /// architecture (e.g. `rustdesk-1.4.6-aarch64.dmg`). Kept conservative — only
     /// tokens that appear as real arch markers in release asset names — so they
     /// don't false-match unrelated words.
@@ -48,6 +48,34 @@ public enum HostArch: Sendable, Equatable {
     /// explicitly for the *other* machine and must not be picked for this one.
     public var foreignTokens: [String] {
         (self == .arm64 ? HostArch.x86_64 : HostArch.arm64).assetTokens
+    }
+
+    /// Whether `name` carries one of this architecture's standalone filename
+    /// markers. Requiring a non-alphanumeric boundary keeps product names such
+    /// as `IntelliJ` from accidentally matching the Intel marker while retaining
+    /// the separators used by real assets (`App-arm64.zip`, `App_x64_mac.dmg`).
+    func isMarked(inAssetName name: String) -> Bool {
+        let lower = name.lowercased()
+        for token in assetTokens {
+            var searchStart = lower.startIndex
+            while searchStart < lower.endIndex,
+                  let range = lower.range(
+                    of: token, range: searchStart..<lower.endIndex) {
+                let startsAtBoundary = range.lowerBound == lower.startIndex
+                    || {
+                        let preceding = lower[lower.index(before: range.lowerBound)]
+                        return !preceding.isLetter && !preceding.isNumber
+                    }()
+                let endsAtBoundary = range.upperBound == lower.endIndex
+                    || {
+                        let following = lower[range.upperBound]
+                        return !following.isLetter && !following.isNumber
+                    }()
+                if startsAtBoundary && endsAtBoundary { return true }
+                searchStart = lower.index(after: range.lowerBound)
+            }
+        }
+        return false
     }
 
     /// Whether an Intel build can still be *run* on this Mac — the one case where

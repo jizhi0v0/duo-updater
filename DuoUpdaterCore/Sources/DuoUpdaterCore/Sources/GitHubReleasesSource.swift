@@ -82,20 +82,18 @@ public struct GitHubReleaseRule: Sendable {
         }
         guard !matches.isEmpty else { return nil }
 
-        func has(_ tokens: [String], _ name: String) -> Bool {
-            let lower = name.lowercased()
-            return tokens.contains { lower.contains($0) }
-        }
-
         // 1. An asset explicitly built for this Mac's architecture.
         if let native = matches.first(where: {
-            has(arch.assetTokens, $0.name) && !has(arch.foreignTokens, $0.name)
+            arch.isMarked(inAssetName: $0.name)
+                && !(arch == .arm64 ? HostArch.x86_64 : .arm64).isMarked(inAssetName: $0.name)
         }) { return (native.url, native.size) }
 
         // 2. An arch-neutral asset (a universal build, or a name with no arch
-        //    marker at all) — safe for either machine.
+        //    marker at all) — safe for either machine. A filename that explicitly
+        //    names both architectures is another spelling of universal.
         if let neutral = matches.first(where: {
-            !has(arch.assetTokens, $0.name) && !has(arch.foreignTokens, $0.name)
+            arch.isMarked(inAssetName: $0.name)
+                == (arch == .arm64 ? HostArch.x86_64 : .arm64).isMarked(inAssetName: $0.name)
         }) { return (neutral.url, neutral.size) }
 
         // 3. Everything that matched is built for the OTHER architecture. Offering

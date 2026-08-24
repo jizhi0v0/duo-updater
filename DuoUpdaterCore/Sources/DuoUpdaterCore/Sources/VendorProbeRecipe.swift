@@ -171,12 +171,36 @@ public struct VendorProbeRecipe: Sendable {
     /// keeps the machine's identifier out of them.
     public let url: URL
 
-    /// Set when the endpoint only answers for a specific machine — or a specific
-    /// rollout track — and the app keeps what it keys on, on disk. Each entry
-    /// substitutes its own placeholder, and all are applied before the request.
-    /// See `ProbeIdentity` for why a synthesized value is not an acceptable
-    /// substitute, and for the handling rules.
+    /// Set when the endpoint only answers for a specific machine, and the app
+    /// keeps the identifier it keys on, on disk. Each entry substitutes its own
+    /// placeholder, and all are applied before the request. See `ProbeIdentity`
+    /// for why a synthesized value is not an acceptable substitute, and for the
+    /// handling rules.
+    ///
+    /// Identities only. A value that selects which BUILDS come back rather than
+    /// which bucket this machine is in belongs in `track` — the two look alike
+    /// in the URL and behave nothing alike when they are wrong.
     public let identities: [ProbeIdentity]
+
+    /// Set when the endpoint serves several tracks off one URL and a
+    /// request-borne value picks between them. Substituted exactly like an
+    /// identity; kept apart from one because it is not a machine identifier and
+    /// because it carries what a verification sweep needs to tell whether it is
+    /// doing anything. See `RolloutTrack`.
+    public let track: RolloutTrack?
+
+    /// Every local value this recipe substitutes into its URL: its identities,
+    /// plus its track's selector if it has one.
+    ///
+    /// Exists so the rules that apply to "a value read off this machine and put
+    /// on the wire" — distinct placeholders, a fallback that survives its own
+    /// validation, nothing baked into `recipe.url`, no unreviewed read out of a
+    /// credential file — are checked against ONE derived list. Splitting the
+    /// plan out of `identities` broke two such guards the day it happened, which
+    /// is the argument for deriving rather than enumerating.
+    public var localReads: [ProbeIdentity] {
+        identities + (track.map { [$0.selector] } ?? [])
+    }
 
     /// How to recover the version from the endpoint's response.
     public let mode: Mode
@@ -319,12 +343,14 @@ public struct VendorProbeRecipe: Sendable {
         followRedirects: Bool = true,
         channel: ReleaseChannel = .stable,
         identities: [ProbeIdentity] = [],
+        track: RolloutTrack? = nil,
         variant: String? = nil
     ) {
         self.bundleID = bundleID
         self.channel = channel
         self.url = url
         self.identities = identities
+        self.track = track
         self.variant = variant
         self.mode = mode
         self.versionPattern = versionPattern
@@ -2082,6 +2108,12 @@ public enum VendorProbeRegistry {
         // All four fail toward "unknown" or a stale consumer value, never toward
         // claiming enterprise on a consumer account, so the blast radius is the
         // cautious track — where omitting the parameter put everyone anyway.
+        //
+        // The first of the four is no longer silent, at least in a sweep: this
+        // rides in `track` rather than `identities`, and `duo verify` reports a
+        // machine that fell back WHILE the vendor's two tracks are actually
+        // apart. See `RolloutTrack` for why that combination is the only one
+        // worth a finding.
         VendorProbeRecipe(
             bundleID: "com.openai.codex",
             url: URL(string: "https://chatgpt.com/backend-api/wham/app/appcast?installation_id=__IDENTITY__&arch=arm64&beta=false&app_version=0.0.0&plan_type=__PLANTYPE__")!,
@@ -2113,12 +2145,23 @@ public enum VendorProbeRegistry {
                     applicationSupportPath: "com.openai.codex/production-appcast-bootstrap.json",
                     encoding: .jsonKey("installationId"),
                     validationPattern: #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#),
-                // Deliberately permissive: we are a passthrough, not an authority
-                // on OpenAI's tier names. A slug we have never seen is forwarded
-                // as-is and the vendor decides; only something that isn't a slug
-                // at all falls back. `maxBytes` is raised because this file holds
-                // JWTs — see `.jwtClaim` for what is and isn't read out of it.
-                ProbeIdentity(
+            ],
+            // The plan is NOT an identity — it names which builds come back, not
+            // which bucket this machine is in — so it rides here, where the
+            // sweep can also check whether it is still deciding anything.
+            //
+            // `business` is the contrast because it is the value the two-track
+            // split is actually about; when the endpoint answers it the same way
+            // it answers ours, the rollout has merged and today's value cannot be
+            // wrong. `validationPattern` is deliberately permissive: we are a
+            // passthrough, not an authority on OpenAI's tier names. A slug we
+            // have never seen is forwarded as-is and the vendor decides; only
+            // something that isn't a slug at all falls back. `maxBytes` is raised
+            // because this file holds JWTs — see `.jwtClaim` for what is and is
+            // not read out of it, and `RegistrySecurity` for the allow-list that
+            // keeps it that way.
+            track: RolloutTrack(
+                selector: ProbeIdentity(
                     location: .home(".codex/auth.json"),
                     encoding: .jwtClaim(
                         tokenPath: ["tokens", "access_token"],
@@ -2127,7 +2170,8 @@ public enum VendorProbeRegistry {
                     placeholder: "__PLANTYPE__",
                     fallback: "unknown",
                     maxBytes: 32768),
-            ]),
+                contrastValue: "business",
+                contrastTrackName: "the enterprise track")),
 
         // ChatWise — Squirrel releases endpoint; array of versions, take highest.
         VendorProbeRecipe(

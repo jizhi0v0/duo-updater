@@ -274,6 +274,62 @@ public struct VendorProbeSource: UpdateSource {
         await probeOutcome(recipe, allowInstall: true)
     }
 
+    /// Where this machine's track value came from — read off disk, or the
+    /// recipe's declared fallback. Nil when the recipe has no track, or when the
+    /// expansion fails outright.
+    ///
+    /// Deliberately narrow. The expanded URL stays inside this type, so a caller
+    /// that wants to know "are we on the cautious track by default?" gets that
+    /// answer and not a string with the machine's identifier in it.
+    public func trackProvenance(_ recipe: VendorProbeRecipe) -> ProbeIdentity.Provenance? {
+        guard recipe.track != nil, case .success(let resolved) = resolveEndpoint(recipe)
+        else { return nil }
+        return resolved.trackProvenance
+    }
+
+    /// Ask one recipe's endpoint twice — once as this machine, once as
+    /// `RolloutTrack.contrastValue` — and report whether the vendor is serving
+    /// two different answers right now. Nil for a recipe with no track.
+    ///
+    /// **Verification-time only.** It doubles the requests for the recipe, which
+    /// is nothing inside a sweep that already makes ~150 and wrong inside the
+    /// app's periodic check. It is also the only thing that can tell a healthy
+    /// track selection from an irrelevant one: while a vendor's tracks are
+    /// converged, every value gives the same answer, so our own answer looking
+    /// right proves nothing about whether we chose right.
+    public func rolloutTrackVerdict(_ recipe: VendorProbeRecipe) async -> RolloutTrackVerdict? {
+        guard let track = recipe.track else { return nil }
+        guard case .success(let mine) = resolveEndpoint(recipe),
+              case .success(let contrast) = resolveEndpoint(
+                recipe, trackOverride: track.contrastValue)
+        else { return .indeterminate }
+        // This machine already sits on the contrast track, so asking again as
+        // the contrast establishes nothing. Not a finding — being an enterprise
+        // account is not a defect.
+        guard mine.url != contrast.url else { return .indeterminate }
+
+        async let mineVersion = trackVersion(recipe, at: mine.url)
+        async let contrastVersion = trackVersion(recipe, at: contrast.url)
+        guard let ours = await mineVersion, let theirs = await contrastVersion else {
+            return .indeterminate
+        }
+        return ours == theirs
+            ? .converged(ours)
+            : .diverged(ours: ours, contrast: theirs)
+    }
+
+    /// The version one already-expanded endpoint reports, by the same extractor
+    /// a real probe uses — so a divergence means the tracks differ, not that two
+    /// code paths read the body differently.
+    private func trackVersion(_ recipe: VendorProbeRecipe, at endpoint: URL) async -> String? {
+        guard case .success(let body) = await fetchBody(recipe, endpoint: endpoint)
+        else { return nil }
+        let extractor = recipe.selectHighest
+            ? VendorProbeRecipe.highestVersion
+            : VendorProbeRecipe.extractVersion
+        return extractor(body.text, recipe.versionPattern)
+    }
+
     /// What a mode's fetch step yields on success: the text the version pattern
     /// runs against, the download URL that text resolved to, and the status code.
     private struct FetchedBody {
@@ -413,13 +469,26 @@ public struct VendorProbeSource: UpdateSource {
             httpStatus: body.status, bodySample: sample, elapsedMs: elapsed())
     }
 
-    /// The per-mode fetch half of a probe, with each `return nil` in the original
-    /// replaced by the specific reason it happened.
-    private func fetchBody(_ recipe: VendorProbeRecipe) async -> Result<FetchedBody, ProbeFailure> {
-        // The one place a `ProbeIdentity` is expanded. `endpoint` stays local to
-        // this function so the machine's identifier reaches the request and
-        // nothing else — `recipe.url` (the placeholder) is what every log line,
-        // finding and outcome keeps carrying.
+    /// What a recipe's placeholders expand to, and where the track value came
+    /// from. `trackProvenance` is nil for a recipe with no `track`.
+    struct ResolvedEndpoint {
+        let url: URL
+        let trackProvenance: ProbeIdentity.Provenance?
+    }
+
+    /// The one place a `ProbeIdentity` or a `RolloutTrack` is expanded. The
+    /// result stays local to the caller so the machine's identifier reaches the
+    /// request and nothing else — `recipe.url` (the placeholders) is what every
+    /// log line, finding and outcome keeps carrying.
+    ///
+    /// `trackOverride` substitutes a literal for the track's own value instead
+    /// of reading it, which is how the verification sweep asks the endpoint what
+    /// a *different* track would be told. It is held to the same pattern and
+    /// character gate as a read value; a recipe author's typo must not reach the
+    /// wire either.
+    func resolveEndpoint(
+        _ recipe: VendorProbeRecipe, trackOverride: String? = nil
+    ) -> Result<ResolvedEndpoint, ProbeFailure> {
         var endpoint = recipe.url
         for identity in recipe.identities {
             guard let resolved = identity.resolve(endpoint) else {
@@ -428,6 +497,41 @@ public struct VendorProbeSource: UpdateSource {
             endpoint = resolved
         }
 
+        var provenance: ProbeIdentity.Provenance?
+        if let track = recipe.track {
+            if let override = trackOverride {
+                guard let resolved = track.selector.resolve(endpoint, substituting: override)
+                else {
+                    return .failure(.notApplicable(
+                        "'\(override)' is not a value \(recipe.bundleID)'s track accepts"))
+                }
+                endpoint = resolved
+                provenance = nil
+            } else {
+                guard let resolved = track.selector.resolved(endpoint) else {
+                    return .failure(.notApplicable(
+                        "no rollout track at \(track.selector.displayPath)"))
+                }
+                endpoint = resolved.url
+                provenance = resolved.provenance
+            }
+        }
+        return .success(ResolvedEndpoint(url: endpoint, trackProvenance: provenance))
+    }
+
+    /// The per-mode fetch half of a probe, with each `return nil` in the original
+    /// replaced by the specific reason it happened.
+    private func fetchBody(_ recipe: VendorProbeRecipe) async -> Result<FetchedBody, ProbeFailure> {
+        switch resolveEndpoint(recipe) {
+        case .failure(let failure): return .failure(failure)
+        case .success(let resolved): return await fetchBody(recipe, endpoint: resolved.url)
+        }
+    }
+
+    /// `fetchBody` against an endpoint whose placeholders are already expanded.
+    private func fetchBody(
+        _ recipe: VendorProbeRecipe, endpoint: URL
+    ) async -> Result<FetchedBody, ProbeFailure> {
         switch recipe.mode {
         case .redirectFilename:
             var request = URLRequest(url: endpoint)

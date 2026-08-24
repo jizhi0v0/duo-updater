@@ -76,9 +76,12 @@ public enum RegistrySecurity {
     /// to one claim and can return nothing else.
     ///
     /// So this allow-lists the READ, not the file. Keyed by
-    /// `ProbeIdentity.displayPath`, valued by `ProbeIdentity.readPath`; a probe
-    /// identity pointing into one of these files must name a read listed here,
-    /// which `RegistrySecurityTests` asserts against the registry as it stands.
+    /// `ProbeIdentity.displayPath`, valued by `ProbeIdentity.readPath`; every
+    /// read in `VendorProbeRecipe.localReads` that points into one of these files
+    /// must be listed here, which `RegistrySecurityTests` asserts against the
+    /// registry as it stands. Derived from `localReads` rather than from
+    /// `identities` on purpose — the day the plan moved from one to the other,
+    /// an enumerated guard would have gone quiet instead of red.
     public static let credentialBearingFileReads: [String: Set<String>] = [
         "~/.codex/auth.json": [
             // The rollout track ChatGPT's appcast keys on. Authenticates

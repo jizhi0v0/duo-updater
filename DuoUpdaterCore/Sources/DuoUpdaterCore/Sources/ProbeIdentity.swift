@@ -283,6 +283,30 @@ public struct ProbeIdentity: Sendable {
         homeDirectory: URL? = nil,
         fileManager: FileManager = .default
     ) -> URL? {
+        resolved(
+            url, applicationSupportDirectory: applicationSupportDirectory,
+            homeDirectory: homeDirectory, fileManager: fileManager)?.url
+    }
+
+    /// Where a substituted value came from.
+    ///
+    /// Invisible in the finished URL and worth keeping anyway: a value that was
+    /// READ describes this machine, and a value that FELL BACK describes only
+    /// our own ignorance. For a rollout track those are different situations —
+    /// see `RolloutTrack`, which files a finding for the second one and says
+    /// nothing about the first.
+    public enum Provenance: Sendable, Equatable {
+        case read
+        case fallback
+    }
+
+    /// `resolve`, plus where the value came from.
+    public func resolved(
+        _ url: URL,
+        applicationSupportDirectory: URL? = nil,
+        homeDirectory: URL? = nil,
+        fileManager: FileManager = .default
+    ) -> (url: URL, provenance: Provenance)? {
         let text = url.absoluteString
         guard text.contains(placeholder) else { return nil }
         let read = value(
@@ -290,9 +314,28 @@ public struct ProbeIdentity: Sendable {
             homeDirectory: homeDirectory, fileManager: fileManager)
         // A fallback stands in for an unreadable value, but is held to the same
         // gate — a recipe author's typo must not reach the wire either.
+        let provenance: Provenance = read == nil ? .fallback : .read
         guard let value = read
             ?? fallback.flatMap({ Self.accept($0, matching: validationPattern) })
         else { return nil }
-        return URL(string: text.replacingOccurrences(of: placeholder, with: value))
+        guard let substituted = URL(
+            string: text.replacingOccurrences(of: placeholder, with: value))
+        else { return nil }
+        return (substituted, provenance)
+    }
+
+    /// `url` with `placeholder` replaced by a literal instead of by whatever
+    /// this machine holds — how a verification sweep asks the endpoint what a
+    /// *different* value would be told (see `RolloutTrack.contrastValue`).
+    ///
+    /// Held to the same pattern and character gate as a read value: a recipe
+    /// author's typo must not reach the wire just because it was typed rather
+    /// than read.
+    public func resolve(_ url: URL, substituting value: String) -> URL? {
+        let text = url.absoluteString
+        guard text.contains(placeholder),
+              let accepted = Self.accept(value, matching: validationPattern)
+        else { return nil }
+        return URL(string: text.replacingOccurrences(of: placeholder, with: accepted))
     }
 }

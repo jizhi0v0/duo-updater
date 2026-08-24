@@ -364,14 +364,14 @@ import Testing
 @Suite struct ProbeIdentityRedactionTests {
 
     private var identityRecipes: [VendorProbeRecipe] {
-        VendorProbeRegistry.recipes.filter { !$0.identities.isEmpty }
+        VendorProbeRegistry.recipes.filter { !$0.localReads.isEmpty }
     }
 
     /// `recipe.url` is what `Verify` reads the endpoint host from and what the
     /// log lines carry. It must still hold the placeholder, never a value.
     @Test func theRegistryHoldsPlaceholdersNotValues() throws {
         for recipe in identityRecipes {
-            for identity in recipe.identities {
+            for identity in recipe.localReads {
                 #expect(
                     recipe.url.absoluteString.contains(identity.placeholder),
                     "\(recipe.recipeID) declares an identity its URL never uses")
@@ -388,7 +388,7 @@ import Testing
     /// placeholder and fail the whole probe.
     @Test func placeholdersAreDistinctWithinARecipe() throws {
         for recipe in identityRecipes {
-            let placeholders = recipe.identities.map(\.placeholder)
+            let placeholders = recipe.localReads.map(\.placeholder)
             #expect(
                 Set(placeholders).count == placeholders.count,
                 "\(recipe.recipeID) reuses a placeholder across identities")
@@ -407,7 +407,7 @@ import Testing
         try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
 
         for recipe in identityRecipes {
-            for identity in recipe.identities {
+            for identity in recipe.localReads {
                 guard let fallback = identity.fallback else { continue }
                 let resolved = identity.resolve(
                     URL(string: "https://example.com/?x=\(identity.placeholder)")!,
@@ -419,8 +419,8 @@ import Testing
         }
     }
 
-    /// The asymmetry that makes the two Codex identities safe, pinned so a later
-    /// edit cannot quietly swap it. The machine id must keep skipping when it is
+    /// The asymmetry that makes the two Codex reads safe, pinned so a later edit
+    /// cannot quietly swap it. The machine id must keep skipping when it is
     /// unreadable — a synthesized one picks a stranger's rollout bucket. The plan
     /// must keep falling back — without it, a signed-out machine would lose
     /// ChatGPT coverage entirely rather than land on the cautious track.
@@ -428,7 +428,7 @@ import Testing
         let codex = try #require(
             VendorProbeRegistry.recipes.first { $0.bundleID == "com.openai.codex" })
         let byPlaceholder = Dictionary(
-            uniqueKeysWithValues: codex.identities.map { ($0.placeholder, $0) })
+            uniqueKeysWithValues: codex.localReads.map { ($0.placeholder, $0) })
 
         let machineID = try #require(byPlaceholder["__IDENTITY__"])
         #expect(machineID.fallback == nil, "a fabricated installation_id must never be sent")
@@ -437,6 +437,19 @@ import Testing
         #expect(
             plan.fallback == "unknown",
             "an unreadable plan must fall back to the value OpenAI's own doctor sends")
+    }
+
+    /// And the two must stay in different slots. `installation_id` names a
+    /// rollout BUCKET inside one track; `plan_type` names the TRACK. They look
+    /// alike in the URL and behave nothing alike when wrong, and only the second
+    /// gets the sweep's divergence check.
+    @Test func theCodexPlanIsATrackAndTheIDIsNot() throws {
+        let codex = try #require(
+            VendorProbeRegistry.recipes.first { $0.bundleID == "com.openai.codex" })
+        #expect(codex.identities.map(\.placeholder) == ["__IDENTITY__"])
+        let track = try #require(codex.track)
+        #expect(track.selector.placeholder == "__PLANTYPE__")
+        #expect(track.contrastValue == "business")
     }
 
     /// An identity recipe must not use a mode that routes the fetched URL into

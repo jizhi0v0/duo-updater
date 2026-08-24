@@ -147,7 +147,7 @@ import Foundation
     /// against the allow-list directly.
     @Test func noRecipeReadsAnUnreviewedPathOutOfACredentialFile() {
         for recipe in VendorProbeRegistry.recipes {
-            for identity in recipe.identities {
+            for identity in recipe.localReads {
                 guard let allowed =
                     RegistrySecurity.credentialBearingFileReads[identity.displayPath]
                 else { continue }
@@ -164,7 +164,7 @@ import Foundation
     @Test func everyAllowedCredentialFileReadIsActuallyPerformed() {
         let performed = Set(
             VendorProbeRegistry.recipes
-                .flatMap(\.identities)
+                .flatMap(\.localReads)
                 .map { "\($0.displayPath)|\($0.readPath)" })
         for (file, reads) in RegistrySecurity.credentialBearingFileReads {
             for read in reads {

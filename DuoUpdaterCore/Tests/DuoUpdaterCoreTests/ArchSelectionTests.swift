@@ -116,4 +116,58 @@ struct ArchSelectionTests {
         #expect(HostArch.arm64.foreignTokens == HostArch.x86_64.assetTokens)
         #expect(HostArch.x86_64.foreignTokens == HostArch.arm64.assetTokens)
     }
+
+    // MARK: - isArchIncompatibleOnly
+    //
+    // Distinguishes "the vendor shipped no macOS build" (a recipe problem,
+    // handled by `carriesInstallableAsset`) from "the vendor shipped a macOS
+    // build, but only for the other architecture, and this host can never run
+    // it" (not a recipe problem — most relevantly, an Apple-silicon Mac once
+    // Rosetta stops covering apps from macOS 28: https://support.apple.com/en-us/102527).
+
+    @Test func archIncompatibleWhenOnlyForeignArchAssetExistsAndTranslationIsGone() {
+        let a = assets(["app-1.0-x86_64.dmg"])
+        #expect(GitHubReleaseRule.isArchIncompatibleOnly(
+            assets: a, matching: #"app-1\.0-x86_64\.dmg$"#,
+            preferring: .arm64, allowingIntelTranslation: false))
+    }
+
+    @Test func notArchIncompatibleWhileRosettaStillCoversIt() {
+        // Same foreign-arch-only release, but translation still works (macOS
+        // <= 27 with Rosetta installed) — `installableAsset` resolves it, so
+        // this is a normal installable update, not an arch dead end.
+        let a = assets(["app-1.0-x86_64.dmg"])
+        #expect(!GitHubReleaseRule.isArchIncompatibleOnly(
+            assets: a, matching: #"app-1\.0-x86_64\.dmg$"#,
+            preferring: .arm64, allowingIntelTranslation: true))
+    }
+
+    @Test func notArchIncompatibleWhenNoMacOSAssetShipsAtAll() {
+        // No matching asset at all is the OTHER failure mode (a renamed or
+        // missing macOS artifact) and must stay `false` here so it keeps
+        // counting toward `skippedForMissingAsset` / recipe health instead of
+        // silently reading as "fine, just wrong architecture".
+        let linuxOnly = assets(["app-1.0-x86_64.AppImage"])
+        #expect(!GitHubReleaseRule.isArchIncompatibleOnly(
+            assets: linuxOnly, matching: #"app-1\.0-x86_64\.dmg$"#,
+            preferring: .arm64, allowingIntelTranslation: false))
+    }
+
+    @Test func notArchIncompatibleWhenANativeOrNeutralAssetAlsoMatches() {
+        let both = assets(["app-1.0-x86_64.dmg", "app-1.0-arm64.dmg"])
+        #expect(!GitHubReleaseRule.isArchIncompatibleOnly(
+            assets: both, matching: #"app-1\.0-(x86_64|arm64)\.dmg$"#,
+            preferring: .arm64, allowingIntelTranslation: false))
+    }
+
+    @Test func archIncompatibleNeverFiresOnAnIntelHost() {
+        // The reverse direction (arm64-only build, Intel host) has never been
+        // runnable and never will be — `installableAsset` already refuses it
+        // regardless of `canRunIntel`, so this reads as arch-incompatible too,
+        // exercised here for the direction the doc comment calls out.
+        let armOnly = assets(["app-1.0-arm64.dmg"])
+        #expect(GitHubReleaseRule.isArchIncompatibleOnly(
+            assets: armOnly, matching: #"app-1\.0-arm64\.dmg$"#,
+            preferring: .x86_64, allowingIntelTranslation: false))
+    }
 }

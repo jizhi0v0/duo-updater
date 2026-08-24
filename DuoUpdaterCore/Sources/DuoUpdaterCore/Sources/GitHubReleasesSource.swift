@@ -123,6 +123,29 @@ public struct GitHubReleaseRule: Sendable {
         assets.contains { $0.name.range(of: pattern, options: .regularExpression) != nil }
     }
 
+    /// True when this release ships a macOS asset matching `pattern`, but every
+    /// such asset targets an architecture this host cannot run — as opposed to
+    /// shipping no macOS asset at all. The two need different handling: no
+    /// asset is a genuine recipe problem (the vendor renamed or dropped the
+    /// macOS artifact), worth counting against recipe health and worth walking
+    /// back from. An architecture-only miss is not a recipe problem — the
+    /// vendor did ship a macOS build, this Mac just can't launch it (an
+    /// Intel-only build on an Apple-silicon Mac once Rosetta stops covering
+    /// apps from macOS 28, or an arm64-only build on an Intel Mac, which has
+    /// never been runnable) — so it should read as "nothing to offer" rather
+    /// than flag the recipe as broken.
+    static func isArchIncompatibleOnly(
+        assets: [(name: String, url: URL, size: Int64?)],
+        matching pattern: String,
+        preferring arch: HostArch,
+        allowingIntelTranslation canRunIntel: Bool
+    ) -> Bool {
+        carriesInstallableAsset(from: assets, matching: pattern)
+            && installableAsset(
+                from: assets, matching: pattern,
+                preferring: arch, allowingIntelTranslation: canRunIntel) == nil
+    }
+
     var slug: String { "\(owner)/\(repo)" }
 }
 
@@ -355,6 +378,7 @@ public struct GitHubReleasesSource: UpdateSource {
             return ReleaseHistoryEntry(version: v, publishedAt: date)
         }
         var skippedForMissingAsset: [String] = []
+        var archIncompatible = false
         for release in releases {
             if let version = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern) {
                 // See the fallback above: for an install-capable rule the macOS
@@ -370,6 +394,19 @@ public struct GitHubReleasesSource: UpdateSource {
                     // failure and has to surface as one.
                     if skippedForMissingAsset.count > Self.maxReleasesWithoutMacOSAsset { break }
                     continue
+                }
+                // A macOS asset exists here, but only for the other architecture,
+                // and this host can never run it (no reverse translation on an
+                // Intel Mac, or Rosetta no longer covering apps from macOS 28).
+                // Stop rather than walk into older releases: they are no more
+                // likely to differ, and offering a stale version as "the latest"
+                // would be its own kind of wrong.
+                if let pattern = rule.installAssetPattern,
+                   GitHubReleaseRule.isArchIncompatibleOnly(
+                       assets: release.assets, matching: pattern,
+                       preferring: .current, allowingIntelTranslation: HostArch.canRunIntelBuilds) {
+                    archIncompatible = true
+                    break
                 }
                 let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
                 let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
@@ -405,6 +442,15 @@ public struct GitHubReleasesSource: UpdateSource {
                     releaseHistory: history
                 ), releases.map(\.tag))
             }
+        }
+        // Not a recipe failure — the vendor did ship a macOS build for the
+        // newest matching release, it just isn't one this Mac can launch. No
+        // RecipeHealth signal either way: the recipe itself is fine, this
+        // cycle's answer is purely a fact about this host's architecture.
+        if archIncompatible {
+            Log.source.debug(
+                "GitHub \(rule.slug, privacy: .public): latest matching release only ships an asset for the other architecture, which this host cannot run — not offering it")
+            return (nil, releases.map(\.tag))
         }
         // Two different breakages end up here and they need different words: a
         // tag-format change (nothing matched the version pattern) versus an

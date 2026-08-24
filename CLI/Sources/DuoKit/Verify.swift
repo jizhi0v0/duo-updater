@@ -244,8 +244,38 @@ public enum Verify {
                let complaint = await brewComplaint(bundleID: recipe.bundleID, version: version) {
                 finding = finding.adding(warning: complaint)
             }
+            if let complaint = await rolloutTrackComplaint(recipe, source: source) {
+                finding = finding.adding(warning: complaint)
+            }
             return finding
         }
+    }
+
+    /// The one question a normal probe cannot answer for a recipe whose track is
+    /// picked by a value on disk: did we actually read that value, and is it
+    /// still deciding anything?
+    ///
+    /// Only the combination is worth reporting. Falling back while the vendor's
+    /// tracks are converged costs nothing — every value gets the same answer.
+    /// Falling back while they have SPLIT means we are on the cautious track by
+    /// accident, offering whatever that track holds to a machine whose own
+    /// updater may well be on the other one. That is the failure
+    /// `ChannelArtifactProof` describes for channel recipes, and it is otherwise
+    /// silent all the way through: the version resolves, the URL resolves, the
+    /// download is a real notarized build from the same vendor.
+    ///
+    /// Costs two extra requests, and only for recipes that declare a track.
+    private static func rolloutTrackComplaint(
+        _ recipe: VendorProbeRecipe, source: VendorProbeSource
+    ) async -> String? {
+        guard let track = recipe.track,
+              source.trackProvenance(recipe) == .fallback,
+              case .diverged(let ours, let contrast)? =
+                await source.rolloutTrackVerdict(recipe)
+        else { return nil }
+        return "rolloutTrackDefaulted: no value at \(track.selector.displayPath), so this"
+            + " machine is asking as `\(track.selector.fallback ?? "?")` while the vendor is"
+            + " serving two tracks (\(ours) vs \(contrast) for \(track.contrastTrackName))"
     }
 
     // MARK: - GitHub rules

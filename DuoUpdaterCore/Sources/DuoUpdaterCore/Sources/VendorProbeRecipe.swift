@@ -3956,6 +3956,32 @@ public enum VendorProbeRegistry {
         // and the tag is the release itself rather than a "best release" guess.
         // It stays detection-only either way — that is a property of upstream's
         // signature, not of the endpoint.
+
+        // MARK: - 2026-08-25 Longbridge Desktop
+
+        // Longbridge Desktop — the vendor's compact stable JSON is the same
+        // manifest used by its release-notes site. `version` matches the mounted
+        // app's CFBundleShortVersionString exactly (0.19.1); CFBundleVersion is a
+        // timestamp-like build (20260820.080114) and must not be compared.
+        //
+        // The response carries both macOS architectures. DuoUpdater currently
+        // runs this official-website install path on Apple Silicon, so the URL
+        // pattern is deliberately pinned to `macos-aarch64.dmg` instead of taking
+        // the first arbitrary dmg asset. Verified against the mounted 0.19.1
+        // artifact: com.longbridge.app.desktop, Team 45NG8MW7WK, accepted by
+        // Gatekeeper as Notarized Developer ID. The DMG is self-contained.
+        VendorProbeRecipe(
+            bundleID: "com.longbridge.app.desktop",
+            url: URL(string: "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/latest.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,4})""#,
+            downloadURL: URL(string: "https://longbridge.com/desktop/")!,
+            changelogURL: URL(string: "https://longbridge.com/desktop/release-notes/")!,
+            publishedAtPattern: #""published_at"\s*:\s*"([^"]+)""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/stable/longbridge-v[0-9.]+-macos-aarch64\.dmg)""#),
+                kind: .dmg)),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

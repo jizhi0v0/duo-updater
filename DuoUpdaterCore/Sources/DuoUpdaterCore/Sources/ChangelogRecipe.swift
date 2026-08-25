@@ -1859,6 +1859,25 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"<li>(?<item>.*?)</li>"#],
             channel: .stable,
             sourceTemplate: "https://blogs.opera.com/desktop/changelog-for-{major}/"),
+
+        // Longbridge Desktop — use the English per-version page rather than the
+        // compact latest.json notes: the page carries the richer release body and
+        // some releases interleave screenshots with their change lines. Stop at
+        // Downloads so installer links never become changelog items. Videos are
+        // intentionally skipped (the native changelog model supports images); the
+        // item boundary before <video> also keeps its browser-fallback text out.
+        ChangelogRecipe(
+            bundleID: "com.longbridge.app.desktop",
+            source: URL(string: "https://longbridge.com/desktop/release-notes/v0.19.1")!,
+            entryPattern:
+                #"<div[^>]*class="vp-doc[^"]*"[^>]*>\s*<div>\s*<h1[^>]*>\s*v?(?<version>[0-9]+(?:\.[0-9]+)+).*?</h1>\s*<p>\s*<em>\s*Release Date:\s*(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*</em>\s*</p>(?<body>.*?)(?=<h2[^>]*id="downloads")"#,
+            itemPatterns: [
+                #"<(?:li|p)\b[^>]*>(?<item>.*?)(?=<img\b|<video\b|</(?:li|p)>)"#,
+            ],
+            maxEntries: 1,
+            channel: .stable,
+            sourceTemplate: "https://longbridge.com/desktop/release-notes/v{version}",
+            imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

@@ -176,6 +176,9 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 - ✗ **Blender — Daily/Alpha/Beta** · 同 bundle id，builder.blender.org 滚动构建，无检测信号
 - ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）
 - ✗ **GitHub Desktop — Beta** · 同 `com.github.GitHubClient`，beta tag 是 prerelease，stable rule 已排除
+- ✗ **Longbridge Desktop — Preview** · 已停更，不再接入。2026-08-25 实包验证旧
+  `0.15.0-preview.0` 是独立 `com.longbridge.app.desktop.preview`，可准确检测为 `.preview`；
+  stable `com.longbridge.app.desktop` 已接 VendorProbe + changelog + arm64 一键安装，二者不会串轨。
 
 ### 2026-06-06 渠道扫描确认 — 单 channel / 无 detectable beta
 

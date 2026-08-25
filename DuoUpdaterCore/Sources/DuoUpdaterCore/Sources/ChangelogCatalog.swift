@@ -31,6 +31,10 @@ public enum ChangelogCatalog {
         // we still want an explicit fallback page when the lazy fetch/parser
         // misses or the update check hasn't populated a remote changelog URL yet.
         "app.chatwise": URL(string: "https://chatwise.app/changelog")!,
+        // Longbridge Desktop — the structured recipe follows the exact version
+        // page. Keep the English release-notes index as a web fallback while an
+        // update result or a freshly added recipe has not populated yet.
+        "com.longbridge.app.desktop": URL(string: "https://longbridge.com/desktop/release-notes/")!,
         // WhatsApp — iOS-on-Mac (kind=software); MAS source scrapes the Mac page
         // for version comparison, but `remote` may be nil at render time if the
         // check hasn't finished. This catalog entry ensures the Mac App Store page

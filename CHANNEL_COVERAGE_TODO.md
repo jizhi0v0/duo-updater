@@ -188,11 +188,8 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   **站点状态（下架 ≠ 停产，值得盯）**：`/desktop/release-notes/preview/` 返回 200 但版本列表被清空
   （stable 索引有 48 条链接，preview 零条），`/desktop/preview/` 是 404，`/desktop/` 下载页只挂 stable。
   每版说明页、CDN 清单、DMG 直链都还在。另外 preview 的 asset **不带 `sha256`**（stable 带），
-  是清单降级维护的信号。若 preview 真的停产，表现会是 `latest.json` 长期不动。
-  **注意这条没有自动兜底**：nightly recipe-verify workflow 已在 2026-08-14（`4ff9a90`）随仓库转公开
-  一起下线（它跑在以桌面用户身份运行的 self-hosted runner 上），最后一次实际执行是 2026-08-13。
-  workflow 文件还在本地磁盘上，但不在版本库里，GitHub 不会调度它。所以现在**任何** recipe 失效
-  ——不只是这条——都只能靠手动跑 `duo verify` 发现。
+  是清单降级维护的信号。若 preview 真的停产，表现会是 `latest.json` 长期不动 —— 由夜间 `duo verify`
+  全量扫描的版本停滞告警兜底，不需要提前拆 recipe。
 
 ### 2026-06-06 渠道扫描确认 — 单 channel / 无 detectable beta
 

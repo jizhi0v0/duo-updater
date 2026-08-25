@@ -47,6 +47,11 @@ public struct AuthorizationDeclinedError: LocalizedError {
 ///      failure leaves the original app fully intact rather than trashed-then-gone.
 public enum InPlaceSwap {
 
+    /// Held across the administrator panel in `privilegedReplace`, so two
+    /// installs running in parallel raise one panel after the other rather than
+    /// two at once. Nothing else takes it, so it cannot deadlock.
+    private static let elevationPanel = NSLock()
+
     /// Recover from a privileged swap (`privilegedReplace`) that was interrupted
     /// between its two renames: the installed app is then sitting at
     /// `<App>.app.duoupdater-old` while `<App>.app` itself is missing. Sweep
@@ -310,21 +315,42 @@ public enum InPlaceSwap {
         // not with the update — and refusing to install a verified build over an
         // ownership detail would be the worse trade. Interpolated as integers
         // straight from `stat`, so there is nothing quotable in them.
+        //
+        // Applied to the app *after* it is in place, not to `.duoupdater-new`
+        // before the renames. `recoverInterruptedSwaps` sweeps a stale
+        // `.duoupdater-new` unprivileged, with `try? removeItem` — so chowning the
+        // staged copy to root would leave a full-size leftover that the sweep
+        // silently cannot delete (EACCES on the first unlink inside a root-owned
+        // tree), stranded until the next privileged swap of that same app runs
+        // the leading `rm -rf`. Doing it last keeps the leftover ours to remove,
+        // and an interruption before the chown lands exactly the user-owned app
+        // that shipped before this existed — no worse than the status quo.
         let ownership: String = {
             let attrs = try? FileManager.default.attributesOfItem(atPath: target.path)
             guard let uid = (attrs?[.ownerAccountID] as? NSNumber)?.uint32Value,
                   let gid = (attrs?[.groupOwnerAccountID] as? NSNumber)?.uint32Value
             else { return "" }
-            return "/usr/sbin/chown -R \(uid):\(gid) \(new); "
+            return "/usr/sbin/chown -R \(uid):\(gid) \(tgt); "
         }()
         let shell = """
         /bin/rm -rf \(new) \(old); \
         /usr/bin/ditto \(src) \(new) && \
-        { \(ownership)/bin/mv \(tgt) \(old); } && \
+        /bin/mv \(tgt) \(old) && \
         { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt); false; }; } && \
-        /bin/rm -rf \(old)
+        { \(ownership)/bin/rm -rf \(old); }
         """
         let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
+
+        // One password panel at a time. The apply pool allows two concurrent
+        // swaps, and now that every root-owned bundle takes this path (28 apps in
+        // `/Applications` on the development machine, 22 of them store-installed)
+        // a batch can reach it twice at once — two system panels stacked over each
+        // other, neither saying which app it belongs to. Blocking here rather than
+        // making `replace` async is deliberate: the callers are synchronous, and
+        // the thread this parks was going to sit in `waitUntilExit` waiting on the
+        // same human anyway, so this moves the wait rather than adding one.
+        elevationPanel.lock()
+        defer { elevationPanel.unlock() }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")

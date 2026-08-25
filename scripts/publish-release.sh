@@ -235,13 +235,22 @@ import os, pathlib, sys
 sys.path.insert(0, os.path.join(os.environ["REPO_ROOT"], "scripts"))
 import appcast_edit
 
-new_text = pathlib.Path(os.environ["NEW_APPCAST"]).read_text()
+new_path = pathlib.Path(os.environ["NEW_APPCAST"])
+new_text = new_path.read_text()
 # A first publish into a fresh release repo has no published appcast to compare
 # against. Treated as an empty feed rather than crashed on — this used to raise
 # FileNotFoundError and report it as "appcast sanity check failed", after the
 # release had already been created.
 old_path = pathlib.Path(os.environ["OLD_APPCAST"])
 old_text = old_path.read_text() if old_path.exists() else ""
+
+# `--download-url-prefix` belongs to the release being published, but Sparkle
+# applies it to every archive it regenerates. Keep retained items pointed at the
+# release where their full archive actually lives; their newly cut patch URLs
+# deliberately stay under this release, where the script uploads those patches.
+new_text = appcast_edit.restore_archive_urls(old_text, new_text)
+new_path.write_text(new_text)
+
 size = pathlib.Path(os.environ["ASSET_ZIP"]).stat().st_size
 
 problems = appcast_edit.check_regenerated(

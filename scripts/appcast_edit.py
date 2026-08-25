@@ -162,6 +162,87 @@ def archive_signatures(text):
     return out
 
 
+def archive_urls(text):
+    """`(short, build)` -> the URL of each item's own full archive.
+
+    `generate_appcast --download-url-prefix` applies the NEW release's prefix to
+    every archive present in its input directory, including historical ones. It
+    therefore rewrites (for example) 0.3.61's enclosure from the v0.3.61 release
+    to a nonexistent asset under v0.3.62. Patch URLs may legitimately move to the
+    release that generated and uploads them; only the top-level archive is stable.
+    """
+    out = {}
+    masked = _mask_cdata(text)
+    for match in _ITEM.finditer(masked):
+        body = text[match.start():match.end()]
+        masked_body = masked[match.start():match.end()]
+        identity = _item_identity(masked_body)
+        enclosure = _archive_enclosure(masked_body)
+        if identity is not None and enclosure is not None:
+            out[identity] = body[enclosure.start(1):enclosure.end(1)]
+    return out
+
+
+def restore_archive_urls(old_text, new_text):
+    """Put retained items' already-published archive URLs back after generation.
+
+    The new item has no entry in `old_text` and is left alone. Existing items keep
+    their original release URL while retaining newly generated delta enclosures.
+    Spans come from same-length masks, so CDATA or a nested patch enclosure cannot
+    make a replacement land on release notes or on a delta URL.
+    """
+    old = archive_urls(old_text)
+    masked = _mask_cdata(new_text)
+    out = []
+    cursor = 0
+    for match in _ITEM.finditer(masked):
+        masked_body = masked[match.start():match.end()]
+        identity = _item_identity(masked_body)
+        enclosure = _archive_enclosure(masked_body)
+        wanted = old.get(identity)
+        if wanted is None or enclosure is None:
+            continue
+        start = match.start() + enclosure.start(1)
+        end = match.start() + enclosure.end(1)
+        out.append(new_text[cursor:start])
+        out.append(wanted)
+        cursor = end
+    out.append(new_text[cursor:])
+    return "".join(out)
+
+
+def _item_identity(item):
+    short = re.search(
+        r"<sparkle:shortVersionString>\s*([^<\s]+)\s*</sparkle:shortVersionString>", item)
+    build = re.search(r"<sparkle:version>\s*([^<\s]+)\s*</sparkle:version>", item)
+    if not (short or build):
+        return None
+    return (short.group(1) if short else None, build.group(1) if build else None)
+
+
+def _archive_enclosure(masked_item):
+    # Preserve offsets while hiding patch enclosures carrying the same tag name.
+    release_only = _DELTAS.sub(
+        lambda match: "\x00" * (match.end() - match.start()), masked_item)
+    return re.search(r'<enclosure\b[^>]*\surl="([^"]+)"', release_only)
+
+
+def check_archive_urls_unchanged(old_text, new_text):
+    """Complaints about retained entries whose full-download URL moved."""
+    old = archive_urls(old_text)
+    new = archive_urls(new_text)
+    problems = []
+    for entry, was in old.items():
+        now = new.get(entry)
+        if now is not None and now != was:
+            short, build = entry
+            problems.append(
+                f"the regenerated appcast moved the archive URL of {short or '?'}"
+                f" ({build or '?'}) from {was} to {now} — historical archives live"
+                " under their own release tags, so the rewritten URL would be a 404")
+    return problems
+
+
 def check_signatures_unchanged(old_text, new_text):
     """Complaints about already-published items whose archive signature moved.
 
@@ -240,6 +321,7 @@ def check_regenerated(old_text, new_text, want, build, asset_size, cap):
                 " signature describe different bytes")
 
     problems.extend(check_signatures_unchanged(old_text, new_text))
+    problems.extend(check_archive_urls_unchanged(old_text, new_text))
 
     expected = min(len(dict.fromkeys(old + [(want, build)])), cap)
     lost = [entry for entry in old if entry not in new]

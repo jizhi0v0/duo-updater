@@ -369,5 +369,58 @@ class ArchiveSignatureTests(unittest.TestCase):
         self.assertEqual(ae.check_signatures_unchanged(old, new), [])
 
 
+class ArchiveURLTests(unittest.TestCase):
+    """Historical full archives live under their own GitHub release tag.
+
+    `generate_appcast` rewrites them all to the newest `--download-url-prefix`;
+    v0.3.62 shipped exactly that shape and the retained archive URLs returned
+    404. Delta URLs are different: they are uploaded with the release that cuts
+    them and must keep the newly generated prefix.
+    """
+
+    def test_reads_the_archive_url_not_a_patchs(self):
+        text = feed(signed_item(
+            "0.3.61", "70", "ARCHIVE", deltas=[("69", "PATCH")]))
+        self.assertEqual(
+            ae.archive_urls(text),
+            {("0.3.61", "70"): "https://example/0.3.61.zip"})
+
+    def test_restores_a_retained_archive_and_keeps_new_patch_urls(self):
+        old = feed(signed_item("0.3.61", "70", "SAME"))
+        regenerated = feed(signed_item(
+            "0.3.62", "71", "NEW"),
+            signed_item("0.3.61", "70", "SAME", deltas=[("69", "PATCH")])
+        ).replace(
+            "https://example/0.3.61.zip", "https://new-release/0.3.61.zip"
+        ).replace(
+            "https://example/70-69.delta", "https://new-release/70-69.delta"
+        )
+
+        restored = ae.restore_archive_urls(old, regenerated)
+
+        self.assertEqual(
+            ae.archive_urls(restored)[("0.3.61", "70")],
+            "https://example/0.3.61.zip")
+        self.assertIn("https://new-release/70-69.delta", restored)
+        self.assertEqual(
+            ae.archive_urls(restored)[("0.3.62", "71")],
+            "https://example/0.3.62.zip")
+
+    def test_regeneration_check_refuses_a_moved_historical_archive(self):
+        old = feed(signed_item("0.3.61", "70", "SAME"))
+        moved = old.replace(
+            "https://example/0.3.61.zip", "https://new-release/0.3.61.zip")
+        problems = ae.check_archive_urls_unchanged(old, moved)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("would be a 404", problems[0])
+
+    def test_a_new_item_has_no_historical_url_to_preserve(self):
+        old = feed(signed_item("0.3.61", "70", "SAME"))
+        new = feed(
+            signed_item("0.3.62", "71", "NEW"),
+            signed_item("0.3.61", "70", "SAME"))
+        self.assertEqual(ae.restore_archive_urls(old, new), new)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -49,7 +49,7 @@
             <sparkle:shortVersionString>0.3.61</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.61-macos.zip" length="11055079" type="application/octet-stream" sparkle:edSignature="GiWxGsliVNeOXwkYYCBP+Ys7BKVO/hKOa/JU9SU5NUyV/WF3zVqo9FS0Qo7NMmKaZbnqmMW+Mwh/yrRRmCF9CA=="/>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.61/DuoUpdater-0.3.61-macos.zip" length="11055079" type="application/octet-stream" sparkle:edSignature="GiWxGsliVNeOXwkYYCBP+Ys7BKVO/hKOa/JU9SU5NUyV/WF3zVqo9FS0Qo7NMmKaZbnqmMW+Mwh/yrRRmCF9CA=="/>
         </item>
         <item>
             <title>0.3.60</title>
@@ -59,7 +59,7 @@
             <sparkle:shortVersionString>0.3.60</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.60-macos.zip" length="11040209" type="application/octet-stream" sparkle:edSignature="/Q8F+WL9mfeGTa8qOYKPvdSfhPx19ahvmNZ8BAWvbWqVbxq5g8PJj6lo1H7BIYHpd1SUPAoAPlQVvJTvbaqVBA=="/>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.60/DuoUpdater-0.3.60-macos.zip" length="11040209" type="application/octet-stream" sparkle:edSignature="/Q8F+WL9mfeGTa8qOYKPvdSfhPx19ahvmNZ8BAWvbWqVbxq5g8PJj6lo1H7BIYHpd1SUPAoAPlQVvJTvbaqVBA=="/>
         </item>
         <item>
             <title>0.3.59</title>
@@ -69,7 +69,7 @@
             <sparkle:shortVersionString>0.3.59</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.59-macos.zip" length="11035355" type="application/octet-stream" sparkle:edSignature="ouoRn+JiodkO/aKL/USA1SBNvpk+Jhitn0r9qcVsurZAjhj1OzTMOcM10vGKe5EyMz9KmJqRSZ6DEECgEJKYAQ=="/>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.59/DuoUpdater-0.3.59-macos.zip" length="11035355" type="application/octet-stream" sparkle:edSignature="ouoRn+JiodkO/aKL/USA1SBNvpk+Jhitn0r9qcVsurZAjhj1OzTMOcM10vGKe5EyMz9KmJqRSZ6DEECgEJKYAQ=="/>
         </item>
         <item>
             <title>0.3.58</title>
@@ -79,7 +79,7 @@
             <sparkle:shortVersionString>0.3.58</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.58-macos.zip" length="11032758" type="application/octet-stream" sparkle:edSignature="xG4PUJBc5t2HTw2X+XSgOnyLWKKEb/HgABjO3T6NNAxeQN0hrBP+1DSz9G4WT429twG9/3jU4tjomCVR9tf1AA=="/>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.58/DuoUpdater-0.3.58-macos.zip" length="11032758" type="application/octet-stream" sparkle:edSignature="xG4PUJBc5t2HTw2X+XSgOnyLWKKEb/HgABjO3T6NNAxeQN0hrBP+1DSz9G4WT429twG9/3jU4tjomCVR9tf1AA=="/>
         </item>
     </channel>
 </rss>

@@ -1866,9 +1866,21 @@ public enum ChangelogRecipeRegistry {
         // Downloads so installer links never become changelog items. Videos are
         // intentionally skipped (the native changelog model supports images); the
         // item boundary before <video> also keeps its browser-fallback text out.
+        // The path serves English with no locale prefix and does NOT content-
+        // negotiate (verified under `Accept-Language: zh-CN` and `zh-HK`), so the
+        // literal `Release Date:` anchor is stable for every user.
+        //
+        // `source` is the releases INDEX, used only when no version is supplied.
+        // It must not be a per-version page: that page parses perfectly, so the
+        // no-version fallback would render one pinned release's notes as if they
+        // described whatever build the user actually has. The index carries no
+        // `Release Date:` block, so it correctly yields nothing and the UI falls
+        // back to the embedded web page — which is the same assumption
+        // `Verify.sweepChangelog` relies on when it skips version-templated
+        // recipes that have no version to resolve.
         ChangelogRecipe(
             bundleID: "com.longbridge.app.desktop",
-            source: URL(string: "https://longbridge.com/desktop/release-notes/v0.19.1")!,
+            source: URL(string: "https://longbridge.com/desktop/release-notes/")!,
             entryPattern:
                 #"<div[^>]*class="vp-doc[^"]*"[^>]*>\s*<div>\s*<h1[^>]*>\s*v?(?<version>[0-9]+(?:\.[0-9]+)+).*?</h1>\s*<p>\s*<em>\s*Release Date:\s*(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*</em>\s*</p>(?<body>.*?)(?=<h2[^>]*id="downloads")"#,
             itemPatterns: [
@@ -1877,6 +1889,33 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 1,
             channel: .stable,
             sourceTemplate: "https://longbridge.com/desktop/release-notes/v{version}",
+            imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#),
+
+        // Longbridge Desktop Preview — separate bundle id, separate URL subtree
+        // (`/release-notes/preview/v<version>`), same page structure as stable.
+        //
+        // The version group REQUIRES the `-preview.N` suffix. Reusing stable's
+        // group here would be a silent mis-read rather than a miss: on this page
+        // it matches and stops at `0.19.0`, dropping the suffix, so the pane would
+        // label a preview build with the stable version number it is not. Anchored
+        // this way the two patterns are mutually exclusive — verified in both
+        // directions against the live pages.
+        //
+        // `source` is the preview index. The vendor currently renders it EMPTY
+        // (see the VendorProbeRecipe comment), which makes it a correct no-version
+        // fallback for the same reason stable's index is: it yields nothing and
+        // the UI embeds the page instead of inventing an entry.
+        ChangelogRecipe(
+            bundleID: "com.longbridge.app.desktop.preview",
+            source: URL(string: "https://longbridge.com/desktop/release-notes/preview/")!,
+            entryPattern:
+                #"<div[^>]*class="vp-doc[^"]*"[^>]*>\s*<div>\s*<h1[^>]*>\s*v?(?<version>[0-9]+(?:\.[0-9]+)+-preview\.[0-9]+).*?</h1>\s*<p>\s*<em>\s*Release Date:\s*(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*</em>\s*</p>(?<body>.*?)(?=<h2[^>]*id="downloads")"#,
+            itemPatterns: [
+                #"<(?:li|p)\b[^>]*>(?<item>.*?)(?=<img\b|<video\b|</(?:li|p)>)"#,
+            ],
+            maxEntries: 1,
+            channel: .preview,
+            sourceTemplate: "https://longbridge.com/desktop/release-notes/preview/v{version}",
             imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#),
     ]
 

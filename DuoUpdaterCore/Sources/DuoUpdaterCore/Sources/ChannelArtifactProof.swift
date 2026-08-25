@@ -123,6 +123,15 @@ public enum ChannelProofRegistry {
         // 2026-08-09). The channel tag the patterns are anchored to is the proof.
         ChannelProofKey("dev.kdrag0n.MacVirt", .beta): .recipeAnchor(#"<sparkle:channel>beta"#),
         ChannelProofKey("dev.kdrag0n.MacVirt", .canary): .recipeAnchor(#"<sparkle:channel>canary"#),
+        // Longbridge splits the two trains by CDN path — `/longbridge-desktop/
+        // preview/` vs `/stable/` — and the artifact filename carries the
+        // `-preview.N` suffix on top of that, so the URL names the channel twice.
+        // Unusually for a copied-from-stable recipe, the two manifests cannot even
+        // match each other's version pattern (stable's requires a closing quote
+        // straight after the numeric version; preview's requires the suffix), so a
+        // cross-train resolve fails closed rather than silently succeeding.
+        ChannelProofKey("com.longbridge.app.desktop.preview", .preview):
+            .artifact(#"/longbridge-desktop/preview/"#),
     ]
 
     /// Every `(bundleID, channel)` in the vendor registry that carries an install

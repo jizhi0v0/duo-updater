@@ -17,6 +17,33 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.63</title>
+            <pubDate>Tue, 25 Aug 2026 14:08:57 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.63</link>
+            <sparkle:version>72</sparkle:version>
+            <sparkle:shortVersionString>0.3.63</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Architecture-specific updates now choose the build this Mac can actually run.** A few apps publish the same version twice in one Sparkle feed — once for Apple silicon and once for Intel — and Duo Updater used to break that tie by whichever download address happened to sort first. It now reads the feed's hardware requirement and, where a vendor leaves that blank, the architecture in the filename. The native build wins consistently, and a build this Mac cannot launch is not offered. GitHub releases get the same treatment, without calling a perfectly healthy recipe broken just because its newest artifact targets another architecture.
+
+**ChatGPT update checks now follow the rollout track attached to the account.** OpenAI sometimes holds business and enterprise accounts on an earlier desktop build while a new one reaches consumer accounts first. Duo Updater used to omit the account's plan from that check, which silently selected the cautious track for everyone: it could say the installed copy was somehow ahead while ChatGPT itself was already downloading a newer build, or offer a build the app's own updater would replace again. It now sends the plan label from the ChatGPT/Codex sign-in state with the same update request the app makes. If that label is unavailable it keeps the cautious behavior; credentials themselves are never put into the request or diagnostics.
+
+**A relaunch that macOS never answers can no longer wedge every later update.** Launch Services occasionally accepts a request to reopen an updated app and then never calls back. The row stayed on “Relaunching…” forever, its Restart button remained disabled, and Duo Updater's own update waited behind it. A launch that has not answered after a minute is now released as failed, so the row recovers and the rest of the updater keeps working.
+
+**Release Log stays populated when its scrollbar is dragged quickly.** The old lazy stack could be outrun by a long jump, briefly leaving a blank window while rows were created around the new position. The log now uses a recycling list that can jump directly to the destination. The refresh control also keeps the same footprint while changing between its arrow and spinner, so the bottom row no longer twitches when a check starts.
+
+**Download Traffic now marks updates that used a binary patch.** New downloads record the route that actually completed — not merely whether a patch was offered — and carry a Delta badge in their history. The unmistakably smaller patch downloads from 0.3.62 are recognised too, even though they were recorded before the traffic ledger had a route field.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater-0.3.63-macos.zip" length="11715438" type="application/octet-stream" sparkle:edSignature="356UWatcsxcVwOYAllBqzDAMkTgHIOJY29muuhiMD0jr4e6Qj47b6dRPh6b9QTnlO6ecAz3TsHGpj6+QIUJ1DA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-71.delta" sparkle:deltaFrom="71" length="574338" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Ew1tu68nTMK/7dlNiyLLiQpz7zBii4Imn/1GflYDTtGPXmrpz91NHpAj7GpNgPJphTg7iUcKRROjwmMZiuFqAg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-70.delta" sparkle:deltaFrom="70" length="1091254" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="FIAAXni1ox9LRYGs94xPENn+GQKsvP13rzMqf3ZDs88mZLxbKuj6P5k4Yo02hUkHaCT5Fotlinh2AzkYY9nIBw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-69.delta" sparkle:deltaFrom="69" length="1134286" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="F/FnfRR4yeqOrhLmGjMX/hXimLm1LHWSDZXr00QrwTIBrko5Py6yTIR5x8ikVIW8a97tqzIukburxS+oGTXVAw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-68.delta" sparkle:deltaFrom="68" length="1148166" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="TaBUUtFUP2Qd+DDKjcSErsX0dwPI8qqNMOHTQG34OArzaI/a+SSDwuAA7VQXcNAYy8r5XvJQgelDYue+tqKrAg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-67.delta" sparkle:deltaFrom="67" length="1154530" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="raf3v/WIHXpTmIj4WyxsVOVCbbi7813iawXEb3RRP3uAz5XfC+SCmeK6XKU8LayVTV/veBmJCxXxK7jX6hURDQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.62</title>
             <pubDate>Mon, 24 Aug 2026 02:56:19 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.62</link>
@@ -24,14 +51,6 @@
             <sparkle:shortVersionString>0.3.62</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Updates now download only what changed, when the developer publishes it that way.** Some apps ship a small patch alongside each release — enough to turn the version you have into the new one, without fetching the whole thing again. Duo Updater used to ignore those and download the full package every time. It now takes the patch when one matches the exact build you're on. ChatGPT's last update came to 1.9 MB instead of 605 MB; Docker's to 87 MB instead of 582 MB. The result is the identical application either way — same signature, same bytes, verified against the full download before this shipped. When no patch fits what you have, or one fails to apply, the full download happens as before, so nothing can fail to install because of this.
-
-**Duo Updater no longer downloads an update an app is already downloading itself.** Many apps update themselves as well, and both of us reaching for the same 600 MB file at the same time cost you that file twice. Duo Updater now notices a download in progress and leaves it alone, saying so on the row rather than doing nothing silently. If that download turns out to be abandoned, it stops counting after ten minutes so nothing stays blocked.
-
-**An update an app has already prepared is no longer overwritten.** Apps that update themselves often download in the background and then wait for you to quit them before swapping the new version in. Installing over one of those looked like it worked and then came undone the moment you quit the app — and where the app's own pending version was older than what Duo Updater had just installed, you ended up further behind than when you started. Those updates are now left to finish, whichever version they carry.
-
-**Duo Updater's own updates got smaller too.** Its releases now ship the same kind of patch, so updating from a recent version fetches a few hundred kilobytes instead of eleven megabytes.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater-0.3.62-macos.zip" length="11679057" type="application/octet-stream" sparkle:edSignature="1D62P87Z2k6ZdpqEdXwplWg3IrJrr67KbIMKPjGi4pjYqgVWKfxDCXmqcWdIRCsuktCbPpXjkCSzdtp6pYKgBQ=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.62/DuoUpdater71-70.delta" sparkle:deltaFrom="70" length="919554" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="HtGSxvKmQWrdrvuH1HQqr7bN3HEO/I4yayh/ZttTe3IPjN32R8TJSV3MhVcSCPKidHbsDGAVSz7LK8ukMz1rAg=="/>
@@ -70,16 +89,6 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.59/DuoUpdater-0.3.59-macos.zip" length="11035355" type="application/octet-stream" sparkle:edSignature="ouoRn+JiodkO/aKL/USA1SBNvpk+Jhitn0r9qcVsurZAjhj1OzTMOcM10vGKe5EyMz9KmJqRSZ6DEECgEJKYAQ=="/>
-        </item>
-        <item>
-            <title>0.3.58</title>
-            <pubDate>Sun, 23 Aug 2026 16:06:05 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.58</link>
-            <sparkle:version>67</sparkle:version>
-            <sparkle:shortVersionString>0.3.58</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.58/DuoUpdater-0.3.58-macos.zip" length="11032758" type="application/octet-stream" sparkle:edSignature="xG4PUJBc5t2HTw2X+XSgOnyLWKKEb/HgABjO3T6NNAxeQN0hrBP+1DSz9G4WT429twG9/3jU4tjomCVR9tf1AA=="/>
         </item>
     </channel>
 </rss>

@@ -66,6 +66,25 @@ public actor InstallCoordinator {
         /// Whether the new version is on disk now. False for `.installer`, where
         /// the user still has a window to click through.
         public let applied: Bool
+        /// True only when a Sparkle binary patch was actually applied. Merely
+        /// publishing a matching patch is not enough: a failed delta route retries
+        /// the full archive and reports false, so the traffic ledger records what
+        /// happened rather than what the feed offered.
+        public let usedDelta: Bool
+
+        public init(
+            bytesDownloaded: Int64,
+            finalHost: String?,
+            stagedPackageURL: URL?,
+            applied: Bool,
+            usedDelta: Bool = false
+        ) {
+            self.bytesDownloaded = bytesDownloaded
+            self.finalHost = finalHost
+            self.stagedPackageURL = stagedPackageURL
+            self.applied = applied
+            self.usedDelta = usedDelta
+        }
     }
 
     /// How many downloads and applies may run at once. Shared by both hosts, but
@@ -310,7 +329,8 @@ public actor InstallCoordinator {
             bytesDownloaded: outcome.bytesDownloaded + extra,
             finalHost: outcome.finalHost,
             stagedPackageURL: outcome.stagedPackageURL,
-            applied: outcome.applied)
+            applied: outcome.applied,
+            usedDelta: outcome.usedDelta)
     }
 
     /// Source-specific proof over a package route's original download. A Sparkle
@@ -377,6 +397,7 @@ public actor InstallCoordinator {
 
         return Outcome(
             bytesDownloaded: downloaded.bytesDownloaded, finalHost: downloaded.finalHost,
-            stagedPackageURL: nil, applied: true)
+            stagedPackageURL: nil, applied: true,
+            usedDelta: downloaded.appliedPatch != nil)
     }
 }

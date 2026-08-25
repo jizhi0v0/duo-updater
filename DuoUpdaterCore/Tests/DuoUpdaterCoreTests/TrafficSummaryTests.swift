@@ -357,5 +357,61 @@ private func build(_ from: String?, _ to: String?,
     #expect(event.bytes == 50_755_741)
     #expect(event.fromBuild == nil)
     #expect(event.toBuild == nil)
+    #expect(event.downloadKind == nil)
     #expect(event.versionSides.to == "6.9.0")
+}
+
+private func legacyDeltaStat(
+    bundleID: String? = "com.openai.codex",
+    source: String = "Vendor",
+    latestBytes: Int64 = 1_900_000,
+    latestDate: Date = Date(timeIntervalSince1970: 1_787_557_600),
+    exactKind: TrafficDownloadKind? = nil
+) -> (AppTrafficStat, TrafficEvent) {
+    let full = TrafficEvent(
+        date: Date(timeIntervalSince1970: 1_787_400_000),
+        fromVersion: "1", toVersion: "2", sourceName: source, bytes: 605_000_000)
+    let latest = TrafficEvent(
+        date: latestDate,
+        fromVersion: "2", toVersion: "3", sourceName: source, bytes: latestBytes,
+        downloadKind: exactKind)
+    return (AppTrafficStat(
+        appID: "/Applications/Test.app", appName: "Test", bundleID: bundleID,
+        totalBytes: full.bytes + latest.bytes, events: [full, latest]), latest)
+}
+
+/// 0.3.62 was already public before the route key existed. Its unmistakable
+/// 1.9 MB vs 605 MB event remains visible as a delta instead of becoming the one
+/// successful use of the feature that the ledger cannot name.
+@Test func infersTheLegacyPointThreeSixtyTwoDelta() {
+    let (stat, event) = legacyDeltaStat()
+    #expect(stat.deltaEvidence(for: event) == .inferred)
+}
+
+@Test func legacyInferenceStartsAtThePublicReleaseNotTheCommit() {
+    let beforeRelease = Date(timeIntervalSince1970:
+        AppTrafficStat.deltaFeaturePublishedAt.timeIntervalSince1970 - 1)
+    let (stat, event) = legacyDeltaStat(latestDate: beforeRelease)
+    #expect(stat.deltaEvidence(for: event) == nil)
+}
+
+@Test func legacyInferenceRequiresAnEligibleSourceAndARealSizeCliff() {
+    let (plainVendor, vendorEvent) = legacyDeltaStat(bundleID: "com.example.plain")
+    #expect(plainVendor.deltaEvidence(for: vendorEvent) == nil)
+
+    let (smallSaving, smallEvent) = legacyDeltaStat(latestBytes: 500_000_000)
+    #expect(smallSaving.deltaEvidence(for: smallEvent) == nil)
+
+    let (sparkle, sparkleEvent) = legacyDeltaStat(bundleID: "anything", source: "Sparkle")
+    #expect(sparkle.deltaEvidence(for: sparkleEvent) == .inferred)
+}
+
+@Test func exactTrafficKindAlwaysBeatsLegacyInference() {
+    let (full, fullEvent) = legacyDeltaStat(exactKind: .full)
+    #expect(full.deltaEvidence(for: fullEvent) == nil)
+
+    let (delta, deltaEvent) = legacyDeltaStat(
+        bundleID: "com.example.plain", source: "GitHub", latestBytes: 500_000_000,
+        exactKind: .delta)
+    #expect(delta.deltaEvidence(for: deltaEvent) == .recorded)
 }

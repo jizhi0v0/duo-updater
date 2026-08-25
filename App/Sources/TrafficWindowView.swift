@@ -488,6 +488,15 @@ private struct TrafficRow: View {
                             .background(TrafficWindowView.color(forSource: source).opacity(0.13),
                                         in: RoundedRectangle(cornerRadius: 4))
                     }
+                    if let evidence = stat.deltaEvidence(for: event) {
+                        Text("Delta")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.blue)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Color.blue.opacity(0.13),
+                                        in: RoundedRectangle(cornerRadius: 4))
+                            .help(deltaHelp(evidence))
+                    }
                     Text(Self.eventStamp.string(from: event.date))
                         .font(.system(size: 11)).monospacedDigit()
                         .foregroundStyle(.secondary)
@@ -518,6 +527,15 @@ private struct TrafficRow: View {
         case let (nil, to?):   return to
         case let (from?, nil): return from
         case (nil, nil):       return String(localized: "Update")
+        }
+    }
+
+    private func deltaHelp(_ evidence: AppTrafficStat.DeltaEvidence) -> String {
+        switch evidence {
+        case .recorded:
+            return String(localized: "This update used a Sparkle delta patch.")
+        case .inferred:
+            return String(localized: "Likely a delta update based on its much smaller download. This event predates delta-route tracking.")
         }
     }
 

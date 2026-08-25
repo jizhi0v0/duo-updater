@@ -913,7 +913,8 @@ final class AppListModel {
     ///   install started. Passed in rather than read here because by now the swap
     ///   has already happened and the bundle carries the new build.
     private func recordTraffic(
-        _ result: UpdateResult, bytes: Int64, applied: Bool, fromBuild: String?
+        _ result: UpdateResult, bytes: Int64, applied: Bool, fromBuild: String?,
+        usedDelta: Bool
     ) async {
         // The build actually landed on beats the one the source advertised: feeds
         // do misreport (a static appcast overridden by a backend list, a lagging
@@ -938,7 +939,8 @@ final class AppListModel {
             // these. Both sides are measured off the same bundle, one before the
             // install and one after.
             fromBuild: fromBuild,
-            toBuild: toBuild
+            toBuild: toBuild,
+            downloadKind: usedDelta ? .delta : .full
         )
         await refreshTrafficStats()
     }
@@ -2288,7 +2290,7 @@ final class AppListModel {
                 recordEffectiveHost(result, finalHost: outcome.finalHost)
                 await recordTraffic(
                     result, bytes: outcome.bytesDownloaded, applied: outcome.applied,
-                    fromBuild: fromBuild)
+                    fromBuild: fromBuild, usedDelta: outcome.usedDelta)
                 if let packageURL = outcome.stagedPackageURL {
                     // pkg casks: the actual install happens in macOS's installer
                     // under the user's control, so we don't mark it up to date —

@@ -24,6 +24,18 @@ private func tempFileURL() -> URL {
     #expect(stat?.events.first?.bytes == 1_234_567)
     #expect(stat?.events.first?.fromVersion == "1.0")
     #expect(stat?.events.first?.toVersion == "1.1")
+    #expect(stat?.events.first?.downloadKind == .full)
+}
+
+@Test func recordsTheExactDeltaRoute() async {
+    let store = TrafficStore(fileURL: tempFileURL())
+    await store.record(
+        appID: "/Applications/Patched.app", appName: "Patched", bundleID: "com.patched",
+        fromVersion: "1.0", toVersion: "1.1", sourceName: "Sparkle", bytes: 1_900_000,
+        downloadKind: .delta
+    )
+    let event = await store.stat(forAppID: "/Applications/Patched.app")?.events.first
+    #expect(event?.downloadKind == .delta)
 }
 
 @Test func accumulatesMultipleDownloadsToTheByte() async {

@@ -6195,6 +6195,47 @@
         }
       }
     },
+    "Delta": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delta"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delta"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差分"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дельта"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增量"
+          }
+        }
+      }
+    },
     "Defer to the app’s own updater while it’s running": {
       "extractionState": "manual",
       "localizations": {
@@ -9747,6 +9788,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "将通过 GitHub Releases 追踪的应用的匿名请求限制从每小时 60 次提升到 5000 次。当 gh CLI 已登录时，此字段会自动填充，因此为可选项。只读（公共仓库）令牌即可。"
+          }
+        }
+      }
+    },
+    "Likely a delta update based on its much smaller download. This event predates delta-route tracking.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wahrscheinlich ein Delta-Update, da der Download deutlich kleiner ist. Dieses Ereignis stammt aus der Zeit vor der Erfassung des Delta-Pfads."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Probablemente fue una actualización delta porque la descarga es mucho menor. Este evento es anterior al registro de la ruta delta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Probablement une mise à jour delta, car le téléchargement est nettement plus petit. Cet événement est antérieur au suivi de la voie delta."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードが大幅に小さいため、デルタ更新と推定されます。この記録はデルタ経路の追跡開始前のものです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вероятно, это дельта-обновление: объём загрузки значительно меньше. Событие записано до появления учёта дельта-маршрута."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "根据明显更小的下载量推测这是一次增量更新。此记录早于增量路径统计。"
           }
         }
       }
@@ -15617,6 +15699,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "你正在运行的版本"
+          }
+        }
+      }
+    },
+    "This update used a Sparkle delta patch.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Update verwendete einen Sparkle-Deltapatch."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta actualización utilizó un parche delta de Sparkle."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette mise à jour a utilisé un correctif delta Sparkle."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この更新では Sparkle のデルタパッチを使用しました。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этого обновления использовался дельта-патч Sparkle."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此次更新使用了 Sparkle 增量补丁。"
           }
         }
       }

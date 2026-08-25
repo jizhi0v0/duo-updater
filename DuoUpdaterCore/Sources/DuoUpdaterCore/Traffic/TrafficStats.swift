@@ -1,5 +1,13 @@
 import Foundation
 
+/// How the bytes in one traffic event were fetched. Optional on `TrafficEvent`
+/// because traffic.json predates delta-route accounting; every new event records
+/// one of these explicitly.
+public enum TrafficDownloadKind: String, Codable, Sendable, Hashable {
+    case full
+    case delta
+}
+
 /// One recorded download for an app — the bytes pulled over the network for a
 /// single update install, with the version transition and source that produced
 /// it. The atomic unit behind the per-app totals.
@@ -24,6 +32,9 @@ public struct TrafficEvent: Codable, Sendable, Hashable {
     /// Build version the update moved to (a source's own canonical comparison key:
     /// Sparkle's `sparkle:version`), when known.
     public let toBuild: String?
+    /// Exact route used for this completed download. Nil only for events written
+    /// before the release after 0.3.62 began persisting the route.
+    public let downloadKind: TrafficDownloadKind?
 
     public init(
         date: Date,
@@ -32,7 +43,8 @@ public struct TrafficEvent: Codable, Sendable, Hashable {
         sourceName: String?,
         bytes: Int64,
         fromBuild: String? = nil,
-        toBuild: String? = nil
+        toBuild: String? = nil,
+        downloadKind: TrafficDownloadKind? = nil
     ) {
         self.date = date
         self.fromVersion = fromVersion
@@ -41,6 +53,7 @@ public struct TrafficEvent: Codable, Sendable, Hashable {
         self.bytes = bytes
         self.fromBuild = fromBuild
         self.toBuild = toBuild
+        self.downloadKind = downloadKind
     }
 }
 
@@ -117,6 +130,69 @@ public struct AppTrafficStat: Codable, Sendable, Hashable, Identifiable {
         self.bundleID = bundleID
         self.totalBytes = totalBytes
         self.events = events
+    }
+
+    /// Whether an event is known to be a delta, or can be conservatively inferred
+    /// as the one legacy delta release (0.3.62) that shipped before the ledger grew
+    /// `downloadKind`. Exact metadata always wins; `.full` is never second-guessed.
+    public func deltaEvidence(for event: TrafficEvent) -> DeltaEvidence? {
+        switch event.downloadKind {
+        case .delta: return .recorded
+        case .full: return nil
+        case nil: break
+        }
+
+        guard event.date >= Self.deltaFeaturePublishedAt,
+              Self.deltaCapableLegacySource(event.sourceName, bundleID: bundleID)
+        else { return nil }
+
+        // Only releases completed before 0.3.62 shipped can establish the full-
+        // archive baseline. That keeps later deltas from lowering their own median
+        // and scopes the guess to the sole already-published version lacking a key.
+        let baseline = events
+            .filter {
+                $0.date < Self.deltaFeaturePublishedAt
+                    && $0.bytes > 0
+                    && $0.sourceName == event.sourceName
+            }
+            .map(\.bytes)
+            .sorted()
+        guard !baseline.isEmpty else { return nil }
+        let typical = baseline[baseline.count / 2]
+
+        // Both a relative and an absolute cliff: 1.9 MB vs 605 MB and 87 MB vs
+        // 582 MB qualify; an ordinary archive-size wobble or a tiny app does not.
+        guard event.bytes <= typical / 4,
+              typical - event.bytes >= 50_000_000
+        else { return nil }
+        return .inferred
+    }
+
+    public enum DeltaEvidence: Sendable, Equatable {
+        case recorded
+        case inferred
+    }
+
+    /// v0.3.62's public appcast timestamp: Mon, 24 Aug 2026 02:56:19 +0800.
+    /// It is the first public build that could have produced a delta traffic event.
+    static let deltaFeaturePublishedAt = Date(timeIntervalSince1970: 1_787_511_379)
+
+    private static let vendorDeltaBundleIDs: Set<String> = [
+        "com.openai.codex",
+        "com.docker.docker",
+        "com.brave.Browser.beta",
+        "com.brave.Browser.nightly",
+        "com.vivaldi.Vivaldi.snapshot",
+        "dev.kdrag0n.MacVirt",
+        "com.macpaw.site.theunarchiver",
+        "com.kagi.kagimacOS",
+    ]
+
+    private static func deltaCapableLegacySource(
+        _ source: String?, bundleID: String?
+    ) -> Bool {
+        if source == "Sparkle" { return true }
+        return source == "Vendor" && bundleID.map(vendorDeltaBundleIDs.contains) == true
     }
 }
 

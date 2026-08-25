@@ -81,22 +81,26 @@ struct ReleaseLogView: View {
     // MARK: - Feed
 
     private var feed: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                ForEach(groups, id: \.day) { group in
-                    Section {
-                        ForEach(group.events) { row in
-                            ReleaseRow(event: row)
-                            if row.id != group.events.last?.id {
-                                Divider().padding(.leading, 52)
-                            }
-                        }
-                    } header: {
-                        dayHeader(group.day)
+        // A native List recycles a bounded set of rows and can jump straight to
+        // the scrollbar's target. ScrollView + LazyVStack only realizes views near
+        // its current position; on a long log, a fast scrollbar drag could outrun
+        // that work and briefly leave the viewport empty while SwiftUI caught up.
+        List {
+            ForEach(groups, id: \.day) { group in
+                Section {
+                    ForEach(group.events) { row in
+                        ReleaseRow(event: row)
+                            .listRowInsets(EdgeInsets())
+                            .listRowSeparator(row.id == group.events.last?.id ? .hidden : .visible)
+                            .alignmentGuide(.listRowSeparatorLeading) { _ in 52 }
                     }
+                } header: {
+                    dayHeader(group.day)
                 }
             }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     private func dayHeader(_ day: Date) -> some View {

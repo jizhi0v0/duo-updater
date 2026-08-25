@@ -71,6 +71,15 @@ struct MachineNoteTests {
         #expect(body.contains("BEHIND"))
     }
 
+    /// A machine note can appear and disappear as rollout tracks split and
+    /// converge. That must not make an unrelated, still-identical recipe warning
+    /// look like a new failure and trigger an immediate public issue comment.
+    @Test func aNoteDoesNotChangeAnActionableFindingsSignature() {
+        let warned = finding()
+            .adding(warning: "remote is BEHIND the installed copy — check the scheme")
+        #expect(warned.observing(note).signature == warned.signature)
+    }
+
     /// The note survives `Finding`'s redactor intact — it names a path, and a
     /// note nobody can read is the silence this was built to end.
     @Test func theNoteSurvivesRedaction() {

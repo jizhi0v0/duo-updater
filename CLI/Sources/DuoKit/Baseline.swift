@@ -350,9 +350,9 @@ public extension Finding {
     /// recipe that is still broken the same way from one that broke differently.
     var signature: String {
         if let failureKind { return failureKind }
-        guard !warnings.isEmpty else { return "unknown" }
+        guard !publicWarnings.isEmpty else { return "unknown" }
         // Warning text embeds versions that change between sweeps; key on the
         // leading phrase so "still the same problem" stays stable.
-        return warnings.map { String($0.prefix(40)) }.sorted().joined(separator: "|")
+        return publicWarnings.map { String($0.prefix(40)) }.sorted().joined(separator: "|")
     }
 }

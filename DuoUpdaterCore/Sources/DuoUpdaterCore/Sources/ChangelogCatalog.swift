@@ -40,7 +40,11 @@ public enum ChangelogCatalog {
         // check hasn't finished. This catalog entry ensures the Mac App Store page
         // always shows as changelog fallback regardless of check timing.
         // `?platform=mac` redirects correctly regardless of storefront region.
-        "net.whatsapp.WhatsApp": URL(string: "https://apps.apple.com/app/id310633997?platform=mac")!,
+        // Key MUST be lowercase — `url(forBundleID:)` lowercases its argument
+        // before the lookup, so a mixed-case key here is simply unreachable. This
+        // one was `net.whatsapp.WhatsApp` and never resolved; `keysAreLowercased`
+        // now guards the whole table.
+        "net.whatsapp.whatsapp": URL(string: "https://apps.apple.com/app/id310633997?platform=mac")!,
 
     ]
 

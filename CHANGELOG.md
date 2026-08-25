@@ -5,6 +5,18 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.63
+
+**Architecture-specific updates now choose the build this Mac can actually run.** A few apps publish the same version twice in one Sparkle feed — once for Apple silicon and once for Intel — and Duo Updater used to break that tie by whichever download address happened to sort first. It now reads the feed's hardware requirement and, where a vendor leaves that blank, the architecture in the filename. The native build wins consistently, and a build this Mac cannot launch is not offered. GitHub releases get the same treatment, without calling a perfectly healthy recipe broken just because its newest artifact targets another architecture.
+
+**ChatGPT update checks now follow the rollout track attached to the account.** OpenAI sometimes holds business and enterprise accounts on an earlier desktop build while a new one reaches consumer accounts first. Duo Updater used to omit the account's plan from that check, which silently selected the cautious track for everyone: it could say the installed copy was somehow ahead while ChatGPT itself was already downloading a newer build, or offer a build the app's own updater would replace again. It now sends the plan label from the ChatGPT/Codex sign-in state with the same update request the app makes. If that label is unavailable it keeps the cautious behavior; credentials themselves are never put into the request or diagnostics.
+
+**A relaunch that macOS never answers can no longer wedge every later update.** Launch Services occasionally accepts a request to reopen an updated app and then never calls back. The row stayed on “Relaunching…” forever, its Restart button remained disabled, and Duo Updater's own update waited behind it. A launch that has not answered after a minute is now released as failed, so the row recovers and the rest of the updater keeps working.
+
+**Release Log stays populated when its scrollbar is dragged quickly.** The old lazy stack could be outrun by a long jump, briefly leaving a blank window while rows were created around the new position. The log now uses a recycling list that can jump directly to the destination. The refresh control also keeps the same footprint while changing between its arrow and spinner, so the bottom row no longer twitches when a check starts.
+
+**Download Traffic now marks updates that used a binary patch.** New downloads record the route that actually completed — not merely whether a patch was offered — and carry a Delta badge in their history. The unmistakably smaller patch downloads from 0.3.62 are recognised too, even though they were recorded before the traffic ledger had a route field.
+
 ## 0.3.62
 
 **Updates now download only what changed, when the developer publishes it that way.** Some apps ship a small patch alongside each release — enough to turn the version you have into the new one, without fetching the whole thing again. Duo Updater used to ignore those and download the full package every time. It now takes the patch when one matches the exact build you're on. ChatGPT's last update came to 1.9 MB instead of 605 MB; Docker's to 87 MB instead of 582 MB. The result is the identical application either way — same signature, same bytes, verified against the full download before this shipped. When no patch fits what you have, or one fails to apply, the full download happens as before, so nothing can fail to install because of this.

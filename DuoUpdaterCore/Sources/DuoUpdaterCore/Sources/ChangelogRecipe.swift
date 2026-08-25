@@ -792,15 +792,18 @@ public enum ChangelogRecipeRegistry {
         // re-run of the fragile-recipe skill. The detail page is unchanged in shape:
         // version and date live in the <meta name="description"> tag near the top:
         //   content="Release notes for Ghostty 1.3.1, released on March 13, 2026."
-        // Items are <li class="...weightRegular..."> in the Full Changelog section
-        // (id="full-changelog-2"), which follows the Highlights prose.
+        // Items are <li class="...weightRegular..."> in the Full Changelog section,
+        // which follows the Highlights prose. That heading's generated id changed
+        // from `full-changelog-2` to `full-changelog` in August 2026; accept the
+        // stable slug plus an optional numeric suffix rather than pinning either
+        // build artifact.
         ChangelogRecipe(
             bundleID: "com.mitchellh.ghostty",
             source: URL(string: "https://ghostty.org/docs/install/release-notes")!,
             entryPattern:
                 #"<meta name="description" content="Release notes for Ghostty (?<version>[^,]+), released on (?<date>[^.]+)\."[^>]*>"#
                 + #".*?"#
-                + #"id="full-changelog-2">.*?</div></div>\s*(?<body>.*?)</main>"#,
+                + #"id="full-changelog(?:-\d+)?">.*?</div></div>\s*(?<body>.*?)</main>"#,
             itemPatterns: [
                 #"<li class="[^"]*weightRegular[^"]*">(?<item>.*?)</li>"#,
             ],

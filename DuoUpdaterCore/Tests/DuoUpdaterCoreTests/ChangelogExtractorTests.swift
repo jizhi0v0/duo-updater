@@ -473,14 +473,15 @@ private let forkFixture = """
 </div>
 """
 
-// Trimmed real markup from ghostty.org/docs/install/release-notes/1-3-1. The
-// version and date are in the <meta name="description"> near the top; items
-// come from <li class="...weightRegular..."> elements in the Full Changelog
-// section (id="full-changelog-2"). Nav <li> elements (no class) are skipped.
+// Trimmed real markup from ghostty.org/docs/install/release-notes/1-3-1, fetched
+// 2026-08-25 after the heading id changed. The version and date are in the
+// <meta name="description"> near the top; items come from
+// <li class="...weightRegular..."> elements in the Full Changelog section
+// (now id="full-changelog"). Nav <li> elements (no class) are skipped.
 private let ghosttyFixture = """
 <meta name="description" content="Release notes for Ghostty 1.3.1, released on March 13, 2026."/>
 <h1 class="Text-module__3468va__text">Ghostty 1.3.1</h1>
-<div id="full-changelog-2"><div class="JumplinkHeader-module__SpWIGW__content JumplinkHeader-module__SpWIGW__h2"><h2>Full Changelog</h2></div></div>
+<div id="full-changelog"><div class="JumplinkHeader-module__SpWIGW__content JumplinkHeader-module__SpWIGW__h2"><h2>Full Changelog</h2></div></div>
 <p class="Text-module__3468va__text">In each section, we try to sort improvements before bug fixes.</p>
 <ul>
 <li class="Text-module__3468va__text pretendardstdvariable_75f3002f-module__N7oTcq__className Text-module__3468va__weightRegular">New configuration: <code>progress-style</code> controls whether OSC 9;4 progress bars are shown. <a href="https://github.com/ghostty-org/ghostty/issues/11289">#11289</a></li>

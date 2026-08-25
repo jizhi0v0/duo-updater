@@ -266,6 +266,38 @@ struct BackupStoreTests {
     // MARK: - Orphan cleanup
 
     /// A backup whose original app path no longer exists on disk (uninstalled,
+    /// A locked file inside a bundle must not make its backup undeletable.
+    ///
+    /// `ditto` copies BSD file flags faithfully — correct for a backup — so a
+    /// `uchg` file the user set on an installed app arrives in the store, and
+    /// `removeItem` then refuses the whole tree with EPERM. Every removal here
+    /// used `try?`, so the failure was silent: on a real machine ToDesk's locked
+    /// `advInfo.json` meant its backups accumulated forever while the delete
+    /// sheet reported success.
+    ///
+    /// Asserted through `remove(forKey:)` rather than by deleting a fixture, so
+    /// this fails if the flag handling is dropped from the store's own path.
+    @Test func aBackupHoldingALockedFileCanStillBeRemoved() throws {
+        try withScratchRoot { root in
+            let apps = root.appendingPathComponent("apps")
+            try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+            let app = try makeApp(named: "Locked.app", in: apps, marker: "v1")
+            let locked = app.appendingPathComponent("Contents/locked.json")
+            try Data("{}".utf8).write(to: locked)
+            #expect(lchflags(locked.path, UInt32(UF_IMMUTABLE)) == 0, "fixture must be locked")
+            defer { _ = lchflags(locked.path, 0) }
+
+            try BackupStore.save(
+                appPath: app, key: "locked", version: "1.0", bundleID: "com.example.locked")
+            let stored = root.appendingPathComponent("locked", isDirectory: true)
+            #expect(FileManager.default.fileExists(atPath: stored.path))
+
+            BackupStore.remove(forKey: "locked")
+            #expect(!FileManager.default.fileExists(atPath: stored.path),
+                    "a locked file inside the copy must not keep the backup on disk")
+        }
+    }
+
     /// or moved to a new path-scoped key) has nothing left to restore onto —
     /// `pruneOrphans` should reclaim it, and leave backups whose app is still
     /// installed untouched.

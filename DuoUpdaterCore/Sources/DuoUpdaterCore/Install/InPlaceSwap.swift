@@ -190,20 +190,40 @@ public enum InPlaceSwap {
 
     /// Whether replacing `target` has to go through the administrator prompt.
     ///
-    /// The test is the **parent directory**, not the bundle: `replaceItemAt`
-    /// stages its exchange as a sibling, so a bundle we could write into but whose
-    /// enclosing directory we cannot (`/Library/Input Methods` is `root:wheel`
-    /// 755, while `WeType.app` inside it is `root:staff` 775) still cannot be
-    /// swapped unprivileged. Sparkle reaches the same conclusion the same way, in
-    /// `SPUSystemNeedsAuthorizationAccessForBundlePath` — it requires writability
-    /// of the bundle *and* of its parent before it will skip escalation.
+    /// **Both** the bundle and its enclosing directory have to be writable before
+    /// we may skip escalation, and each half catches a case the other misses:
+    ///
+    ///   * the **parent**, because `replaceItemAt` stages its exchange as a
+    ///     sibling — a bundle we could write into but whose enclosing directory we
+    ///     cannot (`/Library/Input Methods` is `root:wheel` 755, while
+    ///     `WeType.app` inside it is `root:staff` 775) still cannot be swapped
+    ///     unprivileged;
+    ///   * the **bundle**, because the swap ends by deleting the bundle it
+    ///     replaced, and unlinking a tree needs write permission on the
+    ///     directories *inside* it. Every App Store app is `root:wheel` 755 in an
+    ///     `/Applications` that is `root:admin` 775 — writable parent, unwritable
+    ///     bundle — and so is every app a `.pkg` laid down as root.
+    ///
+    /// The parent-only test this used to be sent that whole second category down
+    /// the unprivileged path, where it could not work. Measured against a bundle
+    /// with those exact permissions: `replaceItemAt` throws
+    /// `NSCocoaErrorDomain 513` (`NSFileWriteNoPermissionError`) and leaves the app
+    /// on disk **unchanged** — and 513 is precisely what `isAppManagementDenial`
+    /// matches, so the failure was reported as `AppManagementRequiredError` and the
+    /// user was sent to grant an App Management permission that could not have
+    /// helped: the obstacle is POSIX ownership, not TCC. Sparkle's
+    /// `SPUSystemNeedsAuthorizationAccessForBundlePath` requires the same pair
+    /// (`isWritableFileAtPath:bundlePath && isWritableFileAtPath:parent`) before it
+    /// will skip escalation.
     ///
     /// Exposed so the UI can answer "will clicking Update raise a password
     /// prompt?" from the same predicate the swap itself branches on. A separately
     /// derived copy would drift, and the two disagreeing means either a prompt the
     /// row promised wouldn't appear, or one it never warned about.
     public static func needsElevatedReplace(target: URL) -> Bool {
-        !FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path)
+        let fm = FileManager.default
+        return !fm.isWritableFile(atPath: target.path)
+            || !fm.isWritableFile(atPath: target.deletingLastPathComponent().path)
     }
 
     /// `InstallEnvironment.elevationRequiredPaths` for a set of installed bundles,
@@ -274,10 +294,33 @@ public enum InPlaceSwap {
         let old = shellQuote(target.path + ".duoupdater-old")
         let tgt = shellQuote(target.path)
         let src = shellQuote(newApp.path)
+        // Keep the replaced bundle's ownership. `ditto` running as root preserves
+        // the *source's* owner, and every source we hand it — a download we
+        // extracted, a rollback copy we made — belongs to the user. Without this
+        // the privileged path quietly converts a `root:wheel` app into a
+        // user-owned one: measured on a real store-installed app, whose bundle
+        // came back as `bobby:staff` after a rollback that was otherwise perfect.
+        // That relaxes who can write to an app in `/Applications` without anyone
+        // asking for it, and it makes `needsElevatedReplace` flip to false for the
+        // same app afterwards. Sparkle preserves ownership for the same reason
+        // (`changeOwnerAndGroupOfItemAtRootURL:toMatchURL:`).
+        //
+        // Non-fatal (`;`, not `&&`): the ids are read off the bundle we are about
+        // to replace, so failing here means something is wrong with the numbers,
+        // not with the update — and refusing to install a verified build over an
+        // ownership detail would be the worse trade. Interpolated as integers
+        // straight from `stat`, so there is nothing quotable in them.
+        let ownership: String = {
+            let attrs = try? FileManager.default.attributesOfItem(atPath: target.path)
+            guard let uid = (attrs?[.ownerAccountID] as? NSNumber)?.uint32Value,
+                  let gid = (attrs?[.groupOwnerAccountID] as? NSNumber)?.uint32Value
+            else { return "" }
+            return "/usr/sbin/chown -R \(uid):\(gid) \(new); "
+        }()
         let shell = """
         /bin/rm -rf \(new) \(old); \
         /usr/bin/ditto \(src) \(new) && \
-        /bin/mv \(tgt) \(old) && \
+        { \(ownership)/bin/mv \(tgt) \(old); } && \
         { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt); false; }; } && \
         /bin/rm -rf \(old)
         """

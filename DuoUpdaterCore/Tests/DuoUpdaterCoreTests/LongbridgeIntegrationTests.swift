@@ -54,6 +54,21 @@ private let longbridgePreviewNotes = #"""
 </div></div></main>
 """#
 
+/// The ordering the live pages do NOT currently use: illustration first, change
+/// line after it. Longbridge puts media at the end of every bullet today, so this
+/// is the shape a vendor restyle would introduce — and the one an item pattern
+/// that treats `<img>` as a hard stop silently eats.
+private let longbridgeMediaFirstNotes = #"""
+<main><div style="position:relative;" class="vp-doc _desktop_release-notes_v0_20_0" data-v-x><div>
+<h1 id="v0-20-0" tabindex="-1">v0.20.0 <a class="header-anchor" href="#v0-20-0">​</a></h1>
+<p><em>Release Date: 2026-09-01</em></p>
+<h3 id="improvements">Improvements <a class="header-anchor">​</a></h3><ul>
+<li><img width="1200" alt="chart" src="https://assets.lbkrs.com/uploads/Chart.png">Charts gained a new drawing tool.</li>
+<li>Watchlist sorting is now stable.</li>
+</ul><h2 id="downloads">Downloads</h2><ul><li>macOS installer</li></ul>
+</div></div></main>
+"""#
+
 /// Both release-notes INDEX pages: a heading and nothing else. Stable's lists 48
 /// version links in the real page, but neither index carries a `Release Date:`
 /// block, which is the property the no-version fallback depends on.
@@ -290,6 +305,38 @@ private let longbridgeIndexPage = #"""
             .note("Financials: Added score details."),
             .image(try #require(URL(string: "https://assets.lbkrs.com/uploads/Score.png"))),
             .note("Watchlist: Added list-width controls."),
+        ])
+    }
+
+    /// A change line must survive its own illustration appearing BEFORE it.
+    ///
+    /// `<img>` is a void tag carrying no text, `stripTags` removes it anyway, and
+    /// `imagePattern` collects images from the whole body independently of item
+    /// boundaries — so treating `<img` as an item terminator never added anything
+    /// and could only truncate. When the image came first the captured item was
+    /// empty, `minItemLength` discarded it, and scanning resumed at the `<img>`,
+    /// past the point where the bullet's text lived: the whole line vanished
+    /// rather than merely losing its tail.
+    @Test func aChangeLineSurvivesAnIllustrationPlacedBeforeIt() throws {
+        let recipe = try #require(Self.changelogs[.stable])
+        let entry = try #require(ChangelogExtractor.extract(
+            from: longbridgeMediaFirstNotes, using: recipe)?.entries.first)
+        #expect(entry.items == [
+            "Charts gained a new drawing tool.",
+            "Watchlist sorting is now stable.",
+        ])
+        // The image is still collected. It renders AFTER its own line rather than
+        // before it, even though the markup puts it first: `ChangelogExtractor`
+        // interleaves on each match's START offset, and an item's match starts at
+        // its `<li>` tag, which precedes the `<img>` nested inside it. So a bullet's
+        // note always sorts ahead of an image belonging to that same bullet. That
+        // is a property of the extractor, not of this recipe, and it reads fine —
+        // pinned here so the ordering is a decision on record rather than a
+        // surprise the next person re-derives.
+        #expect(entry.content == [
+            .note("Charts gained a new drawing tool."),
+            .image(try #require(URL(string: "https://assets.lbkrs.com/uploads/Chart.png"))),
+            .note("Watchlist sorting is now stable."),
         ])
     }
 

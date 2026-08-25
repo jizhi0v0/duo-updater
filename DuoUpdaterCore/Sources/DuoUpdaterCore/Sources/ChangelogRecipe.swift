@@ -1863,9 +1863,20 @@ public enum ChangelogRecipeRegistry {
         // Longbridge Desktop — use the English per-version page rather than the
         // compact latest.json notes: the page carries the richer release body and
         // some releases interleave screenshots with their change lines. Stop at
-        // Downloads so installer links never become changelog items. Videos are
-        // intentionally skipped (the native changelog model supports images); the
-        // item boundary before <video> also keeps its browser-fallback text out.
+        // Downloads so installer links never become changelog items.
+        //
+        // `<video>` terminates an item because it is the one element whose INNER
+        // text would otherwise survive `stripTags` and land in the notes as
+        // "Your browser does not support the video tag."; the native changelog
+        // model has no video block, so the element itself is dropped.
+        // `<img>` deliberately does NOT terminate an item. It is a void tag with
+        // no text, `stripTags` removes it regardless, and `imagePattern` collects
+        // images from the whole body independently of item boundaries — so the
+        // boundary added nothing and could only truncate. With it, a bullet whose
+        // illustration came FIRST captured an empty item, lost it to
+        // `minItemLength`, and resumed scanning past its own text: the entire line
+        // disappeared. Longbridge puts media last on every page today, so this was
+        // latent, not live — the regression test pins the other ordering.
         // The path serves English with no locale prefix and does NOT content-
         // negotiate (verified under `Accept-Language: zh-CN` and `zh-HK`), so the
         // literal `Release Date:` anchor is stable for every user.
@@ -1884,7 +1895,7 @@ public enum ChangelogRecipeRegistry {
             entryPattern:
                 #"<div[^>]*class="vp-doc[^"]*"[^>]*>\s*<div>\s*<h1[^>]*>\s*v?(?<version>[0-9]+(?:\.[0-9]+)+).*?</h1>\s*<p>\s*<em>\s*Release Date:\s*(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*</em>\s*</p>(?<body>.*?)(?=<h2[^>]*id="downloads")"#,
             itemPatterns: [
-                #"<(?:li|p)\b[^>]*>(?<item>.*?)(?=<img\b|<video\b|</(?:li|p)>)"#,
+                #"<(?:li|p)\b[^>]*>(?<item>.*?)(?=<video\b|</(?:li|p)>)"#,
             ],
             maxEntries: 1,
             channel: .stable,
@@ -1911,7 +1922,7 @@ public enum ChangelogRecipeRegistry {
             entryPattern:
                 #"<div[^>]*class="vp-doc[^"]*"[^>]*>\s*<div>\s*<h1[^>]*>\s*v?(?<version>[0-9]+(?:\.[0-9]+)+-preview\.[0-9]+).*?</h1>\s*<p>\s*<em>\s*Release Date:\s*(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*</em>\s*</p>(?<body>.*?)(?=<h2[^>]*id="downloads")"#,
             itemPatterns: [
-                #"<(?:li|p)\b[^>]*>(?<item>.*?)(?=<img\b|<video\b|</(?:li|p)>)"#,
+                #"<(?:li|p)\b[^>]*>(?<item>.*?)(?=<video\b|</(?:li|p)>)"#,
             ],
             maxEntries: 1,
             channel: .preview,

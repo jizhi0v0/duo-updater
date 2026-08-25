@@ -346,6 +346,27 @@ struct BackupStoreTests {
             try BackupStore.save(
                 appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp")
             #expect(BackupStore.backup(forKey: key)?.fromPackageInstall == false)
+            #expect(BackupStore.backup(forKey: key)?.fromAppStore == false)
+        }
+    }
+
+    /// An App Store backup restores the bundle whole, so its caveat is not the
+    /// package one — nothing is left behind at a newer version. What it cannot do
+    /// is change the store's mind: the update is offered again at once, and
+    /// re-applied unattended when automatic app updates are on. The restore path
+    /// says so, and can only say so if the store remembers which route it was.
+    @Test func anAppStoreBackupRemembersThatTheStoreWillReofferTheUpdate() throws {
+        try withScratchRoot { root in
+            let app = try makeApp(named: "Fixture.app", in: root, marker: "v1")
+            let key = BackupStore.key(bundleID: "com.example.testapp", path: app)
+            try BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.testapp",
+                fromAppStore: true)
+            let backup = BackupStore.backup(forKey: key)
+            #expect(backup?.fromAppStore == true)
+            // The two caveats are independent, and the store route is not a package
+            // install — reading it as one would promise a limit that doesn't apply.
+            #expect(backup?.fromPackageInstall == false)
         }
     }
 
@@ -367,6 +388,7 @@ struct BackupStoreTests {
             let backup = BackupStore.backup(forKey: key)
             #expect(backup != nil, "an older sidecar must still be readable")
             #expect(backup?.fromPackageInstall == nil, "unknown, not false")
+            #expect(backup?.fromAppStore == nil, "unknown, not false")
         }
     }
 

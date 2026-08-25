@@ -53,6 +53,16 @@ public enum BackupStore {
         /// which is worth saying out loud rather than presenting as a clean
         /// rollback. Nil for backups written before this was recorded.
         public let fromPackageInstall: Bool?
+        /// Whether the update this backup was taken for was applied through the
+        /// App Store.
+        ///
+        /// It matters at restore time for a reason the other routes don't have: a
+        /// rollback here undoes the bundle but not the store's opinion of it. The
+        /// update reappears in App Store's Updates list immediately, and — with
+        /// automatic app updates on, which is the default — the store re-applies
+        /// it on its own, silently undoing the rollback. Worth saying while the
+        /// user is deciding. Nil for backups written before this was recorded.
+        public let fromAppStore: Bool?
     }
 
     /// JSON sidecar persisted next to a backed-up bundle.
@@ -66,6 +76,8 @@ public enum BackupStore {
         /// a stricter decoder would make every existing backup unreadable, and
         /// `backup(forKey:)` returns nil without a readable sidecar.
         var fromPackageInstall: Bool?
+        /// Optional for the same reason as `fromPackageInstall`.
+        var fromAppStore: Bool?
         /// Files deliberately left out of the copy: unreadable, and not covered
         /// by the code signature, so they are the app's own runtime state rather
         /// than shipped payload. Restoring without them is fine — the app writes
@@ -156,7 +168,7 @@ public enum BackupStore {
     @discardableResult
     public static func save(
         appPath: URL, key: String, version: String?, bundleID: String?,
-        fromPackageInstall: Bool = false
+        fromPackageInstall: Bool = false, fromAppStore: Bool = false
     ) throws -> Backup {
         let fm = FileManager.default
         let dir = root.appendingPathComponent(key, isDirectory: true)
@@ -223,7 +235,7 @@ public enum BackupStore {
         let meta = Meta(
             version: version, bundleID: bundleID,
             originalPath: appPath.path, bundleName: name, savedAt: savedAt,
-            fromPackageInstall: fromPackageInstall,
+            fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore,
             omittedFiles: unreadable.unsealed.isEmpty ? nil : unreadable.unsealed,
             manifest: manifest)
         // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
@@ -259,7 +271,7 @@ public enum BackupStore {
         if legacy != key { remove(forKey: legacy) }
         return Backup(
             key: key, version: version, bundlePath: dest, savedAt: savedAt,
-            fromPackageInstall: fromPackageInstall)
+            fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore)
     }
 
     // MARK: - Query
@@ -274,7 +286,7 @@ public enum BackupStore {
         guard FileManager.default.fileExists(atPath: bundle.path) else { return nil }
         return Backup(
             key: key, version: meta.version, bundlePath: bundle, savedAt: meta.savedAt,
-            fromPackageInstall: meta.fromPackageInstall)
+            fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore)
     }
 
     // MARK: - Restore

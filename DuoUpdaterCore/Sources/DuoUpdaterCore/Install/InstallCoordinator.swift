@@ -120,8 +120,36 @@ public actor InstallCoordinator {
 
     /// Whether to take a rollback point before this route runs.
     ///
-    /// `.appStore` is excluded because the store can always re-fetch a prior
-    /// build, so a local copy of a multi-gigabyte bundle is dead weight.
+    /// Every route, including `.appStore`. That one used to be excluded on the
+    /// grounds that "the store can always re-fetch a prior build, so a local copy
+    /// of a multi-gigabyte bundle is dead weight" — which is not true. The App
+    /// Store offers only an app's *current* version; there is no user-facing way
+    /// to ask it for the build you were running yesterday. (Its one backward-
+    /// looking prompt, "install the last compatible version", fires when the
+    /// current release needs a newer macOS than the machine has, and is not
+    /// rollback.) So the App Store route was the one route that applied an update
+    /// with no way back at all.
+    ///
+    /// The copy needs no privileges: App Store bundles are `root:wheel` 755 but
+    /// every file in them is world-readable (checked across all 22 store-installed
+    /// apps on the development machine — none had an unreadable file), and the
+    /// `_MASReceipt` travels with the bundle, so a restored copy carries the
+    /// receipt that was issued *for it* rather than a mismatched newer one.
+    /// Restoring one does need an administrator, because the installed bundle is
+    /// root-owned — `InPlaceSwap.needsElevatedReplace` recognises that and routes
+    /// it to the privileged swap. What a rollback here cannot do is make the store
+    /// forget: it will list the update again, and re-apply it on its own if
+    /// automatic app updates are on. The restore path says so.
+    ///
+    /// It is not free, and the tempting "APFS clones it, so it costs nothing"
+    /// argument only covers half the work. `ditto` into the backup store *is* a
+    /// clone (2750 MB of Word in 8.7s for ~16 MB of new blocks), but `save` then
+    /// fingerprints the copy, and `BackupManifest.compute` streams a SHA-256 over
+    /// every byte — another 8.7s for that same bundle. Store apps are the largest
+    /// things we back up, so this route is where that lands hardest: budget for
+    /// roughly a second per 150 MB before the update starts moving. The clone's
+    /// blocks then become the backup's own once the update replaces the original,
+    /// which is when a rollback point starts costing what it is worth.
     ///
     /// `.installer` is included, with a caveat the restore path surfaces: a
     /// `.pkg` can lay down helpers, daemons and launch items beside the `.app`,
@@ -131,9 +159,10 @@ public actor InstallCoordinator {
     /// is the case where you most want one: the system installer's change is the
     /// one we cannot watch land or undo ourselves.
     public static func wantsBackup(_ route: Route) -> Bool {
+        // Left as an exhaustive switch rather than a bare `true`: a new route has
+        // to state its answer here, which is the decision this function exists for.
         switch route {
-        case .homebrew, .vendor, .sparkle, .installer: return true
-        case .appStore:                                return false
+        case .homebrew, .vendor, .sparkle, .installer, .appStore: return true
         }
     }
 
@@ -156,6 +185,7 @@ public actor InstallCoordinator {
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
         let version = app.shortVersion ?? app.buildVersion
         let fromPackage = (route == .installer)
+        let fromStore = (route == .appStore)
         let path = app.path
         let bundleID = app.bundleID
         return await Task.detached(priority: .userInitiated) { () -> BackupOutcome in
@@ -168,7 +198,7 @@ public actor InstallCoordinator {
             do {
                 try BackupStore.save(
                     appPath: path, key: key, version: version, bundleID: bundleID,
-                    fromPackageInstall: fromPackage)
+                    fromPackageInstall: fromPackage, fromAppStore: fromStore)
                 return unreadable.unsealed.isEmpty
                     ? .saved
                     : .savedWithoutRuntimeState(omitted: unreadable.unsealed.count)

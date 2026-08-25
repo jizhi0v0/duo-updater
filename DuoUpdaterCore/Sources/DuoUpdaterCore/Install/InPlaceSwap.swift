@@ -47,6 +47,11 @@ public struct AuthorizationDeclinedError: LocalizedError {
 ///      failure leaves the original app fully intact rather than trashed-then-gone.
 public enum InPlaceSwap {
 
+    /// Held across the administrator panel in `privilegedReplace`, so two
+    /// installs running in parallel raise one panel after the other rather than
+    /// two at once. Nothing else takes it, so it cannot deadlock.
+    private static let elevationPanel = NSLock()
+
     /// Recover from a privileged swap (`privilegedReplace`) that was interrupted
     /// between its two renames: the installed app is then sitting at
     /// `<App>.app.duoupdater-old` while `<App>.app` itself is missing. Sweep
@@ -190,20 +195,40 @@ public enum InPlaceSwap {
 
     /// Whether replacing `target` has to go through the administrator prompt.
     ///
-    /// The test is the **parent directory**, not the bundle: `replaceItemAt`
-    /// stages its exchange as a sibling, so a bundle we could write into but whose
-    /// enclosing directory we cannot (`/Library/Input Methods` is `root:wheel`
-    /// 755, while `WeType.app` inside it is `root:staff` 775) still cannot be
-    /// swapped unprivileged. Sparkle reaches the same conclusion the same way, in
-    /// `SPUSystemNeedsAuthorizationAccessForBundlePath` — it requires writability
-    /// of the bundle *and* of its parent before it will skip escalation.
+    /// **Both** the bundle and its enclosing directory have to be writable before
+    /// we may skip escalation, and each half catches a case the other misses:
+    ///
+    ///   * the **parent**, because `replaceItemAt` stages its exchange as a
+    ///     sibling — a bundle we could write into but whose enclosing directory we
+    ///     cannot (`/Library/Input Methods` is `root:wheel` 755, while
+    ///     `WeType.app` inside it is `root:staff` 775) still cannot be swapped
+    ///     unprivileged;
+    ///   * the **bundle**, because the swap ends by deleting the bundle it
+    ///     replaced, and unlinking a tree needs write permission on the
+    ///     directories *inside* it. Every App Store app is `root:wheel` 755 in an
+    ///     `/Applications` that is `root:admin` 775 — writable parent, unwritable
+    ///     bundle — and so is every app a `.pkg` laid down as root.
+    ///
+    /// The parent-only test this used to be sent that whole second category down
+    /// the unprivileged path, where it could not work. Measured against a bundle
+    /// with those exact permissions: `replaceItemAt` throws
+    /// `NSCocoaErrorDomain 513` (`NSFileWriteNoPermissionError`) and leaves the app
+    /// on disk **unchanged** — and 513 is precisely what `isAppManagementDenial`
+    /// matches, so the failure was reported as `AppManagementRequiredError` and the
+    /// user was sent to grant an App Management permission that could not have
+    /// helped: the obstacle is POSIX ownership, not TCC. Sparkle's
+    /// `SPUSystemNeedsAuthorizationAccessForBundlePath` requires the same pair
+    /// (`isWritableFileAtPath:bundlePath && isWritableFileAtPath:parent`) before it
+    /// will skip escalation.
     ///
     /// Exposed so the UI can answer "will clicking Update raise a password
     /// prompt?" from the same predicate the swap itself branches on. A separately
     /// derived copy would drift, and the two disagreeing means either a prompt the
     /// row promised wouldn't appear, or one it never warned about.
     public static func needsElevatedReplace(target: URL) -> Bool {
-        !FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path)
+        let fm = FileManager.default
+        return !fm.isWritableFile(atPath: target.path)
+            || !fm.isWritableFile(atPath: target.deletingLastPathComponent().path)
     }
 
     /// `InstallEnvironment.elevationRequiredPaths` for a set of installed bundles,
@@ -274,14 +299,58 @@ public enum InPlaceSwap {
         let old = shellQuote(target.path + ".duoupdater-old")
         let tgt = shellQuote(target.path)
         let src = shellQuote(newApp.path)
+        // Keep the replaced bundle's ownership. `ditto` running as root preserves
+        // the *source's* owner, and every source we hand it — a download we
+        // extracted, a rollback copy we made — belongs to the user. Without this
+        // the privileged path quietly converts a `root:wheel` app into a
+        // user-owned one: measured on a real store-installed app, whose bundle
+        // came back as `bobby:staff` after a rollback that was otherwise perfect.
+        // That relaxes who can write to an app in `/Applications` without anyone
+        // asking for it, and it makes `needsElevatedReplace` flip to false for the
+        // same app afterwards. Sparkle preserves ownership for the same reason
+        // (`changeOwnerAndGroupOfItemAtRootURL:toMatchURL:`).
+        //
+        // Non-fatal (`;`, not `&&`): the ids are read off the bundle we are about
+        // to replace, so failing here means something is wrong with the numbers,
+        // not with the update — and refusing to install a verified build over an
+        // ownership detail would be the worse trade. Interpolated as integers
+        // straight from `stat`, so there is nothing quotable in them.
+        //
+        // Applied to the app *after* it is in place, not to `.duoupdater-new`
+        // before the renames. `recoverInterruptedSwaps` sweeps a stale
+        // `.duoupdater-new` unprivileged, with `try? removeItem` — so chowning the
+        // staged copy to root would leave a full-size leftover that the sweep
+        // silently cannot delete (EACCES on the first unlink inside a root-owned
+        // tree), stranded until the next privileged swap of that same app runs
+        // the leading `rm -rf`. Doing it last keeps the leftover ours to remove,
+        // and an interruption before the chown lands exactly the user-owned app
+        // that shipped before this existed — no worse than the status quo.
+        let ownership: String = {
+            let attrs = try? FileManager.default.attributesOfItem(atPath: target.path)
+            guard let uid = (attrs?[.ownerAccountID] as? NSNumber)?.uint32Value,
+                  let gid = (attrs?[.groupOwnerAccountID] as? NSNumber)?.uint32Value
+            else { return "" }
+            return "/usr/sbin/chown -R \(uid):\(gid) \(tgt); "
+        }()
         let shell = """
         /bin/rm -rf \(new) \(old); \
         /usr/bin/ditto \(src) \(new) && \
         /bin/mv \(tgt) \(old) && \
         { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt); false; }; } && \
-        /bin/rm -rf \(old)
+        { \(ownership)/bin/rm -rf \(old); }
         """
         let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
+
+        // One password panel at a time. The apply pool allows two concurrent
+        // swaps, and now that every root-owned bundle takes this path (28 apps in
+        // `/Applications` on the development machine, 22 of them store-installed)
+        // a batch can reach it twice at once — two system panels stacked over each
+        // other, neither saying which app it belongs to. Blocking here rather than
+        // making `replace` async is deliberate: the callers are synchronous, and
+        // the thread this parks was going to sit in `waitUntilExit` waiting on the
+        // same human anyway, so this moves the wait rather than adding one.
+        elevationPanel.lock()
+        defer { elevationPanel.unlock() }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")

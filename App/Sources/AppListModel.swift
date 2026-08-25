@@ -2237,7 +2237,8 @@ final class AppListModel {
         // backup timestamp hadn't moved.
         let backupRoute = InstallCoordinator.route(
             for: result, requiresInstaller: requiresInstaller(result))
-        if prefs.keepBackups, InstallCoordinator.wantsBackup(backupRoute) {
+        if prefs.keepBackups, InstallCoordinator.wantsBackup(backupRoute),
+           !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
             await backupCurrent(result, route: backupRoute)
         }
 
@@ -3871,6 +3872,33 @@ final class AppListModel {
     /// Copy the app's current bundle into the backup store before we replace it,
     /// so the update can be undone. Best-effort: a failed backup logs and proceeds
     /// (the user opted into the update; a missing safety net mustn't block it).
+    /// True when the `.appStore` route is going to hand off or bail without
+    /// installing anything, decided from state we already have here.
+    ///
+    /// Used for one thing only: skipping the rollback point. The early-outs
+    /// themselves stay in the route below, which is where they belong — this
+    /// predicts them because the backup runs *first*, and a store bundle is the
+    /// most expensive copy we take (DingTalk is 1441 MB, Word 2750 MB; the clone
+    /// is cheap but the manifest SHA-256s every byte, measured at 8.7s for Word).
+    /// Paying that and then bailing also leaves a rollback point whose stored
+    /// version is the one still installed, so the row offers to "roll back" to
+    /// where it already is.
+    ///
+    /// Deliberately a *prediction*, not the guard itself: if the two ever drift
+    /// the cost is a wasted backup, never a wrong install. The `mas outdated`
+    /// pre-flight is not mirrored here — it costs a subprocess, which is the
+    /// thing this is trying to avoid spending.
+    private func appStoreRouteWillNotInstall(_ result: UpdateResult) -> Bool {
+        // Store-managed by the App Store app itself; we only open the deep link.
+        if result.app.isiOSAppOnMac { return true }
+        // Nothing to install against.
+        if result.remote?.appStore?.trackID == nil { return true }
+        // Region-locked apps are AX-only, and the AX route needs the grant first.
+        if result.remote?.appStore?.isRegionMismatch == true,
+           !AppStoreAXInstaller.isTrusted { return true }
+        return false
+    }
+
     private func backupCurrent(_ result: UpdateResult, route: InstallCoordinator.Route) async {
         let outcome = await InstallCoordinator.backUp(result.app, route: route)
         if case .savedWithoutRuntimeState(let omitted) = outcome {

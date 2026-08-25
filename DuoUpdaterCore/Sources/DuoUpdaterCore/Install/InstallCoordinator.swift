@@ -141,6 +141,16 @@ public actor InstallCoordinator {
     /// forget: it will list the update again, and re-apply it on its own if
     /// automatic app updates are on. The restore path says so.
     ///
+    /// It is not free, and the tempting "APFS clones it, so it costs nothing"
+    /// argument only covers half the work. `ditto` into the backup store *is* a
+    /// clone (2750 MB of Word in 8.7s for ~16 MB of new blocks), but `save` then
+    /// fingerprints the copy, and `BackupManifest.compute` streams a SHA-256 over
+    /// every byte — another 8.7s for that same bundle. Store apps are the largest
+    /// things we back up, so this route is where that lands hardest: budget for
+    /// roughly a second per 150 MB before the update starts moving. The clone's
+    /// blocks then become the backup's own once the update replaces the original,
+    /// which is when a rollback point starts costing what it is worth.
+    ///
     /// `.installer` is included, with a caveat the restore path surfaces: a
     /// `.pkg` can lay down helpers, daemons and launch items beside the `.app`,
     /// and we only ever copy the bundle — so restoring gives an older app next

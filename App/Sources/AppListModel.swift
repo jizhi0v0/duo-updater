@@ -2228,10 +2228,9 @@ final class AppListModel {
         }
 
         // Back up the current bundle first (when enabled) so this update can be
-        // rolled back. Only for in-place swaps we perform ourselves — Homebrew and
-        // pkg installs go through their own tools and manage their own state.
-        // App Store apps are excluded: mas re-downloads through the store, which
-        // can always re-fetch the prior build, so a local backup is dead weight.
+        // rolled back — every route, App Store included: the store only ever
+        // offers an app's current version, so without a copy of our own that
+        // update is the one that cannot be undone.
         // Which routes are worth a rollback point is `InstallCoordinator`'s call,
         // shared so `duo install` cannot quietly skip the safety net the app
         // provides — it did, until a real install through the CLI showed the
@@ -3939,6 +3938,8 @@ final class AppListModel {
         let key = BackupStore.keyCandidates(bundleID: result.app.bundleID, path: target)
             .first { BackupStore.backup(forKey: $0) != nil }
             ?? BackupStore.key(bundleID: result.app.bundleID, path: target)
+        // Read while the backup is still addressable by key, for the note below.
+        let wasFromAppStore = BackupStore.backup(forKey: key)?.fromAppStore == true
         installErrors[id] = nil
         installing[id] = .installing
         // Same reason as an install: this row's rank is about to change (it stops
@@ -3974,6 +3975,17 @@ final class AppListModel {
             await computeSelfUpdateStaging()
             await refreshBackupIndex()
             installing[id] = nil
+            // The one rollback that another process can undo without being asked.
+            // The store lists the update again the moment the older bundle is back,
+            // and re-installs it by itself when automatic app updates are on (the
+            // default) — so the row has to say that the version on screen may not
+            // stay. Not registered in `inFlightNotes`: like `backupCurrent`'s
+            // warning it describes what just finished, so a settled row is exactly
+            // when it starts to matter.
+            if wasFromAppStore {
+                installNotes[id] = String(
+                    localized: "Rolled back, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
+            }
             Log.install.info("rollback done: \(updated.app.name, privacy: .public) → \(restored ?? "?", privacy: .public)")
             if needsRestart.contains(updated.id) {
                 UpdateNotifier.readyToRestart(app: updated.app.name, version: restored, appID: updated.app.bundleID)

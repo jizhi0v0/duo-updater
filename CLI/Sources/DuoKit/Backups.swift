@@ -170,6 +170,18 @@ public enum Backups {
                   installed stays at its newer version.
                 """)
             }
+            // Same reason, different limit: the bundle comes back whole, but the
+            // store's opinion of it doesn't change. It lists the update again at
+            // once, and re-applies it by itself when automatic app updates are on
+            // — so this rollback can be undone without the user doing anything.
+            if stored?.fromAppStore == true {
+                print("""
+                  Note: this app updates through the App Store. Rolling back
+                  replaces the bundle, but the store will offer the update again
+                  straight away — and re-install it on its own if automatic app
+                  updates are turned on.
+                """)
+            }
         }
         guard assumeYes || confirm(app: app.name) else {
             print("Cancelled.")

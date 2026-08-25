@@ -628,22 +628,22 @@ final class AppListModel {
     // MARK: - "We updated ourselves while you weren't looking"
 
     /// The version Duo Updater silently updated itself to since the user last saw
-    /// release notes, or nil. Drives the menu banner.
+    /// release notes, or nil. Drives the bright sparkles beside the menu's version.
     ///
     /// Computed once at launch rather than on every read: the running version
     /// cannot change inside a process, and the record is cleared the moment the
     /// user opens the notes, so a stored value is the honest model.
     private(set) var silentSelfUpdate: String?
 
-    /// The version this build reports. One place, so the banner, the notes window
+    /// The version this build reports. One place, so the menu, the notes window
     /// and the record can never disagree about what "running" means.
     static var runningSelfVersion: String? {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
 
-    /// Resolve the banner state at launch. Seeds the record silently for a fresh
+    /// Resolve the unread-release state at launch. Seeds the record silently for a fresh
     /// install or a rollback (see `SelfUpdateNotice`), and otherwise leaves it
-    /// alone — the record is what makes the banner reappear until it is read, so
+    /// alone — the record is what keeps the sparkles bright until it is read, so
     /// it must NOT be cleared here.
     func resolveSilentSelfUpdate() {
         let running = Self.runningSelfVersion
@@ -4278,10 +4278,10 @@ final class AppListModel {
         }
     }
 
-    /// True when there's more than one app "Update All" would act on — used to
-    /// decide whether to show the batch button.
+    /// True when at least one app "Update All" would act on — used to decide
+    /// whether to show the batch button.
     var canUpdateAll: Bool {
-        !isInstallingAll && !isScanning && !isChecking && installing.isEmpty && installAllTargets().count > 1
+        !isInstallingAll && !isScanning && !isChecking && installing.isEmpty && !installAllTargets().isEmpty
     }
 
     // MARK: - Ignore / skip

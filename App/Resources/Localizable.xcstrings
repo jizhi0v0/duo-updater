@@ -7080,47 +7080,6 @@
         }
       }
     },
-    "Duo Updater updated itself to %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duo Updater hat sich selbst auf %@ aktualisiert"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duo Updater se actualizó a %@"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duo Updater s'est mis à jour vers %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duo Updater は %@ に自己更新しました"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duo Updater обновился до версии %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duo Updater 已自我更新至 %@"
-          }
-        }
-      }
-    },
     "Duo Updater updates itself separately from the managed app list, through Sparkle-signed direct downloads. The button above forces a check right now, whether or not automatic installs are on.": {
       "extractionState": "manual",
       "localizations": {
@@ -9255,47 +9214,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在安装…"
-          }
-        }
-      }
-    },
-    "It installs its own updates quietly — see what changed": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installiert eigene Updates im Hintergrund – Änderungen ansehen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instala sus propias actualizaciones en segundo plano; ver qué cambió"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installe ses propres mises à jour discrètement — voir les changements"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自身のアップデートを静かにインストールします — 変更点を見る"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Устанавливает свои обновления незаметно — посмотреть, что изменилось"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "它会静默安装自身的更新 — 查看更新内容"
           }
         }
       }

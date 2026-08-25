@@ -22,6 +22,20 @@ struct SelfChangelogView: View {
     /// published seconds ago may take a moment to appear here.)
     private static let source = URL(
         string: "https://raw.githubusercontent.com/jizhi0v0/duo-updater/main/CHANGELOG.md")!
+    /// CHANGELOG.md deliberately contains only prose. GitHub Releases is the
+    /// authoritative clock for when each of those versions became available.
+    private static let releasesSource = URL(
+        string: "https://api.github.com/repos/jizhi0v0/duo-updater/releases?per_page=100")!
+
+    private struct PublishedRelease: Decodable {
+        let tagName: String
+        let publishedAt: String?
+
+        enum CodingKeys: String, CodingKey {
+            case tagName = "tag_name"
+            case publishedAt = "published_at"
+        }
+    }
 
     private enum LoadState {
         case loading
@@ -43,10 +57,10 @@ struct SelfChangelogView: View {
             .frame(minWidth: 560, minHeight: 420)
             .task {
             // Marked here rather than at the click: any route into this window —
-            // the banner, the menu button, macOS restoring it after a relaunch —
-            // means the notes were put in front of the user, and the banner should
-            // stop nagging. Doing it at the call site would leave one of those
-            // routes announcing forever.
+            // the menu sparkles, macOS restoring it after a relaunch — means the
+            // notes were put in front of the user, and the bright unread state should
+            // clear. Doing it at the call site would leave one of those routes
+            // announcing forever.
             model.markSelfUpdateSeen()
             await load()
         }
@@ -63,6 +77,7 @@ struct SelfChangelogView: View {
                 changelog: changelog,
                 itemStyle: .paragraphs,
                 runningVersion: runningVersion,
+                showsDatesInline: true,
                 showsLayoutPicker: false)
         case .loading:
             ProgressView()
@@ -110,9 +125,41 @@ struct SelfChangelogView: View {
                 state = .failed(String(localized: "The file loaded but carried no release sections."))
                 return
             }
-            state = .loaded(changelog)
+            state = .loaded(await addingReleaseDates(to: changelog))
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    /// Date lookup is enrichment, not a second requirement for opening the
+    /// notes. A rate limit or transient GitHub API failure leaves the changelog
+    /// usable, just without dates.
+    private func addingReleaseDates(to changelog: Changelog) async -> Changelog {
+        var request = URLRequest(url: Self.releasesSource)
+        request.cachePolicy = .returnCacheDataElseLoad
+        request.timeoutInterval = 10
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+        guard let (data, response) = try? await URLSession.updates.data(for: request),
+              let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode),
+              let releases = try? JSONDecoder().decode([PublishedRelease].self, from: data)
+        else { return changelog }
+
+        let dates = Dictionary(uniqueKeysWithValues: releases.compactMap { release -> (String, String)? in
+            guard let timestamp = release.publishedAt, timestamp.count >= 10 else { return nil }
+            let version = release.tagName.hasPrefix("v") ? String(release.tagName.dropFirst()) : release.tagName
+            return (version, String(timestamp.prefix(10)))
+        })
+
+        let entries = changelog.entries.map { entry in
+            Changelog.Entry(
+                title: entry.title,
+                version: entry.version,
+                date: dates[entry.version] ?? entry.date,
+                items: entry.items,
+                content: entry.content)
+        }
+        return Changelog(entries: entries, itemSyntax: changelog.itemSyntax)
     }
 }

@@ -174,57 +174,25 @@ struct GeneralSettingsPage: View {
 
 // MARK: - Adaptive picker row
 
-/// Carries the measured width of a picker row up to the row itself, so the
-/// share-of-the-row rule below has a number to work with.
-private struct PickerRowWidthKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-/// A settings picker that keeps its label and popup on one line — the way the
-/// rest of macOS lays these out — and only stacks the label above the popup when
-/// one line would be cramped.
-///
-/// "Cramped" is defined as the popup wanting more than `maxPopupShare` of the
-/// row: German and Russian option labels ("Immer herunterladen und ersetzen,
-/// dann neu starten") blow well past that, and the single-line layout was
-/// clipping them, which is why both rows were stacked unconditionally when
-/// localization landed.
-///
-/// The rule is expressed by reserving the rest of the row for the label with
-/// `minWidth`: a popup that needs more than its share pushes the HStack past
-/// the row, and `ViewThatFits` drops to the stacked candidate. `rowWidth` is 0
-/// on the first pass — the one-line candidate is then judged on its natural
-/// width alone, and the layout settles once the measurement lands.
+/// A settings picker that follows the standard macOS label-left/control-right
+/// row. The popup gets all remaining width instead of making the whole row
+/// stack when one localized option happens to be long; its menu still presents
+/// the full strings even if an exceptionally narrow window compresses the
+/// current selection.
 private struct AdaptivePickerRow<Content: View>: View {
     let title: Text
     @ViewBuilder var picker: Content
 
-    /// How much of the row the popup may take before the row stacks instead.
-    private let maxPopupShare: CGFloat = 0.6
-
-    @State private var rowWidth: CGFloat = 0
-
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                title
-                    .font(.callout)
-                    .frame(minWidth: rowWidth * (1 - maxPopupShare), alignment: .leading)
-                picker.fixedSize()
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                title.font(.callout)
-                picker
-            }
+        HStack(spacing: 12) {
+            title
+                .font(.callout)
+                .fixedSize(horizontal: true, vertical: false)
+            Spacer(minLength: 0)
+            picker
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(GeometryReader { geo in
-            Color.clear.preference(key: PickerRowWidthKey.self, value: geo.size.width)
-        })
-        .onPreferenceChange(PickerRowWidthKey.self) { rowWidth = $0 }
+        .frame(maxWidth: .infinity)
     }
 }

@@ -24,8 +24,22 @@ struct SelfChangelogView: View {
         string: "https://raw.githubusercontent.com/jizhi0v0/duo-updater/main/CHANGELOG.md")!
     /// CHANGELOG.md deliberately contains only prose. GitHub Releases is the
     /// authoritative clock for when each of those versions became available.
-    private static let releasesSource = URL(
-        string: "https://api.github.com/repos/jizhi0v0/duo-updater/releases?per_page=100")!
+    ///
+    /// Paged, because the changelog outlives one page. At this repo's cadence
+    /// (twenty releases in the six days to 0.3.63) the list passes 100 within
+    /// weeks, and a single-page read would then quietly drop the date off every
+    /// older entry — a rail half dated and half not, sized off the mixture.
+    private static func releasesSource(page: Int) -> URL {
+        URL(string: "https://api.github.com/repos/jizhi0v0/duo-updater/releases"
+            + "?per_page=\(releasesPerPage)&page=\(page)")!
+    }
+
+    private static let releasesPerPage = 100
+
+    /// Stop after this many pages whatever happens. Dates are an enrichment, not
+    /// a reason to spend an unbounded slice of the unauthenticated 60/hour
+    /// budget — and every version the notes can show is inside the first few.
+    private static let maxReleasePages = 3
 
     private struct PublishedRelease: Decodable {
         let tagName: String
@@ -133,24 +147,51 @@ struct SelfChangelogView: View {
 
     /// Date lookup is enrichment, not a second requirement for opening the
     /// notes. A rate limit or transient GitHub API failure leaves the changelog
-    /// usable, just without dates.
+    /// usable, just without dates — and a page that fails mid-walk keeps the
+    /// dates the earlier pages already produced.
     private func addingReleaseDates(to changelog: Changelog) async -> Changelog {
-        var request = URLRequest(url: Self.releasesSource)
-        request.cachePolicy = .returnCacheDataElseLoad
-        request.timeoutInterval = 10
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        var dates: [String: String] = [:]
+        // Stop as soon as every version the notes can show has an answer, so the
+        // common case stays one request.
+        var wanted = Set(changelog.entries.map(\.version))
 
-        guard let (data, response) = try? await URLSession.updates.data(for: request),
-              let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode),
-              let releases = try? JSONDecoder().decode([PublishedRelease].self, from: data)
-        else { return changelog }
+        for page in 1...Self.maxReleasePages where !wanted.isEmpty {
+            var request = URLRequest(url: Self.releasesSource(page: page))
+            // Revalidate rather than serve whatever is cached. The version a
+            // reader most wants a date for is the one that just landed on their
+            // Mac, and `returnCacheDataElseLoad` answers from a copy taken before
+            // that release existed — the one entry guaranteed to be missing is the
+            // one they opened the window for. A 304 costs nothing against the
+            // rate limit.
+            request.cachePolicy = .reloadRevalidatingCacheData
+            request.timeoutInterval = 10
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 
-        let dates = Dictionary(uniqueKeysWithValues: releases.compactMap { release -> (String, String)? in
-            guard let timestamp = release.publishedAt, timestamp.count >= 10 else { return nil }
-            let version = release.tagName.hasPrefix("v") ? String(release.tagName.dropFirst()) : release.tagName
-            return (version, String(timestamp.prefix(10)))
-        })
+            guard let (data, response) = try? await URLSession.updates.data(for: request),
+                  let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode),
+                  let releases = try? JSONDecoder().decode([PublishedRelease].self, from: data),
+                  !releases.isEmpty
+            else { break }
+
+            for release in releases {
+                guard let timestamp = release.publishedAt, timestamp.count >= 10 else { continue }
+                let version = release.tagName.hasPrefix("v")
+                    ? String(release.tagName.dropFirst()) : release.tagName
+                // Newest-first, first writer wins — so a version that was tagged
+                // twice keeps its latest publication. Deliberately not
+                // `Dictionary(uniqueKeysWithValues:)`, which TRAPS on a duplicate
+                // key: `v0.3.63` and `0.3.63` are two legal tags that collide the
+                // moment the "v" is stripped, and the notes window would crash
+                // rather than show a date it wasn't sure about.
+                if dates[version] == nil { dates[version] = String(timestamp.prefix(10)) }
+                wanted.remove(version)
+            }
+            // A short page is the last page.
+            if releases.count < Self.releasesPerPage { break }
+        }
+
+        guard !dates.isEmpty else { return changelog }
 
         let entries = changelog.entries.map { entry in
             Changelog.Entry(

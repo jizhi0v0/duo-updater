@@ -185,7 +185,7 @@ final class Preferences {
     }
 
     /// After an in-place install of a *running* app, automatically quit and
-    /// relaunch it so the new version takes effect — instead of leaving a "Restart"
+    /// relaunch it so the new version takes effect — instead of leaving a "Relaunch"
     /// badge for a second click. Uses the same graceful quit as the manual button
     /// (honors save prompts; a refused/blocked quit just leaves the badge), so it
     /// never force-kills or loses unsaved work. Default ON — an opt-out convenience.

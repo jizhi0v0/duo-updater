@@ -4,7 +4,7 @@ import CoreServices
 /// Watches the app install directories for on-disk changes and fires a debounced
 /// callback. We use it to notice a *background* self-update — Chrome's Keystone
 /// swapping in a new framework version, a Sparkle/Squirrel app replacing its own
-/// bundle, `brew upgrade` — and flip the menu-bar **Restart** badge promptly,
+/// bundle, `brew upgrade` — and flip the menu-bar **Relaunch** badge promptly,
 /// instead of waiting for the user to open the menu or for the next networked
 /// check (which, on a "Daily" frequency, could be ~24h away).
 ///

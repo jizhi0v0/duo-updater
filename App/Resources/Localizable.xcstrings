@@ -452,7 +452,7 @@
         }
       }
     },
-    "%@ has its own update (%@) downloaded and waiting for the app to quit. Restarting from here would install that one over the version now on disk, so it wasn't restarted — quit %@ yourself when you're ready to take theirs.": {
+    "%@ has its own update (%@) downloaded and waiting for the app to quit. Relaunching from here would install that one over the version now on disk, so it wasn't relaunched — quit %@ yourself when you're ready to take theirs.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -464,13 +464,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ ya ha descargado su propia actualización (%@) y espera a que la app se cierre. Reiniciar desde aquí instalaría esa por encima de la versión que hay ahora en el disco, así que no se reinició: cierra %@ tú cuando quieras aceptar la suya."
+            "value": "%@ ya ha descargado su propia actualización (%@) y espera a que la app se cierre. Reabrir desde aquí instalaría esa por encima de la versión que hay ahora en el disco, así que no se reabrió: cierra %@ tú cuando quieras aceptar la suya."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ a téléchargé sa propre mise à jour (%@) et attend que l’app soit quittée. Redémarrer depuis ici installerait celle-ci par-dessus la version actuellement sur le disque, donc rien n’a été redémarré — quitte %@ toi-même quand tu veux prendre la leur."
+            "value": "%@ a téléchargé sa propre mise à jour (%@) et attend que l’app soit quittée. Relancer depuis ici installerait celle-ci par-dessus la version actuellement sur le disque, donc rien n’a été relancé — quitte %@ toi-même quand tu veux prendre la leur."
           }
         },
         "ja": {
@@ -488,7 +488,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 已经下载好它自己的更新（%@），正等着这个 app 退出。从这里重启会把那份更新覆盖到当前磁盘上的版本，所以没有重启 —— 想用它们那份的时候，请自己退出 %@。"
+            "value": "%@ 已经下载好它自己的更新（%@），正等着这个 app 退出。从这里重新启动会把那份更新覆盖到当前磁盘上的版本，所以没有重新启动 —— 想用它们那份的时候，请自己退出 %@。"
           }
         }
       }
@@ -3789,7 +3789,7 @@
         }
       }
     },
-    "After updating a running app, restart it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Restart” button.\n\nBackups keep one previous version of each app under Application Support, so an update can be undone. Retention is one backup per app — the previous version is replaced, not accumulated.": {
+    "After updating a running app, relaunch it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Relaunch” button.\n\nBackups keep one previous version of each app under Application Support, so an update can be undone. Retention is one backup per app — the previous version is replaced, not accumulated.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -3801,13 +3801,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tras actualizar una app en ejecución, se reinicia por ti para que la versión nueva surta efecto, sin un segundo clic. Se le pide a la app que se cierre con normalidad, así que los avisos de trabajo sin guardar siguen apareciendo, y cualquier app que no se cierre simplemente conserva su botón «Reiniciar».\n\nLas copias de seguridad conservan una versión anterior de cada app en Application Support, para poder deshacer una actualización. Se conserva una copia por app; la versión anterior se reemplaza, no se acumula."
+            "value": "Tras actualizar una app en ejecución, se reabre por ti para que la versión nueva surta efecto, sin un segundo clic. Se le pide a la app que se cierre con normalidad, así que los avisos de trabajo sin guardar siguen apareciendo, y cualquier app que no se cierre simplemente conserva su botón «Reabrir».\n\nLas copias de seguridad conservan una versión anterior de cada app en Application Support, para poder deshacer una actualización. Se conserva una copia por app; la versión anterior se reemplaza, no se acumula."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Après la mise à jour d'une application en cours d'exécution, elle est redémarrée pour vous afin que la nouvelle version prenne effet — sans second clic. Il est demandé à l'application de quitter normalement, donc les invites de travail non enregistré apparaissent toujours, et tout ce qui ne quitte pas conserve simplement son bouton « Redémarrer ».\n\nLes sauvegardes conservent une version précédente de chaque application sous Application Support, afin qu'une mise à jour puisse être annulée. La rétention est d'une sauvegarde par application — la version précédente est remplacée, pas accumulée."
+            "value": "Après la mise à jour d'une application en cours d'exécution, elle est relancée pour vous afin que la nouvelle version prenne effet — sans second clic. Il est demandé à l'application de quitter normalement, donc les invites de travail non enregistré apparaissent toujours, et tout ce qui ne quitte pas conserve simplement son bouton « Relancer ».\n\nLes sauvegardes conservent une version précédente de chaque application sous Application Support, afin qu'une mise à jour puisse être annulée. La rétention est d'une sauvegarde par application — la version précédente est remplacée, pas accumulée."
           }
         },
         "ja": {
@@ -3825,7 +3825,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新正在运行的应用后，会自动为你重启它，让新版本生效 — 无需再次点击。系统会正常请求该应用退出，因此未保存工作的提示仍会出现，任何拒绝退出的应用只会保留其“重启”按钮。\n\n备份会在“应用程序支持”中保留每个应用的一个先前版本，以便撤销更新。保留策略是每个应用一份备份 — 会替换先前版本，而不是不断累积。"
+            "value": "更新正在运行的应用后，会自动为你重新启动它，让新版本生效 — 无需再次点击。系统会正常请求该应用退出，因此未保存工作的提示仍会出现，任何拒绝退出的应用只会保留其“重新启动”按钮。\n\n备份会在“应用程序支持”中保留每个应用的一个先前版本，以便撤销更新。保留策略是每个应用一份备份 — 会替换先前版本，而不是不断累积。"
           }
         }
       }
@@ -9095,7 +9095,7 @@
         }
       }
     },
-    "Installed %@ — waiting for Update All to finish before restarting; click to restart now": {
+    "Installed %@ — waiting for Update All to finish before relaunching; click to relaunch now": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -9107,13 +9107,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ instalado; espera a que termine «Actualizar todo» antes de reiniciar. Haz clic para reiniciar ahora."
+            "value": "%@ instalado; espera a que termine «Actualizar todo» antes de reabrir. Haz clic para reabrir ahora."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ installé — attend la fin de « Tout mettre à jour » avant de redémarrer ; cliquez pour redémarrer maintenant"
+            "value": "%@ installé — attend la fin de « Tout mettre à jour » avant de relancer ; cliquez pour relancer maintenant"
           }
         },
         "ja": {
@@ -9131,7 +9131,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已安装 %@ — 等待“全部更新”完成后再重启；点击立即重启"
+            "value": "已安装 %@ — 等待“全部更新”完成后再重新启动；点击立即重新启动"
           }
         }
       }
@@ -13096,47 +13096,6 @@
         }
       }
     },
-    "Restart": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Neu starten"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reiniciar"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redémarrer"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "再起動"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перезапустить"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新启动"
-          }
-        }
-      }
-    },
     "Restart Helper…": {
       "extractionState": "manual",
       "localizations": {
@@ -13178,7 +13137,7 @@
         }
       }
     },
-    "Restart now": {
+    "Relaunch now": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -13190,13 +13149,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reiniciar ahora"
+            "value": "Reabrir ahora"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redémarrer maintenant"
+            "value": "Relancer maintenant"
           }
         },
         "ja": {
@@ -13214,7 +13173,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "立即重启"
+            "value": "立即重新启动"
           }
         }
       }
@@ -13260,7 +13219,7 @@
         }
       }
     },
-    "Restart updated apps automatically": {
+    "Relaunch updated apps automatically": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -13272,13 +13231,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reiniciar automáticamente las apps actualizadas"
+            "value": "Reabrir automáticamente las apps actualizadas"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redémarrer automatiquement les applications mises à jour"
+            "value": "Relancer automatiquement les applications mises à jour"
           }
         },
         "ja": {
@@ -13296,12 +13255,12 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "自动重启已更新的应用"
+            "value": "自动重新启动已更新的应用"
           }
         }
       }
     },
-    "Restarted on the new version.": {
+    "Relaunched on the new version.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -13313,13 +13272,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se reinició con la versión nueva."
+            "value": "Se reabrió con la versión nueva."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redémarré avec la nouvelle version."
+            "value": "Relancé avec la nouvelle version."
           }
         },
         "ja": {
@@ -13799,7 +13758,7 @@
         }
       }
     },
-    "Running %@ but %@ is installed — restart to apply it": {
+    "Running %@ but %@ is installed — relaunch to apply it": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -13811,13 +13770,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se está ejecutando %@, pero está instalado %@; reinicia para aplicarlo"
+            "value": "Se está ejecutando %@, pero está instalado %@; reabre para aplicarlo"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ est en cours d'exécution mais %@ est installé — redémarrez pour l'appliquer"
+            "value": "%@ est en cours d'exécution mais %@ est installé — relancez pour l'appliquer"
           }
         },
         "ja": {
@@ -13835,12 +13794,12 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在运行 %@，但已安装 %@ — 重启以应用"
+            "value": "正在运行 %@，但已安装 %@ — 重新启动以应用"
           }
         }
       }
     },
-    "Running an older build — restart to apply the installed update": {
+    "Running an older build — relaunch to apply the installed update": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -13852,13 +13811,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se está ejecutando una compilación anterior; reinicia para aplicar la actualización instalada"
+            "value": "Se está ejecutando una compilación anterior; reabre para aplicar la actualización instalada"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Une ancienne version est en cours d'exécution — redémarrez pour appliquer la mise à jour installée"
+            "value": "Une ancienne version est en cours d'exécution — relancez pour appliquer la mise à jour installée"
           }
         },
         "ja": {
@@ -13876,7 +13835,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在运行较旧的版本 — 重启以应用已安装的更新"
+            "value": "正在运行较旧的版本 — 重新启动以应用已安装的更新"
           }
         }
       }
@@ -15129,7 +15088,7 @@
         }
       }
     },
-    "Still running %@ — restart pending from an earlier update": {
+    "Still running %@ — relaunch pending from an earlier update": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -15141,13 +15100,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aún se está ejecutando %@; queda pendiente un reinicio de una actualización anterior"
+            "value": "Aún se está ejecutando %@; queda pendiente una reapertura de una actualización anterior"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ est toujours en cours d'exécution — redémarrage en attente d'une mise à jour précédente"
+            "value": "%@ est toujours en cours d'exécution — relance en attente d'une mise à jour précédente"
           }
         },
         "ja": {
@@ -15165,7 +15124,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "仍在运行 %@ — 等待此前更新的重启"
+            "value": "仍在运行 %@ — 等待此前更新的重新启动"
           }
         }
       }
@@ -15539,7 +15498,7 @@
         }
       }
     },
-    "The update is installed; Update All is waiting to restart apps until the batch finishes": {
+    "The update is installed; Update All is waiting to relaunch apps until the batch finishes": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -15551,13 +15510,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La actualización está instalada; «Actualizar todo» esperará a que termine el lote antes de reiniciar las apps"
+            "value": "La actualización está instalada; «Actualizar todo» esperará a que termine el lote antes de reabrir las apps"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La mise à jour est installée ; « Tout mettre à jour » attend la fin du lot avant de redémarrer les applications"
+            "value": "La mise à jour est installée ; « Tout mettre à jour » attend la fin du lot avant de relancer les applications"
           }
         },
         "ja": {
@@ -15575,7 +15534,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新已安装；“全部更新”会等到本批次完成后再重启应用"
+            "value": "更新已安装；“全部更新”会等到本批次完成后再重新启动应用"
           }
         }
       }
@@ -16529,7 +16488,7 @@
         }
       }
     },
-    "Update is ready. Restart to apply it.": {
+    "Update is ready. Relaunch to apply it.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -16541,13 +16500,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La actualización está lista. Reinicia para aplicarla."
+            "value": "La actualización está lista. Reabre para aplicarla."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La mise à jour est prête. Redémarrez pour l'appliquer."
+            "value": "La mise à jour est prête. Relancez pour l'appliquer."
           }
         },
         "ja": {
@@ -16565,12 +16524,12 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新已就绪。重启以应用。"
+            "value": "更新已就绪。重新启动以应用。"
           }
         }
       }
     },
-    "Update to %@ is ready. Restart to apply it.": {
+    "Update to %@ is ready. Relaunch to apply it.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -16582,13 +16541,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La actualización a %@ está lista. Reinicia para aplicarla."
+            "value": "La actualización a %@ está lista. Reabre para aplicarla."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La mise à jour vers %@ est prête. Redémarrez pour l'appliquer."
+            "value": "La mise à jour vers %@ est prête. Relancez pour l'appliquer."
           }
         },
         "ja": {
@@ -16606,7 +16565,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新到 %@ 已就绪。重启以应用。"
+            "value": "更新到 %@ 已就绪。重新启动以应用。"
           }
         }
       }
@@ -17513,7 +17472,7 @@
         }
       }
     },
-    "You’re running an older version — restart to finish updating": {
+    "You’re running an older version — relaunch to finish updating": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -17525,13 +17484,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estás usando una versión anterior; reinicia para terminar de actualizar"
+            "value": "Estás usando una versión anterior; reabre para terminar de actualizar"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vous utilisez une ancienne version — redémarrez pour terminer la mise à jour"
+            "value": "Vous utilisez une ancienne version — relancez pour terminer la mise à jour"
           }
         },
         "ja": {
@@ -17549,7 +17508,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "你正在运行较旧版本 — 重启以完成更新"
+            "value": "你正在运行较旧版本 — 重新启动以完成更新"
           }
         }
       }
@@ -17800,7 +17759,7 @@
         }
       }
     },
-    "launch, login, frequency, notify, restart, backup, rollback, concurrency, app store, self-updating, vendor": {
+    "launch, login, frequency, notify, relaunch, restart, backup, rollback, concurrency, app store, self-updating, vendor": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -17812,13 +17771,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "inicio, sesión, frecuencia, notificar, reiniciar, copia de seguridad, revertir, concurrencia, App Store, autoactualización, proveedor"
+            "value": "inicio, sesión, frecuencia, notificar, reabrir, reiniciar, copia de seguridad, revertir, concurrencia, App Store, autoactualización, proveedor"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "démarrage, connexion, fréquence, notification, redémarrer, sauvegarde, restauration, simultanéité, App Store, mise à jour automatique, éditeur"
+            "value": "démarrage, connexion, fréquence, notification, relancer, redémarrer, sauvegarde, restauration, simultanéité, App Store, mise à jour automatique, éditeur"
           }
         },
         "ja": {
@@ -17836,7 +17795,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "启动, 登录, 频率, 通知, 重启, 备份, 回滚, 并发, App Store, 自更新, 厂商"
+            "value": "启动, 登录, 频率, 通知, 重新启动, 重启, 备份, 回滚, 并发, App Store, 自更新, 厂商"
           }
         }
       }

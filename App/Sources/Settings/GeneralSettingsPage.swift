@@ -89,12 +89,12 @@ struct GeneralSettingsPage: View {
     private var afterUpdateCard: some View {
         SettingsCard(
             header: "After an update",
-            footer: "After updating a running app, restart it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Restart” button.\n\nBackups keep one previous version of each app under Application Support, so an update can be undone. Retention is one backup per app — the previous version is replaced, not accumulated."
+            footer: "After updating a running app, relaunch it for you so the new version takes effect — no second click. The app is asked to quit normally, so unsaved-work prompts still appear and anything that won’t quit just keeps its “Relaunch” button.\n\nBackups keep one previous version of each app under Application Support, so an update can be undone. Retention is one backup per app — the previous version is replaced, not accumulated."
         ) {
             Toggle("Notify me when updates are found", isOn: $prefs.notifyOnUpdates)
                 .settingsRow()
             SettingsDivider()
-            Toggle("Restart updated apps automatically", isOn: $prefs.autoRestartAfterUpdate)
+            Toggle("Relaunch updated apps automatically", isOn: $prefs.autoRestartAfterUpdate)
                 .settingsRow()
             SettingsDivider()
             Toggle("Keep a backup so updates can be rolled back", isOn: $prefs.keepBackups)

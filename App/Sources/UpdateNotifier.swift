@@ -41,10 +41,10 @@ enum UpdateNotifier {
     /// old version. The user restarts it when ready, through the app's own quit
     /// flow. Carries a stable per-app identifier so that `restarted` can replace
     /// this banner in place once the new version is live, instead of leaving a
-    /// stale "Restart to apply it" stacked under the "Now running" confirmation.
+    /// stale "Relaunch to apply it" stacked under the "Now running" confirmation.
     static func readyToRestart(app: String, version: String?, appID: String?) {
-        let body = version.map { String(localized: "Update to \($0) is ready. Restart to apply it.") }
-            ?? String(localized: "Update is ready. Restart to apply it.")
+        let body = version.map { String(localized: "Update to \($0) is ready. Relaunch to apply it.") }
+            ?? String(localized: "Update is ready. Relaunch to apply it.")
         post(title: app, body: body,
              identifier: appID.map { "restart:\($0)" })
     }
@@ -100,10 +100,10 @@ enum UpdateNotifier {
 
     /// The user restarted and the new version is now live. Reuses the same stable
     /// identifier as `readyToRestart` so this confirmation *replaces* the pending
-    /// "Restart to apply it" banner in Notification Center rather than stacking a
+    /// "Relaunch to apply it" banner in Notification Center rather than stacking a
     /// second copy beneath it — one banner per app lifecycle, not two.
     static func restarted(app: String, version: String?, appID: String?) {
-        post(title: app, body: version.map { String(localized: "Now running \($0).") } ?? String(localized: "Restarted on the new version."),
+        post(title: app, body: version.map { String(localized: "Now running \($0).") } ?? String(localized: "Relaunched on the new version."),
              identifier: appID.map { "restart:\($0)" })
     }
 

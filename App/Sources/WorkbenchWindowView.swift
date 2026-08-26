@@ -555,7 +555,7 @@ struct WorkbenchWindowView: View {
 /// user reading an update's release notes can act on it right there — instead of
 /// having to reopen the menu-bar popover. A deliberately focused mirror of the
 /// popover's `trailing`: it covers the common, safe one-click states (install
-/// progress, Update, Restart, Relaunch) and otherwise stays out of the way, leaving
+/// progress, Update, Relaunch) and otherwise stays out of the way, leaving
 /// the gated cases (major upgrades, region locks) to the popover's richer affordances.
 private struct WorkbenchActionView: View {
     let result: UpdateResult
@@ -577,20 +577,20 @@ private struct WorkbenchActionView: View {
                 .tint(.orange)
                 .help("Quit the app to finish installing the update, then reopen it")
         } else if model.pendingBatchRestart[result.id] != nil {
-            Button("Restart now") { Task { await model.restart(result) } }
+            Button("Relaunch now") { Task { await model.restart(result) } }
                 .buttonStyle(.bordered)
                 .tint(.orange)
-                .help("The update is installed; Update All is waiting to restart apps until the batch finishes")
+                .help("The update is installed; Update All is waiting to relaunch apps until the batch finishes")
         } else if let staged = model.actionableStaged(result) {
             Button("Relaunch") { Task { await model.relaunchStagedUpdate(result) } }
                 .buttonStyle(.bordered)
                 .tint(.orange)
                 .help("\(result.app.name) already downloaded \(staged.version) — relaunch to apply it")
         } else if model.needsRestart.contains(result.id) && !result.hasUpdate {
-            Button("Restart") { Task { await model.restart(result) } }
+            Button("Relaunch") { Task { await model.restart(result) } }
                 .buttonStyle(.bordered)
                 .tint(.orange)
-                .help("Running an older build — restart to apply the installed update")
+                .help("Running an older build — relaunch to apply the installed update")
         } else if model.isActionableUpdate(result) {
             updateAction
         }
@@ -737,7 +737,7 @@ private struct WorkbenchSidebarRow: View {
     let isSelected: Bool
     /// Whether the app currently has a running process — shows the green live dot.
     let isRunning: Bool
-    /// Self-updated on disk, waiting for a relaunch to take effect (the "Restart"
+    /// Self-updated on disk, waiting for a relaunch to take effect (the "Relaunch"
     /// state). When set, the subtitle shows running → installed instead of a bare
     /// version, so the row says what the restart will land.
     let needsRestart: Bool
@@ -779,7 +779,7 @@ private struct WorkbenchSidebarRow: View {
                 .lineLimit(1)
         } else if needsRestart, let from = runningVersion {
             // Self-updated on disk: show running version → installed marketing version
-            // (build) so "Restart" reads as a real change. `from` is pre-formatted by
+            // (build) so "Relaunch" reads as a real change. `from` is pre-formatted by
             // `restartFromVersion` — the running build, or "marketing (build)" when the
             // pre-update marketing version is recoverable from the rollback backup; the
             // on-disk `to` side carries the marketing version, e.g. "1.7.3 (194)".
@@ -1015,7 +1015,7 @@ private struct DetailHeader: View {
                     versionLine
                 }
                 Spacer()
-                // The contextual primary action (Update / Restart / Relaunch / Get),
+                // The contextual primary action (Update / Relaunch / Get),
                 // so an update can be acted on right here while its notes are open —
                 // no trip back to the menu-bar popover.
                 WorkbenchActionView(result: result, model: model)

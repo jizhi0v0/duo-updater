@@ -106,7 +106,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     private var localizedKeywords: [String] {
         let list: String
         switch self {
-        case .general:     list = String(localized: "launch, login, frequency, notify, restart, backup, rollback, concurrency, app store, self-updating, vendor", comment: "Comma-separated extra search terms for the General settings page")
+        case .general:     list = String(localized: "launch, login, frequency, notify, relaunch, restart, backup, rollback, concurrency, app store, self-updating, vendor", comment: "Comma-separated extra search terms for the General settings page")
         case .folders:     list = String(localized: "scan, locations, applications, path, directory", comment: "Comma-separated extra search terms for the Folders settings page")
         case .updates:     list = String(localized: "version, about, self", comment: "Comma-separated extra search terms for the Updates settings page")
         case .github:      list = String(localized: "token, personal access token, rate limit", comment: "Comma-separated extra search terms for the GitHub settings page")
@@ -136,7 +136,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     /// before still finds it, and the localized terms are new ground.
     private var englishAliases: [String] {
         switch self {
-        case .general:     return ["launch", "login", "frequency", "notify", "restart", "backup", "rollback", "concurrency", "app store", "mas", "self-updating", "vendor"]
+        case .general:     return ["launch", "login", "frequency", "notify", "relaunch", "restart", "backup", "rollback", "concurrency", "app store", "mas", "self-updating", "vendor"]
         case .folders:     return ["scan", "locations", "applications", "path", "directory"]
         case .updates:     return ["version", "sparkle", "about", "self"]
         case .github:      return ["token", "personal access token", "pat", "gh", "cli", "rate limit"]

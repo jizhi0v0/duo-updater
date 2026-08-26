@@ -4278,10 +4278,14 @@ final class AppListModel {
         }
     }
 
-    /// True when at least one app "Update All" would act on — used to decide
-    /// whether to show the batch button.
+    /// True when there's more than one app "Update All" would act on — used to
+    /// decide whether to show the batch button.
+    ///
+    /// More than one, not at least one: with a single target the row's own
+    /// "Update" button is already right there, and a batch button beside it is a
+    /// second control for exactly the same action.
     var canUpdateAll: Bool {
-        !isInstallingAll && !isScanning && !isChecking && installing.isEmpty && !installAllTargets().isEmpty
+        !isInstallingAll && !isScanning && !isChecking && installing.isEmpty && installAllTargets().count > 1
     }
 
     // MARK: - Ignore / skip

@@ -402,29 +402,38 @@ struct MenuContentView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
-                HStack(alignment: .bottom, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text("Duo Updater")
                         .font(.system(size: 16, weight: .medium))
                     if let version = AppListModel.runningSelfVersion {
-                        Text("v\(version)")
-                            .font(.system(size: 10, weight: .regular))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                            .fixedSize()
+                        // The version and the sparkles are ONE button, not a label
+                        // beside a 10pt glyph. Since the self-update banner went
+                        // away this is the only route into the notes anywhere in
+                        // the app, and a lone sparkle that small reads as
+                        // decoration; the version number is the natural thing to
+                        // click for "what changed", and taking both roughly
+                        // triples the hit target.
                         Button {
                             openWindow(id: SelfChangelogView.windowID)
                             model.surfaceWindow(sceneID: SelfChangelogView.windowID)
                         } label: {
-                            Image(systemName: "sparkles")
-                                .foregroundStyle(model.silentSelfUpdate == nil ? Color.secondary : Color.yellow)
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text("v\(version)")
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(model.silentSelfUpdate == nil ? Color.secondary : Color.yellow)
+                            }
+                            // Baseline-aligned rather than nudged: a symbol has a
+                            // text baseline of its own, so this lands the sparkle
+                            // on the version's without a hand-tuned offset.
+                            .font(.system(size: 10))
+                            .fixedSize()
+                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.borderless)
-                        .font(.system(size: 10))
+                        .buttonStyle(.plain)
                         .help("What's New — Duo Updater's own release notes")
                         .accessibilityLabel("What's New")
-                        .alignmentGuide(.bottom) { dimensions in
-                            dimensions[.bottom] + 1
-                        }
                     }
                 }
                 .padding(.top, 2)

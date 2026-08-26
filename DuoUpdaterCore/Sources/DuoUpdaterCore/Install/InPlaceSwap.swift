@@ -143,14 +143,28 @@ public enum InPlaceSwap {
         // nothing either way is the exact ambiguity this is here to remove.
         let elevated = needsElevatedReplace(target: target)
         var replaced = false
+        // The bundle's identity before we touch it. `fileExists` cannot answer the
+        // question the failure branch asks: after a successful replacement the path
+        // exists too, so it reported "the app on disk is unchanged" for both
+        // outcomes. `replaceItemAt` can put the new bundle in place and *then*
+        // throw while removing the one it displaced — observed restoring ToDesk on
+        // 2026-08-26, where the app really had been replaced and the log said the
+        // opposite. The inode distinguishes them.
+        let identityBefore = inode(of: target)
         Log.install.notice(
             "swap start: \(target.lastPathComponent, privacy: .public) elevated=\(elevated, privacy: .public)")
         defer {
             if replaced {
                 Log.install.notice("swap done: \(target.lastPathComponent, privacy: .public)")
             } else if FileManager.default.fileExists(atPath: target.path) {
-                Log.install.error(
-                    "swap did NOT replace \(target.lastPathComponent, privacy: .public) — the app on disk is unchanged")
+                let identityAfter = inode(of: target)
+                if let before = identityBefore, let after = identityAfter, before != after {
+                    Log.install.error(
+                        "swap threw for \(target.lastPathComponent, privacy: .public) but the bundle at that path was REPLACED anyway — the error came after the exchange, so the new version is live and the failure is in the cleanup")
+                } else {
+                    Log.install.error(
+                        "swap did NOT replace \(target.lastPathComponent, privacy: .public) — the app on disk is unchanged")
+                }
             } else {
                 // The privileged path moves the target aside before moving the new
                 // bundle in, and restores it if that fails. If the restore ALSO
@@ -175,7 +189,29 @@ public enum InPlaceSwap {
             do {
                 _ = try fm.replaceItemAt(target, withItemAt: staged, backupItemName: nil, options: [])
             } catch {
-                try? fm.removeItem(at: staged)
+                // What actually went wrong, before it is folded into one of two
+                // user-facing shapes. Both of those describe a cause rather than
+                // report the error, so without this line a misclassification is
+                // indistinguishable from the real thing — which is how a ToDesk
+                // restore that had already landed came out as "grant App
+                // Management", with `duo doctor` saying it was granted all along.
+                let ns = error as NSError
+                Log.install.error(
+                    "swap: replaceItemAt threw for \(target.lastPathComponent, privacy: .public) — \(ns.domain, privacy: .public) \(ns.code, privacy: .public): \(ns.localizedDescription, privacy: .public)")
+                if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
+                    Log.install.error(
+                        "swap: underlying \(underlying.domain, privacy: .public) \(underlying.code, privacy: .public): \(underlying.localizedDescription, privacy: .public)")
+                }
+                // A staged sibling we cannot clear is left in `/Applications` for
+                // good — root-owned after a package install, and `try?` said
+                // nothing about it. `recoverInterruptedSwaps` sweeps unprivileged
+                // and cannot remove it either, so name it here or nobody learns.
+                if fm.fileExists(atPath: staged.path) {
+                    do { try fm.removeItem(at: staged) } catch {
+                        Log.install.error(
+                            "swap: left \(staged.lastPathComponent, privacy: .public) behind in \(parent.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                    }
+                }
                 // `/Applications` is group-writable for admins, so we took the
                 // user-level path — but replacing *another app's* bundle is gated
                 // by App Management on macOS 13+. That denial surfaces as EPERM;
@@ -376,6 +412,14 @@ public enum InPlaceSwap {
     /// Whether an error (or anything in its underlying-error chain) is the
     /// `EPERM`/`NSFileWriteNoPermission` denial that the App Management gate
     /// raises when we try to overwrite another app's bundle.
+    /// The bundle's inode, or nil when it cannot be read. Identity rather than
+    /// existence: it is what lets the failure path tell "never replaced" from
+    /// "replaced, then threw", which look identical to `fileExists`.
+    private static func inode(of url: URL) -> UInt64? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.systemFileNumber]
+            .flatMap { ($0 as? NSNumber)?.uint64Value }
+    }
+
     static func isAppManagementDenial(_ error: Error) -> Bool {
         var current: NSError? = error as NSError
         while let e = current {

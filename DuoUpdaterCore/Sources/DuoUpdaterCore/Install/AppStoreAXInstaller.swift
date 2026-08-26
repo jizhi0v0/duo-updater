@@ -23,11 +23,11 @@ import ApplicationServices
 ///   2. Find the product page's offer button — a stable `AXIdentifier` of
 ///      `AppStore.offerButton` (the visible title is localized: Update / Open /
 ///      Get / …, so we never match on it; we already know an update is due). We
-///      first confirm the page is *this app's* by requiring its name to appear as
-///      static text on the page: a cold-launched App Store (the user ⌘Q'd it)
-///      restores its previous Discover/home page and can render that before the deep
-///      link lands, and that page's topmost offer button belongs to some featured app
-///      — often a subscription — so pressing it blind triggers a purchase sheet.
+///      bind that button to *this* app structurally before pressing it — see
+///      `offerButton(in:appName:viaUpdatesList:)`. Navigation is asynchronous, so
+///      until the deep link lands App Store still shows whatever it had before (its
+///      restored Discover page, or another app's product page), whose offer buttons
+///      are *buy* buttons for apps the user does not own.
 ///   3. `AXPress` the button *with the app still running* — entirely in the
 ///      background, never bringing App Store to the front. A backgrounded App Store
 ///      honors the press (verified 2026-06-05 via a direct probe, and long relied on
@@ -630,16 +630,13 @@ public actor AppStoreAXInstaller {
     // MARK: - AX lookups
 
     /// The offer button to press, by path:
-    ///   • **Product page** (default): several `AppStore.offerButton`s can exist
-    ///     (related apps, "more by this developer"), so we take the topmost (smallest
-    ///     y) — the page header's own button. But *only* once we've confirmed the page
-    ///     actually belongs to this app, by requiring its name to appear as static text
-    ///     in App Store's focused window. Without that guard a cold-launched App Store
-    ///     (the user ⌘Q'd it) can render its restored Discover/home page before the deep
-    ///     link lands, and its topmost offer button — some featured/subscription app —
-    ///     gets pressed instead, surfacing a spurious "needs confirmation" sheet.
-    ///     Returns nil until the page is confirmed, so the caller keeps waiting (and
-    ///     re-navigating) rather than pressing the wrong button.
+    ///   • **Product page** (default): several `AppStore.offerButton`s can exist, and
+    ///     the ones that are not ours belong to apps the user does not own — pressing
+    ///     one *buys* something. So we bind the button to this app with two structural,
+    ///     language-independent checks (see `ShelfCell`): the page's **hero lockup**
+    ///     must name this app, and the button must not sit in another app's card.
+    ///     Only if exactly one button survives do we return it; otherwise nil, and the
+    ///     caller keeps waiting (and re-navigating) rather than pressing anything.
     ///   • **Updates list** (`viaUpdatesList`): one row per app, each with its own
     ///     offer button. We pick the row whose nearby text carries `appName`, matching
     ///     by name rather than position or the localized button title (which reads
@@ -649,14 +646,16 @@ public actor AppStoreAXInstaller {
         var found: [AXUIElement] = []
         collect(axApp, id: "AppStore.offerButton", into: &found)
         guard viaUpdatesList else {
-            // Only trust the topmost header button once the page is confirmed to be THIS
-            // app's — its name renders as static text on the product page. A cold-launched
-            // App Store can show its restored Discover/home page first, whose topmost
-            // button is a different (often subscription) app; that page won't mention the
-            // app we're updating, so we keep waiting instead of pressing the wrong button.
-            guard pageMentions(appName, in: axApp) else { return nil }
-            return found.min { (frame($0)?.minY ?? .greatestFiniteMagnitude)
-                             < (frame($1)?.minY ?? .greatestFiniteMagnitude) }
+            // 1. Has the deep link actually landed on THIS app's page? Navigation is
+            //    asynchronous, so until it has, App Store is still showing its restored
+            //    Discover page or another app's product page — both full of buy buttons.
+            // 2. Drop every button that belongs to some other app's card, and press only
+            //    if that leaves exactly one. Position is not a discriminator: the topmost
+            //    button belongs to whichever page rendered highest, not to us.
+            let ours = found.filter { !isInForeignCard($0) }
+            guard Self.shouldPress(heroOwnsPage: heroOwns(appName, in: axApp),
+                                   ownButtonCount: ours.count) else { return nil }
+            return ours[0]
         }
         // An inline loop (not `compactMap`) so `axApp` never crosses into a closure:
         // Swift 6.2's region-based isolation rejects passing this non-Sendable
@@ -676,22 +675,102 @@ public actor AppStoreAXInstaller {
         })?.0
     }
 
-    /// Whether `appName` appears as text anywhere under App Store's element — the signal
-    /// that it has actually navigated to this app's product page (its name renders as the
-    /// header heading and again under "More by…"), as opposed to a cold-launch's restored
-    /// Discover/home page, which won't mention the app we're updating. Searched from the
-    /// app root (the same traversal that reliably surfaces the offer buttons), depth-first,
-    /// short-circuiting at the first match. We check `AXValue`, `AXTitle` and
-    /// `AXDescription` on every node: the product page is web-rendered, where a static
-    /// text's string lives in `AXValue` rather than `AXTitle`, so a title-only check would
-    /// miss the name even on the correct page (and then loop/re-navigate to a timeout).
-    private func pageMentions(_ appName: String, in el: AXUIElement, depth: Int = 0) -> Bool {
-        if depth > 60 { return false }
+    /// How one of App Store's `AppStore.shelfItem.*` cells relates to the app we're
+    /// updating. Every app that appears anywhere in App Store's UI is wrapped in such a
+    /// cell, and the *subtype* says whose app it is (observed macOS 26.6, 2026-08-26):
+    ///
+    ///   • `…ProductLockupCollectionViewCell` — the product page's own **hero lockup**:
+    ///     icon, name, subtitle, and the offer button we actually want.
+    ///   • every other subtype (`…SmallLockupCollectionViewCell`, …) — some **other**
+    ///     app: Discover's featured rows, "Also Included In" subscription bundles,
+    ///     "More by this developer".
+    ///
+    /// Both are structural and language-independent, unlike the button's own title.
+    /// Kept as a pure function of the identifier so it is directly testable.
+    enum ShelfCell: Equatable {
+        case notACell
+        case hero
+        case foreign
+
+        init(identifier: String?) {
+            guard let identifier, identifier.hasPrefix("AppStore.shelfItem") else {
+                self = .notACell
+                return
+            }
+            self = identifier.contains("ProductLockup") ? .hero : .foreign
+        }
+    }
+
+    /// The product-page press/wait decision, factored out of the AX traversal so it can
+    /// be asserted without a live App Store.
+    ///
+    /// Both conditions are required and the rule is deliberately fail-closed — returning
+    /// `false` only costs another 150 ms poll (and a re-issued deep link), while a wrong
+    /// `true` spends the user's money. `ownButtonCount != 1` is a real state, not
+    /// paranoia: mid-navigation both the old and the new page are briefly in the AX tree
+    /// at once (observed: 8 offer buttons in one poll).
+    static func shouldPress(heroOwnsPage: Bool, ownButtonCount: Int) -> Bool {
+        heroOwnsPage && ownButtonCount == 1
+    }
+
+    /// Whether the page's own hero lockup names `appName` — i.e. App Store really has
+    /// landed on THIS app's product page.
+    ///
+    /// This replaced a check that asked whether the name appeared as text *anywhere*
+    /// under App Store's element. That guard was permanently true for exactly the apps
+    /// we update: the Apple menu's **Recent Items** submenu hangs off every app's
+    /// `AXMenuBar` and lists recently used applications, so
+    /// `AXMenuBar > AXMenuBarItem:Apple > … > AXMenuItem:Microsoft Word` satisfied it no
+    /// matter which page was showing. The topmost offer button was then pressed on
+    /// whatever App Store still had on screen — on a restored Discover page a featured
+    /// app's **buy** button (observed `$49.99`), on another app's product page that
+    /// app's. Reproduced 5/5 on macOS 26.6, 2026-08-26.
+    ///
+    /// Restricting the search to hero lockups fixes that at the root: menu bars contain
+    /// no shelf cells, and every *other* app named on a page sits in a foreign cell we
+    /// never descend into.
+    private func heroOwns(_ appName: String, in axApp: AXUIElement) -> Bool {
+        var heroes: [AXUIElement] = []
+        collectHeroCells(axApp, into: &heroes)
+        for hero in heroes where subtreeMentions(appName, hero) { return true }
+        return false
+    }
+
+    /// Collect the page's hero lockup cells, never descending into any shelf cell (so a
+    /// nested card can't be mistaken for the page's own header).
+    private func collectHeroCells(_ el: AXUIElement, into acc: inout [AXUIElement], depth: Int = 0) {
+        if depth > 45 { return }
+        switch ShelfCell(identifier: string(el, "AXIdentifier")) {
+        case .hero:    acc.append(el); return
+        case .foreign: return
+        case .notACell: break
+        }
+        for c in children(el) { collectHeroCells(c, into: &acc, depth: depth + 1) }
+    }
+
+    /// Whether `appName` appears as text in this subtree. `AXValue` is checked first and
+    /// is the one that matters: these pages are web-rendered, so a static text's string
+    /// lives in `AXValue`, not `AXTitle`.
+    private func subtreeMentions(_ appName: String, _ el: AXUIElement, depth: Int = 0) -> Bool {
+        if depth > 20 { return false }
         for attr in ["AXValue", kAXTitleAttribute as String, kAXDescriptionAttribute as String] {
             if let t = string(el, attr), t.localizedCaseInsensitiveContains(appName) { return true }
         }
         for c in children(el) {
-            if pageMentions(appName, in: c, depth: depth + 1) { return true }
+            if subtreeMentions(appName, c, depth: depth + 1) { return true }
+        }
+        return false
+    }
+
+    /// Whether this offer button sits inside another app's card. The product page's own
+    /// header button is either parentless (observed) or inside the hero lockup; either
+    /// way it is never inside a foreign cell.
+    private func isInForeignCard(_ btn: AXUIElement) -> Bool {
+        var cur: AXUIElement? = btn
+        for _ in 0..<6 {
+            guard let c = cur else { return false }
+            if ShelfCell(identifier: string(c, "AXIdentifier")) == .foreign { return true }
+            cur = attribute(c, kAXParentAttribute as String)
         }
         return false
     }

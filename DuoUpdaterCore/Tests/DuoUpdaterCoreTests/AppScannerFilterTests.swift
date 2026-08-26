@@ -37,7 +37,7 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     // WhatsApp ships CFBundleDisplayName "\u{200E}WhatsApp" (a leading LEFT-TO-RIGHT
     // MARK). That invisible mark made the canonical name "\u{200E}WhatsApp", which
     // never matched the App Store page's plain "WhatsApp" in the AX updater's
-    // `pageMentions` guard — surfacing as "Couldn't find the update button".
+    // `heroOwns` guard — surfacing as "Couldn't find the update button".
     let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("scan-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)

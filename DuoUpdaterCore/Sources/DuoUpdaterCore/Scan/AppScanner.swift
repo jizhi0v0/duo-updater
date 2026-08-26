@@ -301,7 +301,7 @@ public struct AppScanner: Sendable {
         // MARK) so the name renders LTR regardless of locale. Those marks are purely
         // presentational and never part of the logical name, yet they poison every
         // literal comparison against text rendered *without* them — most visibly the
-        // App Store AX updater's `pageMentions`/row matching, which then "can't find the
+        // App Store AX updater's `heroOwns`/row matching, which then "can't find the
         // update button". Strip them so the canonical name matches everywhere.
         let displayName = Self.stripInvisibleMarks(
             (plist["CFBundleDisplayName"] as? String)

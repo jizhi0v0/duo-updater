@@ -618,4 +618,124 @@ struct BackupStoreTests {
             #expect(goneEntry.sizeBytes > 0)
         }
     }
+
+    /// A staging directory left by a crashed attempt must not be able to disable
+    /// backups for that app for good.
+    ///
+    /// ToDesk's did, from 2026-08-24 until it was found on 08-26: the leftover held
+    /// root-owned files a package install had put there, the removal in front of it
+    /// was a `try?` and failed silently, `createDirectory` then succeeded because
+    /// the directory already existed, and ditto copied into a destination still
+    /// holding those files — `advInfo.json: Operation not permitted`, every time.
+    /// Every update since had reported only "proceeding without a rollback point".
+    ///
+    /// Simulated by making the leftover's contents unremovable through its own
+    /// permissions rather than by owner, which needs no root and fails removal the
+    /// same way. The assertion is that the backup succeeds regardless.
+    @Test func aLeftoverStagingDirThatWillNotClearDoesNotBlockTheBackup() throws {
+        try withScratchRoot { root in
+            let fm = FileManager.default
+            let apps = root.appendingPathComponent("apps")
+            try fm.createDirectory(at: apps, withIntermediateDirectories: true)
+            let app = try makeApp(named: "Poisoned.app", in: apps, marker: "v1")
+            let key = BackupStore.key(bundleID: "com.example.poisoned", path: app)
+
+            // A leftover whose inner directory cannot be written, so removing the
+            // file inside it — and therefore the leftover itself — fails.
+            let leftover = root.appendingPathComponent(".staging-\(key)")
+            let inner = leftover.appendingPathComponent("Poisoned.app/Contents")
+            try fm.createDirectory(at: inner, withIntermediateDirectories: true)
+            try Data("stale".utf8).write(to: inner.appendingPathComponent("advInfo.json"))
+            try fm.setAttributes([.posixPermissions: 0o500], ofItemAtPath: inner.path)
+            defer { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: inner.path) }
+            #expect(throws: (any Error).self) { try fm.removeItem(at: leftover) }
+
+            let saved = try BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.poisoned")
+            #expect(saved.version == "1.0")
+            let readBack = try #require(BackupStore.backup(forKey: key))
+            #expect(fm.fileExists(atPath: readBack.bundlePath.path))
+            // …and the stranded leftover is still there, untouched and reported,
+            // rather than silently swallowed or mistaken for this backup.
+            #expect(fm.fileExists(atPath: leftover.path))
+        }
+    }
+
+    /// A `uchg` file in the source must not make the stored copy undeletable.
+    ///
+    /// ToDesk sets the user-immutable flag on `Contents/advInfo.json`. `ditto`
+    /// preserves file flags, so the flag rode into the backup store, and an
+    /// immutable file cannot be removed by anyone but root — its owner included.
+    /// The copy was therefore permanent: the staging directory could not be
+    /// cleared, and retention could not replace the copy it superseded, so every
+    /// later backup of that app failed. Found on 2026-08-26 after three rounds of
+    /// looking at ownership and permissions, which were correct the whole time.
+    @Test func anImmutableFileInTheSourceDoesNotFreezeTheStoredCopy() throws {
+        try withScratchRoot { root in
+            let fm = FileManager.default
+            let apps = root.appendingPathComponent("apps")
+            try fm.createDirectory(at: apps, withIntermediateDirectories: true)
+            let app = try makeApp(named: "Locked.app", in: apps, marker: "v1")
+            let locked = app.appendingPathComponent("Contents/advInfo.json")
+            try Data("{}".utf8).write(to: locked)
+            try fm.setAttributes([.immutable: true], ofItemAtPath: locked.path)
+            defer {
+                // The source is ours to unlock again; the assertions below are about
+                // the *copy*, and a scratch root that will not delete leaks a temp dir.
+                try? fm.setAttributes([.immutable: false], ofItemAtPath: locked.path)
+                for url in fm.enumerator(at: root, includingPropertiesForKeys: nil)?
+                    .compactMap({ $0 as? URL }) ?? [] {
+                    try? fm.setAttributes([.immutable: false], ofItemAtPath: url.path)
+                }
+            }
+            let key = BackupStore.key(bundleID: "com.example.locked", path: app)
+
+            let saved = try BackupStore.save(
+                appPath: app, key: key, version: "1.0", bundleID: "com.example.locked")
+            let copied = saved.bundlePath.appendingPathComponent("Contents/advInfo.json")
+            #expect(fm.fileExists(atPath: copied.path))
+            let flags = (try fm.attributesOfItem(atPath: copied.path)[.immutable] as? Bool) ?? false
+            #expect(!flags, "the stored copy kept the source's immutable flag")
+
+            // The point of clearing it: a second backup has to be able to replace
+            // the first. This is the call that failed for ToDesk every time.
+            let again = try BackupStore.save(
+                appPath: app, key: key, version: "1.1", bundleID: "com.example.locked")
+            #expect(again.version == "1.1")
+            #expect(BackupStore.backup(forKey: key)?.version == "1.1")
+        }
+    }
+
+    /// A backup generation written before the flag was stripped must not block the
+    /// one replacing it. This is the state a real machine is left in: one poisoned
+    /// copy already in the store, and every later backup failing to supersede it.
+    @Test func aPoisonedPreviousGenerationDoesNotBlockTheNextBackup() throws {
+        try withScratchRoot { root in
+            let fm = FileManager.default
+            let apps = root.appendingPathComponent("apps")
+            try fm.createDirectory(at: apps, withIntermediateDirectories: true)
+            let app = try makeApp(named: "Locked.app", in: apps, marker: "v1")
+            let key = BackupStore.key(bundleID: "com.example.locked", path: app)
+            defer {
+                for url in fm.enumerator(at: root, includingPropertiesForKeys: nil)?
+                    .compactMap({ $0 as? URL }) ?? [] {
+                    try? fm.setAttributes([.immutable: false], ofItemAtPath: url.path)
+                }
+            }
+
+            _ = try BackupStore.save(appPath: app, key: key, version: "1.0",
+                                     bundleID: "com.example.locked")
+            // Poison the stored generation the way `ditto` used to: a file inside it
+            // that nobody but root can delete.
+            let stored = root.appendingPathComponent(key)
+                .appendingPathComponent("Locked.app/Contents/advInfo.json")
+            try Data("{}".utf8).write(to: stored)
+            try fm.setAttributes([.immutable: true], ofItemAtPath: stored.path)
+
+            let again = try BackupStore.save(appPath: app, key: key, version: "1.1",
+                                             bundleID: "com.example.locked")
+            #expect(again.version == "1.1")
+            #expect(BackupStore.backup(forKey: key)?.version == "1.1")
+        }
+    }
 }

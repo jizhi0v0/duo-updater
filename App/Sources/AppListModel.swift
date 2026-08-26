@@ -370,15 +370,22 @@ final class AppListModel {
     /// marketing version on record (the app updated while we weren't running). nil
     /// when the app isn't lagging a newer on-disk build.
     func restartFromVersion(_ id: String) -> String? {
+        restartFromSide(id)?.text(withBuild: true)
+    }
+
+    /// The same running side, still in parts, so the line can be formatted against
+    /// the on-disk side rather than in isolation — see `UpdateResult.relaunchLine`.
+    /// The marketing version is left nil when it adds nothing (nothing recovered it,
+    /// or it is the build over again), which is exactly the case where the target's
+    /// build has to stay for the two sides to be comparable at all.
+    func restartFromSide(_ id: String) -> UpdateResult.VersionSide? {
         guard let runningBuild = runningVersionByID[id] else { return nil }
         let build = UpdateResult.strippingBuildPrefix(runningBuild)
         // Prefer the rollback backup's marketing (authoritative, written when *we*
         // installed); fall back to the build→marketing history recovered for apps
-        // that self-updated outside us. Either way, pair it with the build.
-        if let marketing = backupVersions[id] ?? recoveredRestartMarketing[id], marketing != build {
-            return "\(marketing) (\(build))"
-        }
-        return build
+        // that self-updated outside us.
+        let marketing = backupVersions[id] ?? recoveredRestartMarketing[id]
+        return .init(marketing: marketing == build ? nil : marketing, build: build)
     }
 
     /// The raw staged self-update for a row, if its own updater has downloaded a

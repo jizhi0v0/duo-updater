@@ -467,14 +467,31 @@ struct MenuContentView: View {
 
             HStack(alignment: .top, spacing: 8) {
                 // One line, at full size, truncating when it must. The slot is
-                // whatever the Update All button leaves.
+                // whatever the Update All button leaves — expressed as a frame,
+                // not as a trailing `Spacer`.
+                //
+                // Both halves of that matter, and they pull opposite ways.
+                // `fixedSize` made the line DEMAND its ideal width, so when the
+                // line outgrew the slot nothing gave: the whole header — title
+                // included — slid left and the button hung past the popover's
+                // edge (reproduced in es and fr by pushing the count to four
+                // digits). But a greedy `Spacer` at the same priority as the text
+                // takes room the line still wants, which clipped fr and es at six
+                // updates with the button's own width sitting unused beside them.
+                // A `fixedSize` button plus `maxWidth: .infinity` here serves the
+                // button its ideal first and hands the line exactly the rest,
+                // where `lineLimit` truncates instead of overflowing. Verified in
+                // all seven shipped languages: nothing truncates at realistic
+                // counts, and the four-digit case ends in an ellipsis inside the
+                // popover instead of over its edge. The tooltip carries the whole
+                // line either way.
                 Text(statusLine)
                     .font(.system(size: 11.5, weight: .regular))
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .layoutPriority(1)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .help(Text(statusLine))
-                Spacer()
                 if model.canUpdateAll {
                     Button("Update All") { Task { await model.installAll() } }
                         .lineLimit(1)

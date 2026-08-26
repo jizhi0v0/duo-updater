@@ -16,11 +16,21 @@ public enum AppStoreUpdateStrategy: String, CaseIterable, Identifiable, Sendable
 
     public var id: String { rawValue }
 
-    /// Release builds currently expose only the more predictable full-download
-    /// path. Keep the incremental case in the model so older defaults still
-    /// decode cleanly and the implementation can return later without a
-    /// migration.
-    public static let availableCases: [Self] = [.full]
+    /// What Settings offers. Only the predictable full-download path is listed:
+    /// `.incremental` drives App Store's own UI and is still under evaluation, so it
+    /// is reachable only by setting the default by hand —
+    /// `defaults write com.duoupdater.app AppStoreUpdateStrategy incremental`.
+    ///
+    /// It is listed *while it is the active choice*, though, and that is the point of
+    /// taking the current value: a picker whose selection is not among its own tags
+    /// renders empty and silently rewrites the setting the moment it is touched. So
+    /// whoever turned it on sees the truth in Settings and can turn it back off there,
+    /// while everyone else is offered exactly one route.
+    public static func visibleCases(current: Self) -> [Self] {
+        var cases: [Self] = [.full]
+        if !cases.contains(current) { cases.append(current) }
+        return cases
+    }
 
     /// Deliberately terse. These labels sit in a popup button whose slot is the
     /// settings row, and the sentence-length versions they replaced ("Full
@@ -30,9 +40,9 @@ public enum AppStoreUpdateStrategy: String, CaseIterable, Identifiable, Sendable
     /// menu. Everything the parenthetical carried is in the card's footer, which
     /// has room for it.
     ///
-    /// `.incremental` keeps its longer label: it is not in `availableCases`, so
-    /// nothing renders it, and re-translating a string no one can see would be
-    /// churn for its own sake.
+    /// `.incremental` keeps its longer label. It is listed only for whoever turned it
+    /// on by hand (see `visibleCases`), and naming the permission it needs is worth
+    /// more to that reader than fitting the popup's narrowest slot.
     public var label: String {
         switch self {
         case .full:        return String(localized: "Full download")

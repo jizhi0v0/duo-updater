@@ -23,11 +23,11 @@ import ApplicationServices
 ///   2. Find the product page's offer button — a stable `AXIdentifier` of
 ///      `AppStore.offerButton` (the visible title is localized: Update / Open /
 ///      Get / …, so we never match on it; we already know an update is due). We
-///      first confirm the page is *this app's* by requiring its name to appear as
-///      static text on the page: a cold-launched App Store (the user ⌘Q'd it)
-///      restores its previous Discover/home page and can render that before the deep
-///      link lands, and that page's topmost offer button belongs to some featured app
-///      — often a subscription — so pressing it blind triggers a purchase sheet.
+///      bind that button to *this* app structurally before pressing it — see
+///      `offerButton(in:appName:viaUpdatesList:)`. Navigation is asynchronous, so
+///      until the deep link lands App Store still shows whatever it had before (its
+///      restored Discover page, or another app's product page), whose offer buttons
+///      are *buy* buttons for apps the user does not own.
 ///   3. `AXPress` the button *with the app still running* — entirely in the
 ///      background, never bringing App Store to the front. A backgrounded App Store
 ///      honors the press (verified 2026-06-05 via a direct probe, and long relied on
@@ -155,6 +155,10 @@ public actor AppStoreAXInstaller {
 
         let axApp = AXUIElementCreateApplication(store.processIdentifier)
 
+        // The deep link above selects the Updates *tab*, which a leftover product page
+        // sits on top of — so on its own it can leave the list invisible. Uncover it.
+        if viaUpdatesList { await popToUpdatesList(in: axApp) }
+
         // Everything runs fully in the background — App Store is never brought to the
         // front. Both AX *reads* and the offer-button `AXPress` honor a backgrounded App
         // Store: the Updates-list path has always relied on this (a region-locked update
@@ -238,6 +242,32 @@ public actor AppStoreAXInstaller {
         // server-side update check, which is what recomputes the count.
         try? await Task.sleep(for: .seconds(1))
         reloadUpdatesPage(in: AXUIElementCreateApplication(pid))
+    }
+
+    /// Pop any product page covering the Updates list, one level per press.
+    ///
+    /// App Store's product page is a detail view pushed onto the *sidebar tab's*
+    /// navigation stack, not a destination of its own. While one is open, neither
+    /// `macappstore://showUpdatesPage` nor pressing the sidebar's own
+    /// `AppStore.tabBar.updates` changes what is displayed — both only select a tab that
+    /// is already selected, and the tab press even reports success while the product page
+    /// stays put (observed 3/3, macOS 26.6). The list's own back button is the only thing
+    /// that reveals it, so press it until it is gone.
+    ///
+    /// This matters because a product page is exactly what the *other* route leaves
+    /// behind: without popping, the Updates path's only nudge is ⌘R, which reloads
+    /// whatever is on top — the product page — so the row never appeared and the wait
+    /// ended in `.notInUpdatesList` with the list one press away.
+    ///
+    /// Bounded, and a no-op (no sleeping) when there is nothing to pop.
+    private func popToUpdatesList(in axApp: AXUIElement) async {
+        for _ in 0..<6 {
+            var found: [AXUIElement] = []
+            collect(axApp, id: "AppStore.productPage.backButton", into: &found)
+            guard let back = found.first else { return }
+            AXUIElementPerformAction(back, kAXPressAction as CFString)
+            try? await Task.sleep(for: .milliseconds(300))  // let the pop land
+        }
     }
 
     /// Fire App Store's "Reload Page" (⌘R) on whatever page is showing. On the Updates
@@ -368,6 +398,9 @@ public actor AppStoreAXInstaller {
             // An early nudge once the page has settled (~0.6s), then every ~2.4s.
             if i == 4 || (i > 0 && i % 16 == 0) {
                 if viaUpdatesList {
+                    // A product page opened while we were waiting would hide the list,
+                    // and ⌘R would then just reload *it*. Uncover the list first.
+                    await popToUpdatesList(in: axApp)
                     reloadUpdatesPage(in: axApp)
                 } else if let trackID = renavigateTrackID {
                     try? navigateToProductPage(trackID: trackID)
@@ -412,6 +445,20 @@ public actor AppStoreAXInstaller {
         var idleTicks = 0         // consecutive polls with no progress and no sheet
         var repressed = false     // we re-pressed Update once after an idle stretch
         var postContinueTicks = 0 // polls since we pressed Continue (to flag a no-op press)
+        var stalledTicks = 0            // consecutive polls with the swap not moving
+        var lastInstallProgress: Double? // last "Installing: N% Complete" we read
+
+        // A sheet already on screen before we press is left over from an earlier
+        // install: App Store can leave its "Close This App to Update" sheet up for
+        // minutes after the update it belonged to has already landed (observed
+        // 2026-08-26 — the product page behind it had flipped to "Open"). Acting on a
+        // leftover would either bail this update as a purchase sheet or ask the user to
+        // Relaunch for a swap that is not pending. Ignore sheets until the screen has
+        // been seen clear once, which is what tells us the next one is ours.
+        var leftoverSheet = quitSheet(in: axApp) != nil
+        if leftoverSheet {
+            Log.install.info("appstore-ax: \(appName, privacy: .public) a sheet was already up before we pressed — ignoring it until it clears")
+        }
 
         // ~6 min hard cap of *polling* — the suspension on `confirmQuit` below doesn't
         // burn iterations, so waiting on the user's Relaunch tap never times us out.
@@ -425,21 +472,38 @@ public actor AppStoreAXInstaller {
                 return
             }
 
-            // After Continue, cap the wait on App Store's swap. The swap normally lands
-            // in well under a minute (WeChat ~24s), so if the version hasn't changed
-            // ~90s after Continue the swap silently failed (e.g. the app couldn't be
-            // quit) — bail rather than spin the full 6-min cap, which would freeze the
-            // background scheduler (it defers every tick while an install is in flight).
+            // After Continue, cap the wait on App Store's swap — on *stalling*, not on
+            // elapsed time. App Store reports the swap on the offer button itself
+            // ("Installing: N% Complete"), so a swap that is still working keeps moving
+            // that number and only a stopped one goes quiet.
+            //
+            // This used to be a flat ~90s measured from Continue, generalised from one
+            // small app (WeChat ~24s). Large apps simply take longer: Excel (2.56 GB)
+            // needed ~2 min, and Word (2.73 GB) was still installing 66s in and landed
+            // just past the deadline — so a *successful* update threw `.timedOut`. The
+            // app updated and reopened, but the row took the failure path: no recheck,
+            // no "just updated", and a red "Timed out waiting for the App Store" that
+            // stood until the next scheduled check (2026-08-26).
             if continued {
                 postContinueTicks += 1
-                if postContinueTicks >= 225 {  // ~90s at 400ms/poll
-                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — no swap ~90s after Continue (the swap likely never started; app still running=\(bundleID.map { isRunning($0) } ?? false))")
+                let watch = Self.swapWatchdog(
+                    progress: installProgress(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList),
+                    last: lastInstallProgress,
+                    stalledPolls: stalledTicks)
+                lastInstallProgress = watch.last
+                stalledTicks = watch.stalledPolls
+                if Self.swapHasStalled(stalledPolls: stalledTicks) {
+                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — swap stalled ~90s with no movement (last progress=\(lastInstallProgress.map { "\(Int($0 * 100))%" } ?? "none", privacy: .public); app still running=\(bundleID.map { isRunning($0) } ?? false))")
                     throw AXError.timedOut
                 }
             }
 
-            // 2. Sheet handling.
-            let sheetPresent = quitSheet(in: axApp) != nil
+            // 2. Sheet handling. A leftover from an earlier install is not ours; once the
+            // screen has been clear even one poll, whatever appears next is.
+            let verdict = Self.classifySheet(onScreen: quitSheet(in: axApp) != nil,
+                                             ignoringLeftover: leftoverSheet)
+            leftoverSheet = verdict.ignoringLeftover
+            let sheetPresent = verdict.isOurs
             if sheetPresent {
                 if continued {
                     // We've quit the app + foregrounded App Store; the swap is in flight.
@@ -619,6 +683,56 @@ public actor AppStoreAXInstaller {
         return min(max(value / 100, 0), 1)
     }
 
+    /// One poll of the leftover-sheet filter, as a pure step so the rule is assertable.
+    ///
+    /// App Store can leave its "Close This App to Update" sheet on screen for minutes
+    /// after the update it belonged to has landed — the product page behind it had
+    /// already flipped to "Open" (observed 2026-08-26). A sheet that was up before we
+    /// pressed is therefore not evidence about *our* install, and treating it as ours
+    /// goes wrong both ways: with no download behind it yet we would bail as if it were
+    /// a purchase sheet, and with one we would ask the user to Relaunch for a swap that
+    /// is not pending. So we ignore what was already there until the screen has been
+    /// seen clear for even one poll; whatever appears after that is ours.
+    ///
+    /// - Returns: whether the sheet on screen should be acted on, and the flag to carry
+    ///   into the next poll.
+    static func classifySheet(onScreen: Bool, ignoringLeftover: Bool) -> (isOurs: Bool, ignoringLeftover: Bool) {
+        let stillIgnoring = onScreen && ignoringLeftover
+        return (onScreen && !stillIgnoring, stillIgnoring)
+    }
+
+    /// One poll of the swap watchdog, as a pure step so the rule that matters is
+    /// assertable: **movement resets the count**. A swap that keeps reporting new
+    /// percentages can run as long as it needs; only one that goes quiet accumulates.
+    ///
+    /// - Parameters:
+    ///   - progress: this poll's reading, or nil when the button shows no percentage.
+    ///   - last: the previous reading, so an unchanged number counts as no movement.
+    static func swapWatchdog(progress: Double?, last: Double?, stalledPolls: Int)
+    -> (last: Double?, stalledPolls: Int) {
+        guard let progress, progress != last else { return (last, stalledPolls + 1) }
+        return (progress, 0)
+    }
+
+    /// Whether the post-Continue swap should be abandoned, expressed over *stalled*
+    /// polls rather than elapsed ones. Kept separate and pure so the distinction that
+    /// matters — liveness, not a stopwatch — is asserted rather than left in a loop.
+    ///
+    /// ~90s of nothing moving at 400ms/poll. Generous on purpose: the cost of waiting
+    /// too long is a slow row, the cost of giving up too early is calling a finished
+    /// update a failure.
+    static func swapHasStalled(stalledPolls: Int) -> Bool { stalledPolls >= 225 }
+
+    /// The percentage App Store shows on the offer button while it swaps the bundle
+    /// ("Installing: N% Complete"), or nil when it isn't showing one — which is normal
+    /// both right after Continue, before the install starts reporting, and on the
+    /// Updates-list path once the row drops out of the list as it installs.
+    private func installProgress(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool) -> Double? {
+        guard let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList),
+              let text = title(offer) else { return nil }
+        return Self.progressFraction(text)
+    }
+
     /// A transient pre-progress state ("Loading", "Opening…") shown right after the
     /// press, before the percentage appears. English-only on purpose — it's just a
     /// nicety; a missed match only delays the first non-zero progress tick.
@@ -630,16 +744,13 @@ public actor AppStoreAXInstaller {
     // MARK: - AX lookups
 
     /// The offer button to press, by path:
-    ///   • **Product page** (default): several `AppStore.offerButton`s can exist
-    ///     (related apps, "more by this developer"), so we take the topmost (smallest
-    ///     y) — the page header's own button. But *only* once we've confirmed the page
-    ///     actually belongs to this app, by requiring its name to appear as static text
-    ///     in App Store's focused window. Without that guard a cold-launched App Store
-    ///     (the user ⌘Q'd it) can render its restored Discover/home page before the deep
-    ///     link lands, and its topmost offer button — some featured/subscription app —
-    ///     gets pressed instead, surfacing a spurious "needs confirmation" sheet.
-    ///     Returns nil until the page is confirmed, so the caller keeps waiting (and
-    ///     re-navigating) rather than pressing the wrong button.
+    ///   • **Product page** (default): several `AppStore.offerButton`s can exist, and
+    ///     the ones that are not ours belong to apps the user does not own — pressing
+    ///     one *buys* something. So we bind the button to this app with two structural,
+    ///     language-independent checks (see `ShelfCell`): the page's **hero lockup**
+    ///     must name this app, and the button must not sit in another app's card.
+    ///     Only if exactly one button survives do we return it; otherwise nil, and the
+    ///     caller keeps waiting (and re-navigating) rather than pressing anything.
     ///   • **Updates list** (`viaUpdatesList`): one row per app, each with its own
     ///     offer button. We pick the row whose nearby text carries `appName`, matching
     ///     by name rather than position or the localized button title (which reads
@@ -649,14 +760,16 @@ public actor AppStoreAXInstaller {
         var found: [AXUIElement] = []
         collect(axApp, id: "AppStore.offerButton", into: &found)
         guard viaUpdatesList else {
-            // Only trust the topmost header button once the page is confirmed to be THIS
-            // app's — its name renders as static text on the product page. A cold-launched
-            // App Store can show its restored Discover/home page first, whose topmost
-            // button is a different (often subscription) app; that page won't mention the
-            // app we're updating, so we keep waiting instead of pressing the wrong button.
-            guard pageMentions(appName, in: axApp) else { return nil }
-            return found.min { (frame($0)?.minY ?? .greatestFiniteMagnitude)
-                             < (frame($1)?.minY ?? .greatestFiniteMagnitude) }
+            // 1. Has the deep link actually landed on THIS app's page? Navigation is
+            //    asynchronous, so until it has, App Store is still showing its restored
+            //    Discover page or another app's product page — both full of buy buttons.
+            // 2. Drop every button that belongs to some other app's card, and press only
+            //    if that leaves exactly one. Position is not a discriminator: the topmost
+            //    button belongs to whichever page rendered highest, not to us.
+            let ours = found.filter { !isInForeignCard($0) }
+            guard Self.shouldPress(heroOwnsPage: heroOwns(appName, in: axApp),
+                                   ownButtonCount: ours.count) else { return nil }
+            return ours[0]
         }
         // An inline loop (not `compactMap`) so `axApp` never crosses into a closure:
         // Swift 6.2's region-based isolation rejects passing this non-Sendable
@@ -665,8 +778,7 @@ public actor AppStoreAXInstaller {
         // domain, so there's nothing to "send".
         var rows: [(AXUIElement, [String])] = []
         for btn in found {
-            guard let y = frame(btn)?.midY else { continue }
-            rows.append((btn, rowTexts(in: axApp, nearY: y)))
+            rows.append((btn, rowTexts(in: axApp, for: btn, among: found)))
         }
         // Prefer an exact app-name match (the row's title text); fall back to a
         // contains-match for apps whose Updates-list label carries extra decoration.
@@ -676,39 +788,153 @@ public actor AppStoreAXInstaller {
         })?.0
     }
 
-    /// Whether `appName` appears as text anywhere under App Store's element — the signal
-    /// that it has actually navigated to this app's product page (its name renders as the
-    /// header heading and again under "More by…"), as opposed to a cold-launch's restored
-    /// Discover/home page, which won't mention the app we're updating. Searched from the
-    /// app root (the same traversal that reliably surfaces the offer buttons), depth-first,
-    /// short-circuiting at the first match. We check `AXValue`, `AXTitle` and
-    /// `AXDescription` on every node: the product page is web-rendered, where a static
-    /// text's string lives in `AXValue` rather than `AXTitle`, so a title-only check would
-    /// miss the name even on the correct page (and then loop/re-navigate to a timeout).
-    private func pageMentions(_ appName: String, in el: AXUIElement, depth: Int = 0) -> Bool {
-        if depth > 60 { return false }
+    /// How one of App Store's `AppStore.shelfItem.*` cells relates to the app we're
+    /// updating. Every app that appears anywhere in App Store's UI is wrapped in such a
+    /// cell, and the *subtype* says whose app it is (observed macOS 26.6, 2026-08-26):
+    ///
+    ///   • `…ProductLockupCollectionViewCell` — the product page's own **hero lockup**:
+    ///     icon, name, subtitle, and the offer button we actually want.
+    ///   • every other subtype (`…SmallLockupCollectionViewCell`, …) — some **other**
+    ///     app: Discover's featured rows, "Also Included In" subscription bundles,
+    ///     "More by this developer".
+    ///
+    /// Both are structural and language-independent, unlike the button's own title.
+    /// Kept as a pure function of the identifier so it is directly testable.
+    enum ShelfCell: Equatable {
+        case notACell
+        case hero
+        case foreign
+
+        init(identifier: String?) {
+            guard let identifier, identifier.hasPrefix("AppStore.shelfItem") else {
+                self = .notACell
+                return
+            }
+            self = identifier.contains("ProductLockup") ? .hero : .foreign
+        }
+    }
+
+    /// The product-page press/wait decision, factored out of the AX traversal so it can
+    /// be asserted without a live App Store.
+    ///
+    /// Both conditions are required and the rule is deliberately fail-closed — returning
+    /// `false` only costs another 150 ms poll (and a re-issued deep link), while a wrong
+    /// `true` spends the user's money. `ownButtonCount != 1` is a real state, not
+    /// paranoia: mid-navigation both the old and the new page are briefly in the AX tree
+    /// at once (observed: 8 offer buttons in one poll).
+    static func shouldPress(heroOwnsPage: Bool, ownButtonCount: Int) -> Bool {
+        heroOwnsPage && ownButtonCount == 1
+    }
+
+    /// Whether the page's own hero lockup names `appName` — i.e. App Store really has
+    /// landed on THIS app's product page.
+    ///
+    /// This replaced a check that asked whether the name appeared as text *anywhere*
+    /// under App Store's element. That guard was permanently true for exactly the apps
+    /// we update: the Apple menu's **Recent Items** submenu hangs off every app's
+    /// `AXMenuBar` and lists recently used applications, so
+    /// `AXMenuBar > AXMenuBarItem:Apple > … > AXMenuItem:Microsoft Word` satisfied it no
+    /// matter which page was showing. The topmost offer button was then pressed on
+    /// whatever App Store still had on screen — on a restored Discover page a featured
+    /// app's **buy** button (observed `$49.99`), on another app's product page that
+    /// app's. Reproduced 5/5 on macOS 26.6, 2026-08-26.
+    ///
+    /// Restricting the search to hero lockups fixes that at the root: menu bars contain
+    /// no shelf cells, and every *other* app named on a page sits in a foreign cell we
+    /// never descend into.
+    private func heroOwns(_ appName: String, in axApp: AXUIElement) -> Bool {
+        var heroes: [AXUIElement] = []
+        collectHeroCells(axApp, into: &heroes)
+        for hero in heroes where subtreeMentions(appName, hero) { return true }
+        return false
+    }
+
+    /// Collect the page's hero lockup cells, never descending into any shelf cell (so a
+    /// nested card can't be mistaken for the page's own header).
+    private func collectHeroCells(_ el: AXUIElement, into acc: inout [AXUIElement], depth: Int = 0) {
+        if depth > 45 { return }
+        switch ShelfCell(identifier: string(el, "AXIdentifier")) {
+        case .hero:    acc.append(el); return
+        case .foreign: return
+        case .notACell: break
+        }
+        for c in children(el) { collectHeroCells(c, into: &acc, depth: depth + 1) }
+    }
+
+    /// Whether `appName` appears as text in this subtree. `AXValue` is checked first and
+    /// is the one that matters: these pages are web-rendered, so a static text's string
+    /// lives in `AXValue`, not `AXTitle`.
+    private func subtreeMentions(_ appName: String, _ el: AXUIElement, depth: Int = 0) -> Bool {
+        if depth > 20 { return false }
         for attr in ["AXValue", kAXTitleAttribute as String, kAXDescriptionAttribute as String] {
             if let t = string(el, attr), t.localizedCaseInsensitiveContains(appName) { return true }
         }
         for c in children(el) {
-            if pageMentions(appName, in: c, depth: depth + 1) { return true }
+            if subtreeMentions(appName, c, depth: depth + 1) { return true }
         }
         return false
     }
 
-    /// Static-text strings sharing a row with a given y (±tolerance) — used to tell
-    /// which app an Updates-list offer button belongs to (the app name renders as a
-    /// sibling `AXStaticText`, not on the button itself).
-    private func rowTexts(in axApp: AXUIElement, nearY y: CGFloat, tolerance: CGFloat = 45) -> [String] {
-        var acc: [String] = []
-        collectRowTexts(axApp, lo: y - tolerance, hi: y + tolerance, into: &acc)
-        return acc
+    /// Whether this offer button sits inside another app's card. The product page's own
+    /// header button is either parentless (observed) or inside the hero lockup; either
+    /// way it is never inside a foreign cell.
+    private func isInForeignCard(_ btn: AXUIElement) -> Bool {
+        var cur: AXUIElement? = btn
+        for _ in 0..<6 {
+            guard let c = cur else { return false }
+            if ShelfCell(identifier: string(c, "AXIdentifier")) == .foreign { return true }
+            cur = attribute(c, kAXParentAttribute as String)
+        }
+        return false
     }
 
-    private func collectRowTexts(_ el: AXUIElement, lo: CGFloat, hi: CGFloat, into acc: inout [String], depth: Int = 0) {
+    /// Which offer button a row label belongs to: the nearest one to its **right**.
+    ///
+    /// The Updates list is a two-column grid, so one horizontal band holds two apps.
+    /// Each cell lays out as `icon · name · notes … [button]`, so a label always sits
+    /// left of its own button and right of the previous column's — which makes
+    /// "nearest button to the right" the ownership rule, with no column width or gap
+    /// constant to drift when the window is resized.
+    ///
+    /// Pure and frame-only so the geometry is testable without a live App Store.
+    static func owningButton(ofLabelAt label: CGRect, among buttons: [CGRect]) -> CGRect? {
+        buttons.filter { $0.minX >= label.maxX }.min { $0.minX < $1.minX }
+    }
+
+    /// Static-text strings belonging to this offer button's cell — used to tell which
+    /// app an Updates-list button updates (the name renders as a sibling `AXStaticText`,
+    /// never on the button itself).
+    ///
+    /// Two separate bugs used to make this return the wrong thing on macOS 26.6:
+    ///   • it read only `AXTitle`/`AXDescription`, but the page is web-rendered and a
+    ///     static text's string lives in **`AXValue`**. The title-only read returned
+    ///     just the sidebar's own labels (`["Arcade", "Create"]`) and never an app name,
+    ///     so no row ever matched and every region-locked update failed with
+    ///     `.notInUpdatesList` — "the App Store hasn't listed this update yet" — while
+    ///     the row sat right there on screen.
+    ///   • it took every text within ±45 px of the button's midY, which in a two-column
+    ///     grid is both apps: "Microsoft Excel" (x=341) and "TestFlight" (x=885) share
+    ///     the band of the buttons at x=723 and x=1267, so both buttons collected both
+    ///     names and the first one answered for every app.
+    private func rowTexts(in axApp: AXUIElement, for button: AXUIElement,
+                          among buttons: [AXUIElement], tolerance: CGFloat = 45) -> [String] {
+        guard let mine = frame(button) else { return [] }
+        var labels: [(CGRect, String)] = []
+        collectRowTexts(axApp, lo: mine.midY - tolerance, hi: mine.midY + tolerance, into: &labels)
+        // Only the buttons sharing this band can own a label in it.
+        var band: [CGRect] = []
+        for b in buttons {
+            if let f = frame(b), abs(f.midY - mine.midY) <= tolerance { band.append(f) }
+        }
+        return labels.compactMap { Self.owningButton(ofLabelAt: $0.0, among: band) == mine ? $0.1 : nil }
+    }
+
+    private func collectRowTexts(_ el: AXUIElement, lo: CGFloat, hi: CGFloat,
+                                 into acc: inout [(CGRect, String)], depth: Int = 0) {
         if depth > 60 { return }
-        if role(el) == "AXStaticText", let f = frame(el), f.midY >= lo, f.midY <= hi, let t = title(el) {
-            acc.append(t)
+        if role(el) == "AXStaticText", let f = frame(el), f.midY >= lo, f.midY <= hi,
+           let t = string(el, "AXValue") ?? title(el) {
+            acc.append((f, t))
         }
         for c in children(el) { collectRowTexts(c, lo: lo, hi: hi, into: &acc, depth: depth + 1) }
     }

@@ -144,7 +144,8 @@ struct GeneralSettingsPage: View {
             ) {
                 AdaptivePickerRow(title: Text("App Store updates")) {
                     Picker("App Store updates", selection: $prefs.appStoreUpdateStrategy) {
-                        ForEach(Preferences.AppStoreUpdateStrategy.availableCases) { strategy in
+                        ForEach(Preferences.AppStoreUpdateStrategy
+                            .visibleCases(current: prefs.appStoreUpdateStrategy)) { strategy in
                             Text(strategy.label).tag(strategy)
                         }
                     }

@@ -366,11 +366,22 @@ final class Preferences {
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
+        // `.incremental` is not offered in Settings (see `visibleCases`), but it is
+        // honoured when set by hand:
+        //
+        //     defaults write com.duoupdater.app AppStoreUpdateStrategy incremental
+        //
+        // That is deliberately the only way in. The route is under long-term
+        // evaluation and not something to hand a user; this keeps it reachable for
+        // that evaluation without shipping it. It used to be coerced back to `.full`
+        // here *and written back*, so the command above could not stick at all.
         let storedAppStoreStrategy = AppStoreUpdateStrategy(
             rawValue: defaults.string(forKey: Key.appStoreUpdateStrategy) ?? "") ?? .full
-        self.appStoreUpdateStrategy = storedAppStoreStrategy == .incremental ? .full : storedAppStoreStrategy
+        self.appStoreUpdateStrategy = storedAppStoreStrategy
         if storedAppStoreStrategy == .incremental {
-            defaults.set(AppStoreUpdateStrategy.full.rawValue, forKey: Key.appStoreUpdateStrategy)
+            // Marks every session that ran on the unlisted route, so a later report of
+            // odd App Store behaviour can be tied to it without guessing.
+            Log.app.notice("prefs: App Store route is the unlisted incremental (AX) one — set by hand via defaults")
         }
         self.vendorInstallPolicy = VendorInstallPolicy(
             rawValue: defaults.string(forKey: Key.vendorInstallPolicy) ?? "") ?? UpdateSettings.vendorInstallPolicyDefault

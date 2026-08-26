@@ -17,6 +17,25 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.65</title>
+            <pubDate>Wed, 26 Aug 2026 13:17:14 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.65</link>
+            <sparkle:version>74</sparkle:version>
+            <sparkle:shortVersionString>0.3.65</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**One word now for reopening an app to finish its update.** An app whose own updater had already put the new version in place asked you to "Restart" it; one that keeps the new version aside until you quit asked you to "Relaunch" it. That difference was real behind the scenes and made none to you: the same click either way, and the same outcome if you never click, since the update lands the next time you quit the app regardless. It reads Relaunch throughout now — including the notifications, the tooltips and the setting that does it for you — which is also the word Chrome, Claude and most apps that update themselves put in front of you. Only English ever had two words for this; German, Japanese, Russian and Chinese have always used one, and Spanish and French move onto the wording they were already using elsewhere.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.65/DuoUpdater-0.3.65-macos.zip" length="11732314" type="application/octet-stream" sparkle:edSignature="TvD4ZPisyHGXBBza7TnlEeev3H9DF8Gw8f9Aaq0gQh3JQNTM5ecD0VGUPrHg4riuDyq5kzj2Y6WH6Zwd1+JKCg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.65/DuoUpdater74-73.delta" sparkle:deltaFrom="73" length="139538" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="BEsi+Y3kZK16ceRX2OUQ9o+DTqHesj77DKns7yrdzGJ/MvZ4Mv9X8LLP1w9lUfz8YET5KbpEe9Vrr4m/e0gGDQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.65/DuoUpdater74-72.delta" sparkle:deltaFrom="72" length="538138" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="rcdYTkLP27kqGz+/kUaeMXGkx9FzowJe5vkl5gIzExWHK1iy1Z5SNa7Q4FTkenLf40F9TfbpXE7mnZbsgwHpAA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.65/DuoUpdater74-71.delta" sparkle:deltaFrom="71" length="685490" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="2a6VrDj7z1jlDcGYC0bFMxZtk8ZCdGWb+62B0by4qDpmpVqYkX8EyXE0vSTSUq9Pv8SsKe1dfloi6J9DHJwmCw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.65/DuoUpdater74-70.delta" sparkle:deltaFrom="70" length="1189394" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="3Tc+xMPnYTzjvw60BYR3rUpnHPq0CmziV+3H2kl5eHuROH0hVAWTitbEOVr9qirPi53ySZ3Xy3xDgo2C3RURDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.65/DuoUpdater74-69.delta" sparkle:deltaFrom="69" length="1224546" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="wLPeG4n3oy1qwtcKEvqa48pEks40us/b/67E2zOn3VKR1i7ROXQ3VgBTP25duAsRpgmEPwSqSKmkpB7jBJykAw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.64</title>
             <pubDate>Wed, 26 Aug 2026 12:44:06 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.64</link>
@@ -24,20 +43,6 @@
             <sparkle:shortVersionString>0.3.64</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**An update that needs an administrator now asks for one, instead of failing and blaming a permission.** Whether a swap needed a password was decided by looking at the folder an app sits in rather than at the app itself. Anything macOS installed as root — every App Store app, and any app an installer package laid down — passed that test, took the route that needs no password, and could not possibly finish: removing the old version requires write access to the directories inside it. macOS reports that refusal with the same code it uses for a denied App Management permission, so the failure arrived as a request to grant App Management, which could never help, because the obstacle was file ownership. On an ordinary Mac that was every App Store app and a handful of others besides, and it was administrator accounts it hit — standard accounts were already being routed correctly. Those updates now take the route that works, and the app keeps the owner it had rather than quietly becoming yours.
-
-**App Store apps now get a rollback point like everything else.** Backups skipped them, on the reasoning that the store can always fetch a previous build back. It cannot — the App Store offers only an app's current version — which left the store as the one route that applied an update with no way to undo it. Those apps are now backed up before an update like any other, and because the copy is made by cloning it costs almost no disk space until the update actually replaces the original. Restoring one says the thing that is specific to the store: the update reappears in the Updates list straight away, and is re-applied on its own if automatic app updates are switched on. And when a store update was never going to be applied — an iPhone app running on a Mac, a title not sold in your region — no rollback point is taken any more, so a row can no longer offer to roll back to the version it is already running.
-
-**Longbridge Desktop is now tracked, on both of its release trains.** Stable and Preview each get version detection, one-click installation of the official Apple silicon build, and release notes rendered in Duo Updater's own window, illustrations included.
-
-**WhatsApp's release notes now appear while its App Store check is still running.** The App Store page shown in that window had been filed under a name the lookup could never match, so the notes pane sat empty instead of showing it.
-
-**The menu header carries more in less room.** Duo Updater's own version now sits beside its name, and clicking it opens its release notes. "Update All" has moved onto its own line, where a translated label has room to be read in full, and the actions along the bottom are icons. The banner that used to announce Duo Updater updating itself is gone — the sparkle beside the version lights up instead, and stays lit until you have read what changed. A status line too long for the menu now ends in an ellipsis rather than stretching it.
-
-**Settings no longer cuts short the update choices it is offering.** The two menus that decide how an update is applied were clipping their own labels in several languages. The wording is shorter now, and they move onto a second line where the words still need it.
-
-**What's New says when each version shipped.** Every version in the rail now carries its publication date.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.64/DuoUpdater-0.3.64-macos.zip" length="11732771" type="application/octet-stream" sparkle:edSignature="VbTcz7nIzW66bPODGAQE0o59sl4s8gACh2JatZLV9BwYbavJk3BpK62BlAyWoKegUu5QVaYS7ULavQ9q399jDA=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.64/DuoUpdater73-72.delta" sparkle:deltaFrom="72" length="536406" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="y26k+87frM/SpYsQ2hU7FJ6QBvO18m0kZn8Yka/fSRDudBRR/nc1Bm+LKLa9hyidejcT7QNsrDfhXTyElHd1Cw=="/>
@@ -90,16 +95,6 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.61/DuoUpdater-0.3.61-macos.zip" length="11055079" type="application/octet-stream" sparkle:edSignature="GiWxGsliVNeOXwkYYCBP+Ys7BKVO/hKOa/JU9SU5NUyV/WF3zVqo9FS0Qo7NMmKaZbnqmMW+Mwh/yrRRmCF9CA=="/>
-        </item>
-        <item>
-            <title>0.3.60</title>
-            <pubDate>Sun, 23 Aug 2026 19:02:44 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.60</link>
-            <sparkle:version>69</sparkle:version>
-            <sparkle:shortVersionString>0.3.60</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.60/DuoUpdater-0.3.60-macos.zip" length="11040209" type="application/octet-stream" sparkle:edSignature="/Q8F+WL9mfeGTa8qOYKPvdSfhPx19ahvmNZ8BAWvbWqVbxq5g8PJj6lo1H7BIYHpd1SUPAoAPlQVvJTvbaqVBA=="/>
         </item>
     </channel>
 </rss>

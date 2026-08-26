@@ -286,6 +286,65 @@ extension UpdateResult {
         return (installed, remoteClean)
     }
 
+    /// One end of a **relaunch** line — the running process on the left, the bundle
+    /// already on disk on the right — before it is decided whether its build number
+    /// is worth the width.
+    ///
+    /// The two ends are formatted together (see ``UpdateResult/relaunchLine(from:to:)``)
+    /// rather than each on its own, which is the whole point: a side cannot tell on
+    /// its own whether its build is the interesting part.
+    public struct VersionSide: Sendable, Equatable {
+        public var marketing: String?
+        public var build: String?
+
+        public init(marketing: String? = nil, build: String? = nil) {
+            self.marketing = marketing
+            self.build = build
+        }
+
+        /// "1.7.3 (194)", "1.7.3", or a bare "194" — whichever the parts support.
+        /// A build equal to the marketing version is never repeated after it.
+        public func text(withBuild: Bool) -> String {
+            guard let marketing else { return build ?? "?" }
+            guard withBuild, let build, build != marketing else { return marketing }
+            return "\(marketing) (\(build))"
+        }
+    }
+
+    /// The on-disk side of a relaunch line: the version a relaunch will land.
+    public var relaunchTargetSide: VersionSide {
+        VersionSide(marketing: app.shortVersion,
+                    build: app.buildVersion.map(Self.strippingBuildPrefix))
+    }
+
+    /// Format both ends of a relaunch line, keeping the build numbers only when they
+    /// are what tells the two versions apart.
+    ///
+    /// This is ``buildBump(latest:)``'s rule, which the *update* line has always
+    /// applied, finally reaching the relaunch line. Each side used to format itself,
+    /// so both kept their build whatever the other looked like, and Chrome — whose
+    /// marketing version already ends in its build — rendered as
+    /// `151.0.7922.174 (7922.17… → 152.0.7977.65 (7977.65)`: the side the user is
+    /// leaving got truncated in order to repeat digits the marketing version had
+    /// already spelled out.
+    ///
+    /// Kept when the marketing versions match, because then the build is the only
+    /// thing that moved: Surge shipped four separate releases as "6.9.0", and
+    /// "6.9.0 → 6.9.0" says nothing at all.
+    ///
+    /// **Both** marketing versions have to be present before a build is dropped.
+    /// `lsappinfo` exposes only the running *build*, and when nothing recovered a
+    /// marketing version to pair with it that side is a bare number — dropping the
+    /// target's build there would leave "3965 → 1.7.3", two values from different
+    /// namespaces with no way to read one against the other.
+    public static func relaunchLine(
+        from: VersionSide, to: VersionSide
+    ) -> (from: String, to: String) {
+        let bothNamed = from.marketing != nil && to.marketing != nil
+        let withBuild = !(bothNamed && from.marketing != to.marketing)
+        return (from.text(withBuild: withBuild), to.text(withBuild: withBuild))
+    }
+
 }
 
 public enum UpdateStatus: Sendable, Equatable {

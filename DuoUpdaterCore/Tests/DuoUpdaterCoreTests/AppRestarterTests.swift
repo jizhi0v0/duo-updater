@@ -110,4 +110,75 @@ import Foundation
         // Still unclaimed, so `onTimeout` never ran.
         #expect(timedOut.claim())
     }
+
+    /// An app nested inside the target's bundle is an instance of it for quit and
+    /// relaunch purposes, and neither existing filter can see one: it carries its
+    /// own bundle id, so it never enters the parent's candidate set, and its path
+    /// is a child of the target rather than equal to it.
+    @Test func anAppNestedInTheBundleCountsAsInside() {
+        let target = "/Applications/Surge.app"
+        let dashboard = URL(fileURLWithPath:
+            "/Applications/Surge.app/Contents/Applications/Surge Dashboard.app")
+        #expect(AppRestarter.isNestedInside(dashboard, target: target))
+        // …including one already stranded on the moved-aside bundle, which is the
+        // state the swap leaves it in and the state we have to recognise to fix it.
+        #expect(AppRestarter.isNestedInside(
+            URL(fileURLWithPath:
+                "/Applications/.duoupdater-staged-Surge.app/Contents/Applications/Surge Dashboard.app"),
+            target: target))
+    }
+
+    /// The bundle itself is not nested in itself — `runningInstances(of:)` already
+    /// owns that one, and counting it twice would terminate it twice and make the
+    /// relaunch loop reopen the parent as if it were a helper.
+    @Test func theBundleItselfIsNotNestedInItself() {
+        let target = "/Applications/Surge.app"
+        #expect(!AppRestarter.isNestedInside(URL(fileURLWithPath: target), target: target))
+    }
+
+    /// The separator is load-bearing: a prefix test without it reads a sibling
+    /// whose name merely starts with the target's as living inside it, and a
+    /// Surge update would quit Surge Beta.
+    @Test func aSiblingSharingAPrefixIsNotNested() {
+        let target = "/Applications/Surge.app"
+        #expect(!AppRestarter.isNestedInside(
+            URL(fileURLWithPath: "/Applications/Surge Beta.app"), target: target))
+        #expect(!AppRestarter.isNestedInside(
+            URL(fileURLWithPath: "/Applications/Surge.app.backup/Contents/MacOS/x.app"),
+            target: target))
+    }
+
+    @Test func nothingIsNestedInsideNoBundleURL() {
+        #expect(!AppRestarter.isNestedInside(nil, target: "/Applications/Surge.app"))
+    }
+
+    /// Being nested is not enough to be an instance worth quitting.
+    ///
+    /// The path test alone also matches every Chromium renderer, XPC service and
+    /// `.appex` living inside an app bundle. Measured on the development machine:
+    /// of 13 nested running processes, only Surge's Dashboard was `.regular` —
+    /// `Claude Helper.app`, `Google Chrome Helper.app`,
+    /// `WeChatAppEx Helper (Renderer).app`, `cef_server.app`, `DockHelper.xpc` and
+    /// `WeatherWidget.appex` were all `.accessory` or `.prohibited`. Terminating
+    /// those achieves nothing and relaunching one on its own is incoherent.
+    ///
+    /// Pinned as paths and policies rather than by driving `NSWorkspace`, which no
+    /// test can arrange.
+    @Test func onlyAStandaloneNestedAppCountsAsAnInstance() {
+        let target = "/Applications/Surge.app"
+        // Everything here IS nested — that is the point; the policy is what separates them.
+        let nested = [
+            "/Applications/Surge.app/Contents/Applications/Surge Dashboard.app",
+            "/Applications/Surge.app/Contents/Frameworks/Surge Helper.app",
+            "/Applications/Surge.app/Contents/XPCServices/Thing.xpc",
+            "/Applications/Surge.app/Contents/PlugIns/Ext.appex",
+        ]
+        for path in nested {
+            #expect(AppRestarter.isNestedInside(URL(fileURLWithPath: path), target: target),
+                    "\(path) should read as nested")
+        }
+        // …and only the `.app` bundles can even reach the policy test.
+        #expect(URL(fileURLWithPath: nested[2]).pathExtension != "app")
+        #expect(URL(fileURLWithPath: nested[3]).pathExtension != "app")
+    }
 }

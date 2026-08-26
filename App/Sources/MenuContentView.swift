@@ -1085,15 +1085,15 @@ private struct AppRow: View {
             // Update All has landed the new bundle but intentionally postpones its
             // process-version sweep/restarts until every installer is finished.
             // Keep the row concrete instead of flashing a false completion.
-            restartVersionLine(from)
+            restartVersionLine(from: .init(marketing: from))
         } else if model.needsRestart.contains(result.id),
-                  let from = model.restartFromVersion(result.id) {
+                  let from = model.restartFromSide(result.id) {
             // Self-updated on disk, restart pending. Show the running version → the
             // installed version so the row reads as a real change, not a static
             // "v1.6.1". `lsappinfo` only exposes the running *build*; `restartFromVersion`
             // recovers the marketing version from the rollback backup when it can, so
             // the from side reads "26.609.71450 (3965)" rather than a bare "3965".
-            restartVersionLine(from)
+            restartVersionLine(from: from)
         } else {
             switch result.status {
             case .updateAvailable(let latest):
@@ -1145,18 +1145,21 @@ private struct AppRow: View {
         .help("The vendor's latest is \(older) — older than your \(installed). You're ahead, so there's nothing to do. Usually a beta channel, a pulled release, or a lagging check.")
     }
 
-    /// The restart version line: running version → installed marketing version (build).
-    /// Surfaced when an app self-updated on disk but the old process is still live, so
-    /// "Relaunch" reads as a concrete version bump. The `from` is pre-formatted by
-    /// `restartFromVersion` — the running build alone, or "marketing (build)" when the
-    /// pre-update marketing version is recoverable from the rollback backup — while the
-    /// on-disk `to` side carries the full marketing version, e.g. "1.7.3 (194)".
+    /// The relaunch version line: running version → the version on disk. Surfaced
+    /// when an app self-updated on disk but the old process is still live, so
+    /// "Relaunch" reads as a concrete version bump rather than a static "v1.6.1".
+    ///
+    /// Both sides are formatted together by `UpdateResult.relaunchLine`, which drops
+    /// the build numbers when the marketing versions already tell the two apart —
+    /// without that, Chrome's line spent its width repeating digits its own marketing
+    /// version ends in, and truncated the running side to do it.
     @ViewBuilder
-    private func restartVersionLine(_ from: String) -> some View {
+    private func restartVersionLine(from: UpdateResult.VersionSide) -> some View {
+        let line = UpdateResult.relaunchLine(from: from, to: result.relaunchTargetSide)
         HStack(spacing: 4) {
-            Text(from).foregroundStyle(.secondary)
+            Text(line.from).foregroundStyle(.secondary)
             Image(systemName: "arrow.right").font(.caption2)
-            Text(result.restartTargetVersion).fontWeight(.semibold).foregroundStyle(.orange)
+            Text(line.to).fontWeight(.semibold).foregroundStyle(.orange)
         }
         .font(.caption)
         .lineLimit(1)
@@ -1814,20 +1817,4 @@ private struct AppRow: View {
 
 extension UpdateResult {
 
-    /// The "to" side of a restart line: the on-disk (post-self-update) version a
-    /// relaunch will land. Unlike the still-running process — which exposes only its
-    /// build via `lsappinfo` — the on-disk bundle carries both fields, so we show the
-    /// full marketing version with the build in parens ("1.7.3 (194)") rather than a
-    /// bare build number. Falls back to the bare build (date/serial apps whose
-    /// marketing string equals or is absent vs the build) or the marketing version
-    /// alone. The JetBrains-style build prefix is stripped to match the from side.
-    var restartTargetVersion: String {
-        let build = app.buildVersion.map(Self.strippingBuildPrefix)
-        switch (app.shortVersion, build) {
-        case let (marketing?, build?) where marketing != build: return "\(marketing) (\(build))"
-        case let (_, build?): return build
-        case let (marketing?, nil): return marketing
-        default: return "?"
-        }
-    }
 }

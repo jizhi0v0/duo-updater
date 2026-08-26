@@ -590,6 +590,25 @@ private func storeAvailability(
     #expect(path("Fixture.app.duoupdater-new") == "/Applications/Fixture.app")
 }
 
+/// A staged component is not always the last one. An app nested inside another
+/// app's bundle — Surge ships `Surge.app/Contents/Applications/Surge Dashboard.app`
+/// — reports a path whose staged component sits in the middle, and normalising
+/// only the leaf left the whole string pointing at the moved-aside bundle. Nothing
+/// could then tell the process belonged to Surge, so the quit-wait declared
+/// success while it was still up and the swap stranded it on the old binary.
+@Test func runtimeBundlePathNormalizesAStagedComponentAnywhereInThePath() {
+    func path(_ raw: String) -> String { UpdatePolicy.runtimeBundlePath(URL(fileURLWithPath: raw)) }
+    #expect(path("/Applications/.duoupdater-staged-Surge.app/Contents/Applications/Surge Dashboard.app")
+            == "/Applications/Surge.app/Contents/Applications/Surge Dashboard.app")
+    #expect(path("/Applications/Surge.app.duoupdater-old/Contents/Applications/Surge Dashboard.app")
+            == "/Applications/Surge.app/Contents/Applications/Surge Dashboard.app")
+    // Both ends at once, and a path with nothing to rewrite still comes back whole.
+    #expect(path("/Applications/.duoupdater-staged-Surge.app/Contents/Applications/Dash.app.duoupdater-new")
+            == "/Applications/Surge.app/Contents/Applications/Dash.app")
+    #expect(path("/Applications/Surge.app/Contents/Applications/Surge Dashboard.app")
+            == "/Applications/Surge.app/Contents/Applications/Surge Dashboard.app")
+}
+
 /// The shipped default for self-updating apps, pinned as behaviour rather than as
 /// a constant.
 ///

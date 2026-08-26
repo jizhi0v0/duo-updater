@@ -502,7 +502,7 @@ struct WorkbenchWindowView: View {
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
-                    runningVersion: model.restartFromVersion(result.id))
+                    runningVersion: model.restartFromSide(result.id))
                     .tag(result.id)
             }
         }
@@ -525,7 +525,7 @@ struct WorkbenchWindowView: View {
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
-                    runningVersion: model.restartFromVersion(result.id))
+                    runningVersion: model.restartFromSide(result.id))
                     .tag(result.id)
             }
             ForEach(model.brewFormulae) { formula in
@@ -741,10 +741,10 @@ private struct WorkbenchSidebarRow: View {
     /// state). When set, the subtitle shows running → installed instead of a bare
     /// version, so the row says what the restart will land.
     let needsRestart: Bool
-    /// The "from" side of a restart line, pre-formatted by `restartFromVersion`: the
-    /// running build, or "marketing (build)" when the pre-update marketing version is
-    /// recoverable from the rollback backup. nil when not lagging an on-disk build.
-    let runningVersion: String?
+    /// The running side of a relaunch line, still in parts so it can be formatted
+    /// against the on-disk side rather than in isolation. nil when not lagging an
+    /// on-disk build.
+    let runningVersion: UpdateResult.VersionSide?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -777,14 +777,14 @@ private struct WorkbenchSidebarRow: View {
                 // White over the blue highlight when selected; blue tint otherwise.
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                 .lineLimit(1)
-        } else if needsRestart, let from = runningVersion {
-            // Self-updated on disk: show running version → installed marketing version
-            // (build) so "Relaunch" reads as a real change. `from` is pre-formatted by
-            // `restartFromVersion` — the running build, or "marketing (build)" when the
-            // pre-update marketing version is recoverable from the rollback backup; the
-            // on-disk `to` side carries the marketing version, e.g. "1.7.3 (194)".
-            let to = result.restartTargetVersion
-            Text("\(from) → \(to)")
+        } else if needsRestart, let running = runningVersion {
+            // Self-updated on disk: show running version → the version on disk, so
+            // "Relaunch" reads as a real change. Formatted as a pair by
+            // `relaunchLine`, which keeps the build numbers only when the marketing
+            // versions cannot tell the two apart — the same rule the update subtitle
+            // above gets from `buildBump`.
+            let line = UpdateResult.relaunchLine(from: running, to: result.relaunchTargetSide)
+            Text("\(line.from) → \(line.to)")
                 .font(.caption)
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
                 .lineLimit(1)

@@ -122,9 +122,10 @@ import Foundation
     }
 }
 
-/// Which routes get a rollback point, and whether the store remembers that a
-/// backup came from a `.pkg` — the restore path words itself differently for
-/// those, because only the app bundle comes back.
+/// Which routes get a rollback point, and whether the store remembers where a
+/// backup came from — the restore path words itself differently for a `.pkg`
+/// (only the app bundle comes back) and for the App Store (the bundle comes back
+/// but the store re-offers, and may re-apply, the update).
 @Suite struct BackupProvenanceTests {
 
     @Test func everyRouteWeApplyOurselvesGetsABackup() {
@@ -134,9 +135,12 @@ import Foundation
         // Included as of 2026-08-09: these had no rollback point at all, which is
         // the case where one is most wanted.
         #expect(InstallCoordinator.wantsBackup(.installer))
-        // The store re-downloads a prior build on demand, so a local copy of a
-        // multi-gigabyte bundle would be dead weight.
-        #expect(!InstallCoordinator.wantsBackup(.appStore))
+        // Included too, for the same reason and against a comment that used to
+        // claim the opposite: the App Store offers only an app's *current*
+        // version, so without a copy of our own this is the one route whose
+        // update cannot be undone. Asserted rather than assumed — this line read
+        // `!wantsBackup` for as long as the wrong justification stood.
+        #expect(InstallCoordinator.wantsBackup(.appStore))
     }
 
 }

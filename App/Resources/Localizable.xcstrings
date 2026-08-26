@@ -13635,6 +13635,47 @@
         }
       }
     },
+    "Rolled back, but %@ updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurückgesetzt – aber %@ wird über den App Store aktualisiert: Der Store bietet dieses Update sofort wieder an und installiert es von sich aus erneut, wenn automatische App-Updates aktiviert sind."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se revirtió, pero %@ se actualiza a través del App Store: volverá a ofrecer esta actualización y la instalará por su cuenta si las actualizaciones automáticas de apps están activadas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version restaurée, mais %@ se met à jour via l’App Store : celui-ci proposera de nouveau cette mise à jour et la réinstallera de lui-même si les mises à jour automatiques des apps sont activées."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ロールバックしましたが、%@ は App Store 経由で更新されます。ストアはこのアップデートをすぐに再提示し、App の自動アップデートがオンなら自動で再インストールします。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Откат выполнен, но %@ обновляется через App Store: он снова предложит это обновление и установит его сам, если включены автоматические обновления приложений."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已回滚，但 %@ 通过 App Store 更新：商店会立刻再次提示这次更新；如果开启了 App 自动更新，它还会自行装回去。"
+          }
+        }
+      }
+    },
     "Rollback": {
       "extractionState": "manual",
       "localizations": {

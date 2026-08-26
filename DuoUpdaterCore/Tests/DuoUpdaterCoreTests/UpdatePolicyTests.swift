@@ -849,6 +849,58 @@ struct LaggingRemoteVersionTests {
     }
 }
 
+// MARK: - Which installs need an administrator
+
+/// `needsElevatedReplace` decides whether a swap goes through the password panel
+/// or through `replaceItemAt`. Getting it wrong in the permissive direction is not
+/// a prompt the user is spared: the unprivileged path then fails with
+/// `NSFileWriteNoPermissionError`, which `isAppManagementDenial` reads as a TCC
+/// denial — so the user is sent to grant App Management for an obstacle that is
+/// POSIX ownership and that App Management cannot lift.
+///
+/// Both fixtures are built with real permission bits rather than mocked, because
+/// the predicate's whole job is to report what the filesystem will allow.
+@Suite struct ElevatedReplaceDetectionTests {
+
+    /// A `.app` in `parent`, with `mode` applied to the bundle directory itself.
+    private func fixture(in parent: URL, mode: Int, named name: String) throws -> URL {
+        let app = parent.appendingPathComponent(name)
+        try FileManager.default.createDirectory(
+            at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: mode], ofItemAtPath: app.path)
+        return app
+    }
+
+    @Test func aBundleWeCannotWriteNeedsAdminEvenInAWritableParent() throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DuoElevationTest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        // 0o555 must be lifted before the tree can be removed, exactly the property
+        // under test — so the cleanup restores it first.
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: parent.appendingPathComponent("Locked.app").path)
+            try? FileManager.default.removeItem(at: parent)
+        }
+
+        // The App Store layout: `root:wheel` 755 bundle inside a `root:admin` 775
+        // `/Applications`. The user can rename the bundle but cannot empty it, and
+        // the swap ends by deleting the bundle it replaced.
+        let locked = try fixture(in: parent, mode: 0o555, named: "Locked.app")
+        #expect(InPlaceSwap.needsElevatedReplace(target: locked),
+                "a bundle we cannot write into must go through the administrator prompt")
+        #expect(InPlaceSwap.elevationRequiredPaths(for: [locked]).contains(locked.path),
+                "and the UI must be told the same thing the swap will do")
+
+        // An ordinary user-writable app in the same writable parent still takes the
+        // unprivileged path: this must not have become "always ask".
+        let ours = try fixture(in: parent, mode: 0o755, named: "Ours.app")
+        #expect(!InPlaceSwap.needsElevatedReplace(target: ours))
+        #expect(InPlaceSwap.elevationRequiredPaths(for: [ours]).isEmpty)
+    }
+}
+
 // MARK: - Input methods are never swapped in place
 
 /// An input method is registered with the system by the vendor's installer, and

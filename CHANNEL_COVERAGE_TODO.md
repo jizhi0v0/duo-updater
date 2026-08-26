@@ -176,6 +176,20 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 - ✗ **Blender — Daily/Alpha/Beta** · 同 bundle id，builder.blender.org 滚动构建，无检测信号
 - ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）
 - ✗ **GitHub Desktop — Beta** · 同 `com.github.GitHubClient`，beta tag 是 prerelease，stable rule 已排除
+- ✅ **Longbridge Desktop — Preview** · 已接入。**更正 2026-08-25 那版"已停更"的判断**：那条结论是
+  从本机一个旧的 `0.15.0-preview.0` 包倒推的，没打端点；实际 2026-08-26 复核时 preview 轨道是活的。
+  独立 bundle `com.longbridge.app.desktop.preview`（"Longbridge Preview.app"），靠 `.preview`
+  后缀走 `ReleaseChannel.detect` 规则 2。Pattern A：VendorProbe(`channel: .preview`) + changelog +
+  arm64 一键安装，ChannelProof 锚 `/longbridge-desktop/preview/`。
+  真机验证 0.19.0-preview.1（75,399,519 B）：arm64、Team 45NG8MW7WK（**与 stable 同一个**，
+  满足 VendorInstaller 签名闸）、spctl 判为 Notarized Developer ID。
+  两条轨道的 version pattern 互不匹配（stable 的数字后必须紧跟引号，preview 的必须带 `-preview.N`），
+  所以就算 bundle id 之外的隔离全失效，跨轨也是 fail-closed。
+  **站点状态（下架 ≠ 停产，值得盯）**：`/desktop/release-notes/preview/` 返回 200 但版本列表被清空
+  （stable 索引有 48 条链接，preview 零条），`/desktop/preview/` 是 404，`/desktop/` 下载页只挂 stable。
+  每版说明页、CDN 清单、DMG 直链都还在。另外 preview 的 asset **不带 `sha256`**（stable 带），
+  是清单降级维护的信号。若 preview 真的停产，表现会是 `latest.json` 长期不动 —— 由夜间 `duo verify`
+  全量扫描的版本停滞告警兜底，不需要提前拆 recipe。
 
 ### 2026-06-06 渠道扫描确认 — 单 channel / 无 detectable beta
 

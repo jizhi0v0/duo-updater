@@ -2228,17 +2228,17 @@ final class AppListModel {
         }
 
         // Back up the current bundle first (when enabled) so this update can be
-        // rolled back. Only for in-place swaps we perform ourselves — Homebrew and
-        // pkg installs go through their own tools and manage their own state.
-        // App Store apps are excluded: mas re-downloads through the store, which
-        // can always re-fetch the prior build, so a local backup is dead weight.
+        // rolled back — every route, App Store included: the store only ever
+        // offers an app's current version, so without a copy of our own that
+        // update is the one that cannot be undone.
         // Which routes are worth a rollback point is `InstallCoordinator`'s call,
         // shared so `duo install` cannot quietly skip the safety net the app
         // provides — it did, until a real install through the CLI showed the
         // backup timestamp hadn't moved.
         let backupRoute = InstallCoordinator.route(
             for: result, requiresInstaller: requiresInstaller(result))
-        if prefs.keepBackups, InstallCoordinator.wantsBackup(backupRoute) {
+        if prefs.keepBackups, InstallCoordinator.wantsBackup(backupRoute),
+           !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
             await backupCurrent(result, route: backupRoute)
         }
 
@@ -3872,6 +3872,33 @@ final class AppListModel {
     /// Copy the app's current bundle into the backup store before we replace it,
     /// so the update can be undone. Best-effort: a failed backup logs and proceeds
     /// (the user opted into the update; a missing safety net mustn't block it).
+    /// True when the `.appStore` route is going to hand off or bail without
+    /// installing anything, decided from state we already have here.
+    ///
+    /// Used for one thing only: skipping the rollback point. The early-outs
+    /// themselves stay in the route below, which is where they belong — this
+    /// predicts them because the backup runs *first*, and a store bundle is the
+    /// most expensive copy we take (DingTalk is 1441 MB, Word 2750 MB; the clone
+    /// is cheap but the manifest SHA-256s every byte, measured at 8.7s for Word).
+    /// Paying that and then bailing also leaves a rollback point whose stored
+    /// version is the one still installed, so the row offers to "roll back" to
+    /// where it already is.
+    ///
+    /// Deliberately a *prediction*, not the guard itself: if the two ever drift
+    /// the cost is a wasted backup, never a wrong install. The `mas outdated`
+    /// pre-flight is not mirrored here — it costs a subprocess, which is the
+    /// thing this is trying to avoid spending.
+    private func appStoreRouteWillNotInstall(_ result: UpdateResult) -> Bool {
+        // Store-managed by the App Store app itself; we only open the deep link.
+        if result.app.isiOSAppOnMac { return true }
+        // Nothing to install against.
+        if result.remote?.appStore?.trackID == nil { return true }
+        // Region-locked apps are AX-only, and the AX route needs the grant first.
+        if result.remote?.appStore?.isRegionMismatch == true,
+           !AppStoreAXInstaller.isTrusted { return true }
+        return false
+    }
+
     private func backupCurrent(_ result: UpdateResult, route: InstallCoordinator.Route) async {
         let outcome = await InstallCoordinator.backUp(result.app, route: route)
         if case .savedWithoutRuntimeState(let omitted) = outcome {
@@ -3939,6 +3966,8 @@ final class AppListModel {
         let key = BackupStore.keyCandidates(bundleID: result.app.bundleID, path: target)
             .first { BackupStore.backup(forKey: $0) != nil }
             ?? BackupStore.key(bundleID: result.app.bundleID, path: target)
+        // Read while the backup is still addressable by key, for the note below.
+        let wasFromAppStore = BackupStore.backup(forKey: key)?.fromAppStore == true
         installErrors[id] = nil
         installing[id] = .installing
         // Same reason as an install: this row's rank is about to change (it stops
@@ -3974,6 +4003,17 @@ final class AppListModel {
             await computeSelfUpdateStaging()
             await refreshBackupIndex()
             installing[id] = nil
+            // The one rollback that another process can undo without being asked.
+            // The store lists the update again the moment the older bundle is back,
+            // and re-installs it by itself when automatic app updates are on (the
+            // default) — so the row has to say that the version on screen may not
+            // stay. Not registered in `inFlightNotes`: like `backupCurrent`'s
+            // warning it describes what just finished, so a settled row is exactly
+            // when it starts to matter.
+            if wasFromAppStore {
+                installNotes[id] = String(
+                    localized: "Rolled back, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
+            }
             Log.install.info("rollback done: \(updated.app.name, privacy: .public) → \(restored ?? "?", privacy: .public)")
             if needsRestart.contains(updated.id) {
                 UpdateNotifier.readyToRestart(app: updated.app.name, version: restored, appID: updated.app.bundleID)

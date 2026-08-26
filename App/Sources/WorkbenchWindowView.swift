@@ -1092,6 +1092,46 @@ private struct ReleaseNotesPane: View {
             result.remote?.changelogURL ?? ChangelogCatalog.url(forBundleID: result.app.bundleID))
     }
 
+    /// Which link of the fallback chain produced `changelogURL`, for the log.
+    ///
+    /// Exists because "the changelog pane showed the wrong page" is otherwise
+    /// unanswerable after the fact: both candidates can share a host, the window
+    /// in which the web view is reached at all is timing-dependent, and by the
+    /// time anyone looks the check has usually completed and the pane renders
+    /// natively instead. Recording the origin next to the URL turns the next
+    /// sighting into evidence instead of another guess.
+    ///
+    /// `-rejected` means the chain picked a URL and `ChangelogURLPolicy` refused
+    /// it — indistinguishable from "no URL at all" at the call site, and worth
+    /// telling apart: since `??` takes the first non-nil, a `remote` URL that
+    /// fails the policy shadows a usable catalog entry rather than falling
+    /// through to it.
+    private var changelogURLOrigin: String {
+        let remote = result.remote?.changelogURL
+        let chosen = remote ?? ChangelogCatalog.url(forBundleID: result.app.bundleID)
+        guard let chosen else { return "none" }
+        let link = remote != nil ? "remote" : "catalog"
+        return ChangelogURLPolicy.displayable(chosen) == nil ? "\(link)-rejected" : link
+    }
+
+    /// One line describing what the web view was handed. `Redactor.url` keeps the
+    /// host, path and harmless query while stripping credential-ish parameters,
+    /// so the full address is safe to log at `.public` — and the path is exactly
+    /// the part `url.host` alone was losing.
+    ///
+    /// `.notice`, NOT `.info` like the neighbouring `perf pane=` lines — please
+    /// do not "tidy" it to match them. Those are live-streaming perf traces; this
+    /// one exists to be read days after a sighting, and per `man 5 os_log` Info
+    /// level goes to a memory buffer and is never persisted for a third-party
+    /// subsystem, so at `.info` it would be gone by the time anyone looked. The
+    /// storage layer folds `.notice` into the persisted Default level. Retention
+    /// is still finite (measured at roughly 4.5 days on this hardware), so a
+    /// report is only recoverable for a few days.
+    private func logWebViewPane(_ url: URL, via route: String) {
+        Log.changelog.notice(
+            "perf pane=webview route=\(route, privacy: .public) \(result.app.name, privacy: .public) origin=\(changelogURLOrigin, privacy: .public) src=\(result.remote?.sourceName ?? "?", privacy: .public) url=\(Redactor.url(url), privacy: .public)")
+    }
+
     var body: some View {
         // `changelogState(for:)` is non-nil only for recipe-backed apps. The load
         // itself is owned by the model (not this view), so switching apps never
@@ -1122,7 +1162,7 @@ private struct ReleaseNotesPane: View {
             .onAppear { Log.changelog.info("perf pane=inline-html \(result.app.name, privacy: .public) (\(html.count, privacy: .public) chars, \(ReleaseNotesText.split(html).count, privacy: .public) chunks, src=\(result.remote?.sourceName ?? "?", privacy: .public))") }
         } else if let url = changelogURL {
             CachedWebView(url: url)
-                .onAppear { Log.changelog.info("perf pane=webview \(result.app.name, privacy: .public) \(url.host ?? "?", privacy: .public)") }
+                .onAppear { logWebViewPane(url, via: "direct") }
         } else {
             emptyNotes
         }
@@ -1132,6 +1172,11 @@ private struct ReleaseNotesPane: View {
     private var fallback: some View {
         if let url = changelogURL {
             CachedWebView(url: url)
+                // The recipe-backed path landed here because its changelog load
+                // FAILED, which is the case most worth having on record: the pane
+                // is now showing a vendor page chosen by fallback rather than the
+                // notes the recipe was supposed to render.
+                .onAppear { logWebViewPane(url, via: "recipe-failed") }
         } else if let html = result.remote?.releaseNotesHTML {
             ScrollView {
                 ReleaseNotesText(text: html, format: .forSource(result.remote?.sourceName))

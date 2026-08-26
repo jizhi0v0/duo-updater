@@ -3956,6 +3956,75 @@ public enum VendorProbeRegistry {
         // and the tag is the release itself rather than a "best release" guess.
         // It stays detection-only either way — that is a property of upstream's
         // signature, not of the endpoint.
+
+        // MARK: - 2026-08-25 Longbridge Desktop
+
+        // Longbridge Desktop — the vendor's compact stable JSON is the same
+        // manifest used by its release-notes site. `version` matches the mounted
+        // app's CFBundleShortVersionString exactly (0.19.1); CFBundleVersion is a
+        // timestamp-like build (20260820.080114) and must not be compared.
+        //
+        // The response carries both macOS architectures. DuoUpdater currently
+        // runs this official-website install path on Apple Silicon, so the URL
+        // pattern is deliberately pinned to `macos-aarch64.dmg` instead of taking
+        // the first arbitrary dmg asset. Verified against the mounted 0.19.1
+        // artifact: com.longbridge.app.desktop, Team 45NG8MW7WK, accepted by
+        // Gatekeeper as Notarized Developer ID. The DMG is self-contained.
+        VendorProbeRecipe(
+            bundleID: "com.longbridge.app.desktop",
+            url: URL(string: "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/latest.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,4})""#,
+            downloadURL: URL(string: "https://longbridge.com/desktop/")!,
+            changelogURL: URL(string: "https://longbridge.com/desktop/release-notes/")!,
+            publishedAtPattern: #""published_at"\s*:\s*"([^"]+)""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/stable/longbridge-v[0-9.]+-macos-aarch64\.dmg)""#),
+                kind: .dmg)),
+
+        // Longbridge Desktop Preview — a SEPARATE bundle id
+        // (`com.longbridge.app.desktop.preview`, "Longbridge Preview.app"), so
+        // `ReleaseChannel.detect` resolves it via the `.preview` bundle-id suffix
+        // and the two trains cannot be confused by bundle id alone.
+        //
+        // The channel has been DE-LISTED from the vendor's site but not retired:
+        // `/desktop/release-notes/preview/` still returns 200 while rendering an
+        // EMPTY version list (stable's index server-renders 48 links), and
+        // `/desktop/preview/` is 404 — there is no download landing page. The
+        // per-version notes pages, this manifest, and the artifacts are all still
+        // published, so a user who already runs Preview can be updated in place;
+        // they just cannot discover a new one through the website. That is why
+        // `changelogURL` points at the (currently empty) preview index rather than
+        // a version-specific page: it is the right place conceptually and will
+        // repopulate on its own if the vendor restores the listing.
+        //
+        // Two structural differences from the stable manifest, both deliberate
+        // here: the version carries a `-preview.N` suffix (so the pattern requires
+        // it — the stable pattern's trailing quote cannot match this shape, and
+        // this one cannot match stable's, verified both directions against the
+        // live bodies), and preview assets ship WITHOUT the `sha256` field stable
+        // includes. No checksum is asserted either way (`checksumPattern` wants a
+        // base64 SHA-512), so this costs nothing today, but it is a sign the
+        // preview manifest is maintained at a lower standard than stable's.
+        //
+        // Verified 2026-08-26 against the downloaded 0.19.0-preview.1 artifact
+        // (75,399,519 B): com.longbridge.app.desktop.preview, arm64,
+        // Team 45NG8MW7WK — the SAME team as stable, which is what
+        // `VendorInstaller`'s signature gate requires — spctl accepted as
+        // Notarized Developer ID.
+        VendorProbeRecipe(
+            bundleID: "com.longbridge.app.desktop.preview",
+            url: URL(string: "https://assets.lbkrs.com/github/release/longbridge-desktop/preview/latest.json")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,4}-preview\.[0-9]+)""#,
+            changelogURL: URL(string: "https://longbridge.com/desktop/release-notes/preview/")!,
+            publishedAtPattern: #""published_at"\s*:\s*"([^"]+)""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/preview/longbridge-v[0-9.]+-preview\.[0-9]+-macos-aarch64\.dmg)""#),
+                kind: .dmg),
+            channel: .preview),
     ]
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to

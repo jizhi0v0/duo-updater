@@ -6740,49 +6740,49 @@
         }
       }
     },
-    "Downloaded this month": {
+    "Downloaded this month: %@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Downloaded this month"
+            "value": "Downloaded this month: %@"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diesen Monat heruntergeladen"
+            "value": "Diesen Monat heruntergeladen: %@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Descargado este mes"
+            "value": "Descargado este mes: %@"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Téléchargé ce mois-ci"
+            "value": "Téléchargé ce mois-ci : %@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "今月のダウンロード量"
+            "value": "今月のダウンロード量: %@"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Загружено в этом месяце"
+            "value": "Загружено в этом месяце: %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "本月已下载"
+            "value": "本月已下载：%@"
           }
         }
       }

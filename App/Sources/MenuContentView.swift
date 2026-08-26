@@ -636,7 +636,13 @@ struct MenuContentView: View {
         guard let month = model.trafficSummary.calendarMonths(1).last, month.bytes > 0 else {
             return title
         }
-        return "\(title) · \(ByteFormat.string(month.bytes)) this month"
+        // The figure that used to sit in the footer, now that the row is icons
+        // only. A localized key rather than interpolated English: the separator
+        // has nothing to translate, but "downloaded this month" does — and each
+        // locale wants its own punctuation around the number (fr's space before
+        // the colon, zh's full-width one).
+        let figure = String(localized: "Downloaded this month: \(ByteFormat.string(month.bytes))")
+        return "\(title) · \(figure)"
     }
 
     /// Reserve the brew row for any machine with Homebrew installed — always, even

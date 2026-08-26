@@ -5,6 +5,22 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.64
+
+**An update that needs an administrator now asks for one, instead of failing and blaming a permission.** Whether a swap needed a password was decided by looking at the folder an app sits in rather than at the app itself. Anything macOS installed as root — every App Store app, and any app an installer package laid down — passed that test, took the route that needs no password, and could not possibly finish: removing the old version requires write access to the directories inside it. macOS reports that refusal with the same code it uses for a denied App Management permission, so the failure arrived as a request to grant App Management, which could never help, because the obstacle was file ownership. On an ordinary Mac that was every App Store app and a handful of others besides, and it was administrator accounts it hit — standard accounts were already being routed correctly. Those updates now take the route that works, and the app keeps the owner it had rather than quietly becoming yours.
+
+**App Store apps now get a rollback point like everything else.** Backups skipped them, on the reasoning that the store can always fetch a previous build back. It cannot — the App Store offers only an app's current version — which left the store as the one route that applied an update with no way to undo it. Those apps are now backed up before an update like any other, and because the copy is made by cloning it costs almost no disk space until the update actually replaces the original. Restoring one says the thing that is specific to the store: the update reappears in the Updates list straight away, and is re-applied on its own if automatic app updates are switched on. And when a store update was never going to be applied — an iPhone app running on a Mac, a title not sold in your region — no rollback point is taken any more, so a row can no longer offer to roll back to the version it is already running.
+
+**Longbridge Desktop is now tracked, on both of its release trains.** Stable and Preview each get version detection, one-click installation of the official Apple silicon build, and release notes rendered in Duo Updater's own window, illustrations included.
+
+**WhatsApp's release notes now appear while its App Store check is still running.** The App Store page shown in that window had been filed under a name the lookup could never match, so the notes pane sat empty instead of showing it.
+
+**The menu header carries more in less room.** Duo Updater's own version now sits beside its name, and clicking it opens its release notes. "Update All" has moved onto its own line, where a translated label has room to be read in full, and the actions along the bottom are icons. The banner that used to announce Duo Updater updating itself is gone — the sparkle beside the version lights up instead, and stays lit until you have read what changed. A status line too long for the menu now ends in an ellipsis rather than stretching it.
+
+**Settings no longer cuts short the update choices it is offering.** The two menus that decide how an update is applied were clipping their own labels in several languages. The wording is shorter now, and they move onto a second line where the words still need it.
+
+**What's New says when each version shipped.** Every version in the rail now carries its publication date.
+
 ## 0.3.63
 
 **Architecture-specific updates now choose the build this Mac can actually run.** A few apps publish the same version twice in one Sparkle feed — once for Apple silicon and once for Intel — and Duo Updater used to break that tie by whichever download address happened to sort first. It now reads the feed's hardware requirement and, where a vendor leaves that blank, the architecture in the filename. The native build wins consistently, and a build this Mac cannot launch is not offered. GitHub releases get the same treatment, without calling a perfectly healthy recipe broken just because its newest artifact targets another architecture.

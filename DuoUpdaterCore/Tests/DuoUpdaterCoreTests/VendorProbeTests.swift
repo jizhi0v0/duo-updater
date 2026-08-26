@@ -999,7 +999,10 @@ private func verdict(
     }
     #expect(!recipes.isEmpty, "no non-stable Android Studio recipes in the registry")
 
-    var floors: [ReleaseChannel: Set<String>] = [:]
+    // Keyed by nothing: two recipes may deliberately share a `(bundleID, channel)`
+    // behind a `variant` (see `channelProofsCoverEveryChannelRecipe`), and a
+    // dictionary would let one silently overwrite the other's floor.
+    var floors: [(channel: ReleaseChannel, floor: Set<String>)] = []
     for recipe in recipes {
         guard case .bodyPattern(let installPattern)? = recipe.install?.urlSource else {
             Issue.record("\(recipe.channel.rawValue) install spec is no longer a bodyPattern")
@@ -1049,18 +1052,28 @@ private func verdict(
             #expect(complaint == nil, "\(why)")
         }
         #expect(!floor.isEmpty, "\(recipe.channel.rawValue) accepts none of the sampled builds")
-        floors[recipe.channel] = Set(floor)
+        floors.append((recipe.channel, Set(floor)))
     }
 
     // The floors must still NEST — a less stable channel reaches everything a more
     // stable one does, plus its own. Two floors that are equal, or that merely
     // overlap, mean the version patterns stopped expressing the ladder, and every
     // assertion above would go on passing vacuously.
-    for (a, b) in floors.flatMap({ l in floors.map { (l, $0) } }) where a.key != b.key {
-        let nested = a.value.isSubset(of: b.value) || b.value.isSubset(of: a.value)
-        let why = "\(a.key.rawValue) reaches \(a.value.sorted()) and \(b.key.rawValue) reaches "
-            + "\(b.value.sorted()) — neither contains the other, so they are no longer one ladder"
-        #expect(nested && a.value != b.value, "\(why)")
+    for i in floors.indices {
+        for j in floors.indices where j > i {
+            let (a, b) = (floors[i], floors[j])
+            // Variants of ONE channel are two readings of the same rung; only
+            // different channels have to sit at different heights.
+            guard a.channel != b.channel else { continue }
+            let reach = "\(a.channel.rawValue) reaches \(a.floor.sorted()) and "
+                + "\(b.channel.rawValue) reaches \(b.floor.sorted())"
+            guard a.floor != b.floor else {
+                #expect(Bool(false), "\(reach) — the same rung, so the ladder has collapsed")
+                continue
+            }
+            let nested = a.floor.isSubset(of: b.floor) || b.floor.isSubset(of: a.floor)
+            #expect(nested, "\(reach) — neither contains the other, so this is no longer a ladder")
+        }
     }
 }
 

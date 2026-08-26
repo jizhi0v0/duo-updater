@@ -106,7 +106,15 @@ enum BetterDisplayChannel {
     }
 
     private static func readBoolPref(_ key: String) -> Bool {
-        (CFPreferencesCopyAppValue(key as CFString,
-                                   bundleID as CFString) as? NSNumber)?.boolValue ?? false
+        // Force a fresh read from cfprefsd before each look: this menu-bar process
+        // runs for days and can otherwise serve a value it cached before
+        // BetterDisplay wrote the toggle — which would defeat the whole point here,
+        // since the flip is exactly what `ChannelSwitchDetector` is watching for.
+        // `IINAChannel` and `TablePlusChannel` both carry this call for the same
+        // reason. One synchronize per key is redundant but free; the two keys are
+        // read back to back and the second sync finds nothing to do.
+        CFPreferencesAppSynchronize(bundleID as CFString)
+        return (CFPreferencesCopyAppValue(key as CFString,
+                                          bundleID as CFString) as? NSNumber)?.boolValue ?? false
     }
 }

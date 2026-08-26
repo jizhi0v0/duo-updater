@@ -204,6 +204,7 @@ public struct AppScanner: Sendable {
                 isTestFlightApp: true,
                 sparkleFeedURL: app.sparkleFeedURL,
                 sparkleFeedHeaders: app.sparkleFeedHeaders,
+                sparkleChannelNames: app.sparkleChannelNames,
                 sparkleEdPublicKey: app.sparkleEdPublicKey,
                 hasSelfUpdater: app.hasSelfUpdater,
                 hasSparkleUpdater: app.hasSparkleUpdater,

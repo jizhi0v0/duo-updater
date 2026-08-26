@@ -25,6 +25,7 @@ final class TestFlightInventoryTests: XCTestCase {
             isMASApp: isMAS, isTestFlightApp: isTestFlight,
             sparkleFeedURL: URL(string: "https://example.com/appcast.xml"),
             sparkleFeedHeaders: ["X-Channel": "beta"],
+            sparkleChannelNames: ["pre", "internal"],
             sparkleEdPublicKey: "fixture-key", hasSelfUpdater: true,
             releaseChannel: .beta, channelIsAuthoritative: true,
             toolboxInstalledBuild: "toolbox-build", appStoreAdamID: 123)
@@ -44,6 +45,13 @@ final class TestFlightInventoryTests: XCTestCase {
         XCTAssertEqual(retagged.path, app.path)
         XCTAssertEqual(retagged.sparkleFeedURL, app.sparkleFeedURL)
         XCTAssertEqual(retagged.sparkleFeedHeaders, app.sparkleFeedHeaders)
+        // The rebuild lists fields by hand, so a field added to `InstalledApp` after
+        // this test was written is dropped silently — its default is what a caller
+        // that never heard of it would pass. `sparkleChannelNames` defaults to the
+        // empty set, which is not "unset" but a MEANING: "derive the feed tag from
+        // the channel". For a BetterDisplay-shaped feed that builds an allowed set
+        // matching nothing, and the user falls back to stable with no error anywhere.
+        XCTAssertEqual(retagged.sparkleChannelNames, app.sparkleChannelNames)
         XCTAssertEqual(retagged.sparkleEdPublicKey, app.sparkleEdPublicKey)
         XCTAssertEqual(retagged.releaseChannel, app.releaseChannel)
         XCTAssertEqual(retagged.toolboxInstalledBuild, app.toolboxInstalledBuild)

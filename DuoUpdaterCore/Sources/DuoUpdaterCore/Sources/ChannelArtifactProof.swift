@@ -59,9 +59,20 @@ public enum ChannelProofRegistry {
         // stable's `type=release`, and the install pattern reads the dmg out of
         // that response body.
         ChannelProofKey("com.jetbrains.intellij-EAP", .preview): .recipeAnchor(#"type=eap"#),
-        // Android Studio: Google's Beta train ships RELEASE CANDIDATES, so `-rc<N>-`
-        // (not `-beta-`) is the marker to expect there; Canary ships `-canary<N>-`.
-        ChannelProofKey("com.google.android.studio", .canary): .artifact(#"-canary[0-9]*-mac"#),
+        // Android Studio: each preview channel accepts builds at its own quality OR
+        // MORE STABLE (the stability floor documented on the recipes), so the marker
+        // has to be that whole ladder, not just the channel's own name — Canary
+        // resolves the newest of {Canary, Beta, RC}, Beta the newest of {Beta, RC}.
+        // That is not a bug being papered over: it is why a Canary install correctly
+        // moves onto `2026.1.4 RC 2` when it is newer than any open Canary, which is
+        // exactly what the feed served on 2026-08-26. Google's Beta train has in
+        // practice shipped RELEASE CANDIDATES for years (no `Beta` item since
+        // 2025-03-18), so `-rc<N>-` is the marker actually seen on both.
+        // What the marker still excludes is the pair that WOULD be a cross-channel
+        // install: `Release` (`android-studio-quail3-mac_arm.dmg`) and `Patch`
+        // (`…-patch1-mac_arm.dmg`) — neither carries a ladder token.
+        ChannelProofKey("com.google.android.studio", .canary):
+            .artifact(#"-(canary|beta|rc)[0-9]*-mac"#),
         ChannelProofKey("com.google.android.studio", .beta): .artifact(#"-(beta|rc)[0-9]*-mac"#),
         ChannelProofKey("io.dcloud.HBuilderXAlpha", .alpha): .artifact(#"-alpha\."#),
 

@@ -132,7 +132,7 @@ final class AppListModel {
     /// `needsRestart` from a version comparison that is blind to apps whose
     /// `Info.plist` version is frozen across builds (WeChat DevTools reports Electron's
     /// `36.6.0` on every 2.02.x build); this set is driven by launch time instead and
-    /// then unioned into `needsRestart` so the existing Restart affordance just works.
+    /// then unioned into `needsRestart` so the existing Relaunch affordance just works.
     /// See `reconcilePackageRestarts` and `PackageRestartState`.
     private(set) var packageRestartPending: Set<String> = []
     /// Rows we've already posted a "ready to restart" notification for after a pkg

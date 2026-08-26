@@ -6998,7 +6998,7 @@
         }
       }
     },
-    "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of Duo Updater's is open, and you are working in another app; it restarts itself there. Until such a moment comes it simply waits, and installs when you quit Duo Updater anyway.": {
+    "Duo Updater checks for its own updates hourly on its own. Left off, a new version puts up a prompt and waits for you.\n\nTurned on, it is downloaded and then applied at a quiet moment — no prompt, no clicking. A quiet moment means nothing is being checked or installed, no window of Duo Updater's is open, and you are working in another app; it relaunches itself there. Until such a moment comes it simply waits, and installs when you quit Duo Updater anyway.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -7010,13 +7010,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater comprueba sus propias actualizaciones cada hora por su cuenta. Si está desactivado, una versión nueva muestra un aviso y espera tu acción.\n\nSi está activado, se descarga y luego se aplica en un momento tranquilo, sin avisos ni clics. Un momento tranquilo significa que no se está comprobando ni instalando nada, que no hay ninguna ventana de Duo Updater abierta y que estás trabajando en otra app; entonces se reinicia por sí solo. Hasta que llegue ese momento, simplemente espera, e instala de todos modos cuando cierras Duo Updater."
+            "value": "Duo Updater comprueba sus propias actualizaciones cada hora por su cuenta. Si está desactivado, una versión nueva muestra un aviso y espera tu acción.\n\nSi está activado, se descarga y luego se aplica en un momento tranquilo, sin avisos ni clics. Un momento tranquilo significa que no se está comprobando ni instalando nada, que no hay ninguna ventana de Duo Updater abierta y que estás trabajando en otra app; entonces se reabre por sí solo. Hasta que llegue ese momento, simplemente espera, e instala de todos modos cuando cierras Duo Updater."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater vérifie lui-même ses propres mises à jour toutes les heures. Désactivé, une nouvelle version affiche une invite et attend votre action.\n\nActivé, elle est téléchargée puis appliquée à un moment calme — sans invite, sans clic. Un moment calme signifie que rien n'est en cours de vérification ni d'installation, qu'aucune fenêtre de Duo Updater n'est ouverte, et que vous travaillez dans une autre application ; il se redémarre alors lui-même. Tant qu'un tel moment n'arrive pas, il attend simplement et s'installe de toute façon quand vous quittez Duo Updater."
+            "value": "Duo Updater vérifie lui-même ses propres mises à jour toutes les heures. Désactivé, une nouvelle version affiche une invite et attend votre action.\n\nActivé, elle est téléchargée puis appliquée à un moment calme — sans invite, sans clic. Un moment calme signifie que rien n'est en cours de vérification ni d'installation, qu'aucune fenêtre de Duo Updater n'est ouverte, et que vous travaillez dans une autre application ; il se relance alors lui-même. Tant qu'un tel moment n'arrive pas, il attend simplement et s'installe de toute façon quand vous quittez Duo Updater."
           }
         },
         "ja": {
@@ -7034,7 +7034,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duo Updater 会每小时自行检查自身的更新。关闭时，新版本会弹出提示并等待你操作。\n\n开启后，会在安静的时刻下载并应用更新 — 无提示、无需点击。安静的时刻是指没有正在进行的检查或安装、没有打开任何 Duo Updater 窗口，并且你正在其他应用中工作；届时它会自行重启。在这样的时刻到来之前它只会等待，并在你退出 Duo Updater 时顺便安装。"
+            "value": "Duo Updater 会每小时自行检查自身的更新。关闭时，新版本会弹出提示并等待你操作。\n\n开启后，会在安静的时刻下载并应用更新 — 无提示、无需点击。安静的时刻是指没有正在进行的检查或安装、没有打开任何 Duo Updater 窗口，并且你正在其他应用中工作；届时它会自行重新启动。在这样的时刻到来之前它只会等待，并在你退出 Duo Updater 时顺便安装。"
           }
         }
       }

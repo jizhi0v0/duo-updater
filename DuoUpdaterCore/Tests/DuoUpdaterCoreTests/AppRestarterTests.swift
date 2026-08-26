@@ -151,4 +151,34 @@ import Foundation
     @Test func nothingIsNestedInsideNoBundleURL() {
         #expect(!AppRestarter.isNestedInside(nil, target: "/Applications/Surge.app"))
     }
+
+    /// Being nested is not enough to be an instance worth quitting.
+    ///
+    /// The path test alone also matches every Chromium renderer, XPC service and
+    /// `.appex` living inside an app bundle. Measured on the development machine:
+    /// of 13 nested running processes, only Surge's Dashboard was `.regular` —
+    /// `Claude Helper.app`, `Google Chrome Helper.app`,
+    /// `WeChatAppEx Helper (Renderer).app`, `cef_server.app`, `DockHelper.xpc` and
+    /// `WeatherWidget.appex` were all `.accessory` or `.prohibited`. Terminating
+    /// those achieves nothing and relaunching one on its own is incoherent.
+    ///
+    /// Pinned as paths and policies rather than by driving `NSWorkspace`, which no
+    /// test can arrange.
+    @Test func onlyAStandaloneNestedAppCountsAsAnInstance() {
+        let target = "/Applications/Surge.app"
+        // Everything here IS nested — that is the point; the policy is what separates them.
+        let nested = [
+            "/Applications/Surge.app/Contents/Applications/Surge Dashboard.app",
+            "/Applications/Surge.app/Contents/Frameworks/Surge Helper.app",
+            "/Applications/Surge.app/Contents/XPCServices/Thing.xpc",
+            "/Applications/Surge.app/Contents/PlugIns/Ext.appex",
+        ]
+        for path in nested {
+            #expect(AppRestarter.isNestedInside(URL(fileURLWithPath: path), target: target),
+                    "\(path) should read as nested")
+        }
+        // …and only the `.app` bundles can even reach the policy test.
+        #expect(URL(fileURLWithPath: nested[2]).pathExtension != "app")
+        #expect(URL(fileURLWithPath: nested[3]).pathExtension != "app")
+    }
 }

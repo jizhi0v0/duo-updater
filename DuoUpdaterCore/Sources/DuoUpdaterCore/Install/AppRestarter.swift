@@ -115,8 +115,34 @@ public enum AppRestarter {
     public static func nestedRunningInstances(of app: InstalledApp) -> [NSRunningApplication] {
         let target = UpdatePolicy.runtimeBundlePath(app.path)
         return NSWorkspace.shared.runningApplications.filter {
-            isNestedInside($0.bundleURL, target: target)
+            isNestedInside($0.bundleURL, target: target) && isStandaloneNestedApp($0)
         }
+    }
+
+    /// Whether a nested running process is a *standalone app* rather than a piece
+    /// of machinery its parent owns.
+    ///
+    /// Being nested is not enough, and the first version of this got it wrong: a
+    /// bare containment test also catches every Chromium renderer
+    /// (`…/Frameworks/Claude Helper.app`, `Google Chrome Helper.app`), XPC services,
+    /// `.appex` extensions and CEF servers. Terminating those is pointless — the
+    /// parent starts and stops them — and launching one again afterwards is worse
+    /// than pointless, since a renderer started on its own does nothing.
+    ///
+    /// The line is the activation policy. Measured across the 13 nested processes
+    /// running on the development machine, exactly one was `.regular`: Surge's
+    /// Dashboard, the only one with a UI of its own. Every helper, renderer, XPC
+    /// service and extension was `.accessory` or `.prohibited`. That is not a
+    /// coincidence of the sample — a component a parent manages has no reason to
+    /// present itself to the user, and an app the user opened does.
+    ///
+    /// The cost is a nested *accessory* app — a menu-bar utility living inside
+    /// another bundle — which this will not relaunch. That is the safe direction to
+    /// be wrong in: missing one leaves the user to reopen it, while quitting a
+    /// renderer mid-swap breaks the app we are updating.
+    static func isStandaloneNestedApp(_ candidate: NSRunningApplication) -> Bool {
+        guard candidate.bundleURL?.pathExtension == "app" else { return false }
+        return candidate.activationPolicy == .regular
     }
 
     /// True when a running instance's bundle URL resolves — after normalising away

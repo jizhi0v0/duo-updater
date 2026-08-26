@@ -38,22 +38,36 @@ public enum AppRestarter {
     @discardableResult
     public static func restart(_ app: InstalledApp) async -> Outcome {
         guard app.bundleID != nil else { return .noBundleID }
-        let running = runningInstances(of: app)
+        let main = runningInstances(of: app)
+        // Apps nested inside this one count as instances of it. They are separate
+        // macOS apps with their own bundle ids, not child processes the parent's
+        // lifetime governs, so nothing terminates them when the parent quits and
+        // macOS does not tear them down either. Left running across the swap they
+        // keep executing the pre-swap binary out of the bundle we moved aside —
+        // Surge's Dashboard did exactly that, and then could not talk to the new
+        // Surge it was no longer part of.
+        let nested = nestedRunningInstances(of: app)
+        let running = main + nested
         guard !running.isEmpty else { return .notRunning }
         // Sampled before the quit — once every instance is gone, so is the
         // answer — and decides whether the relaunch takes the foreground (see
         // `isFrontmost`).
         let wasFrontmost = isFrontmost(running)
+        // Captured before the quit, and normalized: a nested app already stranded
+        // on a staged bundle reports the moved-aside path, and what we want to
+        // relaunch is its live location.
+        let nestedBundles = nested.compactMap(\.bundleURL)
+            .map { URL(fileURLWithPath: UpdatePolicy.runtimeBundlePath($0)) }
         for instance in running { instance.terminate() }
         // Wait up to ~30s for a graceful quit. A heavy app (large workspace) can
         // take well over the old 6s to actually exit; bailing early would leave
         // it terminated-but-not-relaunched. The only case given up on is a
         // genuine hang/save-prompt, where the app stays *up* (never stranded down).
         for _ in 0..<150 {
-            if runningInstances(of: app).isEmpty { break }
+            if allRunningInstances(of: app).isEmpty { break }
             try? await Task.sleep(for: .milliseconds(200))
         }
-        guard runningInstances(of: app).isEmpty else {
+        guard allRunningInstances(of: app).isEmpty else {
             Log.install.error(
                 "app-restarter: \(app.name, privacy: .public) won't quit (likely a save prompt) — leaving it running")
             return .stillRunning
@@ -61,7 +75,59 @@ public enum AppRestarter {
         let relaunched = await launchApp(app.path, activates: wasFrontmost)
         Log.install.info(
             "app-restarter: \(app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
+        // Put back the nested apps that were open, after the parent — several only
+        // make sense once it is up. Skipped when the parent has already reopened
+        // one itself, which is common and would otherwise be a second launch of an
+        // app that is now running.
+        for bundle in nestedBundles {
+            let target = UpdatePolicy.runtimeBundlePath(bundle)
+            let alreadyBack = NSWorkspace.shared.runningApplications.contains {
+                matchesBundlePath($0.bundleURL, target: target)
+            }
+            guard !alreadyBack else {
+                Log.install.debug(
+                    "app-restarter: \(bundle.lastPathComponent, privacy: .public) already reopened by its parent")
+                continue
+            }
+            let back = await launchApp(bundle, activates: false)
+            Log.install.info(
+                "app-restarter: nested \(bundle.lastPathComponent, privacy: .public) relaunched=\(back, privacy: .public)")
+        }
         return .relaunched(relaunched)
+    }
+
+    /// Every live process belonging to this bundle — the app itself and anything
+    /// nested inside it. The set the quit-wait has to watch: waiting only on the
+    /// parent declared success while a nested app was still up, and the swap then
+    /// moved the bundle out from under it.
+    public static func allRunningInstances(of app: InstalledApp) -> [NSRunningApplication] {
+        runningInstances(of: app) + nestedRunningInstances(of: app)
+    }
+
+    /// Running apps whose bundle lives *inside* `app`'s bundle.
+    ///
+    /// Found by asking what is running rather than by walking the bundle on disk,
+    /// so it holds at any nesting depth and still finds a process whose bundle has
+    /// already been moved aside by a swap (`runtimeBundlePath` maps that back).
+    /// Neither filter in `runningInstances(of:)` can see these: a nested app has
+    /// its own bundle id, so it is never in the parent's candidate set, and its
+    /// path is a child of the target rather than equal to it.
+    public static func nestedRunningInstances(of app: InstalledApp) -> [NSRunningApplication] {
+        let target = UpdatePolicy.runtimeBundlePath(app.path)
+        return NSWorkspace.shared.runningApplications.filter {
+            isNestedInside($0.bundleURL, target: target)
+        }
+    }
+
+    /// True when a running instance's bundle URL resolves — after normalising away
+    /// DuoUpdater's staging names — to a path strictly *inside* `target`. Split out
+    /// as the pure half of `nestedRunningInstances(of:)`, like `matchesBundlePath`.
+    /// The trailing separator matters: without it a sibling named `Surge Beta.app`
+    /// would read as nested inside `Surge.app`.
+    static func isNestedInside(_ candidateBundleURL: URL?, target: String) -> Bool {
+        guard let candidateBundleURL else { return false }
+        let path = UpdatePolicy.runtimeBundlePath(candidateBundleURL)
+        return path != target && path.hasPrefix(target + "/")
     }
 
     /// The running instances launched from *this exact .app*, not just any app

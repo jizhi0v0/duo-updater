@@ -110,4 +110,45 @@ import Foundation
         // Still unclaimed, so `onTimeout` never ran.
         #expect(timedOut.claim())
     }
+
+    /// An app nested inside the target's bundle is an instance of it for quit and
+    /// relaunch purposes, and neither existing filter can see one: it carries its
+    /// own bundle id, so it never enters the parent's candidate set, and its path
+    /// is a child of the target rather than equal to it.
+    @Test func anAppNestedInTheBundleCountsAsInside() {
+        let target = "/Applications/Surge.app"
+        let dashboard = URL(fileURLWithPath:
+            "/Applications/Surge.app/Contents/Applications/Surge Dashboard.app")
+        #expect(AppRestarter.isNestedInside(dashboard, target: target))
+        // …including one already stranded on the moved-aside bundle, which is the
+        // state the swap leaves it in and the state we have to recognise to fix it.
+        #expect(AppRestarter.isNestedInside(
+            URL(fileURLWithPath:
+                "/Applications/.duoupdater-staged-Surge.app/Contents/Applications/Surge Dashboard.app"),
+            target: target))
+    }
+
+    /// The bundle itself is not nested in itself — `runningInstances(of:)` already
+    /// owns that one, and counting it twice would terminate it twice and make the
+    /// relaunch loop reopen the parent as if it were a helper.
+    @Test func theBundleItselfIsNotNestedInItself() {
+        let target = "/Applications/Surge.app"
+        #expect(!AppRestarter.isNestedInside(URL(fileURLWithPath: target), target: target))
+    }
+
+    /// The separator is load-bearing: a prefix test without it reads a sibling
+    /// whose name merely starts with the target's as living inside it, and a
+    /// Surge update would quit Surge Beta.
+    @Test func aSiblingSharingAPrefixIsNotNested() {
+        let target = "/Applications/Surge.app"
+        #expect(!AppRestarter.isNestedInside(
+            URL(fileURLWithPath: "/Applications/Surge Beta.app"), target: target))
+        #expect(!AppRestarter.isNestedInside(
+            URL(fileURLWithPath: "/Applications/Surge.app.backup/Contents/MacOS/x.app"),
+            target: target))
+    }
+
+    @Test func nothingIsNestedInsideNoBundleURL() {
+        #expect(!AppRestarter.isNestedInside(nil, target: "/Applications/Surge.app"))
+    }
 }

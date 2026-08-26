@@ -501,21 +501,39 @@ public enum UpdatePolicy {
     /// Normalize app bundle paths reported by running processes back to the live
     /// installed bundle. macOS can keep a process mapped to DuoUpdater's temporary
     /// `replaceItemAt` staging name after a hot swap; treating that hidden/deleted
-    /// path as distinct makes running detection and Restart miss the exact app.
+    /// path as distinct makes running detection and Relaunch miss the exact app.
+    ///
+    /// Rewrites **every** component, not just the last one. An app nested inside
+    /// another app's bundle — Surge ships `Surge.app/Contents/Applications/Surge
+    /// Dashboard.app`, and it is a full app with its own bundle id, not a helper
+    /// the parent process owns — reports a path whose staged component is in the
+    /// middle:
+    ///
+    ///     /Applications/.duoupdater-staged-Surge.app/Contents/Applications/Surge Dashboard.app
+    ///
+    /// Normalising the leaf alone left that string untouched, so nothing could
+    /// tell that the process belonged to Surge at all, and the nested app went on
+    /// running the pre-swap binary out of a bundle that had been moved aside.
     public static func runtimeBundlePath(_ url: URL) -> String {
         let resolved = url.resolvingSymlinksInPath()
-        let name = resolved.lastPathComponent
-        let parent = resolved.deletingLastPathComponent()
         let stagedPrefix = ".duoupdater-staged-"
-
-        if name.hasPrefix(stagedPrefix) {
-            let original = String(name.dropFirst(stagedPrefix.count))
-            return parent.appendingPathComponent(original).resolvingSymlinksInPath().path
+        var components = resolved.pathComponents
+        var rewrote = false
+        for index in components.indices {
+            let name = components[index]
+            if name.hasPrefix(stagedPrefix) {
+                components[index] = String(name.dropFirst(stagedPrefix.count))
+                rewrote = true
+                continue
+            }
+            for suffix in [".duoupdater-old", ".duoupdater-new"] where name.hasSuffix(suffix) {
+                components[index] = String(name.dropLast(suffix.count))
+                rewrote = true
+                break
+            }
         }
-        for suffix in [".duoupdater-old", ".duoupdater-new"] where name.hasSuffix(suffix) {
-            let original = String(name.dropLast(suffix.count))
-            return parent.appendingPathComponent(original).resolvingSymlinksInPath().path
-        }
-        return resolved.path
+        guard rewrote else { return resolved.path }
+        return URL(fileURLWithPath: NSString.path(withComponents: components))
+            .resolvingSymlinksInPath().path
     }
 }

@@ -132,7 +132,7 @@ final class AppListModel {
     /// `needsRestart` from a version comparison that is blind to apps whose
     /// `Info.plist` version is frozen across builds (WeChat DevTools reports Electron's
     /// `36.6.0` on every 2.02.x build); this set is driven by launch time instead and
-    /// then unioned into `needsRestart` so the existing Restart affordance just works.
+    /// then unioned into `needsRestart` so the existing Relaunch affordance just works.
     /// See `reconcilePackageRestarts` and `PackageRestartState`.
     private(set) var packageRestartPending: Set<String> = []
     /// Rows we've already posted a "ready to restart" notification for after a pkg
@@ -2555,7 +2555,7 @@ final class AppListModel {
                 Log.install.info("install done: \(updated.app.name, privacy: .public) now \(version ?? "?", privacy: .public) on disk, awaiting restart")
                 if notify { UpdateNotifier.readyToRestart(app: updated.app.name, version: version, appID: updated.app.bundleID) }
                 // Finish the job the user started: a one-click Update shouldn't leave
-                // a second "Restart" click dangling. Auto-restart unless the user
+                // a second "Relaunch" click dangling. Auto-relaunch unless the user
                 // opted out. In a batch we skip here and let `installAll` restart the
                 // whole set once at the end (so parallel installs don't quit apps out
                 // from under each other mid-run). `restart()` is graceful — it honors
@@ -3330,7 +3330,7 @@ final class AppListModel {
             // Deliberately says "the version on disk" rather than "the version
             // just installed": this is also reached from the Restart button on a
             // row that updated itself, where we installed nothing.
-            let note = String(localized: "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. Restarting from here would install that one over the version now on disk, so it wasn't restarted — quit \(result.app.name) yourself when you're ready to take theirs.")
+            let note = String(localized: "\(result.app.name) has its own update (\(stagedVersion)) downloaded and waiting for the app to quit. Relaunching from here would install that one over the version now on disk, so it wasn't relaunched — quit \(result.app.name) yourself when you're ready to take theirs.")
             installNotes[result.id] = note
             restartHoldBackNotes[result.id] = note
             // Deliberately NOT registered in `inFlightNotes`. A row offering a
@@ -4290,7 +4290,7 @@ final class AppListModel {
         // app stopped meanwhile). From here the normal Restart state owns the row.
         pendingBatchRestart.removeAll()
         // Auto-restart the apps this batch just updated and left awaiting a restart,
-        // so "Update All" doesn't leave a pile of "Restart" buttons (the per-app
+        // so "Update All" doesn't leave a pile of "Relaunch" buttons (the per-app
         // path defers to here in a batch). Only the apps we actually touched — not
         // a pre-existing badge from some background self-update — and graceful, the
         // same as the single-app flow. Done after the shared sweep above so

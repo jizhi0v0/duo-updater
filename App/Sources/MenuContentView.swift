@@ -943,7 +943,7 @@ private struct AppRow: View {
                 Spacer()
                 // Minimum-width action slot, trailing-aligned: every control ends on
                 // the row's own trailing edge, so a narrow indicator (a bare ✓) shares
-                // a right edge with a wide button ("Restart now") *and* with the brew
+                // a right edge with a wide button ("Relaunch now") *and* with the brew
                 // footer's badge below, which is flush right against the same 12pt
                 // padding. Centring instead inset the narrow ones by ~27pt and broke
                 // that shared edge. The minimum still reserves a slot so the name
@@ -1113,7 +1113,7 @@ private struct AppRow: View {
             // instead, where it can be read in full, and the line keeps to the one
             // comparison that decides the click: what you have vs what is offered.
             .help(model.restartFromVersion(result.id).map {
-                String(localized: "Still running \($0) — restart pending from an earlier update")
+                String(localized: "Still running \($0) — relaunch pending from an earlier update")
             } ?? "")
             // Long date-style versions (Warp) would otherwise wrap mid-number;
             // keep it one line and shrink slightly instead.
@@ -1147,7 +1147,7 @@ private struct AppRow: View {
 
     /// The restart version line: running version → installed marketing version (build).
     /// Surfaced when an app self-updated on disk but the old process is still live, so
-    /// "Restart" reads as a concrete version bump. The `from` is pre-formatted by
+    /// "Relaunch" reads as a concrete version bump. The `from` is pre-formatted by
     /// `restartFromVersion` — the running build alone, or "marketing (build)" when the
     /// pre-update marketing version is recoverable from the rollback backup — while the
     /// on-disk `to` side carries the full marketing version, e.g. "1.7.3 (194)".
@@ -1413,7 +1413,7 @@ private struct AppRow: View {
     /// On disk it's current, but the running instance is older — offer a
     /// relaunch so the update actually takes effect.
     private var restartButton: some View {
-        Button("Restart") { Task { await model.restart(result) } }
+        Button("Relaunch") { Task { await model.restart(result) } }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .controlSize(.small)
@@ -1426,13 +1426,13 @@ private struct AppRow: View {
     /// not reached its deferred restart phase. Keep an explicit action available so
     /// a slow unrelated installer never makes this completed download look lost.
     private var pendingBatchRestartButton: some View {
-        Button("Restart now") { Task { await model.restart(result) } }
+        Button("Relaunch now") { Task { await model.restart(result) } }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .controlSize(.small)
             .buttonStyle(.bordered)
             .tint(.orange)
-            .help("Installed \(result.app.shortVersion ?? String(localized: "the new version")) — waiting for Update All to finish before restarting; click to restart now")
+            .help("Installed \(result.app.shortVersion ?? String(localized: "the new version")) — waiting for Update All to finish before relaunching; click to relaunch now")
     }
 
     /// The app self-downloaded a newer build (Squirrel/ShipIt staged it); a
@@ -1453,7 +1453,7 @@ private struct AppRow: View {
     /// An incremental App Store update is downloaded but the app is running, so the
     /// store wants to quit it to install. Tapping presses the store's Continue (via
     /// the AX installer's awaited `confirmQuit`); the app quits, the update lands,
-    /// and we reopen it. Labelled "Relaunch" to match the other quit-to-apply action.
+    /// and we reopen it. Labelled "Relaunch" like every other quit-to-apply action.
     private func quitToFinishButton(_ appName: String) -> some View {
         Button("Relaunch") { model.confirmQuit(result.id, proceed: true) }
             .lineLimit(1)
@@ -1490,9 +1490,9 @@ private struct AppRow: View {
     private var restartHelp: String {
         let disk = result.app.shortVersion ?? String(localized: "the new version")
         if let running = model.runningVersion(result.id) {
-            return String(localized: "Running \(running) but \(disk) is installed — restart to apply it")
+            return String(localized: "Running \(running) but \(disk) is installed — relaunch to apply it")
         }
-        return String(localized: "You’re running an older version — restart to finish updating")
+        return String(localized: "You’re running an older version — relaunch to finish updating")
     }
 
     /// pkg cask: download the official installer and open it (system installer

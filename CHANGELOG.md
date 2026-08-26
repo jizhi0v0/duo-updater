@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.65
+
+**One word now for reopening an app to finish its update.** An app whose own updater had already put the new version in place asked you to "Restart" it; one that keeps the new version aside until you quit asked you to "Relaunch" it. That difference was real behind the scenes and made none to you: the same click either way, and the same outcome if you never click, since the update lands the next time you quit the app regardless. It reads Relaunch throughout now — including the notifications, the tooltips and the setting that does it for you — which is also the word Chrome, Claude and most apps that update themselves put in front of you. Only English ever had two words for this; German, Japanese, Russian and Chinese have always used one, and Spanish and French move onto the wording they were already using elsewhere.
+
 ## 0.3.64
 
 **An update that needs an administrator now asks for one, instead of failing and blaming a permission.** Whether a swap needed a password was decided by looking at the folder an app sits in rather than at the app itself. Anything macOS installed as root — every App Store app, and any app an installer package laid down — passed that test, took the route that needs no password, and could not possibly finish: removing the old version requires write access to the directories inside it. macOS reports that refusal with the same code it uses for a denied App Management permission, so the failure arrived as a request to grant App Management, which could never help, because the obstacle was file ownership. On an ordinary Mac that was every App Store app and a handful of others besides, and it was administrator accounts it hit — standard accounts were already being routed correctly. Those updates now take the route that works, and the app keeps the owner it had rather than quietly becoming yours.

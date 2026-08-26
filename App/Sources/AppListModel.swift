@@ -5036,9 +5036,26 @@ final class AppListModel {
         // already been booked, nothing compared them again — a row kept offering a
         // prerelease to someone who had just opted out, for up to the watcher's
         // 900s re-arm. See issue #74.
-        channelRecheckTask?.cancel()
+        let previous = channelRecheckTask
+        previous?.cancel()
         let task = Task { @MainActor [weak self] in
-            guard let self else { return }
+            // Cancelling only raises a flag. The superseded pass keeps running until
+            // its `recheck` returns — `recheckMany` scans on a DETACHED task, which
+            // cancellation cannot reach at all — and for that whole time it still
+            // holds `installing[id] = .checking` on the rows it claimed. Starting the
+            // new pass on top of that made it skip those very rows, because its claim
+            // filter is `installing[id] == nil`: it rechecked nothing, the dying pass
+            // rechecked nothing either, and the flip was acted on by neither. That is
+            // issue #74 moved rather than fixed — two flips half a second apart, or
+            // one flip plus any unrelated write to the machine-wide
+            // `~/Library/Preferences` during the pass, were enough to hit it.
+            //
+            // So wait the old pass out. It happens HERE, inside the new task, so that
+            // `channelRecheckTask` below is still assigned synchronously: a third
+            // trigger then cancels this task and chains behind it, instead of two
+            // triggers both getting past a suspension point and running at once.
+            _ = await previous?.value
+            guard let self, !Task.isCancelled else { return }
             await self.runChannelSwitchRecheck(trigger: trigger)
         }
         channelRecheckTask = task
@@ -5084,8 +5101,16 @@ final class AppListModel {
             claimed.append(result)
         }
         // Whatever happens below — finished, cancelled, or thrown out of — no row is
-        // left wearing a spinner that nothing is driving any more.
-        defer { for result in claimed { installing[result.id] = nil } }
+        // left wearing a spinner that nothing is driving any more. Narrowly, though:
+        // a row leaves `outstanding` the moment its own recheck lands, and the sweep
+        // only clears one still wearing the `.checking` THIS pass put on it. Between
+        // one row's recheck finishing and the next one's network call returning the
+        // user can press Update on the finished row, and a blind
+        // `installing[id] = nil` here would strip the stage off that install.
+        var outstanding = Set(claimed.map(\.id))
+        defer {
+            for id in outstanding where installing[id] == .checking { installing[id] = nil }
+        }
 
         var completed = Set<String>()
         for result in claimed {
@@ -5093,6 +5118,7 @@ final class AppListModel {
             let updated = await recheck(result)
             guard !Task.isCancelled else { break }
             installing[result.id] = nil
+            outstanding.remove(result.id)
             replaceRow(updated)
             if let id = result.app.bundleID?.lowercased() { completed.insert(id) }
             Log.app.info(

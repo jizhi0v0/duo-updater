@@ -123,11 +123,25 @@ struct AppStoreOfferButtonTests {
     /// ~2 min and Word (2.73 GB) landed just past 90 s, so a finished update was
     /// reported as a timeout and the row showed an error for an app that had updated.
     @Test func theSwapDeadlineMeasuresStallingNotElapsedTime() {
-        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: 224))
-        #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: 225))
+        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: 224, progressReadable: true))
+        #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: 225, progressReadable: true))
         // The point of the change: any number of polls is fine while progress moves,
         // because a moving install resets the count to zero every time.
-        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: 0))
+        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: 0, progressReadable: true))
+    }
+
+    /// The ~90s cap only means anything when there is a percentage to watch. On the
+    /// Updates-list path the row leaves the list as it installs, so `installProgress`
+    /// reads nil on every poll and the count is a blind stopwatch, not a stall — and a
+    /// blind 90s is the flat deadline that failed Word all over again. No reading buys
+    /// the generous cap instead. Judged per poll, not latched on a reading seen earlier:
+    /// an Updates-list row can report a percentage or two before it drops out of the
+    /// list, and latching on those would put the rest of the swap back under 90s.
+    @Test func aSwapWithNoReadableProgressGetsTheGenerousCap() {
+        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: 225, progressReadable: false),
+                "~90s of silence on a path that cannot report progress is not evidence of a stall")
+        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: 749, progressReadable: false))
+        #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: 750, progressReadable: false))
     }
 
     // MARK: - Leftover sheets
@@ -173,7 +187,7 @@ struct AppStoreOfferButtonTests {
             (last, stalled) = AppStoreAXInstaller.swapWatchdog(
                 progress: reading, last: last, stalledPolls: stalled)
             #expect(stalled == 0, "movement at poll \(poll) must reset the count")
-            #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled))
+            #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled, progressReadable: true))
         }
     }
 
@@ -187,7 +201,7 @@ struct AppStoreOfferButtonTests {
                 progress: nil, last: last, stalledPolls: stalled)
         }
         #expect(stalled == 225)
-        #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled))
+        #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled, progressReadable: true))
     }
 
     /// A percentage frozen on the same number is not movement — a wedged install must

@@ -196,6 +196,16 @@ public actor AppStoreAXInstaller {
             Log.install.error("appstore-ax: \(appName, privacy: .public) offer button vanished before press")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
+        // Sample the screen for a sheet HERE, on this side of the press. Any sheet up
+        // now is left over from an earlier install and must be ignored (see
+        // `classifySheet`); any sheet after the press is ours. Reading it inside
+        // `driveToCompletion` instead would race the press: `AXUIElementPerformAction`
+        // is a blocking round-trip into App Store, and a fast delta raises its
+        // close-to-update sheet ~60ms after the press (Spark, 2026-06-08) — so a slow
+        // enough press would have us latch OUR OWN sheet as a leftover and ignore it
+        // for as long as it stays up, which is forever: no Relaunch prompt, and the
+        // install dies at the 6-min poll cap.
+        let sheetBeforePress = quitSheet(in: axApp) != nil
         AXUIElementPerformAction(offer, kAXPressAction as CFString)
         Log.install.info("appstore-ax: \(appName, privacy: .public) pressed Update (baseline short=\(baseline.short ?? "?", privacy: .public) build=\(baseline.build ?? "?", privacy: .public))")
         onStage(.downloading(fraction: 0))
@@ -207,6 +217,7 @@ public actor AppStoreAXInstaller {
             appPath: appPath,
             baseline: baseline,
             viaUpdatesList: viaUpdatesList,
+            sheetBeforePress: sheetBeforePress,
             onStage: onStage,
             confirmQuit: confirmQuit
         )
@@ -433,6 +444,7 @@ public actor AppStoreAXInstaller {
         appPath: URL,
         baseline: (short: String?, build: String?),
         viaUpdatesList: Bool,
+        sheetBeforePress: Bool,
         onStage: @Sendable @escaping (InstallStage) -> Void,
         confirmQuit: @Sendable @escaping (String) async -> Bool
     ) async throws {
@@ -455,7 +467,11 @@ public actor AppStoreAXInstaller {
         // leftover would either bail this update as a purchase sheet or ask the user to
         // Relaunch for a swap that is not pending. Ignore sheets until the screen has
         // been seen clear once, which is what tells us the next one is ours.
-        var leftoverSheet = quitSheet(in: axApp) != nil
+        //
+        // Read on the caller's side of the press (`sheetBeforePress`) rather than
+        // sampled here: by the time this line runs the press has already gone out, and
+        // a fast delta's own sheet can beat us to it.
+        var leftoverSheet = sheetBeforePress
         if leftoverSheet {
             Log.install.info("appstore-ax: \(appName, privacy: .public) a sheet was already up before we pressed — ignoring it until it clears")
         }
@@ -484,16 +500,31 @@ public actor AppStoreAXInstaller {
             // app updated and reopened, but the row took the failure path: no recheck,
             // no "just updated", and a red "Timed out waiting for the App Store" that
             // stood until the next scheduled check (2026-08-26).
+            //
+            // That reading is not always available, though, and the Updates-list path is
+            // where it usually isn't: the row leaves the list as it installs, so there is
+            // no button left to read a percentage off (see `installProgress`). With no
+            // liveness signal at all the count is not measuring a stall, it is a blind
+            // stopwatch — and a blind stopwatch set to 90s is the very bug above. So the
+            // cap is picked per poll from whether a percentage is readable at that
+            // moment: ~90s of a number that stopped moving really is a dead swap, while
+            // no number to read at all buys the generous one. Both stay under the 6-min
+            // poll cap below, which remains the backstop.
             if continued {
                 postContinueTicks += 1
+                // This poll's reading, kept in a local: whether a percentage is readable
+                // RIGHT NOW is what picks the cap, not whether one was ever seen. A latch
+                // would be wrong in the direction that matters — the Updates-list row can
+                // report a percentage or two before it drops out of the list, and latching
+                // on those would put a large region-locked app back under the 90s cap for
+                // the rest of a swap it can no longer report on.
+                let reading = installProgress(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList)
                 let watch = Self.swapWatchdog(
-                    progress: installProgress(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList),
-                    last: lastInstallProgress,
-                    stalledPolls: stalledTicks)
+                    progress: reading, last: lastInstallProgress, stalledPolls: stalledTicks)
                 lastInstallProgress = watch.last
                 stalledTicks = watch.stalledPolls
-                if Self.swapHasStalled(stalledPolls: stalledTicks) {
-                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — swap stalled ~90s with no movement (last progress=\(lastInstallProgress.map { "\(Int($0 * 100))%" } ?? "none", privacy: .public); app still running=\(bundleID.map { isRunning($0) } ?? false))")
+                if Self.swapHasStalled(stalledPolls: stalledTicks, progressReadable: reading != nil) {
+                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — swap \(reading != nil ? "stalled ~90s on a frozen percentage" : "unreadable and silent ~5min", privacy: .public) (last progress=\(lastInstallProgress.map { "\(Int($0 * 100))%" } ?? "none", privacy: .public); app still running=\(bundleID.map { isRunning($0) } ?? false))")
                     throw AXError.timedOut
                 }
             }
@@ -718,10 +749,28 @@ public actor AppStoreAXInstaller {
     /// polls rather than elapsed ones. Kept separate and pure so the distinction that
     /// matters — liveness, not a stopwatch — is asserted rather than left in a loop.
     ///
-    /// ~90s of nothing moving at 400ms/poll. Generous on purpose: the cost of waiting
-    /// too long is a slow row, the cost of giving up too early is calling a finished
-    /// update a failure.
-    static func swapHasStalled(stalledPolls: Int) -> Bool { stalledPolls >= 225 }
+    /// Two caps, because there are two situations:
+    ///
+    ///   * `progressReadable` — App Store is showing a percentage right now, so the count
+    ///     really is measuring a stall: the number is there and it has stopped moving.
+    ///     ~90s of that (225 polls at 400ms) is a dead swap.
+    ///   * otherwise — there is no liveness signal at all and the count is a blind
+    ///     stopwatch, not a stall. That is the Updates-list path's normal state: the row
+    ///     leaves the list as it installs, so there is no button left to read a
+    ///     percentage off (see `installProgress`). A blind 90s is exactly the flat cap
+    ///     that failed Word (2.73 GB, still installing at 66s), so give it ~5min (750
+    ///     polls) instead — still inside `driveToCompletion`'s 6-min poll cap, which
+    ///     stays the backstop.
+    ///
+    /// The caller passes THIS poll's reading, not "did we ever see one". Latching would
+    /// hand a swap the strict cap on the strength of one percentage read seconds before
+    /// the row it was on disappeared.
+    ///
+    /// Generous on purpose in both directions: the cost of waiting too long is a slow
+    /// row, the cost of giving up too early is calling a finished update a failure.
+    static func swapHasStalled(stalledPolls: Int, progressReadable: Bool) -> Bool {
+        stalledPolls >= (progressReadable ? 225 : 750)
+    }
 
     /// The percentage App Store shows on the offer button while it swaps the bundle
     /// ("Installing: N% Complete"), or nil when it isn't showing one — which is normal

@@ -955,6 +955,115 @@ private func verdict(
         "Canary should advance onto the newest preview, shown as a clean version")
 }
 
+/// A stability-floor recipe's `ChannelArtifactProof` must accept EVERY build that
+/// recipe is designed to resolve — and still reject the ones it is not.
+///
+/// Android Studio's preview recipes deliberately reach DOWN the quality ladder
+/// (Canary → newest of {Canary, Beta, RC}; Beta → newest of {Beta, RC}), so their
+/// marker cannot be the channel's own name. Written as `-canary[0-9]*-mac`, the
+/// canary proof failed the moment Google's newest preview was an RC rather than a
+/// Canary — `2026.1.4 RC 2` on 2026-08-26, resolved off the RIGHT train and
+/// reported as a possible cross-channel install. The marker was narrower than the
+/// floor, not the recipe wrong.
+///
+/// Derived from the registry, so a new Android Studio channel is covered the day
+/// it is added, and neither side can be widened alone: narrowing the proof below
+/// the floor fails the first half, widening it into `.*` fails the second.
+@Test func androidStudioChannelProofsSpanTheWholeStabilityFloor() {
+    // Real items, one per channel label the feed ships today, captured from
+    // jb.gg/android-studio-releases-list.json on 2026-08-26 (trimmed to the fields
+    // the patterns read, plus the arm64 dmg the install spec reads).
+    //
+    // `Beta` is absent on purpose: Google has published no `Beta` item since
+    // 2025-03-18, and that last one predates the codename filenames — it is
+    // `android-studio-2024.3.2.9-mac_arm.dmg`, byte-shaped exactly like a Release
+    // of the same era, so NO url marker could tell them apart. The Beta train ships
+    // release candidates in practice, which is what `rc` in both markers covers.
+    let items: [(label: String, fields: String, dmg: String)] = [
+        ("Canary",
+         #""build":"AI-262.9437.185.2621.16128175","platformVersion":"2026.2.1","name":"Android Studio Rabbit 1 | 2026.2.1 Canary 2","channel":"Canary","version":"2026.2.1.2""#,
+         "https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.2/android-studio-rabbit1-canary2-mac_arm.dmg"),
+        ("RC",
+         #""build":"AI-261.26222.65.2614.16166871","platformVersion":"2026.1.4","name":"Android Studio Quail 4 | 2026.1.4 RC 2","channel":"RC","version":"2026.1.4.6""#,
+         "https://edgedl.me.gvt1.com/android/studio/install/2026.1.4.6/android-studio-quail4-rc2-mac_arm.dmg"),
+        ("Release",
+         #""build":"AI-261.26222.65.2613.15948027","platformVersion":"2026.1.4","name":"Android Studio Quail 3 | 2026.1.3","channel":"Release","version":"2026.1.3.7""#,
+         "https://edgedl.me.gvt1.com/android/studio/install/2026.1.3.7/android-studio-quail3-mac_arm.dmg"),
+        ("Patch",
+         #""build":"AI-261.26222.65.2613.16025427","platformVersion":"2026.1.4","name":"Android Studio Quail 3 | 2026.1.3 Patch 1","channel":"Patch","version":"2026.1.3.8""#,
+         "https://edgedl.me.gvt1.com/android/studio/install/2026.1.3.8/android-studio-quail3-patch1-mac_arm.dmg"),
+    ]
+
+    let recipes = VendorProbeRegistry.recipes.filter {
+        $0.bundleID == "com.google.android.studio" && $0.channel != .stable
+    }
+    #expect(!recipes.isEmpty, "no non-stable Android Studio recipes in the registry")
+
+    var floors: [ReleaseChannel: Set<String>] = [:]
+    for recipe in recipes {
+        guard case .bodyPattern(let installPattern)? = recipe.install?.urlSource else {
+            Issue.record("\(recipe.channel.rawValue) install spec is no longer a bodyPattern")
+            continue
+        }
+        var floor: [String] = []
+        for item in items {
+            // A one-item body, shaped like the feed. Whether the recipe's OWN
+            // version pattern matches it is what puts this label on that recipe's
+            // floor — no hand-kept ladder is written down here.
+            let body =
+                #"{"content":{"item":[{"download":[{"link":"\#(item.dmg)"}],\#(item.fields)}]}}"#
+            let build = VendorProbeRecipe.extractVersion(from: body, pattern: recipe.versionPattern)
+            // And judge the proof against the URL the recipe would really hand the
+            // installer, resolved by its own install pattern out of that same body.
+            let resolved = VendorProbeRecipe.extractVersion(from: body, pattern: installPattern)
+
+            guard let build else {
+                // Off the floor → the marker must still say so, or it has stopped
+                // discriminating and a Release/Patch could ride in unnoticed.
+                let complaint = RecipeSanity.crossChannelArtifact(
+                    recipe: recipe,
+                    remote: VendorProbeSource.makeRemoteVersion(
+                        recipe: recipe, version: "AI-0", install: recipe.install,
+                        plan: nil, resolvedDownload: URL(string: item.dmg)!))
+                let why = "\(recipe.channel.rawValue)'s marker accepts a \(item.label) artifact "
+                    + "(\(item.dmg)) the recipe itself refuses — it no longer discriminates"
+                #expect(complaint != nil, "\(why)")
+                continue
+            }
+            floor.append(item.label)
+
+            guard let url = resolved.flatMap(URL.init(string:)) else {
+                let why = "\(recipe.channel.rawValue) accepts the \(item.label) build but its "
+                    + "install pattern resolves no URL from that entry — it would fall through to "
+                    + "an older release's artifact"
+                Issue.record("\(why)")
+                continue
+            }
+            let complaint = RecipeSanity.crossChannelArtifact(
+                recipe: recipe,
+                remote: VendorProbeSource.makeRemoteVersion(
+                    recipe: recipe, version: build, install: recipe.install,
+                    plan: nil, resolvedDownload: url))
+            let why = "\(recipe.channel.rawValue) resolves \(item.label) builds by design, but "
+                + "its channel proof rejects the artifact: \(complaint ?? "")"
+            #expect(complaint == nil, "\(why)")
+        }
+        #expect(!floor.isEmpty, "\(recipe.channel.rawValue) accepts none of the sampled builds")
+        floors[recipe.channel] = Set(floor)
+    }
+
+    // The floors must still NEST — a less stable channel reaches everything a more
+    // stable one does, plus its own. Two floors that are equal, or that merely
+    // overlap, mean the version patterns stopped expressing the ladder, and every
+    // assertion above would go on passing vacuously.
+    for (a, b) in floors.flatMap({ l in floors.map { (l, $0) } }) where a.key != b.key {
+        let nested = a.value.isSubset(of: b.value) || b.value.isSubset(of: a.value)
+        let why = "\(a.key.rawValue) reaches \(a.value.sorted()) and \(b.key.rawValue) reaches "
+            + "\(b.value.sorted()) — neither contains the other, so they are no longer one ladder"
+        #expect(nested && a.value != b.value, "\(why)")
+    }
+}
+
 // WeChat's public appcast: the current release is emitted once per system-version
 // band (all carrying the same `sparkle:version`), plus older items. A trimmed but
 // faithful slice — item 1 has the enclosure dmg; item 3 is DOCTYPE-wrapped and has

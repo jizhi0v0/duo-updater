@@ -4549,11 +4549,20 @@ final class AppListModel {
         // read but touches no app bundle, so `appDirWatcher` above is blind to it,
         // and the two events we relied on before both miss the ordinary case — see
         // `ChannelBinding.preferenceWatchPaths` for the Surge timeline that made
-        // this necessary. A 1s debounce (vs the app watcher's 2s): a preference
-        // flush is one rename, not a multi-second bundle swap.
+        // this necessary.
+        //
+        // A quarter-second debounce, well under the app watcher's 2s: a preference
+        // flush is one rename, not a multi-second bundle swap, and the whole point
+        // of this stream is to put the row into its checking state before the user
+        // can act on a verdict their flip has just invalidated — every millisecond
+        // of debounce is time that row spends live and wrong. It used to be 1s,
+        // which was the bulk of the measured 2.4s a flip took to settle. Cutting it
+        // is only safe now that `recheckChannelSwitches` supersedes its own passes:
+        // a burst that fires several times just cancels itself down to the last
+        // one, where before each extra event was work we could not take back.
         let prefPaths = ChannelBinding.preferenceWatchPaths
         if !prefPaths.isEmpty {
-            let prefsWatcher = AppDirectoryWatcher(paths: prefPaths, debounce: 1) { [weak self] in
+            let prefsWatcher = AppDirectoryWatcher(paths: prefPaths, debounce: 0.25) { [weak self] in
                 Task { @MainActor in
                     await self?.recheckChannelSwitches(trigger: "prefs-watch")
                 }
@@ -4963,7 +4972,9 @@ final class AppListModel {
     @ObservationIgnored private var lastSeenChannelFingerprints: [String: String] = [:]
     /// Guards against overlapping passes — a bound app's launch and terminate
     /// notifications can arrive back to back — queuing duplicate rechecks.
-    @ObservationIgnored private var channelSwitchRecheckRunning = false
+    /// The channel-switch pass currently in flight, so a newer trigger can
+    /// supersede it (see `recheckChannelSwitches`).
+    @ObservationIgnored private var channelRecheckTask: Task<Void, Never>?
 
     /// The bound-app ids currently on screen. Main-actor (it reads `results`) but
     /// pure memory — the disk-touching half is `fingerprints(forBoundIDs:)`.
@@ -5015,33 +5026,82 @@ final class AppListModel {
     /// user comes back to DuoUpdater itself — the "leave the vendor app running"
     /// flow). Coalesced against overlapping calls.
     private func recheckChannelSwitches(trigger: String) async {
-        guard !results.isEmpty, !channelSwitchRecheckRunning else { return }
-        channelSwitchRecheckRunning = true
-        defer { channelSwitchRecheckRunning = false }
+        guard !results.isEmpty else { return }
+        // Latest wins. A pass already on the network was started from a choice the
+        // user has since left, so its verdict is not merely late — it is wrong, and
+        // letting it finish would write the superseded track into the row. Cancel it
+        // and start over rather than queueing behind it. Dropping the new trigger
+        // instead (what the old `channelSwitchRecheckRunning` guard did) was worse
+        // still: the flip was forgotten entirely, and because the fingerprints had
+        // already been booked, nothing compared them again — a row kept offering a
+        // prerelease to someone who had just opted out, for up to the watcher's
+        // 900s re-arm. See issue #74.
+        channelRecheckTask?.cancel()
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.runChannelSwitchRecheck(trigger: trigger)
+        }
+        channelRecheckTask = task
+        await task.value
+    }
 
+    /// One pass of the above, as a cancellable unit.
+    ///
+    /// Fingerprints are booked per id, only once that id's recheck has actually
+    /// finished (`ChannelSwitchDetector.booked`). A pass cancelled partway leaves
+    /// the ids it never reached looking changed, so the pass that superseded it
+    /// picks them up instead of inheriting a cache that claims they were handled.
+    private func runChannelSwitchRecheck(trigger: String) async {
         let ids = onScreenBoundBundleIDs()
         guard !ids.isEmpty else { return }
         let current = await Task.detached(priority: .utility) {
             Self.fingerprints(forBoundIDs: ids)
         }.value
-        let (changed, next) = ChannelSwitchDetector.changes(
+        guard !Task.isCancelled else { return }
+        let (changed, _) = ChannelSwitchDetector.changes(
             current: current, lastSeen: lastSeenChannelFingerprints)
-        lastSeenChannelFingerprints = next
-        guard !changed.isEmpty else { return }
+        guard !changed.isEmpty else {
+            // Nothing flipped, but still seed first sightings and prune ids that
+            // dropped out of the scan — the bookkeeping `changes` would have done.
+            lastSeenChannelFingerprints = ChannelSwitchDetector.booked(
+                current: current, lastSeen: lastSeenChannelFingerprints,
+                changed: [], completed: [])
+            return
+        }
 
         let targets = results.filter {
             guard let id = $0.app.bundleID?.lowercased() else { return false }
             return changed.contains(id)
         }
-        for result in targets {
-            guard installing[result.id] == nil else { continue }
+        // Mark every target busy BEFORE the first network call, not one at a time as
+        // we reach it. The row's action button is replaced by the checking state, so
+        // this is what stops a click landing on a verdict the flip has already
+        // invalidated — the window between the toggle and the new answer is ~2.4s,
+        // and only the marked part of it is safe.
+        var claimed: [UpdateResult] = []
+        for result in targets where installing[result.id] == nil {
             installing[result.id] = .checking
+            claimed.append(result)
+        }
+        // Whatever happens below — finished, cancelled, or thrown out of — no row is
+        // left wearing a spinner that nothing is driving any more.
+        defer { for result in claimed { installing[result.id] = nil } }
+
+        var completed = Set<String>()
+        for result in claimed {
+            guard !Task.isCancelled else { break }
             let updated = await recheck(result)
+            guard !Task.isCancelled else { break }
             installing[result.id] = nil
             replaceRow(updated)
+            if let id = result.app.bundleID?.lowercased() { completed.insert(id) }
             Log.app.info(
                 "channel switch re-check (\(trigger, privacy: .public)): \(updated.app.name, privacy: .public) → \(String(describing: updated.status), privacy: .public)")
         }
+        lastSeenChannelFingerprints = ChannelSwitchDetector.booked(
+            current: current, lastSeen: lastSeenChannelFingerprints,
+            changed: changed, completed: completed)
+        guard !Task.isCancelled else { return }
         syncDockBadge()
     }
 

@@ -17,14 +17,35 @@ public struct ResolvedChannel: Sendable, Equatable {
     /// tag. Empty for every other app.
     public let feedHTTPHeaders: [String: String]
 
+    /// The `<sparkle:channel>` names this resolution unlocks, when the feed does
+    /// NOT spell the channel the way `ReleaseChannel.rawValue` does.
+    ///
+    /// `SparkleAppcastSource` normally derives the tag from the channel itself
+    /// (`.beta` → "beta"), which works because every feed-tagged app until now
+    /// happened to agree with that spelling. BetterDisplay does not: its appcast
+    /// tags prereleases `pre` and `internal`, and `ReleaseChannel` has no case
+    /// that spells either. Deriving the tag there would build an allowed set of
+    /// {default, "beta"} — matching NOTHING in the feed — and silently drop the
+    /// user off their track.
+    ///
+    /// A Set rather than one name because a track can subsume a lower one: a
+    /// BetterDisplay user with both toggles on is opted into `internal` AND
+    /// `pre`, and must be offered whichever is newer.
+    ///
+    /// Empty (the default) = derive from `channel`, i.e. every app that existed
+    /// before this field. Only consulted when the resolution is authoritative.
+    public let sparkleChannelNames: Set<String>
+
     public init(
         channel: ReleaseChannel,
         feedOverride: URL? = nil,
-        feedHTTPHeaders: [String: String] = [:]
+        feedHTTPHeaders: [String: String] = [:],
+        sparkleChannelNames: Set<String> = []
     ) {
         self.channel = channel
         self.feedOverride = feedOverride
         self.feedHTTPHeaders = feedHTTPHeaders
+        self.sparkleChannelNames = sparkleChannelNames
     }
 }
 
@@ -40,6 +61,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///   * OrbStack → `UserDefaults[updates_optinChannel]`               (String: the channel name)
 ///   * TablePlus→ `UserDefaults[ViewSetting][IsReceiveBetaBuild]`     (Bool: true→beta, via header)
 ///   * CleanShot→ `UserDefaults[activationKey]`                       (String: license key → personalized feed)
+///   * BetterDisplay → `UserDefaults[preReleaseChannel]` + `[internalReleaseChannel]`
+///                                                          (two Bools, three tracks, feed-tagged `pre`/`internal`)
 ///   * Tailscale→ `UserDefaults[UnstableUpdatesEnabled]` + `[RCUpdatesEnabled]`
 ///                                                          (two Bools, three tracks)
 ///
@@ -76,6 +99,7 @@ public enum ChannelBinding {
         TailscaleChannel.bundleID.lowercased(),
         IINAChannel.bundleID.lowercased(),
         AlfredChannel.bundleID.lowercased(),
+        BetterDisplayChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -165,6 +189,8 @@ public enum ChannelBinding {
         case IINAChannel.bundleID.lowercased():    return IINAChannel.resolveCurrent()
         case AlfredChannel.bundleID.lowercased():  return AlfredChannel.resolveCurrent()
         case GhosttyChannel.bundleID.lowercased(): return GhosttyChannel.resolveCurrent()
+        case BetterDisplayChannel.bundleID.lowercased():
+            return BetterDisplayChannel.resolveCurrent()
         default:                       return nil
         }
     }

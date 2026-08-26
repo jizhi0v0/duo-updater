@@ -183,3 +183,38 @@ import Foundation
         #expect(FileManager.default.fileExists(atPath: path), "\(path) does not exist")
     }
 }
+
+/// The fingerprint covers the WHOLE resolution, and `sparkleChannelNames` is part
+/// of it. BetterDisplay's three tracks happen to carry three different
+/// `ReleaseChannel` cases today, so its flips would be caught either way — but a
+/// binding whose tracks share a channel and differ only in the feed tags they
+/// unlock would be invisible, which is the same shape as the CleanShot case the
+/// `feedOverride` component exists for.
+@Test func fingerprintDistinguishesFeedTagsUnderOneChannel() {
+    let pre = ResolvedChannel(channel: .beta, sparkleChannelNames: ["pre"])
+    let both = ResolvedChannel(channel: .beta, sparkleChannelNames: ["pre", "internal"])
+    #expect(ChannelSwitchDetector.fingerprint(pre) != ChannelSwitchDetector.fingerprint(both))
+
+    let (changed, _) = ChannelSwitchDetector.changes(
+        current: ["pro.betterdisplay.betterdisplay": ChannelSwitchDetector.fingerprint(both)],
+        lastSeen: ["pro.betterdisplay.betterdisplay": ChannelSwitchDetector.fingerprint(pre)])
+    #expect(changed == ["pro.betterdisplay.betterdisplay"])
+}
+
+/// A Set has no order; the fingerprint must not inherit one.
+@Test func fingerprintIsStableAcrossTagOrder() {
+    #expect(ChannelSwitchDetector.fingerprint(.init(channel: .unstable, sparkleChannelNames: ["pre", "internal"]))
+        == ChannelSwitchDetector.fingerprint(.init(channel: .unstable, sparkleChannelNames: ["internal", "pre"])))
+}
+
+/// Omitting the tags and passing an empty set are the same resolution, so they
+/// must fingerprint alike — every binding that predates the field takes the
+/// default, and the two spellings appear side by side in `ChannelBinding`.
+///
+/// Not a cross-version concern: `lastSeenChannelFingerprints` lives in memory and
+/// is seeded from empty on each launch, so changing the fingerprint's input
+/// format cannot make old entries read as changed.
+@Test func noTagsIsUnchangedFromTheChannelAlone() {
+    #expect(ChannelSwitchDetector.fingerprint(.init(channel: .beta))
+        == ChannelSwitchDetector.fingerprint(.init(channel: .beta, sparkleChannelNames: [])))
+}

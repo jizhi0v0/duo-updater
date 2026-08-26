@@ -22,9 +22,20 @@ public enum AppStoreUpdateStrategy: String, CaseIterable, Identifiable, Sendable
     /// migration.
     public static let availableCases: [Self] = [.full]
 
+    /// Deliberately terse. These labels sit in a popup button whose slot is the
+    /// settings row, and the sentence-length versions they replaced ("Full
+    /// download (no extra permission)") could not be shown whole at the window's
+    /// own minimum width in ANY language we ship — the popup truncated its own
+    /// current selection, so the setting could not be read without opening the
+    /// menu. Everything the parenthetical carried is in the card's footer, which
+    /// has room for it.
+    ///
+    /// `.incremental` keeps its longer label: it is not in `availableCases`, so
+    /// nothing renders it, and re-translating a string no one can see would be
+    /// churn for its own sake.
     public var label: String {
         switch self {
-        case .full:        return String(localized: "Full download (no extra permission)")
+        case .full:        return String(localized: "Full download")
         case .incremental: return String(localized: "Incremental (needs Accessibility)")
         }
     }
@@ -71,10 +82,14 @@ public enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
+    /// Terse for the same reason as `AppStoreUpdateStrategy.label`, and worded to
+    /// match the footer exactly: it already names these two by their short names
+    /// ("Always replace" — the default … switch to "Defer while running"), so the
+    /// popup and the prose explaining it now say the same thing.
     public var label: String {
         switch self {
-        case .deferWhenRunning: return String(localized: "Defer to the app’s own updater while it’s running")
-        case .alwaysOverwrite:  return String(localized: "Always download & replace, then restart")
+        case .deferWhenRunning: return String(localized: "Defer while running")
+        case .alwaysOverwrite:  return String(localized: "Always replace")
         }
     }
 }

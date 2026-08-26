@@ -4117,43 +4117,43 @@
         }
       }
     },
-    "Always download & replace, then restart": {
+    "Always replace": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Immer herunterladen & ersetzen, dann neu starten"
+            "value": "Immer ersetzen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Descargar y reemplazar siempre, luego reiniciar"
+            "value": "Reemplazar siempre"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toujours télécharger et remplacer, puis redémarrer"
+            "value": "Toujours remplacer"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "常にダウンロードして置き換え、その後再起動する"
+            "value": "常に置き換える"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Всегда загружать и заменять, затем перезапускать"
+            "value": "Всегда заменять"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "始终下载并替换，然后重启"
+            "value": "始终替换"
           }
         }
       }
@@ -6236,43 +6236,43 @@
         }
       }
     },
-    "Defer to the app’s own updater while it’s running": {
+    "Defer while running": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Solange die App läuft, dem eigenen Update-Tool der App den Vortritt lassen"
+            "value": "Zurückstellen, solange geöffnet"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dejar que el propio actualizador de la app actúe mientras se está ejecutando"
+            "value": "Aplazar mientras se ejecuta"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Laisser l'outil de mise à jour propre à l'application faire son travail pendant qu'elle est ouverte"
+            "value": "Différer pendant l'exécution"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "実行中はアプリ自身の更新機能に任せる"
+            "value": "実行中は延期"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Полагаться на встроенный обновитель приложения, пока оно запущено"
+            "value": "Отложить, пока запущено"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "应用运行时优先使用其自身的更新程序"
+            "value": "运行时延后"
           }
         }
       }
@@ -7824,43 +7824,43 @@
         }
       }
     },
-    "Full download (no extra permission)": {
+    "Full download": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vollständiger Download (keine zusätzliche Berechtigung)"
+            "value": "Vollständiger Download"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Descarga completa (sin permisos adicionales)"
+            "value": "Descarga completa"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Téléchargement complet (aucune permission supplémentaire)"
+            "value": "Téléchargement complet"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "完全ダウンロード（追加の権限は不要）"
+            "value": "完全ダウンロード"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Полная загрузка (без доп. разрешений)"
+            "value": "Полная загрузка"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "完整下载（无需额外权限）"
+            "value": "完整下载"
           }
         }
       }

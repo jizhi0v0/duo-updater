@@ -175,24 +175,39 @@ struct GeneralSettingsPage: View {
 // MARK: - Adaptive picker row
 
 /// A settings picker that follows the standard macOS label-left/control-right
-/// row. The popup gets all remaining width instead of making the whole row
-/// stack when one localized option happens to be long; its menu still presents
-/// the full strings even if an exceptionally narrow window compresses the
-/// current selection.
+/// row whenever the label and the popup both fit at their natural widths, and
+/// stacks the label above the popup when they do not.
+///
+/// Both halves of the one-line candidate are `fixedSize`, so `ViewThatFits`
+/// only chooses it when the row can show the whole label AND the whole selected
+/// option. That distinction is the point: these options are sentences ("Always
+/// download & replace, then restart"), and a popup handed a squeezed slot does
+/// not stack or shrink — it truncates the current selection. At the 660pt window
+/// minimum that happened in every language we ship, English included
+/// ("Full download (no extra permissi…"), which left the reader unable to see
+/// which route was active without opening the menu.
+///
+/// Ideal widths, so no measurement pass: `Spacer(minLength: 0)` contributes 0 to
+/// the candidate's ideal size, leaving it as label + 12 + popup.
 private struct AdaptivePickerRow<Content: View>: View {
     let title: Text
     @ViewBuilder var picker: Content
 
     var body: some View {
-        HStack(spacing: 12) {
-            title
-                .font(.callout)
-                .fixedSize(horizontal: true, vertical: false)
-            Spacer(minLength: 0)
-            picker
-                .fixedSize(horizontal: false, vertical: true)
-                .layoutPriority(1)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                title
+                    .font(.callout)
+                    .fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 0)
+                picker.fixedSize()
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                title.font(.callout)
+                picker
+            }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

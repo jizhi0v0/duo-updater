@@ -79,6 +79,13 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// from the app's channel preference at scan time (see `ChannelBinding`).
     public let sparkleFeedHeaders: [String: String]
 
+    /// The `<sparkle:channel>` tags this install is opted into, when the feed
+    /// spells them differently from `releaseChannel.rawValue` (BetterDisplay's
+    /// `pre` / `internal`). Empty = derive the tag from `releaseChannel`, which
+    /// is every other app. Set at scan time from `ChannelBinding`, and only
+    /// consulted when `channelIsAuthoritative` is true.
+    public let sparkleChannelNames: Set<String>
+
     /// `SUPublicEDKey` — the app's base64 Ed25519 public key. Used to verify
     /// the EdDSA signature on a downloaded Sparkle update.
     public let sparkleEdPublicKey: String?
@@ -182,6 +189,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         isTestFlightApp: Bool = false,
         sparkleFeedURL: URL?,
         sparkleFeedHeaders: [String: String] = [:],
+        sparkleChannelNames: Set<String> = [],
         sparkleEdPublicKey: String? = nil,
         hasSelfUpdater: Bool = false,
         hasSparkleUpdater: Bool = false,
@@ -201,6 +209,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.isTestFlightApp = isTestFlightApp
         self.sparkleFeedURL = sparkleFeedURL
         self.sparkleFeedHeaders = sparkleFeedHeaders
+        self.sparkleChannelNames = sparkleChannelNames
         self.sparkleEdPublicKey = sparkleEdPublicKey
         self.hasSelfUpdater = hasSelfUpdater
         self.hasSparkleUpdater = hasSparkleUpdater

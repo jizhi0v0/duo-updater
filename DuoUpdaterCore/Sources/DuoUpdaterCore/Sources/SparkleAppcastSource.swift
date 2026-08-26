@@ -167,15 +167,12 @@ public struct SparkleAppcastSource: UpdateSource {
     ) -> [SparkleAppcastItem] {
         guard !items.isEmpty else { return [] }
         // Sparkle's real rule: the default (untagged) channel is allowed to
-        // everyone, plus the one channel the user opted into. We learn that
-        // channel authoritatively from the app's own preference when we can
-        // (this catches "opted into beta but still on a stable build", which the
-        // installed build alone can't reveal); otherwise we infer it from the
-        // build they're running.
-        let optedChannel = app.channelIsAuthoritative
-            ? sparkleChannelName(app.releaseChannel)
-            : channel(ofInstalled: app, in: items)
-        let allowed: Set<String?> = optedChannel == nil ? [nil] : [nil, optedChannel]
+        // everyone, plus whatever the user opted into — read from the app's own
+        // preference when a binding exists (this catches "opted into beta but
+        // still on a stable build", which the installed build alone can't
+        // reveal), else inferred from the build they're running. See
+        // `allowedChannels`.
+        let allowed = allowedChannels(for: app, in: items)
         let usable = items.filter { item in
             // Skip delta updates — they patch a specific old build.
             guard item.deltaFrom == nil else { return false }
@@ -262,6 +259,39 @@ public struct SparkleAppcastSource: UpdateSource {
     private enum ArchVerdict: Int, Comparable {
         case native, neutral, foreignButRunnable, unrunnable
         static func < (lhs: ArchVerdict, rhs: ArchVerdict) -> Bool { lhs.rawValue < rhs.rawValue }
+    }
+
+    /// The `<sparkle:channel>` values an app may be offered: always the default
+    /// (untagged) channel, plus whatever the user opted into.
+    ///
+    /// Three ways we learn the opt-in, most authoritative first:
+    ///  1. A `ChannelBinding` that named the feed's tags outright
+    ///     (`sparkleChannelNames`). Needed when the feed does not spell a channel
+    ///     the way `ReleaseChannel.rawValue` does — BetterDisplay tags `pre` and
+    ///     `internal`, neither of which is a `ReleaseChannel` case — and needed as
+    ///     a Set because one opt-in can unlock several tags at once (BetterDisplay's
+    ///     "internal" toggle also keeps the plain `pre` builds).
+    ///  2. A `ChannelBinding` that only named the channel: derive the tag from it,
+    ///     which is what every binding did before (1) existed and still what
+    ///     DuoPaste/Fork/OrbStack/… want.
+    ///  3. No binding: infer from the build the user is actually running.
+    ///
+    /// Kept as one function so the "default channel is always allowed" rule can't
+    /// drift between the branches.
+    static func allowedChannels(
+        for app: InstalledApp, in items: [SparkleAppcastItem]
+    ) -> Set<String?> {
+        var allowed: Set<String?> = [nil]
+        guard app.channelIsAuthoritative else {
+            if let inferred = channel(ofInstalled: app, in: items) { allowed.insert(inferred) }
+            return allowed
+        }
+        if !app.sparkleChannelNames.isEmpty {
+            for name in app.sparkleChannelNames { allowed.insert(name) }
+            return allowed
+        }
+        if let derived = sparkleChannelName(app.releaseChannel) { allowed.insert(derived) }
+        return allowed
     }
 
     /// The Sparkle channel the installed build sits on, found by matching the

@@ -181,7 +181,17 @@ public enum BackupStore {
         // across a crashed prior attempt.
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         let staging = root.appendingPathComponent(".staging-\(key)", isDirectory: true)
-        try? fm.removeItem(at: staging)
+        // A leftover from a crashed attempt is expected and self-clearing — but only
+        // if the removal actually happens. `try?` swallowed the case where it does
+        // not, and a stale staging dir then sat in the backup store indefinitely
+        // (183 MB of a two-day-old ToDesk copy, found while investigating exactly
+        // that). Say so instead: whatever blocks it also blocks this backup.
+        if fm.fileExists(atPath: staging.path) {
+            do { try fm.removeItem(at: staging) } catch {
+                Log.install.error(
+                    "backup: leftover staging dir for \(key, privacy: .public) would not clear — \(error.localizedDescription, privacy: .public)")
+            }
+        }
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
 
         let name = appPath.lastPathComponent
@@ -195,6 +205,8 @@ public enum BackupStore {
         // nothing worth storing.
         let unreadable = BackupManifest.unreadableFiles(in: appPath)
         guard unreadable.sealed.isEmpty else {
+            Log.install.error(
+                "backup: \(name, privacy: .public) has \(unreadable.sealed.count, privacy: .public) sealed file(s) we cannot read, first \(unreadable.sealed.first ?? "?", privacy: .public) — that is payload, so there is nothing worth storing")
             try? fm.removeItem(at: staging)
             throw BackupError.payloadUnreadable(unreadable.sealed.first ?? appPath.path)
         }
@@ -203,12 +215,17 @@ public enum BackupStore {
         // code signature exactly — a plain copy can mangle them. It reports one
         // status for the whole run, so a non-zero exit is only acceptable once we
         // have confirmed the ONLY things it dropped are the ones we meant to drop.
-        if !runDitto(from: appPath, to: staged) {
+        let ditto = runDitto(from: appPath, to: staged)
+        if !ditto.ok {
+            Log.install.error(
+                "backup: ditto exited \(ditto.status, privacy: .public) copying \(name, privacy: .public) — \(ditto.stderrTail, privacy: .public)")
             // No expected omissions means the copy failed for some other reason
             // (a missing source, a full disk) and there is nothing to forgive.
             // Without this, a source that does not exist produced an empty copy
             // that passed the omission check and got stored as a backup.
             guard !unreadable.unsealed.isEmpty else {
+                Log.install.error(
+                    "backup: nothing about \(name, privacy: .public) was expected to be skipped, so the copy failed for its own reason")
                 try? fm.removeItem(at: staging)
                 throw BackupError.copyFailed(appPath.path)
             }
@@ -244,6 +261,8 @@ public enum BackupStore {
         guard let metaData = try? JSONEncoder().encode(meta),
               (try? metaData.write(to: staging.appendingPathComponent("backup.json"),
                                    options: .atomic)) != nil else {
+            Log.install.error(
+                "backup: the copy of \(name, privacy: .public) is complete but its sidecar would not write — discarding it, since every read path keys off the sidecar")
             try? fm.removeItem(at: staging)
             throw BackupError.copyFailed(appPath.path)
         }
@@ -258,6 +277,8 @@ public enum BackupStore {
                 try fm.moveItem(at: staging, to: dir)
             }
         } catch {
+            Log.install.error(
+                "backup: \(name, privacy: .public) copied and fingerprinted, but swapping it into place failed — \(error.localizedDescription, privacy: .public)")
             try? fm.removeItem(at: staging)
             throw BackupError.copyFailed(appPath.path)
         }
@@ -309,7 +330,10 @@ public enum BackupStore {
         defer { try? fm.removeItem(at: scratch) }
 
         let staged = scratch.appendingPathComponent(backup.bundlePath.lastPathComponent)
-        guard runDitto(from: backup.bundlePath, to: staged) else {
+        let ditto = runDitto(from: backup.bundlePath, to: staged)
+        guard ditto.ok else {
+            Log.install.error(
+                "restore: ditto exited \(ditto.status, privacy: .public) copying the stored \(backup.bundlePath.lastPathComponent, privacy: .public) out of the backup store — \(ditto.stderrTail, privacy: .public)")
             throw BackupError.copyFailed(backup.bundlePath.path)
         }
         // Integrity gate before swapping a backup over the live app: a stored copy
@@ -544,15 +568,45 @@ public enum BackupStore {
 
     /// `ditto src dst`, returning true on success. Faithfully duplicates a bundle
     /// including its code signature, unlike `FileManager.copyItem`.
-    private static func runDitto(from src: URL, to dst: URL) -> Bool {
-        try? FileManager.default.removeItem(at: dst)
+    /// What `ditto` did, rather than just whether it worked.
+    ///
+    /// The stderr used to go to `nullDevice`, so a failed backup could only ever
+    /// be reported as "failed" — while ditto had, at that moment, named the exact
+    /// file it could not copy. Keeping it is the difference between a report you
+    /// can act on and one that needs the failure reproduced first.
+    struct DittoOutcome {
+        let ok: Bool
+        let status: Int32
+        /// The tail of stderr. ditto emits one line per skipped file, and a big
+        /// bundle can produce hundreds; the last few are what identify the fault.
+        let stderrTail: String
+    }
+
+    private static func runDitto(from src: URL, to dst: URL) -> DittoOutcome {
+        let fm = FileManager.default
+        try? fm.removeItem(at: dst)
+        // stderr goes to a file rather than a `Pipe`: nothing drains a pipe while
+        // ditto runs, so a bundle noisy enough to fill the buffer would block it
+        // forever, turning a diagnostic into a hang.
+        let errURL = fm.temporaryDirectory.appendingPathComponent("duo-ditto-\(UUID().uuidString).err")
+        fm.createFile(atPath: errURL.path, contents: nil)
+        defer { try? fm.removeItem(at: errURL) }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
         p.arguments = [src.path, dst.path]
         p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        do { try p.run() } catch { return false }
+        let errHandle = try? FileHandle(forWritingTo: errURL)
+        p.standardError = errHandle ?? FileHandle.nullDevice
+        do { try p.run() } catch {
+            return DittoOutcome(ok: false, status: -1, stderrTail: "could not start ditto: \(error)")
+        }
         p.waitUntilExit()
-        return p.terminationStatus == 0
+        try? errHandle?.close()
+        let text = (try? String(contentsOf: errURL, encoding: .utf8)) ?? ""
+        let lines = text.split(separator: "\n")
+        let tail = lines.suffix(4).joined(separator: " | ")
+        return DittoOutcome(
+            ok: p.terminationStatus == 0, status: p.terminationStatus,
+            stderrTail: lines.count > 4 ? "(\(lines.count) lines) … \(tail)" : tail)
     }
 }

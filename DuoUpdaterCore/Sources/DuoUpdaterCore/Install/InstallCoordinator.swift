@@ -202,7 +202,17 @@ public actor InstallCoordinator {
                 return unreadable.unsealed.isEmpty
                     ? .saved
                     : .savedWithoutRuntimeState(omitted: unreadable.unsealed.count)
-            } catch { return .failed }
+            } catch {
+                // The identity of the error is the whole diagnosis, and collapsing
+                // every `BackupError` into a bare `.failed` threw it away: the log
+                // could say a backup failed but never which of the half-dozen
+                // throws in `save` fired, so a report could not be acted on without
+                // first reproducing it. Each of those sites now says what it saw;
+                // this records which one won.
+                Log.install.error(
+                    "backup: \(path.lastPathComponent, privacy: .public) failed — \(error.localizedDescription, privacy: .public)")
+                return .failed
+            }
         }.value
     }
 

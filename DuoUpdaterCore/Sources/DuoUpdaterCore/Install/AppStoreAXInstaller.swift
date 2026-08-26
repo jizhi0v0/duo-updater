@@ -445,6 +445,20 @@ public actor AppStoreAXInstaller {
         var idleTicks = 0         // consecutive polls with no progress and no sheet
         var repressed = false     // we re-pressed Update once after an idle stretch
         var postContinueTicks = 0 // polls since we pressed Continue (to flag a no-op press)
+        var stalledTicks = 0            // consecutive polls with the swap not moving
+        var lastInstallProgress: Double? // last "Installing: N% Complete" we read
+
+        // A sheet already on screen before we press is left over from an earlier
+        // install: App Store can leave its "Close This App to Update" sheet up for
+        // minutes after the update it belonged to has already landed (observed
+        // 2026-08-26 — the product page behind it had flipped to "Open"). Acting on a
+        // leftover would either bail this update as a purchase sheet or ask the user to
+        // Relaunch for a swap that is not pending. Ignore sheets until the screen has
+        // been seen clear once, which is what tells us the next one is ours.
+        var leftoverSheet = quitSheet(in: axApp) != nil
+        if leftoverSheet {
+            Log.install.info("appstore-ax: \(appName, privacy: .public) a sheet was already up before we pressed — ignoring it until it clears")
+        }
 
         // ~6 min hard cap of *polling* — the suspension on `confirmQuit` below doesn't
         // burn iterations, so waiting on the user's Relaunch tap never times us out.
@@ -458,21 +472,38 @@ public actor AppStoreAXInstaller {
                 return
             }
 
-            // After Continue, cap the wait on App Store's swap. The swap normally lands
-            // in well under a minute (WeChat ~24s), so if the version hasn't changed
-            // ~90s after Continue the swap silently failed (e.g. the app couldn't be
-            // quit) — bail rather than spin the full 6-min cap, which would freeze the
-            // background scheduler (it defers every tick while an install is in flight).
+            // After Continue, cap the wait on App Store's swap — on *stalling*, not on
+            // elapsed time. App Store reports the swap on the offer button itself
+            // ("Installing: N% Complete"), so a swap that is still working keeps moving
+            // that number and only a stopped one goes quiet.
+            //
+            // This used to be a flat ~90s measured from Continue, generalised from one
+            // small app (WeChat ~24s). Large apps simply take longer: Excel (2.56 GB)
+            // needed ~2 min, and Word (2.73 GB) was still installing 66s in and landed
+            // just past the deadline — so a *successful* update threw `.timedOut`. The
+            // app updated and reopened, but the row took the failure path: no recheck,
+            // no "just updated", and a red "Timed out waiting for the App Store" that
+            // stood until the next scheduled check (2026-08-26).
             if continued {
                 postContinueTicks += 1
-                if postContinueTicks >= 225 {  // ~90s at 400ms/poll
-                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — no swap ~90s after Continue (the swap likely never started; app still running=\(bundleID.map { isRunning($0) } ?? false))")
+                let watch = Self.swapWatchdog(
+                    progress: installProgress(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList),
+                    last: lastInstallProgress,
+                    stalledPolls: stalledTicks)
+                lastInstallProgress = watch.last
+                stalledTicks = watch.stalledPolls
+                if Self.swapHasStalled(stalledPolls: stalledTicks) {
+                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — swap stalled ~90s with no movement (last progress=\(lastInstallProgress.map { "\(Int($0 * 100))%" } ?? "none", privacy: .public); app still running=\(bundleID.map { isRunning($0) } ?? false))")
                     throw AXError.timedOut
                 }
             }
 
-            // 2. Sheet handling.
-            let sheetPresent = quitSheet(in: axApp) != nil
+            // 2. Sheet handling. A leftover from an earlier install is not ours; once the
+            // screen has been clear even one poll, whatever appears next is.
+            let verdict = Self.classifySheet(onScreen: quitSheet(in: axApp) != nil,
+                                             ignoringLeftover: leftoverSheet)
+            leftoverSheet = verdict.ignoringLeftover
+            let sheetPresent = verdict.isOurs
             if sheetPresent {
                 if continued {
                     // We've quit the app + foregrounded App Store; the swap is in flight.
@@ -650,6 +681,56 @@ public actor AppStoreAXInstaller {
               let r = Range(m.range(at: 1), in: title),
               let value = Double(title[r]) else { return nil }
         return min(max(value / 100, 0), 1)
+    }
+
+    /// One poll of the leftover-sheet filter, as a pure step so the rule is assertable.
+    ///
+    /// App Store can leave its "Close This App to Update" sheet on screen for minutes
+    /// after the update it belonged to has landed — the product page behind it had
+    /// already flipped to "Open" (observed 2026-08-26). A sheet that was up before we
+    /// pressed is therefore not evidence about *our* install, and treating it as ours
+    /// goes wrong both ways: with no download behind it yet we would bail as if it were
+    /// a purchase sheet, and with one we would ask the user to Relaunch for a swap that
+    /// is not pending. So we ignore what was already there until the screen has been
+    /// seen clear for even one poll; whatever appears after that is ours.
+    ///
+    /// - Returns: whether the sheet on screen should be acted on, and the flag to carry
+    ///   into the next poll.
+    static func classifySheet(onScreen: Bool, ignoringLeftover: Bool) -> (isOurs: Bool, ignoringLeftover: Bool) {
+        let stillIgnoring = onScreen && ignoringLeftover
+        return (onScreen && !stillIgnoring, stillIgnoring)
+    }
+
+    /// One poll of the swap watchdog, as a pure step so the rule that matters is
+    /// assertable: **movement resets the count**. A swap that keeps reporting new
+    /// percentages can run as long as it needs; only one that goes quiet accumulates.
+    ///
+    /// - Parameters:
+    ///   - progress: this poll's reading, or nil when the button shows no percentage.
+    ///   - last: the previous reading, so an unchanged number counts as no movement.
+    static func swapWatchdog(progress: Double?, last: Double?, stalledPolls: Int)
+    -> (last: Double?, stalledPolls: Int) {
+        guard let progress, progress != last else { return (last, stalledPolls + 1) }
+        return (progress, 0)
+    }
+
+    /// Whether the post-Continue swap should be abandoned, expressed over *stalled*
+    /// polls rather than elapsed ones. Kept separate and pure so the distinction that
+    /// matters — liveness, not a stopwatch — is asserted rather than left in a loop.
+    ///
+    /// ~90s of nothing moving at 400ms/poll. Generous on purpose: the cost of waiting
+    /// too long is a slow row, the cost of giving up too early is calling a finished
+    /// update a failure.
+    static func swapHasStalled(stalledPolls: Int) -> Bool { stalledPolls >= 225 }
+
+    /// The percentage App Store shows on the offer button while it swaps the bundle
+    /// ("Installing: N% Complete"), or nil when it isn't showing one — which is normal
+    /// both right after Continue, before the install starts reporting, and on the
+    /// Updates-list path once the row drops out of the list as it installs.
+    private func installProgress(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool) -> Double? {
+        guard let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList),
+              let text = title(offer) else { return nil }
+        return Self.progressFraction(text)
     }
 
     /// A transient pre-progress state ("Loading", "Opening…") shown right after the

@@ -100,5 +100,107 @@ struct AppStoreOfferButtonTests {
             }
         }
     }
+
+    // MARK: - Finishing the swap
+
+    /// App Store reports the swap on the offer button itself. Pinned against the exact
+    /// string it renders, because this reading is what keeps a long install alive.
+    @Test func readsTheInstallPercentageAppStoreShowsWhileSwapping() {
+        #expect(AppStoreAXInstaller.progressFraction("Installing: 20% Complete") == 0.2)
+        #expect(AppStoreAXInstaller.progressFraction("80% loaded") == 0.8)
+    }
+
+    /// A settled button carries no percentage, and must not read as progress — that is
+    /// what tells a stalled swap apart from a working one.
+    @Test func settledButtonTitlesCarryNoProgress() {
+        for title in ["Update", "Open", "Get", "Purchased"] {
+            #expect(AppStoreAXInstaller.progressFraction(title) == nil, "\(title) must not parse as progress")
+        }
+    }
+
+    /// The swap deadline counts polls with *nothing moving*, never polls since Continue.
+    /// A flat deadline from Continue failed large apps outright: Excel (2.56 GB) needed
+    /// ~2 min and Word (2.73 GB) landed just past 90 s, so a finished update was
+    /// reported as a timeout and the row showed an error for an app that had updated.
+    @Test func theSwapDeadlineMeasuresStallingNotElapsedTime() {
+        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: 224))
+        #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: 225))
+        // The point of the change: any number of polls is fine while progress moves,
+        // because a moving install resets the count to zero every time.
+        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: 0))
+    }
+
+    // MARK: - Leftover sheets
+
+    /// The regression. App Store can leave its "Close This App to Update" sheet up for
+    /// minutes after the update it belonged to has landed — the page behind it had
+    /// already flipped to "Open". Acting on that leftover on the *next* install either
+    /// bails it as a purchase sheet or asks the user to Relaunch for a swap that is not
+    /// pending, so a sheet that predates our press is ignored.
+    @Test func aSheetAlreadyUpBeforeWePressedIsNotOurs() {
+        let (isOurs, carry) = AppStoreAXInstaller.classifySheet(onScreen: true, ignoringLeftover: true)
+        #expect(!isOurs)
+        #expect(carry, "must keep ignoring it while it is still up")
+    }
+
+    /// Once the screen has been clear for even one poll, the leftover is gone and the
+    /// next sheet is the one our own install raised.
+    @Test func aSheetRaisedAfterTheScreenClearedIsOurs() {
+        let cleared = AppStoreAXInstaller.classifySheet(onScreen: false, ignoringLeftover: true)
+        #expect(!cleared.isOurs)
+        #expect(!cleared.ignoringLeftover, "a clear screen retires the leftover")
+
+        let ours = AppStoreAXInstaller.classifySheet(onScreen: true, ignoringLeftover: cleared.ignoringLeftover)
+        #expect(ours.isOurs)
+    }
+
+    /// The ordinary case — nothing was up when we pressed — must be untouched by the
+    /// filter, or every close-to-update sheet would be ignored and no update could
+    /// finish while its app was running.
+    @Test func withNoLeftoverEverySheetIsOurs() {
+        #expect(AppStoreAXInstaller.classifySheet(onScreen: true, ignoringLeftover: false).isOurs)
+        #expect(!AppStoreAXInstaller.classifySheet(onScreen: false, ignoringLeftover: false).isOurs)
+    }
+
+    /// The rule the flat deadline got wrong: a swap that keeps reporting new
+    /// percentages never accumulates stall, however long it runs. Driven far past the
+    /// old ~90s deadline (225 polls) to pin that explicitly.
+    @Test func aMovingInstallNeverAccumulatesStallHoweverLongItRuns() {
+        var last: Double?
+        var stalled = 0
+        for poll in 0..<400 {
+            let reading = Double(poll) / 400          // still climbing
+            (last, stalled) = AppStoreAXInstaller.swapWatchdog(
+                progress: reading, last: last, stalledPolls: stalled)
+            #expect(stalled == 0, "movement at poll \(poll) must reset the count")
+            #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled))
+        }
+    }
+
+    /// No reading at all — normal right after Continue, before the install starts
+    /// reporting — counts as no movement, so a swap that never starts still bails.
+    @Test func pollsWithNoReadingCountAsStalled() {
+        var last: Double?
+        var stalled = 0
+        for _ in 0..<225 {
+            (last, stalled) = AppStoreAXInstaller.swapWatchdog(
+                progress: nil, last: last, stalledPolls: stalled)
+        }
+        #expect(stalled == 225)
+        #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled))
+    }
+
+    /// A percentage frozen on the same number is not movement — a wedged install must
+    /// not be kept alive forever by a button still reading "Installing: 40% Complete".
+    @Test func aFrozenPercentageCountsAsStalled() {
+        var last: Double? = 0.4
+        var stalled = 0
+        for _ in 0..<10 {
+            (last, stalled) = AppStoreAXInstaller.swapWatchdog(
+                progress: 0.4, last: last, stalledPolls: stalled)
+        }
+        #expect(stalled == 10)
+        #expect(last == 0.4)
+    }
 }
 #endif

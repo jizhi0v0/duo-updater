@@ -204,6 +204,7 @@ public struct AppScanner: Sendable {
                 isTestFlightApp: true,
                 sparkleFeedURL: app.sparkleFeedURL,
                 sparkleFeedHeaders: app.sparkleFeedHeaders,
+                sparkleChannelNames: app.sparkleChannelNames,
                 sparkleEdPublicKey: app.sparkleEdPublicKey,
                 hasSelfUpdater: app.hasSelfUpdater,
                 hasSparkleUpdater: app.hasSparkleUpdater,
@@ -471,6 +472,7 @@ public struct AppScanner: Sendable {
         // a beta build. See `ChannelBinding`.
         var channelIsAuthoritative = false
         var feedHeaders: [String: String] = [:]
+        var feedChannelNames: Set<String> = []
         // WeChat DevTools states its channel outright in its own `package.json`
         // (`versionType`), which beats every heuristic `detect` has: the three
         // channels share one bundle id, one app name, and a version string with no
@@ -484,6 +486,7 @@ public struct AppScanner: Sendable {
             channelIsAuthoritative = true
             if let feed = bound.feedOverride { feedURL = feed }
             feedHeaders = bound.feedHTTPHeaders
+            feedChannelNames = bound.sparkleChannelNames
         }
 
         return InstalledApp(
@@ -498,6 +501,7 @@ public struct AppScanner: Sendable {
             isTestFlightApp: isTestFlight,
             sparkleFeedURL: feedURL,
             sparkleFeedHeaders: feedHeaders,
+            sparkleChannelNames: feedChannelNames,
             sparkleEdPublicKey: (plist["SUPublicEDKey"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
             hasSelfUpdater: hasSelfUpdater,

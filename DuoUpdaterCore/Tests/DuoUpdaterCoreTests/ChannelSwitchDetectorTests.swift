@@ -184,6 +184,103 @@ import Foundation
     }
 }
 
+// MARK: - booked(): a superseded pass must not claim the ids it never reached
+
+/// The regression behind issue #74, as a sequence. A flip lands while an earlier
+/// pass is still on the network; the earlier pass is cancelled before it reaches
+/// that id. Booking `current` wholesale (what `changes` hands back, and what the
+/// caller used to store) would record the new fingerprint as already seen, so the
+/// next pass finds nothing changed and the row keeps the superseded track.
+@Test func aCancelledPassLeavesItsUnfinishedIDsLookingChanged() {
+    let stable = ChannelSwitchDetector.fingerprint(.init(channel: .stable))
+    let beta = ChannelSwitchDetector.fingerprint(.init(channel: .beta))
+    let lastSeen = ["a": stable, "b": stable]
+    let current = ["a": beta, "b": beta]
+    let (changed, wholesale) = ChannelSwitchDetector.changes(current: current, lastSeen: lastSeen)
+    #expect(changed == ["a", "b"])
+
+    // "a" finished before the cancellation, "b" did not.
+    let next = ChannelSwitchDetector.booked(
+        current: current, lastSeen: lastSeen, changed: changed, completed: ["a"])
+    #expect(next["a"] == beta, "the id we acted on is booked")
+    #expect(next["b"] == stable, "the id we never reached is rewound, so it reads as changed again")
+
+    // The next pass picks "b" up. Booking wholesale would have lost it.
+    #expect(ChannelSwitchDetector.changes(current: current, lastSeen: next).changed == ["b"])
+    #expect(ChannelSwitchDetector.changes(current: current, lastSeen: wholesale).changed.isEmpty,
+            "this is the old behaviour, kept here as the thing that must not come back")
+}
+
+/// A pass that finished everything books exactly what `changes` would have.
+@Test func aCompletePassBooksEverything() {
+    let stable = ChannelSwitchDetector.fingerprint(.init(channel: .stable))
+    let beta = ChannelSwitchDetector.fingerprint(.init(channel: .beta))
+    let lastSeen = ["a": stable]
+    let current = ["a": beta]
+    let (changed, wholesale) = ChannelSwitchDetector.changes(current: current, lastSeen: lastSeen)
+    #expect(ChannelSwitchDetector.booked(
+        current: current, lastSeen: lastSeen, changed: changed, completed: ["a"]) == wholesale)
+}
+
+/// Booking still seeds ids seen for the first time and prunes ids that dropped out
+/// of the scan — the bookkeeping `changes` did by returning `current` — even on a
+/// pass where nothing flipped or nothing completed.
+@Test func bookingStillSeedsAndPrunes() {
+    let beta = ChannelSwitchDetector.fingerprint(.init(channel: .beta))
+    let next = ChannelSwitchDetector.booked(
+        current: ["new": beta], lastSeen: ["gone": beta], changed: [], completed: [])
+    #expect(next == ["new": beta])
+}
+
+/// Rapid flipping, end to end: flips that supersede one another must never let the
+/// cache settle on a state the user has already left.
+@Test func repeatedFlipsAlwaysConvergeOnTheLatestState() {
+    let stable = ChannelSwitchDetector.fingerprint(.init(channel: .stable))
+    let beta = ChannelSwitchDetector.fingerprint(.init(channel: .beta))
+    let unstable = ChannelSwitchDetector.fingerprint(.init(channel: .unstable))
+    var lastSeen = ["app": stable]
+
+    // Each flip supersedes the pass before it, so no pass completes its id.
+    for fingerprint in [beta, unstable] {
+        let current = ["app": fingerprint]
+        let (changed, _) = ChannelSwitchDetector.changes(current: current, lastSeen: lastSeen)
+        #expect(changed == ["app"])
+        lastSeen = ChannelSwitchDetector.booked(
+            current: current, lastSeen: lastSeen, changed: changed, completed: [])
+        #expect(lastSeen["app"] == stable, "a superseded pass books nothing")
+    }
+
+    // The pass that finally runs to completion acts on where the user landed.
+    let settled = ["app": unstable]
+    let (changed, _) = ChannelSwitchDetector.changes(current: settled, lastSeen: lastSeen)
+    #expect(changed == ["app"])
+    lastSeen = ChannelSwitchDetector.booked(
+        current: settled, lastSeen: lastSeen, changed: changed, completed: ["app"])
+    #expect(ChannelSwitchDetector.changes(current: settled, lastSeen: lastSeen).changed.isEmpty,
+            "once a pass completes, the settled state stops re-triggering")
+}
+
+/// Flipping away and straight back, with nothing booked in between, correctly asks
+/// for no work at all: the state we last acted on IS the state the user ended in,
+/// so there is nothing to recheck. Rewinding an unfinished id restores the old
+/// fingerprint rather than clearing it, which is what makes this hold — clearing
+/// would make the id look new, and a first sighting seeds silently, which happens
+/// to reach the same place here but would not if the row on screen had meanwhile
+/// been written from the superseded verdict.
+@Test func aRoundTripBackToTheOriginalNeedsNoRecheck() {
+    let stable = ChannelSwitchDetector.fingerprint(.init(channel: .stable))
+    let beta = ChannelSwitchDetector.fingerprint(.init(channel: .beta))
+    var lastSeen = ["app": stable]
+
+    let (awayChanged, _) = ChannelSwitchDetector.changes(
+        current: ["app": beta], lastSeen: lastSeen)
+    lastSeen = ChannelSwitchDetector.booked(
+        current: ["app": beta], lastSeen: lastSeen, changed: awayChanged, completed: [])
+
+    #expect(ChannelSwitchDetector.changes(current: ["app": stable], lastSeen: lastSeen)
+        .changed.isEmpty)
+}
+
 /// The fingerprint covers the WHOLE resolution, and `sparkleChannelNames` is part
 /// of it. BetterDisplay's three tracks happen to carry three different
 /// `ReleaseChannel` cases today, so its flips would be caught either way — but a

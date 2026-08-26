@@ -88,6 +88,37 @@ public enum ChannelSwitchDetector {
         return (changed, current)
     }
 
+    /// The cache to store after a pass that may not have finished every id.
+    ///
+    /// `changes` returns `current` wholesale for the caller to store, which is
+    /// right only when the caller then acts on every changed id. A pass that is
+    /// superseded partway — the user flipped the toggle again while the first
+    /// recheck was still on the network — must NOT book the ids it never got to,
+    /// or the flip it did not act on is remembered as already seen and nothing
+    /// compares it again. That left a row offering a prerelease to someone who
+    /// had just opted out, until an unrelated event happened to trigger another
+    /// pass (issue #74).
+    ///
+    /// So: start from `current` (seeding first sightings and pruning ids that
+    /// dropped out of the scan, exactly as `changes` does), then rewind every
+    /// changed-but-unfinished id to what it was, leaving it looking changed to
+    /// the next pass.
+    public static func booked(
+        current: [String: String],
+        lastSeen: [String: String],
+        changed: Set<String>,
+        completed: Set<String>
+    ) -> [String: String] {
+        var next = current
+        for id in changed.subtracting(completed) {
+            // `changes` only marks ids that were already in `lastSeen`, so the
+            // prior value exists; the `else` is unreachable and drops the key
+            // rather than inventing one.
+            if let prior = lastSeen[id] { next[id] = prior } else { next.removeValue(forKey: id) }
+        }
+        return next
+    }
+
     /// Whether an app launching or quitting is worth resolving channels for.
     ///
     /// `NSWorkspace`'s launch/terminate notifications fire for EVERY process on

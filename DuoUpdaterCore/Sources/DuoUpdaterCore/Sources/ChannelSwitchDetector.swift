@@ -43,10 +43,19 @@ public enum ChannelSwitchDetector {
             .sorted { $0.key < $1.key }
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: "&")
+        // Sorted for the same reason as the headers: a Set has no order, and the
+        // fingerprint must not depend on one. Included because a binding can hold
+        // `.channel` steady while moving between feed tags — BetterDisplay's
+        // `pre` and `internal` happen to map to different `ReleaseChannel` cases
+        // today, but nothing guarantees the next one will, and leaving the field
+        // out would make such a switch invisible to `changes` — the same failure
+        // the `feedOverride` component above exists to prevent for CleanShot.
+        let tagPart = resolved.sparkleChannelNames.sorted().joined(separator: ",")
         let raw = [
             resolved.channel.rawValue,
             resolved.feedOverride?.absoluteString ?? "",
             headerPart,
+            tagPart,
         ].joined(separator: "|")
         let digest = SHA256.hash(data: Data(raw.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()

@@ -5116,6 +5116,14 @@ final class AppListModel {
         for result in claimed {
             guard !Task.isCancelled else { break }
             let updated = await recheck(result)
+            // The second check is not redundant with the first, and it must stay: a
+            // cancellation that lands *during* the await poisons the answer rather than
+            // merely dating it. `UpdateChecker.check` cancels its in-flight source fetches
+            // and still returns a result for each, so what comes back here is an `.error`
+            // row — "we don't know whether this app has an update" — not the verdict for
+            // the channel the user just chose. Booking that would replace a good row with
+            // a red one. Drop it instead; the id stays unbooked, so the superseding pass
+            // re-claims it.
             guard !Task.isCancelled else { break }
             installing[result.id] = nil
             outstanding.remove(result.id)
@@ -5127,7 +5135,11 @@ final class AppListModel {
         lastSeenChannelFingerprints = ChannelSwitchDetector.booked(
             current: current, lastSeen: lastSeenChannelFingerprints,
             changed: changed, completed: completed)
-        guard !Task.isCancelled else { return }
+        // Unconditionally, even when cancelled: rows were replaced above, so the badge is
+        // now out of step with them. Skipping it here left nothing to correct it — the
+        // superseding pass compares against the fingerprints just booked, finds nothing
+        // changed, and returns through a branch that never syncs either, so the badge
+        // kept its pre-switch count until the next scheduled check.
         syncDockBadge()
     }
 

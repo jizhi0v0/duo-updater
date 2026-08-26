@@ -52,7 +52,15 @@ public enum AppRestarter {
         // Sampled before the quit — once every instance is gone, so is the
         // answer — and decides whether the relaunch takes the foreground (see
         // `isFrontmost`).
-        let wasFrontmost = isFrontmost(running)
+        //
+        // Judged per bundle, not over the union. `isFrontmost(running)` answers
+        // "was any of these in front", which is the wrong question once nested apps
+        // are in the set: a user working in Surge's Dashboard while Surge itself sat
+        // buried would have had Surge shoved in front of them, and the Dashboard —
+        // the window they actually had — brought back behind it.
+        let frontmostPath = NSWorkspace.shared.frontmostApplication?.bundleURL
+            .map { UpdatePolicy.runtimeBundlePath($0) }
+        let parentPath = UpdatePolicy.runtimeBundlePath(app.path)
         // Captured before the quit, and normalized: a nested app already stranded
         // on a staged bundle reports the moved-aside path, and what we want to
         // relaunch is its live location.
@@ -72,9 +80,21 @@ public enum AppRestarter {
                 "app-restarter: \(app.name, privacy: .public) won't quit (likely a save prompt) — leaving it running")
             return .stillRunning
         }
-        let relaunched = await launchApp(app.path, activates: wasFrontmost)
-        Log.install.info(
-            "app-restarter: \(app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
+        // Only if it was running. Without this the emptiness guard above — which
+        // now passes on a nested app alone — would *start* an app the user had
+        // closed: quit Surge, leave its Dashboard up, and a relaunch would open
+        // Surge. Nothing of a parent that is not running is stale, so there is
+        // nothing for us to put back.
+        let relaunched: Bool
+        if main.isEmpty {
+            relaunched = true
+            Log.install.info(
+                "app-restarter: \(app.name, privacy: .public) was not running itself — only its nested app(s) needed clearing")
+        } else {
+            relaunched = await launchApp(app.path, activates: frontmostPath == parentPath)
+            Log.install.info(
+                "app-restarter: \(app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
+        }
         // Put back the nested apps that were open, after the parent — several only
         // make sense once it is up. Skipped when the parent has already reopened
         // one itself, which is common and would otherwise be a second launch of an
@@ -89,7 +109,7 @@ public enum AppRestarter {
                     "app-restarter: \(bundle.lastPathComponent, privacy: .public) already reopened by its parent")
                 continue
             }
-            let back = await launchApp(bundle, activates: false)
+            let back = await launchApp(bundle, activates: frontmostPath == target)
             Log.install.info(
                 "app-restarter: nested \(bundle.lastPathComponent, privacy: .public) relaunched=\(back, privacy: .public)")
         }

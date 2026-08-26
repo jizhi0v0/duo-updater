@@ -155,6 +155,10 @@ public actor AppStoreAXInstaller {
 
         let axApp = AXUIElementCreateApplication(store.processIdentifier)
 
+        // The deep link above selects the Updates *tab*, which a leftover product page
+        // sits on top of — so on its own it can leave the list invisible. Uncover it.
+        if viaUpdatesList { await popToUpdatesList(in: axApp) }
+
         // Everything runs fully in the background — App Store is never brought to the
         // front. Both AX *reads* and the offer-button `AXPress` honor a backgrounded App
         // Store: the Updates-list path has always relied on this (a region-locked update
@@ -238,6 +242,32 @@ public actor AppStoreAXInstaller {
         // server-side update check, which is what recomputes the count.
         try? await Task.sleep(for: .seconds(1))
         reloadUpdatesPage(in: AXUIElementCreateApplication(pid))
+    }
+
+    /// Pop any product page covering the Updates list, one level per press.
+    ///
+    /// App Store's product page is a detail view pushed onto the *sidebar tab's*
+    /// navigation stack, not a destination of its own. While one is open, neither
+    /// `macappstore://showUpdatesPage` nor pressing the sidebar's own
+    /// `AppStore.tabBar.updates` changes what is displayed — both only select a tab that
+    /// is already selected, and the tab press even reports success while the product page
+    /// stays put (observed 3/3, macOS 26.6). The list's own back button is the only thing
+    /// that reveals it, so press it until it is gone.
+    ///
+    /// This matters because a product page is exactly what the *other* route leaves
+    /// behind: without popping, the Updates path's only nudge is ⌘R, which reloads
+    /// whatever is on top — the product page — so the row never appeared and the wait
+    /// ended in `.notInUpdatesList` with the list one press away.
+    ///
+    /// Bounded, and a no-op (no sleeping) when there is nothing to pop.
+    private func popToUpdatesList(in axApp: AXUIElement) async {
+        for _ in 0..<6 {
+            var found: [AXUIElement] = []
+            collect(axApp, id: "AppStore.productPage.backButton", into: &found)
+            guard let back = found.first else { return }
+            AXUIElementPerformAction(back, kAXPressAction as CFString)
+            try? await Task.sleep(for: .milliseconds(300))  // let the pop land
+        }
     }
 
     /// Fire App Store's "Reload Page" (⌘R) on whatever page is showing. On the Updates
@@ -368,6 +398,9 @@ public actor AppStoreAXInstaller {
             // An early nudge once the page has settled (~0.6s), then every ~2.4s.
             if i == 4 || (i > 0 && i % 16 == 0) {
                 if viaUpdatesList {
+                    // A product page opened while we were waiting would hide the list,
+                    // and ⌘R would then just reload *it*. Uncover the list first.
+                    await popToUpdatesList(in: axApp)
                     reloadUpdatesPage(in: axApp)
                 } else if let trackID = renavigateTrackID {
                     try? navigateToProductPage(trackID: trackID)

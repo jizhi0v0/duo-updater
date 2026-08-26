@@ -1244,6 +1244,9 @@ struct ChangelogEntriesView: View {
     /// The version the reader is on, marked in the rail. Nil for a vendor
     /// changelog, where the row itself is already about the app they have.
     var runningVersion: String?
+    /// Duo Updater's own history uses compact version + date rows. Vendor
+    /// changelogs retain the two-line treatment because their titles can be long.
+    var showsDatesInline: Bool = false
     /// Whether to offer the side-by-side / long-scroll switch.
     ///
     /// Off for our own notes: with 53 versions the rail is the only sane way to
@@ -1267,7 +1270,7 @@ struct ChangelogEntriesView: View {
     /// 85th percentile fits the great majority; the upper clamp caps a lone runaway
     /// title (and the lower clamp keeps a terse changelog from getting cramped).
     /// Measured with AppKit since the labels are known up front — no GeometryReader.
-    private static func railWidth(for changelog: Changelog) -> CGFloat {
+    private static func railWidth(for changelog: Changelog, showsDatesInline: Bool) -> CGFloat {
         let labelFont = NSFont.preferredFont(forTextStyle: .callout)
         let dateFont = NSFont.preferredFont(forTextStyle: .caption2)
         let rowWidths = changelog.entries
@@ -1277,14 +1280,21 @@ struct ChangelogEntriesView: View {
                 let dateW = (entry.date?.isEmpty == false)
                     ? (entry.date! as NSString).size(withAttributes: [.font: dateFont]).width
                     : 0
-                return max(labelW, dateW)
+                return showsDatesInline && dateW > 0
+                    ? labelW + 6 + dateW
+                    : max(labelW, dateW)
             }
             .sorted()
         guard !rowWidths.isEmpty else { return 200 }
         let pick = rowWidths[Int((Double(rowWidths.count - 1) * 0.85).rounded())]
-        // Row chrome: line .horizontal(10)×2 + rail .padding(8)×2.
+        // Row chrome: line .horizontal(10)×2 + rail .padding(8)×2. Inline dates
+        // also reserve the current-version dot and its gap; without that small
+        // accessory budget only the running row truncates its otherwise identical
+        // date, which makes the rail look inconsistently sized.
         let chrome: CGFloat = 20 + 16
-        return min(max(pick + chrome, 140), 360)
+        let inlineAccessory: CGFloat = showsDatesInline ? 16 : 0
+        let minimum: CGFloat = showsDatesInline ? 156 : 140
+        return min(max(pick + chrome + inlineAccessory, minimum), 360)
     }
 
     var body: some View {
@@ -1334,9 +1344,11 @@ struct ChangelogEntriesView: View {
             // re-measure the rail (its width depends only on the changelog).
             .onChange(of: changelog) {
                 selection = 0
-                cachedRailWidth = Self.railWidth(for: changelog)
+                cachedRailWidth = Self.railWidth(for: changelog, showsDatesInline: showsDatesInline)
             }
-            .onAppear { cachedRailWidth = Self.railWidth(for: changelog) }
+            .onAppear {
+                cachedRailWidth = Self.railWidth(for: changelog, showsDatesInline: showsDatesInline)
+            }
         }
     }
 
@@ -1352,7 +1364,8 @@ struct ChangelogEntriesView: View {
         return HStack(spacing: 0) {
             ChangelogVersionList(
                 entries: changelog.entries, selection: $selection,
-                runningVersion: runningVersion)
+                runningVersion: runningVersion,
+                showsDatesInline: showsDatesInline)
                 .frame(width: cachedRailWidth)
             Divider()
             // Scroll back to the top on switch WITHOUT changing identity. This used
@@ -1409,6 +1422,7 @@ private struct ChangelogVersionList: View {
     /// says where they stand in it. Nil for a vendor changelog, where "the version
     /// you have" is already the row's own subject and the rail is just navigation.
     var runningVersion: String?
+    var showsDatesInline = false
 
     var body: some View {
         let selected = min(max(selection, 0), entries.count - 1)
@@ -1422,6 +1436,12 @@ private struct ChangelogVersionList: View {
                                     .font(.callout)
                                     .fontWeight(index == selected ? .semibold : .regular)
                                     .lineLimit(1)
+                                if showsDatesInline, let date = entry.date, !date.isEmpty {
+                                    Text(date)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
                                 if isRunning(entry) {
                                     // A filled dot, not the word "current": the rail
                                     // is narrow and sized from its labels, so a word
@@ -1432,7 +1452,7 @@ private struct ChangelogVersionList: View {
                                         .help("The version you're running")
                                 }
                             }
-                            if let date = entry.date, !date.isEmpty {
+                            if !showsDatesInline, let date = entry.date, !date.isEmpty {
                                 Text(date).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                             }
                         }

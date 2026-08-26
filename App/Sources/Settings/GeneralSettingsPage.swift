@@ -174,45 +174,32 @@ struct GeneralSettingsPage: View {
 
 // MARK: - Adaptive picker row
 
-/// Carries the measured width of a picker row up to the row itself, so the
-/// share-of-the-row rule below has a number to work with.
-private struct PickerRowWidthKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-/// A settings picker that keeps its label and popup on one line — the way the
-/// rest of macOS lays these out — and only stacks the label above the popup when
-/// one line would be cramped.
+/// A settings picker that follows the standard macOS label-left/control-right
+/// row whenever the label and the popup both fit at their natural widths, and
+/// stacks the label above the popup when they do not.
 ///
-/// "Cramped" is defined as the popup wanting more than `maxPopupShare` of the
-/// row: German and Russian option labels ("Immer herunterladen und ersetzen,
-/// dann neu starten") blow well past that, and the single-line layout was
-/// clipping them, which is why both rows were stacked unconditionally when
-/// localization landed.
+/// Both halves of the one-line candidate are `fixedSize`, so `ViewThatFits`
+/// only chooses it when the row can show the whole label AND the whole selected
+/// option. That distinction is the point: these options are sentences ("Always
+/// download & replace, then restart"), and a popup handed a squeezed slot does
+/// not stack or shrink — it truncates the current selection. At the 660pt window
+/// minimum that happened in every language we ship, English included
+/// ("Full download (no extra permissi…"), which left the reader unable to see
+/// which route was active without opening the menu.
 ///
-/// The rule is expressed by reserving the rest of the row for the label with
-/// `minWidth`: a popup that needs more than its share pushes the HStack past
-/// the row, and `ViewThatFits` drops to the stacked candidate. `rowWidth` is 0
-/// on the first pass — the one-line candidate is then judged on its natural
-/// width alone, and the layout settles once the measurement lands.
+/// Ideal widths, so no measurement pass: `Spacer(minLength: 0)` contributes 0 to
+/// the candidate's ideal size, leaving it as label + 12 + popup.
 private struct AdaptivePickerRow<Content: View>: View {
     let title: Text
     @ViewBuilder var picker: Content
-
-    /// How much of the row the popup may take before the row stacks instead.
-    private let maxPopupShare: CGFloat = 0.6
-
-    @State private var rowWidth: CGFloat = 0
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
                 title
                     .font(.callout)
-                    .frame(minWidth: rowWidth * (1 - maxPopupShare), alignment: .leading)
+                    .fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 0)
                 picker.fixedSize()
             }
 
@@ -222,9 +209,5 @@ private struct AdaptivePickerRow<Content: View>: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(GeometryReader { geo in
-            Color.clear.preference(key: PickerRowWidthKey.self, value: geo.size.width)
-        })
-        .onPreferenceChange(PickerRowWidthKey.self) { rowWidth = $0 }
     }
 }

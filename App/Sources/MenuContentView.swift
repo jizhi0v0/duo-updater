@@ -48,6 +48,16 @@ private struct ListHeightKey: PreferenceKey {
     }
 }
 
+private enum MenuLayoutMetrics {
+    static let width: CGFloat = 370
+
+    // AppRow's fit threshold was measured at the original 360pt popover width.
+    // Carry any future width change into that budget instead of leaving the row
+    // logic calibrated to stale geometry.
+    private static let calibratedWidth: CGFloat = 360
+    static let appRowFitBudget: CGFloat = 260 + (width - calibratedWidth)
+}
+
 struct MenuContentView: View {
     @Bindable var model: AppListModel
     @State private var showAll = false
@@ -113,10 +123,6 @@ struct MenuContentView: View {
                 rateLimitBanner
                 Divider()
             }
-            if let version = model.silentSelfUpdate {
-                selfUpdateBanner(version)
-                Divider()
-            }
             if showCheckFailureBanner {
                 checkFailureBanner
                 Divider()
@@ -136,7 +142,7 @@ struct MenuContentView: View {
             Divider()
             footer
         }
-        .frame(width: 360)
+        .frame(width: MenuLayoutMetrics.width)
         .task {
             model.refreshPermissionStatus()
             // One-time wiring: arm the background-check loop and teach the
@@ -296,7 +302,7 @@ struct MenuContentView: View {
     /// Show the "couldn't be checked" banner whenever any row errored — except when
     /// the rate-limit banner above is already accounting for every one of them. That
     /// banner is the more specific answer (add a token), so stacking a generic
-    /// "retry" underneath it in a 360pt popover would only cost room.
+    /// "retry" underneath it in this compact popover would only cost room.
     ///
     /// Suppressed for the whole round, via `isRefreshing` rather than
     /// `isScanning`/`isChecking`: rows carry the previous cycle's `.error` until the
@@ -326,24 +332,37 @@ struct MenuContentView: View {
     /// many rows we have no answer for, names the error most of them share, and
     /// re-checks just those rows rather than everything.
     private var checkFailureBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("\(model.failedCheckCount) apps could not be checked")
-                    .font(.caption).fontWeight(.medium)
-                Text(model.failedCheckSummary ?? String(localized: "Every update source failed"))
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .lineLimit(1).truncationMode(.middle)
+        HStack(alignment: .center, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(model.failedCheckCount) apps could not be checked")
+                        .font(.caption).fontWeight(.medium)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(model.failedCheckSummary ?? String(localized: "Every update source failed"))
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
             }
+            .layoutPriority(1)
             Spacer()
             if model.isRetryingFailedChecks {
                 ProgressView().controlSize(.small)
             } else {
-                Button("Retry") { Task { await model.retryFailedChecks() } }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .help("Check these apps again — the settled rows are left alone")
+                Button {
+                    Task { await model.retryFailedChecks() }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("Retry")
+                        Text("\(model.failedCheckCount)").monospacedDigit()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .fixedSize(horizontal: true, vertical: false)
+                .help("Check these apps again — the settled rows are left alone")
             }
         }
         .padding(.horizontal, 12)
@@ -353,39 +372,6 @@ struct MenuContentView: View {
 
     /// Aggregate counterpart to the per-row "Rate-limited" badge: one tap
     /// deep-links to Settings → GitHub to add a token (60/hour → 5000/hour).
-    /// "Duo Updater updated itself to X" — the one thing the silent self-update
-    /// design cannot tell you on its own.
-    ///
-    /// Shown until it is read, not for a fixed time: an update that landed while
-    /// the Mac was idle overnight would otherwise expire before the user ever
-    /// opened the menu, which is exactly the case this exists for. Opening the
-    /// notes clears it.
-    private func selfUpdateBanner(_ version: String) -> some View {
-        Button {
-            openWindow(id: SelfChangelogView.windowID)
-            model.surfaceWindow(sceneID: SelfChangelogView.windowID)
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(.tint)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Duo Updater updated itself to \(version)")
-                        .font(.caption).fontWeight(.medium)
-                    Text("It installs its own updates quietly — see what changed")
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
     private var rateLimitBanner: some View {
         Button {
             model.requestedSettingsSection = .github
@@ -414,118 +400,130 @@ struct MenuContentView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Duo Updater").font(.headline)
-                // One line, at full size, truncating when it must. The slot is
-                // whatever the Update All button leaves, and a translated button
-                // is wider — Russian gets 167pt for a sentence that wants 247.
-                // Shrinking it to fit was unreadable and a second line unbalanced
-                // the header, so the tail gets cut and the tooltip carries the
-                // whole thing. Explicit, because without a limit the same
-                // sentence wrapped in one state and truncated in another.
-                Text(statusLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .help(Text(statusLine))
-            }
-            Spacer()
-            if model.canUpdateAll {
-                // Deliberately no `minimumScaleFactor`. Offering one made the label
-                // *willing* to be squeezed, and SwiftUI took the offer: with a short
-                // list the button came out 67x17 instead of 75x20 — the same header,
-                // measured at 360x55 both times, with 82pt of Spacer sitting empty
-                // beside the shrunken label. The trigger is the popover's height, not
-                // the "Show all" toggle (a search that lengthens the list does it
-                // too), so it is SwiftUI resolving the window against a different
-                // proposal — and neither `layoutPriority` nor `fixedSize` stops it.
-                // Removing the option does.
-                //
-                // Safe for every language we ship: the widest label is French at
-                // ~115pt (measured off the built .strings at the small system font,
-                // 11pt), which still leaves the status line above the ~167pt its own
-                // comment budgets for it. A future translation wider than that would
-                // truncate rather than shrink — worth re-checking there, not here.
-                Button("Update All") { Task { await model.installAll() } }
-                    .lineLimit(1)
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
-                    .help("Install every pending update that can be applied automatically")
-            }
-            Button {
-                Task { await model.refresh() }
-            } label: {
-                // One box, both states — so the button cannot resize mid-check.
-                // Left as an if/else the two states sized themselves (`arrow.clockwise`
-                // 14pt, a `.small` ProgressView 16pt), and since this row is
-                // trailing-aligned behind a `Spacer` the extra 2pt came off the LEADING
-                // edge: the spinner appeared ~1pt left of the icon it replaced and the
-                // row twitched on every check. Measured, in layout points, off a
-                // screenshot of the real controls (ink centres, not frames):
-                // if/else dx=-1.31, this dx=-0.31 — under half a pixel at 2x.
-                //
-                // 16pt, not the symbol's 14: an overlay on the narrower frame clipped
-                // 1.5pt off the spinner (busy ink 14.3 wide vs 15.8 here).
-                //
-                // No positional nudge, in either axis: the two ink centres already
-                // coincide (dx=-0.31, dy=0.00, stable across three captured animation
-                // frames). What reads as "it jumped left / up" is a SIZE difference —
-                // a `.small` spinner inks 15.8x15.9 against the arrow's 11.4x13.9, so
-                // it spills ~2pt past the arrow on every side. The gear pins the right
-                // side, so the growth only has room to show on the left, which is why
-                // it reads as drifting there. Offsetting to "correct" that would move a
-                // correctly centred spinner off centre; scaling it is the real fix.
-                //
-                // 0.72 = 11.4/15.8 — the arrow's ink width over the spinner's, so the
-                // two footprints match. Verified crisp at 1:1 against a nearest-
-                // neighbour blow-up of the real controls; `.mini` (9.9) undershoots the
-                // arrow and renders thin. `scaleEffect` is render-only, so the 16pt box
-                // — and the button's width — stay put.
-                Group {
-                    if model.isScanning || model.isChecking {
-                        ProgressView().controlSize(.small).scaleEffect(0.72)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("Duo Updater")
+                        .font(.system(size: 16, weight: .medium))
+                    if let version = AppListModel.runningSelfVersion {
+                        // The version and the sparkles are ONE button, not a label
+                        // beside a 10pt glyph. Since the self-update banner went
+                        // away this is the only route into the notes anywhere in
+                        // the app, and a lone sparkle that small reads as
+                        // decoration; the version number is the natural thing to
+                        // click for "what changed", and taking both roughly
+                        // triples the hit target.
+                        Button {
+                            openWindow(id: SelfChangelogView.windowID)
+                            model.surfaceWindow(sceneID: SelfChangelogView.windowID)
+                        } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text("v\(version)")
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(model.silentSelfUpdate == nil ? Color.secondary : Color.yellow)
+                            }
+                            // Baseline-aligned rather than nudged: a symbol has a
+                            // text baseline of its own, so this lands the sparkle
+                            // on the version's without a hand-tuned offset.
+                            .font(.system(size: 10))
+                            .fixedSize()
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("What's New — Duo Updater's own release notes")
+                        .accessibilityLabel("What's New")
                     }
                 }
-                .frame(width: 16, height: 16)
+                .padding(.top, 2)
+                Spacer()
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await model.refresh() }
+                    } label: {
+                        // Keep both refresh states in the same 16pt layout box.
+                        Group {
+                            if model.isScanning || model.isChecking {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .scaleEffect(0.72)
+                                    .offset(y: 1)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                        }
+                        .frame(width: 16, height: 16)
+                        .padding(.top, 4)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(!model.canRefresh)
+                    .help("Rescan and check for updates")
+                    Button {
+                        openWindow(id: SettingsView.windowID)
+                        model.surfaceWindow(sceneID: SettingsView.windowID)
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .padding(.top, 5)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Settings")
+                }
+                .font(.system(size: 13))
+                .offset(y: -1)
             }
-            .buttonStyle(.borderless)
-            .disabled(!model.canRefresh)
-            .help("Rescan and check for updates")
-            Button {
-                openWindow(id: SettingsView.windowID)
-                model.surfaceWindow(sceneID: SettingsView.windowID)
-            } label: {
-                Image(systemName: "gearshape")
+            .padding(.top, 10)
+
+            HStack(alignment: .top, spacing: 8) {
+                // One line, at full size, truncating when it must. The slot is
+                // whatever the Update All button leaves — expressed as a frame,
+                // not as a trailing `Spacer`.
+                //
+                // Both halves of that matter, and they pull opposite ways.
+                // `fixedSize` made the line DEMAND its ideal width, so when the
+                // line outgrew the slot nothing gave: the whole header — title
+                // included — slid left and the button hung past the popover's
+                // edge (reproduced in es and fr by pushing the count to four
+                // digits). But a greedy `Spacer` at the same priority as the text
+                // takes room the line still wants, which clipped fr and es at six
+                // updates with the button's own width sitting unused beside them.
+                // A `fixedSize` button plus `maxWidth: .infinity` here serves the
+                // button its ideal first and hands the line exactly the rest,
+                // where `lineLimit` truncates instead of overflowing. Verified in
+                // all seven shipped languages: nothing truncates at realistic
+                // counts, and the four-digit case ends in an ellipsis inside the
+                // popover instead of over its edge. The tooltip carries the whole
+                // line either way.
+                Text(statusLine)
+                    .font(.system(size: 11.5, weight: .regular))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .help(Text(statusLine))
+                if model.canUpdateAll {
+                    Button("Update All") { Task { await model.installAll() } }
+                        .lineLimit(1)
+                        .controlSize(.small)
+                        .buttonStyle(.borderedProminent)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .help("Install every pending update that can be applied automatically")
+                } else {
+                    Color.clear.frame(width: 0, height: 20)
+                }
             }
-            .buttonStyle(.borderless)
-            .help("Settings")
+            .padding(.top, 8)
+            .padding(.bottom, 5)
         }
-        .padding(12)
+        .padding(.horizontal, 12)
     }
 
     private var statusLine: String {
         // `isRefreshing`, not `isChecking`: the scan leg and the TestFlight read come
         // first, and during those the line below would report the PREVIOUS round's
         // unanswered rows as if they were this round's verdict.
-        if model.isRefreshing {
-            return String(localized: "Checking \(model.results.count) apps…")
-        }
-        let updates = model.updateCount
-        let failed = model.failedCheckCount
-        // "up to date" is a claim about every app, and it is only true when every
-        // app actually answered. With rows still in `.error` the honest line names
-        // them instead — the banner above carries the reason and the retry.
-        let base: String
-        if updates > 0 {
-            base = String(localized: "\(updates) updates available")
-        } else if failed > 0 {
-            base = String(localized: "\(failed) of \(model.results.count) apps not checked")
-        } else {
-            base = String(localized: "\(model.results.count) apps · up to date")
-        }
+        let base = statusBaseLine
+        if model.isRefreshing { return base }
         // The timestamp joins on with a separator and no verb. "checked" was a
         // word the relative time already implies, and it cost more room than the
         // header has: translated, the line ran 247pt against the 167pt left over
@@ -536,6 +534,24 @@ struct MenuContentView: View {
             return "\(base) · \(Self.checkedAgo(last))"
         }
         return base
+    }
+
+    private var statusBaseLine: String {
+        if model.isRefreshing {
+            return String(localized: "Checking \(model.results.count) apps…")
+        }
+        let updates = model.updateCount
+        let failed = model.failedCheckCount
+        // "up to date" is a claim about every app, and it is only true when every
+        // app actually answered. With rows still in `.error` the honest line names
+        // them instead — the banner above carries the reason and the retry.
+        if updates > 0 {
+            return String(localized: "\(updates) updates available")
+        }
+        if failed > 0 {
+            return String(localized: "\(failed) of \(model.results.count) apps not checked")
+        }
+        return String(localized: "\(model.results.count) apps · up to date")
     }
 
     /// "just now" / "2m ago". Guards the just-finished case: the
@@ -586,15 +602,6 @@ struct MenuContentView: View {
             .font(.caption)
             .help("Release Log — when the apps you track shipped each version")
             Button {
-                openWindow(id: SelfChangelogView.windowID)
-                model.surfaceWindow(sceneID: SelfChangelogView.windowID)
-            } label: {
-                Image(systemName: "sparkles")
-            }
-            .buttonStyle(.borderless)
-            .font(.caption)
-            .help("What's New — Duo Updater's own release notes")
-            Button {
                 openWindow(id: TrafficWindowView.windowID)
                 model.surfaceWindow(sceneID: TrafficWindowView.windowID)
             } label: {
@@ -602,22 +609,7 @@ struct MenuContentView: View {
             }
             .buttonStyle(.borderless)
             .font(.caption)
-            .help("Download Traffic — what keeping these apps updated has cost")
-            // "How much this month?" is the question asked most often, and putting
-            // the figure right here answers it without opening anything. Hidden
-            // until there's something to show so it never renders as a bare "Zero KB".
-            //
-            // `calendarMonths(1)`, not `months.last`: the latter is the last month
-            // that *had* a download, so in a quiet month it would keep showing an
-            // older total under a label that says "this month".
-            if let month = model.trafficSummary.calendarMonths(1).last, month.bytes > 0 {
-                Text(ByteFormat.string(month.bytes))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .help("Downloaded this month")
-            }
+            .help(footerTrafficHelp)
             Button {
                 openWindow(id: WorkbenchWindowView.windowID)
                 model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
@@ -627,14 +619,30 @@ struct MenuContentView: View {
             .buttonStyle(.borderless)
             .font(.caption)
             .help("Open Window — release notes and settings")
-            Button("Quit") { NSApp.terminate(nil) }
-                .buttonStyle(.borderless)
-                .font(.caption)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+            Button { NSApp.terminate(nil) } label: {
+                Image(systemName: "power")
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+            .help("Quit")
+            .accessibilityLabel("Quit")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private var footerTrafficHelp: String {
+        let title = String(localized: "Download Traffic — what keeping these apps updated has cost")
+        guard let month = model.trafficSummary.calendarMonths(1).last, month.bytes > 0 else {
+            return title
+        }
+        // The figure that used to sit in the footer, now that the row is icons
+        // only. A localized key rather than interpolated English: the separator
+        // has nothing to translate, but "downloaded this month" does — and each
+        // locale wants its own punctuation around the number (fr's space before
+        // the colon, zh's full-width one).
+        let figure = String(localized: "Downloaded this month: \(ByteFormat.string(month.bytes))")
+        return "\(title) · \(figure)"
     }
 
     /// Reserve the brew row for any machine with Homebrew installed — always, even
@@ -863,12 +871,13 @@ private struct AppRow: View {
 
     /// Whether the name column still holds together next to a readout `width`
     /// wide. Six readout widths were rendered against the real row layout and
-    /// each one's wrap point recorded; the budget came out as `260 - width`,
+    /// each one's wrap point recorded; at the original 360pt popover the budget
+    /// came out as `260 - width`,
     /// taking the low end of the six intercepts (261…267.6) and 4pt of slack on
     /// top. The slack is the lesson from the percentage label, which wrapped
     /// because its slot was sized to the exact measurement.
     private func nameFits(besideReadout width: CGFloat) -> Bool {
-        nameColumnDemand <= 260 - width - 4
+        nameColumnDemand <= MenuLayoutMetrics.appRowFitBudget - width - 4
     }
 
     /// How much of a download readout the name leaves room for. Widest first —

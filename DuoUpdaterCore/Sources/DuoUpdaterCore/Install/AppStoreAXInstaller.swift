@@ -664,8 +664,7 @@ public actor AppStoreAXInstaller {
         // domain, so there's nothing to "send".
         var rows: [(AXUIElement, [String])] = []
         for btn in found {
-            guard let y = frame(btn)?.midY else { continue }
-            rows.append((btn, rowTexts(in: axApp, nearY: y)))
+            rows.append((btn, rowTexts(in: axApp, for: btn, among: found)))
         }
         // Prefer an exact app-name match (the row's title text); fall back to a
         // contains-match for apps whose Updates-list label carries extra decoration.
@@ -775,19 +774,53 @@ public actor AppStoreAXInstaller {
         return false
     }
 
-    /// Static-text strings sharing a row with a given y (±tolerance) — used to tell
-    /// which app an Updates-list offer button belongs to (the app name renders as a
-    /// sibling `AXStaticText`, not on the button itself).
-    private func rowTexts(in axApp: AXUIElement, nearY y: CGFloat, tolerance: CGFloat = 45) -> [String] {
-        var acc: [String] = []
-        collectRowTexts(axApp, lo: y - tolerance, hi: y + tolerance, into: &acc)
-        return acc
+    /// Which offer button a row label belongs to: the nearest one to its **right**.
+    ///
+    /// The Updates list is a two-column grid, so one horizontal band holds two apps.
+    /// Each cell lays out as `icon · name · notes … [button]`, so a label always sits
+    /// left of its own button and right of the previous column's — which makes
+    /// "nearest button to the right" the ownership rule, with no column width or gap
+    /// constant to drift when the window is resized.
+    ///
+    /// Pure and frame-only so the geometry is testable without a live App Store.
+    static func owningButton(ofLabelAt label: CGRect, among buttons: [CGRect]) -> CGRect? {
+        buttons.filter { $0.minX >= label.maxX }.min { $0.minX < $1.minX }
     }
 
-    private func collectRowTexts(_ el: AXUIElement, lo: CGFloat, hi: CGFloat, into acc: inout [String], depth: Int = 0) {
+    /// Static-text strings belonging to this offer button's cell — used to tell which
+    /// app an Updates-list button updates (the name renders as a sibling `AXStaticText`,
+    /// never on the button itself).
+    ///
+    /// Two separate bugs used to make this return the wrong thing on macOS 26.6:
+    ///   • it read only `AXTitle`/`AXDescription`, but the page is web-rendered and a
+    ///     static text's string lives in **`AXValue`**. The title-only read returned
+    ///     just the sidebar's own labels (`["Arcade", "Create"]`) and never an app name,
+    ///     so no row ever matched and every region-locked update failed with
+    ///     `.notInUpdatesList` — "the App Store hasn't listed this update yet" — while
+    ///     the row sat right there on screen.
+    ///   • it took every text within ±45 px of the button's midY, which in a two-column
+    ///     grid is both apps: "Microsoft Excel" (x=341) and "TestFlight" (x=885) share
+    ///     the band of the buttons at x=723 and x=1267, so both buttons collected both
+    ///     names and the first one answered for every app.
+    private func rowTexts(in axApp: AXUIElement, for button: AXUIElement,
+                          among buttons: [AXUIElement], tolerance: CGFloat = 45) -> [String] {
+        guard let mine = frame(button) else { return [] }
+        var labels: [(CGRect, String)] = []
+        collectRowTexts(axApp, lo: mine.midY - tolerance, hi: mine.midY + tolerance, into: &labels)
+        // Only the buttons sharing this band can own a label in it.
+        var band: [CGRect] = []
+        for b in buttons {
+            if let f = frame(b), abs(f.midY - mine.midY) <= tolerance { band.append(f) }
+        }
+        return labels.compactMap { Self.owningButton(ofLabelAt: $0.0, among: band) == mine ? $0.1 : nil }
+    }
+
+    private func collectRowTexts(_ el: AXUIElement, lo: CGFloat, hi: CGFloat,
+                                 into acc: inout [(CGRect, String)], depth: Int = 0) {
         if depth > 60 { return }
-        if role(el) == "AXStaticText", let f = frame(el), f.midY >= lo, f.midY <= hi, let t = title(el) {
-            acc.append(t)
+        if role(el) == "AXStaticText", let f = frame(el), f.midY >= lo, f.midY <= hi,
+           let t = string(el, "AXValue") ?? title(el) {
+            acc.append((f, t))
         }
         for c in children(el) { collectRowTexts(c, lo: lo, hi: hi, into: &acc, depth: depth + 1) }
     }

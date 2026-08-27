@@ -257,8 +257,8 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 | **VSCodium Insiders** | `com.vscodium.VSCodiumInsiders` 1.126.04518-insider | **独立** | app 名 + 版本后缀 | Team `VC39D2VNQ7` 公证 | **A，可接** |
 | **DB Browser nightly** | 同 id 3.13.99 | 同 | **只有 app 文件名** `DB Browser for SQLite Nightly.app`（`CFBundleName` 仍是 "DB Browser for SQLite"）| Team `88DD6Y8X83` 公证 | **A-ish**，靠文件名，同 Android Studio 那条 `detect` step 0.5 |
 | **Freelens nightly** | 同 id `2.0.0-0-nightly-2026-08-26` | 同 | **版本串带 `nightly`** | Team `TFR6NT55MB` 公证 | 可接，但要给 `detect()` 加规则 |
-| **VLC nightly** | 同 id `4.0.0-dev` | 同 | 版本串带 `-dev` | **未签名**（`TeamIdentifier=not set`）| 检测可做，**一键不可**（Team 闸必拒）|
-| **KeePassXC snapshot** | 同 id `2.8.0-snapshot` | 同 | 版本串带 `-snapshot` | **无可用签名** | 同上；且该 URL 只有 x86_64 |
+| **VLC nightly** | 同 id `4.0.0-dev` | 同 | 版本串带 `-dev` | **未签名**（`TeamIdentifier=not set`）| 检测可做，**一键不可**（Team 闸必拒）→ 立项 #95，`docs/app-audits/org-videolan-vlc.md` |
+| **KeePassXC snapshot** | 同 id `2.8.0-snapshot` | 同 | 版本串带 `-snapshot` | **无可用签名** | 同上；且该 URL 只有 x86_64（已核实无 arm64 替代路径）→ 立项 #95，`docs/app-audits/org-keepassxc-keepassxc.md` |
 | **UTM beta** | 同 id 5.0.4 / build 123 | 同 | **无**（stable 4.7.5 / build 118，都不带 channel 词，Resources 里无标记文件）| Team `WDNLXAD4W8` 公证 | **D，本地不可判** |
 | **kitty nightly** | 同 id 0.48.2 | 同 | **无，版本与 stable 完全相同** | Team `NTY7FVCEKP` 公证 | **D** |
 | **Postman Canary** | — | — | — | — | **死轨**：cask `disabled: true`，版本停在 `11.2.14-canary240621-0734`（2024-06），stable 已 12.25.6 |
@@ -341,6 +341,10 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   另：`?version=` 参数只在客户端**落后**时回 200，已是最新则回 **204 No Content**（且只收 4 段版本号，
   v1 的 3 段会 400），所以 probe 一律**不带** `version`。
 - ✗ **VLC — Nightly** · 同 `org.videolan.vlc`，nightlies 滚动构建无版本语义，不可区分
+  **更正 2026-08-27（§2c）**：这条判断已过期——版本串其实带 `-dev`（`4.0.0-dev`），
+  只是现有 `detect()` 不认这种形状（阻塞于 #93）。真正永久挡住的不是检测，是签名：
+  nightly 完全未走 Developer ID（`TeamIdentifier=not set`），一键永远过不了
+  `VendorInstaller` 的 Team 闸。见 issue #95、`docs/app-audits/org-videolan-vlc.md`。
 - ✗ **Blender — Daily/Alpha/Beta** · 同 bundle id，builder.blender.org 滚动构建，无检测信号
 - ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）
 - ✗ **GitHub Desktop — Beta** · 同 `com.github.GitHubClient`，beta tag 是 prerelease，stable rule 已排除

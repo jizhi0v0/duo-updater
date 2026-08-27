@@ -1202,6 +1202,10 @@ public enum GitHubReleaseRegistry {
         // notarized, so the worst case is a superseded packaging of the version the
         // user was going to get anyway — never a cross-train swap.
         // One-click: org.keepassxc.keepassxc, Team G2S7P7J672, notarized.
+        //
+        // If a snapshot-channel rule is ever added for this bundle id: no
+        // `installAssetPattern`/`installerKind` — snapshot ships completely
+        // unsigned (docs/app-audits/org-keepassxc-keepassxc.md, #95).
         GitHubReleaseRule(
             bundleID: "org.keepassxc.keepassxc",
             owner: "keepassxreboot", repo: "keepassxc",

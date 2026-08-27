@@ -270,7 +270,10 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     /// `.snapshot`/`-snapshot` bundle-id suffix (Vivaldi Snapshot) — so a build
     /// cannot land on a different channel depending on which signal saw it first.
     /// Ordered most-specific-first like `channelWord` for the same reason.
-    private static let versionTailChannelWords: [(word: String, channel: ReleaseChannel)] = [
+    /// Internal, not private, so the cross-signal agreement test can iterate the
+    /// REAL table instead of a hand-copied list that would silently stop covering
+    /// a word added here.
+    static let versionTailChannelWords: [(word: String, channel: ReleaseChannel)] = [
         ("nightly", .nightly),
         ("snapshot", .preview),
         ("dev", .dev),

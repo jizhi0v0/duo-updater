@@ -33,8 +33,10 @@ import Foundation
     // `<maj>.<min>b<N>` rule reads as `.beta`. That is not a live defect and not
     // this rule's doing: step 0 resolves Firefox from `application.ini`'s
     // `RemotingName` (`firefox-dev`) and returns before step 4 is reached — see
-    // `ReleaseChannel.detect`'s header. Keyed by bundle id, not by version, so a
-    // version bump doesn't silently re-arm it.
+    // `ReleaseChannel.detect`'s header. Matched against the key's SUBJECT field,
+    // not the version, so a version bump doesn't silently re-arm it. Vendor and
+    // changelog rows put a bundle id there; GitHub rows put `owner/repo` — an
+    // entry here has to be spelled the way its own row spells it.
     let decidedBeforeStep4: Set<String> = ["org.mozilla.firefoxdeveloperedition"]
 
     var contradictions: [String] = []
@@ -42,14 +44,24 @@ import Foundation
 
     for (key, entry) in entries {
         guard let version = entry["lastGoodVersion"] as? String, !version.isEmpty else { continue }
-        // Keys are "<source>:<bundleID>:<channel>"; changelog rows carry "-".
+        // Keys are "<source>:<subject>:<channel>[:<variant>]". Three shapes live
+        // in this file and they do NOT agree on what the middle field is:
+        //   vendor:com.termius-beta.mac:beta            subject = bundle id
+        //   changelog:ai.elementlabs.lmstudio:-         subject = bundle id, no channel
+        //   github:VSCodium/vscodium-insiders:preview   subject = OWNER/REPO
+        // and 9 rows carry a fourth, variant component:
+        //   vendor:com.anthropic.claudefordesktop:stable:rollout
+        //   vendor:com.workbuddy.workbuddy:stable:arm64
+        // so the channel is `parts[2]`, NOT the last component — reading the last
+        // one turns `…:beta:arm64` into channel "arm64", which coerces to
+        // `.stable` and would report a legitimate `1.2.3-beta1` as a contradiction.
         let parts = key.split(separator: ":", omittingEmptySubsequences: false)
         guard parts.count >= 3 else { continue }
-        let bundleID = String(parts[1])
-        let declaredRaw = String(parts[parts.count - 1])
+        let subject = String(parts[1])
+        let declaredRaw = String(parts[2])
         let declared = declaredRaw == "-" ? ReleaseChannel.stable
             : (ReleaseChannel(rawValue: declaredRaw) ?? .stable)
-        if decidedBeforeStep4.contains(bundleID) { continue }
+        if decidedBeforeStep4.contains(subject) { continue }
         checked += 1
 
         // Neutral name and no bundle id, so ONLY the version string can speak —

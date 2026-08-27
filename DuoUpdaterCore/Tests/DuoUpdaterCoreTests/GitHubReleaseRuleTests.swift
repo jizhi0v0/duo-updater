@@ -294,9 +294,14 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     // must not accept it either) is rejected.
     #expect(extract("1.126.04518", "com.vscodium.VSCodiumInsiders") == nil)
 
-    // Both real darwin assets from the fixture release match…
+    // The arm64 darwin asset matches…
     #expect(matches("VSCodium-darwin-arm64-1.126.04518-insider.zip", "com.vscodium.VSCodiumInsiders"))
-    #expect(matches("VSCodium-darwin-x64-1.126.04518-insider.zip", "com.vscodium.VSCodiumInsiders"))
+    // …and the x64 one deliberately does NOT. This track ships platform-partial
+    // releases (`1.126.04405-insider` is x64-only), where matching x64 would let
+    // `installableAsset` step 3 hand an Apple-silicon install an Intel build
+    // under Rosetta. Not matching it makes that release carry no installable
+    // asset, which is the outcome we want. See the rule's comment.
+    #expect(!matches("VSCodium-darwin-x64-1.126.04518-insider.zip", "com.vscodium.VSCodiumInsiders"))
     // …but the stable build's un-suffixed filename, the CLI tarball, and the
     // checksum sidecars beside the real asset must not.
     #expect(!matches("VSCodium-darwin-arm64-1.126.04518.zip", "com.vscodium.VSCodiumInsiders"))

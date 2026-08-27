@@ -112,10 +112,6 @@ struct GitHubAssetSelectionTests {
          ["opencode-desktop-mac-arm64.dmg", "opencode-desktop-mac-x64.dmg"]),
         (#"^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\.dmg$"#,
          ["OpenChamber-1.4.0-mac-arm64.dmg", "OpenChamber-1.4.0-mac-x64.dmg"]),
-        // VSCodium Insiders: same alternation shape, real 1.126.04518-insider
-        // filenames (verified 2026-08-27 against the live release).
-        (#"^VSCodium-darwin-(?:arm64|x64)-[0-9.]+-insider\.zip$"#,
-         ["VSCodium-darwin-arm64-1.126.04518-insider.zip", "VSCodium-darwin-x64-1.126.04518-insider.zip"]),
         // Anki: `apple`/`intel` rather than arch tokens, so the arm build reads as
         // arch-neutral and only the Intel one is recognised as foreign.
         (#"^anki-[0-9.]+-mac-(apple|intel)\.dmg$"#,

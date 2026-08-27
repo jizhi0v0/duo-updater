@@ -53,6 +53,51 @@ public struct GitHubReleaseRule: Sendable {
         self.installerKind = installerKind
     }
 
+    /// Field labels deliberately kept OUT of `channelAnchorSurface` — the ones
+    /// that LABEL a rule rather than decide what it reads or accepts.
+    ///
+    /// Same reasoning as `VendorProbeRecipe.nonAnchorFields`, and the same trap:
+    /// a `.beta` rule carries the literal string "beta" in `channel`, so an
+    /// anchor of `beta` would be satisfied by the mere fact it is a beta rule,
+    /// forever, whatever happened upstream. `bundleID` is the same shape of
+    /// tautology. Everything else is in, including fields added after this list
+    /// was written — see `channelAnchorSurface`.
+    static let nonAnchorFields: Set<String> = ["bundleID", "channel"]
+
+    /// Everything this rule says about WHICH repository it reads and WHICH
+    /// releases and assets it will accept — the text a
+    /// `ChannelArtifactProof.recipeAnchor` is matched against.
+    ///
+    /// Derived by reflection rather than hand-listed, for the reason the vendor
+    /// side learned the hard way: a hand-written surface goes on passing while
+    /// inspecting less, so nothing anywhere reads as broken the day a new field
+    /// arrives and nobody adds it. `channelAnchorSurfaceCoversEveryGitHubRuleField`
+    /// makes adding one a decision somebody states out loud.
+    ///
+    /// One line per field, so an anchor written with `.*` cannot straddle two
+    /// unrelated fields and match something nobody meant.
+    public var channelAnchorSurface: String {
+        Mirror(reflecting: self).children
+            .filter { child in
+                guard let label = child.label else { return false }
+                return !Self.nonAnchorFields.contains(label)
+            }
+            .flatMap { Self.anchorLines(of: $0.value) }
+            .joined(separator: "\n")
+    }
+
+    /// One line per string a value contains, walking into optionals and enum
+    /// payloads. Never `String(describing:)` on a field that holds a string: it
+    /// renders nested strings through their DEBUG description, so quotes come
+    /// back escaped and an anchor written to match the real text stops matching.
+    private static func anchorLines(of value: Any) -> [String] {
+        if let text = value as? String { return [text] }
+        if let url = value as? URL { return [url.absoluteString] }
+        let mirror = Mirror(reflecting: value)
+        guard !mirror.children.isEmpty else { return [String(describing: value)] }
+        return mirror.children.flatMap { anchorLines(of: $0.value) }
+    }
+
     /// First release asset whose filename matches `installAssetPattern`, with
     /// its declared byte size (for shortest-first "Update All" ordering). Pure
     /// and static so the arch/format selection is unit-testable without a fetch.

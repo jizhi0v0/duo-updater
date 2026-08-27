@@ -366,7 +366,16 @@ public enum Verify {
                 outcome, registry: .github, host: "api.github.com",
                 pattern: rule.versionPattern, attempts: attempt + 1,
                 installed: installed["vendor:\(rule.bundleID):\(rule.channel.rawValue)"],
-                sanity: { _, _ in [] })
+                // Issue #101: this used to pass `{ _, _ in [] }`. The vendor
+                // sweep asked "did this install spec resolve its OWN channel's
+                // build" and the GitHub sweep asked nothing, so a non-stable rule
+                // that skipped the gate produced silence where a recipe produced
+                // a finding — and the asymmetry was invisible at the point where
+                // somebody adds a rule.
+                sanity: { _, remote in
+                    [RecipeSanity.crossChannelArtifact(rule: rule, remote: remote)]
+                        .compactMap { $0 }
+                })
             // The GitHub sweep never ran this cross-check — only the vendor sweep
             // did — so the one registry where a tag can outrun the macOS artifact
             // was also the one with no second opinion. GitHub releases carry a

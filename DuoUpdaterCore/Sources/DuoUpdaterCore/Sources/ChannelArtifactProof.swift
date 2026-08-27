@@ -174,6 +174,73 @@ public enum ChannelProofRegistry {
             .map { ChannelProofKey($0.bundleID, $0.channel) }
     }
 
+    /// The same proof, for `GitHubReleaseRegistry` (issue #101).
+    ///
+    /// **A separate map, not extra keys in `proofs`.** `ChannelProofKey` is
+    /// `(bundleID, channel)` and says nothing about which registry it came from,
+    /// so one map would silently collide the day a bundle id appears in both
+    /// registries on the same channel — the entry written for one would be
+    /// checked against the other, and the exhaustiveness test would pass while
+    /// proving the wrong thing. No such pair exists today
+    /// (`channelProofMapsDoNotCollide` measures it rather than assuming), and
+    /// keeping them apart means the day one does exist is not a silent day.
+    ///
+    /// A GitHub rule's protection is real but structural: it lives in whichever
+    /// pattern the author happened to write, and nothing re-derives it. All three
+    /// rules below gate the channel in their `versionPattern` — a stable tag
+    /// cannot satisfy `-pre`, `-beta<N>` or `-insider` — which is why the live
+    /// sweep of 2026-08-27 found nothing misresolving. What was missing is any
+    /// statement that this is REQUIRED. A future rule written with the registry's
+    /// default `v?([0-9]+(?:\.[0-9]+)+)` plus `usePrereleases: true` plus a
+    /// non-stable channel would have no discriminator at all, and nothing
+    /// anywhere would say so.
+    ///
+    /// Verified against the live Releases API 2026-08-28. All three are provable
+    /// from the URL because GitHub builds an asset URL as
+    /// `…/releases/download/<tag>/<name>` — the tag the `versionPattern` matched
+    /// is IN the path, so an `.artifact` proof here asserts the same thing the
+    /// version pattern does, but against what was actually resolved rather than
+    /// against what someone meant to write.
+    public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] = [
+        // `Zed-aarch64.dmg` is byte-identical in name to stable's — the tag is
+        // the only discriminator, and it is in the path:
+        // `…/download/v1.18.0-pre/Zed-aarch64.dmg`.
+        ChannelProofKey("dev.zed.Zed-Preview", .preview): .artifact(#"/download/v[0-9.]+-pre/"#),
+        // Likewise `GitHub.Desktop-arm64.zip`:
+        // `…/download/release-3.6.5-beta1/GitHub.Desktop-arm64.zip`.
+        ChannelProofKey("com.github.GitHubClient", .beta):
+            .artifact(#"/download/release-[0-9.]+-beta[0-9]+/"#),
+        // VSCodium Insiders names the channel in the tag AND in the asset filename,
+        // and lives in its own repository besides.
+        //
+        // Anchored to the tag segment on purpose. A bare `-insider` would be
+        // satisfied by `VSCodium/vscodium-insiders` in the path of EVERY url this
+        // rule can ever resolve, which is the same fact the stable branch of
+        // `crossChannelArtifact(rule:remote:)` below refuses to check on — read
+        // there it prevents a false accusation, read here it would have been a
+        // permanent false acquittal, and the proof could not have failed for any
+        // input. Live releases could not show this: every real tag in that repo
+        // carries `-insider` too, so the loose pattern and the anchored one agree
+        // on all 57 of them and disagree only on the artifact this exists to
+        // catch. Caught in adversarial review of #101, not by measurement.
+        ChannelProofKey("com.vscodium.VSCodiumInsiders", .preview):
+            .artifact(#"/download/[^/]*-insider"#),
+    ]
+
+    /// Every `(bundleID, channel)` in the GitHub registry that carries an install
+    /// spec and is NOT on stable — the set `githubProofs` has to cover.
+    ///
+    /// Scoped to install-carrying rules for the same reason the vendor side is:
+    /// a detection-only rule resolves no artifact, so there is no wrong build for
+    /// it to hand anyone. Today that is no restriction at all — every non-stable
+    /// GitHub rule carries an install spec — but writing it as the same
+    /// predicate keeps the two registries answerable to one rule.
+    public static var channelGitHubRulesWithInstall: [ChannelProofKey] {
+        GitHubReleaseRegistry.rules
+            .filter { $0.installAssetPattern != nil && $0.channel != .stable }
+            .map { ChannelProofKey($0.bundleID, $0.channel) }
+    }
+
     /// Pre-release tokens that must never appear in a STABLE recipe's installer
     /// URL — the mirror of the same failure, and the worse direction: pushing a
     /// nightly onto someone who chose stable.
@@ -234,6 +301,60 @@ extension RecipeSanity {
             else { return nil }
             return "recipe is no longer anchored on /\(pattern)/ — nothing ties its "
                 + "\(recipe.channel.rawValue) install to that channel"
+        }
+    }
+
+    /// The same check for a `GitHubReleaseRule` (issue #101).
+    ///
+    /// The GitHub sweep passed `sanity: { _, _ in [] }`, so the one registry
+    /// where a tag can outrun what it claims to be was also the one with no
+    /// second opinion about WHICH channel it resolved. A vendor recipe that
+    /// skipped its proof got a hard finding; a GitHub rule in the same situation
+    /// got silence, and the asymmetry was invisible exactly where it mattered —
+    /// at the point where somebody adds a rule.
+    ///
+    /// Advisory, like the recipe overload. Returns nil when there is nothing to
+    /// judge: a detection-only rule resolves no artifact, and its `downloadURL`
+    /// is the repository's releases PAGE rather than a build, so there is no
+    /// wrong thing for it to have handed anyone.
+    public static func crossChannelArtifact(
+        rule: GitHubReleaseRule, remote: RemoteVersion
+    ) -> String? {
+        guard rule.installAssetPattern != nil,
+              let url = remote.downloadURL?.absoluteString else { return nil }
+        let key = ChannelProofKey(rule.bundleID, rule.channel)
+
+        guard rule.channel != .stable else {
+            // The mirror direction is deliberately NOT checked here, and that is
+            // a measurement rather than an oversight. `preReleaseTokens` matches
+            // scheme+host+path, and every GitHub asset URL carries `owner/repo`
+            // in its path — so a stable rule in a repo whose name contains one of
+            // those words would be a permanent false accusation. The vendor side
+            // does not have that problem because its paths are the vendor's own.
+            // A stable GitHub rule's protection is `/releases/latest`, which
+            // GitHub computes with prereleases excluded (and `stableOnly` for the
+            // list fallback — see `GitHubReleasesSource.resolve`).
+            return nil
+        }
+
+        guard let proof = ChannelProofRegistry.githubProofs[key] else {
+            return "no channel proof registered for \(key) — nothing checks that its "
+                + "install spec resolves its own channel's build rather than stable's"
+        }
+
+        switch proof {
+        case .artifact(let pattern):
+            guard url.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil
+            else { return nil }
+            return "resolved \(url), which carries no \(rule.channel.rawValue) marker "
+                + "(expected /\(pattern)/) — the install may be crossing channels"
+
+        case .recipeAnchor(let pattern):
+            let surface = rule.channelAnchorSurface
+            guard surface.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil
+            else { return nil }
+            return "rule is no longer anchored on /\(pattern)/ — nothing ties its "
+                + "\(rule.channel.rawValue) install to that channel"
         }
     }
 }

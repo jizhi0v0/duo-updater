@@ -39,10 +39,29 @@
 - 版本方案: 4 段 `ProductVersion` = 安装包 `CFBundleShortVersionString`，无 `versionIsBuild` 风险
 
 ## Changelog
-- stable: changelogURL `https://learn.microsoft.com/deployedge/microsoft-edge-relnotes` (WebView)
-- beta: `https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-beta-channel`
-- dev: `https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-dev-channel`
+- stable: changelogURL `https://learn.microsoft.com/deployedge/microsoft-edge-relnote-stable-channel` (WebView)
+- beta: `https://learn.microsoft.com/deployedge/microsoft-edge-relnote-beta-channel`
+- dev: **无 changelogURL**
 - 无 ChangelogRecipe（均为 WebView 内嵌官网页）
+
+2026-08-28（issue #107）：Microsoft 把**按 channel 分的**页面从 `…-relnotes-<channel>`
+改成 `…-relnote-<channel>`（单数），旧拼法全部 404。stable / beta 按新拼法重指即可。
+
+**注意这不是一次全局重命名**：安全公告页至今仍是 `microsoft-edge-relnotes-security`，
+复数。要猜这个 section 里别的页面之前先看这条。
+
+**dev 则是彻底没有了。** `learn.microsoft.com/en-us/deployedge/toc.json`（2026-08-28）
+一共 8 条 `relnote*` 路径 —— Beta / Stable / Mobile Beta / Mobile Stable、
+对应的三条 `-archive-`、外加上面那条 security —— 没有一条是 Dev；
+`…relnote-dev-channel`、`…relnotes-dev-channel`、`…relnote-dev`、
+`…relnote-archive-dev-channel` 四种拼法实测都 404；Learn 自己的搜索 API 查
+"Edge Dev channel release notes" 返回的是 Beta / Security / release schedule。
+Dev 因此留空：把按钮指到 Beta 或 Stable 的页面，等于给 Dev 用户看另一条 train
+的改动，比不给更糟（与 Thunderbird Daily 同一判断）。
+
+下游安全：`changelogURL` 为 nil 时 `WorkbenchWindowView` 回落到
+`ChangelogCatalog.url(forBundleID:)`，而 `ChangelogCatalog.pages` 没有 Edge 条目，
+所以结果是「不显示 notes」，不会显示成另一条 train 的。
 
 ## 一键安装
 - stable: ✓ `fwlink/?linkid=2093504` → `MicrosoftEdge-<ver>.pkg`，走系统 pkg 安装

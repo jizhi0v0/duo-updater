@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import DuoKit
+import DuoUpdaterCore
 
 /// The baseline is the only part of the verifier that remembers anything, which
 /// makes it the only part that can distinguish "broken" from "broken twice" and
@@ -298,6 +299,53 @@ import Foundation
     @Test func aChangelogAWholeReleaseBehindIsFlagged() {
         let complaint = Verify.changelogLagComplaint(entry: "1.85", detected: "1.123.4")
         #expect(complaint?.contains("trails") == true)
+    }
+
+    /// Issue #88: the complaint that can never clear.
+    ///
+    /// WorkBuddy's international docs site carries two entries and stops at 5.2.7
+    /// while its own endpoint ships 5.4.2 — verified live, and the identical
+    /// pattern returns 58 entries from the Chinese site, so the recipe is right
+    /// and the vendor is the stale one. Every sweep flagged it; every sweep
+    /// re-filed a "recipe degraded" issue against working code.
+    @Test func anAcknowledgedVendorLagIsNotFlagged() {
+        #expect(Verify.changelogLagComplaint(
+            entry: "5.2.7", detected: "5.4.2", acknowledged: "5.2.7") == nil)
+    }
+
+    /// …and the acknowledgement is deliberately NOT an off switch, which is the
+    /// only reason it is safe to have. It holds for exactly the entry it names,
+    /// so the check comes back the moment the page moves in either direction:
+    /// backward means the pattern slipped to an older section (the failure this
+    /// check exists for, now on a recipe nobody is watching), forward means the
+    /// vendor published and a human should re-read the situation.
+    @Test func anAcknowledgementDoesNotSilenceTheRecipeForever() {
+        // The pattern slipped to an older section.
+        #expect(Verify.changelogLagComplaint(
+            entry: "4.7.5", detected: "5.4.2", acknowledged: "5.2.7")?.contains("trails") == true)
+        // The vendor published something newer, but still not current.
+        #expect(Verify.changelogLagComplaint(
+            entry: "5.3.0", detected: "5.4.2", acknowledged: "5.2.7")?.contains("trails") == true)
+        // And an acknowledgement never invents a complaint where there was none:
+        // once the vendor catches up the check passes on its own merits.
+        #expect(Verify.changelogLagComplaint(
+            entry: "5.4.2", detected: "5.4.2", acknowledged: "5.2.7") == nil)
+    }
+
+    /// Derived from the registry rather than a hand-written list, so an
+    /// acknowledgement added later is covered too: this field silences a real
+    /// detector, so every use of it has to be an entry that some page actually
+    /// serves, not a wildcard or a leftover from a vendor who has since caught up.
+    @Test func everyAcknowledgedStaleEntryIsAConcreteVersion() {
+        let acknowledged = ChangelogRecipeRegistry.recipes
+            .compactMap { recipe in recipe.acknowledgedStaleEntry.map { (recipe.recipeID, $0) } }
+        for (recipeID, entry) in acknowledged {
+            #expect(entry.first?.isNumber == true,
+                    "\(recipeID) acknowledges '\(entry)', which is not version-shaped — changelogLagComplaint only ever compares version-shaped entries, so this can only be a typo that silences nothing or a wildcard that silences everything")
+        }
+        // The one this shipped for. Pinned by bundle id rather than by count, so
+        // adding a second acknowledgement elsewhere does not have to touch this.
+        #expect(acknowledged.contains { $0.0.contains("com.workbuddy.workbuddy-ai") })
     }
 
     /// Codex numbers builds and notes alike as `YY.MDD`, so the date lands in the

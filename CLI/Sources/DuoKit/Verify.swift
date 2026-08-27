@@ -455,7 +455,9 @@ public enum Verify {
             // honest move is to skip the cross-check rather than to invent a
             // complaint the recipe can never clear.
             if let version, recipe.covers(appVersion: version),
-               let complaint = changelogLagComplaint(entry: top, detected: version) {
+               let complaint = changelogLagComplaint(
+                   entry: top, detected: version,
+                   acknowledged: recipe.acknowledgedStaleEntry) {
                 warnings.append(complaint)
             }
             return Finding(
@@ -561,7 +563,16 @@ public enum Verify {
     /// Flag a changelog only when it trails the detected version at
     /// major.minor — see the call site for why the full-string comparison had to
     /// go.
-    static func changelogLagComplaint(entry: String, detected: String) -> String? {
+    static func changelogLagComplaint(
+        entry: String, detected: String, acknowledged: String? = nil
+    ) -> String? {
+        // The vendor is the stale one and somebody has already read the live page
+        // and said so — see `ChangelogRecipe.acknowledgedStaleEntry` for why this
+        // is a version rather than an off switch. Scoped to the exact entry the
+        // acknowledgement names, so it stops applying the moment the page moves in
+        // EITHER direction: forward (the vendor published; worth one look) or
+        // backward (the pattern slipped to an older section; worth a lot more).
+        if let acknowledged, entry == acknowledged { return nil }
         // Plenty of recipes deliberately capture a headline into the `version`
         // group, because the vendor simply doesn't number their release notes —
         // Figma and Notion both title entries "AI credit user limits…". Comparing

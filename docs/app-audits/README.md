@@ -90,6 +90,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**豆包输入法 (DoubaoIme)**](com-bytedance-inputmethod-doubaoime.md) · `com.bytedance.inputmethod.doubaoime` — P+C · 比厂商 version code（装机侧在自定义键 `Wave Build Version Number`，CFBundleVersion 是废号 1）· changelog 走 app 自己的更新接口 · detection-only（输入法整类闸）· channel-verify ✓ · 2026-08-21
 
 - [x] [**WorkBuddy (Tencent)**](com-workbuddy-workbuddy.md) · `com.workbuddy.workbuddy-ai` + `com.workbuddy.workbuddy` — P (one-click, both sites) · 两站两个独立 app，非 channel · 每站按架构分两条 recipe · 两站真实 DMG channel-verify ✓ · 2026-08-27
+- [x] [**Canva**](com-canva-CanvaDesktop.md) · `com.canva.CanvaDesktop` — P (one-click, dmg + feed sha512) · Electron 套壳，端点取自 app 自带 `app-update.yml` · cask 是 `auto_updates` 且滞后一版 · beta 轨道 2024-11 起废弃，pattern 以数字点结尾拒读 · 真实 DMG + live probe + `duo check` 全链 ✓ · 2026-08-27
 
 ## Single-channel — GitHub Releases
 

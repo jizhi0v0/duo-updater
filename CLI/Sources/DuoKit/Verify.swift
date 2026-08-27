@@ -73,6 +73,17 @@ public enum Verify {
         // templated changelog URLs need.
         if options.registries.contains(.vendor) {
             findings += await sweepVendor(vendor, options: options, installed: installed)
+            // The pages `sweepChangelog` will GET and parse below are excluded:
+            // its answer is better evidence than a HEAD, and two checks on one URL
+            // in one report can contradict each other. When the changelog registry
+            // is not being swept there is no such answer coming, so nothing is
+            // excluded and every page is asked.
+            let fetchedByChangelogSweep: Set<String> = options.registries.contains(.changelog)
+                ? Set(changelog.map(\.source.absoluteString))
+                : []
+            findings = await foldingChangelogLinks(
+                into: findings, recipes: vendor,
+                alreadyFetched: fetchedByChangelogSweep, options: options)
         }
         if options.registries.contains(.github) {
             findings += await sweepGitHub(github, options: options, installed: installed)
@@ -248,6 +259,50 @@ public enum Verify {
                 finding = finding.observing(note)
             }
             return finding
+        }
+    }
+
+    /// Attach each vendor finding the verdict on its own `changelogURL`.
+    ///
+    /// A separate pass rather than a step inside `sweepVendor`, for two reasons.
+    /// The pages are DEDUPLICATED — Chrome's three channels share one release-notes
+    /// page, as do Firefox's trains — so doing it per recipe would ask some hosts
+    /// the same question three times. And a changelog page almost never lives on
+    /// the same host as the probe endpoint, so the per-host pacing `sweepVendor`
+    /// applies to `edgeupdates.microsoft.com` says nothing about how hard we are
+    /// leaning on `learn.microsoft.com`; the link sweep groups by its own hosts.
+    ///
+    /// Costs one request per distinct page (87 as of 2026-08-28) on top of the
+    /// ~150 the sweep already makes. See `ChangelogLinkSweep` for why only 404 and
+    /// 410 are allowed to accuse anyone.
+    private static func foldingChangelogLinks(
+        into findings: [Finding], recipes: [VendorProbeRecipe],
+        alreadyFetched: Set<String>, options: VerifyOptions
+    ) async -> [Finding] {
+        let verdicts = await ChangelogLinkSweep.statuses(
+            of: recipes, alreadyFetched: alreadyFetched, options: options)
+        guard !verdicts.isEmpty else { return findings }
+        // Keyed by recipe id, which is what a `Finding` carries — the same recipe
+        // id `Baseline` and the issue history are keyed on.
+        var pages: [String: URL] = [:]
+        for recipe in recipes {
+            if let url = recipe.changelogURL { pages[recipe.recipeID] = url }
+        }
+        // Only `ok` findings can carry this: `adding(warning:)` promotes `ok` to
+        // `warn` and leaves every other status alone, so a verdict folded onto an
+        // `infra` or `skipped` finding would be paid for and then never printed —
+        // `Report.text` iterates the actionable statuses only. Not worth widening
+        // the report for: a probe endpoint having a bad minute delays this page's
+        // verdict by one sweep, and the sweep runs nightly.
+        return findings.map { finding in
+            guard finding.registry == .vendor,
+                  let url = pages[finding.recipeID],
+                  let verdict = verdicts[url.absoluteString],
+                  let complaint = ChangelogLinkSweep.complaint(for: verdict, url: url)
+            else { return finding }
+            return complaint.hasPrefix(Finding.machineNotePrefix)
+                ? finding.observing(complaint)
+                : finding.adding(warning: complaint)
         }
     }
 

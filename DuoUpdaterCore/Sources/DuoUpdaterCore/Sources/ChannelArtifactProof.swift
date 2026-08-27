@@ -63,11 +63,17 @@ public enum ChannelProofRegistry {
         // MORE STABLE (the stability floor documented on the recipes), so the marker
         // has to be that whole ladder, not just the channel's own name — Canary
         // resolves the newest of {Canary, Beta, RC}, Beta the newest of {Beta, RC}.
-        // That is not a bug being papered over: it is why a Canary install correctly
-        // moves onto `2026.1.4 RC 2` when it is newer than any open Canary, which is
-        // exactly what the feed served on 2026-08-26. Google's Beta train has in
-        // practice shipped RELEASE CANDIDATES for years (no `Beta` item since
-        // 2025-03-18), so `-rc<N>-` is the marker actually seen on both.
+        // That is not a bug being papered over: an RC genuinely is the legitimate
+        // answer for a Canary install once it is the highest build on the ladder —
+        // e.g. before a newer feature version's Canary train has opened. (It is NOT
+        // legitimate merely because the RC was the most recently PUBLISHED item —
+        // the feed is ordered by publish date, not by version, which is what made
+        // the canary recipe land on `2026.1.4 RC 2` over the already-published,
+        // already-newer `2026.2.1 Canary 2` on 2026-08-26; see issue #76 and
+        // `VendorProbeRecipe.entryStartPattern`, which now resolves that correctly.)
+        // Google's Beta train has in practice shipped RELEASE CANDIDATES for years
+        // (no `Beta` item since 2025-03-18), so `-rc<N>-` is the marker actually
+        // seen on both.
         // What the marker still excludes is the pair that WOULD be a cross-channel
         // install: `Release` (`android-studio-quail3-mac_arm.dmg`) and `Patch`
         // (`…-patch1-mac_arm.dmg`) — neither carries a ladder token.

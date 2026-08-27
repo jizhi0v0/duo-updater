@@ -160,6 +160,10 @@ public enum ChannelProofRegistry {
         // cross-train resolve fails closed rather than silently succeeding.
         ChannelProofKey("com.longbridge.app.desktop.preview", .preview):
             .artifact(#"/longbridge-desktop/preview/"#),
+        // Termius Beta already has an independent bundle id (`com.termius-beta.mac`
+        // vs stable's `com.termius-dmg.mac`), so this is belt-and-suspenders: the
+        // resolved install URL's own path names the channel.
+        ChannelProofKey("com.termius-beta.mac", .beta): .artifact(#"/mac-beta-universal/"#),
     ]
 
     /// Every `(bundleID, channel)` in the vendor registry that carries an install

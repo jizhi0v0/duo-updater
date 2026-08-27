@@ -24,13 +24,28 @@ public enum AppRestarter {
         /// Quit was requested but the app never actually exited within the
         /// timeout — almost always a save prompt. Left running, untouched.
         case stillRunning
-        /// Every running instance quit; `true` if the relaunch also succeeded.
+        /// The app itself was running (whether or not anything was nested inside
+        /// it), got quit, and we tried to bring it back. `true` if that relaunch
+        /// succeeded. Reached only when `main` was non-empty — see `nestedOnly`
+        /// for the case where the app itself was never running at all.
         case relaunched(Bool)
+        /// The app itself was **not** running — nothing of its own was stale —
+        /// but a nested app inside it (Surge's Dashboard, say) was still up,
+        /// stranded on the bundle we'd moved aside, so that alone got quit and
+        /// relaunched. The app itself is deliberately never started here:
+        /// starting something the user had closed is not what a restart is for.
+        /// `true` if every nested app that had to come back did — a nested app
+        /// skipped because it was already back (its parent reopened it itself)
+        /// counts as back.
+        case nestedOnly(relaunched: Bool)
     }
 
     /// Quit every running instance of `app` and relaunch it once they've all
-    /// exited. An app that isn't running at all is a no-op (`.notRunning`) —
-    /// there is nothing whose in-memory code is stale.
+    /// exited. Only a total no-op (`.notRunning`) if *nothing* is running —
+    /// neither the app itself nor anything nested inside it. An app that isn't
+    /// running while something nested in it still is gets that nested app quit
+    /// and relaunched same as always (`.nestedOnly`); the app itself is simply
+    /// never one of the things put back.
     ///
     /// Graceful only: quits are `terminate()`, which honours save prompts, never
     /// a force-kill. An app that puts up such a prompt and won't exit is left
@@ -85,21 +100,41 @@ public enum AppRestarter {
         // closed: quit Surge, leave its Dashboard up, and a relaunch would open
         // Surge. Nothing of a parent that is not running is stale, so there is
         // nothing for us to put back.
-        let relaunched: Bool
         if main.isEmpty {
-            relaunched = true
+            // Put back the nested apps that were open. `nestedBundles` can't be
+            // empty here: `running` (= main + nested) was non-empty and main is,
+            // so something in `nested` was.
+            let results = await reopenNestedApps(nestedBundles, frontmostPath: frontmostPath)
+            let relaunched = allNestedBack(results)
             Log.install.info(
-                "app-restarter: \(app.name, privacy: .public) was not running itself — only its nested app(s) needed clearing")
-        } else {
-            relaunched = await launchApp(app.path, activates: frontmostPath == parentPath)
-            Log.install.info(
-                "app-restarter: \(app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
+                "app-restarter: \(app.name, privacy: .public) was not running itself — only its nested app(s) needed clearing (nested relaunched=\(relaunched, privacy: .public))")
+            return .nestedOnly(relaunched: relaunched)
         }
+        let relaunched = await launchApp(app.path, activates: frontmostPath == parentPath)
+        Log.install.info(
+            "app-restarter: \(app.name, privacy: .public) relaunched=\(relaunched, privacy: .public)")
         // Put back the nested apps that were open, after the parent — several only
-        // make sense once it is up. Skipped when the parent has already reopened
-        // one itself, which is common and would otherwise be a second launch of an
-        // app that is now running.
-        for bundle in nestedBundles {
+        // make sense once it is up. Skipped (inside `reopenNestedApps`) when the
+        // parent has already reopened one itself, which is common and would
+        // otherwise be a second launch of an app that is now running.
+        //
+        // Result discarded on purpose, not an oversight: `.relaunched`'s Bool
+        // answers only for the parent. Folding a nested miss in here would report
+        // `false` for a parent that came back fine and swallow a correct "Now
+        // running X" notification — one of the wrong fixes issue #72 called out.
+        // Each nested app's own outcome is already reported by its own log line
+        // inside `reopenNestedApps`.
+        _ = await reopenNestedApps(nestedBundles, frontmostPath: frontmostPath)
+        return .relaunched(relaunched)
+    }
+
+    /// Relaunch each nested app that was quit alongside its parent, skipping any
+    /// the parent already brought back itself. One result per bundle, in order —
+    /// `true` for a launch that succeeded and for one skipped because it was
+    /// already back.
+    private static func reopenNestedApps(_ bundles: [URL], frontmostPath: String?) async -> [Bool] {
+        var results: [Bool] = []
+        for bundle in bundles {
             let target = UpdatePolicy.runtimeBundlePath(bundle)
             let alreadyBack = NSWorkspace.shared.runningApplications.contains {
                 matchesBundlePath($0.bundleURL, target: target)
@@ -107,13 +142,22 @@ public enum AppRestarter {
             guard !alreadyBack else {
                 Log.install.debug(
                     "app-restarter: \(bundle.lastPathComponent, privacy: .public) already reopened by its parent")
+                results.append(true)
                 continue
             }
             let back = await launchApp(bundle, activates: frontmostPath == target)
             Log.install.info(
                 "app-restarter: nested \(bundle.lastPathComponent, privacy: .public) relaunched=\(back, privacy: .public)")
+            results.append(back)
         }
-        return .relaunched(relaunched)
+        return results
+    }
+
+    /// Whether every nested app we tried to bring back is back. Split out as the
+    /// pure half of the `main.isEmpty` branch above — the only piece of that path
+    /// testable without a live `NSWorkspace`.
+    static func allNestedBack(_ results: [Bool]) -> Bool {
+        results.allSatisfy { $0 }
     }
 
     /// Every live process belonging to this bundle — the app itself and anything

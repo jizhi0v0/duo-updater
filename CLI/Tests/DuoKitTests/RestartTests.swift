@@ -36,4 +36,22 @@ import DuoUpdaterCore
         #expect(!Restart.isFailure(.notRunning))
         #expect(!Restart.isFailure(.noBundleID))
     }
+
+    /// `.nestedOnly` covers the app-wasn't-running-itself case (see #72): the
+    /// nested app(s) it needed cleared came back, so nothing is left worse off
+    /// than before the restart was asked for.
+    @Test func nestedOnlyThatCameBackIsNotAFailure() {
+        #expect(!Restart.isFailure(.nestedOnly(relaunched: true)))
+        #expect(Restart.describe(.nestedOnly(relaunched: true))
+            == "wasn't running itself — its nested app(s) were cleared and came back")
+    }
+
+    /// The nested app was quit for the swap and never came back — that is worse
+    /// off than doing nothing, the same reasoning as `.relaunched(false)`, so it
+    /// must also push the exit code to 1.
+    @Test func nestedOnlyThatDidNotComeBackIsAFailure() {
+        #expect(Restart.isFailure(.nestedOnly(relaunched: false)))
+        #expect(Restart.describe(.nestedOnly(relaunched: false))
+            == "wasn't running itself — its nested app(s) were cleared, but didn't come back")
+    }
 }

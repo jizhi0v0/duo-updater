@@ -48,16 +48,21 @@ public enum Restart {
         case .stillRunning:      return "still running — likely a save prompt, left it alone"
         case .relaunched(true):  return "restarted"
         case .relaunched(false): return "quit, but the relaunch failed"
+        case .nestedOnly(relaunched: true):
+            return "wasn't running itself — its nested app(s) were cleared and came back"
+        case .nestedOnly(relaunched: false):
+            return "wasn't running itself — its nested app(s) were cleared, but didn't come back"
         }
     }
 
-    /// Whether this outcome should push the process exit code to 1. Only the two
+    /// Whether this outcome should push the process exit code to 1. Only the
     /// shapes where the app is left worse off than a clean restart count: still up
-    /// when it should have quit, or quit but never came back.
+    /// when it should have quit, quit but never came back, or a nested app that
+    /// was quit for the swap and never came back either.
     static func isFailure(_ outcome: AppRestarter.Outcome) -> Bool {
         switch outcome {
-        case .stillRunning, .relaunched(false): return true
-        case .noBundleID, .notRunning, .relaunched(true): return false
+        case .stillRunning, .relaunched(false), .nestedOnly(relaunched: false): return true
+        case .noBundleID, .notRunning, .relaunched(true), .nestedOnly(relaunched: true): return false
         }
     }
 }

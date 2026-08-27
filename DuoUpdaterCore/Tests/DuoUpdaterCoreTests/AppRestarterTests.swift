@@ -181,4 +181,27 @@ import Foundation
         #expect(URL(fileURLWithPath: nested[2]).pathExtension != "app")
         #expect(URL(fileURLWithPath: nested[3]).pathExtension != "app")
     }
+
+    // MARK: - Nested-only outcome (#72)
+
+    /// `allNestedBack` is the pure half of the `main.isEmpty` branch: `restart(_:)`
+    /// itself can't be driven here (it talks to `NSWorkspace` directly), but the
+    /// decision it folds into `.nestedOnly(relaunched:)` — "did every nested app we
+    /// tried to bring back actually come back" — is pure and is exactly the piece
+    /// issue #72 was about: it must never quietly become `true` when something
+    /// didn't come back, or `false` when everything did.
+    @Test func allNestedBackIsTrueOnlyWhenEveryOneCameBack() {
+        #expect(AppRestarter.allNestedBack([true]))
+        #expect(AppRestarter.allNestedBack([true, true]))
+        #expect(!AppRestarter.allNestedBack([false]))
+        #expect(!AppRestarter.allNestedBack([true, false]))
+    }
+
+    /// The `main.isEmpty` branch is only ever reached with at least one nested
+    /// app to report on (`running = main + nested` was non-empty and `main` was
+    /// empty), but the helper itself must not assume that — an empty result set
+    /// answers vacuously true rather than crashing or reading as a failure.
+    @Test func allNestedBackOnNoResultsIsVacuouslyTrue() {
+        #expect(AppRestarter.allNestedBack([]))
+    }
 }

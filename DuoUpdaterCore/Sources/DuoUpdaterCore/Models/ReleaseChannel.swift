@@ -169,6 +169,38 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             // `0.3.377-beta.1429+sha`, `0.1.1251-beta+sha` — don't trip it (verified
             // against the real installed bundles 2026-06-06).
             if fullyMatches(#"[0-9]+(\.[0-9]+)+-beta[0-9]+"#, version) { return .beta }
+
+            // A prerelease WORD in the version's dash-separated tail — the only
+            // local channel signal some nightly/snapshot builds have. Freelens
+            // nightly (`2.0.0-0-nightly-2026-08-26`), VLC nightly (`4.0.0-dev`)
+            // and the KeePassXC snapshot (`2.8.0-snapshot`) each ship the STABLE
+            // bundle id, the stable app filename and a clean `CFBundleName`, so
+            // steps 0–3 all see nothing and every one of them used to read as
+            // `.stable` (measured off the real packages 2026-08-27).
+            //
+            // Anchored the same way the rules above are, and for the same reason:
+            // the tail may contain only the word itself plus numeric components,
+            // so build metadata that is NOT a channel keeps reading as stable —
+            // `0.3.377-beta.1429+sha` (the shape the `-betaN` rule above already
+            // guards), `2026.8.190756-latest`, `6.5.2-366`, `3.22.3+105`. The
+            // word must also be a whole dash-delimited component, so
+            // `1.2.3-development` and `4.0.0-devmate` do not trip it.
+            //
+            // `dev` is the risky one — short, and a common non-channel token —
+            // which is why `ChannelProofRegistry.preReleaseTokens` deliberately
+            // spells it `devedition` rather than matching it bare. It is safe
+            // HERE only because this pattern is anchored to a whole version
+            // string with a dotted-numeric prefix, not matched as a substring.
+            //
+            // Verified before landing: replayed over every version in
+            // `verify/baseline.json` (272 covered recipes, swept 2026-08-27) and
+            // over the short AND build version of all 205 apps installed on the
+            // dev machine (406 strings). Zero of them change classification.
+            let lowered = version.lowercased()
+            for (word, channel) in versionTailChannelWords
+            where fullyMatches(versionTailPattern(word), lowered) {
+                return channel
+            }
         }
 
         return .stable
@@ -196,6 +228,23 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         }
         let range = NSRange(text.startIndex..., in: text)
         return regex.firstMatch(in: text, options: [], range: range) != nil
+    }
+
+    /// Prerelease words recognized in a version string's dash-separated tail
+    /// (step 4). `snapshot` maps to `.preview` to agree with the two places that
+    /// already rule on that word — `channelWord`'s table and the
+    /// `.snapshot`/`-snapshot` bundle-id suffix (Vivaldi Snapshot) — so a build
+    /// cannot land on a different channel depending on which signal saw it first.
+    /// Ordered most-specific-first like `channelWord` for the same reason.
+    private static let versionTailChannelWords: [(word: String, channel: ReleaseChannel)] = [
+        ("nightly", .nightly),
+        ("snapshot", .preview),
+        ("dev", .dev),
+    ]
+
+    /// Whole-string pattern for `<dotted numeric>[-<digits>…]-<word>[-<digits>…]`.
+    private static func versionTailPattern(_ word: String) -> String {
+        #"[0-9]+(\.[0-9]+)+(-[0-9]+)*-"# + word + #"(-[0-9]+)*"#
     }
 
     private static let nonStable: [ReleaseChannel] =

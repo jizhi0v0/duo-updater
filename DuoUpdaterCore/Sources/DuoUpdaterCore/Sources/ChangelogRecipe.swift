@@ -304,6 +304,23 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// page id on the same host).
     public let requestBody: Data?
 
+    /// Headings whose whole section this app's notes should drop, matched WHOLE and
+    /// case-insensitively (see `GitHubMarkdownParser.parse`). Only consulted by the
+    /// formats that go through `GitHubMarkdownParser` — `.gitHubReleases` and
+    /// `.zedGitHubReleases`; a recipe on any other format that sets this is a silent
+    /// no-op, which `ChangelogReviewRegressionTests` refuses.
+    ///
+    /// Per-recipe on purpose. `GitHubMarkdownParser.skippedSectionKeywords` is the
+    /// other way to do this and it is a substring rule applied to every app, which
+    /// is measurably the wrong tool here: a keyword wide enough to catch
+    /// BetterDisplay's contributor roster ("Included Localizations") also catches
+    /// `## Localization` in exelban/stats and `## 🌐 Localization` in block/goose,
+    /// both of which are real change bullets — as is BetterDisplay's own
+    /// "Localization Improvements", one release away from the roster. Measured
+    /// 2026-08-27 across the 67 GitHub-sourced repos in this codebase, 15 releases
+    /// each. So: name the exact headings, for the one app that has them.
+    public let skipSections: [String]
+
     public init(
         bundleID: String,
         source: URL,
@@ -323,7 +340,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         imagePattern: String? = nil,
         structuredFormat: StructuredFormat? = nil,
         httpMethod: HTTPMethod = .get,
-        requestBody: Data? = nil
+        requestBody: Data? = nil,
+        skipSections: [String] = []
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -344,6 +362,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.imagePattern = imagePattern
         self.httpMethod = httpMethod
         self.requestBody = requestBody
+        self.skipSections = skipSections
     }
 
     /// The actual page URL to fetch for a given target version. When
@@ -413,6 +432,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         imagePattern = try c.decodeIfPresent(String.self, forKey: .imagePattern)
         httpMethod = try c.decodeIfPresent(HTTPMethod.self, forKey: .httpMethod) ?? .get
         requestBody = try c.decodeIfPresent(Data.self, forKey: .requestBody)
+        skipSections = try c.decodeIfPresent([String].self, forKey: .skipSections) ?? []
     }
 }
 
@@ -421,6 +441,14 @@ public struct ChangelogRecipe: Codable, Sendable {
 /// web view). Adding a recipe is the same loop as a vendor probe: confirm it
 /// extracts real entries from the live page (see `ChangelogExtractorTests`) before
 /// landing it here.
+/// The two spellings BetterDisplay has used for its contributor roster, shared by
+/// its three per-track recipes so a third spelling is added in one place rather
+/// than three. See the recipes' comment for why this is per-app and whole-heading.
+private let betterDisplayContributorRosters = [
+    "Included Localizations",
+    "Localizations included in this release",
+]
+
 public enum ChangelogRecipeRegistry {
     public static let recipes: [ChangelogRecipe] = [
         // Air (JetBrains) — air.dev/changelog is a Vite/React SPA: the HTML is an
@@ -1304,6 +1332,15 @@ public enum ChangelogRecipeRegistry {
         // 2022-04-06 while the 40th-newest release is 2025-01-03 (both read
         // 2026-08-27). It is far outside a `per_page=40` window and sinks further
         // with every release the vendor cuts.
+        //
+        // `skipSections` drops the contributor roster. It is not a changelog: 18 of
+        // the newest 40 releases carry it, and between them they use only TWO
+        // distinct texts — the same paragraph repeated down a 15-row rail. The
+        // vendor gives no marker for it (no HTML comment, no `<details>` anywhere in
+        // those 40 bodies), so the heading IS the marker, and they have spelled it
+        // two ways. Both are listed. `### Localization Improvements` (v3.3.4) is
+        // deliberately NOT listed — that one holds real changes, which is why the
+        // match is whole-heading rather than a substring.
         ChangelogRecipe(
             bundleID: BetterDisplayChannel.bundleID,
             source: URL(
@@ -1312,7 +1349,8 @@ public enum ChangelogRecipeRegistry {
             mode: .json,
             maxEntries: 15,
             channel: .stable,
-            structuredFormat: .gitHubReleases),
+            structuredFormat: .gitHubReleases,
+            skipSections: betterDisplayContributorRosters),
 
         ChangelogRecipe(
             bundleID: BetterDisplayChannel.bundleID,
@@ -1322,7 +1360,8 @@ public enum ChangelogRecipeRegistry {
             mode: .json,
             maxEntries: 15,
             channel: .beta,
-            structuredFormat: .gitHubReleases),
+            structuredFormat: .gitHubReleases,
+            skipSections: betterDisplayContributorRosters),
 
         ChangelogRecipe(
             bundleID: BetterDisplayChannel.bundleID,
@@ -1332,7 +1371,8 @@ public enum ChangelogRecipeRegistry {
             mode: .json,
             maxEntries: 15,
             channel: .unstable,
-            structuredFormat: .gitHubReleases),
+            structuredFormat: .gitHubReleases,
+            skipSections: betterDisplayContributorRosters),
 
         // Alcove — its own changelog API. Public and unauthenticated, unlike the
         // update endpoint on the same host, which is license-gated (see

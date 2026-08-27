@@ -191,6 +191,93 @@ import Foundation
         keystoneChannel: nil) == .stable)
 }
 
+// MARK: - Prerelease WORD in the version tail (issue #93)
+
+/// Freelens nightly, VLC nightly and the KeePassXC snapshot each ship the STABLE
+/// bundle id, the stable app filename and a clean `CFBundleName` — the version
+/// string is their ONLY local channel signal, and all three used to read as
+/// `.stable`. Versions below were read off the real packages 2026-08-27.
+@Test func prereleaseWordInVersionTailFlipsOffStable() {
+    // Freelens nightly — a counter AND a date around the word.
+    #expect(ReleaseChannel.detect(
+        name: "Freelens", bundleID: "app.freelens.Freelens",
+        keystoneChannel: nil, version: "2.0.0-0-nightly-2026-08-26") == .nightly)
+    // VLC nightly — the bare word, no trailing components.
+    #expect(ReleaseChannel.detect(
+        name: "VLC", bundleID: "org.videolan.vlc",
+        keystoneChannel: nil, version: "4.0.0-dev") == .dev)
+    // KeePassXC snapshot.
+    #expect(ReleaseChannel.detect(
+        name: "KeePassXC", bundleID: "org.keepassxc.keepassxc",
+        keystoneChannel: nil, version: "2.8.0-snapshot") == .preview)
+    // Case is not a signal: the vendor may shout it.
+    #expect(ReleaseChannel.detect(
+        name: "VLC", bundleID: "org.videolan.vlc",
+        keystoneChannel: nil, version: "4.0.0-DEV") == .dev)
+}
+
+/// The mirror, and the expensive direction: a version tail that is build
+/// metadata rather than a channel must keep reading as `.stable`, or a working
+/// stable app stops being answered for. Every string here is either named in
+/// `ReleaseChannel`'s own comments or was live in the corpus on 2026-08-27.
+@Test func nonChannelVersionTailsStayStable() {
+    func detect(_ version: String) -> ReleaseChannel {
+        ReleaseChannel.detect(
+            name: "Some App", bundleID: "com.example.some",
+            keystoneChannel: nil, version: version)
+    }
+    // The shapes the `-betaN` rule above already guards — still guarded.
+    #expect(detect("0.3.377-beta.1429+sha") == .stable)
+    #expect(detect("0.1.1251-beta+sha") == .stable)
+    // Live on the dev machine 2026-08-27.
+    #expect(detect("0.3.384-beta.1440+fd58749") == .stable)
+    #expect(detect("0.1.1283-beta+dc86f01") == .stable)
+    // A NON-channel word in the tail (Kontena Lens ships this on stable).
+    #expect(detect("2026.8.190756-latest") == .stable)
+    // Numeric and build-metadata tails.
+    #expect(detect("6.5.2-366") == .stable)
+    #expect(detect("3.22.3+105") == .stable)
+    // Zen Browser stable — ends in a bare "b", must not read as a Mozilla beta.
+    #expect(detect("1.21.15b") == .stable)
+    // The word must be a WHOLE dash-delimited component. "dev" is the short,
+    // common token the rule is most exposed on, so it is pinned hardest.
+    #expect(detect("1.2.3-development") == .stable)
+    #expect(detect("1.2.3-devel") == .stable)
+    #expect(detect("4.0.0-devmate") == .stable)
+    #expect(detect("1.2.3-snapshotting") == .stable)
+    #expect(detect("1.2.3-nightlies") == .stable)
+    // Only numeric components may sit between the version and the word, so a
+    // tail of arbitrary words cannot smuggle one in.
+    #expect(detect("2026.8.190756-dev-preview-latest") == .stable)
+    // Needs a dotted-numeric prefix — a bare word is not a version.
+    #expect(detect("dev") == .stable)
+    #expect(detect("nightly-2026-08-26") == .stable)
+}
+
+/// Three places in the codebase rule on what a channel word means: this version
+/// tail, `channelWord` (display name), and the `.snapshot`/`-snapshot` bundle-id
+/// suffix. They must not disagree — otherwise the same build lands on a
+/// different channel depending on which signal happened to see it first, and the
+/// cross-channel gate stops being a gate. Compares two production paths rather
+/// than asserting a hardcoded answer, so it cannot drift silently.
+@Test func versionTailAgreesWithTheOtherChannelWordSignals() {
+    for word in ["nightly", "snapshot", "dev"] {
+        let fromVersion = ReleaseChannel.detect(
+            name: "Some App", bundleID: "com.example.some",
+            keystoneChannel: nil, version: "1.2.3-\(word)")
+        let fromName = ReleaseChannel.detect(
+            name: "Some App \(word)", bundleID: "com.example.some",
+            keystoneChannel: nil)
+        #expect(fromVersion == fromName,
+                Comment(rawValue: "version tail and display name disagree on "
+                                  + "\"\(word)\": \(fromVersion) vs \(fromName)"))
+    }
+    // ... and the bundle-id suffix path for the one word that has one.
+    #expect(ReleaseChannel.detect(
+        name: "Vivaldi", bundleID: "com.vivaldi.Vivaldi.snapshot",
+        keystoneChannel: nil) == .preview)
+}
+
 // MARK: - Scanner wires the channel onto InstalledApp
 
 private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> URL {

@@ -337,10 +337,13 @@ import Foundation
 /// tail, `channelWord` (display name), and the `.snapshot`/`-snapshot` bundle-id
 /// suffix. They must not disagree — otherwise the same build lands on a
 /// different channel depending on which signal happened to see it first, and the
-/// cross-channel gate stops being a gate. Compares two production paths rather
-/// than asserting a hardcoded answer, so it cannot drift silently.
+/// cross-channel gate stops being a gate. Both the words and the answers come
+/// from production — the words from `versionTailChannelWords` itself, the answers
+/// from two live `detect()` paths — so adding a word there cannot leave this
+/// check silently covering nothing.
 @Test func versionTailAgreesWithTheOtherChannelWordSignals() {
-    for word in ["nightly", "snapshot", "dev"] {
+    #expect(!ReleaseChannel.versionTailChannelWords.isEmpty)
+    for (word, _) in ReleaseChannel.versionTailChannelWords {
         let fromVersion = ReleaseChannel.detect(
             name: "Some App", bundleID: "com.example.some",
             keystoneChannel: nil, version: "1.2.3-\(word)")

@@ -1160,8 +1160,12 @@ public enum GitHubReleaseRegistry {
         // What actually resolves it to `.preview` is the display name step: the
         // installed app's CFBundleName/CFBundleDisplayName is "VSCodium -
         // Insiders" (confirmed below), and "Insiders" is a standalone word there.
-        // `GitHubReleaseRuleTests` pins this against `ReleaseChannel.detect`
-        // directly so the assumption can't silently stop holding.
+        // `ChannelGuardTests.vscodiumInsidersDisplayNameSignalsPreview` pins our
+        // half of this against `ReleaseChannel.detect`. It cannot pin the VENDOR's
+        // half: the display name is their string, and if VSCodium ever glues it
+        // ("VSCodiumInsiders", the shape the bundle id already has) `detect`
+        // returns `.stable`, the channel gate skips this rule, and the app goes
+        // quiet with the test still green. That is the failure to watch for here.
         //
         // CRUCIAL — this is the SECOND instance of a trap the VS Code Insiders
         // recipe (VendorProbeRecipe.swift) already hit, not a VSCodium quirk:
@@ -1179,15 +1183,18 @@ public enum GitHubReleaseRegistry {
         // hit the same trap; the pattern below keeps the suffix in the capture
         // so it compares equal instead.
         //
-        // x64 asset: unlike the arm64-only pattern above (which is pinned that
-        // way regardless of whether an x64 build exists — not touched here),
-        // this repo DOES publish `VSCodium-darwin-x64-<ver>-insider.zip`
-        // alongside the arm64 one (GET /repos/VSCodium/vscodium-insiders/
-        // releases/latest, verified 2026-08-27: both present, 165 assets total,
-        // exactly these 2 match). `GitHubReleaseRule` has no `hostRequirement`
-        // field — that's a `VendorProbeRecipe`-only concept — so no gating is
-        // needed: matching both filenames lets the existing arch-aware
-        // `installableAsset` selection (HostArch) pick the native build.
+        // arm64 ONLY, deliberately, even though this repo also publishes
+        // `VSCodium-darwin-x64-<ver>-insider.zip`. Matching both looked free —
+        // `installableAsset` prefers the native slice — but this track ships
+        // PLATFORM-PARTIAL releases: tag `1.126.04405-insider` carries an x64
+        // macOS zip and no arm64 one (checked against the API 2026-08-27). On
+        // such a release a both-arch pattern reaches `installableAsset` step 3,
+        // which on Apple silicon with Rosetta returns the FOREIGN build — so an
+        // arm64 Insiders install gets swapped for an Intel one. Pinning arm64
+        // makes that release carry no installable asset instead, and the
+        // list-fallback below then offers nothing until an arm64 build exists,
+        // which is the right answer for a host class that is all we ship to
+        // (`App/project.yml`, `ARCHS: arm64`).
         //
         // One-click: verified 2026-08-27 by downloading the real
         // VSCodium-darwin-arm64-1.126.04518-insider.zip and reading the
@@ -1202,7 +1209,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.vscodium.VSCodiumInsiders",
             owner: "VSCodium", repo: "vscodium-insiders",
             versionPattern: #"^([0-9]+(?:\.[0-9]+)+-insider)$"#,
-            installAssetPattern: #"^VSCodium-darwin-(?:arm64|x64)-[0-9.]+-insider\.zip$"#,
+            installAssetPattern: #"^VSCodium-darwin-arm64-[0-9.]+-insider\.zip$"#,
             installerKind: .zip,
             channel: .preview),
 

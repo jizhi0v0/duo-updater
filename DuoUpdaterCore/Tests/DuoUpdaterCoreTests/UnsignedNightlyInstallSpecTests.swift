@@ -12,9 +12,9 @@ import Foundation
 /// (`SignatureVerifier.verifyTeamIdentifierMatch`) would refuse the swap, so
 /// neither may ever carry an install spec.
 ///
-/// Detection for these two channels doesn't exist yet (blocked on #93), so
-/// today each `where` below matches zero recipes — that's expected, not a
-/// broken filter. What tells the two apart is the presence anchor each test
+/// `detect()` now resolves both channels (#93 landed: `4.0.0-dev` → `.dev`,
+/// `2.8.0-snapshot` → `.preview`), but neither has a RECIPE, so today each
+/// `where` below matches zero recipes — that's expected, not a broken filter. What tells the two apart is the presence anchor each test
 /// starts with: it fails if the bundle id it's filtering for ever stops
 /// existing in the registry at all (typo'd, renamed by the vendor, or moved
 /// to a different registry), which is exactly the failure mode that would

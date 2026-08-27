@@ -72,6 +72,28 @@ import Foundation
         name: "Discord", bundleID: "com.hnc.DiscordPTB", keystoneChannel: nil) == .stable)
 }
 
+// VSCodium Insiders ships as bundle id `com.vscodium.VSCodiumInsiders` — like
+// HBuilderX Alpha / Discord PTB above, that's a single glued camelCase
+// component ("VSCodiumInsiders", no separator before "Insiders"), so `detect`'s
+// bundle-id-suffix step (which only fires on a `.`/`-` separated
+// `-insiders`/`.insiders`) does NOT resolve it. What DOES is the display-name
+// step: the installed app's CFBundleName/CFBundleDisplayName is "VSCodium -
+// Insiders" (confirmed 2026-08-27 by downloading the real release asset and
+// reading Info.plist), and "Insiders" is a standalone word there. This is the
+// linchpin GitHubReleasesSource's channel gate needs to route the
+// com.vscodium.VSCodiumInsiders rule to a Preview install rather than skipping
+// it as an unmatched-channel stable one.
+@Test func vscodiumInsidersDisplayNameSignalsPreview() {
+    #expect(ReleaseChannel.detect(
+        name: "VSCodium - Insiders", bundleID: "com.vscodium.VSCodiumInsiders",
+        keystoneChannel: nil) == .preview)
+    // The glued bundle id alone (no separator before "Insiders") does NOT signal
+    // it — a bare "VSCodium" display name would stay stable.
+    #expect(ReleaseChannel.detect(
+        name: "VSCodium", bundleID: "com.vscodium.VSCodiumInsiders",
+        keystoneChannel: nil) == .stable)
+}
+
 @Test func mozillaVersionSuffixSignalsChannel() {
     // FALLBACK path only. A REAL installed Firefox/Thunderbird strips the `b`/`esr`
     // suffix from `CFBundleShortVersionString` (Beta reports "152.0", ESR

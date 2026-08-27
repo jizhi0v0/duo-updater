@@ -279,6 +279,66 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(!matches("vscodium-cli-darwin-arm64-1.126.04524.tar.gz", "com.vscodium"))
 }
 
+/// VSCodium Insiders — own repo (VSCodium/vscodium-insiders), distinct bundle
+/// id. Fixture is the REAL `/releases/latest` response for tag
+/// `1.126.04518-insider`, verified 2026-08-27 (`GET
+/// /repos/VSCodium/vscodium-insiders/releases/latest`): 165 assets, exactly the
+/// two darwin zips below match, and the tag/asset shapes are what's asserted.
+@Test func vscodiumInsidersRuleKeepsInsiderSuffixInVersion() {
+    // The `-insider` suffix MUST survive extraction — see the registry comment.
+    // A pattern that stopped at the digits (like the default
+    // `v?([0-9]+(?:\.[0-9]+)+)`) would drop it; the trap is pinned separately in
+    // `vscodiumInsidersMissingSuffixWouldBeAPermanentPhantomUpdate` below.
+    #expect(extract("1.126.04518-insider", "com.vscodium.VSCodiumInsiders") == "1.126.04518-insider")
+    // A bare stable-shaped tag (no repo actually publishes this, but the pattern
+    // must not accept it either) is rejected.
+    #expect(extract("1.126.04518", "com.vscodium.VSCodiumInsiders") == nil)
+
+    // Both real darwin assets from the fixture release match…
+    #expect(matches("VSCodium-darwin-arm64-1.126.04518-insider.zip", "com.vscodium.VSCodiumInsiders"))
+    #expect(matches("VSCodium-darwin-x64-1.126.04518-insider.zip", "com.vscodium.VSCodiumInsiders"))
+    // …but the stable build's un-suffixed filename, the CLI tarball, and the
+    // checksum sidecars beside the real asset must not.
+    #expect(!matches("VSCodium-darwin-arm64-1.126.04518.zip", "com.vscodium.VSCodiumInsiders"))
+    #expect(!matches("vscodium-cli-darwin-arm64-1.126.04518-insider.tar.gz", "com.vscodium.VSCodiumInsiders"))
+    #expect(!matches("VSCodium-darwin-arm64-1.126.04518-insider.zip.sha256", "com.vscodium.VSCodiumInsiders"))
+
+    // Insiders' `/releases/latest` returns a non-prerelease object (verified
+    // above), so the rule reads it directly rather than walking the list.
+    #expect(rule("com.vscodium.VSCodiumInsiders").usePrereleases == false)
+    // MUST be channel-gated to `.preview`, or the source's channel gate skips it
+    // for a real Insiders install (same regression class as Zed Preview above).
+    #expect(rule("com.vscodium.VSCodiumInsiders").channel == .preview)
+    #expect(rule("com.vscodium.VSCodiumInsiders").installerKind == .zip)
+}
+
+/// The trap the registry comment and issue #92 call out by name, replayed
+/// through the real comparator rather than asserted by description. Verified
+/// 2026-08-27 against the real downloaded arm64 asset's Info.plist:
+/// CFBundleShortVersionString and CFBundleVersion are both
+/// "1.126.04518-insider" — so this is the actual installed-side string, not a
+/// guess.
+@Test func vscodiumInsidersMissingSuffixWouldBeAPermanentPhantomUpdate() {
+    let installed = "1.126.04518-insider"
+    // What the DEFAULT rule pattern (`v?([0-9]+(?:\.[0-9]+)+)`) would have
+    // extracted from the same real tag — the suffix is gone.
+    let defaultExtracted = VendorProbeRecipe.extractVersion(
+        from: "1.126.04518-insider", pattern: #"v?([0-9]+(?:\.[0-9]+)+)"#)
+    #expect(defaultExtracted == "1.126.04518")
+    // A missing trailing component pads to "0", which OUTRANKS the text token
+    // "insider" (VersionComparator: a numeric component always beats a textual
+    // one) — so the bare remote would forever read as newer than the correctly
+    // suffixed installed version, even though it is the exact same release.
+    #expect(VersionComparator.isNewer(defaultExtracted!, than: installed))
+
+    // The shipping rule's pattern keeps the suffix, so remote == installed
+    // compares equal — no phantom update.
+    let shipping = extract("1.126.04518-insider", "com.vscodium.VSCodiumInsiders")
+    #expect(shipping == installed)
+    #expect(!VersionComparator.isNewer(shipping!, than: installed))
+    #expect(VersionComparator.compare(shipping!, installed) == .orderedSame)
+}
+
 @Test func balenaEtcherRulePinsArm64Dmg() {
     #expect(extract("v2.1.6", "io.balena.etcher") == "2.1.6")
     #expect(matches("balenaEtcher-2.1.6-arm64.dmg", "io.balena.etcher"))
@@ -546,6 +606,7 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         "io.podmandesktop.PodmanDesktop": "containers/podman-desktop",
         "com.bitwarden.desktop": "bitwarden/clients",
         "com.vscodium": "VSCodium/vscodium",
+        "com.vscodium.VSCodiumInsiders": "VSCodium/vscodium-insiders",
         "io.balena.etcher": "balena-io/etcher",
         "com.intelliscapesolutions.caffeine": "IntelliScape/caffeine",
         "org.godotengine.godot": "godotengine/godot",

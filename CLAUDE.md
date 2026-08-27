@@ -34,6 +34,34 @@ duo verify --only <bundle-id-片段>        # 只验一个,快
 
 顺带:`make test` 会跑 `scripts/check_localizable_keys.py`,它用固定路径 `/tmp/duo-loc-check` 做构建缓存,**两个 worktree 同时跑会锁冲突**。看到 `database is locked` 先查是不是自己撞自己(`ps` 要 grep `xcodebuild`,不只是 `swift-test`),别当成真失败。
 
+## 断言「没有 X」「到处都 Y」之前，先量一遍
+
+代码注释在这个仓库写得好,好到读起来像规格书。但注释写的是**意图**,意图可能是局部的、
+过时的、或者只描述了主流情况。**把注释里的范围词当成实测结论,是这里最容易犯的错。**
+
+尤其是这两类断言,写下之前必须先 grep 量一遍覆盖面:
+
+- **「没有任何地方检查 X」**——缺失最难证明。守卫可能在另一个 registry、另一层、
+  或者干脆由 API 端点的语义兜住。
+- **「整个 registry 都是 Z」**——注释说 "pins arm64 **throughout**",实际 61 条
+  install pattern 里有 4 条是双架构 alternation,而且 `GitHubAssetSelectionTests`
+  有一条从 registry 推导的检查**专门要求**这类 pattern 登记进 `multiCandidateCases`。
+  少数派不等于疏漏。
+
+**本机这条先记住,省得再翻**:DuoUpdater 是 **arm64-only**,这是产品决策不是构建细节,
+理由写在 `App/project.yml`(`ARCHS: arm64`)——registry 大面积 pin arm64 端点/资源,
+universal 的 DuoUpdater 会在 Intel Mac 上跑起来然后给它装 arm64-only 的包,
+"装成功了但打不开"。所以**没有 Intel 宿主**,任何以「Intel Mac 上会装错架构」开头的
+issue 都是无效的,提之前先看这个文件。第三方 app 只有 Intel 版本是另一回事,
+由 `HostArch.canRunIntelBuilds` + `isArchIncompatibleOnly` 处理(macOS 28 起不再推荐)。
+
+背景:2026-08-27 修 #91~#95 那批,我和两个 subagent **各自独立地**从
+`project.yml` 那句 "throughout" 推出「Intel Mac 会装错架构」,提了 issue #102 才发现
+根本没有 Intel 宿主;同一天 #101 又断言「stable GitHub rule 解析出 prerelease 也没人
+检查」,而 `usePrereleases: false` 走 `/releases/latest`,GitHub 定义上就不返回
+prerelease。三个 agent 同一个错误形状,所以这条写进 CLAUDE.md 而不是 memory——
+subagent 读不到 memory。
+
 ## 供应商 recipe 的失效是常态
 
 vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。所以:

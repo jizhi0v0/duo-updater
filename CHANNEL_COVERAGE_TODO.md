@@ -246,9 +246,59 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 > 注意 `vlc@nightly`：VLC 的 stable 已在 VendorProbe 覆盖（`org.videolan.vlc`），
 > nightly 是否同 id 未查。
 
-**下一步的正确顺序**：想做哪个，先装那个渠道的包 → `/app-audit` → 读 bundle 里的
-`Info.plist` 两个版本字段 + 找有没有类似 `PackageConfig.plist` 的渠道标记 →
-`channel-verify` 真机跑绿。
+### 2026-08-27 当天补完：九个非 stable 包全部下载实测
+
+上面那句「只有拿到真包才能回答」当天就做了 —— 九个包全下下来挂载读了 `Info.plist`、
+`codesign`、`spctl`，然后删掉。**结论和从 cask 元数据猜的很不一样**，逐条记下来。
+
+| App | 非 stable 包 | bundle id | 本地渠道标记 | 签名 | 判定 |
+|---|---|---|---|---|---|
+| **Termius Beta** | `com.termius-beta.mac` 9.43.1 | **独立** | `CFBundleName`="Termius Beta" | Team `6KN952WR85` 公证 | **A，可接** |
+| **VSCodium Insiders** | `com.vscodium.VSCodiumInsiders` 1.126.04518-insider | **独立** | app 名 + 版本后缀 | Team `VC39D2VNQ7` 公证 | **A，可接** |
+| **DB Browser nightly** | 同 id 3.13.99 | 同 | **只有 app 文件名** `DB Browser for SQLite Nightly.app`（`CFBundleName` 仍是 "DB Browser for SQLite"）| Team `88DD6Y8X83` 公证 | **A-ish**，靠文件名，同 Android Studio 那条 `detect` step 0.5 |
+| **Freelens nightly** | 同 id `2.0.0-0-nightly-2026-08-26` | 同 | **版本串带 `nightly`** | Team `TFR6NT55MB` 公证 | 可接，但要给 `detect()` 加规则 |
+| **VLC nightly** | 同 id `4.0.0-dev` | 同 | 版本串带 `-dev` | **未签名**（`TeamIdentifier=not set`）| 检测可做，**一键不可**（Team 闸必拒）|
+| **KeePassXC snapshot** | 同 id `2.8.0-snapshot` | 同 | 版本串带 `-snapshot` | **无可用签名** | 同上；且该 URL 只有 x86_64 |
+| **UTM beta** | 同 id 5.0.4 / build 123 | 同 | **无**（stable 4.7.5 / build 118，都不带 channel 词，Resources 里无标记文件）| Team `WDNLXAD4W8` 公证 | **D，本地不可判** |
+| **kitty nightly** | 同 id 0.48.2 | 同 | **无，版本与 stable 完全相同** | Team `NTY7FVCEKP` 公证 | **D** |
+| **Postman Canary** | — | — | — | — | **死轨**：cask `disabled: true`，版本停在 `11.2.14-canary240621-0734`（2024-06），stable 已 12.25.6 |
+
+**三个 cask 是假线索，别再当候选**：
+
+- `keepassxc@beta` → 指向的就是 **stable 那个包**（2.7.12），退化成 stable 的别名。
+  真正的预发轨是 `keepassxc@snapshot`（2.8.0）。
+- `keka@beta` → 同样指向 stable 的 `Keka-1.6.7.dmg`。
+- `telegram-desktop@beta` → 那是 **`Telegram Desktop.app`（tdesktop 7.1.2）**，和本机装的
+  `ru.keepcoder.Telegram` 12.9（TelegramSwift）**是两个客户端**。后者的 `telegram` cask
+  没有任何 `@beta` 变体。上一轮把它们配成一对是错的。
+
+**另注**：VS Code Insiders（`com.microsoft.VSCodeInsiders`）**早已覆盖**，别和
+VSCodium Insiders 混。两者 cask 分别是 `visual-studio-code@insiders` 和 `vscodium@insiders`。
+
+### 从这九个包里学到的通则
+
+**「同 bundle id」不等于「不可判」，得看标记落在哪一层**，实测出现了四种：
+
+1. **独立 bundle id**（Termius、VSCodium Insiders）—— 最干净，detect 免费。
+2. **只有 app 文件名带**（DB Browser）—— `CFBundleName` 不带，所以 `channelWord` 抓不到；
+   要走 `detect()` step 0.5 那种按 bundle id 专属读文件名的路子。
+3. **版本串带**（Freelens `nightly` / VLC `-dev` / KeePassXC `-snapshot`）—— 现有
+   `detect()` step 4 只认 `esr` / `bN` / `aN` / `-betaN`，这三种**一个都不匹配**，
+   要加规则才判得出来。
+4. **什么都不带**（UTM、kitty）—— 真 Pattern D。UTM 尤其值得记：装了 5.0.4 的用户会被
+   拿去和最新 stable 4.7.5 比，永远「已是最新」，再也看不到 5.0.5，而且**静默**。
+
+还有一条和一键有关：**公证与否和渠道无关，必须逐包验**。同样是 nightly，Freelens/kitty/
+DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** —— 后两者就算接了检测，
+`VendorInstaller` 的 Team 闸也必然拒绝，只能是 detection-only。
+
+### 排序建议
+
+1. **Termius Beta**、**VSCodium Insiders** —— 独立 id、已公证，最省事。但注意 Termius
+   **stable 本身也还没覆盖**（`com.termius.mac` 不在任何 registry 里），那是另一个缺口。
+2. **DB Browser nightly** —— 需要文件名检测，有 Android Studio 的现成范式。
+3. **Freelens / VLC / KeePassXC** —— 要先给 `detect()` 加版本串规则；后两者只能检测不能一键。
+4. **UTM / kitty** —— 归入 §3 死轨，本地无信号。
 
 ---
 

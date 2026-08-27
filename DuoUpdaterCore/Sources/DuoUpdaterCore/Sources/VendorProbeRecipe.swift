@@ -4412,7 +4412,145 @@ public enum VendorProbeRegistry {
                     #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/preview/longbridge-v[0-9.]+-preview\.[0-9]+-macos-aarch64\.dmg)""#),
                 kind: .dmg),
             channel: .preview),
+
+        // MARK: - 2026-08-27 WorkBuddy (Tencent)
+
+        // WorkBuddy ships as TWO separate apps, not two channels of one. Tencent
+        // runs an international site and a China site, each with its own bundle
+        // id, its own app name, its own update host and its own release train:
+        //
+        //   com.workbuddy.workbuddy-ai  "WorkBuddy AI.app"  www.workbuddy.ai  5.4.2
+        //   com.workbuddy.workbuddy     "WorkBuddy.app"     www.workbuddy.cn  5.3.14
+        //
+        // Both are Electron, both signed by Team FN2V63AD2J (Tencent Technology
+        // (Shanghai) Company Limited), and the two builds carry byte-identical
+        // updater code — so the ONLY thing that routes an install to its own train
+        // is the bundle id, which is exactly the key a recipe is looked up by.
+        // Nothing here is a `channel`: both trains are stable, and neither app can
+        // ever be handed the other's artifact.
+        //
+        // The endpoint is the one the app's own `AbstractUpdateService` calls:
+        // `<base>/v2/update?platform=workbuddy-{os}-{arch}&version=<installed>`,
+        // where `<base>` is the product's API endpoint and defaults to
+        // `copilot.tencent.com` (which answers identically to www.workbuddy.cn).
+        // No auth: the `x-user-id` / `x-tenant-id` parameters the app appends are
+        // optional and we send neither.
+        //
+        // TRAP, and the reason `version=0.0.0` is pinned into the URL: this is a
+        // "should I update?" service, not a "what is the latest?" one. Passing the
+        // version you already run returns **204 No Content** (measured 2026-08-27:
+        // 5.3.14 → 204 on the CN host, 5.4.2 → 204 on the intl host), which would
+        // make the probe go dark precisely when it should say "up to date". An
+        // impossibly old version is what turns it into a latest-version query.
+        //
+        // TRAP, version scheme: the endpoint reports a FOUR-segment string
+        // ("5.4.2.36857725") whose last segment is a build counter that appears
+        // NOWHERE in the installed bundle — both `CFBundleShortVersionString` and
+        // `CFBundleVersion` are the bare "5.4.2". Comparing the raw field would
+        // read 36857725 > (nothing) forever, the permanent phantom update
+        // `versionIsBuild` exists to prevent — but `versionIsBuild` is the wrong
+        // fix here, since the build counter is not the app's CFBundleVersion
+        // either. So capture group 1 takes only the first three segments and the
+        // fourth is matched-and-discarded. Consequence to accept knowingly: a
+        // vendor respin that bumps ONLY the build counter is invisible to us.
+        // The optional fourth segment keeps the pattern matching if the vendor
+        // ever drops back to a plain three-part version.
+        //
+        // Architecture: the endpoint serves both Macs and currently answers the
+        // same version to each, but the `url` it hands back is arch-specific
+        // (`/darwin-arm64/…` vs `/darwin-x64/…`). One recipe reading the arm64
+        // endpoint would therefore offer an Intel Mac a zip it cannot run. Hence
+        // one recipe per architecture, split by `hostRequirement` rather than by
+        // channel (the Raycast v1/v2 shape) so exactly one is eligible on any
+        // given Mac, and the install pattern is additionally pinned to its own
+        // `darwin-<arch>` path so a recipe cannot resolve the other arch's
+        // artifact even if the endpoint were to start ignoring the query.
+        //
+        // Sites: the two recipes are one helper apart, and BOTH CDN paths are
+        // `/workbuddy/saas/darwin-<arch>/`, so the path alone does not say which
+        // site an artifact came from. Each recipe therefore pins its own download
+        // host as well. Without that, a later edit that swaps a host — or a vendor
+        // that points one site's `/v2/update` at the other site's CDN — would have
+        // one-click quietly replace a WorkBuddy AI install with the China build,
+        // and nothing downstream could see it: same vendor, same Team, a real
+        // notarized bundle, so the signature gate passes, and `ChannelProofRegistry`
+        // does not apply because both recipes are `.stable`. Pinned, the same
+        // situation degrades loudly instead (`installURLUnresolved`, which the
+        // nightly `duo verify` sweep reports).
+        //
+        // One-click: the JSON's `url` is a plain, unsigned object on Tencent COS
+        // (intl: `codebuddy-1328495429.cos.accelerate.myqcloud.com`; CN:
+        // `download.codebuddy.cn`). The `sha256hash` field alongside it is a
+        // SHA-256 hex digest, which `checksumPattern` (SHA-512, base64) cannot
+        // consume, so it is left unused and Team FN2V63AD2J gates the swap.
+        // Verified 2026-08-27 against both vendor DMGs at the same paths: the
+        // `.dmg` sibling of each `.zip` matches the published installer byte
+        // count, and both bundles are Developer ID signed under FN2V63AD2J.
+        //
+        // Changelog: each site's page is the one the app itself links (the build
+        // branches on `isOverseas()`); the intl page ran behind its own train at
+        // the time of writing (newest entry 5.2.7 against a 5.4.2 release) while
+        // the CN page was current.
+        workBuddyRecipe(
+            bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
+            assetHost: "codebuddy-1328495429.cos.accelerate.myqcloud.com", arch: .arm64,
+            downloadURL: URL(string: "https://www.workbuddy.ai/")!,
+            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!),
+        workBuddyRecipe(
+            bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
+            assetHost: "codebuddy-1328495429.cos.accelerate.myqcloud.com", arch: .x86_64,
+            downloadURL: URL(string: "https://www.workbuddy.ai/")!,
+            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!),
+        workBuddyRecipe(
+            bundleID: "com.workbuddy.workbuddy", host: "www.workbuddy.cn",
+            assetHost: "download.codebuddy.cn", arch: .arm64,
+            downloadURL: URL(string: "https://www.workbuddy.cn/")!,
+            changelogURL: URL(string: "https://www.codebuddy.cn/docs/workbuddy/Changelog")!),
+        workBuddyRecipe(
+            bundleID: "com.workbuddy.workbuddy", host: "www.workbuddy.cn",
+            assetHost: "download.codebuddy.cn", arch: .x86_64,
+            downloadURL: URL(string: "https://www.workbuddy.cn/")!,
+            changelogURL: URL(string: "https://www.codebuddy.cn/docs/workbuddy/Changelog")!),
     ]
+
+    /// One WorkBuddy recipe: a site — which decides the bundle id, the update
+    /// host and the changelog at once — crossed with a macOS architecture.
+    ///
+    /// The `slug` threads through three places that must agree: the `platform`
+    /// the endpoint is asked about, the `darwin-<arch>` path the install URL is
+    /// pinned to, and the `variant` that keeps the two same-channel recipes'
+    /// `recipeID`s (and so their verify baselines) apart. Building all three from
+    /// one value is what stops an arm64 recipe from ever quoting an x64 artifact.
+    ///
+    /// `assetHost` is the other half of that: the two sites' artifact PATHS are
+    /// identical, so the host is the only thing in a resolved URL that says which
+    /// site it came from, and it is pinned rather than matched with `[^"]+`.
+    private static func workBuddyRecipe(
+        bundleID: String,
+        host: String,
+        assetHost: String,
+        arch: HostArch,
+        downloadURL: URL,
+        changelogURL: URL
+    ) -> VendorProbeRecipe {
+        let slug = arch == .arm64 ? "arm64" : "x64"
+        let assetHostPattern = assetHost.replacingOccurrences(of: ".", with: #"\."#)
+        return VendorProbeRecipe(
+            bundleID: bundleID,
+            url: URL(string:
+                "https://\(host)/v2/update?platform=workbuddy-darwin-\(slug)&version=0.0.0")!,
+            mode: .responseBody,
+            versionPattern: #""productVersion"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)(?:\.[0-9]+)?""#,
+            downloadURL: downloadURL,
+            changelogURL: changelogURL,
+            publishedAtPattern: #""timestamp"\s*:\s*([0-9]{9,})"#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #""url"\s*:\s*"(https://\#(assetHostPattern)/workbuddy/saas/darwin-\#(slug)/WorkBuddy-darwin-\#(slug)-[^"]+\.zip)""#),
+                kind: .zip),
+            variant: slug,
+            hostRequirement: VendorHostRequirement(architectures: [arch]))
+    }
 
     /// One OrbStack recipe for a given channel: same appcast, regex anchored to
     /// that `<sparkle:channel>` tag (newest-first → first match is correct), and

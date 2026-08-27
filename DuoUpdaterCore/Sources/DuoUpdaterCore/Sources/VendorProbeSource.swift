@@ -352,7 +352,7 @@ public struct VendorProbeSource: UpdateSource {
         let extractor = recipe.selectHighest
             ? VendorProbeRecipe.highestVersion
             : VendorProbeRecipe.extractVersion
-        return extractor(Self.scopedBody(recipe, body.text), recipe.versionPattern)
+        return extractor(Self.scopedBody(recipe, body.text).text, recipe.versionPattern)
     }
 
     /// The text a recipe's first-match patterns (`versionPattern`,
@@ -366,12 +366,30 @@ public struct VendorProbeSource: UpdateSource {
     /// The single choke point every reader of the fetched body goes through,
     /// so a recipe with `entryStartPattern` set can't have one reader (say, a
     /// future addition) forget to scope while the others do.
-    private static func scopedBody(_ recipe: VendorProbeRecipe, _ body: String) -> String {
-        recipe.entryStartPattern.flatMap {
-            VendorProbeRecipe.highestVersionEntry(
-                in: body, entryStartPattern: $0, versionPattern: recipe.versionPattern,
-                selectHighest: recipe.selectHighest)
-        } ?? body
+    private static func scopedBody(_ recipe: VendorProbeRecipe, _ body: String) -> Scope {
+        guard let pattern = recipe.entryStartPattern else {
+            return Scope(text: body, fellBack: false)
+        }
+        guard let entry = VendorProbeRecipe.highestVersionEntry(
+            in: body, entryStartPattern: pattern, versionPattern: recipe.versionPattern,
+            selectHighest: recipe.selectHighest)
+        else { return Scope(text: body, fellBack: true) }
+        return Scope(text: entry, fellBack: false)
+    }
+
+    /// The text every reader runs against, plus whether getting it meant giving
+    /// up on `entryStartPattern`.
+    ///
+    /// `fellBack` is the whole reason this isn't a bare `String`: reverting to
+    /// whole-body first-match is a silent revert to the pre-#76 bug, and the
+    /// caller turns it into `ProbeWarning.entryPatternNoMatch` so the nightly
+    /// sweep sees it the first time a vendor reformats their feed rather than
+    /// whenever two release trains next happen to overlap. False for a recipe
+    /// that sets no `entryStartPattern` at all — that is not a fallback, it is
+    /// the normal path for every recipe in the registry but two.
+    private struct Scope {
+        let text: String
+        let fellBack: Bool
     }
 
     /// What a mode's fetch step yields on success: the text the version pattern
@@ -421,7 +439,11 @@ public struct VendorProbeSource: UpdateSource {
         // and the install URL can never land on different releases. Falls back
         // to the whole body — today's behaviour — when the recipe sets no such
         // pattern, or when slicing/matching doesn't produce a winner.
-        let scope = Self.scopedBody(recipe, body.text)
+        // Sliced once: `fellBack` says slicing was asked for and produced no
+        // winner, so everything below just reverted to whole-body first-match.
+        // See `ProbeWarning.entryPatternNoMatch` for why that must not stay silent.
+        let scoped = Self.scopedBody(recipe, body.text)
+        let scope = scoped.text
 
         // The sample a human (or `duo triage`) sees to fix a broken pattern must
         // be the SAME text the extractors below actually ran against — sampling
@@ -483,6 +505,7 @@ public struct VendorProbeSource: UpdateSource {
             })
 
         var warnings: [ProbeWarning] = []
+        if scoped.fellBack { warnings.append(.entryPatternNoMatch) }
         var remote: RemoteVersion
 
         // If this recipe knows how to install in place, resolve the installer URL

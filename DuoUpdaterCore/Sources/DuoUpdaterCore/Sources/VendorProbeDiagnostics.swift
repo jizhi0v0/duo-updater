@@ -124,12 +124,35 @@ public enum ProbeWarning: Sendable, Equatable {
     /// `checksumPattern` is set but matched nothing, so the download would be
     /// installed without SHA-512 verification.
     case checksumPatternNoMatch
+    /// `entryStartPattern` is set but slicing produced no winning entry, so every
+    /// pattern on this recipe ran against the WHOLE body, first-match — exactly
+    /// the pre-#76 behaviour the field exists to replace.
+    ///
+    /// The fallback itself is the right call: a possibly-stale answer beats no
+    /// answer. What was wrong is that it left no trace. A recipe can revert to
+    /// the bug it was written to fix and go on reporting a plausible, confident,
+    /// wrong version — `duo verify`'s only history check is a version moving
+    /// BACKWARDS, which a first-match revert only trips during the rare window
+    /// where two release trains overlap (the same window that made #76 visible
+    /// at all). Outside it the sweep stays green.
+    ///
+    /// Three runtime paths reach it, and none of them fails anything:
+    ///  - the pattern doesn't compile (closed for authored recipes by
+    ///    `entryStartPatternsInTheRegistryAreValidRegexes`, still reachable here),
+    ///  - it matches fewer than two entries — the vendor reformatted the feed.
+    ///    Android Studio's `\{"date":"` is a byte-exact bet on minified JSON with
+    ///    `date` as the first key: 671 matches on the live feed 2026-08-27, zero
+    ///    for `{ "date"`, so pretty-printing it is enough,
+    ///  - no entry matches `versionPattern`, or the winning entry matches it more
+    ///    than once and the self-containment guard declines it.
+    case entryPatternNoMatch
 
     public var kind: String {
         switch self {
         case .installURLUnresolved: return "installURLUnresolved"
         case .installURLTransient: return "installURLTransient"
         case .checksumPatternNoMatch: return "checksumPatternNoMatch"
+        case .entryPatternNoMatch: return "entryPatternNoMatch"
         }
     }
 }

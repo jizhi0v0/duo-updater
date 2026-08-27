@@ -34,8 +34,16 @@ scripts/icon/out/
 # beta-channel state — so they are kept local rather than published.
 /STATUS.md
 /plans/
-/docs/
+/docs/*
 /application-test/records/
+
+# …except the per-app audit docs. Those are the reasoning behind the recipe
+# registries — which apps publish how, and why an approach was rejected — and
+# they belong next to the code they explain rather than drifting on one machine.
+# Scrubbed 2026-08-27 of everything the rule above exists for: no `/Users/` paths,
+# no cross-app inventory, and no record of which channel this machine runs an app
+# on. The rest of /docs/ stays out: it IS the inventory.
+!/docs/app-audits/
 
 # Recipe-verify run artifacts. The baseline IS committed (it carries failure
 # streaks and issue numbers); the per-run report is not.

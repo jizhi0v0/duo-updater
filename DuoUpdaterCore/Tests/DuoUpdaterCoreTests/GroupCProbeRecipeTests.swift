@@ -52,7 +52,7 @@ struct GroupCProbeRecipeTests {
     // MARK: - GrandPerspective
 
     @Test func grandPerspectiveReadsTheMacVersion() throws {
-        let recipe = try recipe("net.sourceforge.grandperspectiv")
+        let recipe = try self.recipe("net.sourceforge.grandperspectiv")
         #expect(recipe.url.absoluteString
             == "https://sourceforge.net/projects/grandperspectiv/best_release.json")
         #expect(VendorProbeRecipe.extractVersion(
@@ -60,7 +60,7 @@ struct GroupCProbeRecipeTests {
     }
 
     @Test func grandPerspectiveIsOneClick() throws {
-        let recipe = try recipe("net.sourceforge.grandperspectiv")
+        let recipe = try self.recipe("net.sourceforge.grandperspectiv")
         let spec = try #require(recipe.install)
         #expect(spec.kind == .dmg)
         guard case .bodyTemplate(let template, let fields) = spec.urlSource else {
@@ -79,7 +79,7 @@ struct GroupCProbeRecipeTests {
     // MARK: - TigerVNC — the top-level-vs-platform_releases.mac trap
 
     @Test func tigerVNCReadsTheMacVersionNotTheTopLevelWindowsOne() throws {
-        let recipe = try recipe("com.tigervnc.tigervnc")
+        let recipe = try self.recipe("com.tigervnc.tigervnc")
         // Sanity: the fixture really does have a Windows exe as its top-level
         // "release" — if this stops being true the fixture no longer proves
         // anything about the trap.
@@ -89,7 +89,7 @@ struct GroupCProbeRecipeTests {
     }
 
     @Test func tigerVNCIsOneClick() throws {
-        let recipe = try recipe("com.tigervnc.tigervnc")
+        let recipe = try self.recipe("com.tigervnc.tigervnc")
         let spec = try #require(recipe.install)
         #expect(spec.kind == .dmg)
         guard case .bodyTemplate(let template, let fields) = spec.urlSource else {
@@ -119,7 +119,7 @@ struct GroupCProbeRecipeTests {
         #expect(wrongValue == "/stable/1.16.0/tigervnc64-1.16.0.exe")
         #expect(!wrongValue.contains(".dmg"))
         // The real recipe pattern, scoped to platform_releases.mac, is immune.
-        let recipe = try recipe("com.tigervnc.tigervnc")
+        let recipe = try self.recipe("com.tigervnc.tigervnc")
         let correctValue = try #require(
             VendorProbeRecipe.extractVersion(from: tigerVNCFixture, pattern: recipe.versionPattern))
         #expect(correctValue == "1.16.0")
@@ -169,7 +169,7 @@ struct GroupCProbeRecipeTests {
     @Test func sourceForgeRecipesOverrideTheBrowserUserAgent() throws {
         for id in ["net.sourceforge.grandperspectiv",
                    "com.tigervnc.tigervnc"] {
-            let recipe = try recipe(id)
+            let recipe = try self.recipe(id)
             let ua = recipe.requestHeaders["User-Agent"]
             #expect(ua != nil, "\(id) must send its own User-Agent")
             #expect(ua?.contains("Mozilla") == false, "\(id) must not send a browser UA")

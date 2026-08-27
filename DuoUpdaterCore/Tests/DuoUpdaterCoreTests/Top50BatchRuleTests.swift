@@ -12,7 +12,7 @@ import Foundation
     /// actually answers. Pinned because the natural reading of "it has a
     /// SUFeedURL" is "it's already covered".
     @Test func hiddenBarReadsTagsNotItsEmptySparkleFeed() throws {
-        let rule = try rule("com.dwarvesv.minimalbar")
+        let rule = try self.rule("com.dwarvesv.minimalbar")
         #expect(rule.owner == "dwarvesf")
         #expect(rule.repo == "hidden")
         #expect(VendorProbeRecipe.extractVersion(from: "v1.10", pattern: rule.versionPattern)
@@ -33,7 +33,7 @@ import Foundation
     /// app bundle, so it must stay on the pkg route — an in-place bundle swap
     /// would leave everything except `XQuartz.app` at the old version.
     @Test func xquartzUsesThePackageRoute() throws {
-        let rule = try rule("org.xquartz.X11")
+        let rule = try self.rule("org.xquartz.X11")
         #expect(rule.installerKind == .pkg)
         #expect(VendorProbeRecipe.extractVersion(
             from: "XQuartz-2.8.6", pattern: rule.versionPattern) == "2.8.6")

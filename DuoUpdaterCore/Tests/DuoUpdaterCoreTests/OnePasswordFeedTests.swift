@@ -33,7 +33,7 @@ private let onePasswordFeedFixture = #"""
     /// here would report the 2022 release as current — which the UI renders as
     /// "up to date", forever, with nothing failing.
     @Test func theProbeTakesTheHighestVersionNotTheFirst() throws {
-        let probe = try probe()
+        let probe = try self.probe()
         #expect(probe.selectHighest)
         #expect(probe.url.absoluteString.hasSuffix("index.xml"))
         #expect(VendorProbeRecipe.extractVersion(

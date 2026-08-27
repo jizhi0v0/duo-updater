@@ -64,7 +64,7 @@ private let operaChangelogFixture = #"""
     /// not `{version}` — a page pinned to today's major stops covering the
     /// installed build within a few weeks.
     @Test func theSourceIsTemplatedOnTheMajor() throws {
-        let recipe = try recipe()
+        let recipe = try self.recipe()
         #expect(recipe.sourceTemplate?.contains("{major}") == true)
         #expect(recipe.resolvedSource(forVersion: "134.0.5954.56").absoluteString
             == "https://blogs.opera.com/desktop/changelog-for-134/")

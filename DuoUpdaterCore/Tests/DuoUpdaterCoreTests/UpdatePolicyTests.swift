@@ -741,12 +741,12 @@ struct LaggingRemoteVersionTests {
 
     @Test func neverAskedKeepsTheUpdateButton() {
         let result = elevatedResult()
-        let environment = environment(elevationRequired: [fixturePath])
-        #expect(UpdatePolicy.requiresElevatedInstall(result, environment: environment),
+        let env = environment(elevationRequired: [fixturePath])
+        #expect(UpdatePolicy.requiresElevatedInstall(result, environment: env),
                 "the host reported this path as needing elevation")
-        #expect(!UpdatePolicy.elevationDeclined(result, settings: defaultSettings(), environment: environment),
+        #expect(!UpdatePolicy.elevationDeclined(result, settings: defaultSettings(), environment: env),
                 "needing a password is not the same as having refused one")
-        #expect(UpdatePolicy.canAutoInstall(result, settings: defaultSettings(), environment: environment),
+        #expect(UpdatePolicy.canAutoInstall(result, settings: defaultSettings(), environment: env),
                 "an app the user was never asked about must still offer Update")
     }
 
@@ -754,18 +754,18 @@ struct LaggingRemoteVersionTests {
 
     @Test func decliningTheAdministratorPromptRetiresTheOneClick() {
         let result = elevatedResult()
-        let environment = environment(elevationRequired: [fixturePath])
+        let env = environment(elevationRequired: [fixturePath])
         let settings = defaultSettings(declinedElevation: declinedKey())
-        #expect(UpdatePolicy.elevationDeclined(result, settings: settings, environment: environment))
-        #expect(!UpdatePolicy.canAutoInstall(result, settings: settings, environment: environment),
+        #expect(UpdatePolicy.elevationDeclined(result, settings: settings, environment: env))
+        #expect(!UpdatePolicy.canAutoInstall(result, settings: settings, environment: env),
                 "a refused prompt must not be re-raised on the next release")
     }
 
     @Test func clearingTheDeclineRestoresTheOneClick() {
         let result = elevatedResult()
-        let environment = environment(elevationRequired: [fixturePath])
+        let env = environment(elevationRequired: [fixturePath])
         #expect(UpdatePolicy.canAutoInstall(result, settings: defaultSettings(declinedElevation: []),
-                                            environment: environment),
+                                            environment: env),
                 "there must be a way back: an emptied decline set re-offers Update")
     }
 
@@ -793,10 +793,10 @@ struct LaggingRemoteVersionTests {
         // them so one refusal hid every copy.
         let sibling = "/Applications/Fixture Beta.app"
         let result = elevatedResult(path: sibling)
-        let environment = environment(elevationRequired: [fixturePath, sibling])
+        let env = environment(elevationRequired: [fixturePath, sibling])
         let settings = defaultSettings(declinedElevation: declinedKey())  // the OTHER copy
-        #expect(!UpdatePolicy.elevationDeclined(result, settings: settings, environment: environment))
-        #expect(UpdatePolicy.canAutoInstall(result, settings: settings, environment: environment))
+        #expect(!UpdatePolicy.elevationDeclined(result, settings: settings, environment: env))
+        #expect(UpdatePolicy.canAutoInstall(result, settings: settings, environment: env))
     }
 
     @Test func elevationIsMatchedOnThisExactInstall() {

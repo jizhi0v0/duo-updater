@@ -21,7 +21,7 @@ private let telegramCurrent4Fixture = #"""
     }
 
     @Test func readsTheDottedVersionFromTheRedirectTarget() throws {
-        let recipe = try #require(recipe("com.tdesktop.Telegram"))
+        let recipe = try #require(self.recipe("com.tdesktop.Telegram"))
         guard case .redirectFilename = recipe.mode else {
             Issue.record("expected the redirect-filename mode"); return
         }
@@ -37,7 +37,7 @@ private let telegramCurrent4Fixture = #"""
     /// must find nothing in it rather than latch onto a number that looks like a
     /// version.
     @Test func thePackedIntegerFeedIsNotMistakenForAVersion() throws {
-        let recipe = try #require(recipe("com.tdesktop.Telegram"))
+        let recipe = try #require(self.recipe("com.tdesktop.Telegram"))
         #expect(VendorProbeRecipe.extractVersion(
             from: telegramCurrent4Fixture, pattern: recipe.versionPattern) == nil)
     }
@@ -49,7 +49,7 @@ private let telegramCurrent4Fixture = #"""
     }
 
     @Test func downloadsTheSameRedirectItProbes() throws {
-        let recipe = try #require(recipe("com.tdesktop.Telegram"))
+        let recipe = try #require(self.recipe("com.tdesktop.Telegram"))
         let spec = try #require(recipe.install)
         guard case .redirect(let url) = spec.urlSource else {
             Issue.record("expected a redirect install source"); return

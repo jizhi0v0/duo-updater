@@ -41,8 +41,11 @@ public enum AppRestarter {
     }
 
     /// Quit every running instance of `app` and relaunch it once they've all
-    /// exited. An app that isn't running at all is a no-op (`.notRunning`) —
-    /// there is nothing whose in-memory code is stale.
+    /// exited. Only a total no-op (`.notRunning`) if *nothing* is running —
+    /// neither the app itself nor anything nested inside it. An app that isn't
+    /// running while something nested in it still is gets that nested app quit
+    /// and relaunched same as always (`.nestedOnly`); the app itself is simply
+    /// never one of the things put back.
     ///
     /// Graceful only: quits are `terminate()`, which honours save prompts, never
     /// a force-kill. An app that puts up such a prompt and won't exit is left
@@ -114,6 +117,13 @@ public enum AppRestarter {
         // make sense once it is up. Skipped (inside `reopenNestedApps`) when the
         // parent has already reopened one itself, which is common and would
         // otherwise be a second launch of an app that is now running.
+        //
+        // Result discarded on purpose, not an oversight: `.relaunched`'s Bool
+        // answers only for the parent. Folding a nested miss in here would report
+        // `false` for a parent that came back fine and swallow a correct "Now
+        // running X" notification — one of the wrong fixes issue #72 called out.
+        // Each nested app's own outcome is already reported by its own log line
+        // inside `reopenNestedApps`.
         _ = await reopenNestedApps(nestedBundles, frontmostPath: frontmostPath)
         return .relaunched(relaunched)
     }

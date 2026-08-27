@@ -67,7 +67,7 @@ struct GroupBProbeRecipeTests {
     // MARK: Emacs
 
     @Test func emacsVersionPatternDropsTheRepackSuffix() throws {
-        let recipe = try #require(recipe("org.gnu.Emacs"))
+        let recipe = try #require(self.recipe("org.gnu.Emacs"))
         // The installed bundle reports plain `30.2` (verified by mounting the
         // 30.2-2 dmg) — the `-2` repack suffix must NOT survive extraction, or
         // the probe would claim a permanent phantom update.
@@ -76,7 +76,7 @@ struct GroupBProbeRecipeTests {
     }
 
     @Test func emacsInstallURLKeepsTheRealSuffixedFilename() throws {
-        let recipe = try #require(recipe("org.gnu.Emacs"))
+        let recipe = try #require(self.recipe("org.gnu.Emacs"))
         let spec = try #require(recipe.install)
         guard case .bodyPattern(let pattern) = spec.urlSource else {
             Issue.record("expected a body pattern"); return
@@ -89,7 +89,7 @@ struct GroupBProbeRecipeTests {
     }
 
     @Test func emacsPatternIsUnsuffixedWhenTheEntryIsNotARepack() throws {
-        let recipe = try #require(recipe("org.gnu.Emacs"))
+        let recipe = try #require(self.recipe("org.gnu.Emacs"))
         // A plain (non-repack) entry, e.g. "Emacs Version 30.1", must also match —
         // the `-N` group is optional, not required.
         let plain = "<title>Emacs Version 30.1</title>"
@@ -100,7 +100,7 @@ struct GroupBProbeRecipeTests {
     // MARK: Tor Browser
 
     @Test func torBrowserReadsTheVersionFieldVerbatim() throws {
-        let recipe = try #require(recipe("org.torproject.torbrowser"))
+        let recipe = try #require(self.recipe("org.torproject.torbrowser"))
         // Verified against the real install: CFBundleShortVersionString is
         // exactly "15.0.19" — same three-segment scheme as the feed, no
         // build/marketing split to work around.
@@ -110,7 +110,7 @@ struct GroupBProbeRecipeTests {
     }
 
     @Test func torBrowserInstallsTheBinaryFieldDirectly() throws {
-        let recipe = try #require(recipe("org.torproject.torbrowser"))
+        let recipe = try #require(self.recipe("org.torproject.torbrowser"))
         let spec = try #require(recipe.install)
         guard case .bodyPattern(let pattern) = spec.urlSource else {
             Issue.record("expected a body pattern"); return
@@ -123,7 +123,7 @@ struct GroupBProbeRecipeTests {
     // MARK: Zotero
 
     @Test func zoteroReadsTheMacEntryOfStandaloneVersions() throws {
-        let recipe = try #require(recipe("org.zotero.zotero"))
+        let recipe = try #require(self.recipe("org.zotero.zotero"))
         // Verified against the real install: CFBundleShortVersionString is
         // exactly "9.0.6", matching the page's literal verbatim.
         #expect(VendorProbeRecipe.extractVersion(
@@ -131,7 +131,7 @@ struct GroupBProbeRecipeTests {
     }
 
     @Test func zoteroReadsATwoSegmentVersion() throws {
-        let recipe = try #require(recipe("org.zotero.zotero"))
+        let recipe = try #require(self.recipe("org.zotero.zotero"))
         // Zotero 10.0 self-reports exactly "10.0" (verified by mounting
         // Zotero-10.0.dmg: CFBundleShortVersionString == CFBundleVersion == "10.0"),
         // so the two-segment page string is the correct thing to compare against —
@@ -141,7 +141,7 @@ struct GroupBProbeRecipeTests {
     }
 
     @Test func zoteroTwoSegmentVersionTemplatesTheInstallURL() throws {
-        let recipe = try #require(recipe("org.zotero.zotero"))
+        let recipe = try #require(self.recipe("org.zotero.zotero"))
         let spec = try #require(recipe.install)
         guard case .bodyTemplate(let template, let fields) = spec.urlSource else {
             Issue.record("expected a body template"); return
@@ -155,7 +155,7 @@ struct GroupBProbeRecipeTests {
     }
 
     @Test func zoteroInstallURLIsTemplatedFromTheMatchedVersion() throws {
-        let recipe = try #require(recipe("org.zotero.zotero"))
+        let recipe = try #require(self.recipe("org.zotero.zotero"))
         let spec = try #require(recipe.install)
         guard case .bodyTemplate(let template, let fields) = spec.urlSource else {
             Issue.record("expected a body template"); return
@@ -172,7 +172,7 @@ struct GroupBProbeRecipeTests {
 
     @Test func allThreeRecipesAreStableChannelAndOneClick() throws {
         for id in ["org.gnu.Emacs", "org.torproject.torbrowser", "org.zotero.zotero"] {
-            let recipe = try #require(recipe(id))
+            let recipe = try #require(self.recipe(id))
             #expect(recipe.channel == .stable)
             #expect(recipe.install != nil)
         }

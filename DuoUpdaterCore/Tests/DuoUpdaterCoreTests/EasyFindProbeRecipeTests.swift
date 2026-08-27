@@ -24,7 +24,7 @@ private let devonFreewareFixture = #"""
     }
 
     @Test func readsEasyFindsOwnVersionNotANeighboursOnTheSamePage() throws {
-        let recipe = try recipe()
+        let recipe = try self.recipe()
         #expect(VendorProbeRecipe.extractVersion(
             from: devonFreewareFixture, pattern: recipe.versionPattern) == "5.0.2")
         // XMenu's 1.9.11 sits EARLIER in the document, so a loose "Version X"

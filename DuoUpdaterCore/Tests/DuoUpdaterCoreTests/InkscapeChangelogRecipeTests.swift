@@ -61,7 +61,7 @@ private let inkscapeWikiFixture = #"""
     }
 
     @Test func eachPageIsOneRelease() throws {
-        let recipe = try recipe()
+        let recipe = try self.recipe()
         #expect(recipe.maxEntries == 1)
         #expect(recipe.resolvedSource(forVersion: "1.4.4").absoluteString
             == "https://wiki.inkscape.org/wiki/Release_notes/1.4.4")

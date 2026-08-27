@@ -233,7 +233,7 @@ struct WeChatDevToolsProbeTests {
     /// much lower version. The Nightly anchor closes its quote right after the id, so
     /// the prefix can't be read as a match.
     @Test func nightlyDoesNotMatchTheRetiredNightlyOldTrain() throws {
-        let recipe = try recipe(.nightly)
+        let recipe = try self.recipe(.nightly)
         #expect(VendorProbeRecipe.extractVersion(
             from: wechatDevToolsConfigFixture, pattern: recipe.versionPattern) != "2.01.2602282")
     }
@@ -249,7 +249,7 @@ struct WeChatDevToolsProbeTests {
             .nightly: "wechat_devtools_2.02.2608182_darwin_arm64.pkg",
         ]
         for (channel, filename) in expected {
-            let recipe = try recipe(channel)
+            let recipe = try self.recipe(channel)
             let install = try #require(recipe.install)
             #expect(install.kind == .pkg)
             guard case .bodyPattern(let pattern) = install.urlSource else {

@@ -17,6 +17,43 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.68</title>
+            <pubDate>Fri, 28 Aug 2026 01:49:42 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.68</link>
+            <sparkle:version>77</sparkle:version>
+            <sparkle:shortVersionString>0.3.68</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Four more apps are tracked, two more release channels, and every one of them updates in place.** CapCut, Canva, and WorkBuddy on both of the sites it ships from — the international one and the Chinese one run independent release trains, so an install is only ever offered the version and the notes belonging to its own site. Termius and VSCodium gain their Beta and Insiders channels alongside the stable builds already covered. CapCut's second track is the awkward one: it is chosen by a switch inside CapCut itself and appears nowhere in the version number, so which track you are on is read from the copy on disk rather than guessed from the build you happen to be running. Worth knowing if you tick that box — Duo Updater will offer you the newest beta as soon as it exists, which can be ahead of the point CapCut's own staged rollout would have reached you.
+
+**Android Studio's preview channels no longer offer you a build older than the one you have.** Google lists its releases in the order they were published rather than by version, and Duo Updater searched that list three separate times — once for the version, once for the date, once for the download — so a release candidate published after a newer canary could supply the version from one entry and the file from another. On 26 August the Canary channel answered with 2026.1.4 RC 2 while 2026.2.1 Canary 2 had already shipped. Each of those answers now has to come from the same entry.
+
+**A re-cut release no longer installs the copy it was meant to replace.** When a project rebuilds a release without changing its version, both files stay under the one tag — KeePassXC ships `KeePassXC-2.7.11-1-arm64.dmg` next to the original `KeePassXC-2.7.11-arm64.dmg` — and Duo Updater took whichever was listed first. That order is alphabetical, which happened to put the rebuild first this time and would have put it last the next time. Nothing about it was visible: the version on the row was correct, only the file behind it was wrong. The right one is now chosen by what the filename itself says.
+
+**Nightly and snapshot builds are recognised as the pre-release builds they are.** VLC's nightly, the KeePassXC snapshot and Freelens nightly all install under the stable app's name and bundle identifier, so their version string is the only thing that gives them away — and it was not being read. They counted as stable installs, which is how a nightly ends up being offered an ordinary release to overwrite itself with. DB Browser for SQLite's nightly is read from the app's own filename for the same reason, and there the problem was live but hidden: its frozen version sorts above the current stable one only until stable catches up, at which point every nightly install would have been quietly handed a stable build.
+
+**Relaunching an app reports what actually happened.** A few apps ship a second app inside their own bundle — Surge keeps its Dashboard there — and when only that inner app needed restarting, Duo Updater said the outer app had been relaunched when nothing had. It now reports the inner app's own outcome, and no longer raises a relaunch notification for a relaunch that never happened.
+
+**An update that has already downloaded says so, and can be put back.** A row holding an installer package that had finished downloading showed a blue Install button and nothing else — nothing said the download was already done, or that the button reopens the installer rather than starting the update over, and there was no way to change your mind. That is now on the row itself rather than hidden in a tooltip, and **Discard Downloaded Installer** in the row's right-click menu throws the download away and puts the row back to Update. Discarding one while an install of the same app was already running could also throw away a package that had just finished downloading; it no longer can.
+
+**Release-notes buttons that pointed at retired pages open live ones again.** Microsoft renamed the Edge enterprise release-notes pages and Termius moved its changelog, so three Edge channels and Termius were sending you to a page that no longer existed. Nothing had ever checked whether those pages were still there, which is why they could rot indefinitely with everything else looking healthy — they are now checked on a schedule. Edge's Dev channel gets no button at all: Microsoft stopped publishing notes for it, and every page that still exists belongs to a different release train.
+
+**Raycast is followed onto version 2, and only on the Macs that can run it.** Raycast 2 needs macOS Tahoe and Apple silicon. A Mac that does not meet that stays on the version 1 train and is no longer told about a release it could never have installed. The two trains also keep their own release notes now, so a version 1 install reads version 1's history rather than version 2's.
+
+**Release notes are rendered in Duo Updater's own window for more apps.** BetterDisplay on all three of its tracks, Shotbase, and WorkBuddy on both sites. BetterDisplay's notes no longer end in the raw markup of its download button, and no longer repeat its contributor list on every single release.
+
+**`duo`, the optional command-line companion, refuses a command line it does not understand.** A mistyped flag used to be ignored, and an ignored flag reads as one you never passed — so `duo verify --githubb` quietly checked every recipe instead of the one you asked for. Unknown flags, a flag left without its value, and stray arguments are now errors that name what the command actually accepts, and `--help` works after any command.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.68/DuoUpdater-0.3.68-macos.zip" length="11794852" type="application/octet-stream" sparkle:edSignature="PQBsALj9lLTcB3jqYeNnOufZpOC7+5NBdKXiG9Id0U+NFelbU119G0IzbumMPlH03tQZmuqcv+xsssOzPfxBAA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.68/DuoUpdater77-76.delta" sparkle:deltaFrom="76" length="564698" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="eEtVDZBKSh6PdbZFa7d/7U+Ds9UC/aYfaSYUblYD8xB+lEWe7tXZljYTC0I+S+9nEWOOfR7ui+739g63CKMiAA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.68/DuoUpdater77-75.delta" sparkle:deltaFrom="75" length="630550" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="2wcpibfqncV3xRJxt3PmmLvwVEnX03Obx9+bUNSaoL7TO9IDtZ+0YpzWYhO7I4OzhTkj/ITtfJ0cW4ONyXVXDA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.68/DuoUpdater77-74.delta" sparkle:deltaFrom="74" length="684894" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="S9pxH55PfXCjFYwJ84nXnrMKE1p/E/0Z/OGj+q0MUBdeZIttJ9/Mee7fiDXR6x07BUpvTVg3u9XZu5fAG/XeDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.68/DuoUpdater77-73.delta" sparkle:deltaFrom="73" length="685590" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="tMV+FTB/FB8jvngO7iGWtaL3Q4mYyTW4xFD2TdzcHRihb7vK9KML3YqJ7HKWoNqqIjKqZLujSqZw9gj3xLUIDQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.68/DuoUpdater77-72.delta" sparkle:deltaFrom="72" length="782658" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="K59b7rEydMhFKi8JivKJuvBjubFyUJ72ZK153rEnH3prif9OpVmAG99JT4ZpvBSIQz9GjYGhw4ZI7TmHfL+1CQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.67</title>
             <pubDate>Thu, 27 Aug 2026 01:09:01 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.67</link>
@@ -24,10 +61,6 @@
             <sparkle:shortVersionString>0.3.67</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**BetterDisplay's pre-release and internal builds are now offered to the people who asked for them.** BetterDisplay carries all three of its release trains in a single update feed and picks between them with two switches in its own settings. Duo Updater could only guess your train from the build you happened to be running, which says nothing about a switch you turned on but have not yet acted on — so someone with both switches on, sitting on a stable build, was told they were up to date while BetterDisplay's own updater was offering a version four releases ahead. Your actual choice is read from BetterDisplay now, including the case where turning on internal builds keeps the ordinary pre-releases coming too. Its Apple-silicon-only preview builds are deliberately left out, so an Intel Mac is never offered one it cannot run.
-
-**Switching an app's release channel twice in a row no longer strands the row on the old answer.** Flipping a channel switch sends Duo Updater to re-check that app, and a second flip while the first check was still running used to be dropped — the row went on offering a beta to someone who had just turned betas off, until something unrelated happened to trigger another check. The newer flip now takes over from the older one, and a check that is interrupted partway leaves the apps it never reached marked for the next pass instead of recording them as handled. Rows also enter their checking state sooner after a flip, so there is less time in which the answer on screen is one your switch has already invalidated.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.67/DuoUpdater-0.3.67-macos.zip" length="11762447" type="application/octet-stream" sparkle:edSignature="7QixlX8Q3qUgwuXrPeWI84F/HRSLUeDeOlJQcIFJL6Del8KyDwoH7pmuyZPJ3buzAjMw4vb2REINkXA4h75FDQ=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.67/DuoUpdater76-75.delta" sparkle:deltaFrom="75" length="467282" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="VkR84lWaf1PLEybXsUnnL6QdnytOQ/g/P+Dln1HPSBfKFkwdVpuTjJ/hk/WEheyUhbBDhoKFulG2lUMZeaICBQ=="/>
@@ -86,23 +119,6 @@
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.64/DuoUpdater73-70.delta" sparkle:deltaFrom="70" length="1190386" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="j/t+4Dbe8SxRgGfgn6M8qBdXEwJJPJIJPMtfUYsIcYWBmYF4JYI0xmrOEE7DK2H6HF7u/CD/pdzVm5Ms3JEhBA=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.64/DuoUpdater73-69.delta" sparkle:deltaFrom="69" length="1224394" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Kr1KI0iqQDT6K7ofdVjJOaZtrWd1rITVjBTrarV8Ij0j8QpJMBoKUHII3qvE4PIsni9dFLQ2ntzwRTkLaybaBw=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.64/DuoUpdater73-68.delta" sparkle:deltaFrom="68" length="1221234" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="JadWpqS3D3BMNVafcyq4At4g9GhflGjOQoHggPAlKRPFIjeOqR2a2uEuool03AjCGg4QWLT+xaGNJ1PxD3XrAw=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.63</title>
-            <pubDate>Tue, 25 Aug 2026 14:08:57 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.63</link>
-            <sparkle:version>72</sparkle:version>
-            <sparkle:shortVersionString>0.3.63</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater-0.3.63-macos.zip" length="11715438" type="application/octet-stream" sparkle:edSignature="356UWatcsxcVwOYAllBqzDAMkTgHIOJY29muuhiMD0jr4e6Qj47b6dRPh6b9QTnlO6ecAz3TsHGpj6+QIUJ1DA=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-71.delta" sparkle:deltaFrom="71" length="574338" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Ew1tu68nTMK/7dlNiyLLiQpz7zBii4Imn/1GflYDTtGPXmrpz91NHpAj7GpNgPJphTg7iUcKRROjwmMZiuFqAg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-70.delta" sparkle:deltaFrom="70" length="1091254" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="FIAAXni1ox9LRYGs94xPENn+GQKsvP13rzMqf3ZDs88mZLxbKuj6P5k4Yo02hUkHaCT5Fotlinh2AzkYY9nIBw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-69.delta" sparkle:deltaFrom="69" length="1134286" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="F/FnfRR4yeqOrhLmGjMX/hXimLm1LHWSDZXr00QrwTIBrko5Py6yTIR5x8ikVIW8a97tqzIukburxS+oGTXVAw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-68.delta" sparkle:deltaFrom="68" length="1148166" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="TaBUUtFUP2Qd+DDKjcSErsX0dwPI8qqNMOHTQG34OArzaI/a+SSDwuAA7VQXcNAYy8r5XvJQgelDYue+tqKrAg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.63/DuoUpdater72-67.delta" sparkle:deltaFrom="67" length="1154530" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="raf3v/WIHXpTmIj4WyxsVOVCbbi7813iawXEb3RRP3uAz5XfC+SCmeK6XKU8LayVTV/veBmJCxXxK7jX6hURDQ=="/>
             </sparkle:deltas>
         </item>
     </channel>

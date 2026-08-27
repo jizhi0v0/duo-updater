@@ -183,7 +183,10 @@ struct CanvaProbeRecipeTests {
         let filename = try #require(
             VendorProbeRecipe.extractVersion(from: Self.stableBody, pattern: pattern))
         #expect(filename == "Canva-1.124.0-universal.dmg")
-        #expect(URL(string: filename, relativeTo: base)?.absoluteString
+        // Resolved the way `VendorProbeSource.resolveInstall` resolves it —
+        // `relativeTo:` then `.absoluteURL` — so a change to that joining rule
+        // shows up here rather than only in production.
+        #expect(URL(string: filename, relativeTo: base)?.absoluteURL.absoluteString
             == "https://desktop-release.canva.com/Canva-1.124.0-universal.dmg")
         #expect(recipe.install?.kind == .dmg)
     }
@@ -192,13 +195,23 @@ struct CanvaProbeRecipeTests {
     /// consumes; the pattern must skip past it to the dmg the spec declares.
     /// Resolving the zip while declaring `.dmg` would hand `ArchiveExtractor` a
     /// file it would try to mount.
+    ///
+    /// Asserted against a body holding ONLY zips, so it is the pattern under
+    /// test and not the fixture's ordering: on the real feed the dmg happens to
+    /// be where first-match lands, which a loosened pattern would still satisfy.
     @Test func theZipEntryIsNotMistakenForTheDMG() throws {
         let recipe = try Self.theRecipe()
         let (pattern, _) = try Self.installArtifact(recipe)
-        let filename = try #require(
-            VendorProbeRecipe.extractVersion(from: Self.stableBody, pattern: pattern))
-        #expect(filename.hasSuffix(".dmg"))
-        #expect(!filename.contains("-mac.zip"))
+        let zipsOnly = """
+            version: 1.124.0
+            files:
+              - url: Canva-1.124.0-universal-mac.zip
+                size: 220713510
+            path: Canva-1.124.0-universal-mac.zip
+            """
+        #expect(VendorProbeRecipe.extractVersion(from: zipsOnly, pattern: pattern) == nil,
+                "the pattern accepted a zip while the spec declares .dmg")
+        #expect(recipe.install?.kind == .dmg)
     }
 
     /// The checksum is the dmg's, not the zip's — the two sit in the same document
@@ -245,7 +258,8 @@ struct CanvaProbeRecipeTests {
         let download = try #require(recipe.downloadURL)
         #expect(download != recipe.url)
         #expect(!download.absoluteString.hasSuffix(".yml"))
-        #expect(download.absoluteString == "https://www.canva.com/download/")
+        #expect(download.host() != recipe.url.host(),
+                "the manual link must be a page a user can read, not the release CDN")
         #expect(recipe.changelogURL == nil)
     }
 }

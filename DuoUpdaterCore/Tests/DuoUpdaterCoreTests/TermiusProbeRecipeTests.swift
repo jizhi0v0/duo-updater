@@ -11,13 +11,11 @@ import Foundation
 /// build's real bundle id. This file covers what the issue actually left
 /// unstarted: Beta, an independent bundle id (`com.termius-beta.mac`).
 ///
-/// Every expectation below is checked against response bodies captured verbatim
-/// from the vendor on 2026-08-27:
-///   - `https://autoupdate.termius.com/mac-beta-universal/latest-mac.yml` (Beta,
-///     the feed the new recipe reads)
-///   - `https://autoupdate.termius.com/mac-arm64/latest-mac.yml` (Stable, the feed
-///     the pre-existing recipe reads — kept here only to show the two feeds are
-///     genuinely independent, not to re-test the stable recipe itself)
+/// Every expectation below is checked against the Beta response body captured
+/// verbatim from the vendor on 2026-08-27:
+/// `https://autoupdate.termius.com/mac-beta-universal/latest-mac.yml`. The
+/// pre-existing stable recipe is referenced only by its registered URL/install
+/// spec (never re-fetched or re-tested here) to confirm Beta doesn't share it.
 struct TermiusProbeRecipeTests {
 
     private static let stableBundleID = "com.termius-dmg.mac"
@@ -37,26 +35,6 @@ struct TermiusProbeRecipeTests {
         path: Termius Beta.zip
         sha512: 08ovSDodx5wGBfp/vLCwf49uVACJ9Xj95aPgn7Lm+Z0exazThLdCOVf/LwrRF4hjY+lBUzm4l45lG8rk6D9cLQ==
         releaseDate: '2026-08-12T07:56:45.216Z'
-        rollout:
-          freeUsers: 100
-          paidUsers: 100
-        """
-
-    /// `https://autoupdate.termius.com/mac-arm64/latest-mac.yml` (Stable's own
-    /// feed), same day — proof the two channels read genuinely separate
-    /// endpoints, not a shared one filtered by tag.
-    private static let stableBody = """
-        version: 9.43.1
-        files:
-          - url: Termius.zip
-            sha512: w3b8pZD4Hb8fp4mqdKq2bOH4jp6k7T1WEpVJH8WivQoCM3dyluI8M0agiPxvy/NE97WOYIh0/kmPBjXQQ4r6PA==
-            size: 162402204
-          - url: Termius.dmg
-            sha512: wwEhambXFuGGS9kTTYjWiMvFXyOkJu+mSs/1noudKnu5yttsTDowQsCbS1E/cTK0nPBleKBj/nsbOYYNWqBY4A==
-            size: 169439149
-        path: Termius.zip
-        sha512: w3b8pZD4Hb8fp4mqdKq2bOH4jp6k7T1WEpVJH8WivQoCM3dyluI8M0agiPxvy/NE97WOYIh0/kmPBjXQQ4r6PA==
-        releaseDate: '2026-08-12T08:11:47.041Z'
         rollout:
           freeUsers: 100
           paidUsers: 100
@@ -129,18 +107,18 @@ struct TermiusProbeRecipeTests {
         #expect(!recipe.versionIsBuild)
     }
 
-    /// The beta pattern must not silently also read stable's own feed — not a
-    /// cross-channel risk here (different bundle ids gate which recipe even
-    /// applies), but a broken pattern that happened to read ANY version-shaped
-    /// text would hide a real breakage. Both feeds report 9.43.1 today, which is
-    /// exactly the coincidence the issue flagged as worth re-checking later.
-    @Test func bothFeedsAgreeTodayButAreReadIndependently() throws {
+    /// The two channels must never share one endpoint — not a cross-channel risk
+    /// here (different bundle ids gate which recipe even applies), but a copied
+    /// URL would mean Beta silently started reading Stable's feed.
+    ///
+    /// NOT asserted here: that the two feeds report the same version. Both read
+    /// 9.43.1 as of 2026-08-27 (see the audit doc), which is a fact about that
+    /// day's vendor state, not an invariant of the recipe — the issue itself
+    /// flagged it as "worth re-checking when they diverge". Pinning that
+    /// equality here would turn the normal, expected day the tracks split into
+    /// a test failure.
+    @Test func theBetaAndStableRecipesReadDifferentEndpoints() throws {
         let recipe = try Self.betaRecipe()
-        let betaVersion = try #require(
-            VendorProbeRecipe.extractVersion(from: Self.betaBody, pattern: recipe.versionPattern))
-        let stableVersion = try #require(
-            VendorProbeRecipe.extractVersion(from: Self.stableBody, pattern: recipe.versionPattern))
-        #expect(betaVersion == stableVersion, "true today — 9.43.1 on both tracks")
         #expect(recipe.url != VendorProbeRegistry.recipes
             .first { $0.bundleID == Self.stableBundleID }?.url,
             "the two channels must never share one endpoint")

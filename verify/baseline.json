@@ -1667,14 +1667,6 @@
       "lastGoodVersion" : "12.25.6",
       "sweepsSinceComment" : 0
     },
-    "vendor:com.raycast.macos:stable" : {
-      "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
-      "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-08-27T08:24:58Z",
-      "lastGoodVersion" : "1.104.25",
-      "sweepsSinceComment" : 0
-    },
     "vendor:com.raycast.macos:stable:v1" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,

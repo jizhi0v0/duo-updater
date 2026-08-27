@@ -171,7 +171,17 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 - ✗ **Postman — Canary** · 已停产（cask `postman@canary` 2025-11-15 disabled）
 - ✗ **RustDesk — Nightly** · 同 `com.carriez.rustdesk`，同 repo prerelease，stable rule 已排除
 - ✗ **1Password — Beta** · 同 `com.1password.1password`，cask 装同名同 id；vendor API 仅服务 NIGHTLY 且需 auth
-- ✗ **Raycast — Beta(v2)** · 应用内 opt-in，无独立下载/bundle id
+- ✅ **Raycast — v2** · **更正 2026-08-27**：旧判断「Beta(v2) 应用内 opt-in、无独立下载」已经过期。
+  v2 于 2026-08-25 转正（GA 2.0.6.0），**不是 channel 问题**：Raycast 现在开着两条 train，
+  归属由**机器**而非用户偏好决定 —— v2 要求 macOS Tahoe + Apple Silicon
+  （https://www.raycast.com/new），v1（`releases.raycast.com`，universal）继续为其余机器发版。
+  所以两条都是 `channel: .stable` 的 VendorProbe recipe，用新增的 `hostRequirement`
+  （`minimumSystemVersion: "26.0"` + `architectures: [.arm64]`）而非 `channel` 区分，
+  `variant: "v2"` 保住 v1 的 recipeID/verify 基线。
+  **关键实测（2026-08-27）**：两个端点都**不做门控** —— 把 UA 换成 Intel / Sequoia / 浏览器，
+  `x.raycast-releases.com` 一律 200 返回 2.0.6.0。所以闸必须记在 recipe 里，不能指望 vendor。
+  另：`?version=` 参数只在客户端**落后**时回 200，已是最新则回 **204 No Content**（且只收 4 段版本号，
+  v1 的 3 段会 400），所以 probe 一律**不带** `version`。
 - ✗ **VLC — Nightly** · 同 `org.videolan.vlc`，nightlies 滚动构建无版本语义，不可区分
 - ✗ **Blender — Daily/Alpha/Beta** · 同 bundle id，builder.blender.org 滚动构建，无检测信号
 - ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）

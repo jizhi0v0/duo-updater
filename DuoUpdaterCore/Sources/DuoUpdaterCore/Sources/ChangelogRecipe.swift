@@ -436,11 +436,6 @@ public struct ChangelogRecipe: Codable, Sendable {
     }
 }
 
-/// The verified recipe table. Looked up by bundle id when the detail window opens;
-/// a miss simply means we keep the existing behavior (embed `changelogURL` in a
-/// web view). Adding a recipe is the same loop as a vendor probe: confirm it
-/// extracts real entries from the live page (see `ChangelogExtractorTests`) before
-/// landing it here.
 /// The two spellings BetterDisplay has used for its contributor roster, shared by
 /// its three per-track recipes so a third spelling is added in one place rather
 /// than three. See the recipes' comment for why this is per-app and whole-heading.
@@ -449,6 +444,11 @@ private let betterDisplayContributorRosters = [
     "Localizations included in this release",
 ]
 
+/// The verified recipe table. Looked up by bundle id when the detail window opens;
+/// a miss simply means we keep the existing behavior (embed `changelogURL` in a
+/// web view). Adding a recipe is the same loop as a vendor probe: confirm it
+/// extracts real entries from the live page (see `ChangelogExtractorTests`) before
+/// landing it here.
 public enum ChangelogRecipeRegistry {
     public static let recipes: [ChangelogRecipe] = [
         // Air (JetBrains) — air.dev/changelog is a Vite/React SPA: the HTML is an

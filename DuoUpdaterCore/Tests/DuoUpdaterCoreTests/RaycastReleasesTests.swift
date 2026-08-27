@@ -105,9 +105,26 @@ private let raycastChangelogFixture = #"""
 
     /// A recipe with no requirement is unchanged by the gate — the property that
     /// keeps this field inert for the rest of the registry.
+    ///
+    /// The gated recipes are named rather than counted. A bare count told you a
+    /// number had moved but not which recipe moved it, and gating a recipe is
+    /// exactly the kind of change that must be deliberate: a `hostRequirement`
+    /// DROPS its recipe on machines that fail it, so one added by accident takes
+    /// an app to "unknown" on those Macs and says nothing anywhere.
     @Test func recipesWithoutARequirementRunEverywhere() {
+        let restricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement != nil }
+        #expect(Set(restricted.map(\.recipeID)) == [
+            // Raycast v2: arm64 + macOS 26, with v1 as the fallback train.
+            "vendor:com.raycast.macos:stable:v2",
+            // WorkBuddy: one recipe per architecture per site, so the install URL
+            // can never be the other architecture's zip.
+            "vendor:com.workbuddy.workbuddy-ai:stable:arm64",
+            "vendor:com.workbuddy.workbuddy-ai:stable:x64",
+            "vendor:com.workbuddy.workbuddy:stable:arm64",
+            "vendor:com.workbuddy.workbuddy:stable:x64",
+        ])
         let unrestricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement == nil }
-        #expect(unrestricted.count == VendorProbeRegistry.recipes.count - 1)
+        #expect(unrestricted.count == VendorProbeRegistry.recipes.count - restricted.count)
         #expect(unrestricted.allSatisfy { $0.runs(onOS: "14.0.0", arch: .x86_64) })
     }
 

@@ -4552,6 +4552,13 @@ public enum VendorProbeRegistry {
         // Canva's published base64 sha512 matches the served bytes exactly, so the
         // checksum gate is armed on top of the mandatory Team-ID one.
         //
+        // The download host needs no `requestHeaders`, and that is measured rather
+        // than assumed — it is the failure class that resolves fine and then dies at
+        // download time, which is why AweSun carries a Referer and SourceForge a
+        // deliberately non-browser UA. `desktop-release.canva.com` answers the
+        // downloader's own `DuoUpdater/0.1` with 206 and honours a mid-file Range,
+        // so both the plain fetch and the resume path work unadorned.
+        //
         // No `changelogURL`, deliberately: Canva publishes no desktop release notes.
         // The changelogs on canva.dev belong to the Apps SDK and Connect APIs and
         // describe a different product, and www.canva.com answers a Cloudflare

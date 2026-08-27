@@ -42,4 +42,8 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
   `git stash` / `merge` / `commit` 前先 `git status` + `git stash list`,确认没有另一个会话的在途改动。
 - 找不到某个文件或命令时,先考虑"它在另一个 checkout 里还没提交",不要断言"它不存在"。
 - 解冲突就在冲突块里改,不要把内容追加到文件末尾。
-- 分组提交(引擎 / CLI / 测试 / CHANGELOG),提交前先把分组方案给用户过目;`docs/` 默认不带进来,除非明确要求。
+- 分组提交(引擎 / CLI / 测试 / 文档 / CHANGELOG),提交前先把分组方案给用户过目。
+- **`docs/` 要带进来**,尤其是 `docs/app-audits/`。审计文档是改动的一部分,不是附属品:
+  「厂商包名里的 channel token 是什么」「两轨的版本字段是反的」「这个端点的必填参数会选灰度桶」
+  这类东西,下一个人重新发现一次的代价远高于多提交一个文件。近几个 recipe PR(Canva、
+  WorkBuddy、CapCut)都是连审计文档一起提的,这条曾经写成"默认不带",与实际做法相反。

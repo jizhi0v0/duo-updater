@@ -155,6 +155,17 @@ import Foundation
             isWatched(alfred.standardizedFileURL.path),
             "Alfred's preferences tree is not under any watched root")
     }
+    // CapCut is the case the comment below warns about, made real: it IS
+    // sandboxed, and its choice is in neither `~/Library/Preferences` nor its
+    // container — it is an INI under `~/Movies/CapCut/User Data/Config`. The
+    // generic `~/Library/Preferences/<id>.plist` half of this test passes for it
+    // regardless, which is precisely why it needs its own assertion against the
+    // path its resolver actually reads.
+    for file in [CapCutChannel.updateInfoFileURL, CapCutChannel.packageChannelFileURL] {
+        #expect(
+            isWatched(file.standardizedFileURL.path),
+            "CapCut's \(file.lastPathComponent) — a file its resolver reads — is not under any watched root")
+    }
 
     // Everyone else resolves through `CFPreferencesCopyAppValue`, backed by
     // `~/Library/Preferences/<domain>.plist` for an unsandboxed app.

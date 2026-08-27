@@ -342,6 +342,102 @@ channel, and the live probe's from→to verdict.
 real bundle id / version / channel marker / detected channel / probe verdict per
 channel). That record is what backs a ✓ in the audit docs.
 
+### Phase 3⅞: What else does the vendor's updater DO? (the step that keeps getting skipped)
+
+Phases 1–3¾ all ask the same shape of question: *is there a feed we can read?*
+When the answer is "no", it is easy to write the app up and stop. That is how a
+whole capability goes missing — the audit is not wrong, it is **narrow**.
+
+Ask the orthogonal question: **what does this app's own updater do that we could
+consume, or that would break us if we ignored it?**
+
+**Answer every row in three columns. Never collapse them.**
+
+| | 客户端有这个能力? | 服务端现在真在发? | 我们能消费吗? |
+|---|---|---|---|
+| 增量 / 二进制补丁 | | | |
+| 按设备灰度（同一个 key 因人而异）| | | |
+| 按架构 / 按 OS 分轨 | | | |
+| 自更新器会不会和我们抢 | | | |
+
+Column 1 is usually answered from **strings in the binary**. Column 2 requires
+**hitting the real endpoint**. They are different claims, and a string is never
+evidence for column 2.
+
+This is not hypothetical. The CapCut audit's first draft said "the patch format
+isn't Sparkle's, so consuming it would need new machinery" — both halves wrong,
+both from inferring rather than opening the framework sitting in the bundle. The
+same draft said a field was "absent from `update_reminder`" when that key could
+never have lived there.
+
+**Delta / binary patch — how to actually check:**
+
+```bash
+# 1. Client capability: does the app carry a patch applier at all?
+strings -a "<app>/Contents/Frameworks/<vendor>.dylib" | grep -iE "delta|diffpatch|bspatch|hdiff"
+# Sparkle apps: the applier is in the framework's Autoupdate, NOT the main binary
+strings -a "<app>"/Contents/Frameworks/Sparkle.framework/Versions/*/Autoupdate \
+  | grep -iE "BinaryDelta|SUBinaryDelta|bspatch|sparkle:deltaFrom"
+plutil -p "<app>"/Contents/Frameworks/Sparkle.framework/Versions/*/Resources/Info.plist | grep Version
+
+# 2. Server reality: does a real response actually carry a patch URL?
+#    Do NOT grep for the key name you expect — scan the WHOLE body.
+python3 - <<'PY'
+import re; raw = open("body.json").read()
+print(sorted(set(re.findall(r'"([a-z0-9_.]*(?:diff|delta|patch)[a-z0-9_.]*)"\s*:', raw, re.I))))
+print(re.findall(r'"(https?://[^"]*\.(?:delta|patch|diff))"', raw) or "no patch URL")
+PY
+```
+
+If it is a **Sparkle** binary delta, we already apply it: `DeltaApplier` ships
+Sparkle's own `BinaryDelta`, and `VendorAppcastDeltas` pulls patches out of an
+appcast's `<sparkle:deltas>`. So "can we consume it" is usually a *plumbing*
+question — where does the patch URL come from — not a new-mechanism one.
+
+**Two traps that produced false "no" answers:**
+
+- **Log format strings are column 1, never column 2.** `cfg.diff_url=%s` in a
+  binary means the client can print that field. It says nothing about whether any
+  server populates it.
+- **Check the container before declaring a key absent.** A key spelled
+  `diff_update.enable` in the binary may be a top-level `diff_update` OBJECT in
+  the JSON. Confirm whether the schema is flat or nested (`[k for k in obj if "."
+  in k]`) before reporting "not there".
+
+**A pinned request parameter can silently foreclose this.** If the recipe pins a
+version/id in the query, ask what that pin costs beyond the field you pinned it
+for: patches are typically keyed *from* a version *to* a version, so a pinned
+fake version can never match a patch mapping. Record the cost even when it is
+zero today.
+
+### Reference: what a recipe can already express
+
+An audit that does not know a field exists will report the situation it covers as
+"not supported". Check this list before writing 「不可行」— it is derived from
+`VendorProbeRecipe`'s initializer, so verify against the source if it looks stale.
+
+| Field | Use it when |
+|---|---|
+| `versionIsBuild` | the endpoint's version matches `CFBundleVersion`, not the marketing string |
+| `displayVersionPattern` | the compared value is an ugly build id and there is a human one to show |
+| `publishedAtPattern` | the entry states its own release date (Release Log gets an exact time) |
+| `selectHighest` | the feed lists many releases and document order is not newest-first |
+| `entryStartPattern` | multi-entry feed: slice it so version/URL/date all come from ONE entry |
+| `channel` | this endpoint serves a non-stable track (source refuses cross-channel) |
+| `variant` | one channel legitimately has more than one endpoint worth asking |
+| `hostRequirement` | the build only runs on some Macs (arch / OS floor) — **detection half** |
+| `identities` (`ProbeIdentity`) | the endpoint only answers for a machine id the app already wrote to disk |
+| `track` (`RolloutTrack`) | one URL, several vendor-assigned tracks, picked by a request-borne value |
+| `requestBody` | the service answers nothing to a GET (Omaha-style) |
+| `requestHeaders` | a WAF needs a Referer, or rejects the default browser-ish UA |
+| `followRedirects: false` | the endpoint 302s to a huge binary and the version is in `Location` |
+| `install` + `ChannelProofRegistry` | one-click; a NON-STABLE channel install **requires** a proof entry |
+
+Adjacent machinery an audit should also weigh: `DeltaApplier` (applies Sparkle
+binary patches), `VendorAppcastDeltas` (pulls them out of an appcast),
+`RecipeSanity` (flags a version that appears verbatim in the request URL, and a
+feed that reads behind the installed copy).
+
 ### Phase 4: One-click install feasibility
 
 Only after detection is confirmed. For each supported channel:
@@ -391,6 +487,17 @@ centerpiece — it shows at a glance what's covered and what's not.
 - 源: ...
 - 端点: ...
 - 注意事项: (版本方案陷阱、rollout、WAF 等)
+
+## 增量更新（delta / binary patch）
+> 三栏分开写，每栏标证据来源。空着不如写「没查」。
+
+| | 客户端能力 | 服务端实际下发 | 我们能否消费 |
+|---|---|---|---|
+| 结论 | 有/无/没查 | 有/无/没查 | 能/不能/没查 |
+| 证据 | (binary strings / framework) | (真实响应，注明 date + 参数) | (哪条现成机制，或缺什么) |
+
+- 格式: Sparkle binary delta / 厂商自有 / 未知
+- 阻塞项: ...
 
 ## Changelog
 - 来源: Sparkle inline / recipe / WebView / 无

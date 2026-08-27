@@ -77,6 +77,48 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   枚举)，channel 门控路由到 `pkgs.tailscale.com/unstable` probe。`pkgs.tailscale.com/rc`
   **404**（无第三消费轨，已否决）。stable/unstable changelog 共用 tailscale.com/changelog。
 
+### Pattern B/C 续 — CapCut（2026-08-27 接 beta）
+
+- **CapCut** `com.lemon.lvoverseas` — 「Version update」窗口里的 **"Get early access to
+  beta features"** 复选框。信号**不在 UserDefaults 也不在沙盒容器里**：CapCut 是沙盒 app
+  （域在 `~/Library/Containers/com.lemon.lvoverseas/Data/Library/Preferences/`），但两个
+  plist 都没有这个键；Qt 把它写进容器外的 INI —— `~/Movies/CapCut/User Data/Config/
+  updateInfo` 的 `[General] joinBeta=true`。同目录 `globalSetting` 的 `enableAutoUpdate`
+  是**另一组**单选（自动装 vs 只通知），不是渠道，别读错。
+- 装机侧还有一个只读的构建标记：`Contents/Resources/PackageConfig.plist` →
+  `Channel Name`（stable 装机实测 `capcutpc_0`，beta 包名里是 `capcutpc_beta`）；
+  CapCut 自己把它抄进同目录的 `channel` 文件（`tea_channel=capcutpc_0`），所以不用
+  找 bundle 路径也能读到。**只在 `joinBeta` 完全没记录时**才用它兜底 —— binding 是
+  authoritative、会顶掉 `ReleaseChannel.detect()`，而 detect() 对 CapCut **不是**空
+  操作（beta 版本号带 `-betaN`，step 4 本来就判 `.beta`）；没记录就答 stable 会把一台
+  从没开过更新窗口的 beta 机器降级成 stable 并藏掉它的更新。`joinBeta=false`（用户显式
+  退出）仍然答 stable。
+- 门控方式 = channel-gated VendorProbe（无 feed-swap：CapCut 内嵌 Sparkle 只负责装，
+  没有 `SUFeedURL`，更新决策来自 ByteDance Settings SDK 的 `update_reminder.*`）。
+  两轨同一个匿名端点：`editor-api.capcutapi.com/service/settings/v3/`
+  （`aid=359289&device_platform=mac&channel=capcutpc_0&version_code=9.99`，四个参数缺一
+  就没有 `update_reminder`）。stable 读 `lastest_stable_url`、beta 读 `lastest_url`，
+  版本从包名的 `CapCut_9_3_0_4490_capcutpc_0_…` 里按段抽再用 `.` 拼。
+- 三个坑记在 `VendorProbeRecipe.swift` 的注释里：`update_url` 是**按设备灰度**的选择
+  （本机缓存里是 stable、匿名请求里是 beta，两轨都不能读它）；`lastest_sync_url` 是同一
+  对象里**第三个** `capcutpc_beta` 包且 build 更旧；`version_code` 会选灰度桶（实测
+  `1.0.0` 落到旧桶、`10.0.0` 直接没有 `update_reminder`）。
+- **两轨版本字段是反的**（挂载真包量的）：stable 的 short=version=`9.3.0`；beta 的
+  short=`9.3.4531`（没有任何 channel 词）、version=`9.4.0-beta4`。两个后果：
+  (a) `detect()` 拿的是 short，对 beta 装机**判不出 beta**，所以 `CapCutChannel` 是唯一信号；
+  (b) beta 配方必须 `versionIsBuild: true`，否则 `9.4.0-beta4` 比 `9.3.4531` 永远更新，
+  正在跑 beta4 的人会被无限劝装 beta4。
+- **两轨一键都已接**：`kind: .dmg`，`hostRequirement` = arm64（实测 `lipo` 只有 arm64，
+  厂商只发一份产物），Team `22MMUN2RN5` + notarized（两个真实 dmg 都核过，beta 轨还跑过
+  一次生产 `vendorDownloadPassesSignatureGate`：真下载 1.24 GB、真解包、真过闸），
+  dmg 里只有 `CapCut.app` + `/Applications` 软链，无 pkg / 无 launch item（brew cask
+  的 `{"app": ["CapCut.app"]}` + 只 `quit` 的 uninstall 是第二证人）。厂商只给 MD5，
+  `checksumPattern` 吃 base64 SHA-512，故未武装 checksum，Team 闸兜底。每次 ~1.24 GB。
+- `ChannelProofRegistry` 已登记 beta：`.artifact(#"_capcutpc_beta_"#)` —— token 是从
+  beta dmg 自己的 `PackageConfig.plist` 读的，不是照文件名习惯推的。
+- 同 bundle id 还有一份 **MAS 副本（adamId 1500855883，版本 19.2.0）**，版本方案完全不同；
+  两边不串全靠 `_MASReceipt`（`VendorProbeSource` 拒 MAS、`MacAppStoreSource` 拒非 MAS）。
+
 ### Pattern A 续 — VS Code Insiders（2026-06-06 接）
 
 - **VS Code Insiders** `com.microsoft.VSCodeInsiders`（显示名 "Code - Insiders" → detect

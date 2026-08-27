@@ -3091,8 +3091,25 @@ final class AppListModel {
     /// caller gates on `canDiscardStagedPackage`.
     func discardStagedPackage(_ result: UpdateResult) async {
         guard let staged = stagedPackages[result.id] else { return }
-        _ = await InstallerWindowCloser.closeWindow(showing: staged.url)
-        _ = PackageInstaller.discardWorkDirectory(containing: staged.url)
+        // Reclaiming the disk is conditional on the window actually closing, and
+        // that is not belt-and-braces: `discardWorkDirectory` is a recursive
+        // delete whose own contract says the caller MUST have confirmed the
+        // Installer window is closed, because pulling the file out from under an
+        // open window breaks the install in progress. `closeWindow` returns false
+        // without Accessibility trust — which is optional in this app, so for a
+        // user who never granted it that was the DEFAULT path, not a race — and
+        // also when the window is mid-install or a SecurityAgent prompt is up.
+        // The row's menu item stays live throughout an install (`packageRestartPending`
+        // only fills once the new version has landed), so "mid-install" is
+        // reachable by an ordinary click.
+        //
+        // Leaving the file is the safe half of the trade and costs nothing: the
+        // 24-hour sweep reclaims it. Forgetting the entry below stays
+        // unconditional — the user asked, and the row must not go on offering an
+        // Install they have said they don't want.
+        if await InstallerWindowCloser.closeWindow(showing: staged.url) {
+            _ = PackageInstaller.discardWorkDirectory(containing: staged.url)
+        }
         // Re-check before forgetting anything: closing the window is a detached
         // AX conversation that can take seconds, and this model is @MainActor, so
         // an install already in flight for this row can reach
@@ -3102,7 +3119,13 @@ final class AppListModel {
         // megabytes again, which is the exact waste staging exists to prevent —
         // and would wipe that install's progress note on the way past. Same
         // re-check, for the same reason, as `retireStagedPackage` above.
-        guard stagedPackages[result.id]?.url == staged.url else { return }
+        guard stagedPackages[result.id]?.url == staged.url else {
+            // Said out loud rather than returning in silence: from the user's
+            // side their Discard did nothing and the row still offers Install,
+            // and without this line there is no way to tell that from a bug.
+            Log.install.info("package discard superseded mid-close: \(result.app.name, privacy: .public) — a newer package was staged while the Installer window was closing, and it is kept")
+            return
+        }
         stagedPackages[result.id] = nil
         persistStagedPackages()
         installNotes[result.id] = nil

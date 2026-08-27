@@ -186,6 +186,72 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 
 ---
 
+## §2c 扫描 2026-08-27（CapCut 落地后复扫）
+
+**方法**（复现用，别凭记忆重列一遍）：
+
+1. 已覆盖集从**代码**再生成，不信本账本 —— `python3` 配对 `VendorProbeRecipe.swift` /
+   `GitHubReleasesSource.swift` 里的 `bundleID:`→`channel:`，加 `*Channel.swift` 的
+   `bundleID`。结果：VendorProbe 116 个 id / 32 个带非 stable channel；GitHub 67 / 4；
+   ChannelBinding 12 个 app。
+2. 本机 138 个 app 逐个读 `Info.plist` 取 bundle id，减去已覆盖 → 121 个候选池。
+3. Homebrew **全量** cask API（7712 条）里找 `@beta|@nightly|@dev|@canary|@preview|
+   @insiders|@alpha|@rc|@snapshot` 变体（129 个 base），与本机安装交集 → 16 个。
+4. **本机 preferences 全扫**（`~/Library/Preferences` + 沙盒容器 + Application Support，
+   顶层键与嵌套键两遍）找已经写下渠道信号的域。
+
+### 最重要的是一条阴性结论
+
+**第 4 步在未覆盖的 app 里一个新的 B/C 信号都没扫到。** 命中的只有已覆盖的
+`com.netease.uuremote`（`channel=gwqd`）和自家 `ClaudeUsageMenuBar`（见下）。
+其余全是误报（`previewCorner`、`ImagePreviewTranslate*`、`KeyboardShortcuts_togglePreview`
+这类 UI 键）。
+
+意思是：**这台机器上「app 内拨开关 + 已留下可读信号」这口井基本打干了**。剩下的缺口不是
+「还没找」，是「必须先装一份 beta 包才能回答」。
+
+### ClaudeUsageMenuBar —— 查了，不是缺口
+
+`com.jizhi0v0.claude-usage.menubar`，prefs 里有 `sparkleIncludePrereleases=true`
+（DuoPaste 同款键），appcast 20 条 item **全部**带 `<sparkle:channel>beta</sparkle:channel>`、
+零条无标签，装机版本 `0.3.384-beta.1440+fd58749`。
+
+一度以为是缺口（`ReleaseChannel.detect()` 对 `-beta.NNNN+sha` 这种形状故意不判 beta，
+所以会读成 stable）。**实测推翻**：`duo check --json` 显示 `source: Sparkle` /
+`status: up-to-date` / latest == installed —— `SparkleAppcastSource` 会从**装机构建反推**
+`<sparkle:channel>`，beta 条目没被滤掉。**不需要 ChannelBinding，勿重开。**
+
+### Pattern A 未覆盖 —— 四个（本机装了 stable，未装对应渠道）
+
+| cask 变体 | 装出来的 app | 本机 stable |
+|---|---|---|
+| `postman@canary` | `PostmanCanary.app` | Postman 12.25.6 |
+| `termius@beta` | `Termius Beta.app` | Termius 9.43.1 |
+| `db-browser-for-sqlite@nightly` | `DB Browser for SQLite Nightly.app` | 3.13.1 |
+| `vscodium@insiders` | `VSCodium - Insiders.app` | 1.126.04524 |
+
+→ 各自 `/app-audit`，但**都得先装一份对应渠道的包**才能拿到 bundle id 和版本方案，
+否则只是猜。四个都不急。
+
+### 同 bundle id + `@channel` cask —— 七个（渠道在**下载时**选，不是 app 内切）
+
+`keepassxc`(@beta/@snapshot)、`keka@beta`、`kitty@nightly`、`telegram-desktop@beta`、
+`utm@beta`、`vlc@nightly`、`freelens@nightly` —— cask 装出来是**同名 app**。
+
+对检测而言，关键问题不是「有没有开关」，而是**「装上非 stable 包之后，bundle 里有没有
+渠道标记」**（CapCut 的 `PackageConfig.plist` → `Channel Name` 就是这种标记，而它的
+`CFBundleShortVersionString` 反而**不带**任何 channel 词）。这个问题**只有拿到真包才能
+回答**，凭 cask 元数据答不了。
+
+> 注意 `vlc@nightly`：VLC 的 stable 已在 VendorProbe 覆盖（`org.videolan.vlc`），
+> nightly 是否同 id 未查。
+
+**下一步的正确顺序**：想做哪个，先装那个渠道的包 → `/app-audit` → 读 bundle 里的
+`Info.plist` 两个版本字段 + 找有没有类似 `PackageConfig.plist` 的渠道标记 →
+`channel-verify` 真机跑绿。
+
+---
+
 ## §3 死轨 — Pattern D / 不可行（已否决，**勿重开**）
 
 同 stable bundle id 会就地覆盖、或纯应用内/服务端 opt-in 无本地痕迹、或已停产。

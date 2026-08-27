@@ -13,13 +13,25 @@ import Foundation
 /// neither may ever carry an install spec.
 ///
 /// Detection for these two channels doesn't exist yet (blocked on #93), so
-/// today this iterates zero matching recipes — that's expected. The guard is
-/// for the day a nightly/snapshot-channel recipe gets added and copy-pastes an
-/// `install:`/`installAssetPattern` from a sibling nightly that (unlike these
-/// two) genuinely is notarized, e.g. Freelens or DB Browser nightly.
+/// today each `where` below matches zero recipes — that's expected, not a
+/// broken filter. What tells the two apart is the presence anchor each test
+/// starts with: it fails if the bundle id it's filtering for ever stops
+/// existing in the registry at all (typo'd, renamed by the vendor, or moved
+/// to a different registry), which is exactly the failure mode that would
+/// otherwise leave the `where` silently matching nothing forever while this
+/// suite kept reporting green. Once a real non-stable recipe exists, the
+/// second `#expect` in each test starts actually exercising the guard: no
+/// `install:`/`installAssetPattern` may be copy-pasted onto it from a sibling
+/// nightly that (unlike these two) genuinely is notarized, e.g. Freelens or
+/// DB Browser nightly.
 @Suite struct UnsignedNightlyInstallSpecTests {
 
     @Test func vlcNonStableRecipesCarryNoInstallSpec() {
+        // Presence anchor — see suite doc comment.
+        #expect(
+            VendorProbeRegistry.recipes.contains { $0.bundleID == "org.videolan.vlc" },
+            "org.videolan.vlc is no longer in VendorProbeRegistry — this test's filter would be vacuous")
+
         for recipe in VendorProbeRegistry.recipes
         where recipe.bundleID == "org.videolan.vlc" && recipe.channel != .stable {
             #expect(
@@ -29,6 +41,11 @@ import Foundation
     }
 
     @Test func keePassXCNonStableRulesCarryNoInstallSpec() {
+        // Presence anchor — see suite doc comment.
+        #expect(
+            GitHubReleaseRegistry.rules.contains { $0.bundleID == "org.keepassxc.keepassxc" },
+            "org.keepassxc.keepassxc is no longer in GitHubReleaseRegistry — this test's filter would be vacuous")
+
         for rule in GitHubReleaseRegistry.rules
         where rule.bundleID == "org.keepassxc.keepassxc" && rule.channel != .stable {
             #expect(

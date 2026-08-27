@@ -995,25 +995,12 @@ private func verdict(
     #expect(canary.entryStartPattern != nil,
             "the fix opts the canary recipe into entry-scoped resolution")
 
-    // Same shipping recipe (same versionPattern/displayVersionPattern/install,
-    // straight from the registry), pointed at a loopback copy of the real
-    // body, with only `entryStartPattern` swapped — so this is a true A/B on
-    // the ONE thing the fix changes, not two hand-written recipes drifting
-    // independently of what actually ships.
-    func pointedAt(_ url: URL, entryStartPattern: String?) -> VendorProbeRecipe {
-        VendorProbeRecipe(
-            bundleID: canary.bundleID, url: url, mode: canary.mode,
-            versionPattern: canary.versionPattern, downloadURL: canary.downloadURL,
-            changelogURL: canary.changelogURL, selectHighest: canary.selectHighest,
-            versionIsBuild: canary.versionIsBuild,
-            displayVersionPattern: canary.displayVersionPattern,
-            publishedAtPattern: canary.publishedAtPattern,
-            entryStartPattern: entryStartPattern,
-            install: canary.install, requestBody: canary.requestBody,
-            requestHeaders: canary.requestHeaders, followRedirects: canary.followRedirects,
-            channel: canary.channel)
-    }
-
+    // Same shipping recipe object, straight from the registry, pointed at a
+    // loopback copy of the real body via `with(url:)` and `with(entryStartPattern:)`
+    // — copy methods that carry over EVERY other field, so this is a true A/B on
+    // the ONE thing the fix changes, not two hand-copied recipes that could
+    // silently drift from what actually ships (see those methods' doc: an
+    // earlier hand-copy here dropped `identities`/`track`/`variant`).
     let server = try RecipeVerificationTests.StubServer(body: body)
     defer { server.stop() }
 
@@ -1021,7 +1008,7 @@ private func verdict(
     // as it shipped before this fix) and the plain first-match over the whole
     // feed lands on the older 261 train's RC, exactly as `duo verify` caught.
     let redOutcome = await VendorProbeSource().probeDiagnostic(
-        pointedAt(server.url, entryStartPattern: nil))
+        canary.with(url: server.url).with(entryStartPattern: nil))
     #expect(
         redOutcome.remote?.version == "AI-261.26222.65.2614.16166871",
         "pre-fix recipe should reproduce the reported bug: first match over the whole feed lands on the older train's RC")
@@ -1030,8 +1017,7 @@ private func verdict(
     // GREEN — the shipping recipe resolves the entry whose OWN build compares
     // highest: version, display and the install URL all agree on the SAME
     // entry, the newer 262 train's Canary 2.
-    let outcome = await VendorProbeSource().probeDiagnostic(
-        pointedAt(server.url, entryStartPattern: canary.entryStartPattern))
+    let outcome = await VendorProbeSource().probeDiagnostic(canary.with(url: server.url))
     #expect(outcome.remote?.version == "AI-262.9437.185.2621.16128175")
     #expect(outcome.remote?.shortVersion == "2026.2.1 Canary 2")
     #expect(
@@ -1082,6 +1068,82 @@ private func verdict(
         in: onlySecondMatches, entryStartPattern: #"\{"date":""#,
         versionPattern: #""build":"(AI-[^"]+)""#)
     #expect(winner?.contains(#""build":"AI-9.0""#) == true)
+}
+
+/// A typo'd `entryStartPattern` doesn't fail loudly: `highestVersionEntry`
+/// swallows an uncompilable regex with `try?` and falls back to whole-body
+/// first-match — the exact pre-#76 behaviour, with nothing logged anywhere.
+/// This is the only net that would catch that mistake before it ships, so it
+/// has to be registry-wide, not just Android Studio's two recipes.
+@Test func entryStartPatternsInTheRegistryAreValidRegexes() {
+    for recipe in VendorProbeRegistry.recipes {
+        guard let pattern = recipe.entryStartPattern else { continue }
+        #expect(
+            (try? NSRegularExpression(pattern: pattern)) != nil,
+            "\(recipe.bundleID) [\(recipe.channel.rawValue)]: entryStartPattern '\(pattern)' does not compile as a regex")
+    }
+}
+
+/// The primitive's central claim — version/display/URL can never land on
+/// different releases — holds only while `entryStartPattern` slices BETWEEN
+/// items. If a future feed nested the start marker inside one item, the
+/// winning "entry" would straddle two releases: this pins that `entryStartPattern`
+/// declines (falls back to nil, same as any other disqualified winner) rather
+/// than silently trusting a slice that isn't self-contained.
+@Test func highestVersionEntryDeclinesAWinningEntryThatContainsMoreThanOneRelease() {
+    // Two `{"date":"` slices, but the SECOND one (which would win — "9.0" >
+    // "1.0") is contaminated: it contains two `versionPattern` matches, as if
+    // `entryStartPattern` had split mid-item and folded a second release's
+    // fields into what should have been one entry.
+    let midItemSplit =
+        #"{"date":"a","build":"AI-1.0"}{"date":"b","build":"AI-9.0"}{"stray":"AI-9.5"}"#
+    #expect(
+        VendorProbeRecipe.highestVersionEntry(
+            in: midItemSplit, entryStartPattern: #"\{"date":""#,
+            versionPattern: #"AI-([0-9.]+)"#) == nil,
+        "a winning entry with more than one versionPattern match must decline, not silently trust the slice")
+
+    // Control: the same shape, but the winning entry is clean (exactly one
+    // match) — must still resolve normally.
+    let clean = #"{"date":"a","build":"AI-1.0"}{"date":"b","build":"AI-9.0"}"#
+    let winner = VendorProbeRecipe.highestVersionEntry(
+        in: clean, entryStartPattern: #"\{"date":""#, versionPattern: #"AI-([0-9.]+)"#)
+    #expect(winner?.contains("AI-9.0") == true)
+}
+
+/// `selectHighest` must mean the same thing whether or not `entryStartPattern`
+/// is also set: entries are scored by the SAME extractor
+/// (`highestVersion`/`extractVersion`) the caller will apply to the winner
+/// afterwards, so the two can't disagree about which entry "the highest
+/// version" even refers to. No registry recipe combines the two today, but the
+/// primitive must not silently narrow `selectHighest`'s meaning if one does.
+@Test func highestVersionEntryScoresBySelectHighestWhenTheRecipeAsksForIt() {
+    // Entry A's FIRST match ("1.0") is lower than entry B's ("2.0"), but A
+    // contains a SECOND, higher match ("9.0") buried later — exactly the shape
+    // `selectHighest` exists to find over a whole body.
+    let body = #"{"date":"a","build":"AI-1.0","note":"superseded by AI-9.0"}{"date":"b","build":"AI-2.0"}"#
+    let pattern = #"AI-([0-9.]+)"#
+
+    // Without `selectHighest`, each entry is scored by its FIRST match: A
+    // reads "1.0", B reads "2.0" — B wins, and it has only one match, so no
+    // other invariant gets in the way.
+    let firstMatchWinner = VendorProbeRecipe.highestVersionEntry(
+        in: body, entryStartPattern: #"\{"date":""#, versionPattern: pattern)
+    #expect(firstMatchWinner?.contains(#""build":"AI-2.0""#) == true)
+    #expect(
+        firstMatchWinner.flatMap { VendorProbeRecipe.extractVersion(from: $0, pattern: pattern) }
+            == "2.0")
+
+    // WITH `selectHighest`, each entry is scored by its OWN highest match: A
+    // reads "9.0" (beating its own first-match "1.0"), B still reads "2.0" —
+    // A wins this time, even though A's first match alone would have lost.
+    let highestMatchWinner = VendorProbeRecipe.highestVersionEntry(
+        in: body, entryStartPattern: #"\{"date":""#, versionPattern: pattern, selectHighest: true)
+    #expect(highestMatchWinner?.contains("AI-1.0") == true)
+    #expect(
+        highestMatchWinner.flatMap { VendorProbeRecipe.highestVersion(from: $0, pattern: pattern) }
+            == "9.0",
+        "a selectHighest recipe must report 9.0, not silently degrade to entry-scored first-match (2.0)")
 }
 
 /// A stability-floor recipe's `ChannelArtifactProof` must accept EVERY build that

@@ -222,16 +222,16 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 `status: up-to-date` / latest == installed —— `SparkleAppcastSource` 会从**装机构建反推**
 `<sparkle:channel>`，beta 条目没被滤掉。**不需要 ChannelBinding，勿重开。**
 
-### Pattern A 未覆盖 —— 三个（`termius@beta` 已接，见 §1）
+### Pattern A 未覆盖 —— 两个（`termius@beta` 已接，见 §1；VSCodium Insiders 已接，
+见 issue #92、`docs/app-audits/com-vscodium-VSCodiumInsiders.md`）
 
 | cask 变体 | 装出来的 app | 本机 stable |
 |---|---|---|
 | `postman@canary` | `PostmanCanary.app` | Postman 12.25.6 |
 | `db-browser-for-sqlite@nightly` | `DB Browser for SQLite Nightly.app` | 3.13.1 |
-| `vscodium@insiders` | `VSCodium - Insiders.app` | 1.126.04524 |
 
 → 各自 `/app-audit`，但**都得先装一份对应渠道的包**才能拿到 bundle id 和版本方案，
-否则只是猜。三个都不急。
+否则只是猜。两个都不急。
 
 ### 同 bundle id + `@channel` cask —— 七个（渠道在**下载时**选，不是 app 内切）
 
@@ -255,7 +255,7 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 |---|---|---|---|---|---|
 | **Termius Beta** | `com.termius-beta.mac` 9.43.1 | **独立** | `CFBundleName`="Termius Beta" | Team `6KN952WR85` 公证 | **A，可接** |
 | **VSCodium Insiders** | `com.vscodium.VSCodiumInsiders` 1.126.04518-insider | **独立** | app 名 + 版本后缀 | Team `VC39D2VNQ7` 公证 | **A，可接** |
-| **DB Browser nightly** | 同 id 3.13.99 | 同 | **只有 app 文件名** `DB Browser for SQLite Nightly.app`（`CFBundleName` 仍是 "DB Browser for SQLite"）| Team `88DD6Y8X83` 公证 | **A-ish**，靠文件名，同 Android Studio 那条 `detect` step 0.5 |
+| **DB Browser nightly** | 同 id 3.13.99 | 同 | **只有 app 文件名** `DB Browser for SQLite Nightly.app`（`CFBundleName` 仍是 "DB Browser for SQLite"）| Team `88DD6Y8X83` 公证 | **A-ish**，靠文件名，`detect()` 已有自己的 step 0.6（issue #94；不是复用 Android Studio 的 step 0.5）|
 | **Freelens nightly** | 同 id `2.0.0-0-nightly-2026-08-26` | 同 | **版本串带 `nightly`** | Team `TFR6NT55MB` 公证 | 可接，但要给 `detect()` 加规则 |
 | **VLC nightly** | 同 id `4.0.0-dev` | 同 | 版本串带 `-dev` | **未签名**（`TeamIdentifier=not set`）| 检测可做，**一键不可**（Team 闸必拒）→ 立项 #95，`docs/app-audits/org-videolan-vlc.md` |
 | **KeePassXC snapshot** | 同 id `2.8.0-snapshot` | 同 | 版本串带 `-snapshot` | **无可用签名** | 同上；且该 URL 只有 x86_64（已核实无 arm64 替代路径）→ 立项 #95，`docs/app-audits/org-keepassxc-keepassxc.md` |
@@ -299,9 +299,12 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
    **错的**：`com.termius.mac` 是 MAS 沙盒购买副本，装机验证 `MacAppStoreSource`
    通用覆盖，不需要 registry；真正的官网 dmg stable 是 `com.termius-dmg.mac`，
    2026-08-16 已经在 `VendorProbeRecipe` 里注册，只是当时没人把两个 bundle id
-   对上号。**VSCodium Insiders** —— 独立 id、已公证，最省事，仍待接。
-2. **DB Browser nightly** —— 需要文件名检测，有 Android Studio 的现成范式。
-3. **Freelens / VLC / KeePassXC** —— 要先给 `detect()` 加版本串规则；后两者只能检测不能一键。
+   对上号。**VSCodium Insiders** —— 独立 id、已公证，已接（issue #92，2026-08-27，
+   `docs/app-audits/com-vscodium-VSCodiumInsiders.md`）。
+2. **DB Browser nightly** —— 需要文件名检测，有 Android Studio 的现成范式（`detect()`
+   已有自己的 step 0.6，见上）。
+3. **Freelens / VLC / KeePassXC** —— `detect()` 的版本串规则已加（issue #93 已解决）；
+   VLC/KeePassXC 尚未接 recipe，且后两者只能检测不能一键（未签名，见 issue #95）。
 4. **UTM / kitty** —— 归入 §3 死轨，本地无信号。
 
 ---
@@ -346,9 +349,10 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
   v1 的 3 段会 400），所以 probe 一律**不带** `version`。
 - ✗ **VLC — Nightly** · 同 `org.videolan.vlc`，nightlies 滚动构建无版本语义，不可区分
   **更正 2026-08-27（§2c）**：这条判断已过期——版本串其实带 `-dev`（`4.0.0-dev`），
-  只是现有 `detect()` 不认这种形状（阻塞于 #93）。真正永久挡住的不是检测，是签名：
-  nightly 完全未走 Developer ID（`TeamIdentifier=not set`），一键永远过不了
-  `VendorInstaller` 的 Team 闸。见 issue #95、`docs/app-audits/org-videolan-vlc.md`。
+  `detect()` 现在能认出这种形状（#93 已解决），只是仓库尚未为它接一条 recipe。
+  真正永久挡住的不是检测，是签名：nightly 完全未走 Developer ID
+  （`TeamIdentifier=not set`），一键永远过不了 `VendorInstaller` 的 Team 闸。
+  见 issue #95、`docs/app-audits/org-videolan-vlc.md`。
 - ✗ **Blender — Daily/Alpha/Beta** · 同 bundle id，builder.blender.org 滚动构建，无检测信号
 - ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）
 - ✗ **GitHub Desktop — Beta** · 同 `com.github.GitHubClient`，beta tag 是 prerelease，stable rule 已排除

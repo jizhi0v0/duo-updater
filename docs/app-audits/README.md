@@ -27,7 +27,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**DuoPaste**](io-duopaste-daemon.md) · `io.duopaste.daemon` — B(stable/beta) · 2 channels, shared ID + channel-tag ChannelBinding · **beta + stable 两 channel 真机验证 ✓**（beta 用 `…-beta` 构建；stable 经 `sparkleIncludePrereleases` 取值验证，改动已还原）· 2026-06-04
 - [x] [**CleanShot X**](pl-maketheweb-cleanshotx.md) · `pl.maketheweb.cleanshotx` — C B(license feed) · license-keyed Sparkle feed · **stable 本机验证 ✓**（legit feed head=4.8.8=installed）· 2026-06-04
 - [x] [**CapCut**](com-lemon-lvoverseas.md) · `com.lemon.lvoverseas` — P(stable/beta) B · 2 channels, shared ID + ChannelBinding（`joinBeta` 在容器外的 INI）· **全 channel 一键 ✓**（Team 22MMUN2RN5，两轨真实 dmg 挂载核对）· **两轨版本字段是反的**（beta 的 short=`9.3.4531` / version=`9.4.0-beta4`，故 beta `versionIsBuild:true`）· 同 id 有 MAS 副本（19.2.0），靠 `_MASReceipt` 分流 · 2026-08-27
-- [x] [**Termius**](com-termius-dmg-mac.md) · 三个独立 bundle id：`com.termius.mac`（MAS，`MacAppStoreSource` 通用覆盖，无 registry）/ `com.termius-dmg.mac`（官网 dmg，P stable，既有）/ `com.termius-beta.mac`（P beta，本次新增）— **全 channel 一键 ✓**（beta 用 universal dmg，Team 6KN952WR85）· stable 既有 recipe 装错架构（Intel 会装 arm64-only）已拆分为独立任务 · issue #91 · 2026-08-27
+- [x] [**Termius**](com-termius-dmg-mac.md) · 三个独立 bundle id：`com.termius.mac`（MAS，`MacAppStoreSource` 通用覆盖，无 registry）/ `com.termius-dmg.mac`（官网 dmg，P stable，既有）/ `com.termius-beta.mac`（P beta，本次新增）— **全 channel 一键 ✓**（beta 用 universal dmg，Team 6KN952WR85）· stable 既有 recipe 的 arm64-only 一键是刻意的 arm64-pin（DuoUpdater 自身 arm64-only），不是 bug；真正待修的是 `changelogURL` 404，已拆分为独立任务 · issue #91、#102 · 2026-08-27
 
 ## Microsoft Office family
 
@@ -64,7 +64,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Conductor** · `com.conductor.app` — P C · ✓ src=Vendor
 - [x] **Postman** · `com.postmanlabs.mac` — P C (one-click) · ✓ src=Vendor
 - [x] **AweSun** · `com.oray.sunlogin.macclient` — P C (one-click, WAF) · ✓ src=Vendor
-- [x] [**VLC**](org-videolan-vlc.md) · `org.videolan.vlc` — P C (one-click, two-stage changelog) · ✓ src=Vendor · nightly 共享 bundle id，未签名 → **一键永久不可**，检测阻塞于 #93（issue #95）
+- [x] [**VLC**](org-videolan-vlc.md) · `org.videolan.vlc` — P C (one-click, two-stage changelog) · ✓ src=Vendor · nightly 共享 bundle id，未签名 → **一键永久不可**，检测已可行（#93 已解决），尚未接 recipe（issue #95）
 - [ ] **Docker** · `com.docker.docker` — P · ⏭ skipped (cask now needs sudo to install)
 - [x] **Raycast** · `com.raycast.macos` — P · ✓ src=Vendor
 - [x] **Alfred** · `com.runningwithcrayons.Alfred` — P · ✓ src=Vendor
@@ -101,7 +101,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Stats** · `eu.exelban.Stats` — G (one-click) · ✓ src=GitHub · [audit](eu-exelban-Stats.md)
 - [x] **DBeaver** · `org.jkiss.dbeaver.core.product` — G · ✓ src=GitHub
 - [x] **Beekeeper Studio** · `io.beekeeperstudio.desktop` — G · ✓ src=GitHub
-- [x] [**KeePassXC**](org-keepassxc-keepassxc.md) · `org.keepassxc.keepassxc` — G (one-click) · ✓ src=GitHub · snapshot 共享 bundle id，完全无签名 → **一键永久不可**，检测阻塞于 #93（issue #95）
+- [x] [**KeePassXC**](org-keepassxc-keepassxc.md) · `org.keepassxc.keepassxc` — G (one-click) · ✓ src=GitHub · snapshot 共享 bundle id，完全无签名 → **一键永久不可**，检测已可行（#93 已解决），尚未接 recipe（issue #95）
 - [x] [**Insomnia**](com-insomnia-app.md) · `com.insomnia.app` — G C (one-click) · ✓ src=GitHub · changelog=insomnia.rest(`__NEXT_DATA__` JSON) · 修 stable 跨渠道误推（pattern 加 `$` 锚，2026-06-06）· beta/alpha 受阻于 detect() 不解析 `-beta.N` 后缀
 - [x] **Pearcleaner** · `com.alienator88.Pearcleaner` — G · ✓ src=GitHub
 - [x] **Macs Fan Control** · `com.crystalidea.macsfancontrol` — G · ✓ src=GitHub

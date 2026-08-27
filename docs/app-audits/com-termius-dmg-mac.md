@@ -47,16 +47,22 @@ channel gap, it is a whole app we do not answer for」。这条断言不准确**
   不是一份共享 manifest），随时可能分叉，recipe 已按各自独立端点实现，不依赖这条
   巧合。
 
-**本审计还发现两条 issue 未涉及、且发现前既存于仓库的问题**（均已作为独立任务标记，
+**本审计还发现一条 issue 未涉及、且发现前既存于仓库的问题**（已作为独立任务标记，
 不在本 PR 修复范围）：
 
-1. **`com.termius-dmg.mac` 现有 recipe 的一键安装装错架构**：其 `install` 固定指向
-   `https://autoupdate.termius.com/mac-arm64/Termius.dmg`——挂载后 `lipo -info`
-   证实是 **纯 arm64**（Non-fat file）。Intel Mac 上一键安装会装上一个打不开的
-   二进制。
-2. **该 recipe 的 `changelogURL` 已经 404**：`https://termius.com/release-notes`
+1. **该 recipe 的 `changelogURL` 已经 404**：`https://termius.com/release-notes`
    在 2026-08-27 直接返回 404（`curl` 复测，不是 HEAD 误报），且该路径不在
    `https://termius.com/sitemap.xml` 里——网站已经改版，没有替代的 changelog 页。
+   见 issue #102。
+
+**审计过程中还核实了一条看起来像 bug、实际不是的观察**：`install` 固定指向
+`https://autoupdate.termius.com/mac-arm64/Termius.dmg`，挂载后 `lipo -info`
+证实是纯 arm64（Non-fat file）。这**不是**架构 bug——DuoUpdater 自身就是
+arm64-only（`App/project.yml` 的 `ARCHS: arm64`，理由是 registry 本来就
+全线只提供 arm64 端点/安装资产，universal 的 DuoUpdater 反而会把 Intel Mac
+骗去装打不开的 app），所以**不存在需要被服务的 Intel host**，pin 住
+`mac-arm64` 是正确设计，不是遗漏。issue #102 记录了这条更正，并且保留了
+最初的错误论断以防被重新提起。
 
 ## 覆盖矩阵
 
@@ -65,7 +71,7 @@ channel gap, it is a whole app we do not answer for」。这条断言不准确**
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable (MAS)** `com.termius.mac` | — | — | ✓（通用） | — | — |
-| **stable (dmg)** `com.termius-dmg.mac` | — | ✗ | — | — | ✓ 一键（**已存在的架构 bug，见上**）|
+| **stable (dmg)** `com.termius-dmg.mac` | — | ✗ | — | — | ✓ 一键（arm64-pinned by design，见 #102）|
 | **beta** `com.termius-beta.mac` | — | — | — | — | ✓ 一键（本 PR 新增）|
 
 当前生效源：MAS 装机 → **App Store**（通用，无 registry）；官网 dmg 装机 →
@@ -140,8 +146,9 @@ CNAME 下，不是两份不同的构建。
 ### stable（`com.termius-dmg.mac`）——本 PR 未改动，仅审计说明
 
 既存 recipe 读 `mac-arm64/latest-mac.yml`，一键装 `mac-arm64/Termius.dmg`——
-装机验证（挂载）它是纯 arm64。本机是 Apple Silicon，`duo verify --only termius`
-在这台机器上因此表现正常；架构 bug 只在 Intel 机器上炸，本 PR 未修（见「已知问题」）。
+装机验证（挂载）它是纯 arm64。这是刻意的：DuoUpdater 自身 `ARCHS: arm64`，
+不存在需要被服务的 Intel host，pin 住 `mac-arm64` 是正确设计而非 bug（见
+issue #102）。`duo verify --only termius` 在这台 Apple Silicon 机器上表现正常。
 
 ### beta（`com.termius-beta.mac`）——本 PR 新增
 
@@ -164,9 +171,10 @@ rollout:
 
 - **版本方案对齐**：feed `version` = `9.43.1` = 挂载后 `CFBundleShortVersionString`。
   没有 `versionIsBuild`。
-- **架构**：用的是 `mac-beta-universal`（不是 stable 那条 bug 复用的 `mac-arm64`），
-  挂载确认 `lipo -info` → `x86_64 arm64`，所以 Beta 这条 **没有** stable 那个
-  架构 bug，一台 recipe 服务任何 Mac，不需要 `hostRequirement`。
+- **架构**：用的是 `mac-beta-universal`（不是 stable 用的 `mac-arm64`），挂载确认
+  `lipo -info` → `x86_64 arm64`，所以 Beta 这条一台 recipe 服务任何 Mac，不需要
+  `hostRequirement`——这只是 vendor 端点选择不同，不代表 stable 的 `mac-arm64`
+  是 bug（DuoUpdater 自身 arm64-only，见 issue #102）。
 - **checksum 已武装**：feed 的 dmg sha512（base64）与 **实际下载字节**的
   `shasum -a 512 | base64` 完全一致——与 stable Termius 自己的两份构建
   （`mac-universal`、`mac-arm64`）一样，都不像 Signal Beta 那样被 CDN 二次 staple
@@ -221,8 +229,9 @@ Beta 的一键 URL 和 sha512 都在生产路径上解出来了。
 
 ## 一键安装
 
-- **stable (`com.termius-dmg.mac`)**：已启用（本 PR 之前就有），但**装的是 arm64-only
-  产物，Intel Mac 上会装出打不开的 app**——已知问题，已拆分为独立任务，未在本 PR 修。
+- **stable (`com.termius-dmg.mac`)**：已启用（本 PR 之前就有），装的是 arm64-only
+  产物——这是刻意的 arm64-pin（DuoUpdater 自身也是 arm64-only，不存在需要被服务的
+  Intel host），不是 bug，见 issue #102。
 - **beta (`com.termius-beta.mac`)**：本 PR 新启用，`kind: .dmg`，`urlSource: .fixed`
   （feed 里的文件名 `Termius Beta.dmg` 不带版本号，无法从 body 里解析出来，只能用固定
   URL——和既存 stable recipe 处理未带版本号文件名的方式一致）。装的是 **universal**
@@ -239,19 +248,21 @@ Beta 的一键 URL 和 sha512 都在生产路径上解出来了。
 
 ## 已知问题
 
-1. **`com.termius-dmg.mac` 一键安装在 Intel Mac 上会装错架构**（详见上文「issue
-   核对」与「更新检测」）。已拆分为独立任务，不在本 PR 范围。
-2. **`com.termius-dmg.mac` 的 `changelogURL` 已死**（404，站点无替代页）。已拆分
-   为独立任务的一部分记录，不在本 PR 范围（不影响功能，只影响 changelog 展示，
+1. **`com.termius-dmg.mac` 的 `changelogURL` 已死**（404，站点无替代页）。已拆分
+   为独立任务（issue #102），不在本 PR 范围（不影响功能，只影响 changelog 展示，
    降级为「no release notes」）。
-3. Beta 的一键读的是**轨道最新**而非**本机分配**（`rollout` 字段今天满量，无 device
+2. Beta 的一键读的是**轨道最新**而非**本机分配**（`rollout` 字段今天满量，无 device
    id 选择器）——继承自既存 stable recipe 的同一读法，不是本 PR 引入的新差异。
+
+（`com.termius-dmg.mac` 装的是 arm64-only 产物这件事**不是**已知问题——DuoUpdater
+自身 arm64-only，pin 住 `mac-arm64` 是正确设计，见 issue #102 与上文「issue 核对」。）
 
 ## 建议下一步
 
-1. 修 `com.termius-dmg.mac` 的架构 bug：改用 `mac-universal` 的 feed + dmg（已验证
-   版本相同、universal 架构），而不是 `mac-arm64`。
-2. 修或移除 `com.termius-dmg.mac` 的 `changelogURL`（当前 404）。
-3. 若 vendor 未来把 `rollout.freeUsers`/`paidUsers` 降到 100 以下，需要重新评估
+1. 修或移除 `com.termius-dmg.mac` 的 `changelogURL`（当前 404，见 issue #102）。
+2. 若 vendor 未来把 `rollout.freeUsers`/`paidUsers` 降到 100 以下，需要重新评估
    Beta（以及既存 stable）recipe 是否应该改读「本机分配」而非「轨道最新」——目前
    无法从这份 electron-builder 静态 manifest 得到 device 级别的分配信息。
+
+**不要**把 `com.termius-dmg.mac` 改成 `mac-universal` 的 feed + dmg——那不是修 bug，
+是把 arm64-pinned by design 的正确行为改坏，见 issue #102。

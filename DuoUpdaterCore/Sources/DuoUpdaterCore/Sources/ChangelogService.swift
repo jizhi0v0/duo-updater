@@ -197,7 +197,7 @@ public enum ChangelogService {
     /// `extract` return nil, the UI quietly fell back to embedding the raw page
     /// in a web view, and no diagnostic anywhere said the recipe had died.
     private static func recordHealth(_ recipe: ChangelogRecipe, parsed: Changelog?) async {
-        let id = "changelog:\(recipe.bundleID):\(recipe.channel?.rawValue ?? "-")"
+        let id = recipe.recipeID
         if parsed != nil {
             await RecipeHealth.shared.recordSuccess(id: id, source: "Changelog")
         } else {
@@ -490,6 +490,10 @@ public enum ChangelogService {
     /// Convenience: look up a recipe by bundle id (and channel, for apps whose
     /// channels share a bundle id — Thunderbird Stable/ESR) and run it. Nil when
     /// there's no recipe for the app or the load fails.
+    ///
+    /// `version` reaches the LOOKUP as well as the load: an app can fork its notes
+    /// across two pages that share a bundle id and a channel, and then the version
+    /// is the only thing that says which page describes this build (Raycast v1/v2).
     public static func load(
         forBundleID bundleID: String?,
         channel: ReleaseChannel? = nil,
@@ -497,7 +501,7 @@ public enum ChangelogService {
         session: URLSession = .updates
     ) async -> Changelog? {
         guard let recipe = ChangelogRecipeRegistry.recipe(
-            forBundleID: bundleID, channel: channel)
+            forBundleID: bundleID, channel: channel, version: version)
         else { return nil }
         return await load(recipe, version: version, session: session)
     }

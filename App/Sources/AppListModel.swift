@@ -1049,7 +1049,20 @@ final class AppListModel {
     private func applicableRecipe(for result: UpdateResult) -> ChangelogRecipe? {
         guard result.remote?.appStore == nil else { return nil }
         return ChangelogRecipeRegistry.recipe(
-            forBundleID: result.app.bundleID, channel: result.app.releaseChannel)
+            forBundleID: result.app.bundleID, channel: result.app.releaseChannel,
+            version: changelogTargetVersion(for: result))
+    }
+
+    /// The version whose notes this row is about: the offered update if there is
+    /// one, else the installed build.
+    ///
+    /// One definition rather than four copies, because the recipe LOOKUP now reads
+    /// it too. A vendor can fork its notes across two pages that share a bundle id
+    /// and a channel (Raycast v1/v2), and the version is what picks between them —
+    /// so if the lookup judged a different version than the one being fetched and
+    /// cached, we would fetch one train's page and file it under the other's key.
+    private func changelogTargetVersion(for result: UpdateResult) -> String? {
+        result.remote?.displayVersion ?? result.app.shortVersion
     }
 
     /// Kick off a background load for an app's recipe-backed changelog if one isn't
@@ -1060,7 +1073,7 @@ final class AppListModel {
     func ensureChangelogLoading(for result: UpdateResult) {
         guard let bundleID = result.app.bundleID,
               let recipe = applicableRecipe(for: result) else { return }
-        let targetVersion = result.remote?.displayVersion ?? result.app.shortVersion
+        let targetVersion = changelogTargetVersion(for: result)
         let key = ChangelogCacheKey(
             bundleID: bundleID, channel: result.app.releaseChannel, version: targetVersion)
         switch changelogState[key] {
@@ -1108,7 +1121,7 @@ final class AppListModel {
         return ChangelogCacheKey(
             bundleID: bundleID,
             channel: result.app.releaseChannel,
-            version: result.remote?.displayVersion ?? result.app.shortVersion)
+            version: changelogTargetVersion(for: result))
     }
 
     /// Drop one app's cached changelog across both layers — the session-wide
@@ -1159,7 +1172,7 @@ final class AppListModel {
                   let recipe = applicableRecipe(for: result) else { continue }
             // Don't clobber an entry that's already loaded, loading, or being viewed.
             if changelogState[key] != nil { continue }
-            let targetVersion = result.remote?.displayVersion ?? result.app.shortVersion
+            let targetVersion = changelogTargetVersion(for: result)
             changelogState[key] = .loading
             changelogTasks[key] = Task { [weak self] in
                 var changelog = await ChangelogService.diskCached(recipe, version: targetVersion)

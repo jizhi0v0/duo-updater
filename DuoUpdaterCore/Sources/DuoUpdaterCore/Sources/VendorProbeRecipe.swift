@@ -115,6 +115,64 @@ public struct VendorInstallSpec: Sendable {
     }
 }
 
+/// The machine a recipe's build can actually run on — for a vendor that keeps two
+/// release trains open because the newer one dropped hardware or OS versions the
+/// older one still serves.
+///
+/// This is not the installer's safety net: `SignatureVerifier`'s architecture gate
+/// already refuses a downloaded bundle this Mac cannot start. This is the
+/// *detection* half. Without it a machine that can only run the old train is still
+/// told the new train's version, reads as "update available" forever, and is handed
+/// a one-click that can only fail — or, worse for an OS floor, succeed and leave an
+/// app that won't launch.
+///
+/// It is also what upholds the precondition `VendorProbeSource.best(of:)` states
+/// for a channel with several endpoints — *every endpoint listed for one channel
+/// must serve a build this machine may legitimately install*. Gating the newer
+/// endpoint is what lets the older one keep answering on the machines it is for,
+/// instead of being silently out-ranked by a version they can't use.
+///
+/// Raycast is the case in hand (measured 2026-08-27): `x.raycast-releases.com`
+/// serves v2, which requires macOS 26 and Apple silicon
+/// (https://www.raycast.com/new — "macOS Tahoe and Apple Silicon required") and
+/// ships an arm64-only dmg, while `releases.raycast.com` still serves the
+/// universal v1 train. NEITHER endpoint states the requirement — both answer any
+/// client with the same JSON regardless of the UA's OS and architecture — so it
+/// has to be recorded here.
+public struct VendorHostRequirement: Sendable, Equatable {
+
+    /// Lowest macOS this build runs on, as a plain numeric version ("26.0"),
+    /// compared exactly the way a Sparkle item's `sparkle:minimumSystemVersion` is.
+    /// nil → no OS floor.
+    public let minimumSystemVersion: String?
+
+    /// The architectures this build ships. Empty → architecture-neutral.
+    ///
+    /// Deliberately a plain membership test, with no Rosetta allowance: the only
+    /// direction that ever translated is Intel-on-Apple-silicon, and a recipe
+    /// naming `.x86_64` alone would still be caught by `HostArch.canRunIntelBuilds`
+    /// at install time. The direction this field exists for — an arm64-only build
+    /// on an Intel Mac — has never been runnable at all.
+    public let architectures: [HostArch]
+
+    public init(minimumSystemVersion: String? = nil, architectures: [HostArch] = []) {
+        self.minimumSystemVersion = minimumSystemVersion
+        self.architectures = architectures
+    }
+
+    /// Whether a host meets this requirement. Takes the host as arguments rather
+    /// than reading `HostArch.current` / `ProcessInfo` so the gate is testable off
+    /// whatever machine the tests happen to run on.
+    public func isSatisfied(byOS osVersion: String, arch: HostArch) -> Bool {
+        if !architectures.isEmpty, !architectures.contains(arch) { return false }
+        if let minOS = minimumSystemVersion, !minOS.isEmpty,
+           VersionComparator.compare(osVersion, minOS) == .orderedAscending {
+            return false
+        }
+        return true
+    }
+}
+
 public struct VendorProbeRecipe: Sendable {
 
     /// How the version is recovered from the endpoint.
@@ -162,6 +220,11 @@ public struct VendorProbeRecipe: Sendable {
     /// Nil for the overwhelmingly common one-endpoint recipe, which keeps its
     /// `recipeID` — and so its verify baseline and issue history — unchanged.
     public let variant: String?
+
+    /// The machine this recipe's build runs on, when the vendor's own endpoint
+    /// won't say. nil (the overwhelmingly common case) means "any Mac this app
+    /// already runs on" and changes nothing. See `VendorHostRequirement`.
+    public let hostRequirement: VendorHostRequirement?
 
     /// The endpoint to probe (a stable "latest" redirect, or a version API).
     ///
@@ -406,7 +469,8 @@ public struct VendorProbeRecipe: Sendable {
         channel: ReleaseChannel = .stable,
         identities: [ProbeIdentity] = [],
         track: RolloutTrack? = nil,
-        variant: String? = nil
+        variant: String? = nil,
+        hostRequirement: VendorHostRequirement? = nil
     ) {
         self.bundleID = bundleID
         self.channel = channel
@@ -414,6 +478,7 @@ public struct VendorProbeRecipe: Sendable {
         self.identities = identities
         self.track = track
         self.variant = variant
+        self.hostRequirement = hostRequirement
         self.mode = mode
         self.versionPattern = versionPattern
         self.downloadURL = downloadURL
@@ -658,7 +723,14 @@ public struct VendorProbeRecipe: Sendable {
             entryStartPattern: entryStartPattern ?? self.entryStartPattern,
             install: install, requestBody: requestBody, requestHeaders: requestHeaders,
             followRedirects: followRedirects, channel: channel, identities: identities,
-            track: track, variant: variant)
+            track: track, variant: variant, hostRequirement: hostRequirement)
+    }
+
+    /// Whether this recipe's build can run on the described machine. A recipe with
+    /// no `hostRequirement` runs anywhere — the default that keeps every existing
+    /// recipe's behaviour identical.
+    public func runs(onOS osVersion: String, arch: HostArch) -> Bool {
+        hostRequirement?.isSatisfied(byOS: osVersion, arch: arch) ?? true
     }
 }
 

@@ -163,10 +163,28 @@ public struct VendorProbeSource: UpdateSource {
         // Beta/Canary install finds no match and is skipped rather than offered —
         // and one-click installed — a cross-channel build. Better "unknown" than
         // crossing channels.
-        let matching = candidates.filter { $0.channel == app.releaseChannel }
-        guard !matching.isEmpty else {
+        let channelMatched = candidates.filter { $0.channel == app.releaseChannel }
+        guard !channelMatched.isEmpty else {
             Log.source.info(
                 "vendor probe skip \(bundleID, privacy: .public): no recipe for app channel \(app.releaseChannel.rawValue, privacy: .public)")
+            return nil
+        }
+        // Host gate: a vendor can keep two trains open because the newer one
+        // dropped hardware or OS versions the older one still serves (Raycast v2
+        // is arm64 + macOS 26 only; v1 stays universal). Drop the recipes this Mac
+        // cannot run BEFORE the multi-endpoint merge below — `best(of:)` answers
+        // with the highest version and is only sound while every endpoint left in
+        // the running serves a build this machine may legitimately install. Without
+        // this the newer train out-ranks the older one on a machine that can only
+        // use the older one, and the app is stuck reporting an update it can never
+        // apply. Recipes with no `hostRequirement` — all but a handful — pass
+        // unchanged.
+        let matching = channelMatched.filter {
+            $0.runs(onOS: SparkleAppcastSource.numericSystemVersion(), arch: HostArch.current)
+        }
+        guard !matching.isEmpty else {
+            Log.source.info(
+                "vendor probe skip \(bundleID, privacy: .public): recipe(s) for channel \(app.releaseChannel.rawValue, privacy: .public) require a host this Mac isn't")
             return nil
         }
         // For a Toolbox-managed app we only borrowed the probe to learn the version

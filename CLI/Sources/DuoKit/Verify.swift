@@ -336,7 +336,7 @@ public enum Verify {
         _ recipes: [ChangelogRecipe], options: VerifyOptions, versions: [String: String]
     ) async -> [Finding] {
         await byHost(recipes, host: { $0.source.host ?? "-" }, options: options) { recipe in
-            let id = "changelog:\(recipe.bundleID):\(recipe.channel?.rawValue ?? "-")"
+            let id = recipe.recipeID
             let host = recipe.source.host ?? "-"
             // Templated recipes need a concrete version to resolve their URL —
             // use the one this run's probe just read, so the sweep checks the
@@ -383,7 +383,15 @@ public enum Verify {
             // that says something is actually wrong.
             var warnings: [String] = []
             let top = newest.version
-            if let version, let complaint = changelogLagComplaint(entry: top, detected: version) {
+            // …but only against a version this recipe is FOR. A recipe scoped to an
+            // older train legitimately trails the installed build: Raycast's v1
+            // archive tops out at 1.104.0 while the machine running the sweep is on
+            // 2.0.6.0, and `versions` only ever holds what is installed here. There
+            // is no detected version for the other train to compare against, so the
+            // honest move is to skip the cross-check rather than to invent a
+            // complaint the recipe can never clear.
+            if let version, recipe.covers(appVersion: version),
+               let complaint = changelogLagComplaint(entry: top, detected: version) {
                 warnings.append(complaint)
             }
             return Finding(

@@ -153,6 +153,67 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// feature illustration between the change lines).
     public let imagePattern: String?
 
+    /// Lowest app version this recipe's page covers, inclusive. nil → no floor.
+    ///
+    /// This and `belowAppVersion` are the changelog analogue of a
+    /// `VendorProbeRecipe`'s `hostRequirement`: "which installs is this recipe
+    /// for", when `channel` cannot answer because the vendor forked its notes
+    /// across two trains that are BOTH stable.
+    ///
+    /// Raycast is the case in hand. `www.raycast.com/changelog` became the v2 notes
+    /// when v2 shipped and the v1 archive moved to `/changelog/macos` — same markup,
+    /// different history — while both trains keep the one bundle id
+    /// `com.raycast.macos` and the one `.stable` channel. Without a version window
+    /// a 1.104.x install would be shown the 2.x notes.
+    public let minimumAppVersion: String?
+
+    /// Exclusive upper bound: this recipe's page covers app versions strictly BELOW
+    /// this. nil → no ceiling. Exclusive so a pair of recipes tiles the range with
+    /// no gap and no overlap — `belowAppVersion: "2"` and `minimumAppVersion: "2"`
+    /// meet exactly at 2.0.
+    public let belowAppVersion: String?
+
+    /// Whether this recipe restricts itself to a version range at all. Used to keep
+    /// the lookup's behaviour byte-identical for every recipe that doesn't: a group
+    /// with no windows is never filtered, so a nil version can't start excluding
+    /// recipes that were always eligible.
+    public var declaresVersionWindow: Bool {
+        minimumAppVersion != nil || belowAppVersion != nil
+    }
+
+    /// The stable identity this recipe is recorded under — by the health store and
+    /// by `duo verify`'s baseline, which is why both read it from here rather than
+    /// each spelling it out.
+    ///
+    /// A recipe with no version window keeps the id it has always had, so adding
+    /// this field orphaned no history. A windowed one appends its window, because
+    /// two recipes for one bundle id and channel would otherwise share a single
+    /// verify identity and overwrite each other's `lastGoodVersion` every sweep —
+    /// which reads as "version went BACKWARDS" on alternate runs.
+    public var recipeID: String {
+        let base = "changelog:\(bundleID):\(channel?.rawValue ?? "-")"
+        switch (minimumAppVersion, belowAppVersion) {
+        case (nil, nil):            return base
+        case let (min?, nil):       return "\(base):\(min)+"
+        case let (nil, below?):     return "\(base):<\(below)"
+        case let (min?, below?):    return "\(base):\(min)-\(below)"
+        }
+    }
+
+    /// Whether `appVersion` falls in this recipe's window. Always true for a recipe
+    /// that declares none.
+    public func covers(appVersion: String) -> Bool {
+        if let minimumAppVersion,
+           VersionComparator.compare(appVersion, minimumAppVersion) == .orderedAscending {
+            return false
+        }
+        if let belowAppVersion,
+           VersionComparator.compare(appVersion, belowAppVersion) != .orderedAscending {
+            return false
+        }
+        return true
+    }
+
     public enum Mode: String, Codable, Sendable { case html, json }
 
     /// A vendor JSON feed too irregular for the regex `ChangelogExtractor` — nested
@@ -321,6 +382,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         sourceTemplate: String? = nil,
         newestLast: Bool = false,
         imagePattern: String? = nil,
+        minimumAppVersion: String? = nil,
+        belowAppVersion: String? = nil,
         structuredFormat: StructuredFormat? = nil,
         httpMethod: HTTPMethod = .get,
         requestBody: Data? = nil
@@ -342,6 +405,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.sourceTemplate = sourceTemplate
         self.newestLast = newestLast
         self.imagePattern = imagePattern
+        self.minimumAppVersion = minimumAppVersion
+        self.belowAppVersion = belowAppVersion
         self.httpMethod = httpMethod
         self.requestBody = requestBody
     }
@@ -411,6 +476,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         sourceTemplate = try c.decodeIfPresent(String.self, forKey: .sourceTemplate)
         newestLast = try c.decodeIfPresent(Bool.self, forKey: .newestLast) ?? false
         imagePattern = try c.decodeIfPresent(String.self, forKey: .imagePattern)
+        minimumAppVersion = try c.decodeIfPresent(String.self, forKey: .minimumAppVersion)
+        belowAppVersion = try c.decodeIfPresent(String.self, forKey: .belowAppVersion)
         httpMethod = try c.decodeIfPresent(HTTPMethod.self, forKey: .httpMethod) ?? .get
         requestBody = try c.decodeIfPresent(Data.self, forKey: .requestBody)
     }
@@ -1964,28 +2031,72 @@ public enum ChangelogRecipeRegistry {
     private static let byBundleID: [String: [ChangelogRecipe]] = Dictionary(
         grouping: recipes, by: { $0.bundleID.lowercased() })
 
-    /// The recipe for an app on a given channel, if we have one. Case-insensitive
-    /// on bundle id, to match `ChangelogCatalog`'s convention.
+    /// The recipe for an app on a given channel and version, if we have one.
+    /// Case-insensitive on bundle id, to match `ChangelogCatalog`'s convention.
     ///
-    /// Selection within a bundle id's group, in order of preference:
+    /// Selection within a bundle id's group:
+    ///   0. narrow to the recipes whose version window covers `version`
+    ///      (`scoped(_:toVersion:)`), then, among those:
     ///   1. a recipe whose `channel` exactly matches the install's channel;
     ///   2. a channel-agnostic recipe (`channel == nil`) — every existing
     ///      single-recipe app, so passing a channel never changes their result;
     ///   3. the `.stable` recipe as a last resort (an unknown/odd channel still
     ///      gets *some* notes rather than none).
     /// Passing `channel: nil` skips step 1 and lands on step 2/3 — the behavior the
-    /// old single-arg lookup had.
+    /// old single-arg lookup had. Step 0 is inert for every group whose recipes
+    /// declare no window, which is all of them but Raycast's.
     public static func recipe(
-        forBundleID bundleID: String?, channel: ReleaseChannel? = nil
+        forBundleID bundleID: String?, channel: ReleaseChannel? = nil,
+        version: String? = nil
     ) -> ChangelogRecipe? {
         guard let bundleID else { return nil }
-        let group = byBundleID[bundleID.lowercased()] ?? []
+        let group = scoped(byBundleID[bundleID.lowercased()] ?? [], toVersion: version)
         if let channel, let exact = group.first(where: { $0.channel == channel }) {
             return exact
         }
         return group.first(where: { $0.channel == nil })
             ?? group.first(where: { $0.channel == .stable })
             ?? group.first
+    }
+
+    /// Step 0 of the lookup: keep only the recipes covering `version`, most
+    /// specific first.
+    ///
+    /// Written to be a no-op wherever it isn't needed, because it sits in front of
+    /// ~100 recipes that have never had a version window and must keep resolving
+    /// exactly as before:
+    ///   - a group where NO recipe declares a window is returned untouched, so a
+    ///     nil version can never start excluding recipes;
+    ///   - with a window declared but no version to judge by, the window-LESS
+    ///     recipes win. That is the useful default rather than an arbitrary one:
+    ///     the catch-all is the vendor's current page and the window exists to
+    ///     carve an exception out of it. If every recipe in the group has a window
+    ///     the group is kept whole rather than collapsing to nothing;
+    ///   - a version outside every window also keeps the group whole.
+    /// The last two are the call this file makes everywhere else: a changelog is
+    /// low-stakes, and possibly-wrong notes beat no notes — the pane can only fall
+    /// back to embedding the page.
+    ///
+    /// **A windowed recipe outranks a catch-all that merely failed to exclude the
+    /// version.** This is what lets one page stay the default while another claims
+    /// a range out of it, and it matters because two trains' version numbers need
+    /// not be two contiguous halves of a line. Raycast's are not: v1 runs 1.95–1.104,
+    /// while v2 ran 0.63–0.71 in beta before jumping to 2.0 at GA — v1 sits *between*
+    /// v2's two stretches. Expressing that as `<2` versus `2+` would hand a 0.71
+    /// install the v1 archive, the one page that does not carry its notes. So the
+    /// archive claims exactly `[1, 2)` and the v2 page keeps everything else.
+    static func scoped(
+        _ group: [ChangelogRecipe], toVersion version: String?
+    ) -> [ChangelogRecipe] {
+        guard group.contains(where: \.declaresVersionWindow) else { return group }
+        guard let version, !version.isEmpty else {
+            let unscoped = group.filter { !$0.declaresVersionWindow }
+            return unscoped.isEmpty ? group : unscoped
+        }
+        let covering = group.filter { $0.covers(appVersion: version) }
+        guard !covering.isEmpty else { return group }
+        let windowed = covering.filter(\.declaresVersionWindow)
+        return windowed.isEmpty ? covering : windowed
     }
 
     /// Every recipe registered for a bundle id (across channels). Used to clear all

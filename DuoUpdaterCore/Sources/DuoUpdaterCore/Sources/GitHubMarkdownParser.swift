@@ -36,13 +36,22 @@ public enum GitHubMarkdownParser {
     /// changes in this release.", is the live case; Waku's `v0.1.9`, "See
     /// CHANGELOG.md for details.", is another). Gated the same way the lenient pass
     /// is, so no body that already parsed changes at all.
-    public static func parse(body: String, version: String, date: String?) -> Changelog? {
-        var items = extractItems(from: body, lenient: false)
+    ///
+    /// `skipSections` is the per-recipe escape hatch (`ChangelogRecipe.skipSections`)
+    /// for a vendor who puts boilerplate under a heading of their own. Unlike
+    /// `skippedSectionKeywords`, which is a substring rule applied to EVERY app,
+    /// these are matched whole — case-insensitively, after trimming — against one
+    /// app's headings, so a heading that merely resembles one is untouched. Empty
+    /// by default, and an empty list is byte-for-byte the old behavior.
+    public static func parse(
+        body: String, version: String, date: String?, skipSections: [String] = []
+    ) -> Changelog? {
+        var items = extractItems(from: body, lenient: false, skipSections: skipSections)
         if items.isEmpty {
-            items = extractItems(from: body, lenient: true)
+            items = extractItems(from: body, lenient: true, skipSections: skipSections)
         }
         if items.isEmpty {
-            items = proseItems(from: body)
+            items = proseItems(from: body, skipSections: skipSections)
         }
         guard !items.isEmpty else { return nil }
         let entry = Changelog.Entry(version: version, date: date, items: items)
@@ -56,6 +65,29 @@ public enum GitHubMarkdownParser {
     private static let skippedSectionKeywords = [
         "new contributors", "contributors", "full changelog",
     ]
+
+    /// The heading text of a `## Heading` / `### Heading` line, lowercased and
+    /// trimmed — nil for any other line. One place, so the bullet passes and the
+    /// prose pass cannot drift on what counts as a heading.
+    private static func headingText(of trimmedLine: String) -> String? {
+        guard trimmedLine.hasPrefix("#") else { return nil }
+        return trimmedLine
+            .drop(while: { $0 == "#" })
+            .trimmingCharacters(in: .whitespaces)
+            .lowercased()
+    }
+
+    /// Whole-heading, case-insensitive match against a recipe's own `skipSections`.
+    /// Deliberately NOT a substring test: BetterDisplay's roster headings
+    /// ("Included Localizations", "Localizations included in this release") sit one
+    /// release away from "Localization Improvements", which carries real changes —
+    /// a substring rule wide enough to catch the first two eats the third.
+    private static func isSkipped(_ heading: String, by skipSections: [String]) -> Bool {
+        guard !skipSections.isEmpty else { return false }
+        return skipSections.contains {
+            $0.trimmingCharacters(in: .whitespaces).lowercased() == heading
+        }
+    }
 
     /// Extra headings the lenient pass skips: release bodies that aren't bullet
     /// changelogs often still carry a checksum/hash block, which we never want as
@@ -92,15 +124,23 @@ public enum GitHubMarkdownParser {
     ///     falls back to the renderer that shows the body whole.
     private static let proseItemCap = 12
 
-    private static func proseItems(from body: String) -> [String] {
+    private static func proseItems(from body: String, skipSections: [String] = []) -> [String] {
         guard body.range(of: #"(?m)^\s*\|"#, options: .regularExpression) == nil
         else { return [] }
         var items: [String] = []
         var inCodeBlock = false
+        var inSkippedSection = false
         for line in body.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("```") { inCodeBlock.toggle(); continue }
-            if inCodeBlock || trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            // A recipe-declared section is skipped here too, so a vendor who writes
+            // their boilerplate as prose is handled the same as one who bullets it.
+            // Gated on a non-empty list, so the default path is unchanged.
+            if !inCodeBlock, let heading = headingText(of: trimmed) {
+                inSkippedSection = isSkipped(heading, by: skipSections)
+                continue
+            }
+            if inCodeBlock || inSkippedSection || trimmed.isEmpty { continue }
             if isImageOnly(trimmed) || isBareURL(trimmed) || isChecksum(trimmed) { continue }
             if skippedSectionKeywords.contains(where: {
                 trimmed.lowercased().hasPrefix("**\($0)")
@@ -147,7 +187,9 @@ public enum GitHubMarkdownParser {
         return line.range(of: #"\b[0-9a-fA-F]{32,}\b"#, options: .regularExpression) != nil
     }
 
-    private static func extractItems(from body: String, lenient: Bool) -> [String] {
+    private static func extractItems(
+        from body: String, lenient: Bool, skipSections: [String] = []
+    ) -> [String] {
         let lines = body.components(separatedBy: .newlines)
         let skipKeywords = lenient ? skippedSectionKeywords + lenientExtraSkipKeywords
                                    : skippedSectionKeywords
@@ -167,12 +209,9 @@ public enum GitHubMarkdownParser {
             if inCodeBlock { continue }
 
             // Section heading: ## Title or ### Title
-            if trimmed.hasPrefix("#") {
-                let heading = trimmed
-                    .drop(while: { $0 == "#" })
-                    .trimmingCharacters(in: .whitespaces)
-                    .lowercased()
+            if let heading = headingText(of: trimmed) {
                 inSkippedSection = skipKeywords.contains(where: { heading.contains($0) })
+                    || isSkipped(heading, by: skipSections)
                 continue
             }
 

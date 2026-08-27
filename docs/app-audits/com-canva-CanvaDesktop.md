@@ -13,9 +13,13 @@
 - 自更新机制: **electron-updater**（Electron 壳，`NSPrincipalClass = AtomApplication`，
   `Contents/Frameworks/` 下有 `Squirrel.framework` + `Electron Framework.framework`）
 
-这是个套壳：主可执行只有 `Contents/MacOS/Canva`，业务逻辑在 `Resources/app.asar`
-里，`Info.plist` 带 `ElectronAsarIntegrity`。对更新检测来说有用的推论只有一条 ——
-它走 electron-builder 那套 manifest，端点不用猜。
+确实是套壳，这条是实测的不是推的：`Contents/MacOS/` 只有一个可执行 `Canva`，
+业务逻辑在 `Resources/app.asar`（`Info.plist` 带 `ElectronAsarIntegrity`），而
+`strings app.asar` 里同时有 `https://www.canva.com`、`https://www.canva.com/_online`
+和 `BrowserWindow` / `loadURL` / `webContents` —— 即它开一个窗口去加载 canva.com。
+
+不过对更新检测来说，有用的推论只有一条：它走 electron-builder 那套 manifest，
+端点不用猜。
 
 ## 覆盖矩阵
 

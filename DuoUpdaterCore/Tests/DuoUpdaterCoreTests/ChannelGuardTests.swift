@@ -177,20 +177,6 @@ import Foundation
         keystoneChannel: nil, bundleFileName: "Some App") == .stable)
 }
 
-@Test func plainStableAppsStayStable() {
-    #expect(ReleaseChannel.detect(
-        name: "Google Chrome", bundleID: "com.google.Chrome",
-        keystoneChannel: nil) == .stable)
-    // Channel words embedded in a longer token must NOT trip detection
-    // (word-boundary matching), or we'd skip legitimate stable apps.
-    #expect(ReleaseChannel.detect(
-        name: "Developer Tools", bundleID: "com.example.devtools",
-        keystoneChannel: nil) == .stable)
-    #expect(ReleaseChannel.detect(
-        name: "Betamax", bundleID: "com.example.betamax",
-        keystoneChannel: nil) == .stable)
-}
-
 // MARK: - DB Browser for SQLite nightly: filename is the only signal (issue #94)
 
 /// The nightly ships the STABLE bundle id, a clean `CFBundleName` and a version
@@ -246,6 +232,20 @@ import Foundation
     #expect(nightly.releaseChannel == .nightly)
     // Skipped before any fetch — a network call here would be a bug on its own.
     #expect(try await source.latestVersion(for: nightly) == nil)
+}
+
+@Test func plainStableAppsStayStable() {
+    #expect(ReleaseChannel.detect(
+        name: "Google Chrome", bundleID: "com.google.Chrome",
+        keystoneChannel: nil) == .stable)
+    // Channel words embedded in a longer token must NOT trip detection
+    // (word-boundary matching), or we'd skip legitimate stable apps.
+    #expect(ReleaseChannel.detect(
+        name: "Developer Tools", bundleID: "com.example.devtools",
+        keystoneChannel: nil) == .stable)
+    #expect(ReleaseChannel.detect(
+        name: "Betamax", bundleID: "com.example.betamax",
+        keystoneChannel: nil) == .stable)
 }
 
 // MARK: - Scanner wires the channel onto InstalledApp

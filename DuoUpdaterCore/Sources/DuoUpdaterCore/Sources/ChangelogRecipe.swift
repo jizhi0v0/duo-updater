@@ -365,6 +365,23 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// page id on the same host).
     public let requestBody: Data?
 
+    /// Headings whose whole section this app's notes should drop, matched WHOLE and
+    /// case-insensitively (see `GitHubMarkdownParser.parse`). Only consulted by the
+    /// formats that go through `GitHubMarkdownParser` — `.gitHubReleases` and
+    /// `.zedGitHubReleases`; a recipe on any other format that sets this is a silent
+    /// no-op, which `ChangelogReviewRegressionTests` refuses.
+    ///
+    /// Per-recipe on purpose. `GitHubMarkdownParser.skippedSectionKeywords` is the
+    /// other way to do this and it is a substring rule applied to every app, which
+    /// is measurably the wrong tool here: a keyword wide enough to catch
+    /// BetterDisplay's contributor roster ("Included Localizations") also catches
+    /// `## Localization` in exelban/stats and `## 🌐 Localization` in block/goose,
+    /// both of which are real change bullets — as is BetterDisplay's own
+    /// "Localization Improvements", one release away from the roster. Measured
+    /// 2026-08-27 across the 67 GitHub-sourced repos in this codebase, 15 releases
+    /// each. So: name the exact headings, for the one app that has them.
+    public let skipSections: [String]
+
     public init(
         bundleID: String,
         source: URL,
@@ -386,7 +403,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         belowAppVersion: String? = nil,
         structuredFormat: StructuredFormat? = nil,
         httpMethod: HTTPMethod = .get,
-        requestBody: Data? = nil
+        requestBody: Data? = nil,
+        skipSections: [String] = []
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -409,6 +427,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.belowAppVersion = belowAppVersion
         self.httpMethod = httpMethod
         self.requestBody = requestBody
+        self.skipSections = skipSections
     }
 
     /// The actual page URL to fetch for a given target version. When
@@ -480,8 +499,17 @@ public struct ChangelogRecipe: Codable, Sendable {
         belowAppVersion = try c.decodeIfPresent(String.self, forKey: .belowAppVersion)
         httpMethod = try c.decodeIfPresent(HTTPMethod.self, forKey: .httpMethod) ?? .get
         requestBody = try c.decodeIfPresent(Data.self, forKey: .requestBody)
+        skipSections = try c.decodeIfPresent([String].self, forKey: .skipSections) ?? []
     }
 }
+
+/// The two spellings BetterDisplay has used for its contributor roster, shared by
+/// its three per-track recipes so a third spelling is added in one place rather
+/// than three. See the recipes' comment for why this is per-app and whole-heading.
+private let betterDisplayContributorRosters = [
+    "Included Localizations",
+    "Localizations included in this release",
+]
 
 /// The verified recipe table. Looked up by bundle id when the detail window opens;
 /// a miss simply means we keep the existing behavior (embed `changelogURL` in a
@@ -1329,6 +1357,89 @@ public enum ChangelogRecipeRegistry {
             mode: .json,
             maxEntries: 20,
             structuredFormat: .gitHubReleases),
+
+        // BetterDisplay — the same GitHub release bodies the vendor's own page was
+        // already showing, rendered natively instead of in a web view.
+        //
+        // The appcast carries no `<description>`; every item points
+        // `<sparkle:releaseNotesLink>` at
+        // `waydabber.github.io/BetterDisplay/changelog.html?tag=<tag>`. That page is
+        // an EMPTY shell — fetched 2026-08-27, 1149 bytes, no body content at all.
+        // Its inline script reads `?tag`, GETs
+        // `api.github.com/repos/waydabber/BetterDummy/releases/tags/<tag>` (the old
+        // repo name, still redirecting) and renders `response.body` with marked.js.
+        // So the web view was rendering GitHub markdown the whole time, minus our
+        // styling and plus the vendor's "Download app for macOS" button image. Going
+        // to the API directly gets the identical text, the version and date headings
+        // the shell never had, and the history a per-tag page cannot hold.
+        //
+        // THREE recipes, one per track — none of them removable as a duplicate,
+        // even though `.beta` and `.unstable` differ only in `channel`. The tracks
+        // split on GitHub's `prerelease` flag, and BetterDisplay resolves its
+        // channel from two Settings toggles rather than from the bundle id (see
+        // `BetterDisplayChannel`):
+        //   * `.stable`   → prerelease: false — v4.3.6, v4.3.5, …
+        //   * `.beta`     ("Receive pre-release updates") → prerelease: true —
+        //                 v5.0.3, v5.0.2, … Includes the two `arm64_pre` builds
+        //                 (v5.0.0/v5.0.1), which are excluded from what we OFFER
+        //                 because they are Apple-silicon-only, but are real history
+        //                 and belong in the rail.
+        //   * `.unstable` ("Receive internal pre-release updates") → deliberately
+        //                 the same feed as `.beta`. The internal track has no
+        //                 per-version notes anywhere: its items link
+        //                 `changelog.html?tag=pre`, and that rolling release's body
+        //                 is static boilerplate about what internal builds are. The
+        //                 pre track is where those builds come from and the closest
+        //                 true history for them; without this third registration the
+        //                 channel-aware lookup would fall back to `.stable` and show
+        //                 an internal 5.x user the 4.x notes.
+        //
+        // That rolling `pre` release cannot leak into either rail as an entry titled
+        // "pre": GitHub orders this endpoint by `created_at`, and `pre` was created
+        // 2022-04-06 while the 40th-newest release is 2025-01-03 (both read
+        // 2026-08-27). It is far outside a `per_page=40` window and sinks further
+        // with every release the vendor cuts.
+        //
+        // `skipSections` drops the contributor roster. It is not a changelog: 18 of
+        // the newest 40 releases carry it, and between them they use only TWO
+        // distinct texts — the same paragraph repeated down a 15-row rail. The
+        // vendor gives no marker for it (no HTML comment, no `<details>` anywhere in
+        // those 40 bodies), so the heading IS the marker, and they have spelled it
+        // two ways. Both are listed. `### Localization Improvements` (v3.3.4) is
+        // deliberately NOT listed — that one holds real changes, which is why the
+        // match is whole-heading rather than a substring.
+        ChangelogRecipe(
+            bundleID: BetterDisplayChannel.bundleID,
+            source: URL(
+                string:
+                    "https://api.github.com/repos/waydabber/BetterDisplay/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 15,
+            channel: .stable,
+            structuredFormat: .gitHubReleases,
+            skipSections: betterDisplayContributorRosters),
+
+        ChangelogRecipe(
+            bundleID: BetterDisplayChannel.bundleID,
+            source: URL(
+                string:
+                    "https://api.github.com/repos/waydabber/BetterDisplay/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 15,
+            channel: .beta,
+            structuredFormat: .gitHubReleases,
+            skipSections: betterDisplayContributorRosters),
+
+        ChangelogRecipe(
+            bundleID: BetterDisplayChannel.bundleID,
+            source: URL(
+                string:
+                    "https://api.github.com/repos/waydabber/BetterDisplay/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 15,
+            channel: .unstable,
+            structuredFormat: .gitHubReleases,
+            skipSections: betterDisplayContributorRosters),
 
         // Alcove — its own changelog API. Public and unauthenticated, unlike the
         // update endpoint on the same host, which is license-gated (see

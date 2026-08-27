@@ -187,7 +187,8 @@ public enum ChangelogService {
         guard let body else { return nil }
         if let format = recipe.structuredFormat {
             return StructuredChangelogDecoder.decode(
-                body, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries)
+                body, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries,
+                skipSections: recipe.skipSections)
         }
         return ChangelogExtractor.extract(from: body, using: recipe)
     }

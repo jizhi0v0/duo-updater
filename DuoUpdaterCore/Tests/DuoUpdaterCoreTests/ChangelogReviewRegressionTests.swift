@@ -199,6 +199,22 @@ private let hbuilderXCodeSpanFixture = #"""
     }
 }
 
+/// `skipSections` is read only where the notes go through `GitHubMarkdownParser` —
+/// the two GitHub release formats. On any other recipe it is not an error, it is
+/// *nothing*: the field is set, the headings stay, and the only symptom is
+/// boilerplate the author thought they had removed. Derived from the registry so a
+/// recipe cannot declare it against a format that will never look.
+@Test func skipSectionsOnlyLandsOnAFormatThatReadsIt() {
+    let formatsThatRead: Set<ChangelogRecipe.StructuredFormat> = [
+        .gitHubReleases, .zedGitHubReleases,
+    ]
+    for recipe in ChangelogRecipeRegistry.recipes where !recipe.skipSections.isEmpty {
+        let format = recipe.structuredFormat
+        #expect(format.map(formatsThatRead.contains) == true,
+                "\(recipe.bundleID): skipSections is a no-op on \(format.map(\.rawValue) ?? "the regex path")")
+    }
+}
+
 // MARK: - Waku
 
 /// Waku's registered recipe reads GitHub releases, which carry the same bullets

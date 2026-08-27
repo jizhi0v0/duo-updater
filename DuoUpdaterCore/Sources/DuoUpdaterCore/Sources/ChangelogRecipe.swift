@@ -1278,9 +1278,11 @@ public enum ChangelogRecipeRegistry {
         // to the API directly gets the identical text, the version and date headings
         // the shell never had, and the history a per-tag page cannot hold.
         //
-        // Two recipes because the tracks split on GitHub's `prerelease` flag, and
-        // BetterDisplay resolves its channel from two Settings toggles rather than
-        // from the bundle id (see `BetterDisplayChannel`):
+        // THREE recipes, one per track — none of them removable as a duplicate,
+        // even though `.beta` and `.unstable` differ only in `channel`. The tracks
+        // split on GitHub's `prerelease` flag, and BetterDisplay resolves its
+        // channel from two Settings toggles rather than from the bundle id (see
+        // `BetterDisplayChannel`):
         //   * `.stable`   → prerelease: false — v4.3.6, v4.3.5, …
         //   * `.beta`     ("Receive pre-release updates") → prerelease: true —
         //                 v5.0.3, v5.0.2, … Includes the two `arm64_pre` builds

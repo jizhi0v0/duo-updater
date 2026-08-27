@@ -419,6 +419,14 @@ Every audit produces a document. This keeps documentation in sync with code.
 (Use the primary/stable bundle ID as the filename, dots replaced with dashes:
 `com.google.Chrome` → `com-google-Chrome.md`)
 
+> ⚠️ **This directory is TRACKED and the repo is PUBLIC.** `/docs/` is otherwise
+> gitignored — `app-audits/` is the one subtree re-included, because these are the
+> reasoning behind the recipe registries and belong next to the code. Everything
+> you write here gets pushed. See § Writing for a public repo before you write a
+> line; it is not a review step you do at the end, because a rewrite after pushing
+> does not reliably un-publish (GitHub keeps pushed commits reachable by SHA, and
+> anyone who cloned already has them).
+
 **When to write:**
 - REPORT MODE: write/update the doc at the end of the audit
 - INVESTIGATE MODE: write the doc once the investigation reaches a conclusion
@@ -508,6 +516,91 @@ suggestions. Use this decision table:
    multi-channel app, a channel recipe stays **needs-verify** (not ✓) until
    `application-test/channel-verify` runs green against a real bundle of that
    channel. Don't let "the JSON says so" stand in for a mounted bundle.
+
+8. **Write it for the public repo.** See the section below. The audit is published;
+   the machine it was produced on is not.
+
+## § Writing for a public repo
+
+An audit is produced by poking at one machine and is then published. Those two
+facts pull in opposite directions, and the whole job is keeping the findings while
+dropping the machine.
+
+The rule that governs it: **`docs/` was gitignored because software fingerprint is
+a personal profile** — a list of which apps someone runs, at which versions, on
+which channels, sketches their work environment. `app-audits/` is the exception,
+so each file has to carry the exception's cost.
+
+### Never write
+
+- Absolute paths containing the account name (`/Users/<name>/…`). Use `~/…`.
+  `/Applications/Foo.app` is fine — it names no one.
+- Emails, account names, licence keys, order or receipt numbers, tokens, cookies,
+  session ids, serial numbers, or any UUID/device id read off the machine.
+- IPs, hostnames, LAN topology, Wi-Fi names, VPN or tailnet names, node names.
+- Enterprise software that identifies an employer (corp VPN clients, corp IM,
+  internal ad-hoc builds by name).
+- The owner's purchase/subscription state ("我买了 Pro", "试用还剩 N 天").
+
+### The class that actually slips through
+
+The list above is easy and audits are usually already clean of it. What got
+published on 2026-08-27, and had to be rewritten, was subtler — three shapes that
+all *look* like legitimate forensic evidence:
+
+**1. Which channel this machine runs the app on.**
+
+```
+✗ KDDefaults.plist `IncludeBetaBuilds=true` → 本机在 **beta**
+✓ KDDefaults.plist `IncludeBetaBuilds=true` 时判定为 **beta**
+```
+
+Same key, same value, same verdict — the second one just doesn't say whose machine
+it is. Nothing of engineering value is lost: what a reader needs is the preference
+key and which value selects which channel.
+
+**2. The narrative of toggling a preference to test the other channel.**
+
+```
+✗ **stable 也已本机验证**（临时翻 `sparkleIncludePrereleases`→`--scan`→还原）
+✓ **stable 也已在真实 bundle 上验证**（`sparkleIncludePrereleases=false` 时
+   `--scan` 结果=stable；验证用的临时改动已还原）
+```
+
+State the method and that it was reverted, not a first-person account of an
+afternoon on someone's laptop.
+
+**3. Incidental facts about the machine's environment.** The Raycast audit
+explained a TLS handshake failure by saying this machine runs an interception
+proxy. The finding is worth keeping; the machine is not:
+
+```
+✗ SSLV3_ALERT_HANDSHAKE_FAILURE 系本机 MITM 代理拦截所致
+✓ 经中间人代理探测该端点时会看到 SSLV3_ALERT_HANDSHAKE_FAILURE，
+   那是端点拒绝被拦截，与 auth 无关；直连即 200
+```
+
+### Keep
+
+Observed version numbers, observation dates, HTTP status codes, captured response
+bodies, vendor endpoints, regexes, vendor Team IDs, and the audited app's own
+bundle id. These are the evidence the document exists for. Only strip the framing
+that points at the owner — the numbers and facts stay.
+
+Mentioning another app to compare mechanisms ("跟 Chrome 一样走 Keystone") is
+ordinary engineering prose and stays. Cross-listing what else is installed
+("本机还装了 X、Y、Z") is the inventory and goes.
+
+### Two judgement calls to raise with the user, not decide alone
+
+- **The file's existence is itself a signal** when the app is NOT in any recipe
+  registry. For an app the registry already names, an audit adds nothing — the repo
+  already says we support it. For one it doesn't, publishing the audit says someone
+  ran that app. Ask before adding the first audit for an unsupported app.
+- **`docs/app-audits/README.md` is the highest-risk file in the tree**, because it
+  aggregates every app's state into one place — that is the profile in miniature.
+  Keep its lines to app name, link, coverage and date. No per-app channel state, no
+  "temporarily flipped X" notes.
 
 ## File map
 

@@ -3396,6 +3396,17 @@ final class AppListModel {
                     app: result.app.name, version: onDisk.short ?? result.app.shortVersion,
                     appID: result.app.bundleID)
             }
+        case .nestedOnly(let relaunched):
+            // The app itself was never running — only a stranded nested app (e.g.
+            // Surge's Dashboard) needed clearing — so the update still applies the
+            // moment the app is next opened by hand. Clear the same state
+            // `.relaunched` does, but never post `.restarted`: the app is not
+            // running, so "Now running X" would be a false notification.
+            needsRestart.remove(result.id)
+            pendingBatchRestart[result.id] = nil
+            runningVersionByID[result.id] = nil
+            settlePackageRestart(result.id)
+            Log.app.info("restart: \(result.app.name, privacy: .public) was not running itself — nested app(s) cleared, relaunched=\(relaunched, privacy: .public)")
         }
     }
 

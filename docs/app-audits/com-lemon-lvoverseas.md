@@ -158,6 +158,15 @@ stable 会把一台装了 beta、没开过更新窗口的机器打成 Stable，�
 三态：`joinBeta=true`→beta；`joinBeta=false`（用户显式退出）→stable；
 **没记录**→镜像 `tea_channel`。不认识的值（拼写变了）算「没记录」，不算显式退出。
 
+两个方向都在真机上验过（`channel-verify --scan`，走生产 `AppScanner.scan()`）：
+
+```
+joinBeta=true   → detected channel → beta    · VendorProbe → 9.4.0-beta4 · UPDATE 9.3.0 → 9.4.0-beta4
+joinBeta=false  → detected channel → stable  · VendorProbe → 9.3.0 · up to date (not newer)
+```
+
+第二条是 2026-08-27 由用户在 CapCut 界面里实际取消勾选后跑的，不是构造出来的状态。
+
 没覆盖的角落：一份**从没启动过**的 beta 包两个文件都没有，会读成 stable 直到首次运行。
 补它要读 bundle 里的 `PackageConfig.plist`，而 `ChannelBinding.resolve(bundleID:)`
 拿不到 app 路径。

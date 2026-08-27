@@ -346,6 +346,10 @@ capcut.com 也没有桌面端 release notes 页：`/release-notes`、`/whats-new
 ## 一键安装
 
 - 状态：**两轨都已启用**，`kind: .dmg`。
+- **读的是**（Phase 3⅞ 要求必答）：stable = 轨道最新，且与厂商分配一致
+  （`lastest_stable_url` 在所有能应答的 `version_code` 下恒为同一个包）；
+  beta = **轨道最新，会跑在厂商按设备分配之前** —— registry 里唯一一例，
+  论据和要盯的后续见「已知问题 / 取舍」。
 - 产物：各自 `update_reminder` key 里的绝对 URL，主机钉死
   `sf16-web-tos-buz.capcutstatic.com`，文件名钉死自己的 `capcutpc_<token>`。
 - **为什么 `.dmg` 而不是 `.pkg`**：两个真 dmg 挂载后都只有 `CapCut.app` +
@@ -395,11 +399,27 @@ stable 轨没走这条 harness（本机 channel 解析成 beta），但同一 Te
 
 ## 已知问题 / 取舍
 
-- **我们会比 CapCut 自己的灰度更早给 beta。** `joinBeta` 是用户的 opt-in，而厂商在
-  `update_url` 上还做了按设备灰度。本机 2026-08-27 `joinBeta=true`、CapCut 自己说
-  "You are using the latest version"（它拿到的 `update_url` 是 stable 9.3.0），而
-  beta 轨最新是 9.4.0-beta4。配方读的是轨道最新而不是按设备的选择 —— 这是「beta 渠道」
-  的诚实读法，也是不把本机 ByteDance device id 发出去的唯一读法。
+- **我们会比 CapCut 自己的灰度更早给 beta —— 这是 registry 里唯一一个这样的配方。**
+  `joinBeta` 是用户的 opt-in，而厂商在 `update_url` 上还做了按设备灰度。本机
+  2026-08-27 `joinBeta=true`、CapCut 自己说 "You are using the latest version"
+  （它拿到的 `update_url` 是 stable 9.3.0），而 beta 轨最新是 9.4.0-beta4。配方读的是
+  **轨道最新**（`lastest_url`）而不是按设备的分配。
+
+  **别拿 Claude 当先例** —— 那两条端点的注释写得很清楚，一条是「人人可手动下载的 GA，
+  装它永远不会跑到 cohort 之前」，另一条是「精确地是分配给这台机器的构建」。两条都不越过
+  分配。ChatGPT 则是用 `plan_type` 精确选轨。**只有 CapCut 会跑在前面**，而且比 Claude
+  的 GA 端点更靠前一步：Claude 那个包用户自己去官网能下，**CapCut 的 beta 包官网不发**
+  （下载页只给 stable stub），用户没有「自己也能拿到」这条退路。
+
+  **决定：保留一键**（2026-08-27，用户拍板）。论据是回滚点 —— CapCut 可以被备份
+  （`duo doctor` 当天只报 EasyConnect 一个 app 备不了），APFS clone 几乎不占空间，所以
+  装了不合适可以退回去。加上包本身是厂商 CDN 上签名公证的真包，用户又明确勾了 beta。
+
+  **要盯的后续**：CapCut 二进制里有 `update_reminder.beta_stop_notice`、
+  `betaVersionStop`、"The beta testing for version %1 has ended" —— 厂商**有**叫停某个
+  beta 的机制，只是当前不下发这个字段（和 `diff_url` 一样，2026-08-27 实测）。既然我们
+  选择跑在分配之前，那厂商叫停、而我们还在推那个构建，就是这个决定唯一会真出事的场景。
+  哪天这个字段开始有值，就该读它。
 - **`downloadURL`（手动兜底）两轨都指向官网桌面页，而那页只发 stable stub。**
   一键接上之后它退化成兜底而不是主路径；替代方案 `nil` 会回落到 `recipe.url`，等于把
   ~400 KB 内部 settings blob 放到用户可见链接后面。厂商没有任何公开 beta 下载入口。

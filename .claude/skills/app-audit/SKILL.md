@@ -410,6 +410,40 @@ for: patches are typically keyed *from* a version *to* a version, so a pinned
 fake version can never match a patch mapping. Record the cost even when it is
 zero today.
 
+#### HARD RULE: say which of the two things the recipe reads
+
+For every recipe, answer in writing:
+
+> Does this read **the newest build published on the track**, or **the build this
+> machine has been allocated**?
+
+They are not the same thing whenever a vendor stages a rollout, and the
+difference is invisible in every downstream check: the version resolves, the URL
+resolves, the download is a real notarized build from the same vendor with the
+same Team ID, so the signature gate passes too.
+
+Reading "newest on the track" is allowed, but it is never the default and it
+must be argued in the audit — it means one-click installs a build the vendor has
+not allocated to this machine. Say what makes it acceptable for this app.
+
+What the registry looks like today, as the calibration:
+
+| App | What the recipe reads | Ahead of allocation? |
+|---|---|---|
+| ChatGPT | the track `plan_type` names | no — precise |
+| Claude `/latest` | the public GA build, downloadable by hand | no |
+| Claude `squirrel/update?device_id=` | the build allocated to this machine | no |
+| CapCut beta | the newest build on the beta track | **yes** |
+
+Note what makes Claude's GA endpoint safe and does NOT transfer: that build is
+one the user could fetch manually from the vendor's own download page. Where the
+vendor publishes no manual route to the build (CapCut's site serves only the
+stable stub), "it's public if you know the URL" is not the same argument.
+
+If you find yourself citing another app as precedent, open that recipe and read
+its comment first — the two Claude endpoints are safe for reasons that look like
+"we take the newest" from a distance and are not.
+
 ### Reference: what a recipe can already express
 
 An audit that does not know a field exists will report the situation it covers as
@@ -507,6 +541,8 @@ centerpiece — it shows at a glance what's covered and what's not.
 ## 一键安装
 - 状态: 支持 / 仅检测 / 需要验证
 - 格式: dmg/zip/pkg
+- **读的是**: 轨道最新 / 本机被分配 / 人人可手动下载的 GA  ← 必填,见 Phase 3⅞
+  - 若是「轨道最新」: 为什么这个 app 可以接受? (一键会装厂商还没分配给这台机器的构建)
 - 阻塞: ...
 
 ## 已知问题

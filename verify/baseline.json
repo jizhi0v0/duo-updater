@@ -1532,7 +1532,7 @@
       "lastGoodVersion" : "12.25.2",
       "sweepsSinceComment" : 0
     },
-    "vendor:com.raycast.macos:stable" : {
+    "vendor:com.raycast.macos:stable:v1" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,

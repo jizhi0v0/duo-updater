@@ -2023,6 +2023,94 @@ public enum ChangelogRecipeRegistry {
             channel: .preview,
             sourceTemplate: "https://longbridge.com/desktop/release-notes/preview/v{version}",
             imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#),
+
+        // Raycast v2 — www.raycast.com/changelog, server-rendered (the full notes
+        // are in the initial HTML; no hydration step to chase). Since v2 shipped
+        // this URL is the **v2** macOS changelog and the v1 archive moved to
+        // /changelog/macos — the opposite of what the paths suggest, and the reason
+        // this recipe points at the bare /changelog.
+        //
+        // Both trains keep the one bundle id and the one `.stable` channel, so the
+        // pair is separated by a version window instead — and this recipe is the
+        // one WITHOUT a window, deliberately. This page carries the whole v2 train:
+        // 2.0 at GA and the 0.63–0.71 builds that were the v2 beta before it. Those
+        // numbers sit BELOW v1's 1.95–1.104, so v2's range is not one side of a
+        // line and cannot be written as `2+` — doing so sent a 0.71 install to the
+        // v1 archive, the single page that does not carry its notes. Instead the
+        // archive claims exactly `[1, 2)` and everything else falls here.
+        //
+        // One entry per `<article>`:
+        //   <span id="2.0"></span>
+        //   <div class="…changelogMeta"><a …>v<!-- -->2.0</a>
+        //       <span class="…changelogDate">August 25, 2026</span></div>
+        //   <div class="markdown …changelogBody"> <p><img …></p> <p>intro…</p>
+        //       <h2>✨ New</h2><ul><li>…</li></ul> <h2>💎 Improvements</h2>… </div>
+        //
+        // The `id` span is the version anchor rather than the visible pill text,
+        // whose "v<!-- -->2.0" carries a comment node between the `v` and the
+        // number. Class names are CSS-module-hashed
+        // (`ChangelogEntry-module__p4g-ca__changelogBody`) so the patterns anchor
+        // on the readable SUFFIX, which survives a rebuild; the hash does not.
+        //
+        // Versions here are the vendor's own MINOR labels — "2.0", "0.71" — while
+        // the app reports a four-segment build (2.0.6.0). That is not a mismatch to
+        // fix: Raycast publishes one set of notes per minor train and ships several
+        // builds under it (the JSON API confirms this from the other side — its
+        // /releases list hands 2.0.6.0, 2.0.5.0, 2.0.4.0 and 2.0.3.0 byte-identical
+        // changelog text). The 0.6x–0.71 entries are the v2 BETA train, which is
+        // what preceded the 2.0 GA number.
+        //
+        // The single itemPattern deliberately matches `h2` and `li` together rather
+        // than listing them as fallbacks: itemPatterns are tried in order and the
+        // FIRST to yield anything wins, so a bullets-only pattern would silently
+        // drop the New/Improvements/Fixes headings that give 30 flat bullets their
+        // shape. Folding the section titles in as items is the same thing
+        // `decodeAlcoveChangelog` does with its Features/Fixes labels.
+        //
+        // NOT sourced from the JSON API next door (x.raycast-releases.com/releases)
+        // even though it serves clean markdown: that list endpoint ignores its own
+        // `platform` parameter (macos and windows return byte-identical bodies,
+        // measured 2026-08-27) and answers with the Windows-flavoured copy of a
+        // release note whose macOS twin differs. `…/releases/latest?platform=macos`
+        // IS platform-correct, but it is one release deep — no history to show.
+        ChangelogRecipe(
+            bundleID: "com.raycast.macos",
+            source: URL(string: "https://www.raycast.com/changelog")!,
+            entryPattern:
+                #"<span id="(?<version>[0-9][0-9.]*)"></span>.*?"#
+                + #"changelogDate">(?<date>[^<]+)</span>.*?"#
+                + #"changelogBody">(?<body>.*?)</article>"#,
+            itemPatterns: [#"<(?:h2|li)\b[^>]*>(?<item>.*?)</(?:h2|li)>"#],
+            maxEntries: 20,
+            imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#),
+
+        // Raycast v1 archive — /changelog/macos, the page titled "Raycast - macOS
+        // V1 Changelog". Byte-for-byte the same component as the v2 page above, so
+        // the patterns are the same three strings; only `source` and the version
+        // window differ. Verified against the live page 2026-08-27: 10 entries,
+        // 1.104.0 back to 1.95.0, all parsing.
+        //
+        // The window is `[1, 2)`, and the LOWER bound is the load-bearing half: a
+        // bare `belowAppVersion: "2"` would also swallow the 0.63–0.71 v2 beta
+        // builds, whose notes are on the v2 page above, not here.
+        //
+        // Its newest entry is 1.104.0 (December 16, 2025) while the v1 endpoint is
+        // serving 1.104.25 — not a stale page. Raycast publishes one set of notes
+        // per MINOR and ships patches under it, and v1 has been on patches alone
+        // since v2 development took over; 1.104.x installs belong under the 1.104.0
+        // entry. (The same grouping is visible on the v2 side, where 2.0.6.0
+        // through 2.0.3.0 share one note.)
+        ChangelogRecipe(
+            bundleID: "com.raycast.macos",
+            source: URL(string: "https://www.raycast.com/changelog/macos")!,
+            entryPattern:
+                #"<span id="(?<version>[0-9][0-9.]*)"></span>.*?"#
+                + #"changelogDate">(?<date>[^<]+)</span>.*?"#
+                + #"changelogBody">(?<body>.*?)</article>"#,
+            itemPatterns: [#"<(?:h2|li)\b[^>]*>(?<item>.*?)</(?:h2|li)>"#],
+            maxEntries: 20,
+            imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#,
+            minimumAppVersion: "1", belowAppVersion: "2"),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

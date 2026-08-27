@@ -2052,8 +2052,28 @@ public enum VendorProbeRegistry {
                 urlSource: .bodyPattern(#""downloadUrl"\s*:\s*"(https://downloads\.cursor\.com/[^"]+\.dmg)""#),
                 kind: .dmg)),
 
-        // Raycast — official "latest release" endpoint; `version` is first. Single
-        // channel. One-click: the same JSON's `downloadURL` is the dmg (a
+        // Raycast keeps TWO trains open, and which one a Mac belongs to is decided
+        // by the machine, not by a user preference — so both are stable-channel
+        // recipes separated by `hostRequirement`, not by `channel`.
+        //
+        //   v1 (this recipe): `releases.raycast.com`, universal, still shipping
+        //      (1.104.25 on 2026-08-18). This is the train for every Mac that
+        //      cannot run v2.
+        //   v2 (below): `x.raycast-releases.com`, arm64-only, macOS 26+.
+        //
+        // Neither endpoint gates: both answer any client the same way regardless
+        // of the UA's OS/architecture (measured 2026-08-27 across Intel/Sequoia/
+        // browser agents), which is precisely why the split is recorded in the
+        // recipes. `best(of:)` then takes the higher version among whichever
+        // recipes this Mac is eligible for — v2 on Apple silicon + Tahoe, v1
+        // everywhere else.
+
+        // Raycast v1 — official "latest release" endpoint; `version` is first.
+        // Carries an explicit `variant` for the same reason v2 does: a duplicated
+        // (bundleID, channel) group must declare every member deliberately. Its
+        // verify baseline entry was renamed with it (`…:stable` → `…:stable:v1`)
+        // rather than left to start over.
+        // One-click: the same JSON's `downloadURL` is the dmg (a
         // worker.raycast-releases.com proxy URL wrapping a presigned R2 object;
         // resolved fresh from each probe so its signed expiry is never stale).
         VendorProbeRecipe(
@@ -2062,10 +2082,56 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
             downloadURL: URL(string: "https://www.raycast.com/"),
-            changelogURL: URL(string: "https://www.raycast.com/changelog"),
+            // /changelog now serves the V2 notes; the v1 archive moved to
+            // /changelog/macos ("Raycast - macOS V1 Changelog"). This is the page
+            // a v1 user's notes actually live on, so it is the one linked here.
+            changelogURL: URL(string: "https://www.raycast.com/changelog/macos"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#""downloadURL"\s*:\s*"(https://[^"]+)""#),
-                kind: .dmg)),
+                kind: .dmg),
+            variant: "v1"),
+
+        // Raycast v2 — the endpoint the v2 app's own updater calls. Requirements
+        // are macOS Tahoe + Apple silicon (https://www.raycast.com/new), and the
+        // macOS half of `builds` carries exactly one entry, `macos/arm64`; hence
+        // the `hostRequirement`. On a Mac that fails it this recipe is dropped
+        // before the merge and the v1 recipe above answers instead.
+        //
+        // `version` is DELIBERATELY absent from the query. The endpoint is a
+        // "should I update?" call, not a "what is latest?" one: given the caller's
+        // version it answers **204 No Content** when that version is already
+        // current (which is what a packet capture of the running app shows, and
+        // what would make this probe fail exactly when it should say "up to
+        // date"). Omitting the parameter returns 200 + the newest release
+        // unconditionally. Passing a v1-shaped 3-segment version is not an option
+        // either — the parameter validates as 4 segments and 400s below that.
+        //
+        // Shape: {"id":…,"version":"2.0.6.0","title":…,"changelog":…,
+        //   "commit_sha":…,"created_at":"2026-08-25T07:34:17.976Z","updated_at":…,
+        //   "builds":[{…,"url":…}],"download_url":"https://x-r2.…arm64.dmg",
+        //   "checksum":"<md5>"}
+        // `version` is the marketing string the installed bundle reports verbatim
+        // (2.0.6.0 == CFBundleShortVersionString, verified on this machine), so no
+        // `versionIsBuild`. The install URL is the top-level `download_url` — a
+        // plain, unsigned R2 object, unlike v1's presigned link — and the `.dmg`
+        // suffix in the pattern keeps it off the Windows `.msix` builds listed in
+        // `builds`. `checksum` is an MD5 hex digest, which `checksumPattern`
+        // (SHA-512, base64) cannot consume, so it is left unused; Team SY64MV22J9
+        // gates the swap.
+        VendorProbeRecipe(
+            bundleID: "com.raycast.macos",
+            url: URL(string: "https://x.raycast-releases.com/releases/latest?platform=macos&architecture=arm64")!,
+            mode: .responseBody,
+            versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
+            downloadURL: URL(string: "https://www.raycast.com/"),
+            changelogURL: URL(string: "https://www.raycast.com/changelog"),
+            publishedAtPattern: #""created_at"\s*:\s*"([0-9T:.\-]+Z?)""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""download_url"\s*:\s*"(https://[^"]+\.dmg)""#),
+                kind: .dmg),
+            variant: "v2",
+            hostRequirement: VendorHostRequirement(
+                minimumSystemVersion: "26.0", architectures: [.arm64])),
 
         // Docker Desktop — Sparkle appcast. Titles read "<ver> (<build>)" (and
         // "Version <ver> (<build>)"); take the highest since the feed isn't

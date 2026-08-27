@@ -15,7 +15,7 @@ public enum StructuredChangelogDecoder {
     /// into at least one entry for the requested channel.
     public static func decode(
         _ body: String, format: ChangelogRecipe.StructuredFormat,
-        channel: ReleaseChannel?, maxEntries: Int?
+        channel: ReleaseChannel?, maxEntries: Int?, skipSections: [String] = []
     ) -> Changelog? {
         switch format {
         case .warpChannelVersions:
@@ -35,9 +35,12 @@ public enum StructuredChangelogDecoder {
         case .jetBrainsProductReleases:
             return decodeJetBrainsProductReleases(body, maxEntries: maxEntries)
         case .zedGitHubReleases:
-            return decodeZedGitHubReleases(body, channel: channel ?? .stable, maxEntries: maxEntries)
+            return decodeZedGitHubReleases(
+                body, channel: channel ?? .stable, maxEntries: maxEntries,
+                skipSections: skipSections)
         case .gitHubReleases:
-            return decodeGitHubReleases(body, channel: channel, maxEntries: maxEntries)
+            return decodeGitHubReleases(
+                body, channel: channel, maxEntries: maxEntries, skipSections: skipSections)
         case .alcoveChangelog:
             return decodeAlcoveChangelog(body, maxEntries: maxEntries)
         case .notionPageChunk:
@@ -470,7 +473,7 @@ public enum StructuredChangelogDecoder {
     /// exceptions). The list is already newest-first, so filtering by channel
     /// preserves that order; no re-sort needed (unlike Warp's unordered map).
     static func decodeZedGitHubReleases(
-        _ body: String, channel: ReleaseChannel, maxEntries: Int?
+        _ body: String, channel: ReleaseChannel, maxEntries: Int?, skipSections: [String] = []
     ) -> Changelog? {
         guard let data = body.data(using: .utf8),
               let releases = try? JSONDecoder().decode([ZedRelease].self, from: data)
@@ -491,7 +494,8 @@ public enum StructuredChangelogDecoder {
             // Preview user sitting on exactly that build must still find an entry
             // for their own version. That used to be a Zed-only fallback here;
             // it belongs in the parser, where every GitHub-sourced app gets it.
-            guard let parsed = GitHubMarkdownParser.parse(body: body, version: version, date: date),
+            guard let parsed = GitHubMarkdownParser.parse(
+                    body: body, version: version, date: date, skipSections: skipSections),
                   let entry = parsed.entries.first
             else { continue }
             entries.append(entry)
@@ -582,7 +586,8 @@ public enum StructuredChangelogDecoder {
     /// is skipped rather than shown as a bare version heading — but a body of plain
     /// sentences is NOT, since the parser's prose pass covers those.
     static func decodeGitHubReleases(
-        _ body: String, channel: ReleaseChannel? = nil, maxEntries: Int?
+        _ body: String, channel: ReleaseChannel? = nil, maxEntries: Int?,
+        skipSections: [String] = []
     ) -> Changelog? {
         guard let data = body.data(using: .utf8),
               let releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
@@ -595,7 +600,8 @@ public enum StructuredChangelogDecoder {
             let version = stripLeadingV(release.tagName)
             guard !version.isEmpty else { continue }
             let date = isoDay(release.publishedAt)
-            guard let parsed = GitHubMarkdownParser.parse(body: raw, version: version, date: date),
+            guard let parsed = GitHubMarkdownParser.parse(
+                    body: raw, version: version, date: date, skipSections: skipSections),
                   let entry = parsed.entries.first
             else { continue }
             entries.append(entry)

@@ -29,11 +29,46 @@ private let betterDisplayReleasesFixture = #"""
 ]
 """#
 
+/// v3.3.4 and v3.3.3 (fetched 2026-08-27), trimmed to the sections that matter and
+/// two roster rows each; every line kept is verbatim. Together they hold all three
+/// heading shapes this app has used: the roster spelled two ways, and — in v3.3.4,
+/// one section above its own roster — `### Localization Improvements`, which is
+/// real changes and must survive.
+private let betterDisplayOlderReleasesFixture = #"""
+[
+ {
+  "tag_name": "v3.3.4",
+  "prerelease": false,
+  "draft": false,
+  "published_at": "2025-01-31T21:04:07Z",
+  "body": "## About this version\n\nThis release focuses on enhanced localization support, improved macOS 15.3 compatibility, and various bug fixes.\r\n\n### Localization Improvements\n\n- A new language selection feature has been added to the Settings window (bottom-left corner) for easy language switching. - #3972\r\n- Incomplete localizations (below 90% completion) have been removed to ensure a consistent user experience. - #3977\r\n\n### Bug Fixes\n\n- Resolved an issue where some text appeared unlocalized regardless of settings - #3980\r\n- Corrected various typos in the base language text - #3975\r\n\n### Included Localizations\n\nThis release includes the following localizations, with thanks to our contributors:\r\n\n- British English (@PuzzledUser)\r\n- Chinese, Simplified (@BingoKingo, @shindgewongxj, @hshsilver, @jacktechstudio)\r"
+ },
+ {
+  "tag_name": "v3.3.3",
+  "prerelease": false,
+  "draft": false,
+  "published_at": "2025-01-25T09:14:58Z",
+  "body": "### Enhancements\n\n- Improved mouse cursor responsiveness with mirrored virtual screens (thanks to @dave-fl) - #807\r\n\n### Localizations included in this release\n\n- **British English** (100%) -  @PuzzledUser\r\n- **French** (100%) - @Kcraft059\r"
+ }
+]
+"""#
+
 @Suite struct BetterDisplayChangelogRecipeTests {
 
     private func recipe(_ channel: ReleaseChannel) throws -> ChangelogRecipe {
         try #require(ChangelogRecipeRegistry.recipe(
             forBundleID: BetterDisplayChannel.bundleID, channel: channel))
+    }
+
+    /// Decode the way `ChangelogService.parse` does — through the registered recipe,
+    /// carrying its `skipSections`. A test that calls the decoder bare tests a
+    /// configuration that never ships.
+    private func decode(_ feed: String, _ channel: ReleaseChannel) throws -> Changelog {
+        let r = try recipe(channel)
+        let format = try #require(r.structuredFormat)
+        return try #require(StructuredChangelogDecoder.decode(
+            feed, format: format, channel: r.channel,
+            maxEntries: r.maxEntries, skipSections: r.skipSections))
     }
 
     /// All three tracks read the same GitHub releases endpoint; only `channel`
@@ -112,19 +147,64 @@ private let betterDisplayReleasesFixture = #"""
         #expect(entry.items[1].hasPrefix("_Please note that this pre-release was tested"))
     }
 
-    /// The stable body's own decisions: the seven-region trim keeps the `### Changes`
-    /// bullets and the two under `### Included Localizations` (a real section of the
-    /// vendor's notes, not contributor noise GitHub generates), and drops the intro
-    /// prose, the pre-release promo and the "For previous release notes" line —
-    /// none of which is a bullet.
-    @Test func theStableBodyKeepsOnlyItsBullets() throws {
+    /// The stable body as it actually ships: only the `### Changes` bullets survive.
+    /// The intro prose, the pre-release promo and the "For previous release notes"
+    /// line are dropped for being non-bullets; the two rows under
+    /// `### Included Localizations` are dropped by `skipSections`.
+    @Test func theStableBodyKeepsOnlyItsChangeBullets() throws {
+        let entry = try #require(decode(betterDisplayReleasesFixture, .stable).entries.first)
+        #expect(entry.items.count == 2)
+        #expect(entry.items[0].hasPrefix("Fixed DDC capability retrieval"))
+        #expect(entry.items[1].hasPrefix("Improved default nits values"))
+        #expect(!entry.items.contains { $0.contains("For previous release notes") })
+        #expect(!entry.items.contains { $0.contains("service release focused on bug fixes") })
+    }
+
+    // MARK: - The contributor roster
+
+    /// All three tracks carry the same roster headings, from one shared constant —
+    /// a fourth spelling must not have to be added in three places.
+    @Test func everyTrackSkipsTheSameRosterHeadings() throws {
+        for r in ChangelogRecipeRegistry.recipes(forBundleID: BetterDisplayChannel.bundleID) {
+            #expect(r.skipSections == [
+                "Included Localizations", "Localizations included in this release",
+            ])
+        }
+    }
+
+    /// Both spellings of the roster go, in the modern one-bullet-per-release form
+    /// and the old one-bullet-per-language form.
+    @Test func bothSpellingsOfTheRosterAreDropped() throws {
+        let items = try decode(betterDisplayOlderReleasesFixture, .stable)
+            .entries.flatMap(\.items)
+        #expect(!items.contains { $0.contains("@PuzzledUser") })
+        #expect(!items.contains { $0.contains("British English") })
+        #expect(!items.contains { $0.contains("with thanks to our contributors") })
+
+        let latest = try #require(decode(betterDisplayReleasesFixture, .stable).entries.first)
+        #expect(!latest.items.contains { $0.hasPrefix("Contributors: @") })
+    }
+
+    /// The whole point of matching a WHOLE heading rather than a substring.
+    /// `### Localization Improvements` sits one section above the roster in the very
+    /// same v3.3.4 body and holds real changes — a language switcher, and the removal
+    /// of under-90% translations. A `localization` keyword would take both.
+    @Test func aRealLocalizationSectionIsNotMistakenForTheRoster() throws {
+        let entry = try #require(decode(betterDisplayOlderReleasesFixture, .stable).entries.first)
+        #expect(entry.version == "3.3.4")
+        #expect(entry.items.count == 4)
+        #expect(entry.items[0].hasPrefix("A new language selection feature"))
+        #expect(entry.items[1].hasPrefix("Incomplete localizations (below 90% completion)"))
+        #expect(entry.items[2].hasPrefix("Resolved an issue where some text appeared unlocalized"))
+    }
+
+    /// A recipe with no `skipSections` is untouched — the default every other
+    /// `.gitHubReleases` recipe runs on. Same fixture, same channel, roster intact.
+    @Test func anEmptySkipListChangesNothing() throws {
         let log = try #require(StructuredChangelogDecoder.decodeGitHubReleases(
             betterDisplayReleasesFixture, channel: .stable, maxEntries: 15))
         let entry = try #require(log.entries.first)
         #expect(entry.items.count == 4)
-        #expect(entry.items[0].hasPrefix("Fixed DDC capability retrieval"))
         #expect(entry.items[3].hasPrefix("Contributors: @afkeceli"))
-        #expect(!entry.items.contains { $0.contains("For previous release notes") })
-        #expect(!entry.items.contains { $0.contains("service release focused on bug fixes") })
     }
 }

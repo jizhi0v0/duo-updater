@@ -3093,6 +3093,16 @@ final class AppListModel {
         guard let staged = stagedPackages[result.id] else { return }
         _ = await InstallerWindowCloser.closeWindow(showing: staged.url)
         _ = PackageInstaller.discardWorkDirectory(containing: staged.url)
+        // Re-check before forgetting anything: closing the window is a detached
+        // AX conversation that can take seconds, and this model is @MainActor, so
+        // an install already in flight for this row can reach
+        // `recordStagedPackage` while we are suspended. Clearing unconditionally
+        // would throw away the entry for a package that was just downloaded —
+        // the row would fall back to "Update" and pull the same hundreds of
+        // megabytes again, which is the exact waste staging exists to prevent —
+        // and would wipe that install's progress note on the way past. Same
+        // re-check, for the same reason, as `retireStagedPackage` above.
+        guard stagedPackages[result.id]?.url == staged.url else { return }
         stagedPackages[result.id] = nil
         persistStagedPackages()
         installNotes[result.id] = nil

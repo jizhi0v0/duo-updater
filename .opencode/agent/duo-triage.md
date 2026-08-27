@@ -3,12 +3,20 @@ description: >-
   Re-derives a broken extraction pattern from a captured vendor response. Used
   only by `duo triage`; never for editing this repository.
 mode: primary
-# Chosen because it is reachable without a provider credential of its own and
-# bills nothing; the sibling `opencode-go/` and direct `deepseek/` routes both
-# need account-level access that not every checkout will have. Triage only ever
-# reads a captured response body, so a small model is enough.
+# The previous choice, `opencode/deepseek-v4-flash-free`, was RETIRED from the
+# provider some time before 2026-08-27 and no longer appears in `opencode
+# models`. Requesting a model that no longer exists does not fail cleanly:
+# the server answers a generic `UnknownError: Unexpected server error`, which
+# surfaces only as `opencode exited 1` in the sweep log, with nothing naming
+# the model. Every triage call had been failing that way — check `opencode
+# models` first when triage starts exiting 1 across the board.
+#
+# `opencode-go/` was previously avoided because it 403'd without account-level
+# access. That is no longer true for this account (verified 2026-08-27: both
+# `deepseek-v4-pro` and `deepseek-v4-flash` answer). Unlike the old `-free`
+# route this one may bill.
 # `duo triage --model` overrides it.
-model: opencode/deepseek-v4-flash-free
+model: opencode-go/deepseek-v4-pro
 temperature: 0.1
 permission:
   edit: deny

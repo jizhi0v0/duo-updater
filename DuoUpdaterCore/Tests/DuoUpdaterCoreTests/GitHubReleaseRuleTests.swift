@@ -309,11 +309,11 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
 }
 
 /// A respun KeePassXC release keeps both the original and the respun dmg, so the
-/// pattern matches more than one asset and `installableAsset`'s first-arch-native-
-/// match rule decides. This does NOT pin upstream's ordering (it can't — the list
-/// is a fixture): it pins the *selection semantics* against the real 2.7.11 asset
-/// list in the order GitHub returns it, alphabetical. The second respin case is
-/// recorded below as a known issue rather than asserted away.
+/// pattern matches more than one asset and `installableAsset`'s arch tiering plus
+/// highest-name-wins rule decides. This does NOT pin upstream's ordering (it
+/// can't — the list is a fixture): it pins the *selection semantics* against the
+/// real 2.7.11 asset list in the order GitHub returns it, alphabetical, and then
+/// against the orders GitHub could equally have returned.
 @Test func keepassxcRespinIsTheAssetSelected() {
     func assets(_ names: [String]) -> [(name: String, url: URL, size: Int64?)] {
         names.map { (name: $0, url: URL(string: "https://example.invalid/\($0)")!,
@@ -335,14 +335,23 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     // A normal release has exactly one arm64 match, so there is nothing to decide.
     #expect(picked(["KeePassXC-2.7.12-arm64.dmg", "KeePassXC-2.7.12-x86_64.dmg"])
             == "KeePassXC-2.7.12-arm64.dmg")
-    // Known gap: alphabetical order puts `-1-` before `-2-`, so a SECOND respin
-    // would be passed over in favour of the first. Not reachable today (no release
-    // has ever gone past `-1`), and bounded — same version, same Team, notarized —
-    // but recorded so it reads as a known gap rather than as covered.
-    withKnownIssue("installableAsset takes the first match, so a -2 respin loses to -1") {
-        #expect(picked(["KeePassXC-2.7.11-1-arm64.dmg", "KeePassXC-2.7.11-2-arm64.dmg",
-                        "KeePassXC-2.7.11-arm64.dmg"]) == "KeePassXC-2.7.11-2-arm64.dmg")
-    }
+    // A SECOND respin wins over the first, which alphabetical order gets backwards
+    // (`-1-` sorts before `-2-`). Not reachable in KeePassXC's own history — no
+    // release has gone past `-1` — but this is the case that made the selection
+    // positional-by-accident, and it is now decided by comparison (issue #80).
+    #expect(picked(["KeePassXC-2.7.11-1-arm64.dmg", "KeePassXC-2.7.11-2-arm64.dmg",
+                    "KeePassXC-2.7.11-arm64.dmg"]) == "KeePassXC-2.7.11-2-arm64.dmg")
+    // …in either listing order: the point is that position stopped deciding.
+    #expect(picked(["KeePassXC-2.7.11-2-arm64.dmg", "KeePassXC-2.7.11-1-arm64.dmg",
+                    "KeePassXC-2.7.11-arm64.dmg"]) == "KeePassXC-2.7.11-2-arm64.dmg")
+    // Double digits: `-10-` beats `-9-` numerically, where a string sort would
+    // put `-10-` first and read it as the newer one.
+    #expect(picked(["KeePassXC-2.7.11-9-arm64.dmg", "KeePassXC-2.7.11-10-arm64.dmg"])
+            == "KeePassXC-2.7.11-10-arm64.dmg")
+    // And the respin still beats the un-respun original whichever way round the
+    // list arrives — the real 2.7.11 case, no longer relying on GitHub's sort.
+    #expect(picked(["KeePassXC-2.7.11-arm64.dmg", "KeePassXC-2.7.11-1-arm64.dmg"])
+            == "KeePassXC-2.7.11-1-arm64.dmg")
 }
 
 @Test func keepassxcRuleAllowsRespinSuffix() {

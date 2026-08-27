@@ -1084,6 +1084,102 @@ private func verdict(
     }
 }
 
+/// Issue #79: a recipe that reverts to whole-body first-match must SAY SO.
+///
+/// `entryStartPattern`'s fallback is the right call — a possibly-stale answer
+/// beats no answer — but it used to be completely silent, so a recipe could
+/// quietly go back to being the pre-#76 bug it was written to fix while
+/// `duo verify` stayed green. The sweep's only history check fires on a version
+/// moving BACKWARDS, which a first-match revert only trips inside the rare
+/// two-trains-overlapping window that made #76 visible in the first place.
+///
+/// Driven with the shipping canary recipe against the real 2026-08-27 feed, with
+/// ONE byte of the item separator changed (`{"date":"` → `{ "date":"`): a vendor
+/// pretty-printing their JSON, which #79 measured as enough to zero out all 671
+/// matches. That is the whole failure — the version still resolves, confidently
+/// and wrongly, off the older train's RC.
+@Test func aRecipeThatFallsBackToWholeBodyFirstMatchIsWarnedAbout() async throws {
+    let items = #"""
+    {"date":"August 25, 2026","platformBuild":"261.26222.65","download":[{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.1.4.6/android-studio-quail4-rc2-mac_arm.dmg","checksum":"deadbeef"}],"build":"AI-261.26222.65.2614.16166871","platformVersion":"2026.1.4","name":"Android Studio Quail 4 | 2026.1.4 RC 2","channel":"RC","version":"2026.1.4.6"},\#
+    {"date":"August 20, 2026","platformBuild":"262.9437.185","download":[{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.2/android-studio-rabbit1-canary2-mac_arm.dmg","checksum":"deadbeef"}],"build":"AI-262.9437.185.2621.16128175","platformVersion":"2026.2.1","name":"Android Studio Rabbit 1 | 2026.2.1 Canary 2","channel":"Canary","version":"2026.2.1.2"}
+    """#
+    let healthy = #"{"content":{"item":["# + items + #"]}}"#
+    // The one edit a vendor's formatter would make: a space after the brace.
+    let reformatted = healthy.replacingOccurrences(of: #"{"date":""#, with: #"{ "date":""#)
+
+    let canary = try #require(
+        VendorProbeRegistry.recipes.first {
+            $0.bundleID == "com.google.android.studio" && $0.channel == .canary
+        })
+
+    // Control: on the feed as it is served, slicing works and nothing is warned.
+    let good = try RecipeVerificationTests.StubServer(body: healthy)
+    defer { good.stop() }
+    let healthyOutcome = await VendorProbeSource().probeDiagnostic(canary.with(url: good.url))
+    #expect(healthyOutcome.remote?.version == "AI-262.9437.185.2621.16128175")
+    #expect(!healthyOutcome.warnings.contains(.entryPatternNoMatch))
+
+    // Reformatted: `entryStartPattern` matches nothing, every read reverts to
+    // whole-body first-match, and the answer is the older train's RC — the exact
+    // pre-#76 bug, back, with the version still resolving.
+    let broken = try RecipeVerificationTests.StubServer(body: reformatted)
+    defer { broken.stop() }
+    let outcome = await VendorProbeSource().probeDiagnostic(canary.with(url: broken.url))
+    #expect(outcome.failure == nil, "the fallback must still produce an answer")
+    #expect(outcome.remote?.version == "AI-261.26222.65.2614.16166871",
+            "reverting to first-match is what the warning is reporting")
+    #expect(outcome.warnings.contains(.entryPatternNoMatch),
+            "a silent revert to the pre-#76 behaviour is what issue #79 is about")
+}
+
+/// The warning fires on the fallback, not on the absence of `entryStartPattern`.
+///
+/// Nearly every recipe in the registry reads its whole body first-match by
+/// design; warning on those would put the sweep permanently in `warn` and the
+/// signal would be worthless within a day.
+@Test func recipesWithNoEntryStartPatternAreNotWarnedAbout() async throws {
+    let body = #"{"version":"3.1.0"}"#
+    let server = try RecipeVerificationTests.StubServer(body: body)
+    defer { server.stop() }
+    let plain = VendorProbeRecipe(
+        bundleID: "com.example.subject", url: server.url, mode: .responseBody,
+        versionPattern: #""version":"([0-9.]+)""#)
+    let outcome = await VendorProbeSource().probeDiagnostic(plain)
+    #expect(outcome.remote?.shortVersion == "3.1.0")
+    #expect(outcome.warnings.isEmpty)
+}
+
+/// The other two silent paths #79 names, at the primitive's own level: an
+/// `entryStartPattern` that matches fewer than two entries, and a winning entry
+/// that trips the self-containment guard. Both return nil — which is precisely
+/// what `VendorProbeSource` now turns into the warning — so pinning them here
+/// keeps the warning's coverage tied to the primitive's contract rather than to
+/// the one reformatting scenario exercised end to end above.
+@Test func everyWayHighestVersionEntryDeclinesIsAWarnedFallback() {
+    let versionPattern = #"AI-([0-9.]+)"#
+    let cases: [(why: String, body: String)] = [
+        ("fewer than two entries", #"{"date":"a","build":"AI-1.0"}"#),
+        ("no entry matches versionPattern",
+         #"{"date":"a","other":"1"}{"date":"b","other":"2"}"#),
+        ("the winning entry is not self-contained",
+         #"{"date":"a","build":"AI-1.0"}{"date":"b","build":"AI-9.0"}{"stray":"AI-9.5"}"#),
+    ]
+    for (why, body) in cases {
+        #expect(
+            VendorProbeRecipe.highestVersionEntry(
+                in: body, entryStartPattern: #"\{"date":""#,
+                versionPattern: versionPattern) == nil,
+            "\(why) must decline so the caller falls back — and warns")
+    }
+    // An uncompilable pattern is the fourth, closed for authored recipes by
+    // `entryStartPatternsInTheRegistryAreValidRegexes` but still live at runtime.
+    #expect(
+        VendorProbeRecipe.highestVersionEntry(
+            in: #"{"date":"a","build":"AI-1.0"}{"date":"b","build":"AI-9.0"}"#,
+            entryStartPattern: #"\{"date":"[unclosed"#,
+            versionPattern: versionPattern) == nil)
+}
+
 /// The primitive's central claim — version/display/URL can never land on
 /// different releases — holds only while `entryStartPattern` slices BETWEEN
 /// items. If a future feed nested the start marker inside one item, the

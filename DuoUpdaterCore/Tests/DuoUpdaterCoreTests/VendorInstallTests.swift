@@ -167,6 +167,152 @@ import CryptoKit
     }
 }
 
+// MARK: - the `.recipeAnchor` surface (issue #81)
+
+/// Adding a field to `VendorProbeRecipe` must be a decision, not an omission.
+///
+/// `channelAnchorSurface` is derived by reflection, so a new field joins the
+/// surface by construction — the opposite of the hand-written list it replaced,
+/// which silently stopped covering `entryStartPattern` the day that field
+/// landed. What reflection cannot decide is whether the new field belongs in
+/// `nonAnchorFields` instead. This count is what forces that question: it fails
+/// on the next field added, and the fix is one line either way — bump the number
+/// (the field is part of what the recipe reads) or add the label to
+/// `nonAnchorFields` (it only labels the recipe).
+@Test func channelAnchorSurfaceCoversEveryRecipeField() {
+    let recipe = VendorProbeRegistry.recipes[0]
+    let labels = Mirror(reflecting: recipe).children.compactMap(\.label)
+    #expect(labels.count == 20,
+            "VendorProbeRecipe gained or lost a field (now \(labels.count): \(labels.sorted())) — decide whether it belongs in the .recipeAnchor surface or in nonAnchorFields, then update this count")
+    // A renamed field would turn its exclusion into a silent no-op, quietly
+    // widening the surface instead of narrowing it. Same class of bug, other
+    // direction.
+    for excluded in VendorProbeRecipe.nonAnchorFields {
+        #expect(labels.contains(excluded),
+                "nonAnchorFields names '\(excluded)', which is not a field of VendorProbeRecipe any more")
+    }
+}
+
+/// The concrete gap #81 was filed for: an anchor living in `entryStartPattern`.
+///
+/// Driven through `crossChannelArtifact` itself, on a REGISTERED proof key
+/// (WeChat DevTools RC, whose proof is `.recipeAnchor("id":.*"rc")`), with the
+/// anchor moved out of `versionPattern` and into `entryStartPattern` — the field
+/// the hand-written surface never learned about. Under that surface this recipe
+/// read as un-anchored and the guard fired on a recipe that is correctly tied to
+/// its channel; the negative case below shows the guard has not simply gone
+/// quiet instead.
+@Test func theAnchorSurfaceSeesEntryStartPattern() {
+    func wechatRC(versionPattern: String, entryStartPattern: String?) -> VendorProbeRecipe {
+        VendorProbeRecipe(
+            bundleID: "com.tencent.wechatdevtools",
+            url: URL(string: "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/config.json")!,
+            mode: .responseBody,
+            versionPattern: versionPattern,
+            entryStartPattern: entryStartPattern,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""url":\s*"(https://[^"]+_darwin_arm64\.pkg)""#),
+                kind: .pkg),
+            channel: .rc)
+    }
+    // The artifact itself proves nothing here — RC and Stable are served from the
+    // same directory with the same filename template, which is why this proof is
+    // an anchor and not an `.artifact` match in the first place.
+    let remote = RemoteVersion(
+        shortVersion: "1.06.2508260", version: "1.06.2508260",
+        downloadURL: URL(string: "https://dldir1.qq.com/WechatWebDev/release/abc123/wechat_devtools_1.06.2508260_darwin_arm64.pkg")!,
+        sourceName: "Vendor")
+
+    // Anchored ONLY through `entryStartPattern`: the guard must be satisfied.
+    let anchoredInEntryPattern = wechatRC(
+        versionPattern: #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#,
+        entryStartPattern: #"\{"id":\s*"rc""#)
+    #expect(
+        RecipeSanity.crossChannelArtifact(recipe: anchoredInEntryPattern, remote: remote) == nil,
+        "an anchor that lives in entryStartPattern must satisfy .recipeAnchor")
+
+    // …and the guard still fires when the anchor is nowhere at all, so the line
+    // above is the surface widening, not the guard going quiet.
+    let unanchored = wechatRC(
+        versionPattern: #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#, entryStartPattern: nil)
+    #expect(
+        RecipeSanity.crossChannelArtifact(recipe: unanchored, remote: remote) != nil,
+        "a recipe with its channel anchor removed must still be complained about")
+}
+
+/// An anchor that contains quotes must match wherever in the recipe it lives.
+///
+/// `String(describing:)` renders a string nested inside an optional, an array, an
+/// enum payload or another struct through its DEBUG description, which escapes
+/// quotes — so `"id":.*"rc"` would silently fail to match the very install spec
+/// the old surface reached into with exactly that call. Three of the five
+/// registered anchors carry quotes or angle brackets, so the surface has to yield
+/// strings verbatim rather than described.
+@Test func anchorsWithQuotesMatchNestedFieldsToo() {
+    let recipe = VendorProbeRecipe(
+        bundleID: "com.example.subject",
+        url: URL(string: "https://example.invalid/config.json")!,
+        mode: .responseBody,
+        versionPattern: #""version":\s*"([0-9.]+)""#,
+        install: VendorInstallSpec(
+            urlSource: .bodyPattern(#""id":\s*"rc"[\s\S]*?"url":\s*"(https://[^"]+\.pkg)""#),
+            kind: .pkg),
+        channel: .rc)
+    let surface = recipe.channelAnchorSurface
+    #expect(surface.contains(#""id":\s*"rc""#),
+            "a quoted marker inside the install spec must appear verbatim, not debug-escaped")
+    #expect(!surface.contains(#"\""#),
+            "no field may reach the surface through a debug description")
+}
+
+/// Broadening the surface must not make an anchor vacuously true.
+///
+/// Deriving is the fix for a guard that silently shrinks; the failure mode it
+/// trades into is a guard that silently GROWS until the anchor matches something
+/// that says nothing about which channel the recipe reads. `nonAnchorFields`
+/// exists to hold that line — a `.beta` recipe literally carries the word "beta"
+/// in `channel` — and this asserts the line is where it needs to be for every
+/// anchor actually registered: none of them can be satisfied by the labelling
+/// fields alone.
+@Test func registeredAnchorsAreNotSatisfiedByLabellingFieldsAlone() {
+    let byKey = Dictionary(
+        VendorProbeRegistry.recipes.map { (ChannelProofKey($0.bundleID, $0.channel), $0) },
+        uniquingKeysWith: { a, _ in a })
+    for (key, proof) in ChannelProofRegistry.proofs {
+        guard case .recipeAnchor(let pattern) = proof else { continue }
+        guard let recipe = byKey[key] else { continue }
+        let labellingOnly = Mirror(reflecting: recipe).children
+            .filter { $0.label.map(VendorProbeRecipe.nonAnchorFields.contains) ?? false }
+            .map { String(describing: $0.value) }
+            .joined(separator: "\n")
+        #expect(
+            labellingOnly.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil,
+            "\(key): the anchor /\(pattern)/ is satisfied by fields that only label the recipe, so it proves nothing about which channel it reads")
+    }
+}
+
+/// Every registered `.recipeAnchor` still matches its own recipe — offline.
+///
+/// The live sweep above checks this too, but only where the network answers.
+/// This is the half that fails in a PR: an anchor that stopped matching means
+/// either the recipe drifted off its channel-dedicated endpoint or the marker
+/// was retyped, and both should be caught before a nightly run notices.
+@Test func registeredAnchorsMatchTheirRecipes() {
+    let byKey = Dictionary(
+        VendorProbeRegistry.recipes.map { (ChannelProofKey($0.bundleID, $0.channel), $0) },
+        uniquingKeysWith: { a, _ in a })
+    for (key, proof) in ChannelProofRegistry.proofs {
+        guard case .recipeAnchor(let pattern) = proof else { continue }
+        let recipe = byKey[key]
+        #expect(recipe != nil, "\(key) has a .recipeAnchor proof but no recipe")
+        guard let recipe else { continue }
+        #expect(
+            recipe.channelAnchorSurface.range(
+                of: pattern, options: [.regularExpression, .caseInsensitive]) != nil,
+            "\(key): nothing in the recipe matches its anchor /\(pattern)/ any more")
+    }
+}
+
 /// The install half of a vendor probe must stay OFF for a Toolbox-managed copy.
 ///
 /// Android Studio's Canary/Beta are the one case where a Toolbox-managed app is

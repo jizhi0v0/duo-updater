@@ -891,6 +891,13 @@ private func verdict(
         "EAP missed a real build bump")
 }
 
+// Pattern-level only: this drives `VendorProbeRecipe.extractVersion` directly
+// against a body that happens to already be in version order, so it does NOT
+// exercise `entryStartPattern`/`VendorProbeSource.probeOutcome`'s entry-scoped
+// resolution — the path production actually takes on the real (publish-date
+// ordered) feed. It stays as a pattern/stability-floor check; see
+// `androidStudioCanaryPicksTheNewestTrainNotTheMostRecentlyPublishedEntry` below
+// for the end-to-end ordering behaviour (issue #76).
 @Test func androidStudioPreviewObeysStabilityFloorAndShowsCleanVersion() {
     // Faithful newest-first slice spanning TWO feature versions: the next version's
     // Canary 1 (2026.1.3, newest overall) sits above the current version's RC 1
@@ -953,6 +960,190 @@ private func verdict(
         UpdateChecker.evaluate(installed: canaryOn7, remote: canaryRemote)
             == .updateAvailable(latest: "2026.1.3 Canary 1"),
         "Canary should advance onto the newest preview, shown as a clean version")
+}
+
+/// Issue #76: `jb.gg/android-studio-releases-list.json` is ordered by
+/// PUBLICATION DATE, not by version. When two feature trains are open at once
+/// that stops being the same thing as "newest first" — real ordering captured
+/// 2026-08-27 (671-item feed): `2026.1.4 RC 2` (older 261 train) sits at [0],
+/// the actually-newest build `2026.2.1 Canary 2` (262 train) sits at [1], one
+/// slot later, because Google happened to publish the RC a few hours after it.
+///
+/// Run end to end through `VendorProbeSource.probeDiagnostic` (not just
+/// pattern extraction) against that real body, so `version`,
+/// `displayVersionPattern` AND the install spec's URL are all checked
+/// together — the exact three first-match reads `entryStartPattern` exists to
+/// keep in sync (see its doc on `VendorProbeRecipe`; flipping `selectHighest`
+/// on the version alone would have desynced them instead of fixing anything).
+@Test func androidStudioCanaryPicksTheNewestTrainNotTheMostRecentlyPublishedEntry() async throws {
+    // Trimmed but real: dates, builds, names and channels are byte-for-byte
+    // what the feed served; only the sibling `.deb`/`.exe` download entries
+    // and the checksums were dropped to keep the fixture short.
+    let body = #"""
+    {"content":{"item":[\#
+    {"date":"August 25, 2026","platformBuild":"261.26222.65","download":[{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.1.4.6/android-studio-quail4-rc2-mac_arm.dmg","checksum":"deadbeef"}],"build":"AI-261.26222.65.2614.16166871","platformVersion":"2026.1.4","name":"Android Studio Quail 4 | 2026.1.4 RC 2","channel":"RC","version":"2026.1.4.6"},\#
+    {"date":"August 20, 2026","platformBuild":"262.9437.185","download":[{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.2/android-studio-rabbit1-canary2-mac_arm.dmg","checksum":"deadbeef"}],"build":"AI-262.9437.185.2621.16128175","platformVersion":"2026.2.1","name":"Android Studio Rabbit 1 | 2026.2.1 Canary 2","channel":"Canary","version":"2026.2.1.2"},\#
+    {"date":"August 17, 2026","platformBuild":"262.9437.185","download":[{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.1/android-studio-rabbit1-canary1-mac_arm.dmg","checksum":"deadbeef"}],"build":"AI-262.9437.185.2621.16076543","platformVersion":"2026.2.1","name":"Android Studio Rabbit 1 | 2026.2.1 Canary 1","channel":"Canary","version":"2026.2.1.1"},\#
+    {"date":"August 17, 2026","platformBuild":"261.26222.65","download":[{"size":"1.5 GB","link":"https://edgedl.me.gvt1.com/android/studio/install/2026.1.4.5/android-studio-quail4-rc1-mac_arm.dmg","checksum":"deadbeef"}],"build":"AI-261.26222.65.2614.16087418","platformVersion":"2026.1.4","name":"Android Studio Quail 4 | 2026.1.4 RC 1","channel":"RC","version":"2026.1.4.5"}\#
+    ]}}
+    """#
+
+    let canary = try #require(
+        VendorProbeRegistry.recipes.first {
+            $0.bundleID == "com.google.android.studio" && $0.channel == .canary
+        })
+    #expect(canary.entryStartPattern != nil,
+            "the fix opts the canary recipe into entry-scoped resolution")
+
+    // Same shipping recipe object, straight from the registry, pointed at a
+    // loopback copy of the real body via `with(url:)` and `with(entryStartPattern:)`
+    // — copy methods that carry over EVERY other field, so this is a true A/B on
+    // the ONE thing the fix changes, not two hand-copied recipes that could
+    // silently drift from what actually ships (see those methods' doc: an
+    // earlier hand-copy here dropped `identities`/`track`/`variant`).
+    let server = try RecipeVerificationTests.StubServer(body: body)
+    defer { server.stop() }
+
+    // RED — reproduces the reported bug: strip `entryStartPattern` (the recipe
+    // as it shipped before this fix) and the plain first-match over the whole
+    // feed lands on the older 261 train's RC, exactly as `duo verify` caught.
+    let redOutcome = await VendorProbeSource().probeDiagnostic(
+        canary.with(url: server.url).with(entryStartPattern: nil))
+    #expect(
+        redOutcome.remote?.version == "AI-261.26222.65.2614.16166871",
+        "pre-fix recipe should reproduce the reported bug: first match over the whole feed lands on the older train's RC")
+    #expect(redOutcome.remote?.shortVersion == "2026.1.4 RC 2")
+
+    // GREEN — the shipping recipe resolves the entry whose OWN build compares
+    // highest: version, display and the install URL all agree on the SAME
+    // entry, the newer 262 train's Canary 2.
+    let outcome = await VendorProbeSource().probeDiagnostic(canary.with(url: server.url))
+    #expect(outcome.remote?.version == "AI-262.9437.185.2621.16128175")
+    #expect(outcome.remote?.shortVersion == "2026.2.1 Canary 2")
+    #expect(
+        outcome.remote?.downloadURL?.absoluteString
+            == "https://edgedl.me.gvt1.com/android/studio/install/2026.2.1.2/"
+                + "android-studio-rabbit1-canary2-mac_arm.dmg")
+}
+
+/// Both Android Studio preview recipes must stay in lockstep on the fix — the
+/// stability floor spans both, and only opting canary in would leave beta
+/// exposed to the exact same cross-train ordering bug. Derived from the
+/// registry so a future third preview channel is covered automatically.
+@Test func androidStudioPreviewRecipesBothOptIntoEntryScopedResolution() {
+    let previews = VendorProbeRegistry.recipes.filter {
+        $0.bundleID == "com.google.android.studio" && $0.channel != .stable
+    }
+    #expect(!previews.isEmpty, "no Android Studio preview recipes in the registry")
+    for recipe in previews {
+        #expect(
+            recipe.entryStartPattern != nil,
+            "\(recipe.channel.rawValue) recipe must opt into entry-scoped resolution (issue #76)")
+    }
+}
+
+/// Unit coverage of the primitive itself, isolated from any real feed: slicing
+/// and the two ways it must decline (falling back to nil, which callers turn
+/// into "search the whole body" — see `VendorProbeSource.probeOutcome`) rather
+/// than crash or silently pick something arbitrary.
+@Test func highestVersionEntryFallsBackWhenThereIsNothingToDisambiguate() {
+    // Fewer than two `entryStartPattern` matches: nothing to slice.
+    #expect(
+        VendorProbeRecipe.highestVersionEntry(
+            in: #"{"date":"x","build":"AI-1.0"}"#,
+            entryStartPattern: #"\{"date":""#,
+            versionPattern: #""build":"(AI-[^"]+)""#) == nil)
+
+    // Two entries, but neither's version matches `versionPattern`: no winner.
+    let neitherMatches = #"{"date":"a","other":"1"}{"date":"b","other":"2"}"#
+    #expect(
+        VendorProbeRecipe.highestVersionEntry(
+            in: neitherMatches, entryStartPattern: #"\{"date":""#,
+            versionPattern: #""build":"(AI-[^"]+)""#) == nil)
+
+    // Two entries, only the SECOND matches: it wins even though it isn't
+    // first — the whole point of the primitive.
+    let onlySecondMatches = #"{"date":"a","other":"1"}{"date":"b","build":"AI-9.0"}"#
+    let winner = VendorProbeRecipe.highestVersionEntry(
+        in: onlySecondMatches, entryStartPattern: #"\{"date":""#,
+        versionPattern: #""build":"(AI-[^"]+)""#)
+    #expect(winner?.contains(#""build":"AI-9.0""#) == true)
+}
+
+/// A typo'd `entryStartPattern` doesn't fail loudly: `highestVersionEntry`
+/// swallows an uncompilable regex with `try?` and falls back to whole-body
+/// first-match — the exact pre-#76 behaviour, with nothing logged anywhere.
+/// This is the only net that would catch that mistake before it ships, so it
+/// has to be registry-wide, not just Android Studio's two recipes.
+@Test func entryStartPatternsInTheRegistryAreValidRegexes() {
+    for recipe in VendorProbeRegistry.recipes {
+        guard let pattern = recipe.entryStartPattern else { continue }
+        #expect(
+            (try? NSRegularExpression(pattern: pattern)) != nil,
+            "\(recipe.bundleID) [\(recipe.channel.rawValue)]: entryStartPattern '\(pattern)' does not compile as a regex")
+    }
+}
+
+/// The primitive's central claim — version/display/URL can never land on
+/// different releases — holds only while `entryStartPattern` slices BETWEEN
+/// items. If a future feed nested the start marker inside one item, the
+/// winning "entry" would straddle two releases: this pins that `entryStartPattern`
+/// declines (falls back to nil, same as any other disqualified winner) rather
+/// than silently trusting a slice that isn't self-contained.
+@Test func highestVersionEntryDeclinesAWinningEntryThatContainsMoreThanOneRelease() {
+    // Two `{"date":"` slices, but the SECOND one (which would win — "9.0" >
+    // "1.0") is contaminated: it contains two `versionPattern` matches, as if
+    // `entryStartPattern` had split mid-item and folded a second release's
+    // fields into what should have been one entry.
+    let midItemSplit =
+        #"{"date":"a","build":"AI-1.0"}{"date":"b","build":"AI-9.0"}{"stray":"AI-9.5"}"#
+    #expect(
+        VendorProbeRecipe.highestVersionEntry(
+            in: midItemSplit, entryStartPattern: #"\{"date":""#,
+            versionPattern: #"AI-([0-9.]+)"#) == nil,
+        "a winning entry with more than one versionPattern match must decline, not silently trust the slice")
+
+    // Control: the same shape, but the winning entry is clean (exactly one
+    // match) — must still resolve normally.
+    let clean = #"{"date":"a","build":"AI-1.0"}{"date":"b","build":"AI-9.0"}"#
+    let winner = VendorProbeRecipe.highestVersionEntry(
+        in: clean, entryStartPattern: #"\{"date":""#, versionPattern: #"AI-([0-9.]+)"#)
+    #expect(winner?.contains("AI-9.0") == true)
+}
+
+/// `selectHighest` must mean the same thing whether or not `entryStartPattern`
+/// is also set: entries are scored by the SAME extractor
+/// (`highestVersion`/`extractVersion`) the caller will apply to the winner
+/// afterwards, so the two can't disagree about which entry "the highest
+/// version" even refers to. No registry recipe combines the two today, but the
+/// primitive must not silently narrow `selectHighest`'s meaning if one does.
+@Test func highestVersionEntryScoresBySelectHighestWhenTheRecipeAsksForIt() {
+    // Entry A's FIRST match ("1.0") is lower than entry B's ("2.0"), but A
+    // contains a SECOND, higher match ("9.0") buried later — exactly the shape
+    // `selectHighest` exists to find over a whole body.
+    let body = #"{"date":"a","build":"AI-1.0","note":"superseded by AI-9.0"}{"date":"b","build":"AI-2.0"}"#
+    let pattern = #"AI-([0-9.]+)"#
+
+    // Without `selectHighest`, each entry is scored by its FIRST match: A
+    // reads "1.0", B reads "2.0" — B wins, and it has only one match, so no
+    // other invariant gets in the way.
+    let firstMatchWinner = VendorProbeRecipe.highestVersionEntry(
+        in: body, entryStartPattern: #"\{"date":""#, versionPattern: pattern)
+    #expect(firstMatchWinner?.contains(#""build":"AI-2.0""#) == true)
+    #expect(
+        firstMatchWinner.flatMap { VendorProbeRecipe.extractVersion(from: $0, pattern: pattern) }
+            == "2.0")
+
+    // WITH `selectHighest`, each entry is scored by its OWN highest match: A
+    // reads "9.0" (beating its own first-match "1.0"), B still reads "2.0" —
+    // A wins this time, even though A's first match alone would have lost.
+    let highestMatchWinner = VendorProbeRecipe.highestVersionEntry(
+        in: body, entryStartPattern: #"\{"date":""#, versionPattern: pattern, selectHighest: true)
+    #expect(highestMatchWinner?.contains("AI-1.0") == true)
+    #expect(
+        highestMatchWinner.flatMap { VendorProbeRecipe.highestVersion(from: $0, pattern: pattern) }
+            == "9.0",
+        "a selectHighest recipe must report 9.0, not silently degrade to entry-scored first-match (2.0)")
 }
 
 /// A stability-floor recipe's `ChannelArtifactProof` must accept EVERY build that

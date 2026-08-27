@@ -322,15 +322,38 @@ public struct VendorProbeSource: UpdateSource {
     }
 
     /// The version one already-expanded endpoint reports, by the same extractor
-    /// a real probe uses — so a divergence means the tracks differ, not that two
-    /// code paths read the body differently.
+    /// AND the same entry-scoping (`scopedBody`) a real probe uses — so a
+    /// divergence means the tracks differ, not that two code paths read the body
+    /// differently. No registry recipe carries both `track` and
+    /// `entryStartPattern` today, but nothing should stop one from doing so
+    /// safely, and a `rolloutTrackVerdict` that read the wrong slice would
+    /// report a phantom `.diverged` straight into `duo verify`.
     private func trackVersion(_ recipe: VendorProbeRecipe, at endpoint: URL) async -> String? {
         guard case .success(let body) = await fetchBody(recipe, endpoint: endpoint)
         else { return nil }
         let extractor = recipe.selectHighest
             ? VendorProbeRecipe.highestVersion
             : VendorProbeRecipe.extractVersion
-        return extractor(body.text, recipe.versionPattern)
+        return extractor(Self.scopedBody(recipe, body.text), recipe.versionPattern)
+    }
+
+    /// The text a recipe's first-match patterns (`versionPattern`,
+    /// `displayVersionPattern`, `publishedAtPattern`, and the install spec's
+    /// `.bodyPattern`-family URL) should actually run against: the winning
+    /// entry when `entryStartPattern` slices the body and a version-pattern
+    /// match picks one (see `VendorProbeRecipe.highestVersionEntry`), otherwise
+    /// `body` verbatim — today's behaviour for every recipe that doesn't set
+    /// `entryStartPattern`, and the fallback when slicing produces no winner.
+    ///
+    /// The single choke point every reader of the fetched body goes through,
+    /// so a recipe with `entryStartPattern` set can't have one reader (say, a
+    /// future addition) forget to scope while the others do.
+    private static func scopedBody(_ recipe: VendorProbeRecipe, _ body: String) -> String {
+        recipe.entryStartPattern.flatMap {
+            VendorProbeRecipe.highestVersionEntry(
+                in: body, entryStartPattern: $0, versionPattern: recipe.versionPattern,
+                selectHighest: recipe.selectHighest)
+        } ?? body
     }
 
     /// What a mode's fetch step yields on success: the text the version pattern
@@ -372,14 +395,35 @@ public struct VendorProbeSource: UpdateSource {
             body = fetched
         }
 
-        let sample = ProbeOutcome.sample(body.text)
+        // A recipe with `entryStartPattern` set names a feed that lists several
+        // entries and is ordered by something other than version (publication
+        // date, for Android Studio's preview feed): slice the body at that
+        // pattern and narrow every first-match read below to the ONE entry whose
+        // own version compares highest, so `version`, `display`, `publishedAt`
+        // and the install URL can never land on different releases. Falls back
+        // to the whole body — today's behaviour — when the recipe sets no such
+        // pattern, or when slicing/matching doesn't produce a winner.
+        let scope = Self.scopedBody(recipe, body.text)
+
+        // The sample a human (or `duo triage`) sees to fix a broken pattern must
+        // be the SAME text the extractors below actually ran against — sampling
+        // `body.text` here would show a scoped recipe's reader a slice that isn't
+        // where its answer came from, and worse, silently hand `duo triage` the
+        // pre-#76 whole-body semantics for exactly the recipes this fix changed
+        // (`Triage.swift` validates a proposed pattern with
+        // `VendorProbeRecipe.extractVersion(from: finding.bodySample, ...)`).
+        // Safe on the failure path below too: whenever extraction fails, `scope`
+        // is already `body.text` by construction — `highestVersionEntry` only
+        // ever returns a winner it already confirmed `versionPattern` matches,
+        // so a scoped `scope` can't reach the miss branch.
+        let sample = ProbeOutcome.sample(scope)
 
         // Default to the first match (the app's own field, which structured
         // bodies list first); only ascending-order feeds opt into highest-wins.
         let extractor = recipe.selectHighest
             ? VendorProbeRecipe.highestVersion
             : VendorProbeRecipe.extractVersion
-        guard let version = extractor(body.text, recipe.versionPattern) else {
+        guard let version = extractor(scope, recipe.versionPattern) else {
             // Symmetric with `GitHubReleasesSource`, which has logged its
             // pattern misses since day one. A probe that fetched fine and matched
             // nothing is the exact shape of a vendor rewriting their page, and
@@ -392,7 +436,7 @@ public struct VendorProbeSource: UpdateSource {
             // value the pattern would have read — turns a "go read the page"
             // investigation into a one-line fix.
             if let would = VendorProbeRecipe.versionIfSegmentCountRelaxed(
-                from: body.text, pattern: recipe.versionPattern) {
+                from: scope, pattern: recipe.versionPattern) {
                 return fail(
                     .versionSegmentCountChanged(
                         wouldMatch: would, sampleBytes: body.text.utf8.count),
@@ -405,31 +449,34 @@ public struct VendorProbeSource: UpdateSource {
 
         // Optional clean marketing string to show instead of an ugly build id
         // (e.g. Android Studio's "2026.1.2 RC 1" vs "AI-261.…"). Display only; the
-        // build still drives the comparison. From the same body, so first-match.
+        // build still drives the comparison. From the same scope, so first-match
+        // within it belongs to the entry `versionPattern` matched.
         let display = recipe.displayVersionPattern.flatMap {
-            VendorProbeRecipe.extractVersion(from: body.text, pattern: $0)
+            VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
         }
 
-        // Optional authoritative publish time, from the same body (first match, so
-        // it belongs to the entry `versionPattern` matched). An unparseable or
+        // Optional authoritative publish time, from the same scope (first match,
+        // so it belongs to the entry `versionPattern` matched). An unparseable or
         // missing date is not a failure — it just means the Release Log falls back
         // to its estimated "≈" window, exactly as for recipes with no pattern.
         let publishedAt = ReleaseDate.parse(
             recipe.publishedAtPattern.flatMap {
-                VendorProbeRecipe.extractVersion(from: body.text, pattern: $0)
+                VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
             })
 
         var warnings: [ProbeWarning] = []
         var remote: RemoteVersion
 
         // If this recipe knows how to install in place, resolve the installer URL
-        // (and any checksum) now — from the same body we already have. A failure
-        // here just falls back to detection-only; it never blocks the version.
+        // (and any checksum) now — from the same scope we already narrowed the
+        // version to (so a `.bodyPattern` install URL can't resolve against a
+        // different entry than the version it's paired with). A failure here
+        // just falls back to detection-only; it never blocks the version.
         if allowInstall, let spec = recipe.install {
             var resolved: (url: URL, checksum: String?)?
             var transient: TransientInstallURL?
             do {
-                resolved = try await resolveInstall(spec, body: body.text, version: version)
+                resolved = try await resolveInstall(spec, body: scope, version: version)
             } catch let error as TransientInstallURL {
                 transient = error
             } catch {
@@ -440,6 +487,15 @@ public struct VendorProbeSource: UpdateSource {
                     recipe: recipe, version: version, install: spec, plan: plan,
                     resolvedDownload: body.resolvedDownload, display: display,
                     publishedAt: publishedAt,
+                    // Deliberately `body.text`, not `scope`: this parses the WHOLE
+                    // response as a Sparkle appcast document (`SparkleAppcastParser`)
+                    // rather than reading a pattern out of it, so an entry-scoped
+                    // fragment would not parse as XML at all. It is safe on its own
+                    // terms regardless of scoping — it re-matches `version` against
+                    // the parsed items itself and returns `[]` on anything but
+                    // exactly one match — and today's `entryStartPattern` recipes
+                    // (Android Studio's JSON feed) have no `sparkle:deltas` to find,
+                    // so this never fires for them either way.
                     deltas: VendorAppcastDeltas.patches(
                         inBody: body.text, forVersion: version))
                 // A recipe that names a checksum pattern but no longer matches one

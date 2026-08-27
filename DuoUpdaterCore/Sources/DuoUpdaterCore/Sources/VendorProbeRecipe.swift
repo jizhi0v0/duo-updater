@@ -273,6 +273,67 @@ public struct VendorProbeRecipe: Sendable {
     /// probed text is a URL or a single plist value rather than a document.
     public let publishedAtPattern: String?
 
+    /// Optional regex marking where each entry begins in a body that lists
+    /// several releases — e.g. `\{"date":"` for a JSON feed whose items each
+    /// start with a `date` key. When set, the source slices the body into
+    /// entries at every match (one match's start to the next match's start,
+    /// last entry running to the end of the body), keeps the entries where
+    /// `versionPattern` matches, and picks the one whose extracted version
+    /// compares highest (the same `VersionComparator` ordering
+    /// `highestVersion`/`highestVersionedURL` use). `versionPattern`,
+    /// `displayVersionPattern`, `publishedAtPattern`, and the install spec's
+    /// `.bodyPattern`/`.bodyPatternRelative`/`.bodyTemplate` URL are then all
+    /// resolved against that ONE winning entry, so they can never land on
+    /// different releases — see `VendorProbeRecipe.highestVersionEntry`.
+    ///
+    /// This exists because a feed ordered by *publication date* rather than by
+    /// *version* breaks every first-match pattern above at once whenever two
+    /// release trains are open simultaneously (Android Studio: a newer feature
+    /// version's Canary can be published before an older version's RC, so the
+    /// RC — not the newer Canary — sits first in the feed). Flipping
+    /// `selectHighest` alone does not fix this: it would pick the version by
+    /// comparison while `displayVersionPattern` and the install URL stayed
+    /// first-match, landing on three different releases' worth of data.
+    ///
+    /// Nil (the default) leaves every pattern reading the whole body,
+    /// first-match, exactly as before this field existed. Also the fallback
+    /// when the pattern matches fewer than two entries, or when no entry's
+    /// `versionPattern` matches — better a possibly-stale first-match answer
+    /// than no answer at all.
+    ///
+    /// Narrowing to one entry also narrows `checksumPattern` (fine — a miss
+    /// there degrades loudly to `.checksumPatternNoMatch`) and the install
+    /// spec's `.bodyPattern`/`.bodyPatternRelative`/`.bodyTemplate` URL sources
+    /// (fine — that's the whole point). It is a TRAP for `.bodyPatternLast` and
+    /// `.bodyPatternHighestVersioned`: with only one entry left to search, "last
+    /// match" and "highest-versioned match" both collapse to plain first-match.
+    /// `.bodyPatternHighestVersioned` exists SPECIFICALLY as the
+    /// position-independent alternative to first-match (its own doc cites the
+    /// Docker 4.86-before-4.87 wrong-install this primitive is a sibling fix
+    /// for) — pairing it with `entryStartPattern` would quietly throw that
+    /// protection away. Don't combine them.
+    ///
+    /// Also re-anchors `^`, `$`, `\A`, `\z` and lookbehind to entry boundaries
+    /// rather than the whole body's — a pattern relying on "start/end of the
+    /// document" now means "start/end of one entry" instead. Six recipes in
+    /// this registry pin `versionPattern` with `^…$` today; none has adopted
+    /// `entryStartPattern`, and this is why one shouldn't without re-deriving
+    /// those patterns against a single sliced entry first.
+    ///
+    /// One more shape worth naming rather than discovering later: selection now
+    /// searches the feed's entire history, not just its recent head, so a
+    /// malformed or ancient build id that happens to out-rank everything
+    /// current under `VersionComparator` would pin the probe on it permanently
+    /// — a hazard first-match-over-a-recent-head never had, since a stale entry
+    /// simply ages out of view. Concretely, in Android Studio's own feed
+    /// (671 items, 2026-08-27): 42 of the 555 Canary/Beta/RC-labeled build ids
+    /// are two-segment 2018-era values like `AI-173.4688006` (`VersionComparator`
+    /// ranks `173` below `261`/`262`, so today none of them win — but a scheme
+    /// that changed digit count could invert that), and 198 lack the `|`
+    /// separator `displayVersionPattern` requires, so `display` would come back
+    /// nil for those even where `version` still resolves.
+    public let entryStartPattern: String?
+
     /// When present, the app can be updated in place through its own channel: the
     /// source resolves the installer URL (and optional checksum) and hands it to
     /// `VendorInstaller`. Absent → detection only (the user is sent to download
@@ -337,6 +398,7 @@ public struct VendorProbeRecipe: Sendable {
         versionIsBuild: Bool = false,
         displayVersionPattern: String? = nil,
         publishedAtPattern: String? = nil,
+        entryStartPattern: String? = nil,
         install: VendorInstallSpec? = nil,
         requestBody: RequestBody? = nil,
         requestHeaders: [String: String] = [:],
@@ -360,6 +422,7 @@ public struct VendorProbeRecipe: Sendable {
         self.versionIsBuild = versionIsBuild
         self.displayVersionPattern = displayVersionPattern
         self.publishedAtPattern = publishedAtPattern
+        self.entryStartPattern = entryStartPattern
         self.install = install
         self.requestBody = requestBody
         self.requestHeaders = requestHeaders
@@ -493,6 +556,109 @@ public struct VendorProbeRecipe: Sendable {
             }
         }
         return best
+    }
+
+    /// The runtime behind `entryStartPattern`: slice `text` into entries at every
+    /// match of `entryStartPattern` (one match's start to the next match's
+    /// start, the last entry running to the end of `text`), keep the entries
+    /// where `versionPattern` matches, and return the substring of whichever
+    /// entry's extracted version compares highest.
+    ///
+    /// Nil when `entryStartPattern` matches fewer than two entries (nothing to
+    /// disambiguate) or when no entry's `versionPattern` matches — the caller
+    /// falls back to running its own extractor against the whole body, exactly
+    /// as it did before `entryStartPattern` existed.
+    /// `selectHighest` mirrors the recipe's own flag: when true, EACH entry is
+    /// scored by its highest internal match (`highestVersion`) rather than its
+    /// first (`extractVersion`) — the same choice `VendorProbeSource` makes for
+    /// the whole body when there is no `entryStartPattern` at all. Without this,
+    /// a `selectHighest` recipe that also set `entryStartPattern` would have its
+    /// entries scored by first-match while the version it goes on to report
+    /// (computed by the caller with the SAME flag) uses highest-match — two
+    /// different readings of "highest" disagreeing on which entry even won.
+    /// No registry recipe combines the two today.
+    public static func highestVersionEntry(
+        in text: String, entryStartPattern: String, versionPattern: String,
+        selectHighest: Bool = false
+    ) -> String? {
+        guard let startRegex = try? NSRegularExpression(pattern: entryStartPattern)
+        else { return nil }
+        let ns = text as NSString
+        let full = NSRange(location: 0, length: ns.length)
+        let starts = startRegex.matches(in: text, options: [], range: full)
+            .map { $0.range.location }
+        guard starts.count > 1 else { return nil }
+
+        let extractor = selectHighest ? Self.highestVersion : Self.extractVersion
+        var best: (entry: String, version: String)?
+        for (index, start) in starts.enumerated() {
+            let end = index + 1 < starts.count ? starts[index + 1] : ns.length
+            let entry = ns.substring(with: NSRange(location: start, length: end - start))
+            guard let candidate = extractor(entry, versionPattern) else { continue }
+            if best == nil || VersionComparator.isNewer(candidate, than: best!.version) {
+                best = (entry, candidate)
+            }
+        }
+        guard let winner = best else { return nil }
+
+        // Defend the "one entry, one release" claim this primitive exists to
+        // make. It holds only while `entryStartPattern` slices between items —
+        // if a future feed ever nests the start marker INSIDE one item, entries
+        // split mid-item and the "winning" slice could carry one release's
+        // version alongside a different release's download URL, silently and
+        // with nothing failing: strictly worse than the pre-#76 first-match bug
+        // this primitive exists to fix, just relocated rather than gone. A
+        // genuinely self-contained entry shows up as its own `versionPattern`
+        // matching exactly once; more than that means the slice most likely
+        // isn't one release, so decline rather than trust it (the caller falls
+        // back to whole-body first-match). Skipped under `selectHighest`, where
+        // several matches inside one entry are the expected, wanted shape — the
+        // extractor above already picked the right one among them, same as it
+        // would over an un-sliced body.
+        if !selectHighest {
+            guard let versionRegex = try? NSRegularExpression(pattern: versionPattern)
+            else { return nil }
+            let winnerNS = winner.entry as NSString
+            let matchCount = versionRegex.numberOfMatches(
+                in: winner.entry, options: [], range: NSRange(location: 0, length: winnerNS.length))
+            guard matchCount == 1 else { return nil }
+        }
+        return winner.entry
+    }
+
+    /// A copy of this recipe with `entryStartPattern` replaced — every other
+    /// field carried over unchanged via `copy(...)` below. Exists so a caller
+    /// (an A/B test of this exact field, mainly) that wants to vary ONE field
+    /// can't silently drop another by hand-copying the initializer's full
+    /// argument list — which is exactly how a live-probe test comparing
+    /// "with the fix" against "without" dropped `identities`, `track` and
+    /// `variant` the first time this primitive shipped, three fields the two
+    /// arms of that test then no longer actually differed on by construction.
+    public func with(entryStartPattern: String?) -> Self {
+        copy(entryStartPattern: entryStartPattern)
+    }
+
+    /// Same, for `url` — the other field a live-probe A/B test needs to vary
+    /// (pointing the shipping recipe at a loopback stub instead of the real
+    /// endpoint) without touching anything else.
+    public func with(url: URL) -> Self {
+        copy(url: url)
+    }
+
+    /// The single place that reconstructs a recipe from `self` plus overrides —
+    /// so `with(entryStartPattern:)` and `with(url:)` can't drift out of sync
+    /// with each other, or with the initializer, the way two independent
+    /// hand-copies would.
+    private func copy(url: URL? = nil, entryStartPattern: String?? = nil) -> Self {
+        Self(
+            bundleID: bundleID, url: url ?? self.url, mode: mode, versionPattern: versionPattern,
+            downloadURL: downloadURL, changelogURL: changelogURL, selectHighest: selectHighest,
+            versionIsBuild: versionIsBuild, displayVersionPattern: displayVersionPattern,
+            publishedAtPattern: publishedAtPattern,
+            entryStartPattern: entryStartPattern ?? self.entryStartPattern,
+            install: install, requestBody: requestBody, requestHeaders: requestHeaders,
+            followRedirects: followRedirects, channel: channel, identities: identities,
+            track: track, variant: variant)
     }
 }
 
@@ -2464,8 +2630,19 @@ public enum VendorProbeRegistry {
         // (An earlier "highest across all previews" version wrongly pushed
         //  `2026.1.3 Canary 1` at a Beta install that was already current; and the
         //  original channel-pure "Canary only" wrongly hid the RC the user wanted.
-        //  See `InstalledApp.prefersVendorProbeOverToolbox`.) The feed is
-        // newest-first, so the FIRST channel-set match is that set's newest build.
+        //  See `InstalledApp.prefersVendorProbeOverToolbox`.)
+        //
+        // NOT newest-first (see issue #76): the feed is ordered by PUBLICATION
+        // DATE, not by version. With two feature trains open at once, a newer
+        // train's Canary can publish AFTER an older train's RC — 2026-08-27 had
+        // `2026.1.4 RC 2` at item [0] and `2026.2.1 Canary 2`, the actually-newer
+        // build, at item [1] — so plain first-match on the channel set landed on
+        // the older train's RC. `entryStartPattern` slices the feed into its
+        // `{"date":…}` items and makes `versionPattern`/`displayVersionPattern`/
+        // the install URL all resolve against the ONE entry whose build compares
+        // highest, instead of three separate first-matches over the whole feed
+        // that could each land on a different entry (flipping `selectHighest` on
+        // `versionPattern` alone would have done exactly that — see its doc).
         // dmg patterns mirror each channel set — though these installs are
         // Toolbox-managed → detection-only, so the install spec is suppressed at the
         // source and the user updates through Toolbox; the dmg set just stays in
@@ -2482,6 +2659,8 @@ public enum VendorProbeRegistry {
             // build id ("AI-261.…"); the build still drives the comparison.
             displayVersionPattern:
                 #""name":"[^"]*\|\s*([^"]+)","channel":"(?:Canary|Beta|RC)""#,
+            // Each item starts with its own `"date"` key — see `entryStartPattern`.
+            entryStartPattern: #"\{"date":""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:canary|beta|rc)[0-9]*-mac_arm\.dmg)"#),
@@ -2500,6 +2679,8 @@ public enum VendorProbeRegistry {
             // build id ("AI-261.…"); the build still drives the comparison.
             displayVersionPattern:
                 #""name":"[^"]*\|\s*([^"]+)","channel":"(?:Beta|RC)""#,
+            // Each item starts with its own `"date"` key — see `entryStartPattern`.
+            entryStartPattern: #"\{"date":""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(https://edgedl\.me\.gvt1\.com/android/studio/install/[0-9.]+/android-studio-[^"]*(?:beta|rc)[0-9]*-mac_arm\.dmg)"#),

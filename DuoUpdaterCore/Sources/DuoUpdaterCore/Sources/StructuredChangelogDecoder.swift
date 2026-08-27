@@ -37,7 +37,7 @@ public enum StructuredChangelogDecoder {
         case .zedGitHubReleases:
             return decodeZedGitHubReleases(body, channel: channel ?? .stable, maxEntries: maxEntries)
         case .gitHubReleases:
-            return decodeGitHubReleases(body, maxEntries: maxEntries)
+            return decodeGitHubReleases(body, channel: channel, maxEntries: maxEntries)
         case .alcoveChangelog:
             return decodeAlcoveChangelog(body, maxEntries: maxEntries)
         case .notionPageChunk:
@@ -564,23 +564,33 @@ public enum StructuredChangelogDecoder {
 
     // MARK: - Plain GitHub releases (api.github.com/repos/<owner>/<repo>/releases)
 
-    /// Decode a GitHub releases array into one entry per stable release, newest
-    /// first, using the same `GitHubMarkdownParser` the GitHub version source uses
-    /// — so a release body renders identically no matter which way we arrived at it.
+    /// Decode a GitHub releases array into one entry per release on the requested
+    /// track, newest first, using the same `GitHubMarkdownParser` the GitHub
+    /// version source uses — so a release body renders identically no matter which
+    /// way we arrived at it.
     ///
-    /// Prereleases are skipped: nothing here says which track the user is on, so
-    /// offering a prerelease's notes beside a stable install would be describing a
-    /// build they were never shown. A release whose body yields nothing at all
-    /// (empty, or only a checksum block) is skipped rather than shown as a bare
-    /// version heading — but a body of plain sentences is NOT, since the parser's
-    /// prose pass covers those.
-    static func decodeGitHubReleases(_ body: String, maxEntries: Int?) -> Changelog? {
+    /// GitHub's `prerelease` flag is the track split, and `channel` says which side
+    /// of it to read. `nil` — every recipe that registers no channel, which is all
+    /// of them but BetterDisplay's — means stable only, and is the behavior this
+    /// decoder has always had: offering a prerelease's notes beside a stable
+    /// install would describe a build the user was never shown. A recipe that DOES
+    /// name a channel is opting into the other side, and must only do so for a
+    /// channel the vendor actually publishes as GitHub prereleases; `.stable` on a
+    /// recipe means the same thing as `nil` here.
+    ///
+    /// A release whose body yields nothing at all (empty, or only a checksum block)
+    /// is skipped rather than shown as a bare version heading — but a body of plain
+    /// sentences is NOT, since the parser's prose pass covers those.
+    static func decodeGitHubReleases(
+        _ body: String, channel: ReleaseChannel? = nil, maxEntries: Int?
+    ) -> Changelog? {
         guard let data = body.data(using: .utf8),
               let releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
         else { return nil }
 
+        let wantsPrerelease = channel != nil && channel != .stable
         var entries: [Changelog.Entry] = []
-        for release in releases where !release.prerelease && !release.draft {
+        for release in releases where release.prerelease == wantsPrerelease && !release.draft {
             guard let raw = release.body, !raw.isEmpty else { continue }
             let version = stripLeadingV(release.tagName)
             guard !version.isEmpty else { continue }

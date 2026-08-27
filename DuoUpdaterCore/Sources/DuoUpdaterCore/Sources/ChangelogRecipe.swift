@@ -1263,6 +1263,77 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 20,
             structuredFormat: .gitHubReleases),
 
+        // BetterDisplay — the same GitHub release bodies the vendor's own page was
+        // already showing, rendered natively instead of in a web view.
+        //
+        // The appcast carries no `<description>`; every item points
+        // `<sparkle:releaseNotesLink>` at
+        // `waydabber.github.io/BetterDisplay/changelog.html?tag=<tag>`. That page is
+        // an EMPTY shell — fetched 2026-08-27, 1149 bytes, no body content at all.
+        // Its inline script reads `?tag`, GETs
+        // `api.github.com/repos/waydabber/BetterDummy/releases/tags/<tag>` (the old
+        // repo name, still redirecting) and renders `response.body` with marked.js.
+        // So the web view was rendering GitHub markdown the whole time, minus our
+        // styling and plus the vendor's "Download app for macOS" button image. Going
+        // to the API directly gets the identical text, the version and date headings
+        // the shell never had, and the history a per-tag page cannot hold.
+        //
+        // THREE recipes, one per track — none of them removable as a duplicate,
+        // even though `.beta` and `.unstable` differ only in `channel`. The tracks
+        // split on GitHub's `prerelease` flag, and BetterDisplay resolves its
+        // channel from two Settings toggles rather than from the bundle id (see
+        // `BetterDisplayChannel`):
+        //   * `.stable`   → prerelease: false — v4.3.6, v4.3.5, …
+        //   * `.beta`     ("Receive pre-release updates") → prerelease: true —
+        //                 v5.0.3, v5.0.2, … Includes the two `arm64_pre` builds
+        //                 (v5.0.0/v5.0.1), which are excluded from what we OFFER
+        //                 because they are Apple-silicon-only, but are real history
+        //                 and belong in the rail.
+        //   * `.unstable` ("Receive internal pre-release updates") → deliberately
+        //                 the same feed as `.beta`. The internal track has no
+        //                 per-version notes anywhere: its items link
+        //                 `changelog.html?tag=pre`, and that rolling release's body
+        //                 is static boilerplate about what internal builds are. The
+        //                 pre track is where those builds come from and the closest
+        //                 true history for them; without this third registration the
+        //                 channel-aware lookup would fall back to `.stable` and show
+        //                 an internal 5.x user the 4.x notes.
+        //
+        // That rolling `pre` release cannot leak into either rail as an entry titled
+        // "pre": GitHub orders this endpoint by `created_at`, and `pre` was created
+        // 2022-04-06 while the 40th-newest release is 2025-01-03 (both read
+        // 2026-08-27). It is far outside a `per_page=40` window and sinks further
+        // with every release the vendor cuts.
+        ChangelogRecipe(
+            bundleID: BetterDisplayChannel.bundleID,
+            source: URL(
+                string:
+                    "https://api.github.com/repos/waydabber/BetterDisplay/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 15,
+            channel: .stable,
+            structuredFormat: .gitHubReleases),
+
+        ChangelogRecipe(
+            bundleID: BetterDisplayChannel.bundleID,
+            source: URL(
+                string:
+                    "https://api.github.com/repos/waydabber/BetterDisplay/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 15,
+            channel: .beta,
+            structuredFormat: .gitHubReleases),
+
+        ChangelogRecipe(
+            bundleID: BetterDisplayChannel.bundleID,
+            source: URL(
+                string:
+                    "https://api.github.com/repos/waydabber/BetterDisplay/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 15,
+            channel: .unstable,
+            structuredFormat: .gitHubReleases),
+
         // Alcove — its own changelog API. Public and unauthenticated, unlike the
         // update endpoint on the same host, which is license-gated (see
         // `AlcoveUpdateSource`). Structured JSON: majors, each holding its point

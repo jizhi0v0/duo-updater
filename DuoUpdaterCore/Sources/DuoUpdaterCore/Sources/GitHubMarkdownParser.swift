@@ -121,11 +121,20 @@ public enum GitHubMarkdownParser {
         line.range(of: #"^<?https?://\S+>?$"#, options: .regularExpression) != nil
     }
 
-    /// A line whose entire content is one image, optionally wrapped in a link.
+    /// A line whose entire content is one image, optionally wrapped in a link —
+    /// in either spelling. GitHub release bodies are Markdown but accept raw HTML,
+    /// and vendors use both: LuLu opens with a Markdown `[![](shields.io/…)](…)`
+    /// sponsor banner, BetterDisplay closes every release with an HTML
+    /// `<a href="…dmg"><img src="…" alt="Download for macOS"/></a>` button. Neither
+    /// is a change, and as an "item" both are markup the reader cannot use — the
+    /// HTML one worse, since it reaches the pane as literal angle brackets.
     private static func isImageOnly(_ line: String) -> Bool {
         line.range(
             of: #"^\[?!\[[^\]]*\]\([^)]*\)\]?(\([^)]*\))?$"#,
             options: .regularExpression) != nil
+        || line.range(
+            of: #"^(?:<a\b[^>]*>\s*)?<img\b[^>]*/?>(?:\s*</a>)?$"#,
+            options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     /// A checksum label (`… SHA256 …:`) or a line carrying a 32+ character hex run.

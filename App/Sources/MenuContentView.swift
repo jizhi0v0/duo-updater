@@ -984,7 +984,11 @@ private struct AppRow: View {
                         .disabled(model.restartingHelper)
                     }
                 }
-            } else if let note = model.installNotes[result.id] {
+            } else if let note = model.installNotes[result.id] ?? model.stagedPackageNote(for: result) {
+                // The staged-package line is the fallback, not an override: once
+                // an install note exists ("Opened the installer for … — finish it
+                // there") it is the more specific thing to say about the same
+                // package.
                 Text(note)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -1020,6 +1024,16 @@ private struct AppRow: View {
             : String(localized: "Ignore \(result.app.name)")
         Button(ignoreLabel) {
             model.toggleIgnore(result)
+        }
+        // The way back out of a download the user has decided against. Without
+        // it a staged package can only be applied or superseded — someone who
+        // changes their mind has no way to say so, and the row goes on offering
+        // Install (clearing it by hand meant quitting the app and deleting a
+        // defaults key).
+        if model.canDiscardStagedPackage(result) {
+            Button("Discard Downloaded Installer") {
+                Task { await model.discardStagedPackage(result) }
+            }
         }
         // The way back out of a dismissed administrator prompt. Shown only while
         // that is actually why the row reads "Open", so it never appears as a

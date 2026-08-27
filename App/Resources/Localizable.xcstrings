@@ -575,6 +575,47 @@
         }
       }
     },
+    "%@ is downloaded — Install re-opens it in macOS’s installer, nothing is downloaded again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist bereits geladen – „Installieren“ öffnet nur wieder das Installationsprogramm von macOS, es wird nichts erneut geladen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ya está descargado: «Instalar» vuelve a abrir el instalador de macOS, no se descarga nada de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est déjà téléchargé — « Installer » rouvre simplement le programme d’installation de macOS, rien n’est retéléchargé."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はダウンロード済みです —「インストール」は macOS のインストーラを開き直すだけで、再ダウンロードはしません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ уже загружено — «Установить» лишь снова откроет установщик macOS, повторной загрузки не будет."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已下载完成 —「安装」只是重新打开 macOS 安装器，不会再下载一遍。"
+          }
+        }
+      }
+    },
     "%@ is downloading this update itself — left it to finish rather than fetching the same bytes twice.": {
       "extractionState": "manual",
       "localizations": {
@@ -6560,6 +6601,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "诊断"
+          }
+        }
+      }
+    },
+    "Discard Downloaded Installer": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geladenes Installationsprogramm verwerfen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descartar el instalador descargado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer le programme d’installation téléchargé"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロード済みインストーラを破棄"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить загруженный установщик"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "丢弃已下载的安装包"
           }
         }
       }

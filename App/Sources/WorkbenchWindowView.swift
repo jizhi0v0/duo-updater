@@ -1050,11 +1050,21 @@ private struct DetailHeader: View {
                     .buttonStyle(.link)
                     .disabled(model.restartingHelper)
                 }
-            } else if let note = model.installNotes[result.id] {
+            } else if let note = model.installNotes[result.id] ?? model.stagedPackageNote(for: result) {
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            // No context menu on this row, so the way out of a package the user
+            // has decided against is a plain link — same action the popover row
+            // offers on right-click. See `AppListModel.discardStagedPackage`.
+            if model.canDiscardStagedPackage(result) {
+                Button("Discard Downloaded Installer") {
+                    Task { await model.discardStagedPackage(result) }
+                }
+                .font(.caption)
+                .buttonStyle(.link)
             }
         }
         .padding(16)

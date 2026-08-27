@@ -3071,6 +3071,55 @@ final class AppListModel {
         }
     }
 
+    /// Throw away the package downloaded for this row, at the user's request: the
+    /// row goes back to **Update**, and the next install starts from scratch.
+    ///
+    /// The counterpart to `retireStagedPackage`, and deliberately not the same
+    /// function. That one runs on OUR schedule, one statement before a newer
+    /// package is opened, so it bails when it can't close the Installer window
+    /// first — pulling the file out from under a window Installer is reading
+    /// would be worse than leaving both alone. This one runs because someone
+    /// asked, and must not leave the row still offering an Install they've said
+    /// they don't want: closing the window and reclaiming the disk are both
+    /// best-effort (no Accessibility trust, or a window mid-install, and the
+    /// 24-hour sweep gets the file instead), but forgetting the entry is not
+    /// conditional on either.
+    ///
+    /// Not offered while `packageRestartPending` holds the entry: there the
+    /// package has already LANDED and the entry is what keeps the Restart badge
+    /// lit, so discarding it would drop a prompt the user still needs. The
+    /// caller gates on `canDiscardStagedPackage`.
+    func discardStagedPackage(_ result: UpdateResult) async {
+        guard let staged = stagedPackages[result.id] else { return }
+        _ = await InstallerWindowCloser.closeWindow(showing: staged.url)
+        _ = PackageInstaller.discardWorkDirectory(containing: staged.url)
+        stagedPackages[result.id] = nil
+        persistStagedPackages()
+        installNotes[result.id] = nil
+        inFlightNotes[result.id] = nil
+        installErrors[result.id] = nil
+        Log.install.info("package discarded by user: \(result.app.name, privacy: .public) \(staged.version, privacy: .public)")
+    }
+
+    /// Whether the row should offer to discard its downloaded package: there is
+    /// one, it is still the version on offer, and it isn't the entry holding a
+    /// pending Restart open (see `discardStagedPackage`).
+    func canDiscardStagedPackage(_ result: UpdateResult) -> Bool {
+        stagedPackage(for: result) != nil && !packageRestartPending.contains(result.id)
+    }
+
+    /// One line for the row saying what the prominent **Install** button will
+    /// actually do — which until now was stated only in a `.help()` tooltip.
+    ///
+    /// The button reads like the start of the operation; the operation has in
+    /// fact half happened, and two people in a row read the row as stuck and
+    /// closed the installer expecting the update to restart. Nothing was broken
+    /// either time. Saying it on the row is the fix.
+    func stagedPackageNote(for result: UpdateResult) -> String? {
+        guard let staged = stagedPackage(for: result) else { return nil }
+        return String(localized: "\(staged.version) is downloaded — Install re-opens it in macOS’s installer, nothing is downloaded again.")
+    }
+
     private func persistStagedPackages() {
         prefs.setStagedPackages(stagedPackages.mapValues {
             [

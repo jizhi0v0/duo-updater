@@ -32,6 +32,7 @@
 | **Discord** | ptb `com.hnc.DiscordPTB` · canary `com.hnc.DiscordCanary` | VendorProbe |
 | **HBuilderX** | alpha `io.dcloud.HBuilderXAlpha` | VendorProbe |
 | **Zed** | preview `dev.zed.Zed-Preview`（`channel: .preview`，2026-06-04 修 channel-gate 回归）| GitHub |
+| **Termius** | beta `com.termius-beta.mac`（issue #91，2026-08-27）| VendorProbe |
 
 ### Pattern A\* — 共享 bundle id，但 Mozilla `RemotingName` 可检测
 
@@ -221,17 +222,16 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 `status: up-to-date` / latest == installed —— `SparkleAppcastSource` 会从**装机构建反推**
 `<sparkle:channel>`，beta 条目没被滤掉。**不需要 ChannelBinding，勿重开。**
 
-### Pattern A 未覆盖 —— 四个（本机装了 stable，未装对应渠道）
+### Pattern A 未覆盖 —— 三个（`termius@beta` 已接，见 §1）
 
 | cask 变体 | 装出来的 app | 本机 stable |
 |---|---|---|
 | `postman@canary` | `PostmanCanary.app` | Postman 12.25.6 |
-| `termius@beta` | `Termius Beta.app` | Termius 9.43.1 |
 | `db-browser-for-sqlite@nightly` | `DB Browser for SQLite Nightly.app` | 3.13.1 |
 | `vscodium@insiders` | `VSCodium - Insiders.app` | 1.126.04524 |
 
 → 各自 `/app-audit`，但**都得先装一份对应渠道的包**才能拿到 bundle id 和版本方案，
-否则只是猜。四个都不急。
+否则只是猜。三个都不急。
 
 ### 同 bundle id + `@channel` cask —— 七个（渠道在**下载时**选，不是 app 内切）
 
@@ -294,8 +294,12 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
 
 ### 排序建议
 
-1. **Termius Beta**、**VSCodium Insiders** —— 独立 id、已公证，最省事。但注意 Termius
-   **stable 本身也还没覆盖**（`com.termius.mac` 不在任何 registry 里），那是另一个缺口。
+1. **Termius Beta** —— 已接（issue #91，2026-08-27，`docs/app-audits/com-termius-dmg-mac.md`）。
+   当时这里写「stable 本身也还没覆盖（`com.termius.mac` 不在任何 registry 里）」是
+   **错的**：`com.termius.mac` 是 MAS 沙盒购买副本，装机验证 `MacAppStoreSource`
+   通用覆盖，不需要 registry；真正的官网 dmg stable 是 `com.termius-dmg.mac`，
+   2026-08-16 已经在 `VendorProbeRecipe` 里注册，只是当时没人把两个 bundle id
+   对上号。**VSCodium Insiders** —— 独立 id、已公证，最省事，仍待接。
 2. **DB Browser nightly** —— 需要文件名检测，有 Android Studio 的现成范式。
 3. **Freelens / VLC / KeePassXC** —— 要先给 `detect()` 加版本串规则；后两者只能检测不能一键。
 4. **UTM / kitty** —— 归入 §3 死轨，本地无信号。

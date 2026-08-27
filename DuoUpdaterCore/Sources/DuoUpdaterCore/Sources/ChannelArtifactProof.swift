@@ -108,6 +108,17 @@ public enum ChannelProofRegistry {
         ChannelProofKey("org.mozilla.thunderbird", .esr): .artifact(#"/thunderbird/releases/[0-9.]+esr/"#),
         ChannelProofKey("org.mozilla.thunderbird-daily", .nightly): .artifact(#"/thunderbird/nightly/"#),
 
+        // MARK: Media
+        // CapCut's two tracks share one bundle id, one app name and one endpoint —
+        // the beta build does not even carry a channel word in the version
+        // `ReleaseChannel.detect()` reads (`9.3.4531`). The artifact name is where
+        // the vendor does say it: stable ships `…_capcutpc_0_creatortool.dmg` and
+        // beta `…_capcutpc_beta_creatortool.dmg`, and `capcutpc_beta` was read off
+        // the beta bundle's own `Contents/Resources/PackageConfig.plist` →
+        // `Channel Name` after mounting it (2026-08-27), so this is the vendor's
+        // own token rather than a filename convention we inferred.
+        ChannelProofKey("com.lemon.lvoverseas", .beta): .artifact(#"_capcutpc_beta_"#),
+
         // MARK: Chat / messaging
         ChannelProofKey("org.whispersystems.signal-desktop-beta", .beta): .artifact(#"signal-desktop-beta-mac-"#),
         ChannelProofKey("im.riot.nightly", .nightly): .artifact(#"/nightly/"#),

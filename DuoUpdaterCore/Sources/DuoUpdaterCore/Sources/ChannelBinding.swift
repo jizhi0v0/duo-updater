@@ -65,6 +65,7 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///                                                          (two Bools, three tracks, feed-tagged `pre`/`internal`)
 ///   * Tailscale→ `UserDefaults[UnstableUpdatesEnabled]` + `[RCUpdatesEnabled]`
 ///                                                          (two Bools, three tracks)
+///   * CapCut   → `~/Movies/CapCut/User Data/Config/updateInfo` (`joinBeta` in an INI)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -100,6 +101,7 @@ public enum ChannelBinding {
         IINAChannel.bundleID.lowercased(),
         AlfredChannel.bundleID.lowercased(),
         BetterDisplayChannel.bundleID.lowercased(),
+        CapCutChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -156,6 +158,14 @@ public enum ChannelBinding {
         // Alfred's is nested deeper still, under a machine-specific `<hash>`
         // directory, so the watch is on the subtree rather than on one file.
         if let alfred = AlfredChannel.preferencesBaseURL { roots.append(alfred) }
+        // CapCut is the first bound app that is SANDBOXED and still does not keep
+        // the choice in its container: `joinBeta` is an INI under
+        // `~/Movies/CapCut/User Data/Config`. Neither of the two roots above
+        // contains it, so without this entry the watcher would be aimed at two
+        // directories CapCut never writes the flag to — the exact "guard looks
+        // healthy, discriminator is somewhere else" shape the Surge timeline
+        // above cost a fix to learn.
+        roots.append(CapCutChannel.configDirectoryURL)
         return roots
     }
 
@@ -191,6 +201,7 @@ public enum ChannelBinding {
         case GhosttyChannel.bundleID.lowercased(): return GhosttyChannel.resolveCurrent()
         case BetterDisplayChannel.bundleID.lowercased():
             return BetterDisplayChannel.resolveCurrent()
+        case CapCutChannel.bundleID.lowercased():  return CapCutChannel.resolveCurrent()
         default:                       return nil
         }
     }

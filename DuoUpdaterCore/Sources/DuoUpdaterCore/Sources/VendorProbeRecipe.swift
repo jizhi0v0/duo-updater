@@ -265,6 +265,74 @@ public struct VendorProbeRecipe: Sendable {
         identities + (track.map { [$0.selector] } ?? [])
     }
 
+    /// Field labels deliberately kept OUT of `channelAnchorSurface`: the ones
+    /// that LABEL a recipe rather than decide what text it reads.
+    ///
+    /// A `.recipeAnchor` proof asserts the recipe is still tied to its own
+    /// channel by something structural. Letting it match these would make that
+    /// assertion vacuous in the most obvious way possible: a `.beta` recipe
+    /// carries the literal string "beta" in `channel`, so an anchor of `beta`
+    /// would be satisfied by the very fact it is a beta recipe, forever,
+    /// whatever happened to the endpoint. `bundleID`/`variant` are the same
+    /// shape of tautology; `downloadURL`/`changelogURL` are where the user is
+    /// SENT, not where the version is read; `hostRequirement` is about the
+    /// machine, not the channel.
+    ///
+    /// Everything else is in, including fields added after this list was
+    /// written — see `channelAnchorSurface`.
+    static let nonAnchorFields: Set<String> = [
+        "bundleID", "channel", "variant", "downloadURL", "changelogURL", "hostRequirement",
+    ]
+
+    /// Everything this recipe says about WHERE it reads and WHAT it looks for —
+    /// the text a `ChannelArtifactProof.recipeAnchor` is matched against.
+    ///
+    /// Derived by reflection, not by hand-listing fields, for the reason
+    /// `localReads` above gives and then some. The hand-written version listed
+    /// `url`, `versionPattern` and `install?.urlSource`; `entryStartPattern`
+    /// arrived later and was not added, and neither would the next field be.
+    /// That failure is the worst kind a guard has: it goes on passing while
+    /// inspecting less, so nothing anywhere reads as broken. Deriving makes a
+    /// new field part of the surface by construction, and
+    /// `channelAnchorSurfaceCoversEveryRecipeField` makes adding one a decision
+    /// somebody has to make out loud rather than one they make by omission.
+    ///
+    /// Joined with newlines because `.` does not cross a newline in
+    /// `NSRegularExpression`'s default mode, and at least one live anchor spans
+    /// a gap with `.*` (`"id":.*"rc"`). Per-field lines keep such a pattern from
+    /// straddling two unrelated fields and matching something nobody meant.
+    public var channelAnchorSurface: String {
+        Mirror(reflecting: self).children
+            .filter { child in
+                guard let label = child.label else { return false }
+                return !Self.nonAnchorFields.contains(label)
+            }
+            .flatMap { Self.anchorLines(of: $0.value) }
+            .joined(separator: "\n")
+    }
+
+    /// One line per string a value contains, walking into optionals, arrays,
+    /// enum payloads and nested structs.
+    ///
+    /// Not `String(describing:)` on the field, because that renders any string
+    /// nested inside something else through its DEBUG description — quotes come
+    /// back escaped (`Optional("{\"id\":")`) and an anchor written to match the
+    /// vendor's actual text stops matching. Two of the five anchors registered
+    /// today contain quotes or angle brackets, so this is not hypothetical: it
+    /// is why the old hand-written surface reached into `install?.urlSource`
+    /// with `String(describing:)` and quietly could not have matched a quoted
+    /// marker there either. Yielding each string verbatim removes the trap
+    /// rather than documenting it.
+    private static func anchorLines(of value: Any) -> [String] {
+        if let text = value as? String { return [text] }
+        if let url = value as? URL { return [url.absoluteString] }
+        let mirror = Mirror(reflecting: value)
+        // No children: a leaf we can only describe (a Bool, an Int, a payloadless
+        // enum case, an empty collection, `nil`).
+        guard !mirror.children.isEmpty else { return [String(describing: value)] }
+        return mirror.children.flatMap { anchorLines(of: $0.value) }
+    }
+
     /// How to recover the version from the endpoint's response.
     public let mode: Mode
 

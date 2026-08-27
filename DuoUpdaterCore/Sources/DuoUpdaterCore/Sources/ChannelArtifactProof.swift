@@ -211,11 +211,10 @@ extension RecipeSanity {
                 + "(expected /\(pattern)/) — the install may be crossing channels"
 
         case .recipeAnchor(let pattern):
-            let surface = [
-                recipe.url.absoluteString,
-                recipe.versionPattern,
-                recipe.install.map { String(describing: $0.urlSource) } ?? "",
-            ].joined(separator: "\n")
+            // Derived from the recipe, never hand-listed — see
+            // `VendorProbeRecipe.channelAnchorSurface`. The list this replaced
+            // named three fields and had already missed `entryStartPattern`.
+            let surface = recipe.channelAnchorSurface
             guard surface.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil
             else { return nil }
             return "recipe is no longer anchored on /\(pattern)/ — nothing ties its "

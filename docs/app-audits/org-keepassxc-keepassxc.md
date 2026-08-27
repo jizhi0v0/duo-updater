@@ -13,7 +13,7 @@
 |              | Homebrew | GitHub Releases |
 |--------------|----------|------------------|
 | **stable**   | (cask `keepassxc`) | ✓ 检测 + 一键（`org.keepassxc.keepassxc`，Team `G2S7P7J672`，arm64 dmg）|
-| **snapshot** | (cask `keepassxc@snapshot`，Homebrew 已标记 deprecated，计划 2026-09-01 停用) | ○ 检测受阻于 #93；✗ 一键**永久**不可（未签名）|
+| **snapshot** | (cask `keepassxc@snapshot`，Homebrew 已标记 deprecated，计划 2026-09-01 停用) | ○ 检测已可行（#93 已解决），尚未接 recipe；✗ 一键**永久**不可（未签名）|
 
 `keepassxc@beta` 不是独立预发轨——指向的就是 stable 那个包（2.7.12），是别名，不是候选
 （见 `CHANNEL_COVERAGE_TODO.md` §2c）。真正的预发轨是 `keepassxc@snapshot`。
@@ -23,7 +23,7 @@
 | Channel  | Bundle ID | 独立/共享 | 本地渠道标记 | 签名 | 判定 |
 |----------|-----------|----------|-------------|------|------|
 | stable   | `org.keepassxc.keepassxc` | 共享 | — | Team `G2S7P7J672`，公证 | ✓ 已接入 |
-| snapshot | `org.keepassxc.keepassxc` | 共享 | 版本串带 `-snapshot`（`ReleaseChannel.detect()` 目前不识别，见 #93）| **完全无签名** | 检测阻塞于 #93；**一键永久不可**（见下）|
+| snapshot | `org.keepassxc.keepassxc` | 共享 | 版本串带 `-snapshot`（`ReleaseChannel.detect()` 已识别，#93 已解决）| **完全无签名** | 检测已可行，尚未接 recipe；**一键永久不可**（见下）|
 
 ## 为什么 snapshot 只能是 detection-only（issue #95）
 
@@ -76,7 +76,7 @@ issue 提的疑点——"`@snapshot` cask 这条 URL 是 x86_64，但**另有路
 "most recent development branch" 的快照，没提多架构。
 
 结论：**arm64 Mac 上想跑 snapshot 只能靠 Rosetta，没有原生 arm64 snapshot 可选**。这
-对检测层的含义（若 #93 落地后真要接检测）：不需要 `hostRequirement` 去"选对架构"——
+对检测层的含义（#93 已解决，若真要接检测）：不需要 `hostRequirement` 去"选对架构"——
 因为只有一种架构；但**在 arm64 Mac 上做检测本身要不要有意义**，取决于用户装的到底是
 不是这份 x86_64-only 包在 Rosetta 下跑的（`Info.plist` 不会说"这是 Rosetta 转译的"，
 只会显示 `KernelArchitecture`/`CFBundleExecutable` 都是 x86_64 二进制，AppScanner 现有
@@ -87,16 +87,17 @@ issue 提的疑点——"`@snapshot` cask 这条 URL 是 x86_64，但**另有路
 
 ## 结论
 
-- **检测**：阻塞于 #93（`detect()` 要认出版本串里的 `-snapshot` 才能把 snapshot 与
-  stable 分开；注意 `ReleaseChannel` 已经把*单词* `snapshot` 映射到 `.preview`,但只在
+- **检测**：已解决（#93）。`detect()` 现在能从版本串里的 `-snapshot` 后缀识别
+  snapshot（注意 `ReleaseChannel` 已经把*单词* `snapshot` 映射到 `.preview`,但只在
   `channelWord`(读 display name)里生效——KeePassXC 的 display name 是干净的
-  "KeePassXC",这条映射对它不触发,是版本串专属信号)。
-- **一键**：**永远不做**。完全无签名，`VendorInstaller` 的签名 gate 第一步就拒。#93
-  落地后如果有人想给 snapshot 接 channel-gated recipe，**不要带 `install:`**——保持
+  "KeePassXC",这条映射对它不触发,是版本串专属信号)，但仓库尚未为它接一条 recipe。
+- **一键**：**永远不做**。完全无签名，`VendorInstaller` 的签名 gate 第一步就拒。如果
+  有人想给 snapshot 接 channel-gated recipe，**不要带 `install:`**——保持
   detection-only。
 - 详见 issue #95、`CHANNEL_COVERAGE_TODO.md` §2c。
 
 ## 建议下一步
-1. #93 落地后，如果决定接 snapshot 检测：只加 `channel: .preview`（或对应枚举）的
-   GitHubReleaseRule 或 VendorProbeRecipe，**省略 `installAssetPattern`/`install:`**。
+1. 若决定接 snapshot 检测（`detect()` 已支持 `-snapshot` 后缀，#93 已解决）：只加
+   `channel: .preview`（或对应枚举）的 GitHubReleaseRule 或 VendorProbeRecipe，
+   **省略 `installAssetPattern`/`install:`**。
 2. 不必现在做——这不是本 issue 的范围，本 issue 只是把"一键必拒"这条写下来存档。

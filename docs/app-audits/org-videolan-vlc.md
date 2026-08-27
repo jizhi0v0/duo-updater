@@ -12,7 +12,7 @@
 |             | Homebrew | VendorProbe |
 |-------------|----------|-------------|
 | **stable**  | (cask `vlc`) | ✓ 检测 + 一键（`org.videolan.vlc`，Team `75GAHG3SZQ`）|
-| **nightly** | (cask `vlc@nightly`，Homebrew 已标记 deprecated，计划 2026-09-01 停用) | ○ 检测受阻于 #93；✗ 一键**永久**不可（未签名）|
+| **nightly** | (cask `vlc@nightly`，Homebrew 已标记 deprecated，计划 2026-09-01 停用) | ○ 检测已可行（#93 已解决），尚未接 recipe；✗ 一键**永久**不可（未签名）|
 
 当前生效源（stable）: **VendorProbe**，`update.videolan.org/vlc/sparkle/vlc-arm64.xml`。
 
@@ -21,7 +21,7 @@
 | Channel | Bundle ID | 独立/共享 | 本地渠道标记 | 签名 | 判定 |
 |---------|-----------|----------|-------------|------|------|
 | stable  | `org.videolan.vlc` | 共享 | — | Team `75GAHG3SZQ`，公证 | ✓ 已接入 |
-| nightly | `org.videolan.vlc` | 共享 | 版本串带 `-dev`（`ReleaseChannel.detect()` 目前不识别，见 #93） | **未签名** | 检测阻塞于 #93；**一键永久不可**（见下）|
+| nightly | `org.videolan.vlc` | 共享 | 版本串带 `-dev`（`ReleaseChannel.detect()` 已识别，#93 已解决） | **未签名** | 检测已可行，尚未接 recipe；**一键永久不可**（见下）|
 
 ## 为什么 nightly 只能是 detection-only（issue #95）
 
@@ -55,9 +55,9 @@ VLC.app: code has no resources but signature indicates they must be present
 （`SignatureVerifier.verifyCodeSignature` + `verifyTeamIdentifierMatch`，
 `DuoUpdaterCore/Sources/DuoUpdaterCore/Install/VendorInstaller.swift`）要求下载物的
 Team ID 与已装 app **完全一致**——nightly 的 "not set" 不可能等于 stable 的
-`75GAHG3SZQ`，一键会在 gate 2/3 被拒。这一步与 stable 的一键路径无关、不受 #93 影响：
-即使 #93 落地、`detect()` 认出 `-dev` 后缀，**这条 gate 依然会拒**，只是拒的位置从
-「未检测到」变成「检测到了但装不上」——本 issue 存在的意义就是把这条提前写下来，
+`75GAHG3SZQ`，一键会在 gate 2/3 被拒。这一步与 stable 的一键路径无关，也不因
+#93 已解决而改变：`detect()` 现在能认出 `-dev` 后缀，但**这条 gate 依然会拒**，
+拒的位置停在「检测到了但装不上」——本 issue 存在的意义就是把这条提前写下来，
 不要等到真的接了 install spec 才在运行时发现。
 
 Homebrew 自己也独立标记了同一结论：`vlc@nightly` cask 被标 `Deprecated because it
@@ -105,15 +105,16 @@ VLC 没有这条——nightly 的 arm64/x86_64 dmg 是分开发布的两个文�
 
 ## 结论
 
-- **检测**：阻塞于 #93（`detect()` 要认出版本串里的 `-dev` 才能把 nightly 与 stable
-  分开）。
-- **一键**：**永远不做**。未签名，`VendorInstaller` 的 Team 闸必拒。#93 落地后如果有人
+- **检测**：已解决（#93）。`detect()` 现在能从版本串里的 `-dev` 后缀识别 nightly，
+  但仓库尚未为它接一条 VendorProbeRecipe。
+- **一键**：**永远不做**。未签名，`VendorInstaller` 的 Team 闸必拒。如果有人
   想给 nightly 接 channel-gated recipe，**不要带 `install:`**——保持 detection-only，
   跟 LibreWolf（`net-librewolf-librewolf.md`）、Wispr Flow 同一模式。
 - 详见 issue #95、`CHANNEL_COVERAGE_TODO.md` §2c。
 
 ## 建议下一步
-1. #93 落地后，如果决定接 nightly 检测：只加 `channel: .dev`（或对应枚举）的
-   VendorProbeRecipe，**省略 `install:`**，`downloadURL` 指到 nightly 目录页而不是
-   dmg（对照 `PageURLTests.detectionOnlyRecipesCarryAPage` 的约束）。
+1. 若决定接 nightly 检测（`detect()` 已支持 `-dev` 后缀，#93 已解决）：只加
+   `channel: .dev`（或对应枚举）的 VendorProbeRecipe，**省略 `install:`**，
+   `downloadURL` 指到 nightly 目录页而不是 dmg（对照
+   `PageURLTests.detectionOnlyRecipesCarryAPage` 的约束）。
 2. 不必现在做——这不是本 issue 的范围，本 issue 只是把"一键必拒"这条写下来存档。

@@ -78,8 +78,19 @@ public enum Verify {
             // in one report can contradict each other. When the changelog registry
             // is not being swept there is no such answer coming, so nothing is
             // excluded and every page is asked.
+            //
+            // A version-templated recipe is NOT one of them, and that distinction
+            // is the whole correctness of this set: its `source` is only a
+            // fallback, and what `sweepChangelog` actually requests is
+            // `resolvedSource(forVersion:)`. Excluding by `source` there would
+            // remove a URL from this sweep that nothing else ever asks for —
+            // three of them today (WeChat, Longbridge stable and preview) — and
+            // leave exactly the silent rot #107 exists to end. On a runner with
+            // nothing installed those recipes are `.skipped` and not fetched at
+            // all, so the gap would be permanent rather than occasional.
             let fetchedByChangelogSweep: Set<String> = options.registries.contains(.changelog)
-                ? Set(changelog.map(\.source.absoluteString))
+                ? Set(changelog.lazy.filter { $0.sourceTemplate == nil }
+                    .map(\.source.absoluteString))
                 : []
             findings = await foldingChangelogLinks(
                 into: findings, recipes: vendor,
@@ -265,9 +276,9 @@ public enum Verify {
     /// Attach each vendor finding the verdict on its own `changelogURL`.
     ///
     /// A separate pass rather than a step inside `sweepVendor`, for two reasons.
-    /// The pages are DEDUPLICATED — Chrome's three channels share one release-notes
+    /// The pages are DEDUPLICATED — Chrome's four channels share one release-notes
     /// page, as do Firefox's trains — so doing it per recipe would ask some hosts
-    /// the same question three times. And a changelog page almost never lives on
+    /// the same question four times. And a changelog page almost never lives on
     /// the same host as the probe endpoint, so the per-host pacing `sweepVendor`
     /// applies to `edgeupdates.microsoft.com` says nothing about how hard we are
     /// leaning on `learn.microsoft.com`; the link sweep groups by its own hosts.

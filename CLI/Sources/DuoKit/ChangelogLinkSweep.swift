@@ -176,7 +176,11 @@ enum ChangelogLinkSweep {
             // is the one shape of this check's blind spot that a reader can act
             // on — so it stays non-accusing (DNS fails for local reasons too) but
             // stops reading as ordinary transport noise.
-            if (error as? URLError)?.code == .cannotFindHost {
+            // Both codes mean the name did not resolve; which one Foundation
+            // surfaces depends on the resolver, so matching only one would leave
+            // half of this branch's own case reading as ordinary network noise.
+            if let code = (error as? URLError)?.code,
+               code == .cannotFindHost || code == .dnsLookupFailed {
                 return .inconclusive("does not resolve — the host itself may be retired")
             }
             return .inconclusive("could not be reached")

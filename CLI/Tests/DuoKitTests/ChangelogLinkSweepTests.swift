@@ -206,6 +206,43 @@ struct ChangelogLinkSweepTests {
         #expect(Set(chrome.map(\.absoluteString)).count == 1)
     }
 
+    /// A version-templated recipe must NOT take its page out of this sweep.
+    ///
+    /// The exclusion above is sound only for recipes that actually fetch their
+    /// `source`. A templated one fetches `resolvedSource(forVersion:)` instead —
+    /// `source` is just the fallback — so excluding by `source` would drop a URL
+    /// from the link sweep that nothing else ever requests, which is the silent
+    /// rot this whole check exists to end. Three registry recipes are templated
+    /// AND share a vendor `changelogURL` (WeChat, Longbridge stable and preview),
+    /// and on a runner with nothing installed they are `.skipped` and never
+    /// fetched at all, so the gap would be permanent.
+    ///
+    /// Derived from the registries, so it keeps holding as recipes come and go.
+    @Test func templatedRecipesDoNotRemoveTheirPageFromTheSweep() {
+        let vendorPages = Set(
+            VendorProbeRegistry.recipes.compactMap(\.changelogURL).map(\.absoluteString))
+        let templatedOverlap = Set(
+            ChangelogRecipeRegistry.recipes
+                .filter { $0.sourceTemplate != nil && vendorPages.contains($0.source.absoluteString) }
+                .map(\.source.absoluteString))
+        try! #require(!templatedOverlap.isEmpty,
+                      "no templated recipe shares a changelogURL any more — re-read whether this guard still has a case to guard")
+
+        // What `Verify.run` builds: only the recipes that really fetch `source`.
+        let excluded = Set(
+            ChangelogRecipeRegistry.recipes
+                .filter { $0.sourceTemplate == nil }
+                .map(\.source.absoluteString))
+        #expect(excluded.isDisjoint(with: templatedOverlap))
+
+        let swept = Set(ChangelogLinkSweep.pages(
+            of: VendorProbeRegistry.recipes, alreadyFetched: excluded).map(\.absoluteString))
+        for page in templatedOverlap {
+            #expect(swept.contains(page),
+                    "\(page) is fetched by nobody: the changelog sweep resolves a templated URL instead, and the link sweep excluded it")
+        }
+    }
+
     // MARK: the Edge recipes this issue was filed about
 
     /// Microsoft did not retire these — it renamed them, from

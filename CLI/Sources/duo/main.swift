@@ -27,7 +27,7 @@ commands:
                 against the captured response before anyone reads it.
   reconcile     Turn a verify report into GitHub issues — one per broken recipe,
                 closed automatically when it heals.
-  help          Show this message.
+  help          Show this message. So does --help after any command.
 
 list / check options:
   [<app>…]            Which apps, resolved as an install path, then a bundle id,
@@ -157,10 +157,24 @@ exit codes:
   2  usage error
 """
 
+// `--help` and `-h` are answered before parsing, because `Args` refuses a
+// leading dash as a subcommand: `duo --help` never reaches the switch below, and
+// `duo verify --help` parses as a `verify` run carrying a flag nobody reads —
+// which is to say the full ~150-request sweep.
+if CommandLine.arguments.dropFirst().contains(where: { $0 == "--help" || $0 == "-h" }) {
+    print(usage)
+    exit(0)
+}
+
 guard let args = Args(CommandLine.arguments) else {
     print(usage)
     exit(2)
 }
+
+// Assigned by every branch, called only after the command line has been checked
+// over — see the `unrecognised()` call below. Building the options and running
+// them are deliberately two steps so that a typo costs nothing.
+let run: () async -> Int32
 
 switch args.subcommand {
 case "list", "check":
@@ -179,7 +193,7 @@ case "list", "check":
     if !options.sources.isEmpty && !options.checkForUpdates {
         die("--source needs a source to have answered; use `duo check --source …`", code: 2)
     }
-    exit(await Check.run(options))
+    run = { await Check.run(options) }
 
 case "install":
     var options = Install.Options()
@@ -192,12 +206,12 @@ case "install":
     case .success(let routes): options.routes = routes
     case .failure(let failure): die(failure.description, code: 2)
     }
-    exit(await Install.run(options))
+    run = { await Install.run(options) }
 
 case "restart":
     var options = Restart.Options()
     options.queries = args.operands
-    exit(await Restart.run(options))
+    run = { await Restart.run(options) }
 
 case "ignore", "unignore", "skip", "unskip":
     guard let action = Visibility.Action(rawValue: args.subcommand) else {
@@ -205,7 +219,7 @@ case "ignore", "unignore", "skip", "unskip":
     }
     var options = Visibility.Options(action: action, queries: args.operands)
     options.json = args.has("json")
-    exit(await Visibility.run(options))
+    run = { await Visibility.run(options) }
 
 case "backups":
     let operation: Backups.Options.Operation
@@ -223,10 +237,11 @@ case "backups":
     var options = Backups.Options(operation: operation)
     options.json = args.has("json")
     options.assumeYes = args.has("yes")
-    exit(await Backups.run(options))
+    run = { await Backups.run(options) }
 
 case "doctor":
-    exit(await Doctor.run(json: args.has("json")))
+    let json = args.has("json")
+    run = { await Doctor.run(json: json) }
 
 case "verify":
     var options = VerifyOptions()
@@ -245,7 +260,7 @@ case "verify":
     options.baselinePath = args.value("baseline").map { URL(fileURLWithPath: $0) }
     options.jsonPath = args.value("report").map { URL(fileURLWithPath: $0) }
     options.markdownPath = args.value("markdown").map { URL(fileURLWithPath: $0) }
-    exit(await Verify.run(options))
+    run = { await Verify.run(options) }
 
 case "triage":
     guard let report = args.value("report"), let out = args.value("out") else {
@@ -261,22 +276,32 @@ case "triage":
     if let cap = args.int("max-calls") { triage.maxCalls = max(0, cap) }
     if let budget = args.int("budget") { triage.budget = TimeInterval(budget) }
     triage.dryRun = args.has("dry-run")
-    exit(Triage.run(triage))
+    run = { Triage.run(triage) }
 
 case "reconcile":
     guard let report = args.value("report"), let baseline = args.value("baseline") else {
         die("reconcile needs --report <path> and --baseline <path>\n\n\(usage)", code: 2)
     }
-    exit(Reconcile.run(Reconcile.Options(
+    let reconcile = Reconcile.Options(
         reportPath: URL(fileURLWithPath: report),
         baselinePath: URL(fileURLWithPath: baseline),
         triagePath: args.value("triage").map { URL(fileURLWithPath: $0) },
-        dryRun: args.has("dry-run"))))
+        dryRun: args.has("dry-run"))
+    run = { Reconcile.run(reconcile) }
 
-case "help", "--help", "-h":
+case "help":
     print(usage)
     exit(0)
 
 default:
     die("unknown command '\(args.subcommand)'\n\n\(usage)", code: 2)
 }
+
+// Nothing has run yet: every branch above only reads flags and builds options.
+// A flag no branch read is a typo, and a typo that parses as "absent" is how
+// `duo verify --githubb` turns a one-recipe check into the whole sweep.
+if let problem = args.unrecognised() {
+    die("\(problem)\n\ntry `duo \(args.subcommand) --help`", code: 2)
+}
+
+exit(await run())

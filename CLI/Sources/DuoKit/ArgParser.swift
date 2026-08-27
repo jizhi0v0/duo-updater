@@ -12,7 +12,22 @@ public struct Args {
     /// `--flag` (value `""`) and `--flag value` / `--flag=value`.
     private(set) var flags: [String: String] = [:]
     /// Everything that isn't a flag or a flag's value.
-    public private(set) var operands: [String] = []
+    public var operands: [String] {
+        seen.readOperands = true
+        return positional
+    }
+    private var positional: [String] = []
+    private let seen = Seen()
+
+    /// What this invocation actually asked the parser for. `unrecognised()`
+    /// judges the command line against this rather than against a declared
+    /// table of flags per subcommand: a table is a second list, and second
+    /// lists drift out of sync with the `case` that reads them — quietly, since
+    /// the drift only shows up as a flag nobody validates.
+    private final class Seen {
+        var flags: Set<String> = []
+        var readOperands = false
+    }
 
     /// Flags that take a following value. Anything not listed is a boolean, so
     /// `duo verify --json --only foo` parses the way you'd expect rather than
@@ -47,29 +62,76 @@ public struct Args {
         while i < rest.count {
             let token = rest[i]
             guard token.hasPrefix("--") else {
-                operands.append(token)
+                positional.append(token)
                 i += 1
                 continue
             }
             let body = String(token.dropFirst(2))
             if let eq = body.firstIndex(of: "=") {
                 flags[String(body[body.startIndex..<eq])] = String(body[body.index(after: eq)...])
-            } else if Self.valueFlags.contains(body), i + 1 < rest.count {
+            } else if Self.valueFlags.contains(body), i + 1 < rest.count,
+                      !rest[i + 1].hasPrefix("--") {
                 flags[body] = rest[i + 1]
                 i += 1
             } else {
+                // Either a boolean, or a value flag with nothing usable after
+                // it. Recorded as empty either way and sorted out by
+                // `unrecognised()`, which knows whether the value was required.
                 flags[body] = ""
             }
             i += 1
         }
     }
 
-    public func has(_ name: String) -> Bool { flags[name] != nil }
+    public func has(_ name: String) -> Bool {
+        seen.flags.insert(name)
+        return flags[name] != nil
+    }
     public func value(_ name: String) -> String? {
+        seen.flags.insert(name)
         guard let raw = flags[name], !raw.isEmpty else { return nil }
         return raw
     }
     public func int(_ name: String) -> Int? { value(name).flatMap(Int.init) }
+
+    /// The first token this invocation can't account for, or nil if it is clean.
+    ///
+    /// Call it once the options are built and before anything runs — that is the
+    /// last moment where refusing is free, and it is also the first moment where
+    /// `seen` is complete. Without it an unrecognised flag reads as absent, and
+    /// absent is rarely harmless: for `verify` it means the whole ~150-request
+    /// sweep instead of the one recipe `--only` was meant to name, and `--githubb`
+    /// spends the unauthenticated GitHub rate limit on the way past.
+    ///
+    /// The corollary for whoever adds the next flag: read it unconditionally. A
+    /// flag read only inside an `if` is a flag this refuses whenever that `if`
+    /// is false, because from here "never asked about" and "not accepted" are
+    /// the same thing.
+    public func unrecognised() -> UsageError? {
+        let accepted = seen.flags.isEmpty
+            ? "`duo \(subcommand)` takes no flags"
+            : "accepted: " + seen.flags.sorted().map { "--\($0)" }.joined(separator: " ")
+
+        for name in flags.keys.sorted() where !seen.flags.contains(name) {
+            return UsageError("unknown flag '--\(name)' for `duo \(subcommand)`; \(accepted)")
+        }
+        // `--only --samples` and a trailing `--only` both land here: the value
+        // flag is present but empty, which every reader turns back into "not
+        // given at all".
+        for name in flags.keys.sorted()
+        where Self.valueFlags.contains(name) && flags[name]?.isEmpty == true {
+            return UsageError("--\(name) needs a value")
+        }
+        // No operand in this CLI is an app named `-something`, so a leading dash
+        // here is a misspelled flag that the loop above never saw.
+        if let stray = positional.first(where: { $0.hasPrefix("-") }) {
+            return UsageError("unknown flag '\(stray)' for `duo \(subcommand)`; \(accepted)")
+        }
+        if !seen.readOperands, let stray = positional.first {
+            return UsageError("`duo \(subcommand)` takes no arguments, got '\(stray)'; \(accepted)")
+        }
+        return nil
+    }
 }
 
 /// A malformed invocation, carried back to `main.swift` so the message and the

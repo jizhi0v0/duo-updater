@@ -177,6 +177,63 @@ import Foundation
         keystoneChannel: nil, bundleFileName: "Some App") == .stable)
 }
 
+// MARK: - DB Browser for SQLite nightly: filename is the only signal (issue #94)
+
+/// The nightly ships the STABLE bundle id, a clean `CFBundleName` and a version
+/// that is not a channel token, so the bundle filename is the whole signal.
+/// Filenames from Homebrew's casks, read 2026-08-27:
+/// stable `DB Browser for SQLite.app`, `@nightly` `DB Browser for SQLite Nightly.app`.
+@Test func dbBrowserNightlyChannelFromBundleFilename() {
+    func detect(_ fileName: String) -> ReleaseChannel {
+        ReleaseChannel.detect(
+            name: "DB Browser for SQLite", bundleID: "net.sourceforge.sqlitebrowser",
+            keystoneChannel: nil, version: "3.13.99", bundleFileName: fileName)
+    }
+    #expect(detect("DB Browser for SQLite Nightly.app") == .nightly)
+    #expect(detect("DB Browser for SQLite.app") == .stable)
+    // The version is a frozen placeholder, not a channel token, and must stay
+    // one — 3.13.99 is what BOTH tracks report.
+    #expect(ReleaseChannel.detect(
+        name: "DB Browser for SQLite", bundleID: "net.sourceforge.sqlitebrowser",
+        keystoneChannel: nil, version: "3.13.99") == .stable)
+    // Scoped to this bundle id: another app in a "… Nightly.app" is not swept up
+    // by this rule (it falls through to the ordinary signals).
+    #expect(ReleaseChannel.detect(
+        name: "Some App", bundleID: "com.example.other",
+        keystoneChannel: nil, bundleFileName: "Some App Nightly.app") == .stable)
+}
+
+/// The reason the rule above is worth having, given that a nightly can never be
+/// UPDATED (its version is frozen at `3.13.99`): stable is covered by a real
+/// registry rule that carries a one-click install spec, and without the channel
+/// the nightly install sits squarely in that rule's reach. Drives the REAL
+/// registry entry rather than a fixture, so it cannot drift away from shipping
+/// behaviour.
+@Test func dbBrowserStableRecipeDoesNotReachTheNightly() async throws {
+    let rule = try #require(
+        GitHubReleaseRegistry.rules.first { $0.bundleID == "net.sourceforge.sqlitebrowser" })
+    #expect(rule.channel == .stable)
+    // If this stops being true the cross-channel risk goes away with it, and
+    // this test should be re-read rather than deleted.
+    #expect(rule.installAssetPattern != nil,
+            "stable rule lost its install spec — the hazard this guards has changed")
+
+    let source = GitHubReleasesSource(rules: [rule])
+    let nightly = InstalledApp(
+        name: "DB Browser for SQLite", bundleID: "net.sourceforge.sqlitebrowser",
+        shortVersion: "3.13.99", buildVersion: "3.13.99",
+        path: URL(fileURLWithPath: "/Applications/DB Browser for SQLite Nightly.app"),
+        isMASApp: false, sparkleFeedURL: nil,
+        releaseChannel: ReleaseChannel.detect(
+            name: "DB Browser for SQLite", bundleID: "net.sourceforge.sqlitebrowser",
+            keystoneChannel: nil, version: "3.13.99",
+            bundleFileName: "DB Browser for SQLite Nightly.app"))
+
+    #expect(nightly.releaseChannel == .nightly)
+    // Skipped before any fetch — a network call here would be a bug on its own.
+    #expect(try await source.latestVersion(for: nightly) == nil)
+}
+
 @Test func plainStableAppsStayStable() {
     #expect(ReleaseChannel.detect(
         name: "Google Chrome", bundleID: "com.google.Chrome",

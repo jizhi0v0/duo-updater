@@ -3802,7 +3802,10 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern: #"^version:\s*([0-9][^\s]*)"#,
             downloadURL: URL(string: "https://termius.com/download/macos"),
-            changelogURL: URL(string: "https://termius.com/release-notes"),
+            // `termius.com/release-notes` 404s (checked 2026-08-27). The live
+            // page is on the docs host; `termius.com/changelog` redirects here,
+            // so point at the destination rather than depend on the redirect.
+            changelogURL: URL(string: "https://docs.termius.com/changelog"),
             install: VendorInstallSpec(
                 urlSource: .fixed(
                     URL(string: "https://autoupdate.termius.com/mac-arm64/Termius.dmg")!),

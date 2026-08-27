@@ -300,6 +300,38 @@ public struct VendorProbeRecipe: Sendable {
     /// when the pattern matches fewer than two entries, or when no entry's
     /// `versionPattern` matches — better a possibly-stale first-match answer
     /// than no answer at all.
+    ///
+    /// Narrowing to one entry also narrows `checksumPattern` (fine — a miss
+    /// there degrades loudly to `.checksumPatternNoMatch`) and the install
+    /// spec's `.bodyPattern`/`.bodyPatternRelative`/`.bodyTemplate` URL sources
+    /// (fine — that's the whole point). It is a TRAP for `.bodyPatternLast` and
+    /// `.bodyPatternHighestVersioned`: with only one entry left to search, "last
+    /// match" and "highest-versioned match" both collapse to plain first-match.
+    /// `.bodyPatternHighestVersioned` exists SPECIFICALLY as the
+    /// position-independent alternative to first-match (its own doc cites the
+    /// Docker 4.86-before-4.87 wrong-install this primitive is a sibling fix
+    /// for) — pairing it with `entryStartPattern` would quietly throw that
+    /// protection away. Don't combine them.
+    ///
+    /// Also re-anchors `^`, `$`, `\A`, `\z` and lookbehind to entry boundaries
+    /// rather than the whole body's — a pattern relying on "start/end of the
+    /// document" now means "start/end of one entry" instead. Six recipes in
+    /// this registry pin `versionPattern` with `^…$` today; none has adopted
+    /// `entryStartPattern`, and this is why one shouldn't without re-deriving
+    /// those patterns against a single sliced entry first.
+    ///
+    /// One more shape worth naming rather than discovering later: selection now
+    /// searches the feed's entire history, not just its recent head, so a
+    /// malformed or ancient build id that happens to out-rank everything
+    /// current under `VersionComparator` would pin the probe on it permanently
+    /// — a hazard first-match-over-a-recent-head never had, since a stale entry
+    /// simply ages out of view. Concretely, in Android Studio's own feed
+    /// (671 items, 2026-08-27): 42 of the 555 Canary/Beta/RC-labeled build ids
+    /// are two-segment 2018-era values like `AI-173.4688006` (`VersionComparator`
+    /// ranks `173` below `261`/`262`, so today none of them win — but a scheme
+    /// that changed digit count could invert that), and 198 lack the `|`
+    /// separator `displayVersionPattern` requires, so `display` would come back
+    /// nil for those even where `version` still resolves.
     public let entryStartPattern: String?
 
     /// When present, the app can be updated in place through its own channel: the
@@ -536,8 +568,18 @@ public struct VendorProbeRecipe: Sendable {
     /// disambiguate) or when no entry's `versionPattern` matches — the caller
     /// falls back to running its own extractor against the whole body, exactly
     /// as it did before `entryStartPattern` existed.
+    /// `selectHighest` mirrors the recipe's own flag: when true, EACH entry is
+    /// scored by its highest internal match (`highestVersion`) rather than its
+    /// first (`extractVersion`) — the same choice `VendorProbeSource` makes for
+    /// the whole body when there is no `entryStartPattern` at all. Without this,
+    /// a `selectHighest` recipe that also set `entryStartPattern` would have its
+    /// entries scored by first-match while the version it goes on to report
+    /// (computed by the caller with the SAME flag) uses highest-match — two
+    /// different readings of "highest" disagreeing on which entry even won.
+    /// No registry recipe combines the two today.
     public static func highestVersionEntry(
-        in text: String, entryStartPattern: String, versionPattern: String
+        in text: String, entryStartPattern: String, versionPattern: String,
+        selectHighest: Bool = false
     ) -> String? {
         guard let startRegex = try? NSRegularExpression(pattern: entryStartPattern)
         else { return nil }
@@ -547,17 +589,76 @@ public struct VendorProbeRecipe: Sendable {
             .map { $0.range.location }
         guard starts.count > 1 else { return nil }
 
+        let extractor = selectHighest ? Self.highestVersion : Self.extractVersion
         var best: (entry: String, version: String)?
         for (index, start) in starts.enumerated() {
             let end = index + 1 < starts.count ? starts[index + 1] : ns.length
             let entry = ns.substring(with: NSRange(location: start, length: end - start))
-            guard let candidate = extractVersion(from: entry, pattern: versionPattern)
-            else { continue }
+            guard let candidate = extractor(entry, versionPattern) else { continue }
             if best == nil || VersionComparator.isNewer(candidate, than: best!.version) {
                 best = (entry, candidate)
             }
         }
-        return best?.entry
+        guard let winner = best else { return nil }
+
+        // Defend the "one entry, one release" claim this primitive exists to
+        // make. It holds only while `entryStartPattern` slices between items —
+        // if a future feed ever nests the start marker INSIDE one item, entries
+        // split mid-item and the "winning" slice could carry one release's
+        // version alongside a different release's download URL, silently and
+        // with nothing failing: strictly worse than the pre-#76 first-match bug
+        // this primitive exists to fix, just relocated rather than gone. A
+        // genuinely self-contained entry shows up as its own `versionPattern`
+        // matching exactly once; more than that means the slice most likely
+        // isn't one release, so decline rather than trust it (the caller falls
+        // back to whole-body first-match). Skipped under `selectHighest`, where
+        // several matches inside one entry are the expected, wanted shape — the
+        // extractor above already picked the right one among them, same as it
+        // would over an un-sliced body.
+        if !selectHighest {
+            guard let versionRegex = try? NSRegularExpression(pattern: versionPattern)
+            else { return nil }
+            let winnerNS = winner.entry as NSString
+            let matchCount = versionRegex.numberOfMatches(
+                in: winner.entry, options: [], range: NSRange(location: 0, length: winnerNS.length))
+            guard matchCount == 1 else { return nil }
+        }
+        return winner.entry
+    }
+
+    /// A copy of this recipe with `entryStartPattern` replaced — every other
+    /// field carried over unchanged via `copy(...)` below. Exists so a caller
+    /// (an A/B test of this exact field, mainly) that wants to vary ONE field
+    /// can't silently drop another by hand-copying the initializer's full
+    /// argument list — which is exactly how a live-probe test comparing
+    /// "with the fix" against "without" dropped `identities`, `track` and
+    /// `variant` the first time this primitive shipped, three fields the two
+    /// arms of that test then no longer actually differed on by construction.
+    public func with(entryStartPattern: String?) -> Self {
+        copy(entryStartPattern: entryStartPattern)
+    }
+
+    /// Same, for `url` — the other field a live-probe A/B test needs to vary
+    /// (pointing the shipping recipe at a loopback stub instead of the real
+    /// endpoint) without touching anything else.
+    public func with(url: URL) -> Self {
+        copy(url: url)
+    }
+
+    /// The single place that reconstructs a recipe from `self` plus overrides —
+    /// so `with(entryStartPattern:)` and `with(url:)` can't drift out of sync
+    /// with each other, or with the initializer, the way two independent
+    /// hand-copies would.
+    private func copy(url: URL? = nil, entryStartPattern: String?? = nil) -> Self {
+        Self(
+            bundleID: bundleID, url: url ?? self.url, mode: mode, versionPattern: versionPattern,
+            downloadURL: downloadURL, changelogURL: changelogURL, selectHighest: selectHighest,
+            versionIsBuild: versionIsBuild, displayVersionPattern: displayVersionPattern,
+            publishedAtPattern: publishedAtPattern,
+            entryStartPattern: entryStartPattern ?? self.entryStartPattern,
+            install: install, requestBody: requestBody, requestHeaders: requestHeaders,
+            followRedirects: followRedirects, channel: channel, identities: identities,
+            track: track, variant: variant)
     }
 }
 

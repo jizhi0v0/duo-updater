@@ -73,6 +73,28 @@ public enum Verify {
         // templated changelog URLs need.
         if options.registries.contains(.vendor) {
             findings += await sweepVendor(vendor, options: options, installed: installed)
+            // The pages `sweepChangelog` will GET and parse below are excluded:
+            // its answer is better evidence than a HEAD, and two checks on one URL
+            // in one report can contradict each other. When the changelog registry
+            // is not being swept there is no such answer coming, so nothing is
+            // excluded and every page is asked.
+            //
+            // A version-templated recipe is NOT one of them, and that distinction
+            // is the whole correctness of this set: its `source` is only a
+            // fallback, and what `sweepChangelog` actually requests is
+            // `resolvedSource(forVersion:)`. Excluding by `source` there would
+            // remove a URL from this sweep that nothing else ever asks for —
+            // three of them today (WeChat, Longbridge stable and preview) — and
+            // leave exactly the silent rot #107 exists to end. On a runner with
+            // nothing installed those recipes are `.skipped` and not fetched at
+            // all, so the gap would be permanent rather than occasional.
+            let fetchedByChangelogSweep: Set<String> = options.registries.contains(.changelog)
+                ? Set(changelog.lazy.filter { $0.sourceTemplate == nil }
+                    .map(\.source.absoluteString))
+                : []
+            findings = await foldingChangelogLinks(
+                into: findings, recipes: vendor,
+                alreadyFetched: fetchedByChangelogSweep, options: options)
         }
         if options.registries.contains(.github) {
             findings += await sweepGitHub(github, options: options, installed: installed)
@@ -251,6 +273,50 @@ public enum Verify {
         }
     }
 
+    /// Attach each vendor finding the verdict on its own `changelogURL`.
+    ///
+    /// A separate pass rather than a step inside `sweepVendor`, for two reasons.
+    /// The pages are DEDUPLICATED — Chrome's four channels share one release-notes
+    /// page, as do Firefox's trains — so doing it per recipe would ask some hosts
+    /// the same question four times. And a changelog page almost never lives on
+    /// the same host as the probe endpoint, so the per-host pacing `sweepVendor`
+    /// applies to `edgeupdates.microsoft.com` says nothing about how hard we are
+    /// leaning on `learn.microsoft.com`; the link sweep groups by its own hosts.
+    ///
+    /// Costs one request per distinct page (87 as of 2026-08-28) on top of the
+    /// ~150 the sweep already makes. See `ChangelogLinkSweep` for why only 404 and
+    /// 410 are allowed to accuse anyone.
+    private static func foldingChangelogLinks(
+        into findings: [Finding], recipes: [VendorProbeRecipe],
+        alreadyFetched: Set<String>, options: VerifyOptions
+    ) async -> [Finding] {
+        let verdicts = await ChangelogLinkSweep.statuses(
+            of: recipes, alreadyFetched: alreadyFetched, options: options)
+        guard !verdicts.isEmpty else { return findings }
+        // Keyed by recipe id, which is what a `Finding` carries — the same recipe
+        // id `Baseline` and the issue history are keyed on.
+        var pages: [String: URL] = [:]
+        for recipe in recipes {
+            if let url = recipe.changelogURL { pages[recipe.recipeID] = url }
+        }
+        // Only `ok` findings can carry this: `adding(warning:)` promotes `ok` to
+        // `warn` and leaves every other status alone, so a verdict folded onto an
+        // `infra` or `skipped` finding would be paid for and then never printed —
+        // `Report.text` iterates the actionable statuses only. Not worth widening
+        // the report for: a probe endpoint having a bad minute delays this page's
+        // verdict by one sweep, and the sweep runs nightly.
+        return findings.map { finding in
+            guard finding.registry == .vendor,
+                  let url = pages[finding.recipeID],
+                  let verdict = verdicts[url.absoluteString],
+                  let complaint = ChangelogLinkSweep.complaint(for: verdict, url: url)
+            else { return finding }
+            return complaint.hasPrefix(Finding.machineNotePrefix)
+                ? finding.observing(complaint)
+                : finding.adding(warning: complaint)
+        }
+    }
+
     /// The one question a normal probe cannot answer for a recipe whose track is
     /// picked by a value on disk: did we actually read that value, and is it
     /// still deciding anything?
@@ -311,7 +377,16 @@ public enum Verify {
                 outcome, registry: .github, host: "api.github.com",
                 pattern: rule.versionPattern, attempts: attempt + 1,
                 installed: installed["vendor:\(rule.bundleID):\(rule.channel.rawValue)"],
-                sanity: { _, _ in [] })
+                // Issue #101: this used to pass `{ _, _ in [] }`. The vendor
+                // sweep asked "did this install spec resolve its OWN channel's
+                // build" and the GitHub sweep asked nothing, so a non-stable rule
+                // that skipped the gate produced silence where a recipe produced
+                // a finding — and the asymmetry was invisible at the point where
+                // somebody adds a rule.
+                sanity: { _, remote in
+                    [RecipeSanity.crossChannelArtifact(rule: rule, remote: remote)]
+                        .compactMap { $0 }
+                })
             // The GitHub sweep never ran this cross-check — only the vendor sweep
             // did — so the one registry where a tag can outrun the macOS artifact
             // was also the one with no second opinion. GitHub releases carry a
@@ -391,7 +466,9 @@ public enum Verify {
             // honest move is to skip the cross-check rather than to invent a
             // complaint the recipe can never clear.
             if let version, recipe.covers(appVersion: version),
-               let complaint = changelogLagComplaint(entry: top, detected: version) {
+               let complaint = changelogLagComplaint(
+                   entry: top, detected: version,
+                   acknowledged: recipe.acknowledgedStaleEntry) {
                 warnings.append(complaint)
             }
             return Finding(
@@ -497,7 +574,16 @@ public enum Verify {
     /// Flag a changelog only when it trails the detected version at
     /// major.minor — see the call site for why the full-string comparison had to
     /// go.
-    static func changelogLagComplaint(entry: String, detected: String) -> String? {
+    static func changelogLagComplaint(
+        entry: String, detected: String, acknowledged: String? = nil
+    ) -> String? {
+        // The vendor is the stale one and somebody has already read the live page
+        // and said so — see `ChangelogRecipe.acknowledgedStaleEntry` for why this
+        // is a version rather than an off switch. Scoped to the exact entry the
+        // acknowledgement names, so it stops applying the moment the page moves in
+        // EITHER direction: forward (the vendor published; worth one look) or
+        // backward (the pattern slipped to an older section; worth a lot more).
+        if let acknowledged, entry == acknowledged { return nil }
         // Plenty of recipes deliberately capture a headline into the `version`
         // group, because the vendor simply doesn't number their release notes —
         // Figma and Notion both title entries "AI credit user limits…". Comparing

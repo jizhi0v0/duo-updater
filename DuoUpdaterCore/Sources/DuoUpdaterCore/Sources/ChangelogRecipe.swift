@@ -173,6 +173,32 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// meet exactly at 2.0.
     public let belowAppVersion: String?
 
+    /// The newest entry this vendor's page is KNOWN to stop at, when the page is
+    /// genuinely behind the builds the vendor is shipping.
+    ///
+    /// `duo verify` flags a changelog whose newest entry trails the detected
+    /// version by a whole release, on the theory that the entry pattern is reading
+    /// a stale section. Usually right. Sometimes the pattern is perfect and the
+    /// VENDOR is the stale one — WorkBuddy's international docs site carries two
+    /// entries and stops at 5.2.7 (2026-07-17) while its own endpoint ships 5.4.2,
+    /// and the identical pattern returns 58 entries from the Chinese site. There
+    /// is nothing to fix, so the warning can never clear: it re-files an issue
+    /// every sweep against a recipe that works (issue #88).
+    ///
+    /// **A version, not a boolean, and that is the whole design.** A `true` here
+    /// would switch the check off for this recipe forever, silencing the one
+    /// detector that would notice the day the pattern really does break. Naming
+    /// the version means the acknowledgement is only good while the page still
+    /// says exactly that: if the pattern slips to an older section the complaint
+    /// comes back, if the vendor publishes anything newer the complaint comes back
+    /// once so a human can re-read the situation, and if the vendor catches up
+    /// entirely the check passes on its own and this field can go.
+    ///
+    /// Set it only after reading the live page and confirming the vendor is the
+    /// one behind — record what you saw next to the recipe, as WorkBuddy's comment
+    /// does. nil for every recipe whose notes track its releases (the common case).
+    public var acknowledgedStaleEntry: String?
+
     /// Whether this recipe restricts itself to a version range at all. Used to keep
     /// the lookup's behaviour byte-identical for every recipe that doesn't: a group
     /// with no windows is never filtered, so a nil version can't start excluding
@@ -404,7 +430,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         structuredFormat: StructuredFormat? = nil,
         httpMethod: HTTPMethod = .get,
         requestBody: Data? = nil,
-        skipSections: [String] = []
+        skipSections: [String] = [],
+        acknowledgedStaleEntry: String? = nil
     ) {
         self.bundleID = bundleID
         self.source = source
@@ -428,6 +455,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.httpMethod = httpMethod
         self.requestBody = requestBody
         self.skipSections = skipSections
+        self.acknowledgedStaleEntry = acknowledgedStaleEntry
     }
 
     /// The actual page URL to fetch for a given target version. When
@@ -500,6 +528,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         httpMethod = try c.decodeIfPresent(HTTPMethod.self, forKey: .httpMethod) ?? .get
         requestBody = try c.decodeIfPresent(Data.self, forKey: .requestBody)
         skipSections = try c.decodeIfPresent([String].self, forKey: .skipSections) ?? []
+        acknowledgedStaleEntry = try c.decodeIfPresent(
+            String.self, forKey: .acknowledgedStaleEntry)
     }
 }
 
@@ -2258,6 +2288,16 @@ public enum ChangelogRecipeRegistry {
         // (2026-07-17) while its own endpoint ships 5.4.2. A future reader finding
         // "only 2 entries" has found the vendor's page, not a broken recipe — the
         // CN page, parsed by the identical pattern, returns 58.
+        //
+        // That is also why the intl recipe carries `acknowledgedStaleEntry`
+        // (issue #88). `duo verify` reads 5.2.7 against a detected 5.4.2, calls it
+        // a whole release behind, and files "recipe degraded" — a complaint that
+        // can never clear, because there is nothing on our side to fix. Re-checked
+        // live 2026-08-28: intl still 2 entries topping out at 5.2.7, CN still
+        // parsing, newest 5.3.14 (2026-08-17). The acknowledgement names 5.2.7
+        // rather than switching the check off, so the day the pattern slips to an
+        // older section — or the vendor finally publishes — the sweep speaks up
+        // again.
         ChangelogRecipe(
             bundleID: "com.workbuddy.workbuddy",
             source: URL(string: "https://www.workbuddy.cn/docs/workbuddy/Changelog")!,
@@ -2268,7 +2308,8 @@ public enum ChangelogRecipeRegistry {
             bundleID: "com.workbuddy.workbuddy-ai",
             source: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!,
             entryPattern: Self.workBuddyEntryPattern,
-            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
+            acknowledgedStaleEntry: "5.2.7"),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

@@ -1178,13 +1178,33 @@ public enum VendorProbeRegistry {
         // The channel gate still routes each pkg to its own bundle id. (Edge Canary
         // isn't carried by this enterprise API, so it stays "unknown" rather than
         // mis-served.)
+        //
+        // Release notes: Microsoft renamed the PER-CHANNEL enterprise docs pages
+        // from `microsoft-edge-relnotes-<channel>` to
+        // `microsoft-edge-relnote-<channel>` (singular) and the old spellings now
+        // 404 — see issue #107. Not a blanket rename, and worth knowing before
+        // guessing at any other page in that section: the security notes are still
+        // `microsoft-edge-relnotes-security`, plural.
+        //
+        // Dev gets NO `changelogURL` at all, and that is the measured answer
+        // rather than a guess. `learn.microsoft.com/en-us/deployedge/toc.json`
+        // (2026-08-28) carries eight `relnote*` paths — Beta, Stable, Mobile Beta,
+        // Mobile Stable, three `-archive-` companions, and the security page — and
+        // not one of them is Dev. Four plausible Dev spellings all 404
+        // (`…relnote-dev-channel`, `…relnotes-dev-channel`, `…relnote-dev`,
+        // `…relnote-archive-dev-channel`), and Learn's own search API returns Beta,
+        // Security and the release schedule for "Edge Dev channel release notes".
+        // Microsoft stopped publishing Dev channel notes; pointing the button at
+        // Beta's or Stable's page would show a Dev user another train's changes,
+        // which is worse than showing none (same call as Thunderbird Daily below).
         VendorProbeRecipe(
             bundleID: "com.microsoft.edgemac",
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
             mode: .responseBody,
             versionPattern: #"(?s)"Product"\s*:\s*"Stable".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
             downloadURL: URL(string: "https://www.microsoft.com/edge/download"),
-            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes"),
+            changelogURL: URL(
+                string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnote-stable-channel"),
             install: VendorInstallSpec(
                 urlSource: .redirect(URL(string: "https://go.microsoft.com/fwlink/?linkid=2093504")!),
                 kind: .pkg)),
@@ -1194,7 +1214,8 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern: #"(?s)"Product"\s*:\s*"Beta".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
             downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
-            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-beta-channel"),
+            changelogURL: URL(
+                string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnote-beta-channel"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(?s)"Product"\s*:\s*"Beta".*?"Platform"\s*:\s*"MacOS".*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),
@@ -1206,7 +1227,6 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern: #"(?s)"Product"\s*:\s*"Dev".*?"Platform"\s*:\s*"MacOS".*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
             downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
-            changelogURL: URL(string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnotes-dev-channel"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"(?s)"Product"\s*:\s*"Dev".*?"Platform"\s*:\s*"MacOS".*?"Location"\s*:\s*"(https://[^"]+\.pkg)""#),

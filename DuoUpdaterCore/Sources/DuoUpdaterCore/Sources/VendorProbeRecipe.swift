@@ -2346,6 +2346,9 @@ public enum VendorProbeRegistry {
 
         // VLC — official Sparkle appcast. Lists releases ascending, so
         // highestVersion (not first) picks the current one.
+        //
+        // If a nightly-channel variant of this recipe is ever added: no `install:`
+        // — nightly is ad-hoc signed, no Team ID (docs/app-audits/org-videolan-vlc.md, #95).
         VendorProbeRecipe(
             bundleID: "org.videolan.vlc",
             url: URL(string: "https://update.videolan.org/vlc/sparkle/vlc-arm64.xml")!,

@@ -63,7 +63,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Conductor** · `com.conductor.app` — P C · ✓ src=Vendor
 - [x] **Postman** · `com.postmanlabs.mac` — P C (one-click) · ✓ src=Vendor
 - [x] **AweSun** · `com.oray.sunlogin.macclient` — P C (one-click, WAF) · ✓ src=Vendor
-- [x] **VLC** · `org.videolan.vlc` — P C (one-click, two-stage changelog) · ✓ src=Vendor
+- [x] [**VLC**](org-videolan-vlc.md) · `org.videolan.vlc` — P C (one-click, two-stage changelog) · ✓ src=Vendor · nightly 共享 bundle id，未签名 → **一键永久不可**，检测阻塞于 #93（issue #95）
 - [ ] **Docker** · `com.docker.docker` — P · ⏭ skipped (cask now needs sudo to install)
 - [x] **Raycast** · `com.raycast.macos` — P · ✓ src=Vendor
 - [x] **Alfred** · `com.runningwithcrayons.Alfred` — P · ✓ src=Vendor
@@ -100,6 +100,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Stats** · `eu.exelban.Stats` — G (one-click) · ✓ src=GitHub · [audit](eu-exelban-Stats.md)
 - [x] **DBeaver** · `org.jkiss.dbeaver.core.product` — G · ✓ src=GitHub
 - [x] **Beekeeper Studio** · `io.beekeeperstudio.desktop` — G · ✓ src=GitHub
+- [x] [**KeePassXC**](org-keepassxc-keepassxc.md) · `org.keepassxc.keepassxc` — G (one-click) · ✓ src=GitHub · snapshot 共享 bundle id，完全无签名 → **一键永久不可**，检测阻塞于 #93（issue #95）
 - [x] [**Insomnia**](com-insomnia-app.md) · `com.insomnia.app` — G C (one-click) · ✓ src=GitHub · changelog=insomnia.rest(`__NEXT_DATA__` JSON) · 修 stable 跨渠道误推（pattern 加 `$` 锚，2026-06-06）· beta/alpha 受阻于 detect() 不解析 `-beta.N` 后缀
 - [x] **Pearcleaner** · `com.alienator88.Pearcleaner` — G · ✓ src=GitHub
 - [x] **Macs Fan Control** · `com.crystalidea.macsfancontrol` — G · ✓ src=GitHub

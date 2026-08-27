@@ -1148,10 +1148,10 @@ public enum GitHubReleaseRegistry {
             installerKind: .zip),
 
         // VSCodium Insiders — its own repo (VSCodium/vscodium-insiders), its own
-        // bundle id com.vscodium.VSCodiumInsiders. NOT VS Code Insiders
-        // (com.microsoft.VSCodeInsiders, already covered above) — different
-        // product, different cask (`vscodium@insiders` vs
-        // `visual-studio-code@insiders`).
+        // bundle id com.vscodium.VSCodiumInsiders. NOT VS Code Insiders (the
+        // com.microsoft.VSCodeInsiders VendorProbeRecipe in
+        // VendorProbeRecipe.swift) — different product, different cask
+        // (`vscodium@insiders` vs `visual-studio-code@insiders`).
         //
         // Detection needs no `ReleaseChannel` change, but not for the reason it
         // might look like: the bundle id has no `.insiders`/`-insiders` SUFFIX
@@ -1163,18 +1163,21 @@ public enum GitHubReleaseRegistry {
         // `GitHubReleaseRuleTests` pins this against `ReleaseChannel.detect`
         // directly so the assumption can't silently stop holding.
         //
-        // CRUCIAL, same trap as VS Code Insiders above: tags carry the `-insider`
-        // suffix (`1.126.04518-insider`), which IS part of both
-        // CFBundleShortVersionString and CFBundleVersion on the installed app —
-        // verified by downloading the real asset and reading Info.plist directly
-        // (not just trusting the tag). The default pattern
+        // CRUCIAL — this is the SECOND instance of a trap the VS Code Insiders
+        // recipe (VendorProbeRecipe.swift) already hit, not a VSCodium quirk:
+        // tags carry the `-insider` suffix (`1.126.04518-insider`), which IS
+        // part of both CFBundleShortVersionString and CFBundleVersion on the
+        // installed app — verified by downloading the real asset and reading
+        // Info.plist directly (not just trusting the tag). The default pattern
         // `v?([0-9]+(?:\.[0-9]+)+)` stops at the last digit run and drops the
         // suffix; `VersionComparator` then pads the missing 4th component to "0",
         // which outranks the text token "insider" (a numeric component always
-        // beats a textual one), so the bare "1.126.04518" would read as NEWER
-        // than the correctly-suffixed installed version — a permanent phantom
-        // update on an up-to-date install, never resolving. The pattern below
-        // keeps the suffix in the capture so it compares equal instead.
+        // beats a textual one — see VersionComparator.swift), so the bare
+        // "1.126.04518" would read as NEWER than the correctly-suffixed
+        // installed version — a permanent phantom update on an up-to-date
+        // install, never resolving. Any other `-insider`-suffixed product would
+        // hit the same trap; the pattern below keeps the suffix in the capture
+        // so it compares equal instead.
         //
         // x64 asset: unlike the arm64-only pattern above (which is pinned that
         // way regardless of whether an x64 build exists — not touched here),

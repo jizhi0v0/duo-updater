@@ -1147,6 +1147,62 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^VSCodium-darwin-arm64-[0-9.]+\.zip$"#,
             installerKind: .zip),
 
+        // VSCodium Insiders — its own repo (VSCodium/vscodium-insiders), its own
+        // bundle id com.vscodium.VSCodiumInsiders. NOT VS Code Insiders
+        // (com.microsoft.VSCodeInsiders, already covered above) — different
+        // product, different cask (`vscodium@insiders` vs
+        // `visual-studio-code@insiders`).
+        //
+        // Detection needs no `ReleaseChannel` change, but not for the reason it
+        // might look like: the bundle id has no `.insiders`/`-insiders` SUFFIX
+        // (it's the single camelCase component "VSCodiumInsiders", no separator
+        // before "Insiders"), so `detect`'s bundle-id-suffix step does not fire.
+        // What actually resolves it to `.preview` is the display name step: the
+        // installed app's CFBundleName/CFBundleDisplayName is "VSCodium -
+        // Insiders" (confirmed below), and "Insiders" is a standalone word there.
+        // `GitHubReleaseRuleTests` pins this against `ReleaseChannel.detect`
+        // directly so the assumption can't silently stop holding.
+        //
+        // CRUCIAL, same trap as VS Code Insiders above: tags carry the `-insider`
+        // suffix (`1.126.04518-insider`), which IS part of both
+        // CFBundleShortVersionString and CFBundleVersion on the installed app —
+        // verified by downloading the real asset and reading Info.plist directly
+        // (not just trusting the tag). The default pattern
+        // `v?([0-9]+(?:\.[0-9]+)+)` stops at the last digit run and drops the
+        // suffix; `VersionComparator` then pads the missing 4th component to "0",
+        // which outranks the text token "insider" (a numeric component always
+        // beats a textual one), so the bare "1.126.04518" would read as NEWER
+        // than the correctly-suffixed installed version — a permanent phantom
+        // update on an up-to-date install, never resolving. The pattern below
+        // keeps the suffix in the capture so it compares equal instead.
+        //
+        // x64 asset: unlike the arm64-only pattern above (which is pinned that
+        // way regardless of whether an x64 build exists — not touched here),
+        // this repo DOES publish `VSCodium-darwin-x64-<ver>-insider.zip`
+        // alongside the arm64 one (GET /repos/VSCodium/vscodium-insiders/
+        // releases/latest, verified 2026-08-27: both present, 165 assets total,
+        // exactly these 2 match). `GitHubReleaseRule` has no `hostRequirement`
+        // field — that's a `VendorProbeRecipe`-only concept — so no gating is
+        // needed: matching both filenames lets the existing arch-aware
+        // `installableAsset` selection (HostArch) pick the native build.
+        //
+        // One-click: verified 2026-08-27 by downloading the real
+        // VSCodium-darwin-arm64-1.126.04518-insider.zip and reading the
+        // extracted app directly — CFBundleIdentifier
+        // com.vscodium.VSCodiumInsiders, CFBundleShortVersionString/
+        // CFBundleVersion both "1.126.04518-insider", `codesign -dv` shows
+        // TeamIdentifier VC39D2VNQ7 (same team as stable) with a stapled
+        // notarization ticket, and `spctl -a --type execute` returns "accepted,
+        // source=Notarized Developer ID" — passes VendorInstaller's same-Team
+        // gate.
+        GitHubReleaseRule(
+            bundleID: "com.vscodium.VSCodiumInsiders",
+            owner: "VSCodium", repo: "vscodium-insiders",
+            versionPattern: #"^([0-9]+(?:\.[0-9]+)+-insider)$"#,
+            installAssetPattern: #"^VSCodium-darwin-(?:arm64|x64)-[0-9.]+-insider\.zip$"#,
+            installerKind: .zip,
+            channel: .preview),
+
         // balenaEtcher — an arm64 and an x64 dmg ship together (plus darwin zips of
         // the same builds), so the pattern pins the arm64 dmg.
         // One-click: io.balena.etcher, Team 66H43P8FRG, notarized.

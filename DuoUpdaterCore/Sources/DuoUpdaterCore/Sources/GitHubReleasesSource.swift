@@ -83,7 +83,7 @@ public struct GitHubReleaseRule: Sendable {
         guard !matches.isEmpty else { return nil }
 
         // 1. An asset explicitly built for this Mac's architecture.
-        if let native = matches.first(where: {
+        if let native = newest(among: matches, where: {
             arch.isMarked(inAssetName: $0.name)
                 && !(arch == .arm64 ? HostArch.x86_64 : .arm64).isMarked(inAssetName: $0.name)
         }) { return (native.url, native.size) }
@@ -91,7 +91,7 @@ public struct GitHubReleaseRule: Sendable {
         // 2. An arch-neutral asset (a universal build, or a name with no arch
         //    marker at all) — safe for either machine. A filename that explicitly
         //    names both architectures is another spelling of universal.
-        if let neutral = matches.first(where: {
+        if let neutral = newest(among: matches, where: {
             arch.isMarked(inAssetName: $0.name)
                 == (arch == .arm64 ? HostArch.x86_64 : .arm64).isMarked(inAssetName: $0.name)
         }) { return (neutral.url, neutral.size) }
@@ -105,7 +105,47 @@ public struct GitHubReleaseRule: Sendable {
         //    will not launch. The reverse direction is never offered — an arm64
         //    build has never run on an Intel Mac.
         guard arch == .arm64, canRunIntel else { return nil }
-        return matches.first.map { ($0.url, $0.size) }
+        return newest(among: matches, where: { _ in true }).map { ($0.url, $0.size) }
+    }
+
+    /// The asset whose own filename ranks highest under `VersionComparator`,
+    /// among those in `assets` that satisfy `predicate`. Nil when none does.
+    ///
+    /// Exists because "first in the list" is not "newest". A respun release keeps
+    /// BOTH artifacts under the one tag — KeePassXC 2.7.11 ships
+    /// `KeePassXC-2.7.11-arm64.dmg` alongside the respin
+    /// `KeePassXC-2.7.11-1-arm64.dmg` — and GitHub returns assets alphabetically,
+    /// which happens to put the respin first for `-1` and would put it LAST from
+    /// `-2` on. Picking by position therefore installs the superseded artifact as
+    /// soon as a vendor respins twice, silently: the version reported is the
+    /// release's and is correct, only the file is wrong, so nothing fails and
+    /// nothing warns. Same defect as the vendor-probe feed ordering fixed in #76
+    /// (`VendorProbeRecipe.highestVersionedURL`), in a different source — the
+    /// remedy is the same one: score each candidate by what it declares about
+    /// itself and take the maximum.
+    ///
+    /// Comparing the WHOLE filename is what makes this safe without inventing a
+    /// per-vendor respin grammar. `VersionComparator` splits a name into runs of
+    /// digits and non-digits and compares run by run, so
+    /// `KeePassXC-2.7.11-1-arm64.dmg` and `KeePassXC-2.7.11-arm64.dmg` agree
+    /// through `2.7.11` and then weigh `1` against `arm`, where a number outranks
+    /// text and the respin wins; `-2-` against `-1-` is a numeric comparison, not
+    /// an alphabetical one, so a tenth respin would beat a ninth too.
+    ///
+    /// Nothing moves unless a name genuinely ranks higher: a single candidate is
+    /// returned as-is (which is every rule in the registry on an ordinary
+    /// release), and equal-ranking names keep the first-listed one, so this is
+    /// the old behaviour everywhere the old behaviour was already unambiguous.
+    private static func newest(
+        among assets: [(name: String, url: URL, size: Int64?)],
+        where predicate: ((name: String, url: URL, size: Int64?)) -> Bool
+    ) -> (name: String, url: URL, size: Int64?)? {
+        var best: (name: String, url: URL, size: Int64?)?
+        for asset in assets where predicate(asset) {
+            guard let current = best else { best = asset; continue }
+            if VersionComparator.isNewer(asset.name, than: current.name) { best = asset }
+        }
+        return best
     }
 
     /// Does this release carry *any* asset this rule would install?

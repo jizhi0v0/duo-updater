@@ -150,7 +150,11 @@ public struct ProbeOutcome: Sendable {
     public let httpStatus: Int?
     /// The text the version pattern was run against, capped at
     /// ``ProbeOutcome/maxSampleBytes``. This is what a human (or a triage step)
-    /// needs to see to fix a pattern.
+    /// needs to see to fix a pattern. For a recipe with `entryStartPattern` set,
+    /// this is the ONE winning entry `VendorProbeSource` scoped everything else
+    /// to — not the whole fetched body — so it matches what the recipe actually
+    /// resolved against, not just whatever fits in the first
+    /// ``ProbeOutcome/maxSampleBytes`` of the feed.
     public let bodySample: String?
     public let elapsedMs: Int
 

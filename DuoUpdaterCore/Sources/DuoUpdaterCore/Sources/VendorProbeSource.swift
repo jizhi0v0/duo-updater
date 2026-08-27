@@ -322,15 +322,38 @@ public struct VendorProbeSource: UpdateSource {
     }
 
     /// The version one already-expanded endpoint reports, by the same extractor
-    /// a real probe uses — so a divergence means the tracks differ, not that two
-    /// code paths read the body differently.
+    /// AND the same entry-scoping (`scopedBody`) a real probe uses — so a
+    /// divergence means the tracks differ, not that two code paths read the body
+    /// differently. No registry recipe carries both `track` and
+    /// `entryStartPattern` today, but nothing should stop one from doing so
+    /// safely, and a `rolloutTrackVerdict` that read the wrong slice would
+    /// report a phantom `.diverged` straight into `duo verify`.
     private func trackVersion(_ recipe: VendorProbeRecipe, at endpoint: URL) async -> String? {
         guard case .success(let body) = await fetchBody(recipe, endpoint: endpoint)
         else { return nil }
         let extractor = recipe.selectHighest
             ? VendorProbeRecipe.highestVersion
             : VendorProbeRecipe.extractVersion
-        return extractor(body.text, recipe.versionPattern)
+        return extractor(Self.scopedBody(recipe, body.text), recipe.versionPattern)
+    }
+
+    /// The text a recipe's first-match patterns (`versionPattern`,
+    /// `displayVersionPattern`, `publishedAtPattern`, and the install spec's
+    /// `.bodyPattern`-family URL) should actually run against: the winning
+    /// entry when `entryStartPattern` slices the body and a version-pattern
+    /// match picks one (see `VendorProbeRecipe.highestVersionEntry`), otherwise
+    /// `body` verbatim — today's behaviour for every recipe that doesn't set
+    /// `entryStartPattern`, and the fallback when slicing produces no winner.
+    ///
+    /// The single choke point every reader of the fetched body goes through,
+    /// so a recipe with `entryStartPattern` set can't have one reader (say, a
+    /// future addition) forget to scope while the others do.
+    private static func scopedBody(_ recipe: VendorProbeRecipe, _ body: String) -> String {
+        recipe.entryStartPattern.flatMap {
+            VendorProbeRecipe.highestVersionEntry(
+                in: body, entryStartPattern: $0, versionPattern: recipe.versionPattern,
+                selectHighest: recipe.selectHighest)
+        } ?? body
     }
 
     /// What a mode's fetch step yields on success: the text the version pattern
@@ -372,8 +395,6 @@ public struct VendorProbeSource: UpdateSource {
             body = fetched
         }
 
-        let sample = ProbeOutcome.sample(body.text)
-
         // A recipe with `entryStartPattern` set names a feed that lists several
         // entries and is ordered by something other than version (publication
         // date, for Android Studio's preview feed): slice the body at that
@@ -382,10 +403,20 @@ public struct VendorProbeSource: UpdateSource {
         // and the install URL can never land on different releases. Falls back
         // to the whole body — today's behaviour — when the recipe sets no such
         // pattern, or when slicing/matching doesn't produce a winner.
-        let scope = recipe.entryStartPattern.flatMap {
-            VendorProbeRecipe.highestVersionEntry(
-                in: body.text, entryStartPattern: $0, versionPattern: recipe.versionPattern)
-        } ?? body.text
+        let scope = Self.scopedBody(recipe, body.text)
+
+        // The sample a human (or `duo triage`) sees to fix a broken pattern must
+        // be the SAME text the extractors below actually ran against — sampling
+        // `body.text` here would show a scoped recipe's reader a slice that isn't
+        // where its answer came from, and worse, silently hand `duo triage` the
+        // pre-#76 whole-body semantics for exactly the recipes this fix changed
+        // (`Triage.swift` validates a proposed pattern with
+        // `VendorProbeRecipe.extractVersion(from: finding.bodySample, ...)`).
+        // Safe on the failure path below too: whenever extraction fails, `scope`
+        // is already `body.text` by construction — `highestVersionEntry` only
+        // ever returns a winner it already confirmed `versionPattern` matches,
+        // so a scoped `scope` can't reach the miss branch.
+        let sample = ProbeOutcome.sample(scope)
 
         // Default to the first match (the app's own field, which structured
         // bodies list first); only ascending-order feeds opt into highest-wins.

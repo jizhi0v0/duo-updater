@@ -192,6 +192,28 @@ import Foundation
     #expect(CapCutChannel.betaPackageToken == "capcutpc_beta")
 }
 
+/// The two filenames, pinned.
+///
+/// Nothing else in the suite would catch a typo in either: the INI parsers are
+/// tested against strings, and the watch-root test derives its expectation from
+/// `configDirectoryURL`, so it agrees with whatever these say. A wrong filename
+/// makes both reads return nil, which resolves to `.stable` — every CapCut
+/// install silently pinned to the stable track, with nothing anywhere reading as
+/// broken. Same reason `tablePlusUnlockHeaderValueIsTheLiteralServerExpects`
+/// exists.
+@Test func capCutReadsTheTwoFilesCapCutActuallyWrites() {
+    #expect(CapCutChannel.updateInfoFileURL.lastPathComponent == "updateInfo")
+    #expect(CapCutChannel.packageChannelFileURL.lastPathComponent == "channel")
+    let dir = CapCutChannel.configDirectoryURL.standardizedFileURL.path
+    #expect(dir.hasSuffix("/Movies/CapCut/User Data/Config"))
+    // Outside the sandbox container on purpose — the container path is the trap
+    // this resolver exists to record.
+    #expect(!dir.contains("Library/Containers"))
+    for file in [CapCutChannel.updateInfoFileURL, CapCutChannel.packageChannelFileURL] {
+        #expect(file.deletingLastPathComponent().standardizedFileURL.path == dir)
+    }
+}
+
 /// The `channel` INI CapCut writes beside `updateInfo`, verbatim from this
 /// machine 2026-08-27. It is CapCut's own copy of the bundle's
 /// `Contents/Resources/PackageConfig.plist` → `Channel Name`.

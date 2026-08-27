@@ -76,6 +76,26 @@ struct CapCutProbeRecipeTests {
         VendorProbeRecipe.extractVersion(from: text, pattern: recipe.versionPattern)
     }
 
+    /// The installer URL a track's spec resolves out of `text`, or nil when the
+    /// pattern matches nothing.
+    ///
+    /// Records an issue rather than returning nil when the spec is not a
+    /// `.bodyPattern`, because three of the tests below assert a nil result: a
+    /// silent `return nil` on a changed spec shape would turn each of them into a
+    /// no-op that still reports green.
+    private static func installURL(
+        _ channel: ReleaseChannel, in text: String
+    ) throws -> String? {
+        let recipe = try Self.recipe(channel)
+        let spec = try #require(recipe.install)
+        guard case .bodyPattern(let pattern) = spec.urlSource else {
+            Issue.record(
+                "\(recipe.recipeID) is no longer a body-pattern install; every nil-result assertion in this suite has gone vacuous")
+            return nil
+        }
+        return VendorProbeRecipe.extractVersion(from: text, pattern: pattern)
+    }
+
     // MARK: - registry shape
 
     /// Derived from the registry, not a hand-written list: a third CapCut track
@@ -218,13 +238,7 @@ struct CapCutProbeRecipeTests {
         for channel in [ReleaseChannel.stable, .beta] {
             let recipe = try Self.recipe(channel)
             let version = try #require(Self.version(recipe, in: Self.body))
-            let spec = try #require(recipe.install)
-            guard case .bodyPattern(let pattern) = spec.urlSource else {
-                Issue.record("\(recipe.recipeID) is not a body-pattern install")
-                continue
-            }
-            let url = try #require(
-                VendorProbeRecipe.extractVersion(from: Self.body, pattern: pattern))
+            let url = try #require(try Self.installURL(channel, in: Self.body))
             #expect(url.hasPrefix("https://sf16-web-tos-buz.capcutstatic.com/"),
                     "the download host must be pinned, not matched with [^\"]+")
             // The vendor writes the version with underscores in the filename.
@@ -238,11 +252,6 @@ struct CapCutProbeRecipeTests {
     /// `capcutpc_<token>` in the filename are pinned, so this holds in both
     /// directions and regardless of JSON order.
     @Test func neitherInstallSpecCanResolveTheOthersArtifact() throws {
-        func installURL(_ channel: ReleaseChannel, in text: String) throws -> String? {
-            let spec = try #require(try Self.recipe(channel).install)
-            guard case .bodyPattern(let pattern) = spec.urlSource else { return nil }
-            return VendorProbeRecipe.extractVersion(from: text, pattern: pattern)
-        }
         let stableOnly = """
             {"lastest_stable_url": "https://sf16-web-tos-buz.capcutstatic.com/obj/\
             capcut-web-buz-sg/packages/CapCut_9_3_0_4490_capcutpc_0_creatortool.dmg"}
@@ -251,11 +260,11 @@ struct CapCutProbeRecipeTests {
             {"lastest_url": "https://sf16-web-tos-buz.capcutstatic.com/obj/\
             capcut-web-buz-sg/packages/CapCut_9_4_0-beta4_4531_capcutpc_beta_creatortool.dmg"}
             """
-        #expect(try installURL(.stable, in: betaOnly) == nil)
-        #expect(try installURL(.beta, in: stableOnly) == nil)
+        #expect(try Self.installURL(.stable, in: betaOnly) == nil)
+        #expect(try Self.installURL(.beta, in: stableOnly) == nil)
         // On the real body the beta spec must take `lastest_url`, never the older
         // `lastest_sync_url` build that sits ahead of it in the object.
-        let beta = try #require(try installURL(.beta, in: Self.body))
+        let beta = try #require(try Self.installURL(.beta, in: Self.body))
         #expect(beta.hasSuffix("CapCut_9_4_0-beta4_4531_capcutpc_beta_creatortool.dmg"))
     }
 
@@ -268,19 +277,10 @@ struct CapCutProbeRecipeTests {
             Issue.record("CapCut beta's proof should be an artifact marker")
             return
         }
-        let spec = try #require(try Self.recipe(.beta).install)
-        guard case .bodyPattern(let pattern) = spec.urlSource else { return }
-        let url = try #require(
-            VendorProbeRecipe.extractVersion(from: Self.body, pattern: pattern))
+        let url = try #require(try Self.installURL(.beta, in: Self.body))
         #expect(url.range(of: marker, options: [.regularExpression, .caseInsensitive]) != nil)
         // ...and must NOT match the stable artifact, or it proves nothing.
-        let stable = try #require(
-            Self.version(try Self.recipe(.stable), in: Self.body))
-        _ = stable
-        let stableSpec = try #require(try Self.recipe(.stable).install)
-        guard case .bodyPattern(let stablePattern) = stableSpec.urlSource else { return }
-        let stableURL = try #require(
-            VendorProbeRecipe.extractVersion(from: Self.body, pattern: stablePattern))
+        let stableURL = try #require(try Self.installURL(.stable, in: Self.body))
         #expect(stableURL.range(of: marker, options: [.regularExpression, .caseInsensitive])
             == nil)
     }

@@ -107,6 +107,40 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .stable
         }
 
+        // 0.6 DB Browser for SQLite — its nightly is the second app whose only
+        //     on-disk channel signal is the BUNDLE FILENAME. It ships the stable
+        //     bundle id (`net.sourceforge.sqlitebrowser`), a clean `CFBundleName`
+        //     ("DB Browser for SQLite" — the scanner's display name, so
+        //     `channelWord` sees no word), and a version that is not a channel
+        //     token. Homebrew's `@nightly` cask installs it as
+        //     "DB Browser for SQLite Nightly.app", alongside stable rather than
+        //     over it (cask artifact read 2026-08-27).
+        //
+        //     Why this matters even though we can never UPDATE a nightly: the
+        //     vendor hardcodes `CFBundleShortVersionString`/`CFBundleVersion` to
+        //     `3.13.99` in the checked-in `src/app.plist`, and has since
+        //     2023-11-11 ("Update version number to 3.13.99 (new nightly)"). The
+        //     build date lives in a separate `BUILD_VERSION` compile define that
+        //     never reaches the plist, which is why even Homebrew has to version
+        //     that cask by the asset date. So a nightly's version never moves and
+        //     no update can be offered for it — but STABLE is covered here with a
+        //     one-click install spec, and a nightly install currently reads as
+        //     `.stable`, which puts it in that recipe's reach. It is masked today
+        //     only by the accident that the frozen `3.13.99` sorts above stable's
+        //     `3.13.1`; the day stable ships 3.14.x the stable dmg starts being
+        //     offered — and installed — over a nightly.
+        //
+        //     Unlike Android Studio above this does NOT return `.stable` in the
+        //     negative case. Android Studio has to, because its other signals are
+        //     actively misleading; DB Browser's are merely absent, so falling
+        //     through keeps the normal path available to a track we have not
+        //     characterised yet (the repo's `continuous` prereleases ship as
+        //     `DB.Browser.for.SQLite-dev-<sha>.dmg` — unverified, see #94).
+        if bundleID == "net.sourceforge.sqlitebrowser",
+           bundleFileName?.lowercased().contains("nightly") == true {
+            return .nightly
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {

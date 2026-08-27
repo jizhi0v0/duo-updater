@@ -2222,6 +2222,53 @@ public enum ChangelogRecipeRegistry {
             maxEntries: 20,
             imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#,
             minimumAppVersion: "1", belowAppVersion: "2"),
+
+        // WorkBuddy — Tencent's two sites, two apps (see the VendorProbe registry
+        // and docs/app-audits/com-workbuddy-workbuddy.md). Both docs sites are the
+        // same VitePress build, so ONE set of patterns serves both and only
+        // `bundleID` and `source` differ. Each recipe is pinned to its OWN site:
+        // the trains are independent, and showing an international install the CN
+        // notes (or the reverse) would be quietly wrong in a way nothing else here
+        // could catch.
+        //
+        // Markup (server-rendered, so no JS is needed):
+        //   <h2 id="_5-3-14-…">5.3.14 版本发布 🚀（2026-08-17） <a class="header-anchor"…></a></h2>
+        //   <ul><li>新增 …</li><li>优化 …</li></ul>
+        //
+        // TRAP: those parentheses are FULLWIDTH（）in the bytes, on both the
+        // Chinese and the English page — they render close enough to ASCII that
+        // reading the page in a browser tells you nothing. A pattern written with
+        // `\(` matches neither site. Both forms are accepted here so the recipe
+        // survives the vendor normalising them either way.
+        //
+        // The heading text between version and date varies by era — "版本发布 🚀",
+        // "Lanched 🚀" (the vendor's own typo), or nothing at all on the oldest
+        // entries — so the pattern skips anything that is not a tag or a paren
+        // rather than trying to enumerate the variants. The date group is optional
+        // for the same reason: 19 of the CN page's older entries have no date.
+        //
+        // `</h2>\s*<ul>` adjacency is deliberate: it is what keeps a heading whose
+        // notes are laid out some other way from swallowing the NEXT release's
+        // list. It costs the 17 oldest CN entries (4.5.0–4.7.5, which use a
+        // different markup), and that is free — `maxEntries` stops at 40 and the
+        // newest 58 all parse. Verified against both live pages 2026-08-27: CN 58
+        // entries, newest 5.3.14 with 14 items; intl 2 entries, newest 5.2.7.
+        //
+        // The intl page IS that short: it carries two entries and stops at 5.2.7
+        // (2026-07-17) while its own endpoint ships 5.4.2. A future reader finding
+        // "only 2 entries" has found the vendor's page, not a broken recipe — the
+        // CN page, parsed by the identical pattern, returns 58.
+        ChangelogRecipe(
+            bundleID: "com.workbuddy.workbuddy",
+            source: URL(string: "https://www.workbuddy.cn/docs/workbuddy/Changelog")!,
+            entryPattern: Self.workBuddyEntryPattern,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+
+        ChangelogRecipe(
+            bundleID: "com.workbuddy.workbuddy-ai",
+            source: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!,
+            entryPattern: Self.workBuddyEntryPattern,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single
@@ -2297,6 +2344,22 @@ public enum ChangelogRecipeRegistry {
         let windowed = covering.filter(\.declaresVersionWindow)
         return windowed.isEmpty ? covering : windowed
     }
+
+    /// The entry shape both WorkBuddy sites render. Shared rather than duplicated
+    /// because the two pages come off the same VitePress build: a fix applied to
+    /// one and not the other would leave the sites silently disagreeing about
+    /// which releases they can show.
+    static let workBuddyEntryPattern =
+        #"<h2[^>]*>\s*(?<version>\d+(?:\.\d+)+)"#
+        + #"(?:[^<（(]*[（(](?<date>[^）)<]+)[）)])?"#
+        // Tempered dot, not a plain `.*?`: a lazy gap still BACKTRACKS past the
+        // first `</h2>` when that one is not followed by a list, and then binds
+        // to the next release's. A heading with no list of its own — a "coming
+        // soon" placeholder, say — would then adopt the newest release's items
+        // AND consume its heading, so the real entry disappears from the pane
+        // while its notes show under the wrong version. Refusing to cross a
+        // `</h2>` makes the adjacency requirement below actually hold.
+        + #"(?:(?!</h2>).)*</h2>\s*<ul[^>]*>(?<body>.*?)</ul>"#
 
     /// Every recipe registered for a bundle id (across channels). Used to clear all
     /// channel variants' caches on update — see `AppListModel.invalidateChangelog`.

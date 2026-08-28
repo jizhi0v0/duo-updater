@@ -14,6 +14,12 @@ import Foundation
 /// Hand-written bodies use arbitrary section headings and bullet styles.
 /// Both go through the same pipeline — bullets are extracted, contributor-
 /// noise sections are skipped, and the "by @user in URL" suffix is stripped.
+///
+/// If you're changing what this file extracts (not just adding support for a
+/// new vendor shape), bump `Changelog.parserGeneration` — see its doc comment.
+/// A `Changelog` this parser produces can be written to `ChangelogDiskCache` and
+/// served, unre-parsed, to a user on a version their notes were already cached
+/// for; without the bump, this fix never reaches them.
 public enum GitHubMarkdownParser {
 
     /// Parse a single release body into a `Changelog` with one entry, or nil

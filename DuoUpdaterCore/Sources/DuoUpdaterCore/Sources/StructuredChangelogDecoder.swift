@@ -9,6 +9,12 @@ import Foundation
 /// Totally defensive: malformed JSON, a missing channel, or an entry with no usable
 /// notes yields fewer entries (or nil), never a throw — a nil/empty result is the
 /// caller's signal to fall back to the embedded web page.
+///
+/// If you're changing what this file extracts (not just adding support for a new
+/// vendor's structured format), bump `Changelog.parserGeneration` — see its doc
+/// comment. A `Changelog` this produces can be written to `ChangelogDiskCache` and
+/// served, unre-parsed, to a user on a version their notes were already cached
+/// for; without the bump, this fix never reaches them.
 public enum StructuredChangelogDecoder {
 
     /// Dispatch on the recipe's structured format. nil when the body can't be parsed

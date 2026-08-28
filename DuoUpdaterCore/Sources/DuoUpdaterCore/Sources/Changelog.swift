@@ -11,6 +11,33 @@ import Foundation
 /// (later) ship in a remote catalog, and it's also what `ChangelogExtractor`
 /// produces on-device. Either way the renderer only ever sees this struct.
 public struct Changelog: Codable, Sendable, Hashable {
+
+    /// The extraction logic's generation. `ChangelogDiskCache` stamps every entry
+    /// it writes with this number and treats a stored entry whose number doesn't
+    /// match the running build's as a miss — falls through to the network, exactly
+    /// like a cold cache (see `ChangelogDiskCache`). That's what lets a parser fix
+    /// reach a version whose notes were already cached under the OLD logic: without
+    /// this, an entry written by an older build is served forever for that exact
+    /// version, no matter what `ChangelogExtractor`, `StructuredChangelogDecoder`,
+    /// or `GitHubMarkdownParser` have learned since (issue #112).
+    ///
+    /// **Bump this whenever a change to any of those three files could change what
+    /// a PREVIOUSLY-parsed version's `Changelog` would come out as** — a change to
+    /// parsing/extraction *rules*, not merely support for a newly-encountered vendor
+    /// shape that no cached entry could have hit. Each of those files carries a
+    /// pointer comment back here for exactly this reason: the constant living only
+    /// in the cache file, which a parser author has no reason to ever open, is the
+    /// same hand-maintained-list failure this codebase has already been bitten by
+    /// (see `VendorProbeRecipe.channelAnchorSurface`'s doc comment).
+    ///
+    /// One line per bump — what changed and why:
+    /// - 1: baseline. Introduced with the generation field itself (issue #112); no
+    ///   prior bump history exists because the field didn't. Ships as of this
+    ///   commit already carrying the `GitHubMarkdownParser.isImageOnly` HTML `<img>`
+    ///   arm (`9963e3e`), so that fix is folded into generation 1 rather than
+    ///   triggering a bump on its own.
+    public static let parserGeneration = 1
+
     public let entries: [Entry]
 
     /// What the change lines in `items` are written in, so the renderer knows

@@ -66,13 +66,32 @@ ALLOW_LOOKBACK = 6
 # STATEMENT — which in Swift is routinely two or three lines away, because
 # `if let a = ..., \n   cond` is the idiom these sites are written in. Looking at
 # one line missed every real instance; the window is what makes the rule bite.
-COMPARISON = re.compile(r"VersionComparator\.|[!=]=")
+# `VersionComparator.` is unambiguous. A bare `==` is not: `route == .installer`
+# sits three lines from a version pick in `InstallCoordinator.backUp` and has
+# nothing to do with versions. Requiring a version-ish operand on the SAME line
+# as the `==` keeps the rule pointed at version equality — a lint that cries wolf
+# is a lint the next person switches off, which is the failure this whole file
+# exists to prevent.
+COMPARATOR_CALL = re.compile(r"VersionComparator\.")
+EQUALITY = re.compile(r"[!=]=")
+VERSION_TOKEN = re.compile(r"[Vv]ersion|[Bb]uild|versionSide")
 COMPARISON_WINDOW = 3
 
 
+def is_version_comparison(line):
+    if COMPARATOR_CALL.search(line):
+        return True
+    return bool(EQUALITY.search(line) and VERSION_TOKEN.search(line))
+
+
 def compares_near(lines, index):
-    """Whether a version comparison appears within this statement's few lines."""
-    return any(COMPARISON.search(lines[i])
+    """Whether a version comparison appears within this statement's few lines.
+
+    A window, because Swift's `if let a = ...,\n   cond` idiom puts the
+    comparison two or three lines below the pick — looking at one line missed
+    every real instance.
+    """
+    return any(is_version_comparison(lines[i])
                for i in range(index, min(index + COMPARISON_WINDOW, len(lines))))
 
 # Rule 4: reading only the marketing half off disk to detect a change. The pair

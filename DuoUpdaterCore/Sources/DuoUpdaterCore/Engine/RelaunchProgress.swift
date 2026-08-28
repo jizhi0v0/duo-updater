@@ -110,7 +110,23 @@ public enum RelaunchProgress {
     /// Fails closed on an unreadable bundle: an empty side is not proof of
     /// anything, and reporting a landing that did not happen would reopen the app
     /// mid-swap.
-    public static func hasLanded(old: VersionSide, disk: VersionSide) -> Bool {
+    /// - Parameters:
+    ///   - old: what was installed when the quit was asked for.
+    ///   - disk: what is there now.
+    ///   - buildIsDerived: whether `old`'s build came from `AppScanner`'s
+    ///     override rather than the bundle's own `CFBundleVersion`. When it did,
+    ///     the two sides are not in one namespace and the build is dropped from
+    ///     the comparison — DoubaoIme's real `CFBundleVersion` is a flat "1" on
+    ///     every build while the scanner stores the vendor's own number, so
+    ///     comparing the stored value against a raw plist read would answer "not
+    ///     landed" forever, which is the failure this function exists to end.
+    ///     Latent today (neither overridden app has an updater
+    ///     `SelfUpdaterStaging` recognises) and stated rather than left to be
+    ///     rediscovered.
+    public static func hasLanded(
+        old: VersionSide, disk: VersionSide, buildIsDerived: Bool = false
+    ) -> Bool {
+        let old = buildIsDerived ? VersionSide(marketing: old.marketing) : old
         guard !disk.isEmpty, !old.isEmpty else { return false }
         return VersionComparator.isNewer(disk, than: old)
     }

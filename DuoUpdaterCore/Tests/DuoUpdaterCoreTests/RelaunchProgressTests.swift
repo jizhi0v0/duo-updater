@@ -128,3 +128,37 @@ import Testing
         #expect(store.retargeted(nowStaged: nil) == store)
     }
 }
+
+/// The namespace trap found in review: `AppScanner` substitutes a derived build
+/// for the bundles in `buildVersionIsOverridden`, so an `InstalledApp`'s build is
+/// not always the bundle's own `CFBundleVersion`. Comparing that stored value
+/// against a raw plist read is two namespaces, not one.
+@Suite struct DerivedBuildComparisonTests {
+
+    /// DoubaoIme's real `CFBundleVersion` is a flat "1" on every build; the
+    /// scanner stores the vendor's own number instead. Comparing them would say
+    /// "not landed" forever — the exact 900-tick spin this module exists to end.
+    @Test func aDerivedBuildIsDroppedRatherThanComparedAgainstARawRead() {
+        let scanned = VersionSide(marketing: "1.0", build: "6.1.5")   // scanner's
+        let raw = VersionSide(marketing: "1.0", build: "1")           // the bundle's
+
+        #expect(!RelaunchProgress.hasLanded(old: scanned, disk: raw),
+                "without the flag the derived build loses to the raw one")
+        #expect(!RelaunchProgress.hasLanded(old: scanned, disk: raw, buildIsDerived: true),
+                "with it, marketing ties and nothing claims a landing — correct, it has not moved")
+
+        // ...and a real marketing move is still seen, which is all these apps have.
+        #expect(RelaunchProgress.hasLanded(
+            old: scanned, disk: VersionSide(marketing: "1.1", build: "1"),
+            buildIsDerived: true))
+    }
+
+    /// The ordinary app is untouched: its build is the bundle's own, so it still
+    /// decides when the marketing versions tie.
+    @Test func anOrdinaryAppStillUsesItsBuild() {
+        #expect(RelaunchProgress.hasLanded(
+            old: VersionSide(marketing: "1.0", build: "128"),
+            disk: VersionSide(marketing: "1.0", build: "129"),
+            buildIsDerived: false))
+    }
+}

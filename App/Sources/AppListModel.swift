@@ -3722,7 +3722,9 @@ final class AppListModel {
         for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
             if RelaunchProgress.hasLanded(
-                old: old, disk: await Self.readVersionSideOffMain(result.app.path)) {
+                old: old, disk: await Self.readVersionSideOffMain(result.app.path),
+                buildIsDerived: AppScanner.buildVersionIsOverridden(
+                    bundleID: result.app.bundleID)) {
                 applied = true
                 break
             }

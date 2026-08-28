@@ -315,6 +315,96 @@ public enum ChannelProofRegistry {
             .map { ChannelProofKey($0.bundleID, $0.channel) }
     }
 
+    /// Proof of channel identity for the binding population (issue #111).
+    ///
+    /// A third map rather than entries in `proofs`, for exactly the reason
+    /// `githubProofs` is a third: `ChannelProofKey` is `(bundleID, channel)` and
+    /// says nothing about which population it came from, so one map would
+    /// silently collide the day a bundle id appears in two of them on the same
+    /// channel — and the exhaustiveness test would pass while proving the wrong
+    /// thing. `channelProofMapsDoNotCollide` measures that rather than assuming it.
+    ///
+    /// Every entry is a `.recipeAnchor`, and none of them could honestly be an
+    /// `.artifact`: for all four of these vendors, stable and beta are the same
+    /// filename from the same host, so there is no token in the response to
+    /// anchor on. The channel signal lives entirely in the REQUEST. That is not a
+    /// weaker proof than the recipe population gets — Alfred's registered anchor
+    /// is `prerelease\.xml` in its endpoint, which is the same assertion about
+    /// the same kind of evidence.
+    ///
+    /// What these DO buy, and what they do not: an anchor here fails in a PR when
+    /// the discriminator is edited away, which is the drift that would otherwise
+    /// be silent. It cannot notice a vendor retiring the discriminator on their
+    /// side — nothing in the response would change shape. `duo verify` does not
+    /// sweep this population (it sweeps recipes and rules), so enforcement is
+    /// build-time only. Said plainly because the opposite impression is exactly
+    /// the "green check nobody should trust" issue #111 warned about.
+    public static let bindingProofs: [ChannelProofKey: ChannelArtifactProof] = [
+        // Fork ships two entirely separate feed documents. Note which is which:
+        // the BETA train is the unsuffixed `feed.xml` (also the code-signed
+        // `SUFeedURL`, and the shipped default), and stable is the one that had to
+        // be given a suffix. So the anchor is the absence of that suffix, and it
+        // discriminates precisely because `feed-stable.xml` does not contain the
+        // literal `feed.xml`.
+        ChannelProofKey("com.DanPristupov.Fork", .beta):
+            .recipeAnchor(#"/update/feed\.xml"#, in: ["feedOverride"]),
+        ChannelProofKey("com.nssurge.surge-mac", .beta):
+            .recipeAnchor(#"appcast-signed-beta\.xml"#, in: ["feedOverride"]),
+        ChannelProofKey("com.colliderli.iina", .beta):
+            .recipeAnchor(#"appcast-beta\.xml"#, in: ["feedOverride"]),
+        // TablePlus is the sharpest case in the population and the only
+        // header-keyed one. Stable and beta share ONE feed URL; the server decides
+        // which builds to return from a request header, and the VALUE is
+        // load-bearing — the app sends the literal `true` and the server treats
+        // `1`/`yes` as stable (`TablePlusChannel`). So the anchor covers the value,
+        // not just the field name, which is why `ResolvedChannel.anchorLines`
+        // renders a header as one `key: value` line instead of two.
+        ChannelProofKey("com.tinyapp.tableplus", .beta):
+            .recipeAnchor(#"X-Tiny-Beta-Update:\s*true"#, in: ["feedHTTPHeaders"]),
+    ]
+
+    /// The channel bindings whose non-stable resolution needs a proof (issue #111).
+    ///
+    /// The third install-carrying population. `ChannelBinding` + `SparkleAppcastSource`
+    /// reaches an install without passing through either registry above, so neither
+    /// `channelRecipesWithInstall` nor `channelGitHubRulesWithInstall` can see it.
+    ///
+    /// Three predicates, each excluding a group for a DIFFERENT reason — which is
+    /// the point, because issue #111's own warning was that a proof table half
+    /// full of no-ops is worse than none:
+    ///
+    ///  1. **Non-stable only**, as everywhere else: a stable resolution has no
+    ///     other channel to cross into.
+    ///  2. **Not backed by a vendor probe.** OrbStack, Alfred, Tailscale and CapCut
+    ///     have bindings, but the binding only picks which `VendorProbeRecipe`
+    ///     runs; the install comes from that recipe and `proofs` already covers it.
+    ///     Counting them here would register a second proof for the same artifact.
+    ///  3. **Request-keyed only** — `feedOverride` or `feedHTTPHeaders`. This is
+    ///     the real discriminator. A channel-TAG binding (DuoPaste, BetterDisplay)
+    ///     is already protected structurally: `SparkleAppcastSource.allowedChannels`
+    ///     narrows the feed to the `<sparkle:channel>` values the user opted into,
+    ///     in code that runs for every such app whether or not anyone remembered
+    ///     to register anything — a stronger guarantee than a hand-written regex,
+    ///     and one that would be a literal no-op to restate here.
+    ///
+    /// What is left is exactly the population where the channel signal lives in
+    /// the REQUEST and nothing in the response corroborates it: the feed-swap and
+    /// header-keyed apps. TablePlus is the sharpest — stable and beta come from
+    /// the same host with the same filename, differing only in build number, so
+    /// if the vendor retires `X-Tiny-Beta-Update` a beta user is served the stable
+    /// dmg and every gate we have passes.
+    public static var channelBindingsNeedingProof: [ChannelProofKey] {
+        ChannelBinding.allResolutions
+            .filter { entry in
+                entry.resolved.channel != .stable
+                    && !ChannelBinding.vendorProbeBackedBindings
+                        .contains(entry.bundleID.lowercased())
+                    && (entry.resolved.feedOverride != nil
+                        || !entry.resolved.feedHTTPHeaders.isEmpty)
+            }
+            .map { ChannelProofKey($0.bundleID, $0.resolved.channel) }
+    }
+
     /// Pre-release tokens that must never appear in a STABLE recipe's installer
     /// URL — the mirror of the same failure, and the worse direction: pushing a
     /// nightly onto someone who chose stable.
@@ -354,6 +444,11 @@ extension VendorProbeRecipe: ChannelAnchorSubject {
 extension GitHubReleaseRule: ChannelAnchorSubject {
     static var anchorSubjectName: String { "rule" }
     static var anchorTypeName: String { "GitHubReleaseRule" }
+}
+
+extension ResolvedChannel: ChannelAnchorSubject {
+    static var anchorSubjectName: String { "binding" }
+    static var anchorTypeName: String { "ResolvedChannel" }
 }
 
 extension RecipeSanity {
@@ -452,6 +547,42 @@ extension RecipeSanity {
         case .recipeAnchor(let pattern, let fields):
             return recipeAnchorFailure(
                 pattern: pattern, fields: fields, channel: rule.channel, subject: rule)
+        }
+    }
+
+    /// The same check for a `ChannelBinding` resolution (issue #111).
+    ///
+    /// Deliberately NOT an overload of `crossChannelArtifact`, and not given a
+    /// `RemoteVersion`: there is no artifact to inspect. For every binding in this
+    /// population stable and non-stable resolve the same filename from the same
+    /// host, so a URL check would be the vacuous kind of proof this file exists to
+    /// refuse. What is checked is the request the resolution will make.
+    ///
+    /// Stable resolutions return nil rather than being checked against
+    /// `preReleaseTokens` the way a stable recipe is. That is measured, not lazy:
+    /// two of these four bindings' STABLE feeds would trip a bare token match —
+    /// Surge's `appcast-signed.xml` sits beside `appcast-signed-beta.xml` on the
+    /// same path, and a token scan over a feed URL says nothing about which train
+    /// the server answers with. The stable direction here is protected by the
+    /// resolver returning the stable feed when the preference is unreadable, which
+    /// `everyBindingProofFailsOnItsOwnStableSibling` pins from the other side.
+    public static func crossChannelBinding(
+        binding: ResolvedChannel, bundleID: String
+    ) -> String? {
+        guard binding.channel != .stable else { return nil }
+        let key = ChannelProofKey(bundleID, binding.channel)
+        guard let proof = ChannelProofRegistry.bindingProofs[key] else {
+            return "no channel proof registered for \(key) — nothing checks that its "
+                + "appcast request is the one that serves its own channel"
+        }
+        switch proof {
+        case .artifact(let pattern):
+            return "\(key) is proven by .artifact(/\(pattern)/), which cannot hold for a "
+                + "binding: stable and non-stable resolve the same artifact from the same "
+                + "host, so the URL never names the channel — use .recipeAnchor"
+        case .recipeAnchor(let pattern, let fields):
+            return recipeAnchorFailure(
+                pattern: pattern, fields: fields, channel: binding.channel, subject: binding)
         }
     }
 

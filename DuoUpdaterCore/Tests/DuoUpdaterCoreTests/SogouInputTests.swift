@@ -123,11 +123,12 @@ private func sogouRecipe() throws -> VendorProbeRecipe {
         #expect(AppScanner.firstThreeSegments("1.2.3.4.5") == "1.2.3")
     }
 
-    /// Detection only, and this one is not a policy choice waiting to be revisited:
-    /// 搜狗's own `install.sh` puts two LaunchAgents and a QuickLook generator
-    /// outside the bundle and migrates the user's data directory, so a `Contents`
-    /// rotation — which is otherwise exactly what its updater branch does — would
-    /// leave all of that at the old version.
+    /// Detection only. The full installer owns LaunchAgents, a QuickLook generator,
+    /// and user-data migration. The narrower self-update payload is a nested
+    /// Contents archive plus migration scripts, and its Info.plist omits the
+    /// installed copy's SGQuDao channel with reinjection behavior still unverified.
+    /// It needs a dedicated dynamic installer, not the generic bundle/Contents
+    /// installer.
     @Test func sogouStaysDetectionOnly() throws {
         let recipe = try sogouRecipe()
         #expect(recipe.install == nil)

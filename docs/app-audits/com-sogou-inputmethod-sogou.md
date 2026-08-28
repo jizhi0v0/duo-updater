@@ -1,9 +1,10 @@
 # 搜狗输入法 (SogouInput)
 
 > 审计于 2026-08-28。搜狗的输入法，官网 `shurufa.sogou.com` / `pinyin.sogou.com` 下载。
-> 结论：**接入检测（VendorProbe，读官网更新日志）；一键不做，而且这次不是policy 保守，是厂商的更新确实不止拷贝**。
+> 结论：**接入检测（VendorProbe，读官网更新日志）；自更新候选接口与 payload 已确认，
+> 但一键安装仍需专用适配，不能交给通用整包替换。**
 
-## 头条：**它自己的更新检查是坏的**
+## 头条：自更新接口不是“latest API”，但它没有坏
 
 从运行中的 `SogouServices` 抓到的真实请求（Surge，2026-08-28）：
 
@@ -18,10 +19,20 @@ url=http://pinyin.sogou.com/mac/
 pkg_url=http://pro.cdn2.ime.sogou.com/SogouInput_V1.0.0.1.ins
 ```
 
-**带着真实设备 hash、真实在装版本原样重放，服务端答的还是 `1.0.0.1`** ——低于任何真实构建，
-所以客户端每次都认为自己是最新的。**搜狗输入法 Mac 版目前根本不会自更新。**
+这里的 `1.0.0.1` 是**无可用更新时的哨兵**，不是服务端所认为的最新版本。用相同端点、相同
+渠道 `r=1111`，只把 `v` 模拟为较旧的 `6.23.0.0`，服务端立即返回：
 
-这不是"我们多此一举"，恰恰相反：这个 app 的用户今天拿不到任何更新提示。
+```ini
+[product0]
+version=6.24.1.11676
+update_pack_url=http://pro.cdn.ime.sogou.com/autosetup6.24.1.11676_V10003_20260715_223833.zip
+update_pack_md5=654bd06d7df44e2237e0c61fab08477b
+update_notice=0
+```
+
+该请求不需要设备 hash（省略 `h` 仍返回相同结果），HTTPS 也可用。下载后实测大小
+`135226164` bytes，MD5 与响应完全一致。因此它的语义是“**给定当前客户端版本，返回候选更新**”，
+而不是“无上下文地告诉我最新版本”。对已经是最新的客户端返回旧哨兵，正好让客户端保持不更新。
 
 ## 基本信息
 - Bundle ID: `com.sogou.inputmethod.sogou`
@@ -42,21 +53,21 @@ pkg_url=http://pro.cdn2.ime.sogou.com/SogouInput_V1.0.0.1.ins
 
 **接入前的状态**：`AppScanner` 扫 `/Library/Input Methods`，所以 `duo list` 能看到
 `SogouInput 6.24.1.11676`，但优先链里没有源应答 → 常驻 `unknown`。和豆包接入前一样，
-「看着像最新」其实是**从来没检查过**——只是这次连它自己也没在检查。
+「看着像最新」其实是 DuoUpdater **从来没检查过**；搜狗自己的条件更新检查是另一条独立路径。
 
-## 三个厂商端点，为什么都不能用
+## 三个厂商端点及其职责
 
 `SogouServices` 二进制里有三个，全部实测过：
 
-| 端点 | 实测响应 | 为什么不能用 |
-|------|----------|--------------|
-| `macime.sogou.com/macversion.txt?h&v&r&sv&s` | `version=1.0.0.1` | 客户端真正读的那个，永远答占位版本 |
-| `macime.sogou.com/macversionOfficial.php?h&v&r&os` | 给全四个参数一律 `{"stat":"0"}` | 裸请求时报的 `6.16.0.9770` 是**默认值**，不是当前发布；带参数就是"没更新" |
+| 端点 | 实测响应 | 结论 |
+|------|----------|------|
+| `macime.sogou.com/macversion.txt?h&v&r&sv&s` | 当前版本 → `1.0.0.1`；旧版本 → `6.24.1.11676` + `update_pack_url` + MD5 | 自更新候选接口，可用于动态取包；不是无上下文 latest API |
+| `macime.sogou.com/macversionOfficial.php?h&v&r&os` | 当前版本 → `{"stat":"0"}` | 官网安装器的条件更新接口；裸请求里的 6.16 是缺省，不是当前发布 |
 | `macime.sogou.com/sgupdate.php` | `{"version":999,...}` | 组件（增量资源）通道，不是 app 版本 |
 
-> **判据修正记录**：初次只做裸请求，看到 `macversionOfficial.php` 报 6.16.0.9770，
-> 判成"滞后 8 个小版本的镜像"。补齐真实四参数后才知道它对**任何**版本都答 `stat:0`——
-> 那个 6.16 是缺省，不是它对"当前版本是什么"的回答。**用一个残缺请求的响应去给端点定性是错的。**
+> **判据修正记录**：第一次只重放了“已安装 = 最新版”的请求，把 `1.0.0.1` 错判为坏接口；
+> 补测旧版本后才确认它是候选更新接口。`macversionOfficial.php` 裸请求里的 6.16 同样只是缺省。
+> **条件更新端点必须至少验证一次 old → new，不能只看 latest → sentinel。**
 
 `pinyin.sogou.com/mac/` 也没有 changelog：`changelog.php` / `update.php` / `history.php` 全 404。
 
@@ -137,7 +148,7 @@ first-match**，而这份文档里混着两个产品线。切片之后，两者�
 
 ## 一键安装
 
-- 状态: **不做**，而且理由与 WeType / 豆包不同——不是保守，是它的更新确实不止拷贝。
+- 状态: **暂不做**；已经拿到厂商自更新 payload，但需要搜狗专用适配，不能复用通用整包替换。
 
 它的 `install.sh` 在**已安装**分支上确实是 Contents 轮换（第三家同形）：
 
@@ -150,20 +161,33 @@ else
 fi
 ```
 
-**但它同时往 bundle 外面装四样东西**，轮换会把它们全留在旧版本：
+完整官网安装器还会往 bundle 外面装四样东西：
 
 - `/Library/LaunchAgents/com.sogou.SogouServices.plist`（`launchctl bootout` → `bootstrap` → `kickstart`）
 - `/Library/LaunchAgents/com.sogou.SogouTaskManager.plist`（同上）
 - 用户级 LaunchAgent（`~/Library/LaunchAgents/com.sogou.SogouTaskManager.plist`）
 - `/Library/QuickLook/SogouSkinFileQuickLook.qlgenerator`（+ `qlmanage -r`）
 
-外加**用户目录迁移**（`~/Library/Input Methods/Sogou` → `~/Library/Application Support/Sogou/InputMethod`，
-按 `$1` 分支）、十来个 `killall`、以及 `chmod -R 777 "$SOGOU_INPUT_APP_PATH/Contents/Resources"`。
+完整安装器还包含**用户目录迁移**、进程重启以及权限处理。现有通用安装 recipe 不能安全重放这些动作。
 
-这才是 2026-08 撤回时担心的那种「安装器不止拷贝」——WeType 和豆包查下来不是，这个是。
+另一方面，真正的自更新包已经确认是另一种、更窄的形状：
 
-产物形状本身和豆包一样（安装器壳 `com.sogou.SogouInstaller` → `Contents/Resources/SogouInput.zip`
-→ `SogouInput.app`），真要做一键，`nestedArchivePath` 那一层是现成的；缺的是上面那四样和迁移。
+```text
+autosetup6.24.1.11676_....zip
+├── Contents6.24.1.11676.zip   # 解开后是新的 Contents
+├── pre.sh
+├── post.sh
+└── switch.sh
+```
+
+- 内层目录权限为 `0775`，版本为 `6.24.1.11676`；
+- `pre.sh` 会把外层 app 修成 `root:staff` / `0775`；
+- `switch.sh` 带有旧用户目录的删除/迁移分支，不能由通用 updater 盲目执行；
+- 内层 `Info.plist` **没有**安装副本中的 `SGQuDao=1111`；尚未确认厂商流程会重新注入渠道，还是
+  有意回落到默认渠道。可以确定的是，直接把内层目录改名成 `Contents` 会丢这个值。
+
+所以未来的一键路径应当是专用的“候选接口 → 校验 MD5 → 解双层 ZIP → 保留渠道和权限 → 原子切换
+Contents”，并为迁移脚本建立明确版本门控；不是把官网安装器或自更新 ZIP 当普通 `.app` 覆盖。
 
 ## 验证记录（2026-08-28）
 
@@ -174,16 +198,18 @@ fi
 | 活体端点 | `duo verify --only sogou` | vendor probe ✓ 1 / ✗ 0 |
 | 正则独立复算 | Python 打真实页面（101 条切片 / 96 条带版本） | 最高版本条目 = `6.24.1` / `2026-07-17` |
 | 端到端 | `duo check --all --json SogouInput` | `installedVersion 6.24.1` / `installedBuild 11676` / `latestVersion 6.24.1` / `up-to-date` |
-| 抓包 | Surge `dump recent`，`launchctl kickstart` 触发 | 见头条 |
+| 抓包 | Surge `dump recent`，`launchctl kickstart` 触发 | 确认真实请求形状；当前版本返回无更新哨兵 |
+| 候选接口 old → new | `v=6.23.0.0&r=1111&sv=27.0&s=0`（省略设备 hash） | 返回 `6.24.1.11676`、payload URL 和 MD5 |
+| payload | 下载 + MD5 + 双层 ZIP 静态检查 | `654bd...77b` ✓；内层为 `Contents6.24.1.11676/`，0775 |
 
-**没有红→绿实测**：装的就是最新版，且厂商历史 payload 的 URL 无法从版本前推
-（letter 不可预测），所以造不出像 WeType 那样的真实红。下一次搜狗发版时应当补上。
+已完成服务端 old → new 的红侧模拟，但没有在本机执行 payload 或进行真实版本降级；安装安全仍保持
+未验证。下一次搜狗发版时应补一次真实旧副本的端到端更新。
 
 ## 建议下一步
 
-1. 搜狗发 6.25 时补一次真机红→绿，把上面那条空缺补掉。
+1. 搜狗发 6.25 时补一次真机红→绿，并保存新 payload 的脚本与目录差异。
 2. 盯 `for` 前那个空格。判据是：全页拼音条目前面是否仍**全部**为空白字符。
    真变了，五笔可能被选中——但五笔在 1.x，量级兜底还在，所以是"响一次"而不是"错一片"。
 3. 盯页面是否改回四段版本号。判据是夜扫出现 `remote is BEHIND the installed copy`。
-4. 如果哪天 `macversion.txt` 开始返回真实版本，说明厂商修好了自更新——那时可以考虑
-   把版本源换到端点（更稳），并重新评估一键。
+4. 若实现专用安装源，动态请求 `macversion.txt`；不要把它当静态 latest probe，也不要记录设备 hash。
+5. 一键前补齐 `SGQuDao` 保留、脚本版本门控、回滚和登录/词库回归测试。

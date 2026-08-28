@@ -64,20 +64,31 @@ public enum UpdatePolicy {
         // release; this is the only branch here that turns a *previously offered*
         // one-click off, and only the user can turn it back on (row context menu).
         if elevationDeclined(result, settings: settings, environment: environment) { return false }
-        // An input method is installed, not copied: the vendor's installer
-        // REGISTERS the bundle as an input source with the system (WeType's
-        // installer binary carries "Registered input source from
-        // /Library/Input Methods/WeType.app, result:"), and identity established
-        // there is what the app's own settings and device pairing hang off.
-        // Swapping the bundle underneath performs none of that.
+        // An input method is registered with the system, not merely copied: the
+        // vendor's installer calls `TISRegisterInputSource` on the bundle PATH
+        // (WeType's installer binary carries "Registered input source from
+        // /Library/Input Methods/WeType.app, result:"). What that makes special is
+        // the outer `.app` directory, not the code inside it — which is why both
+        // vendors' own updaters keep that directory and rotate what is inside
+        // (`WeType.app/.Contents.update` → `Contents` → `.Contents.old`;
+        // DoubaoIme's `Contents_update` / `Contents_backup`), while only their
+        // *installers* replace the whole bundle.
         //
-        // Withdrawn one-click, 2026-08-16: a user lost WeType settings during the
-        // work that added it, and their device list ended up with the same Mac
-        // listed twice — the fingerprint of a second copy registering itself as a
-        // new device. This is a whole-CLASS refusal rather than a per-recipe one
-        // because the next input method would be just as easy to get wrong, and
-        // the damage is the user's dictionary, not a failed download.
-        if isInputMethod(result.app.path) { return false }
+        // So the one-click is allowed here exactly when the update can be applied
+        // that same way — `InPlaceSwap.rotateContents`, reached with a plain app
+        // bundle. A `.pkg`, a Homebrew cask re-run, or an App Store replay all
+        // replace the outer directory instead, and none of them is a route any
+        // input method on record actually has.
+        //
+        // History, because this was reversed once: the WeType one-click shipped in
+        // 0.3.25 and was withdrawn the same day (2026-08-16) after a user's
+        // settings went missing, and the evidence never convicted a specific step
+        // — the elevated swap provably never ran on that machine. It came back on
+        // 2026-08-28 with the two things that were actually missing: an install
+        // shaped like the vendor's own update, and a snapshot of the user data the
+        // incident was about (`InputMethodDataBackup`), taken with the bundle
+        // rollback point and restorable with it.
+        if isInputMethod(result.app.path), !isContentsRotatable(result) { return false }
         // The app's own updater already staged *the latest* for relaunch — installing
         // it ourselves would re-download the same bytes and collide with the pending
         // ShipIt swap. Defer to Relaunch. (A staged build that *trails* the latest
@@ -187,6 +198,24 @@ public enum UpdatePolicy {
     /// sets (meaning "send the user to download by hand"). Conflating the two
     /// made detection-only apps (LM Studio, Chrome, …) wrongly show an installer
     /// button pointed at their version-check endpoint.
+    /// Whether this update can be applied to an input method the only way we will
+    /// apply one — by exchanging the bundle's `Contents`, which needs the download
+    /// to *be* an app bundle. Deliberately stricter than the source branches
+    /// below: those accept a `.pkg` for the Vendor route (`requiresInstaller` owns
+    /// it), and a package is not something that can be rotated into place.
+    static func isContentsRotatable(_ result: UpdateResult) -> Bool {
+        switch result.remote?.sourceName {
+        case "Vendor", "GitHub":
+            guard let kind = result.remote?.vendorInstallerKind else { return false }
+            return kind != .pkg
+        case "Sparkle":
+            let ext = result.remote?.downloadURL?.pathExtension.lowercased() ?? ""
+            return Self.sparkleArchiveExtensions.contains(ext)
+        default:
+            return false
+        }
+    }
+
     /// Whether a bundle lives in one of macOS's input-method directories, whose
     /// contents are registered with the system rather than merely present on disk.
     /// Matched on the containing directory, not the app, so it holds for any
@@ -203,6 +232,18 @@ public enum UpdatePolicy {
         // Same as `canAutoInstall`: only a staged build that *is* the latest is
         // relaunch-only; one that trails the latest still gets a normal installer.
         if actionableStaged(result, staged: environment.stagedSelfUpdates[result.id]) != nil { return false }
+        // An input method is never handed to the system installer. This is not a
+        // second opinion about the same question `canAutoInstall` answers — it is
+        // the way AROUND that question: every caller offers the row on
+        // `canAutoInstall || requiresInstaller`, so a gate that lives only in the
+        // first is satisfied by the second being true. Today's two recipes are
+        // both `.zip`, so nothing reaches here; the point is that a vendor
+        // switching artifact, or a one-word `kind:` edit, would otherwise turn a
+        // Contents rotation into a root-run vendor package over a registered input
+        // source with no code change and no gate firing. `PackageInstaller`'s
+        // destination check does not close it either — it hard-refuses only inside
+        // `/Applications` and falls back to matching a bundle name anywhere else.
+        if isInputMethod(result.app.path) { return false }
         switch result.remote?.sourceName {
         case "Homebrew":
             return result.remote?.requiresManualInstaller == true

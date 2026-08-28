@@ -102,16 +102,37 @@ public struct VendorInstallSpec: Sendable {
     /// challenge unless a `Referer` is present.
     public let requestHeaders: [String: String]
 
+    /// Path, relative to the `.app` the download unpacks to, of a SECOND archive
+    /// that holds the real payload — for a vendor whose download is an installer
+    /// stub carrying the app inside itself.
+    ///
+    /// DoubaoIme is the case in hand: `DoubaoImeInstaller_v90703_release.zip`
+    /// unpacks to `DoubaoImeInstaller.app`, a 190 MB stub whose
+    /// `Contents/Resources` holds `DoubaoIme.zip` plus the `install.sh` it runs.
+    /// Without this the installer would extract the stub, and the bundle-id gate
+    /// would (correctly) refuse to swap `com.bytedance.inputmethod.doubaoime.installer`
+    /// over `com.bytedance.inputmethod.doubaoime`.
+    ///
+    /// The unwrap is not a hole in the gates, it moves one of them: the nested
+    /// archive lives under `Contents/Resources`, which the stub's own code
+    /// signature seals, so `VendorInstaller` verifies the stub (signature + the
+    /// installed app's Team — NOT its bundle id, which is a sibling by
+    /// construction) before reading anything out of it. Every gate then runs again
+    /// on the payload itself, bundle id included.
+    public let nestedArchivePath: String?
+
     public init(
         urlSource: URLSource,
         kind: VendorInstallerKind,
         checksumPattern: String? = nil,
-        requestHeaders: [String: String] = [:]
+        requestHeaders: [String: String] = [:],
+        nestedArchivePath: String? = nil
     ) {
         self.urlSource = urlSource
         self.kind = kind
         self.checksumPattern = checksumPattern
         self.requestHeaders = requestHeaders
+        self.nestedArchivePath = nestedArchivePath
     }
 }
 
@@ -1902,11 +1923,31 @@ public enum VendorProbeRegistry {
         // still listed Mac at 2.2.2 while 2.2.3 was shipping — so neither the
         // filenames nor the notes on it are a version source.
         //
-        // Still detection-only, and that has nothing to do with where the version
-        // comes from: this endpoint hands over a perfectly good payload URL and an
-        // md5. Overwriting the bundle skips the stub's input-source registration
-        // and per-version migration, and was measured to lose user settings. See
-        // the note above.
+        // ONE-CLICK, restored 2026-08-28 (withdrawn 2026-08-16 — see above), and
+        // the reason it is back is that the install now has the same SHAPE as the
+        // vendor's own update rather than the shape of its installer.
+        //
+        // What the stub's `install.sh` does is `rm -rf` the whole `WeType.app` and
+        // `mv` a fresh one in, then `chown -R root:staff` + `chmod -R 775`. What
+        // `WeTypeUpdater.app` — the updater that ships INSIDE the bundle and runs
+        // for every ordinary release — does instead is keep the outer directory
+        // and rotate `Contents` through `.Contents.update` / `.Contents.old` (its
+        // binary carries those exact paths, plus `will exchange Contents:
+        // previous=`). The second one is the update path, and it is the one
+        // `InPlaceSwap.rotateContents` reproduces: the registered `.app` path, its
+        // inode, its ownership and its modes are all left alone.
+        //
+        // `zip_download_url` is the real payload, not the ~3 MB stub the marketing
+        // page links: a notarized `WeType.app`, Team 88L2Q4487U, which the code
+        // signature + Team + bundle-id gates check before anything moves. The
+        // response also carries `zip_download_md5`; `checksumPattern` is SHA-512
+        // base64, so it is deliberately NOT wired up rather than mis-declared.
+        //
+        // The withdrawal was about the user's dictionary and settings, which live
+        // in `~/Library/Application Support/WeType/` and never in the bundle.
+        // Those are snapshotted alongside the bundle rollback point and restored
+        // with it — see `InputMethodDataBackup`, including what it does not cover
+        // (a user who has turned rollback points off gets no snapshot either).
         VendorProbeRecipe(
             bundleID: "com.tencent.inputmethod.wetype",
             url: URL(string: "https://z.weixin.qq.com/web/mac/download?channel=InstallInfo")!,
@@ -1915,7 +1956,10 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://z.weixin.qq.com/"),
             changelogURL: URL(string: "https://z.weixin.qq.com/web/change-log/macos"),
             versionIsBuild: true,
-            displayVersionPattern: #""zip_version"\s*:\s*"([0-9]+(?:\.[0-9]+){2})\.[0-9]+""#),
+            displayVersionPattern: #""zip_version"\s*:\s*"([0-9]+(?:\.[0-9]+){2})\.[0-9]+""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""zip_download_url"\s*:\s*"(https://[^"]+\.zip)""#),
+                kind: .zip)),
 
         // 豆包输入法 (DoubaoIme) — ByteDance's input method, installed from
         // `shurufa.doubao.com` into `/Library/Input Methods`. No SUFeedURL, no MAS
@@ -1959,14 +2003,29 @@ public enum VendorProbeRegistry {
         // The notes come from the ChangelogRecipe over `ime.doubao.com`'s update
         // feed, which is structured; there is nothing worth embedding as a fallback.
         //
-        // DETECTION-ONLY, and not for want of an artifact: this response hands over a
-        // notarized installer zip. `UpdatePolicy.isInputMethod` refuses one-click for
-        // anything under `/Library/Input Methods` as a whole CLASS, after WeType's
-        // one-click was withdrawn for losing user settings — an input method is
-        // registered with the system by its vendor installer, not merely copied, and
-        // the payload here is exactly that: `DoubaoImeInstaller.app`, a 202 MB stub
-        // whose `Contents/Resources` holds `DoubaoIme.zip` + `install.sh`. Swapping
-        // the bundle would skip the registration step entirely.
+        // ONE-CLICK, and it takes one more step than any other recipe because the
+        // artifact here is not the app. The endpoint hands over
+        // `DoubaoImeInstaller_v<code>_release.zip`, a ~190 MB stub whose
+        // `Contents/Resources` holds `DoubaoIme.zip` (170 MB) plus the `install.sh`
+        // it runs — so `nestedArchivePath` unwraps one level, and the whole gate
+        // stack (signature, Team, bundle id, architecture) then runs on the real
+        // `DoubaoIme.app`. Without the unwrap the bundle-id gate would refuse
+        // `com.bytedance.inputmethod.doubaoime.installer`, correctly, and the
+        // one-click could never work.
+        //
+        // The unwrap is a gate MOVED, not skipped: `Contents/Resources` is sealed
+        // by the stub's own code signature (Team 96L78H6LMH, the same Team as the
+        // installed app), and `VendorInstaller` verifies the stub before reading
+        // the payload out of it.
+        //
+        // The install itself rotates `Contents` inside the registered
+        // `DoubaoIme.app`, which is what DoubaoIme's own updater does
+        // (`Contents_update` / `Contents_backup`), while `install.sh` is the
+        // first-install path that removes the whole bundle. See
+        // `InPlaceSwap.usesContentsRotation`. That script also ends with
+        // `chown -R root:staff` + `chmod -R 775` — recursively — which is why the
+        // swap carries the group-write bit all the way down and not just two
+        // levels: their updater has to be able to delete the Contents it displaced.
         VendorProbeRecipe(
             bundleID: "com.bytedance.inputmethod.doubaoime",
             url: URL(string: "https://ime.doubao.com/api/v1/app/download_url?platform=macos")!,
@@ -1974,7 +2033,12 @@ public enum VendorProbeRegistry {
             versionPattern: #"DoubaoImeInstaller_v([0-9]+)_release\.zip"#,
             downloadURL: URL(string: "https://shurufa.doubao.com/"),
             versionIsBuild: true,
-            displayVersionPattern: #""version_name"\s*:\s*"[Vv]?([0-9]+(?:\.[0-9]+)+)""#),
+            displayVersionPattern: #""version_name"\s*:\s*"[Vv]?([0-9]+(?:\.[0-9]+)+)""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #""url"\s*:\s*"(https://[^"]+/DoubaoImeInstaller_v[0-9]+_release\.zip)""#),
+                kind: .zip,
+                nestedArchivePath: "Contents/Resources/DoubaoIme.zip")),
 
         // WeChat (微信, 官网版) — Tencent's flagship messenger, installed from the
         // official site (Developer ID, no MAS receipt, no SUFeedURL in Info.plist).

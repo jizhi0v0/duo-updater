@@ -199,6 +199,32 @@ public actor InstallCoordinator {
                 try BackupStore.save(
                     appPath: path, key: key, version: version, bundleID: bundleID,
                     fromPackageInstall: fromPackage, fromAppStore: fromStore)
+                // An input method's settings and learned dictionary live outside
+                // its bundle, so the bundle rollback point above cannot speak for
+                // them — and they are exactly what went missing when this app's
+                // one-click for WeType was withdrawn. Cloned, so it is close to
+                // free; deliberately AFTER the save, whose staging directory
+                // replaces the key directory wholesale. See
+                // `InputMethodDataBackup`.
+                //
+                // Not folded into `BackupOutcome`: this is not a reason to change
+                // what the user is told about the *bundle* rollback, and the
+                // outcome enum is switched over in both the app and the CLI.
+                if InPlaceSwap.usesContentsRotation(target: path) {
+                    let captured = InputMethodDataBackup.save(
+                        bundleName: path.deletingPathExtension().lastPathComponent,
+                        bundleID: bundleID, key: key)
+                    if captured.isEmpty {
+                        Log.install.error(
+                            "user data: captured nothing for \(path.lastPathComponent, privacy: .public) — a rollback will restore the bundle only")
+                    } else {
+                        // Leaf names, not full paths: these all live under the
+                        // user's home, and the leaf is what identifies the location
+                        // while the prefix is only their account name.
+                        Log.install.notice(
+                            "user data: snapshotted \(captured.count, privacy: .public) location(s) for \(path.lastPathComponent, privacy: .public): \(captured.map(\.original.lastPathComponent).joined(separator: ", "), privacy: .public)")
+                    }
+                }
                 return unreadable.unsealed.isEmpty
                     ? .saved
                     : .savedWithoutRuntimeState(omitted: unreadable.unsealed.count)

@@ -1376,13 +1376,26 @@ final class AppListModel {
     @ObservationIgnored private var didRecoverSwaps = false
 
     /// Run the interrupted-swap recovery sweep once per session, off the main thread.
-    /// Scans `/Applications` (the only place the privileged, non-atomic swap path can
-    /// leave an orphan — user-writable locations take the atomic path).
+    ///
+    /// `/Applications` is where the privileged, non-atomic whole-bundle swap can
+    /// leave an orphan — user-writable locations take the atomic path. The input
+    /// method directories are here for a different leftover: those installs
+    /// exchange the bundle's `Contents` in place, and an exchange interrupted
+    /// between its two renames leaves `<App>.app` with no `Contents` at all, which
+    /// is an input method macOS can no longer load. Sweeping only `/Applications`
+    /// would have left exactly that state unrecoverable, because a rotation's
+    /// leftovers sit INSIDE the bundle rather than beside it.
     private func recoverInterruptedSwapsOnce() {
         guard !didRecoverSwaps else { return }
         didRecoverSwaps = true
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let roots = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            URL(fileURLWithPath: "/Library/Input Methods", isDirectory: true),
+            home.appendingPathComponent("Library/Input Methods", isDirectory: true),
+        ]
         Task.detached(priority: .utility) {
-            InPlaceSwap.recoverInterruptedSwaps(in: URL(fileURLWithPath: "/Applications"))
+            for root in roots { InPlaceSwap.recoverInterruptedSwaps(in: root) }
         }
     }
 

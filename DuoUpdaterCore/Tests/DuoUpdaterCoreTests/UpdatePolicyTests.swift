@@ -920,26 +920,69 @@ struct LaggingRemoteVersionTests {
     }
 }
 
-// MARK: - Input methods are never swapped in place
+// MARK: - Input methods are updated by rotating Contents, or not at all
 
-/// An input method is registered with the system by the vendor's installer, and
-/// the app's own settings and device pairing hang off that registration. Swapping
-/// the bundle does none of it. Withdrawn one-click, 2026-08-16: a user lost their
-/// WeType settings and their device list showed the same Mac twice — a second
-/// copy having registered itself as a new device.
+/// An input method is registered with the system by PATH — the outer `.app`
+/// directory is the identity, which is why both vendors' own updaters keep it and
+/// rotate `Contents` inside it. So the one-click is allowed exactly on the routes
+/// that can be applied that way: an app-bundle archive, reaching
+/// `InPlaceSwap.rotateContents`.
 ///
-/// The refusal is by LOCATION, not by bundle id: the next input method must not
-/// need this incident repeated to be safe.
-@Test func inputMethodsAreNeverOfferedAnInPlaceInstall() {
+/// Restored 2026-08-28 after the 0.3.25 withdrawal; the gate is now shaped by what
+/// the install DOES rather than by where the app lives.
+@Test func inputMethodsMayBeOneClickedWhenTheDownloadIsAnAppBundle() {
     for parent in ["/Library/Input Methods", NSHomeDirectory() + "/Library/Input Methods"] {
         let app = fixtureApp(path: parent + "/Fixture.app")
-        // A Vendor result that would otherwise be a perfectly good one-click.
-        let result = fixtureResult(source: "Vendor", vendorInstallerKind: .zip, app: app)
+        #expect(UpdatePolicy.isInputMethod(app.path))
+        #expect(UpdatePolicy.canAutoInstall(
+            fixtureResult(source: "Vendor", vendorInstallerKind: .zip, app: app),
+            settings: defaultSettings(), environment: environment()),
+            "an archive install in \(parent) is a Contents rotation, which is allowed")
+    }
+}
+
+/// The other half, and the half that keeps the rule honest: every route that
+/// would replace the OUTER bundle instead of rotating what is inside it stays
+/// refused for an input method, no matter how well-formed it otherwise is.
+///
+/// A `.pkg` is the one to watch — `canAutoInstall`'s Vendor branch accepts any
+/// non-nil installer kind, so without the rotation gate a vendor pkg would have
+/// been offered as a one-click swap of a registered input source.
+@Test func inputMethodsRefuseEveryRouteThatReplacesTheWholeBundle() {
+    let app = fixtureApp(path: "/Library/Input Methods/Fixture.app")
+    let refused: [(String, UpdateResult)] = [
+        ("a vendor pkg", fixtureResult(source: "Vendor", vendorInstallerKind: .pkg, app: app)),
+        // Given the cask token it would otherwise need, so the refusal below is
+        // the input-method rule and not a missing field.
+        ("a Homebrew cask", fixtureResult(source: "Homebrew", sourceIdentifier: "fixture", app: app)),
+        ("a detection-only vendor recipe", fixtureResult(source: "Vendor", app: app)),
+    ]
+    for (what, result) in refused {
         #expect(!UpdatePolicy.canAutoInstall(
             result, settings: defaultSettings(), environment: environment()),
-            "an input method in \(parent) must stay detection-only")
-        #expect(UpdatePolicy.isInputMethod(app.path))
+            "\(what) replaces the registered bundle, so it must not be offered")
     }
+}
+
+/// The gate has to hold in `requiresInstaller` too, and not because that is a
+/// second opinion on the same question — because it is the way AROUND it. Every
+/// caller offers a row on `canAutoInstall || requiresInstaller`, so a rule that
+/// lives only in the first is satisfied by the second returning true.
+///
+/// Nothing in today's registry reaches it: both input-method recipes are `.zip`.
+/// A vendor switching artifact, or a one-word `kind:` edit, is all it would take
+/// to turn a Contents rotation into a root-run vendor package over a registered
+/// input source — with no code change, and no gate firing.
+@Test func anInputMethodIsNeverHandedToTheSystemInstaller() {
+    let app = fixtureApp(path: "/Library/Input Methods/Fixture.app")
+    let pkg = fixtureResult(source: "Vendor", vendorInstallerKind: .pkg, app: app)
+    #expect(!UpdatePolicy.requiresInstaller(pkg, environment: environment()))
+    // The same result anywhere else is still a normal package install, so the
+    // refusal is the input-method rule rather than something about `.pkg`.
+    #expect(UpdatePolicy.requiresInstaller(
+        fixtureResult(source: "Vendor", vendorInstallerKind: .pkg,
+                      app: fixtureApp(path: "/Applications/Fixture.app")),
+        environment: environment()))
 }
 
 /// The guard keys on the containing directory, so an ordinary app — including one

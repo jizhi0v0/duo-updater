@@ -154,6 +154,11 @@ public struct RemoteVersion: Sendable, Hashable {
     /// unpacking. Nil when the feed doesn't publish one.
     public let expectedSHA512: String?
 
+    /// Path inside the unpacked download of a second archive holding the real
+    /// app, for vendors who ship an installer stub. See
+    /// `VendorInstallSpec.nestedArchivePath`. Nil for every ordinary download.
+    public let nestedArchivePath: String?
+
     /// Extra HTTP headers to send when downloading `downloadURL`. Empty for most
     /// sources; set by vendor recipes whose CDN sits behind a WAF that only
     /// serves the binary to browser-like requests (e.g. Oray's `dw.oray.com`
@@ -211,6 +216,7 @@ public struct RemoteVersion: Sendable, Hashable {
         requiresManualInstaller: Bool = false,
         vendorInstallerKind: VendorInstallerKind? = nil,
         expectedSHA512: String? = nil,
+        nestedArchivePath: String? = nil,
         downloadHeaders: [String: String] = [:],
         releaseNotesHTML: String? = nil,
         structuredChangelog: Changelog? = nil,
@@ -234,6 +240,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.requiresManualInstaller = requiresManualInstaller
         self.vendorInstallerKind = vendorInstallerKind
         self.expectedSHA512 = expectedSHA512
+        self.nestedArchivePath = nestedArchivePath
         self.downloadHeaders = downloadHeaders
         self.releaseNotesHTML = releaseNotesHTML
         self.structuredChangelog = structuredChangelog

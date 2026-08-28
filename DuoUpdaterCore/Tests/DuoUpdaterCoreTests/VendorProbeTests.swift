@@ -1751,20 +1751,39 @@ private let weTypeInstallInfoFixture = #"""
         from: flatList, pattern: recipe.versionPattern) == nil)
 }
 
-/// Detection-only, and not for want of a download URL — the InstallInfo manifest
-/// hands over the payload URL and its md5. The one-click shipped in 0.3.25 and was
-/// withdrawn the same day after a user's WeType settings went missing, re-confirmed
-/// 2026-08-20 by the vendor installer being run by hand. A bundle swap skips the
-/// input-source registration and per-version migration the stub performs.
-@Test func weTypeStaysDetectionOnlyAfterTheSettingsLoss() throws {
+/// One-click, restored 2026-08-28 after the 0.3.25 withdrawal. The install URL is
+/// read from the same InstallInfo manifest the version comes from, and it is the
+/// real payload (`WeType_<ver>_<build>.zip`, a notarized `WeType.app`) rather than
+/// the marketing page's ~3 MB installer stub — so the archive unpacks straight to
+/// the bundle and needs no `nestedArchivePath`, unlike DoubaoIme's.
+///
+/// Pinned against the verbatim fixture rather than a hand-written URL: the pattern
+/// has to select exactly one thing out of the real response, and "exactly one" is
+/// the property that stops a first-match rule from drifting onto a sibling field.
+@Test func weTypeOneClickReadsThePayloadURLFromTheInstallManifest() throws {
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.tencent.inputmethod.wetype" })
-    #expect(recipe.install == nil)
     #expect(recipe.versionIsBuild)
     #expect(recipe.displayVersionPattern != nil)
-    // The manifest does carry a usable payload URL — the reason to refuse is the
-    // registration step, not a missing artifact.
-    #expect(weTypeInstallInfoFixture.contains("WeType_2.2.3_657.zip"))
+    let spec = try #require(recipe.install)
+    #expect(spec.kind == .zip)
+    // The payload IS the app: no stub to unwrap on this vendor.
+    #expect(spec.nestedArchivePath == nil)
+    guard case .bodyPattern(let pattern) = spec.urlSource else {
+        Issue.record("WeType's install URL must come from the manifest body")
+        return
+    }
+    let matches = matchCount(of: pattern, in: weTypeInstallInfoFixture)
+    #expect(matches == 1, "the install pattern must select exactly one URL, found \(matches)")
+    #expect(VendorProbeRecipe.extractVersion(from: weTypeInstallInfoFixture, pattern: pattern)
+        == "https://download.weread.qq.com/app/wxkb/mac/2.2.3/WeType_2.2.3_657.zip")
+}
+
+/// Count how many times `pattern` matches — the check that separates "this rule
+/// picks the right entry" from "this rule happens to have the right entry first".
+private func matchCount(of pattern: String, in body: String) -> Int {
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return -1 }
+    return regex.numberOfMatches(in: body, range: NSRange(body.startIndex..., in: body))
 }
 
 // 豆包输入法 (DoubaoIme) — the real 2026-08-21 response of
@@ -1890,18 +1909,42 @@ private let doubaoImeDownloadURLFixture = #"""
     #expect(VersionComparator.isNewer("657", than: "643"))
 }
 
-/// Detection-only, and — as with WeType — not because the artifact is missing: the
-/// response hands over a notarized installer zip. `UpdatePolicy.isInputMethod`
-/// refuses one-click for everything under `/Library/Input Methods` as a class.
-@Test func doubaoImeStaysDetectionOnlyUnderTheInputMethodGate() throws {
+/// One-click, through the one recipe in the registry whose download is NOT the
+/// app: `DoubaoImeInstaller_v<code>_release.zip` unpacks to an installer stub
+/// carrying `DoubaoIme.zip` inside it. `nestedArchivePath` is what makes that
+/// installable at all — without it the bundle-id gate refuses the stub's
+/// `…doubaoime.installer` over the app's `…doubaoime`, which is the correct
+/// refusal of the wrong bundle.
+@Test func doubaoImeOneClickUnwrapsTheInstallerStub() throws {
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.bytedance.inputmethod.doubaoime" })
-    #expect(recipe.install == nil)
     #expect(recipe.displayVersionPattern != nil)
     #expect(UpdatePolicy.isInputMethod(
         URL(fileURLWithPath: "/Library/Input Methods/DoubaoIme.app")))
-    // The payload URL is right there in the same response the version comes from.
-    #expect(doubaoImeDownloadURLFixture.contains("DoubaoImeInstaller_v90602_release.zip"))
+    let spec = try #require(recipe.install)
+    #expect(spec.kind == .zip)
+    #expect(spec.nestedArchivePath == "Contents/Resources/DoubaoIme.zip")
+    guard case .bodyPattern(let pattern) = spec.urlSource else {
+        Issue.record("DoubaoIme's install URL must come from the response body")
+        return
+    }
+    let matches = matchCount(of: pattern, in: doubaoImeDownloadURLFixture)
+    #expect(matches == 1, "the install pattern must select exactly one URL, found \(matches)")
+    #expect(VendorProbeRecipe.extractVersion(from: doubaoImeDownloadURLFixture, pattern: pattern)?
+        .hasSuffix("DoubaoImeInstaller_v90602_release.zip") == true)
+}
+
+/// Every recipe that declares a nested payload must name a path INSIDE a bundle's
+/// `Contents` — derived from the registry rather than from a list, so the next one
+/// inherits the check. A `..` or an absolute path here would be two steps upstream
+/// of a privileged swap.
+@Test func nestedPayloadPathsStayInsideTheBundle() {
+    for recipe in VendorProbeRegistry.recipes {
+        guard let nested = recipe.install?.nestedArchivePath else { continue }
+        #expect(nested.hasPrefix("Contents/"), "\(recipe.bundleID): \(nested)")
+        #expect(!nested.contains(".."), "\(recipe.bundleID): \(nested)")
+        #expect(!nested.hasPrefix("/"), "\(recipe.bundleID): \(nested)")
+    }
 }
 
 // Alcove — the old public endpoint (update.tryalcove.com) went NXDOMAIN, so the

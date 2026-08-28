@@ -1917,6 +1917,81 @@ public enum VendorProbeRegistry {
             versionIsBuild: true,
             displayVersionPattern: #""zip_version"\s*:\s*"([0-9]+(?:\.[0-9]+){2})\.[0-9]+""#),
 
+        // 搜狗输入法 (SogouInput) — Sogou's input method, installed from
+        // `shurufa.sogou.com` / `pinyin.sogou.com` into `/Library/Input Methods`.
+        //
+        // THE APP'S OWN UPDATE CHECK IS DEAD, and that is why this recipe is worth
+        // having. Captured from the running `SogouServices` (2026-08-28):
+        //
+        //   GET http://macime.sogou.com/macversion.txt?h=<md5>&v=6.24.1.11676&r=1111&sv=27.0&s=0
+        //   → version=1.0.0.1
+        //     pkg_url=http://pro.cdn2.ime.sogou.com/SogouInput_V1.0.0.1.ins
+        //
+        // Replayed verbatim, with the real device hash and the real installed
+        // version, the server answers `1.0.0.1` — below every shipping build — so
+        // the client concludes it is current and never updates. Its two siblings
+        // are no better: `macversionOfficial.php` returns `{"stat":"0"}` for every
+        // version once given its real four-parameter shape (`h&v&r&os`), and the
+        // `6.16.0.9770` it names on a BARE request is a default rather than a
+        // statement about the current release; `sgupdate.php` answers `version:999`
+        // and is a component channel. None of the three can say what the latest
+        // build is. Users of this app get no updates at all today.
+        //
+        // So the version comes from the changelog page, which is the only surface
+        // that tracks reality. It publishes real dotted versions with dates:
+        //
+        //   <span class="post_type">搜狗输入法 for Mac 6.24.1</span>
+        //   <span class="post_time">2026-07-17</span>
+        //
+        // and `6.24.1` / 2026-07-17 match the installed copy exactly, down to the
+        // bundle's own build date.
+        //
+        // THE SPACE BEFORE `for` IS LOAD-BEARING. The same page carries 搜狗五笔
+        // (WuBi) entries titled `搜狗五笔输入法for Mac 1.4.0` — no space, because the
+        // product name runs straight into it — while every 拼音 entry reads
+        // `搜狗输入法 for Mac 6.24.1`. Measured across all 96 versioned entries: the
+        // character before `for` is a space for every 拼音 release (majors 1
+        // through 6) and a Chinese character for 五笔. That discriminator survives
+        // the page being GBK while we decode as UTF-8 — the Chinese becomes
+        // replacement characters, which are still not whitespace — whereas
+        // anchoring on 五笔 itself could not. WuBi being 1.x is only the backstop,
+        // not the argument: a magnitude that happens to lose today is not a rule.
+        //
+        // `entryStartPattern` rather than trusting document order. The page is
+        // newest-first today, so first-match and highest-version agree — but the
+        // version and the date would then be two independent first-matches over a
+        // document with two product families in it. Slicing per entry makes them
+        // come from the same release by construction.
+        //
+        // VERSION SCHEME: three segments here, FOUR in the bundle
+        // (`CFBundleShortVersionString = 6.24.1.11676`). `AppScanner` trims the
+        // installed side to three rather than this recipe padding to four — see
+        // the comment there for why that direction is the safe one, and what
+        // becomes invisible (a release that changes only the fourth segment).
+        //
+        // DETECTION ONLY, and unlike WeType and 豆包 this one is not a policy
+        // choice waiting to be revisited — it is what the vendor's own update
+        // actually does. `install.sh` installs FOUR things outside the bundle:
+        // `/Library/LaunchAgents/com.sogou.SogouServices.plist` and
+        // `com.sogou.SogouTaskManager.plist` (each `launchctl bootout` →
+        // `bootstrap` → `kickstart`), a per-user LaunchAgent, and
+        // `/Library/QuickLook/SogouSkinFileQuickLook.qlgenerator` (+ `qlmanage -r`).
+        // It also MIGRATES user data (`~/Library/Input Methods/Sogou` →
+        // `~/Library/Application Support/Sogou/InputMethod`). A `Contents`
+        // rotation — which is otherwise exactly what its updater branch does,
+        // `mv "$CUR_DIR/SogouInput.app/Contents" "$SOGOU_INPUT_APP_PATH/"` — would
+        // leave every one of those at the old version. This is the case the
+        // 2026-08 withdrawal was worried about and WeType/豆包 turned out not to be.
+        VendorProbeRecipe(
+            bundleID: "com.sogou.inputmethod.sogou",
+            url: URL(string: "https://pinyin.sogou.com/mac/update_log.php")!,
+            mode: .responseBody,
+            versionPattern: #"\sfor Mac ([0-9]+(?:\.[0-9]+){1,2})</span>"#,
+            downloadURL: URL(string: "https://shurufa.sogou.com/mac"),
+            changelogURL: URL(string: "https://pinyin.sogou.com/mac/update_log.php"),
+            publishedAtPattern: #"post_time">([0-9]{4}-[0-9]{2}-[0-9]{2})"#,
+            entryStartPattern: #"<span class="post_type">"#),
+
         // 豆包输入法 (DoubaoIme) — ByteDance's input method, installed from
         // `shurufa.doubao.com` into `/Library/Input Methods`. No SUFeedURL, no MAS
         // receipt, no Homebrew cask (the `doubao` cask ships `doubao.app`, the

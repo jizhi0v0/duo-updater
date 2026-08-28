@@ -167,6 +167,17 @@ public struct AppScanner: Sendable {
 
     public static let xcodeBundleID = "com.apple.dt.Xcode"
     public static let doubaoImeBundleID = "com.bytedance.inputmethod.doubaoime"
+    public static let sogouInputBundleID = "com.sogou.inputmethod.sogou"
+
+    /// `6.24.1.11676` → `6.24.1`. Only trims a dot-separated, all-numeric version
+    /// with more than three segments; anything else is returned untouched, so a
+    /// version that does not have the shape this is for cannot be mangled by it.
+    static func firstThreeSegments(_ version: String) -> String {
+        let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count > 3, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) })
+        else { return version }
+        return parts.prefix(3).joined(separator: ".")
+    }
 
     /// Fold a completed TestFlight inventory into apps that were already scanned.
     ///
@@ -347,6 +358,31 @@ public struct AppScanner: Sendable {
             bundleID = Self.weChatDevToolsBundleID
             shortVersion = identity.version
             weChatDevToolsChannel = identity.channel
+        }
+
+        // 搜狗输入法 reports a FOUR-segment marketing version (`6.24.1.11676`)
+        // while every version the vendor publishes carries three
+        // (`搜狗输入法 for Mac 6.24.1` on its update log, 96 entries, none longer
+        // than three except two from 2018). Compared as-is, the installed copy
+        // out-ranks the newest release the vendor has ever announced — the
+        // comparator treats the missing fourth segment as `0`, so `6.24.1` loses
+        // to `6.24.1.11676` and the row reads "remote is behind" forever.
+        //
+        // Trimming here rather than padding in the recipe, because the vendor's
+        // three-segment form is the one both sides can speak: it is what the
+        // changelog publishes and what the row should show. The fourth segment is
+        // the build, and it survives in `buildVersion` (`CFBundleVersion` =
+        // `11676`), so nothing is lost — only a release that changes ONLY that
+        // segment becomes invisible, which is a miss and never a phantom.
+        //
+        // Safe if the vendor changes shape: at three segments this is a no-op, and
+        // at two (`6.25`) the comparator's missing-segments-are-zero rule already
+        // makes `6.25` and `6.25.0` equal. If they return to publishing four
+        // segments on the log, the recipe stops matching the newest entries and
+        // the nightly sweep says `remote is BEHIND the installed copy` — loud,
+        // which is the failure direction to want.
+        if bundleID == Self.sogouInputBundleID {
+            shortVersion = Self.firstThreeSegments(shortVersion)
         }
         let hasReceipt = !isiOSAppOnMac && fm.fileExists(
             atPath: bundleURL.appendingPathComponent("Contents/_MASReceipt/receipt").path)

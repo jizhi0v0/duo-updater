@@ -89,6 +89,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**AionUi**](com-aionui-app.md) · `com.aionui.app` — P (detection-only) · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Msty Studio**](MstyStudio.md) · `MstyStudio` — P (detection-only) · real DMG + live probe ✓ · 2026-08-17
 
+- [x] [**搜狗输入法 (SogouInput)**](com-sogou-inputmethod-sogou.md) · `com.sogou.inputmethod.sogou` — P · **它自己的更新检查是坏的**（抓包实证：`macversion.txt` 对真实请求永远答 `1.0.0.1`，客户端因此从不更新）· 版本读官网更新日志，`for` 前的空格用来把同页的搜狗五笔排除掉 · 页面三段 vs bundle 四段，裁本地侧 · 下载文件名 token 实测不是版本（6.24 线有 624a–d 四个文件、只有两条公告）· detection-only（装机附带两个 LaunchAgent + QuickLook + 用户目录迁移，轮换盖不住）· 2026-08-28
 - [x] [**豆包输入法 (DoubaoIme)**](com-bytedance-inputmethod-doubaoime.md) · `com.bytedance.inputmethod.doubaoime` — P+C · 比厂商 version code（装机侧在自定义键 `Wave Build Version Number`，CFBundleVersion 是废号 1）· changelog 走 app 自己的更新接口 · detection-only（输入法整类闸）· channel-verify ✓ · 2026-08-21
 
 - [x] [**WorkBuddy (Tencent)**](com-workbuddy-workbuddy.md) · `com.workbuddy.workbuddy-ai` + `com.workbuddy.workbuddy` — P (one-click, both sites) · 两站两个独立 app，非 channel · 每站按架构分两条 recipe · 两站真实 DMG channel-verify ✓ · 2026-08-27

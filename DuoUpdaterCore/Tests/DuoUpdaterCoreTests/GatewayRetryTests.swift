@@ -187,6 +187,41 @@ struct GatewayRetryTests {
         #expect(ScriptedProtocol.script.requests == ["GET"])
     }
 
+    /// `duo verify` reports how many requests a recipe cost. The retry happens far
+    /// below it, so without this the report understates the cost and — worse — a
+    /// probe that 502s and recovers reports `ok` with no trace at all.
+    @Test func aCallerThatAsksCanCountTheRetries() async throws {
+        ScriptedProtocol.script.load([504, 200])
+        let tally = GatewayRetry.Tally()
+        let session = Self.session()
+        _ = try await GatewayRetry.$tally.withValue(tally) {
+            try await session.versionFeedData(
+                for: URLRequest(url: Self.url), label: "test", retryDelay: Self.fastDelay)
+        }
+        #expect(tally.count == 1)
+        #expect(ScriptedProtocol.script.requests.count == 2)
+    }
+
+    /// The count must track retries, not failures: a gateway that never recovers
+    /// still only earns one extra request.
+    @Test func aPersistentFailureCountsOneRetryNotOnePerAttempt() async throws {
+        ScriptedProtocol.script.load([503, 503, 200])
+        let tally = GatewayRetry.Tally()
+        let session = Self.session()
+        _ = try await GatewayRetry.$tally.withValue(tally) {
+            try await session.versionFeedData(
+                for: URLRequest(url: Self.url), label: "test", retryDelay: Self.fastDelay)
+        }
+        #expect(tally.count == 1)
+    }
+
+    /// Nobody outside `duo verify` sets a tally, and the app must not pay for it.
+    @Test func noTallyIsTheNormalCaseAndCostsNothing() async throws {
+        let result = try await Self.fetch(scripting: [502, 200])
+        #expect(result.status == 200)
+        #expect(GatewayRetry.tally == nil)
+    }
+
     /// The reported case, end to end: Headlamp's check died because one
     /// `api.github.com` 504 was a terminal answer. Through the real source, the
     /// same 504 now resolves to a version.

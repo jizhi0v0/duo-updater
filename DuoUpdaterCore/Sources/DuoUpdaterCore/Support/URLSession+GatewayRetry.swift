@@ -72,6 +72,7 @@ public extension URLSession {
         // trace anywhere.
         Log.source.info(
             "\(label, privacy: .public): HTTP \(http.statusCode, privacy: .public) — retrying once")
+        GatewayRetry.tally?.record()
         // Cancellation must not change the *shape* of the failure a caller sees.
         // `Task.sleep` throws `CancellationError`, which is not a `URLError`, and
         // `VendorProbeSource.transportFailure` would render it as "URLError 1" — a
@@ -85,4 +86,45 @@ public extension URLSession {
             "\(label, privacy: .public): gateway retry → \(status.map(String.init) ?? "non-HTTP", privacy: .public)")
         return second
     }
+}
+
+/// Makes the retry in ``URLSession/versionFeedData(for:label:retryDelay:)``
+/// countable by whoever asked for the fetch.
+///
+/// The retry is deliberately invisible to callers — that is what keeps every
+/// existing status guard meaning what it meant. But `duo verify` exists to notice
+/// an endpoint degrading, and an endpoint that 502s and then succeeds is exactly
+/// the early, cheap-to-catch kind of degradation: without a count it reports `ok`
+/// with no trace that anything happened, while quietly making two requests where
+/// the report claims one.
+///
+/// A task-local rather than a return value because the retry happens several
+/// layers below anyone who cares — threading a count up through every source's
+/// signature would touch a dozen call sites to serve one tool. Task-locals also
+/// scope themselves to a task tree, so a concurrent sweep's recipes cannot
+/// contaminate each other's counts.
+public enum GatewayRetry {
+
+    /// One sweep unit's tally. A class so the value survives being read back after
+    /// the `withValue` scope ends; locked because a probe may fan out internally.
+    public final class Tally: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        public init() {}
+
+        /// How many *extra* requests the gateway retry cost. Zero is the norm.
+        public var count: Int {
+            lock.lock(); defer { lock.unlock() }
+            return value
+        }
+
+        func record() {
+            lock.lock(); value += 1; lock.unlock()
+        }
+    }
+
+    /// Set by a caller that wants the count; nil everywhere else, which is why the
+    /// app pays nothing for this.
+    @TaskLocal public static var tally: Tally?
 }

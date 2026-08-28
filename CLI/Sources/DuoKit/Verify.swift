@@ -245,17 +245,28 @@ public enum Verify {
                     endpointHost: recipe.url.host ?? "-")
             }
             let source = VendorProbeSource()
+            // One tally spanning every attempt, so `attempts` below counts the
+            // requests this recipe actually cost rather than the probes we chose to
+            // run. Without it a probe that 502s and recovers inside
+            // `versionFeedData` reports one attempt for two requests — and reports
+            // `ok`, hiding exactly the kind of flap this sweep exists to catch.
+            let tally = GatewayRetry.Tally()
             var attempt = 0
-            var outcome = await source.probeDiagnostic(recipe)
+            var outcome = await GatewayRetry.$tally.withValue(tally) {
+                await source.probeDiagnostic(recipe)
+            }
             while attempt < options.infraRetries,
                   outcome.failure?.classification == .infra {
                 attempt += 1
                 try? await Task.sleep(for: .seconds(attempt))
-                outcome = await source.probeDiagnostic(recipe)
+                outcome = await GatewayRetry.$tally.withValue(tally) {
+                    await source.probeDiagnostic(recipe)
+                }
             }
             var finding = classify(
                 outcome, registry: .vendor, host: recipe.url.host ?? "-",
-                pattern: recipe.versionPattern, attempts: attempt + 1,
+                pattern: recipe.versionPattern,
+                attempts: attempt + 1 + tally.count, gatewayRetries: tally.count,
                 installed: installed[recipe.recipeID],
                 sanity: { version, remote in
                     RecipeSanity.complaints(version: version, recipe: recipe)
@@ -365,17 +376,24 @@ public enum Verify {
         var out: [Finding] = []
         for (index, rule) in rules.enumerated() {
             if index > 0 { try? await Task.sleep(for: options.perHostDelay) }
+            // See the vendor sweep: counts requests, not probes.
+            let tally = GatewayRetry.Tally()
             var attempt = 0
-            var outcome = await source.resolveDiagnostic(rule)
+            var outcome = await GatewayRetry.$tally.withValue(tally) {
+                await source.resolveDiagnostic(rule)
+            }
             while attempt < options.infraRetries,
                   outcome.failure?.classification == .infra {
                 attempt += 1
                 try? await Task.sleep(for: .seconds(attempt))
-                outcome = await source.resolveDiagnostic(rule)
+                outcome = await GatewayRetry.$tally.withValue(tally) {
+                    await source.resolveDiagnostic(rule)
+                }
             }
             var finding = classify(
                 outcome, registry: .github, host: "api.github.com",
-                pattern: rule.versionPattern, attempts: attempt + 1,
+                pattern: rule.versionPattern,
+                attempts: attempt + 1 + tally.count, gatewayRetries: tally.count,
                 installed: installed["vendor:\(rule.bundleID):\(rule.channel.rawValue)"],
                 // Issue #101: this used to pass `{ _, _ in [] }`. The vendor
                 // sweep asked "did this install spec resolve its OWN channel's
@@ -700,7 +718,7 @@ public enum Verify {
     /// sweeps so both are judged by identical rules.
     static func classify(
         _ outcome: ProbeOutcome, registry: Registry, host: String, pattern: String?,
-        attempts: Int, installed: InstalledVersion?,
+        attempts: Int, gatewayRetries: Int, installed: InstalledVersion?,
         sanity: (String, RemoteVersion) -> [String]
     ) -> Finding {
         func make(
@@ -711,8 +729,8 @@ public enum Verify {
                 channel: outcome.channel.rawValue, status: status, version: version,
                 failureKind: outcome.failure?.kind, failureDetail: outcome.failure?.detail,
                 warnings: warnings, endpointHost: host, pattern: pattern,
-                attempts: attempts, elapsedMs: outcome.elapsedMs,
-                bodySample: outcome.bodySample)
+                attempts: attempts, gatewayRetries: gatewayRetries,
+                elapsedMs: outcome.elapsedMs, bodySample: outcome.bodySample)
         }
 
         if let failure = outcome.failure {
@@ -848,7 +866,8 @@ extension Finding {
             status: status, version: version,
             failureKind: failureKind, failureDetail: failureDetail,
             warnings: warnings + [note], endpointHost: endpointHost, pattern: pattern,
-            attempts: attempts, elapsedMs: elapsedMs, bodySample: bodySample)
+            attempts: attempts, gatewayRetries: gatewayRetries,
+            elapsedMs: elapsedMs, bodySample: bodySample)
     }
 
     /// Attach a warning discovered after the fact (the baseline's history checks
@@ -859,6 +878,7 @@ extension Finding {
             status: status == .ok ? .warn : status, version: version,
             failureKind: failureKind, failureDetail: failureDetail,
             warnings: warnings + [warning], endpointHost: endpointHost, pattern: pattern,
-            attempts: attempts, elapsedMs: elapsedMs, bodySample: bodySample)
+            attempts: attempts, gatewayRetries: gatewayRetries,
+            elapsedMs: elapsedMs, bodySample: bodySample)
     }
 }

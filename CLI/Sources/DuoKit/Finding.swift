@@ -60,7 +60,17 @@ public struct Finding: Codable, Sendable {
     /// Host only — never a resolved URL, which can carry an identifier.
     public let endpointHost: String
     public let pattern: String?
+    /// HTTP requests the sweep actually spent on this recipe — the outer
+    /// `infraRetries` probes plus any gateway retry inside them. A request count,
+    /// not a probe count, so it cannot understate what an endpoint cost.
     public let attempts: Int
+    /// How many of `attempts` were `URLSession.versionFeedData`'s single retry on a
+    /// 502/503/504. Non-zero on an otherwise `ok` finding is the signal worth
+    /// having: the endpoint flapped and recovered, which no other field records.
+    ///
+    /// Optional so a `report.json` written before this existed still decodes — nil
+    /// means "not recorded", which is not the same claim as zero.
+    public let gatewayRetries: Int?
     public let elapsedMs: Int
     /// Redacted and capped. Present only for actionable findings, since this is
     /// the one field that carries arbitrary vendor content.
@@ -84,7 +94,8 @@ public struct Finding: Codable, Sendable {
         status: FindingStatus, version: String? = nil,
         failureKind: String? = nil, failureDetail: String? = nil,
         warnings: [String] = [], endpointHost: String, pattern: String? = nil,
-        attempts: Int = 1, elapsedMs: Int = 0, bodySample: String? = nil
+        attempts: Int = 1, gatewayRetries: Int? = nil,
+        elapsedMs: Int = 0, bodySample: String? = nil
     ) {
         self.recipeID = recipeID
         self.registry = registry
@@ -98,6 +109,7 @@ public struct Finding: Codable, Sendable {
         self.endpointHost = endpointHost
         self.pattern = pattern
         self.attempts = attempts
+        self.gatewayRetries = gatewayRetries
         self.elapsedMs = elapsedMs
         // Condense before redacting: the changelog path hands over a whole raw
         // HTML page, and a report full of `<link rel="preload">` is a report

@@ -1622,7 +1622,13 @@ private let obsidianFixture = #"""
 // `<[^>]*>` strip run before the CDATA is pulled out eats the whole
 // `<![CDATA[…]]>` construct (`[^>]*` reads through to the `>` that closes
 // `]]>`), which would otherwise corrupt exactly this kind of entry.
-private let figmaFixture = #"""
+// Not `private`: reused by ChangelogParserGenerationGuardTests as one of the
+// anchor fixtures for the mechanical parser-generation guard (issue #112) — a
+// registry-driven fixture whose parse depends on the LIVE `ChangelogRecipe`
+// for this bundle id, so a future recipe-data edit (entryPattern, itemPatterns,
+// source) moves the guard's pinned output exactly the way a parser-code change
+// does.
+let figmaFixture = #"""
     <entry>
         <title type="html"><![CDATA[Recommend resources you want users to discover and use]]></title>
         <id>dece0d00-5f03-4a5d-aa04-3b0fad21b5eb</id>

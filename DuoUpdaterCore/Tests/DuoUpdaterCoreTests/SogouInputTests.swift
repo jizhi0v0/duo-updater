@@ -2,39 +2,35 @@ import Foundation
 import Testing
 @testable import DuoUpdaterCore
 
-/// 搜狗输入法 — a version read off a changelog page that carries TWO product
-/// families, decoded from GBK bytes we never decode as GBK, compared against an
-/// installed version that has one segment more than the vendor ever publishes.
-/// Each of those is a way to be quietly wrong, so each gets a test.
+/// 搜狗输入法 reads the vendor's own update endpoint, which is CONDITIONAL: it
+/// answers "given this client's version, what should it upgrade to", not "what is
+/// the latest". Both of its answers are real responses, captured verbatim
+/// 2026-08-28, because the difference between them is the entire recipe.
+
+/// What the endpoint says to a client that is already current. `1.0.0.1` is a
+/// sentinel meaning "stay put" — below every build the vendor has ever shipped —
+/// and reading it as a version is the mistake this recipe is shaped to prevent.
 ///
-/// The fixture is verbatim from `pinyin.sogou.com/mac/update_log.php` (2026-08-28),
-/// trimmed to four entries: the newest 拼音 release, the one before it, an old
-/// four-segment 拼音 entry, and a 五笔 entry. The Chinese is written as the
-/// replacement characters the real bytes decode to — the page declares
-/// `charset=gbk` and the probe reads bodies as UTF-8, so this is what the pattern
-/// actually sees, not a prettified version of it.
-private let sogouUpdateLogFixture = #"""
-<div class="lognavRight fl"><ul class="navRight"><li>
-<p class="post_message">
-<span class="post_type">\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD} for Mac 6.24.1</span>
-<span class="post_time">2026-07-17</span>
-</p>
-<p class="type_mes"><span>\#u{FFFD}\#u{FFFD}</span><br>
-1\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD} emoji<br>
-</p></li><li>
-<p class="post_message">
-<span class="post_type">\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD} for Mac 6.24.0</span>
-<span class="post_time">2026-07-08</span>
-</p></li><li>
-<p class="post_message">
-<span class="post_type">\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD} for Mac 2.0.0.26481</span>
-<span class="post_time">2018-05-31</span>
-</p></li><li>
-<p class="post_message">
-<span class="post_type">\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD}\#u{FFFD}for Mac 1.4.0</span>
-<span class="post_time">2023-01-05</span>
-</p></li></ul></div>
-"""#
+/// Byte-verbatim, 188 bytes, including the mixed line endings: the server writes
+/// LF down to `md5=` and CRLF after it. Written with explicit escapes rather than
+/// a pretty multiline literal, because the escapes ARE the fixture — a tidied
+/// copy would stop exercising the `\n` anchors the pattern is built on.
+private let sogouNoUpdateFixture =
+    "[product0]\npid=0\nversion=1.0.0.1\nurl=http://pinyin.sogou.com/mac/\nmd5=\n"
+    + "pkg_url=http://pro.cdn.ime.sogou.com/SogouInput_V1.0.0.1.ins\r\n"
+    + "pkg_md5=eac14135ade15c84ceb6aef491cc0c3d\r\n\n[end]\nend=1\n"
+
+/// What it says to an out-of-date client — which is what the probe always is,
+/// because it pins `v=0.0.0.1`. Byte-verbatim, 252 bytes.
+///
+/// The payload host alternates between `pro.cdn` and `pro.cdn2` request to
+/// request; this pins the one that came back on the capture. Nothing reads it —
+/// the pattern only needs the key's presence — but it is why "the response is
+/// stable" is a claim about the VERSION and not about the bytes.
+private let sogouUpdateFixture =
+    "[product0]\npid=0\nversion=6.24.1.11676\nurl=http://pinyin.sogou.com/mac/\nmd5=\n"
+    + "update_pack_url=http://pro.cdn2.ime.sogou.com/autosetup6.24.1.11676_V10003_20260715_223833.zip\r\n"
+    + "update_pack_md5=654bd06d7df44e2237e0c61fab08477b\r\nupdate_notice=0\r\n\n[end]\nend=1\n"
 
 private func sogouRecipe() throws -> VendorProbeRecipe {
     try #require(VendorProbeRegistry.recipes.first { $0.bundleID == "com.sogou.inputmethod.sogou" })
@@ -42,93 +38,122 @@ private func sogouRecipe() throws -> VendorProbeRecipe {
 
 @Suite struct SogouInputTests {
 
-    /// The version comes from the entry the slicer picks, and the date comes from
-    /// that SAME entry. Both patterns are first-match within one entry, which is
-    /// the whole reason `entryStartPattern` is set rather than trusting the page
-    /// to stay newest-first.
-    @Test func theVersionAndItsDateComeFromOneEntry() throws {
+    /// The version the endpoint names is the bundle's own string, four segments and
+    /// all — so there is nothing to derive, translate or trim on either side. That
+    /// is why this source beats the changelog page, which publishes three segments
+    /// and would have needed the installed version cut down to compare at all.
+    @Test func theEndpointNamesTheBundlesOwnVersionString() throws {
         let recipe = try sogouRecipe()
-        let start = try #require(recipe.entryStartPattern)
-        let entry = try #require(VendorProbeRecipe.highestVersionEntry(
-            in: sogouUpdateLogFixture,
-            entryStartPattern: start,
-            versionPattern: recipe.versionPattern))
-
         #expect(VendorProbeRecipe.extractVersion(
-            from: entry, pattern: recipe.versionPattern) == "6.24.1")
-        let published = try #require(recipe.publishedAtPattern)
-        #expect(VendorProbeRecipe.extractVersion(from: entry, pattern: published) == "2026-07-17")
+            from: sogouUpdateFixture, pattern: recipe.versionPattern) == "6.24.1.11676")
+        // Four segments, which is the property that makes this source better than
+        // the changelog page: the page publishes three, so comparing against it
+        // needed the installed version trimmed, and a respin moving only the
+        // fourth segment was invisible. Asserted on what the pattern actually
+        // extracted rather than on a literal compared with itself — the version
+        // this test is about has to come out of the fixture, or the test proves
+        // nothing about the recipe.
+        let extracted = try #require(VendorProbeRecipe.extractVersion(
+            from: sogouUpdateFixture, pattern: recipe.versionPattern))
+        #expect(extracted.split(separator: ".").count == 4)
+        #expect(extracted.allSatisfy { $0.isNumber || $0 == "." })
     }
 
-    /// The page publishes 搜狗**五笔**输入法 on the same document. Its titles run the
-    /// product name straight into `for Mac` with no space, while every 拼音 entry
-    /// has one — measured across all 96 versioned entries on the live page. That
-    /// space is the discriminator, and it is the only one available: the character
-    /// that would actually distinguish them is Chinese, and the page is GBK while
-    /// the probe decodes UTF-8, so 五笔 itself is unmatchable by the time we see it.
+    /// The sentinel must not be readable as a version. Requiring `update_pack_url`
+    /// to follow it makes that structural rather than a magnitude argument — and a
+    /// `1.0.0.1` reported as the latest release would read as a downgrade from
+    /// every install in existence.
     ///
-    /// 五笔 being at 1.x is the backstop, not the argument. A magnitude that happens
-    /// to lose today is not a rule, and this pins the rule.
-    @Test func theWuBiFamilyOnTheSamePageIsNeverSelected() throws {
-        let recipe = try sogouRecipe()
-        let regex = try NSRegularExpression(pattern: recipe.versionPattern)
-        let ns = sogouUpdateLogFixture as NSString
-        let matches = regex.matches(
-            in: sogouUpdateLogFixture, range: NSRange(location: 0, length: ns.length))
-        let found = matches.map { ns.substring(with: $0.range(at: 1)) }
-
-        // Two 拼音 releases, and neither the 五笔 1.4.0 nor the old four-segment
-        // entry: `{1,2}` caps the pattern at three segments on purpose.
-        #expect(found == ["6.24.1", "6.24.0"], "matched \(found)")
-    }
-
-    /// A four-segment entry must not match, and the reason is the failure mode it
-    /// buys. If the vendor returns to publishing four segments (they did until
-    /// 2018), the newest entries stop matching and selection falls back to an older
-    /// three-segment one — so the next release makes the probe report a version
-    /// BELOW the installed copy, which the nightly sweep flags as
-    /// `remote is BEHIND the installed copy`. Loud, on the next release, rather
-    /// than a silently stale answer forever.
-    @Test func aFourSegmentEntryIsDeliberatelyNotMatched() throws {
+    /// This is the response the probe would get if its pinned `v` ever stopped
+    /// being older than the newest build, which is why `v` is pinned at `0.0.0.1`
+    /// rather than at some real past release.
+    @Test func theNoUpdateSentinelIsNeverReadAsAVersion() throws {
         let recipe = try sogouRecipe()
         #expect(VendorProbeRecipe.extractVersion(
-            from: #"<span class="post_type">x for Mac 2.0.0.26481</span>"#,
-            pattern: recipe.versionPattern) == nil)
+            from: sogouNoUpdateFixture, pattern: recipe.versionPattern) == nil)
     }
 
-    /// The comparison pair. The bundle says `6.24.1.11676`; the vendor has never
-    /// published that fourth segment anywhere. Trimming the installed side is what
-    /// makes both sides speak the form the vendor actually uses — without it the
-    /// comparator treats the missing segment as `0`, the installed copy out-ranks
-    /// every announced release, and the row reads "remote is behind" forever.
-    @Test func theInstalledVersionIsTrimmedToWhatTheVendorPublishes() {
-        #expect(AppScanner.firstThreeSegments("6.24.1.11676") == "6.24.1")
-        // Without the trim, the installed copy wins against the newest release.
-        #expect(VersionComparator.isNewer("6.24.1.11676", than: "6.24.1"))
-        // With it, they are equal — which is "up to date", the correct answer.
-        #expect(VersionComparator.compare(
-            AppScanner.firstThreeSegments("6.24.1.11676"), "6.24.1") == .orderedSame)
-        // And a real release is still caught.
-        #expect(VersionComparator.isNewer("6.25.0", than: AppScanner.firstThreeSegments("6.24.1.11676")))
+    /// The response is `[product0]` … `[end]` with a `pid=0` in it — a shape that
+    /// anticipates more than one product, even though no request tried against the
+    /// live server produced one. So the span between `version=` and
+    /// `update_pack_url=` must not be able to leave its block.
+    ///
+    /// Measured on this exact concatenation with an unbounded span: the FIRST
+    /// block's sentinel version pairs with the SECOND block's payload URL and
+    /// `1.0.0.1` is reported as the current release. Being unable to make the
+    /// server emit two blocks is not evidence that it never will.
+    @Test func aVersionIsNeverPairedWithAnotherBlocksPayload() throws {
+        let recipe = try sogouRecipe()
+        let twoBlocks = sogouNoUpdateFixture + sogouUpdateFixture
+        #expect(VendorProbeRecipe.extractVersion(
+            from: twoBlocks, pattern: recipe.versionPattern) == "6.24.1.11676")
+
+        // And a block belonging to some other product, carrying its own payload
+        // key, must not be the one we read. `pid` identifying the product is
+        // unverified — no request produced a second block — so this pins the
+        // guard's behaviour rather than a claim about the server.
+        let otherProductFirst = """
+        [product1]
+        pid=1
+        version=9.9.9.9
+        url=http://pinyin.sogou.com/mac/
+        update_pack_url=http://pro.cdn.ime.sogou.com/something-else.zip
+
+        """.replacingOccurrences(of: "        ", with: "") + sogouUpdateFixture
+        #expect(VendorProbeRecipe.extractVersion(
+            from: otherProductFirst, pattern: recipe.versionPattern) == "6.24.1.11676")
     }
 
-    /// The trim only fires on the shape it is for. Anything else — a version with
-    /// three segments or fewer, a build id with letters, a date-like string — comes
-    /// back untouched, so no other app can be mangled by a rule written for this one.
-    @Test func theTrimTouchesNothingItWasNotWrittenFor() {
-        for untouched in ["6.24.1", "6.24", "6", "2026.1.2.3-beta", "27A5194q", "1.2.3.4a", ""] {
-            #expect(AppScanner.firstThreeSegments(untouched) == untouched, "\(untouched)")
-        }
-        // Only an all-numeric, more-than-three-segment version is trimmed.
-        #expect(AppScanner.firstThreeSegments("1.2.3.4.5") == "1.2.3")
+    /// The probe's request IS the recipe. Drop `sv`, or send `s=1`/`s=2`, and the
+    /// endpoint answers with the sentinel instead — measured — so these are not
+    /// decoration carried over from the packet capture, they are what makes it
+    /// answer at all.
+    ///
+    /// `r` (the installed copy's distribution channel) is deliberately absent: the
+    /// server ignores it (`r=9999` and no `r` answer identically), and a channel
+    /// code lifted from one machine's install would be stating something untrue
+    /// about every other. `h`, the per-device hash the real client sends, is absent
+    /// for a stronger reason — a probe of ours has no business carrying a machine
+    /// identifier to a vendor.
+    @Test func theProbeAsksAsAnOutOfDateClientAndCarriesNoDeviceIdentity() throws {
+        let recipe = try sogouRecipe()
+        let query = try #require(URLComponents(url: recipe.url, resolvingAgainstBaseURL: false)?
+            .queryItems?.reduce(into: [String: String]()) { $0[$1.name] = $1.value })
+
+        // Pinned below anything the vendor can ship, so the request cannot drift
+        // into the sentinel branch as releases go by.
+        let pinned = try #require(query["v"])
+        #expect(VersionComparator.isNewer("6.24.1.11676", than: pinned))
+        #expect(VersionComparator.isNewer("1.0.0.1", than: pinned),
+                "the pinned version must sit below even the sentinel")
+
+        #expect(query["s"] == "0", "s=1 and s=2 both collapse the answer to the sentinel")
+        #expect(query["sv"] != nil, "without sv the endpoint answers with the sentinel")
+        #expect(query["h"] == nil, "no per-device identifier may be sent")
+        #expect(query["r"] == nil, "the channel code belongs to an install, not to a probe")
+        #expect(recipe.url.scheme == "https")
     }
 
-    /// Detection only. The full installer owns LaunchAgents, a QuickLook generator,
-    /// and user-data migration. The narrower self-update payload is a nested
-    /// Contents archive plus migration scripts, and its Info.plist omits the
-    /// installed copy's SGQuDao channel with reinjection behavior still unverified.
-    /// It needs a dedicated dynamic installer, not the generic bundle/Contents
-    /// installer.
+    /// Release notes come from a different host than versions do, on purpose: the
+    /// endpoint carries no notes and the marketing site carries no comparable
+    /// version. (That the two AGREE — the page's newest entry is 6.24.1, dated the
+    /// day this bundle was built — is recorded in the audit document, where a
+    /// claim about live content belongs; a unit test cannot hold it.)
+    @Test func notesAndVersionsComeFromDifferentSourcesOnPurpose() throws {
+        let recipe = try sogouRecipe()
+        let changelog = try #require(recipe.changelogURL)
+        #expect(changelog.absoluteString == "https://pinyin.sogou.com/mac/update_log.php")
+        // Different hosts on purpose: versions come from the vendor's update
+        // service, notes from the marketing site.
+        #expect(changelog.host != recipe.url.host)
+    }
+
+    /// Detection only. The full installer owns two LaunchAgents, a QuickLook
+    /// generator and a user-data migration, none of which a `Contents` rotation
+    /// touches. The narrower self-update payload is a nested `Contents` archive
+    /// plus `pre`/`post`/`switch` scripts, and its `Info.plist` omits the installed
+    /// copy's `SGQuDao` channel with reinjection behaviour still unverified. Either
+    /// way it needs a dedicated installer, not the generic archive path.
     @Test func sogouStaysDetectionOnly() throws {
         let recipe = try sogouRecipe()
         #expect(recipe.install == nil)

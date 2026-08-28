@@ -5,8 +5,9 @@ import Foundation
 /// Hand-rolled rather than swift-argument-parser because the shipping binary is
 /// built by XcodeGen, where an SPM dependency means threading a third remote
 /// package through `App/project.yml` — and because the core package's
-/// zero-dependency stance is deliberate. The cost is that `--help` is written by
-/// hand in `Usage.swift`.
+/// zero-dependency stance is deliberate. The cost is that `--help` is written
+/// by hand — the `usage` literal at the top of `main.swift`, which
+/// `ArgParserTests` checks against the flags this actually reads.
 public struct Args {
     public let subcommand: String
     /// `--flag` (value `""`) and `--flag value` / `--flag=value`.

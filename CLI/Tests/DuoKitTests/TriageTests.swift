@@ -259,4 +259,17 @@ import DuoUpdaterCore
             projectDir: URL(fileURLWithPath: "/nonexistent"))
         #expect(Triage.resolvedModel(options).contains("unknown"))
     }
+
+    /// The only line that quotes the budget back. It read `Int(budget / 60)`,
+    /// which was always "15" while `--budget` was a flag nobody could find and
+    /// starts lying the moment one is documented — the default's own transcript
+    /// (`--budget 60`) is fine, `--budget 90` truncates to "1-minute", and
+    /// anything under a minute reads "0-minute budget ran out".
+    @Test func theBudgetIsQuotedBackInAUnitItFitsIn() {
+        #expect(Triage.budgetLabel(900) == "15-minute")
+        #expect(Triage.budgetLabel(60) == "1-minute")
+        #expect(Triage.budgetLabel(90) == "90-second")
+        #expect(Triage.budgetLabel(30) == "30-second")
+        #expect(Triage.budgetLabel(0) == "0-second")
+    }
 }

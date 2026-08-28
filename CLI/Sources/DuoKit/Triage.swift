@@ -123,6 +123,18 @@ public enum Triage {
     /// with room to spare while still bounding a hang.
     public static let callTimeout: TimeInterval = 360
 
+    /// The budget as a phrase. Whole minutes only: `--budget` used to be a flag
+    /// nobody could find, so dividing by 60 and truncating was always "15";
+    /// documented, it is a number a user picks, and `--budget 90` reading as
+    /// "1-minute" or `--budget 30` as "0-minute" makes the one message that
+    /// mentions the budget the one message worth not believing.
+    static func budgetLabel(_ budget: TimeInterval) -> String {
+        let seconds = Int(budget.rounded())
+        return seconds >= 60 && seconds % 60 == 0
+            ? "\(seconds / 60)-minute"
+            : "\(seconds)-second"
+    }
+
     public static func run(_ options: TriageOptions) -> Int32 {
         guard let data = try? Data(contentsOf: options.reportPath),
               let document = decodeReport(data) else {
@@ -182,7 +194,7 @@ public enum Triage {
             }
         }
         if skippedForTime > 0 {
-            print("  · \(skippedForTime) left unanalysed — the \(Int(options.budget / 60))-minute "
+            print("  · \(skippedForTime) left unanalysed — the \(budgetLabel(options.budget)) "
                 + "budget ran out. They stay flagged and will be picked up next sweep.")
         }
         if eligible.count > options.maxCalls {

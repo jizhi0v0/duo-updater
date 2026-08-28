@@ -94,8 +94,8 @@ import Testing
         #expect(args.unrecognised()?.description.contains("`duo restart` takes no flags") == true)
     }
 
-    /// `CLI/Sources`, so the two tests below can read what the CLI actually
-    /// does rather than a copy of it kept here.
+    /// `CLI/Sources`, so the tests below can read what the CLI actually does
+    /// rather than a copy of it kept here.
     private static let sources = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()   // DuoKitTests
         .deletingLastPathComponent()   // Tests
@@ -112,14 +112,13 @@ import Testing
     /// flag nobody reads is refused. `--timeout` sat here unread from the first
     /// commit and turned into `unknown flag '--timeout'` in 0.3.68 (#114).
     @Test func valueFlagsMatchesTheFlagsReadAsValues() throws {
-        let sources = Self.sources
         // Tolerant of a wrapped call and of a camelCase name, so a read the
         // scan cannot see stays rare — an invisible read reports as a declared
         // flag nobody reads, which is a nudge to delete a needed entry.
         let asValue = /\.(?:value|int|list)\(\s*"([A-Za-z0-9-]+)"\s*\)/
 
         let files = try #require(
-            FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+            FileManager.default.enumerator(at: Self.sources, includingPropertiesForKeys: nil))
         var read: Set<String> = []
         for case let file as URL in files where file.pathExtension == "swift" {
             for match in try String(contentsOf: file, encoding: .utf8).matches(of: asValue) {
@@ -130,7 +129,7 @@ import Testing
         // A regex or a layout that stopped matching would satisfy the
         // comparison below by making it vacuous, which is the same silent
         // drift this test exists to catch.
-        #expect(read.count > 5, "only \(read.count) flag reads found under \(sources.path)")
+        #expect(read.count > 5, "only \(read.count) flag reads found under \(Self.sources.path)")
         #expect(Args.valueFlags == read, """
             valueFlags and the flags read as values have drifted.
             declared, no read found (unrecognised() refuses it): \(Args.valueFlags.subtracting(read).sorted())
@@ -145,28 +144,47 @@ import Testing
     /// advertised a default of 20 that was 6 in that same commit. The mirror
     /// case is worse now: a flag that stays documented after its reader goes
     /// away is one `unrecognised()` refuses while `--help` still offers it.
-    @Test func everyFlagTheCLIReadsIsInTheUsageTextAndBack() throws {
+    ///
+    /// Three things it deliberately does not see, so nobody reads it as more:
+    /// it compares the two sets whole rather than section by section, so a
+    /// flag documented under the wrong subcommand passes; it only knows `--`
+    /// spellings, because a single dash matched in prose picks up the tail of
+    /// every hyphenated word; and it cannot check a *default* stated in the
+    /// prose, which is what `--max-calls` got wrong.
+    @Test func theUsageTextAndTheFlagsArgsReadsAgree() throws {
         let main = try String(
             contentsOf: Self.sources.appendingPathComponent("duo/main.swift"), encoding: .utf8)
-        let usage = try #require(
-            main.split(separator: "let usage = \"\"\"", maxSplits: 1).last?
-                .split(separator: "\n\"\"\"", maxSplits: 1).first,
-            "the usage literal has moved — this test reads it out of main.swift")
+        // Located rather than split on: `split` with no separator found hands
+        // back the whole file, which would compare the flags against a superset
+        // of the usage text and pass while seeing nothing.
+        let opening = try #require(main.firstRange(of: "let usage = \"\"\""),
+                                   "the usage literal has moved out of main.swift")
+        let closing = try #require(
+            main.range(of: "\n\"\"\"", range: opening.upperBound..<main.endIndex),
+            "the usage literal no longer ends at the start of a line")
+        let usage = main[opening.upperBound..<closing.lowerBound]
 
         let documented = Set(usage.matches(of: /--([a-z][a-z0-9-]*)/).map { String($0.1) })
-        // `verify` names the registries from the enum rather than one call per
-        // flag, so the literal scan cannot see them; take them from the enum
-        // too rather than writing the three of them down here.
-        let read = Set(main.matches(of: /\.(?:value|int|list|has)\(\s*"([A-Za-z0-9-]+)"\s*\)/)
-            .map { String($0.1) })
-            .union(Registry.allCases.map(\.rawValue))
+        let readInMain = Set(
+            main.matches(of: /\.(?:value|int|list|has)\(\s*"([A-Za-z0-9-]+)"\s*\)/)
+                .map { String($0.1) })
+        // Both sides are scanned, so both sides need a floor: a regex that
+        // stopped matching would otherwise agree with anything.
+        #expect(readInMain.count > 15, "only \(readInMain.count) flag reads found in main.swift")
+        #expect(documented.count > 15, "only \(documented.count) flags found in the usage text")
 
-        #expect(read.count > 5, "only \(read.count) flag reads found in main.swift")
+        // `verify` names the registries from the enum rather than one call per
+        // flag, so the scan cannot see them; take them from the enum too.
+        let read = readInMain.union(Registry.allCases.map(\.rawValue))
+        // `--help` and `-h` are answered off `CommandLine.arguments` before
+        // `Args` exists, so no scan of flag reads can find them. Derived from
+        // the line that answers them rather than written down here.
+        let answeredBeforeParsing = Set(
+            main.matches(of: /== "-{1,2}([a-z][a-z0-9-]*)"/).map { String($0.1) })
+
         #expect(read.subtracting(documented).isEmpty,
                 "flags the CLI reads that `--help` never mentions: \(read.subtracting(documented).sorted())")
-        // `--help` is answered before `Args` is built, so it is the one flag
-        // documented that no branch can be seen reading.
-        let orphanedDocs = documented.subtracting(read).subtracting(["help"])
+        let orphanedDocs = documented.subtracting(read).subtracting(answeredBeforeParsing)
         #expect(orphanedDocs.isEmpty,
                 "flags `--help` offers that no branch reads, so unrecognised() refuses them: \(orphanedDocs.sorted())")
     }

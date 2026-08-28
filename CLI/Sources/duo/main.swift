@@ -132,7 +132,10 @@ triage options:
   --model <id>        Overrides the agent's model (default is declared in
                       .opencode/agent/duo-triage.md).
   --variant <effort>  Provider reasoning effort, e.g. max, high, minimal.
-  --max-calls N       Hard cap on model calls in one run (default 20).
+  --max-calls N       Hard cap on model calls in one run (default 6).
+  --budget N          Wall-clock ceiling for the whole step, in seconds
+                      (default 900). No new call is started past it; findings
+                      it did not reach stay flagged for the next sweep.
   --dry-run           List what would be asked about, call nothing.
 
   Runs opencode with no tools, in an empty temporary directory, and re-runs every

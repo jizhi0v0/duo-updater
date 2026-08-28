@@ -100,7 +100,7 @@ public actor BrewFormulaReleaseService {
     }
 
     private func compute(name: String, version: String, token: String?) async -> FormulaRelease {
-        guard let info = Self.brewInfo(name: name) else {
+        guard let info = await Self.brewInfoOffActor(name: name) else {
             return FormulaRelease(changelog: nil, pageURL: nil)
         }
         guard let gh = Self.deriveGitHub(fromStableURL: info.stableURL) else {
@@ -165,7 +165,29 @@ public actor BrewFormulaReleaseService {
 
     // MARK: - brew info (local)
 
-    private struct Info { let homepage: URL?; let stableURL: String? }
+    private struct Info: Sendable { let homepage: URL?; let stableURL: String? }
+
+    /// `brewInfo` on a detached task, so the ~0.5s subprocess never occupies this
+    /// actor. Load-bearing: `brewInfo` is already effectively non-isolated (it's
+    /// `static`), but that alone changes nothing — a *synchronous* call has no
+    /// ability to switch executors, so it runs to completion on whatever executor
+    /// calls it. Called synchronously from `compute`, that executor is this actor,
+    /// and the actor stays occupied for the whole subprocess.
+    ///
+    /// That serialized every client behind every other: `prewarmFormulaReleases`
+    /// enqueues one task per outdated formula, so selecting a formula whose notes
+    /// were ALREADY on disk still spun for N x 0.5s — its cheap `cached(...)` hop
+    /// queued behind the whole blocking chain (23 outdated formulae here = ~10s).
+    /// Awaiting a detached task hops off, leaving the actor holding only the cache
+    /// and bookkeeping work it's actually for.
+    ///
+    /// Deliberately unthrottled: measured on a 14-core machine, 23 concurrent
+    /// `brew info` calls finish in ~0.8s (vs ~10.3s serialized) and cost an
+    /// unrelated cooperative-pool consumer ~0.01s of added stall. A concurrency
+    /// limit here would buy nothing and read as load-bearing.
+    private static func brewInfoOffActor(name: String) async -> Info? {
+        await Task.detached(priority: .utility) { Self.brewInfo(name: name) }.value
+    }
 
     /// Read `homepage` + `urls.stable.url` for one formula from `brew info
     /// --json=v2` — local, no network, authoritative for the installed formula.

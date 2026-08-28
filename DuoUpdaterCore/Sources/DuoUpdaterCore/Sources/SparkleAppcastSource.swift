@@ -40,7 +40,8 @@ public struct SparkleAppcastSource: UpdateSource {
             request.setValue(value, forHTTPHeaderField: field)
         }
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "Sparkle \(app.name)")
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw SparkleError.badStatus(http.statusCode)
         }

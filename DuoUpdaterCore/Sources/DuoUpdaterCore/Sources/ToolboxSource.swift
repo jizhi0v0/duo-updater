@@ -123,7 +123,8 @@ public struct ToolboxSource: Sendable {
         request.timeoutInterval = 15
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "Toolbox sparkle feed")
         guard let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode) else { return nil }
         let body = String(decoding: data, as: UTF8.self)
@@ -172,7 +173,8 @@ public struct ToolboxSource: Sendable {
         request.timeoutInterval = 15
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "Android Studio updates.xml")
         guard let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode) else { return nil }
         let body = String(decoding: data, as: UTF8.self)
@@ -208,7 +210,8 @@ public struct ToolboxSource: Sendable {
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "Toolbox feed")
         guard let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]

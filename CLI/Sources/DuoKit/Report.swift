@@ -75,6 +75,23 @@ public enum Report {
             }
         }
 
+        // A gateway 5xx that succeeded on retry leaves no other trace: the status
+        // is `ok`, no warning is raised, and the loop above prints only actionable
+        // findings. That is the flap worth seeing early — an endpoint answering
+        // 502 to one request in N is degrading, and by the time it fails outright
+        // it is no longer news. Printed for every status, since a finding that
+        // retried and then failed anyway cost those requests too.
+        let retried = findings.filter { ($0.gatewayRetries ?? 0) > 0 }
+        if !retried.isEmpty {
+            print("\n  \u{27F3} GATEWAY RETRIES (endpoint 5xx'd, request was repeated once)")
+            for finding in retried {
+                let n = finding.gatewayRetries ?? 0
+                print("      \(finding.recipeID) — \(finding.endpointHost) "
+                    + "\u{00B7} \(n) retr\(n == 1 ? "y" : "ies") of \(finding.attempts) "
+                    + "request\(finding.attempts == 1 ? "" : "s") \u{00B7} settled \(finding.status)")
+            }
+        }
+
         let infra = findings.filter { $0.status == .infra }
         if !infra.isEmpty {
             print("\n  ~ INFRA (transient by default — reported once persistent)")

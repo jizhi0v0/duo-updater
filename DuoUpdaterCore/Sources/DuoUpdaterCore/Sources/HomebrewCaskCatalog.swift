@@ -138,7 +138,8 @@ public actor HomebrewCaskCatalog {
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "Homebrew cask catalog")
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw CaskError.badStatus(http.statusCode)
         }

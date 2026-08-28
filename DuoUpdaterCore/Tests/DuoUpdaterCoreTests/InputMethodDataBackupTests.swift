@@ -149,6 +149,40 @@ import Testing
         }
     }
 
+    /// A snapshot whose cleanup never ran must be reclaimed by the next backup for
+    /// the same app — which means its staging directory has to be named something
+    /// `BackupStore.sweepStagingLeftovers` actually selects.
+    ///
+    /// Built from the production naming function, not a literal, so this fails if
+    /// anyone gives the snapshot a name of its own again. It shipped as
+    /// `.userdata-staging-<key>-…` briefly, which the sweep's `.staging-<key>`
+    /// prefix does not match: a copy of the user's whole input-method data
+    /// directory, stranded for good and invisible while it sat there, because
+    /// every scan of the store's root passes `.skipsHiddenFiles` — so retention
+    /// would not prune it and `backupSize` would not count it.
+    @Test func aStrandedUserDataSnapshotIsReclaimedByTheNextBackup() throws {
+        try withScratchBackupRoot { root in
+            let key = "com.example.ime-Fixture"
+            let stranded = root.appendingPathComponent(
+                InputMethodDataBackup.stagingName(key: key), isDirectory: true)
+            try makeDirectory(stranded)
+            try Data("learned words".utf8)
+                .write(to: stranded.appendingPathComponent("words.db"))
+
+            // A different app's leftover must survive: the sweep is keyed per app,
+            // and one install must never reclaim another's in-flight snapshot.
+            let other = root.appendingPathComponent(
+                InputMethodDataBackup.stagingName(key: "com.example.other-Fixture"),
+                isDirectory: true)
+            try makeDirectory(other)
+
+            BackupStore.sweepStagingLeftovers(in: root, key: key)
+
+            #expect(!FileManager.default.fileExists(atPath: stranded.path))
+            #expect(FileManager.default.fileExists(atPath: other.path))
+        }
+    }
+
     // MARK: - Helpers
 
     private func withScratchHome(_ body: (URL) throws -> Void) throws {

@@ -208,4 +208,46 @@ import Testing
         #expect(orphanedDocs.isEmpty,
                 "flags `--help` offers that no branch reads, so unrecognised() refuses them: \(orphanedDocs.sorted())")
     }
+
+    /// `int()` turns a value it cannot parse into nil, and nil is what "not
+    /// given at all" looks like from every call site — the same shape #108 was
+    /// written to stop, hiding inside a flag that *is* accepted. Measured on
+    /// the shipped binary before this: `duo triage --max-calls 2.5` analysed
+    /// five findings, exit 0, saying nothing, because the cap fell back to its
+    /// default of 6. `--max-concurrency 8x` keeps four hosts in flight while
+    /// the person who typed it believes they slowed the sweep down.
+    ///
+    /// Derived from `main.swift` rather than listing the three flags here: a
+    /// fourth number flag should not have to remember to be tested.
+    @Test func aNumberFlagRefusesAValueThatIsNotOne() throws {
+        let main = try String(
+            contentsOf: Self.sources.appendingPathComponent("duo/main.swift"), encoding: .utf8)
+        let numeric = Set(main.matches(of: /\.int\(\s*"([A-Za-z0-9-]+)"\s*\)/).map { String($0.1) })
+        #expect(numeric.count >= 3, "only \(numeric.count) number flags found in main.swift")
+
+        for name in numeric.sorted() {
+            for bad in ["2.5", "8x", "abc", "1e3", "1_000"] {
+                let args = Args(["duo", "verify", "--\(name)", bad])!
+                _ = args.int(name)
+                #expect(args.unrecognised()?.description
+                        == "--\(name) needs a whole number, got '\(bad)'")
+            }
+            // What it must not start refusing: the values that always worked.
+            // `-3` reaches its reader, which is where the clamping lives.
+            for good in ["2", "0", "-3"] {
+                let args = Args(["duo", "verify", "--\(name)", good])!
+                #expect(args.int(name) == Int(good))
+                #expect(args.unrecognised() == nil)
+            }
+        }
+    }
+
+    /// The empty case belongs to the older message, which fits it better —
+    /// `--max-calls` with nothing after it is not a number that failed to
+    /// parse, it is a flag missing its value.
+    @Test func aNumberFlagWithNothingAfterItStillSaysItNeedsAValue() {
+        let args = Args(["duo", "triage", "--max-calls"])!
+        _ = args.int("max-calls")
+        #expect(args.unrecognised()?.description == "--max-calls needs a value")
+    }
 }

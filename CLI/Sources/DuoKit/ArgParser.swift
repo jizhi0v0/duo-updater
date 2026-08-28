@@ -27,6 +27,9 @@ public struct Args {
     /// the drift only shows up as a flag nobody validates.
     private final class Seen {
         var flags: Set<String> = []
+        /// The subset read as numbers, so `unrecognised()` can refuse a value
+        /// that is not one instead of letting it read as absent.
+        var integerFlags: Set<String> = []
         var readOperands = false
     }
 
@@ -97,7 +100,10 @@ public struct Args {
         guard let raw = flags[name], !raw.isEmpty else { return nil }
         return raw
     }
-    public func int(_ name: String) -> Int? { value(name).flatMap(Int.init) }
+    public func int(_ name: String) -> Int? {
+        seen.integerFlags.insert(name)
+        return value(name).flatMap(Int.init)
+    }
 
     /// The first token this invocation can't account for, or nil if it is clean.
     ///
@@ -126,6 +132,16 @@ public struct Args {
         for name in flags.keys.sorted()
         where Self.valueFlags.contains(name) && flags[name]?.isEmpty == true {
             return UsageError("--\(name) needs a value")
+        }
+        // A number flag holding something that is not a number. `Int.init` fails,
+        // `int()` hands back nil, and nil is what "not given at all" looks like
+        // from every call site — so `duo triage --max-calls 2.5` ran the default
+        // cap of 6, and `--max-concurrency 8x` kept probing four hosts at once
+        // while the person who typed it believed they had slowed the sweep down.
+        // An empty value is left to the loop above, whose message fits it better.
+        for name in flags.keys.sorted() where seen.integerFlags.contains(name) {
+            guard let raw = flags[name], !raw.isEmpty, Int(raw) == nil else { continue }
+            return UsageError("--\(name) needs a whole number, got '\(raw)'")
         }
         // No operand in this CLI is an app named `-something`, so a leading dash
         // here is a misspelled flag that the loop above never saw.

@@ -109,7 +109,10 @@ import Testing
             .deletingLastPathComponent()   // Tests
             .deletingLastPathComponent()   // CLI
             .appendingPathComponent("Sources")
-        let asValue = /\.(?:value|int|list)\("([a-z0-9-]+)"\)/
+        // Tolerant of a wrapped call and of a camelCase name, so a read the
+        // scan cannot see stays rare — an invisible read reports as a declared
+        // flag nobody reads, which is a nudge to delete a needed entry.
+        let asValue = /\.(?:value|int|list)\(\s*"([A-Za-z0-9-]+)"\s*\)/
 
         let files = try #require(
             FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
@@ -126,8 +129,8 @@ import Testing
         #expect(read.count > 5, "only \(read.count) flag reads found under \(sources.path)")
         #expect(Args.valueFlags == read, """
             valueFlags and the flags read as values have drifted.
-            declared but unread (refused by unrecognised()): \(Args.valueFlags.subtracting(read).sorted())
-            read but undeclared (value lands in operands): \(read.subtracting(Args.valueFlags).sorted())
+            declared, no read found (unrecognised() refuses it): \(Args.valueFlags.subtracting(read).sorted())
+            read, not declared (the value lands in operands): \(read.subtracting(Args.valueFlags).sorted())
             """)
     }
 }

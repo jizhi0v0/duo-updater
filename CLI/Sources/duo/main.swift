@@ -222,22 +222,32 @@ case "ignore", "unignore", "skip", "unskip":
     run = { await Visibility.run(options) }
 
 case "backups":
-    let operation: Backups.Options.Operation
-    switch args.operands.first {
-    case "list", nil:
-        operation = .list
-    case "restore":
-        guard args.operands.count == 2 else {
-            die("backups restore needs exactly one app\n\n\(usage)", code: 2)
+    // Which operation the operands name is worked out inside `run`, not here.
+    // This is the only branch that can die on an *operand*, and dying here beat
+    // `unrecognised()` to it: a mistyped flag whose value fell through to the
+    // operands got the value blamed for it, so `duo backups --timeout 5` said
+    // "unknown backups operation '5'" about a `5` the user never typed alone.
+    let operands = args.operands
+    let json = args.has("json")
+    let assumeYes = args.has("yes")
+    run = {
+        let operation: Backups.Options.Operation
+        switch operands.first {
+        case "list", nil:
+            operation = .list
+        case "restore":
+            guard operands.count == 2 else {
+                die("backups restore needs exactly one app\n\n\(usage)", code: 2)
+            }
+            operation = .restore(app: operands[1])
+        case let other?:
+            die("unknown backups operation '\(other)'; expected list or restore", code: 2)
         }
-        operation = .restore(app: args.operands[1])
-    case let other?:
-        die("unknown backups operation '\(other)'; expected list or restore", code: 2)
+        var options = Backups.Options(operation: operation)
+        options.json = json
+        options.assumeYes = assumeYes
+        return await Backups.run(options)
     }
-    var options = Backups.Options(operation: operation)
-    options.json = args.has("json")
-    options.assumeYes = args.has("yes")
-    run = { await Backups.run(options) }
 
 case "doctor":
     let json = args.has("json")

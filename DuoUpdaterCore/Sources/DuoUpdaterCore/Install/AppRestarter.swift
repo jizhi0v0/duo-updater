@@ -103,7 +103,13 @@ public enum AppRestarter {
         if main.isEmpty {
             // Put back the nested apps that were open. `nestedBundles` can't be
             // empty here: `running` (= main + nested) was non-empty and main is,
-            // so something in `nested` was.
+            // so something in `nested` was — and `nested.compactMap(\.bundleURL)`
+            // can't drop it, because `nestedRunningInstances(of:)` only ever
+            // admits instances with a non-nil `.app` `bundleURL` in the first
+            // place (`isNestedInside` requires one to test containment;
+            // `isStandaloneNestedApp` requires `bundleURL?.pathExtension == "app"`).
+            // So `nestedBundles.count == nested.count` always, and it's non-empty
+            // here too.
             let results = await reopenNestedApps(nestedBundles, frontmostPath: frontmostPath)
             let relaunched = allNestedBack(results)
             Log.install.info(

@@ -62,6 +62,38 @@ issue 都是无效的,提之前先看这个文件。第三方 app 只有 Intel �
 prerelease。三个 agent 同一个错误形状,所以这条写进 CLAUDE.md 而不是 memory——
 subagent 读不到 memory。
 
+## 版本比较:显示版本不一定动,build 才是变的那个
+
+macOS bundle 带两个版本串:`CFBundleShortVersionString`(marketing,给人看的)和
+`CFBundleVersion`(build)。**有些 app 只涨 build,marketing 长期不动** —— Amp 2026-08-29
+一天发了十个 build,全叫 `1.0`;Surge 有四个发布都叫 `6.9.0`;JetBrains 的 preview 同理。
+
+对这类 app,**任何拿 marketing 串做的判断都会静默退化**:`isNewer("1.0","1.0")` 恒假,
+`"1.0" == "1.0"` 恒真。于是「变了吗」永远答"没变",「到位了吗」永远答"到了" —— 守卫还在,
+判据废了。2026-08-29 一次修了 **14 处**,其中 `UpdatePolicy` 里对的写法和错的写法
+**相隔五行**。用户侧的后果包括:Relaunch 空转 189 秒然后报假失败(交换其实早成功了)、
+skip 一次把 app **永久静音**、真实更新后 Rollback 行被藏起来。
+
+规矩:
+
+- **不要在调用点挑一个版本"串"**。传 `VersionSide`(marketing + build 一起),用
+  `VersionComparator.isNewer(_:than:)` / `isSame(_:as:)` / `hasReached(_:disk:)`。它们
+  marketing 优先、打平时才由 build 裁决、**绝不跨命名空间比**(`45830` 不得读作比 `1.96.0` 新)、
+  判断不了时失败关闭。
+- **`shortVersion ?? buildVersion` 用于显示可以,喂给比较就是 bug**;`buildVersion ?? shortVersion`
+  才是比较用的顺序。`RemoteVersion.displayVersion` 同理——它是显示用的,比较要 `versionSide`。
+- ⚠️ **`AppScanner.buildVersionIsOverridden` 的 app(Xcode、豆包输入法)存的 build 不是 bundle 自己的**。
+  豆包真实的 `CFBundleVersion` 每个 build 都是平的 `1`,scanner 存的是自定义 key 里那个数。
+  **拿它跟直接读 plist 的结果比就是两个命名空间**,会恒假。要么退回只比 marketing,要么两边都用同一来源。
+- `scripts/check_staged_version_use.py`(挂在 `make test` 里)会拦住 marketing-first 喂进比较、
+  以及只读 marketing 半边做变化检测。**它是兜底不是证明**:窗口按语句算,**看不见跨文件的数据流**
+  —— 备份标签喂给 workbench 过滤器那处就是这样漏的。合法的 marketing-first 比较用
+  `version-lint:allow-marketing-first` 加理由豁免,别改规则。
+
+顺带一条会决定你把代码放哪:**`App/Sources` 有一万三千行、`App/project.yml` 里没有测试 target**,
+所以那里的判断没人执行。14 处里 9 处长在那儿,不是巧合。**判断逻辑放 Core**(`RelaunchProgress`、
+`PackageRestartState`、`VisibilityRules` 都是这么落的),App 只留接线。
+
 ## 供应商 recipe 的失效是常态
 
 vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。所以:

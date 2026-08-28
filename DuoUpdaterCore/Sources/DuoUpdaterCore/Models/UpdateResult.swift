@@ -352,6 +352,32 @@ extension UpdateResult {
         return (from.text(withBuild: withBuild), to.text(withBuild: withBuild))
     }
 
+    /// Both ends of the *staged* relaunch line: the bundle installed now on the
+    /// left, the build a relaunch would install on the right.
+    ///
+    /// The sibling of `relaunchLine(from:to:)`'s other caller, and it exists
+    /// because that rule reached only one of the two relaunch lines. The staged
+    /// line formatted each side as a bare `CFBundleShortVersionString`, so an app
+    /// whose marketing version does not move rendered as "1.0 → 1.0" — a line
+    /// that names no difference at all. Amp is the extreme case: it stayed on
+    /// "1.0" through ten builds in the six hours after it shipped, and every one
+    /// of them offered a relaunch that said nothing.
+    ///
+    /// Both sides come from a bundle's own `Info.plist` — `staged.buildVersion`
+    /// is read from the staged bundle by `SelfUpdaterStaging`, which already
+    /// compares it against the installed build to decide the row is offerable at
+    /// all — so the number was on hand the whole time; only this line did not ask
+    /// for it. `strippingBuildPrefix` on both, matching `relaunchTargetSide`, so a
+    /// vendor that prefixes its build (`v1234`) is compared and shown in one
+    /// namespace.
+    public func stagedRelaunchLine(_ staged: StagedSelfUpdate) -> (from: String, to: String) {
+        Self.relaunchLine(
+            from: VersionSide(marketing: app.shortVersion,
+                              build: app.buildVersion.map(Self.strippingBuildPrefix)),
+            to: VersionSide(marketing: staged.version,
+                            build: staged.buildVersion.map(Self.strippingBuildPrefix)))
+    }
+
 }
 
 public enum UpdateStatus: Sendable, Equatable {

@@ -118,4 +118,66 @@ import Testing
                     "one end kept its build and the other dropped it: \(line)")
         }
     }
+
+    // MARK: - The staged relaunch line
+
+    private func staged(version: String, build: String?) -> StagedSelfUpdate {
+        StagedSelfUpdate(
+            version: version, buildVersion: build,
+            stagedBundlePath: URL(fileURLWithPath: "/tmp/staged/Amp.app"))
+    }
+
+    /// The bug this pair exists for: `stagedVersionLine` formatted each side as a
+    /// bare `CFBundleShortVersionString`, so the rule above reached only ONE of the
+    /// two relaunch lines. Amp ships every build as "1.0" — the row read
+    /// "1.0 → 1.0" and named no difference at all, while both build numbers were
+    /// already in hand (`SelfUpdaterStaging` compares them to decide the row is
+    /// offerable).
+    @Test func stagedLineKeepsTheBuildsWhenTheMarketingVersionDoesNotMove() {
+        let line = result(short: "1.0", build: "128")
+            .stagedRelaunchLine(staged(version: "1.0", build: "130"))
+        #expect(line.from == "1.0 (128)")
+        #expect(line.to == "1.0 (130)")
+    }
+
+    /// The other half of the same rule, so the fix cannot be "always show builds":
+    /// when the marketing versions already differ, the build is noise.
+    @Test func stagedLineDropsTheBuildsWhenTheMarketingVersionsAlreadyDiffer() {
+        let line = result(short: "1.7.3", build: "194")
+            .stagedRelaunchLine(staged(version: "1.8.0", build: "201"))
+        #expect(line.from == "1.7.3")
+        #expect(line.to == "1.8.0")
+    }
+
+    /// Both ends are put through `strippingBuildPrefix`, matching
+    /// `relaunchTargetSide` — a vendor that prefixes its build must not end up with
+    /// one side stripped and the other not, which would read as two namespaces.
+    ///
+    /// The prefix it strips is a letters-then-dash one (`nightly-1234`); a bare
+    /// `v1234` has no dash and is left alone, which is the existing contract and is
+    /// asserted here so this test cannot be read as claiming more than it does.
+    @Test func stagedLineStripsBuildPrefixesOnBothEnds() {
+        let line = result(short: "2.0", build: "nightly-1234")
+            .stagedRelaunchLine(staged(version: "2.0", build: "nightly-1235"))
+        #expect(line.from == "2.0 (1234)")
+        #expect(line.to == "2.0 (1235)")
+
+        let undashed = result(short: "2.0", build: "v1234")
+            .stagedRelaunchLine(staged(version: "2.0", build: "v1235"))
+        #expect(undashed.from == "2.0 (v1234)")
+        #expect(undashed.to == "2.0 (v1235)")
+    }
+
+    /// A staged bundle with no `CFBundleVersion` leaves the installed side showing
+    /// its build against a bare target. That asymmetry is the established format,
+    /// not a bug: `neitherEndSuppressesABuildTheOtherIsShowing` above judges only
+    /// the sides that COULD carry a parenthesised build, because a side with no
+    /// build has nothing to put in parentheses. Pinned here so the staged line is
+    /// held to the same reading as the restart line rather than quietly diverging.
+    @Test func stagedLineWithNoStagedBuildKeepsTheInstalledBuildAsIs() {
+        let line = result(short: "1.0", build: "128")
+            .stagedRelaunchLine(staged(version: "1.0", build: nil))
+        #expect(line.from == "1.0 (128)")
+        #expect(line.to == "1.0")
+    }
 }

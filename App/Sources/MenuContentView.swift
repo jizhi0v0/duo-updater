@@ -1192,12 +1192,19 @@ private struct AppRow: View {
 
     /// The staged-relaunch version line: installed → staged. `actionableStaged`
     /// guarantees the staged build is the latest, so there's nothing newer to note.
+    ///
+    /// Formatted by `UpdateResult.stagedRelaunchLine`, which keeps the build
+    /// numbers when the marketing versions do not tell the two apart — the same
+    /// rule `restartVersionLine` above gets from `relaunchLine`, which this line
+    /// went without until an app that ships every build as "1.0" made it read
+    /// "1.0 → 1.0".
     @ViewBuilder
     private func stagedVersionLine(_ staged: StagedSelfUpdate) -> some View {
+        let line = result.stagedRelaunchLine(staged)
         HStack(spacing: 4) {
-            Text(result.app.shortVersion ?? "?")
+            Text(line.from)
             Image(systemName: "arrow.right").font(.caption2)
-            Text(staged.version).fontWeight(.semibold).foregroundStyle(.tint)
+            Text(line.to).fontWeight(.semibold).foregroundStyle(.tint)
         }
         .font(.caption)
         .lineLimit(1)

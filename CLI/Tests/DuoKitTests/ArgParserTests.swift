@@ -217,9 +217,11 @@ import Testing
     /// findings: `duo triage --dry-run --max-calls 2 …` analysed two and
     /// `--max-calls 2.5` analysed five, exit 0, saying nothing — the cap had
     /// fallen back to its default of 6. Not measured, read off the same code
-    /// path: `--max-concurrency 8x` leaves the sweep on its default of four
-    /// hosts in flight, which is the wrong way round for someone narrowing it
-    /// to spare an endpoint that just rate-limited them.
+    /// path: `--max-concurrency 1x` leaves the sweep on its default of four
+    /// hosts in flight instead of the one asked for — the wrong way round for
+    /// someone slowing a sweep to spare an endpoint that just rate-limited
+    /// them, and the reason a value silently ignored is not a value ignored
+    /// safely.
     ///
     /// The flags come from `main.swift` rather than being listed here. Two
     /// things that leaves uncovered: it reads that one file, so moving a
@@ -265,10 +267,18 @@ import Testing
     /// the likelier root cause, and the number may well have been meant for it.
     /// A missing value outranks an unparseable one for the same reason.
     @Test func aMistypedFlagIsReportedBeforeABadNumber() {
-        let args = Args(["duo", "verify", "--githubb", "--max-concurrency", "2.5"])!
-        _ = args.has("github")
-        _ = args.int("max-concurrency")
-        #expect(args.unrecognised()?.description.contains("unknown flag '--githubb'") == true)
+        let mistyped = Args(["duo", "verify", "--githubb", "--max-concurrency", "2.5"])!
+        _ = mistyped.has("github")
+        _ = mistyped.int("max-concurrency")
+        #expect(mistyped.unrecognised()?.description.contains("unknown flag '--githubb'") == true)
+
+        // The empty flag sorts after the bad number, so this passes only
+        // because the missing-value loop drains every flag before the number
+        // loop begins — not because of where the two happen to appear.
+        let valueless = Args(["duo", "verify", "--budget", "9x", "--only"])!
+        _ = valueless.int("budget")
+        _ = valueless.value("only")
+        #expect(valueless.unrecognised()?.description == "--only needs a value")
     }
 
     /// The empty case belongs to the older message, which fits it better —

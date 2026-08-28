@@ -137,10 +137,11 @@ public struct Args {
         }
         // A number flag holding something that is not a number. `Int.init` fails,
         // `int()` hands back nil, and nil is what "not given at all" looks like
-        // from every call site: `duo verify --max-concurrency 8x` swept with the
-        // default of four hosts in flight, which is the wrong way round for
-        // someone narrowing it to spare an endpoint. An empty value belongs to
-        // the loop above, whose message fits it better.
+        // from every call site: `duo verify --max-concurrency 1x` swept with the
+        // default of four hosts in flight rather than the one asked for, which
+        // is the wrong way round for someone slowing a sweep to spare an
+        // endpoint. An empty value belongs to the loop above, whose message
+        // fits it better.
         for (name, raw) in flags.sorted(by: { $0.key < $1.key })
         where seen.integerFlags.contains(name) && !raw.isEmpty && Int(raw) == nil {
             return UsageError("--\(name) needs a whole number, got '\(raw)'")

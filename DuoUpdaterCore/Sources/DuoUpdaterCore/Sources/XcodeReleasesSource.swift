@@ -134,7 +134,8 @@ public struct XcodeReleasesSource: UpdateSource {
         // Same reason every other version feed sets this: a long max-age would
         // otherwise let a stale copy hide a release for days.
         request.cachePolicy = URLRequest.versionFeedCachePolicy
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "XcodeReleases")
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }

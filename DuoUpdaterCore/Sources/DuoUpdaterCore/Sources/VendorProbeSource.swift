@@ -705,7 +705,8 @@ public struct VendorProbeSource: UpdateSource {
             let okRange = recipe.followRedirects ? (200..<300) : (200..<400)
             let data: Data
             let response: URLResponse
-            do { (data, response) = try await activeSession.data(for: request) }
+            do { (data, response) = try await activeSession.versionFeedData(
+                for: request, label: "VendorProbe \(recipe.bundleID)") }
             catch { return .failure(Self.transportFailure(error)) }
             guard let http = response as? HTTPURLResponse else {
                 return .failure(.nonHTTPResponse)
@@ -922,7 +923,8 @@ public struct VendorProbeSource: UpdateSource {
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
         let data: Data
         let response: URLResponse
-        do { (data, response) = try await session.data(for: request) }
+        do { (data, response) = try await session.versionFeedData(
+            for: request, label: "VendorProbe zip \(url.host ?? "?")") }
         catch { return .failure(Self.transportFailure(error)) }
         guard let http = response as? HTTPURLResponse else {
             return .failure(.nonHTTPResponse)

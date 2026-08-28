@@ -187,7 +187,8 @@ public struct MacAppStoreSource: UpdateSource {
             forHTTPHeaderField: "User-Agent"
         )
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "App Store page id\(trackId)")
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
               let html = String(data: data, encoding: .utf8) else { return nil }
         return extractMacVersionInfo(from: html)
@@ -261,7 +262,8 @@ public struct MacAppStoreSource: UpdateSource {
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
             forHTTPHeaderField: "User-Agent"
         )
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "App Store compat id\(trackId)")
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
               let html = String(data: data, encoding: .utf8) else { return nil }
         return extractMacCompatible(from: html)
@@ -340,7 +342,8 @@ public struct MacAppStoreSource: UpdateSource {
         request.timeoutInterval = 15
         request.cachePolicy = URLRequest.versionFeedCachePolicy
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "App Store lookup \(bundleID)")
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw MASError.badStatus(http.statusCode)
         }

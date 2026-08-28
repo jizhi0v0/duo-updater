@@ -142,7 +142,8 @@ public struct AlcoveUpdateSource: UpdateSource {
         if let b = app.buildVersion { request.setValue(b, forHTTPHeaderField: "x-app-build") }
         request.setValue(Self.osVersion, forHTTPHeaderField: "x-macos-version")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "Alcove updates/latest")
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             return nil
         }

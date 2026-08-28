@@ -1,0 +1,77 @@
+import Foundation
+
+public extension URLSession {
+
+    /// The HTTP statuses a *version feed* request retries once, and nothing else.
+    ///
+    /// All three mean "an intermediary could not reach the origin right now" —
+    /// they carry no claim about the request itself, so the same bytes sent a
+    /// moment later routinely succeed. Headlamp's check died on exactly this:
+    /// `api.github.com` answered 504 with no `X-RateLimit-Remaining` header at
+    /// all, i.e. the request never reached GitHub's application layer.
+    ///
+    /// What is deliberately *not* here matters more than what is:
+    ///
+    /// - **500** — an origin that did reach the application and threw. Repeating
+    ///   it usually reproduces it, and a vendor whose feed 500s consistently is a
+    ///   broken recipe we want to see reported, not smoothed over.
+    /// - **403 / 429** — GitHub's unauthenticated 60/hour limit. Retrying a rate
+    ///   limit spends the budget it is complaining about and brings the reset
+    ///   nearer; `UpdateStatus.isRateLimitError` already drives a proper UI nudge.
+    /// - **4xx generally** — a definitive answer about *this* request.
+    static let retryableGatewayStatuses: Set<Int> = [502, 503, 504]
+
+    /// How long to wait before the single retry.
+    ///
+    /// Long enough that we are not re-asking the same wedged edge node in the
+    /// same instant, short enough to stay inside one update-check round rather
+    /// than stretching a 130-app fan-out. It is a fixed pause, not a growing
+    /// backoff, because there is only ever one retry to schedule.
+    static let gatewayRetryDelay: Duration = .milliseconds(800)
+
+    /// GET a version feed, retrying **exactly once** when the answer is a
+    /// gateway 5xx (see ``retryableGatewayStatuses``).
+    ///
+    /// The retry is invisible to the caller: this returns whatever the second
+    /// attempt produced, so every existing status guard keeps its own meaning —
+    /// a source that throws on non-2xx still throws, one that returns nil still
+    /// returns nil. On any other status (including a 5xx not in the set) the
+    /// first response is handed back untouched and no second request is made.
+    ///
+    /// Only for **idempotent GETs on the update-check path**. A POST that
+    /// mints a token or otherwise changes server state must not go through here.
+    ///
+    /// A transport-level failure (`URLError`) is not retried: `Downloader` owns
+    /// that policy for the bytes that matter, and a source that cannot connect
+    /// at all is already reported as a retryable row.
+    func versionFeedData(
+        for request: URLRequest,
+        label: String,
+        retryDelay: Duration = URLSession.gatewayRetryDelay
+    ) async throws -> (Data, URLResponse) {
+        let first = try await data(for: request)
+        guard let http = first.1 as? HTTPURLResponse,
+              Self.retryableGatewayStatuses.contains(http.statusCode)
+        else { return first }
+        // Safe by construction rather than by every caller remembering: a body-carrying
+        // method is not ours to send twice. `VendorProbeSource` builds GET and POST
+        // probes through one code path (`recipe.requestBody` decides), so the guard has
+        // to live here — a call site that "knows" it is a GET is one recipe away from
+        // being wrong. nil means GET.
+        let method = (request.httpMethod ?? "GET").uppercased()
+        guard method == "GET" || method == "HEAD" else {
+            Log.source.info(
+                "\(label, privacy: .public): HTTP \(http.statusCode, privacy: .public) on \(method, privacy: .public) — not retried")
+            return first
+        }
+
+        Log.source.info(
+            "\(label, privacy: .public): HTTP \(http.statusCode, privacy: .public) — retrying once")
+        try await Task.sleep(for: retryDelay)
+        let second = try await data(for: request)
+        let status = (second.1 as? HTTPURLResponse)?.statusCode
+        Log.source.info(
+            "\(label, privacy: .public): gateway retry → \(status.map(String.init) ?? "non-HTTP", privacy: .public)")
+        return second
+    }
+}

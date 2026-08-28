@@ -423,7 +423,8 @@ public struct GitHubReleasesSource: UpdateSource {
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
 
         Log.source.debug("GitHub GET \(endpoint, privacy: .public) (auth=\(self.token != nil, privacy: .public))")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "GitHub \(rule.slug)")
         guard let http = response as? HTTPURLResponse else { return nil }
         guard (200..<300).contains(http.statusCode) else {
             let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "?"

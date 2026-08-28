@@ -585,7 +585,7 @@ private struct WorkbenchActionView: View {
             Button("Relaunch") { Task { await model.relaunchStagedUpdate(result) } }
                 .buttonStyle(.bordered)
                 .tint(.orange)
-                .help("\(result.app.name) already downloaded \(staged.version) — relaunch to apply it")
+                .help("\(result.app.name) already downloaded \(result.stagedRelaunchLine(staged).to) — relaunch to apply it")
         } else if model.needsRestart.contains(result.id) && !result.hasUpdate {
             Button("Relaunch") { Task { await model.restart(result) } }
                 .buttonStyle(.bordered)

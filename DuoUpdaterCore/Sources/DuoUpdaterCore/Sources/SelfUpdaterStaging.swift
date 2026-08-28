@@ -20,6 +20,24 @@ public struct StagedSelfUpdate: Sendable, Hashable {
         self.buildVersion = buildVersion
         self.stagedBundlePath = stagedBundlePath
     }
+
+    /// What identifies this staged build when the question is "is this a
+    /// different build from the one we last saw" — newness comparisons and the
+    /// announce-once ledger.
+    ///
+    /// The build number first, because `version` is a *marketing* string an app
+    /// is free to leave alone across any number of builds: Amp shipped ten builds
+    /// as "1.0" in one day, Surge shipped four releases as "6.9.0". Keyed on
+    /// `version`, an announce-once ledger announces the first of those and then
+    /// treats all nine of the rest as already-seen — quiet becoming silence,
+    /// which is the exact failure `StagedNudgeLedger` documents itself as
+    /// avoiding. Falls back to `version` for a staged bundle with no
+    /// `CFBundleVersion`, where it is the only string there is.
+    ///
+    /// NOT for display: it is a bare build number with no marketing version in
+    /// front of it. `UpdateResult.stagedRelaunchLine` is what a row or a
+    /// notification should show.
+    public var buildIdentity: String { buildVersion ?? version }
 }
 
 /// Detects updates that an app's *own* Squirrel updater (Electron's
@@ -102,7 +120,7 @@ public enum SelfUpdaterStaging {
             // Offering Relaunch for an older staged build would be offering a
             // downgrade, which is exactly the ChatGPT case.
             if requireNewerThanInstalled {
-                let stagedV = staged.buildVersion ?? staged.version
+                let stagedV = staged.buildIdentity
                 guard let installedV = app.buildVersion ?? app.shortVersion,
                       VersionComparator.isNewer(stagedV, than: installedV) else { return nil }
             }

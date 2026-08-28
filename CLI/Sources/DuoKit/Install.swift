@@ -235,7 +235,7 @@ public enum Install {
             result,
             staged: SelfUpdaterStaging.staged(
                 for: result.app, requireNewerThanInstalled: false)) {
-            return .refuse("its own updater has \(staged.version) staged for the next quit "
+            return .refuse("its own updater has \(result.stagedRelaunchLine(staged).to) staged for the next quit "
                 + "— installing now would be undone (quit it to apply)")
         }
         if let inFlight = SelfUpdaterStaging.inFlightDownload(for: result.app) {

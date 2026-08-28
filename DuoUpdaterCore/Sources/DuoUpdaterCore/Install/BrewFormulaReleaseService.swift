@@ -6,7 +6,11 @@ import Foundation
 /// the release tag. From that we fetch the GitHub release body and parse it into the
 /// same structured `Changelog` the app rows render, so formula notes look native.
 /// Non-GitHub formulae (Go, GNU tools) fall back to their homepage.
-public struct FormulaRelease: Sendable, Codable, Hashable {
+// `Equatable` (not `Hashable`) because that is all anything needs: the cache
+// round-trip test compares two values. Nothing hashes a `FormulaRelease` — it is
+// never a dictionary key or a Set member — and widening a public type further
+// than its use requires is API surface nobody asked for.
+public struct FormulaRelease: Sendable, Codable, Equatable {
     /// Structured notes, when a GitHub release body was found and parsed. nil falls
     /// the UI back to `pageURL` (rendered in a web view).
     public let changelog: Changelog?

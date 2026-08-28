@@ -89,7 +89,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**AionUi**](com-aionui-app.md) · `com.aionui.app` — P (detection-only) · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Msty Studio**](MstyStudio.md) · `MstyStudio` — P (detection-only) · real DMG + live probe ✓ · 2026-08-17
 
-- [x] [**豆包输入法 (DoubaoIme)**](com-bytedance-inputmethod-doubaoime.md) · `com.bytedance.inputmethod.doubaoime` — P+C · 比厂商 version code（装机侧在自定义键 `Wave Build Version Number`，CFBundleVersion 是废号 1）· changelog 走 app 自己的更新接口 · **一键 ✓（2026-08-28，Contents 轮换）**——registry 里唯一一个下载的不是 app（`nestedArchivePath` 拆安装器壳）· 真机 90602→90703 端到端 ✓ · channel-verify ✓ · 2026-08-21 / 2026-08-28
+- [x] [**搜狗输入法 (SogouInput)**](com-sogou-inputmethod-sogou.md) · `com.sogou.inputmethod.sogou` — P · 版本读**厂商自己的条件更新接口**（pin `v=0.0.0.1` 装成很旧的客户端去问；已验证不做分段升级，六个历史版本都答同一个最新版）· 返回的版本与 `CFBundleShortVersionString` 四段完全一致，无需任何裁剪 · 哨兵 `1.0.0.1` 由 `update_pack_url` 守卫挡掉 · 不发设备 hash · notes 走更新日志页 · detection-only（装机附带两个 LaunchAgent + QuickLook + 用户目录迁移；自更新 payload 另有 pre/post/switch 脚本）· 2026-08-28
+- [x] [**豆包输入法 (DoubaoIme)**](com-bytedance-inputmethod-doubaoime.md) · `com.bytedance.inputmethod.doubaoime` — P+C · 比厂商 version code（装机侧在自定义键 `Wave Build Version Number`，CFBundleVersion 是废号 1）· changelog 走 app 自己的更新接口 · detection-only（输入法整类闸）· channel-verify ✓ · 2026-08-21
 - [x] [**微信输入法 (WeType)**](com-tencent-inputmethod-wetype.md) · `com.tencent.inputmethod.wetype` — P+C · 读厂商安装器自己读的 InstallInfo manifest（此前抓的是**安装器壳的版本**，用错 namespace 不会失败、只会答错号）· **一键 ✓（2026-08-28 重新接入，Contents 轮换 + 用户数据快照）**——0.3.25 上线当天撤回的那条，证据链与复活理由都在文档里 · 真机红→绿 656→657 + 回滚实测 ✓（历史 payload 仍可取，用来造红）· 2026-08-28
 
 - [x] [**WorkBuddy (Tencent)**](com-workbuddy-workbuddy.md) · `com.workbuddy.workbuddy-ai` + `com.workbuddy.workbuddy` — P (one-click, both sites) · 两站两个独立 app，非 channel · 每站按架构分两条 recipe · 两站真实 DMG channel-verify ✓ · 2026-08-27

@@ -507,13 +507,19 @@ public enum UpdatePolicy {
         // the only way to get a `StagedSelfUpdate`: the install gate deliberately
         // asks for trailing builds too (`stagedBlocksInstall`), and handing one of
         // those to this function must not produce a Relaunch.
-        let stagedVersion = staged.buildVersion ?? staged.version
-        if let installed = result.app.buildVersion ?? result.app.shortVersion,
-           !VersionComparator.isNewer(stagedVersion, than: installed) {
+        if !result.app.versionSide.isEmpty,
+           !VersionComparator.isNewer(staged.versionSide, than: result.app.versionSide) {
             return nil
         }
-        if let latest = result.remote?.displayVersion,
-           VersionComparator.isNewer(latest, than: staged.version) {
+        // Compared as PAIRS, not as `displayVersion` against `staged.version`.
+        // Both of those are marketing strings, so for an app that ships many
+        // builds under one name they are equal every time and this gate passed a
+        // staged build that trailed the latest — measured on Amp 2026-08-28,
+        // which offered Relaunch to build 129 while 130 was out. See
+        // `VersionComparator.isNewer(_:than:)` for why the build only decides
+        // when the marketing versions tie.
+        if let latest = result.remote?.versionSide, !latest.isEmpty,
+           VersionComparator.isNewer(latest, than: staged.versionSide) {
             return nil  // staged trails the latest — show Update, not Relaunch
         }
         return staged

@@ -38,6 +38,14 @@ public struct StagedSelfUpdate: Sendable, Hashable {
     /// front of it. `UpdateResult.stagedRelaunchLine` is what a row or a
     /// notification should show.
     public var buildIdentity: String { buildVersion ?? version }
+
+    /// Both version strings the staged bundle carries, for comparison against an
+    /// installed copy or a remote offer. Prefer this over ``buildIdentity`` where
+    /// the other side also has a pair: `buildIdentity` collapses to one string and
+    /// so has to assume a namespace, while a pair comparison does not.
+    public var versionSide: VersionSide {
+        VersionSide(marketing: version, build: buildVersion)
+    }
 }
 
 /// Detects updates that an app's *own* Squirrel updater (Electron's

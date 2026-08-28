@@ -28,6 +28,62 @@ public enum VersionComparator {
         compare(candidate, current) == .orderedDescending
     }
 
+    // MARK: - Pair comparison
+
+    /// True when `candidate` is strictly newer than `current`, deciding for
+    /// itself which half of each pair discriminates.
+    ///
+    /// Marketing first, because that is what a version *means* when it moves. Only
+    /// when both sides name the same marketing version — which is precisely when
+    /// that string has stopped carrying information — do the builds break the tie.
+    ///
+    /// **Never compares across namespaces.** A build ("45830") and a marketing
+    /// version ("1.96.0") are not on one scale, so a side missing its marketing
+    /// string is compared build-to-build or not at all. When nothing comparable
+    /// remains this answers `false`: "cannot tell" has to fail as "not newer",
+    /// since the callers use it to decide whether to offer an update, wait for a
+    /// swap, or overwrite an install.
+    public static func isNewer(_ candidate: VersionSide, than current: VersionSide) -> Bool {
+        if let a = candidate.marketing, let b = current.marketing {
+            let ordering = compare(a, b)
+            if ordering != .orderedSame { return ordering == .orderedDescending }
+            // Marketing ties. For a frozen-marketing app this is every comparison
+            // it will ever make, so the build is the whole answer here.
+            guard let ab = candidate.build, let bb = current.build else { return false }
+            return isNewer(ab, than: bb)
+        }
+        guard let ab = candidate.build, let bb = current.build else { return false }
+        return isNewer(ab, than: bb)
+    }
+
+    /// True when the two sides describe the same build.
+    ///
+    /// Every field **both** sides carry must agree; a field missing on either side
+    /// proves nothing and is skipped. With nothing comparable left this answers
+    /// `false` — two sides that cannot be compared are not known to be the same,
+    /// and callers use this to decide that a swap has landed.
+    ///
+    /// This is `RestartStandoff.decide`'s rule, which was the one place in the
+    /// codebase that had it right, lifted so everything else can share it.
+    public static func isSame(_ lhs: VersionSide, as rhs: VersionSide) -> Bool {
+        let comparable: [(String, String)] = [
+            (lhs.marketing, rhs.marketing),
+            (lhs.build, rhs.build),
+        ].compactMap { mine, theirs in
+            guard let mine, let theirs else { return nil }
+            return (mine, theirs)
+        }
+        guard !comparable.isEmpty else { return false }
+        return comparable.allSatisfy { $0.0 == $0.1 }
+    }
+
+    /// True when `disk` has reached `target` — the landing test for a swap we are
+    /// waiting on. Same build, or a newer one (an app may have moved past the
+    /// build we were expecting while we waited).
+    public static func hasReached(_ target: VersionSide, disk: VersionSide) -> Bool {
+        isSame(disk, as: target) || isNewer(disk, than: target)
+    }
+
     /// The leading numeric ("major") component, ignoring any prefix like "v".
     /// "6.9.1" → 6, "v7.1" → 7, returns nil when there's no number.
     public static func majorComponent(_ version: String) -> Int? {

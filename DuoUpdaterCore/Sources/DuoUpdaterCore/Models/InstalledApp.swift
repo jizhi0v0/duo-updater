@@ -42,6 +42,15 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// `CFBundleVersion` — the build number (e.g. "1.95.3" or "45821").
     public let buildVersion: String?
 
+    /// Both version strings this bundle carries, for anything deciding "is this
+    /// newer" or "has it changed". Nine sites used to open-code
+    /// `buildVersion ?? shortVersion` and five more used the marketing-first
+    /// order, which cannot discriminate for an app that freezes its marketing
+    /// string across builds. See ``VersionSide``.
+    public var versionSide: VersionSide {
+        VersionSide(marketing: shortVersion, build: buildVersion)
+    }
+
     /// Location of the `.app` bundle on disk.
     public let path: URL
 

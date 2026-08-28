@@ -251,7 +251,19 @@ public struct RemoteVersion: Sendable, Hashable {
     }
 
     /// Best version string to show the user.
+    ///
+    /// Marketing-first, which is right for DISPLAY and wrong for comparison — for
+    /// a vendor that freezes its marketing string this is the same value release
+    /// after release. Anything deciding "is this newer" wants ``versionSide``.
     public var displayVersion: String? { shortVersion ?? version }
+
+    /// Both halves of what the source reported, for comparison. `version` is the
+    /// build (Sparkle's `sparkle:version`, its canonical comparison key); some
+    /// sources report the marketing string there too, which is why the pair is
+    /// passed on rather than collapsed here.
+    public var versionSide: VersionSide {
+        VersionSide(marketing: shortVersion, build: version)
+    }
 }
 
 extension UpdateResult {
@@ -300,23 +312,10 @@ extension UpdateResult {
     /// The two ends are formatted together (see ``UpdateResult/relaunchLine(from:to:)``)
     /// rather than each on its own, which is the whole point: a side cannot tell on
     /// its own whether its build is the interesting part.
-    public struct VersionSide: Sendable, Equatable {
-        public var marketing: String?
-        public var build: String?
-
-        public init(marketing: String? = nil, build: String? = nil) {
-            self.marketing = marketing
-            self.build = build
-        }
-
-        /// "1.7.3 (194)", "1.7.3", or a bare "194" — whichever the parts support.
-        /// A build equal to the marketing version is never repeated after it.
-        public func text(withBuild: Bool) -> String {
-            guard let marketing else { return build ?? "?" }
-            guard withBuild, let build, build != marketing else { return marketing }
-            return "\(marketing) (\(build))"
-        }
-    }
+    /// Promoted to a top-level type (`Version/VersionSide.swift`) so the decision
+    /// sites outside this file can share it. Kept as a nested name because that is
+    /// what the display code and its tests already spell.
+    public typealias VersionSide = DuoUpdaterCore.VersionSide
 
     /// The on-disk side of a relaunch line: the version a relaunch will land.
     public var relaunchTargetSide: VersionSide {

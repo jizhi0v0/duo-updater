@@ -579,6 +579,59 @@ private func storeAvailability(
     #expect(UpdatePolicy.actionableStaged(noRemote, staged: staged("9.9")) != nil)
 }
 
+/// The Amp case, observed 2026-08-28. Amp shipped ten builds all called "1.0";
+/// Duo offered **Relaunch** for staged build 129 while the feed's latest was 130,
+/// so the user relaunched and was still a build behind — exactly what this gate's
+/// own doc comment says it exists to prevent ("relaunching to it would still
+/// leave the user a download behind").
+///
+/// The cause was a namespace mismatch five lines wide: the installed comparison
+/// above used `staged.buildVersion ?? staged.version`, and this one used
+/// `staged.version` against `remote.displayVersion` — both "1.0", so `isNewer`
+/// was false and the trailing build passed the gate.
+@Test func actionableStagedComparesBuildsWhenTheMarketingVersionIsFrozen() {
+    func ampApp(build: String) -> InstalledApp {
+        InstalledApp(
+            name: "Amp", bundleID: "com.ampcode.amp.macos",
+            shortVersion: "1.0", buildVersion: build,
+            path: URL(fileURLWithPath: "/Applications/Amp.app"),
+            isMASApp: false, sparkleFeedURL: nil,
+            hasSelfUpdater: false, hasSparkleUpdater: true)
+    }
+    func ampRemote(latestBuild: String, installedBuild: String) -> UpdateResult {
+        UpdateResult(
+            app: ampApp(build: installedBuild),
+            remote: RemoteVersion(
+                shortVersion: "1.0", version: latestBuild,
+                downloadURL: URL(string: "https://example.com/amp.dmg"),
+                sourceName: "Sparkle"),
+            status: .updateAvailable(latest: "1.0"))
+    }
+    func ampStaged(_ build: String) -> StagedSelfUpdate {
+        StagedSelfUpdate(version: "1.0", buildVersion: build,
+                         stagedBundlePath: URL(fileURLWithPath: "/tmp/Amp.app"))
+    }
+
+    // Staged 129 while the feed offers 130: a Relaunch here lands a build that is
+    // already behind, so the row must fall through to Update instead.
+    #expect(UpdatePolicy.actionableStaged(
+        ampRemote(latestBuild: "130", installedBuild: "128"),
+        staged: ampStaged("129")) == nil,
+        "staged 129 trails latest 130 — must not offer Relaunch")
+
+    // Staged IS the latest: Relaunch is exactly right, zero extra download.
+    #expect(UpdatePolicy.actionableStaged(
+        ampRemote(latestBuild: "130", installedBuild: "129"),
+        staged: ampStaged("130")) != nil,
+        "staged 130 == latest 130 — Relaunch is correct")
+
+    // And the downgrade guard still holds on builds alone.
+    #expect(UpdatePolicy.actionableStaged(
+        ampRemote(latestBuild: "130", installedBuild: "130"),
+        staged: ampStaged("129")) == nil,
+        "staged 129 below installed 130 would be a downgrade")
+}
+
 // MARK: - runtimeBundlePath
 
 @Test func runtimeBundlePathNormalizesStagedSuffixes() {

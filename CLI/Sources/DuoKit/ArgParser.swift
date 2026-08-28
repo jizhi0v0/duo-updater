@@ -114,10 +114,12 @@ public struct Args {
     /// sweep instead of the one recipe `--only` was meant to name, and `--githubb`
     /// spends the unauthenticated GitHub rate limit on the way past.
     ///
-    /// The corollary for whoever adds the next flag: read it unconditionally. A
-    /// flag read only inside an `if` is a flag this refuses whenever that `if`
-    /// is false, because from here "never asked about" and "not accepted" are
-    /// the same thing.
+    /// The corollary for whoever adds the next flag: read it unconditionally,
+    /// and read it before this runs. A flag read only inside an `if` is a flag
+    /// this refuses whenever that `if` is false, because from here "never asked
+    /// about" and "not accepted" are the same thing — and a number flag read
+    /// lazily, inside the `run` closure, opts itself out of the check below
+    /// the same way.
     public func unrecognised() -> UsageError? {
         let accepted = seen.flags.isEmpty
             ? "`duo \(subcommand)` takes no flags"
@@ -135,16 +137,16 @@ public struct Args {
         }
         // A number flag holding something that is not a number. `Int.init` fails,
         // `int()` hands back nil, and nil is what "not given at all" looks like
-        // from every call site — so `duo triage --max-calls 2.5` ran the default
-        // cap of 6, and `--max-concurrency 8x` kept probing four hosts at once
-        // while the person who typed it believed they had slowed the sweep down.
-        // An empty value is left to the loop above, whose message fits it better.
-        for name in flags.keys.sorted() where seen.integerFlags.contains(name) {
-            guard let raw = flags[name], !raw.isEmpty, Int(raw) == nil else { continue }
+        // from every call site: `duo verify --max-concurrency 8x` swept with the
+        // default of four hosts in flight, which is the wrong way round for
+        // someone narrowing it to spare an endpoint. An empty value belongs to
+        // the loop above, whose message fits it better.
+        for (name, raw) in flags.sorted(by: { $0.key < $1.key })
+        where seen.integerFlags.contains(name) && !raw.isEmpty && Int(raw) == nil {
             return UsageError("--\(name) needs a whole number, got '\(raw)'")
         }
         // No operand in this CLI is an app named `-something`, so a leading dash
-        // here is a misspelled flag that the loop above never saw.
+        // here is a misspelled flag that the unknown-flag loop never saw.
         if let stray = positional.first(where: { $0.hasPrefix("-") }) {
             return UsageError("unknown flag '\(stray)' for `duo \(subcommand)`; \(accepted)")
         }

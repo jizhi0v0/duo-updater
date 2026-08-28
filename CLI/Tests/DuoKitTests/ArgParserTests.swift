@@ -211,20 +211,37 @@ import Testing
 
     /// `int()` turns a value it cannot parse into nil, and nil is what "not
     /// given at all" looks like from every call site — the same shape #108 was
-    /// written to stop, hiding inside a flag that *is* accepted. Measured on
-    /// the shipped binary before this: `duo triage --max-calls 2.5` analysed
-    /// five findings, exit 0, saying nothing, because the cap fell back to its
-    /// default of 6. `--max-concurrency 8x` keeps four hosts in flight while
-    /// the person who typed it believes they slowed the sweep down.
+    /// written to stop, hiding inside a flag that *is* accepted.
     ///
-    /// Derived from `main.swift` rather than listing the three flags here: a
-    /// fourth number flag should not have to remember to be tested.
+    /// Measured on the shipped binary, against a report with five eligible
+    /// findings: `duo triage --dry-run --max-calls 2 …` analysed two and
+    /// `--max-calls 2.5` analysed five, exit 0, saying nothing — the cap had
+    /// fallen back to its default of 6. Not measured, read off the same code
+    /// path: `--max-concurrency 8x` leaves the sweep on its default of four
+    /// hosts in flight, which is the wrong way round for someone narrowing it
+    /// to spare an endpoint that just rate-limited them.
+    ///
+    /// The flags come from `main.swift` rather than being listed here. Two
+    /// things that leaves uncovered: it reads that one file, so moving a
+    /// branch's option-building into `DuoKit` empties the set; and it calls
+    /// `int()` itself, so it cannot see whether the branch that owns the flag
+    /// still calls `int()` before `unrecognised()` — which is what makes the
+    /// check fire at all.
     @Test func aNumberFlagRefusesAValueThatIsNotOne() throws {
         let main = try String(
             contentsOf: Self.sources.appendingPathComponent("duo/main.swift"), encoding: .utf8)
         let numeric = Set(main.matches(of: /\.int\(\s*"([A-Za-z0-9-]+)"\s*\)/).map { String($0.1) })
-        #expect(numeric.count >= 3, "only \(numeric.count) number flags found in main.swift")
+        // No count to keep in step with the code: empty would make the loop
+        // below vacuous, and completeness is `valueFlagsMatchesTheFlagsReadAsValues`'s
+        // job. A number flag that takes no value would be a contradiction, so
+        // that much is worth asserting here.
+        #expect(!numeric.isEmpty, "no number flags found in main.swift")
+        #expect(numeric.isSubset(of: Args.valueFlags),
+                "number flags that do not take a value: \(numeric.subtracting(Args.valueFlags).sorted())")
 
+        // The subcommand is immaterial: `unrecognised()` judges an invocation by
+        // what it asked the parser for, never by a table per command, so reading
+        // the flag here is what makes it accepted here.
         for name in numeric.sorted() {
             for bad in ["2.5", "8x", "abc", "1e3", "1_000"] {
                 let args = Args(["duo", "verify", "--\(name)", bad])!
@@ -232,14 +249,26 @@ import Testing
                 #expect(args.unrecognised()?.description
                         == "--\(name) needs a whole number, got '\(bad)'")
             }
-            // What it must not start refusing: the values that always worked.
-            // `-3` reaches its reader, which is where the clamping lives.
+            // What it must not start refusing: the values that always parsed.
+            // Zero and negatives are handed to the branch unchanged — what each
+            // does with them is its own business, and not all of them clamp.
             for good in ["2", "0", "-3"] {
                 let args = Args(["duo", "verify", "--\(name)", good])!
                 #expect(args.int(name) == Int(good))
                 #expect(args.unrecognised() == nil)
             }
         }
+    }
+
+    /// Only one problem is ever reported, so the order matters. A flag the
+    /// command never heard of outranks a bad value on one it did: the typo is
+    /// the likelier root cause, and the number may well have been meant for it.
+    /// A missing value outranks an unparseable one for the same reason.
+    @Test func aMistypedFlagIsReportedBeforeABadNumber() {
+        let args = Args(["duo", "verify", "--githubb", "--max-concurrency", "2.5"])!
+        _ = args.has("github")
+        _ = args.int("max-concurrency")
+        #expect(args.unrecognised()?.description.contains("unknown flag '--githubb'") == true)
     }
 
     /// The empty case belongs to the older message, which fits it better —

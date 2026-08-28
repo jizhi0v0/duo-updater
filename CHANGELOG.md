@@ -5,6 +5,12 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.70
+
+**An app that ships many builds under one version number is announced every time, not once.** 0.3.69 replaced the relaunch reminder that repeated every five minutes with one that speaks once per staged build. It identified that build by its version *name* — which is fine until an app leaves that name alone: Amp shipped ten builds in a day, all of them called 1.0, and after the first one Duo Updater had nothing more to say about any of them. Surge, which has shipped four separate releases as 6.9.0, and JetBrains' preview builds have the same shape. The build itself is what a reminder is now keyed on, so 0.3.69's promise — once per build — is true for these apps too. Only the notification was affected; the row and the badge always showed them.
+
+**A relaunch now says which build it will apply.** When an app's own updater has a new build waiting, the row read "1.0 → 1.0" for any app whose version name does not move between builds — a line naming no difference at all. It reads "1.0 (128) → 1.0 (130)" now, and only when the build is the thing that changed; where the version names already differ, the line stays as it was. The same correction reaches the places that were repeating the same unhelpful number: both Relaunch tooltips, the notification itself, the note explaining why an install was deferred, and `duo install`'s refusal.
+
 ## 0.3.69
 
 **微信输入法 and 豆包输入法 can be updated in one click again — and they are updated the way they update themselves.** One-click for input methods was withdrawn in 0.3.25 the day it shipped, after someone's input-method settings went missing. What was wrong with it was the shape of the install: it replaced the whole app, the way a first-time installer does. An input method is registered with macOS by the *location* of its app, and both of these apps update themselves without touching that location — they keep the app and exchange what is inside it. Duo Updater now does the same thing, so the registered app comes through an update as the same app, and a failure at any point leaves the copy you were running exactly where it was. Neither one asks for your password any more, either.

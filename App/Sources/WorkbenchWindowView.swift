@@ -761,6 +761,17 @@ private struct WorkbenchSidebarRow: View {
             Spacer()
         }
         .padding(.vertical, 2)
+        // The row is name + version with a Spacer holding the rest open; without a
+        // content shape the right-click only lands on the drawn parts, so the empty
+        // stretch beside a short name would come up with no menu.
+        .contentShape(Rectangle())
+        .contextMenu {
+            // The same "Open" the popover row offers, and it goes through
+            // `AppRestarter.launchApp` rather than `NSWorkspace.open` for the same
+            // reason: the latter blocks the main thread until the app has finished
+            // launching.
+            Button("Open") { Task { await AppRestarter.launchApp(result.app.path) } }
+        }
     }
 
     @ViewBuilder

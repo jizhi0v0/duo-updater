@@ -3130,7 +3130,17 @@ final class AppListModel {
         persistStagedPackages()
         installNotes[result.id] = nil
         inFlightNotes[result.id] = nil
-        installErrors[result.id] = nil
+        // installErrors is deliberately left alone. Any error sitting here did not
+        // come from the package we just threw away: `openStagedPackage`'s own
+        // failure path already clears `stagedPackages[id]` itself (so this
+        // function would have returned above, at the `guard let staged` — there
+        // would be nothing left to discard), and the only other writer that can
+        // reach this row while a staged package still validates is a *separate*
+        // install attempt — e.g. "Update All" re-queues this row (staging doesn't
+        // clear `hasUpdate`, so `installAllTargets` still offers it) and its fresh
+        // download fails before `PackageInstaller.downloadAndOpen` reaches
+        // `beforeOpen`/`retireStagedPackage`. That error describes THAT attempt,
+        // not this discard, and stays on the row for the user to see.
         Log.install.info("package discarded by user: \(result.app.name, privacy: .public) \(staged.version, privacy: .public)")
     }
 

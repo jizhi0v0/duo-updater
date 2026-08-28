@@ -60,6 +60,10 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///      `org.mozilla.firefox` with Stable. Verified against real bundles
     ///      2026-06-04; the version-suffix heuristic below silently misclassified
     ///      them (an ESR install read as `.stable`, then offered the stable build).
+    ///   0.5/0.6. Two more bundle-id-scoped rules, deliberately ahead of Keystone —
+    ///      Android Studio and DB Browser for SQLite, whose only on-disk channel
+    ///      signal is the installed BUNDLE FILENAME (not the display name or
+    ///      version string). See the block comment on each check, below, for why.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).

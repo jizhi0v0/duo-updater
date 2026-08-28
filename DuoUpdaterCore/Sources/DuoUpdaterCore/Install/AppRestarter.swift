@@ -101,9 +101,15 @@ public enum AppRestarter {
         // Surge. Nothing of a parent that is not running is stale, so there is
         // nothing for us to put back.
         if main.isEmpty {
-            // Put back the nested apps that were open. `nestedBundles` can't be
-            // empty here: `running` (= main + nested) was non-empty and main is,
-            // so something in `nested` was.
+            // Put back the nested apps that were open. `nested` can't be empty
+            // here: `running` (= main + nested) was non-empty and main is, so
+            // something in `nested` was. `nestedBundles` itself CAN still end up
+            // empty — it's `nested.compactMap(\.bundleURL)`, which drops any
+            // instance whose `bundleURL` is nil — but that's harmless: the loop in
+            // `reopenNestedApps` below then does nothing, `allNestedBack([])` is
+            // vacuously true, and the log line after this still reports the
+            // (accurate, if slightly odd for that case) "was not running itself —
+            // only its nested app(s) needed clearing (nested relaunched=true)".
             let results = await reopenNestedApps(nestedBundles, frontmostPath: frontmostPath)
             let relaunched = allNestedBack(results)
             Log.install.info(

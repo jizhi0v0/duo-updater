@@ -2872,10 +2872,14 @@ public enum VendorProbeRegistry {
         // highest, instead of three separate first-matches over the whole feed
         // that could each land on a different entry (flipping `selectHighest` on
         // `versionPattern` alone would have done exactly that — see its doc).
-        // dmg patterns mirror each channel set — though these installs are
-        // Toolbox-managed → detection-only, so the install spec is suppressed at the
-        // source and the user updates through Toolbox; the dmg set just stays in
-        // lockstep with the version set. Team EQHXZ8M8AV.
+        // dmg patterns mirror each channel set. Suppression is conditional, not a
+        // property of this recipe: `VendorProbeSource` sets `allowInstall` from
+        // `InstalledApp.prefersVendorProbeOverToolbox`, which is true only for a
+        // Toolbox-MANAGED Canary/Beta — that copy stays detection-only and updates
+        // through Toolbox. A HAND-INSTALLED Canary/Beta (`isToolboxManaged ==
+        // false`) gets `allowInstall = true` and IS offered this one-click, which is
+        // why the dmg patterns above must stay correct and in lockstep with the
+        // version set, not merely decorative. Team EQHXZ8M8AV.
         VendorProbeRecipe(
             bundleID: "com.google.android.studio",
             url: URL(string: "https://jb.gg/android-studio-releases-list.json")!,

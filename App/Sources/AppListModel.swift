@@ -424,6 +424,35 @@ final class AppListModel {
 
     var updateCount: Int { results.filter(isActionableUpdate).count }
 
+    /// A row the popover lists as still having something for the user to do: a
+    /// pending update, or a relaunch that finishes one already on disk.
+    ///
+    /// The badge counts these, not `updateCount`. A row waiting to be relaunched
+    /// is by construction NOT an actionable update — `computeRestartInfo` only
+    /// admits an id to `needsRestart` when `!hasUpdate`, since a row with something
+    /// newer to install shows Update instead — so counting updates alone put the
+    /// menu bar at "no updates" while the list underneath it showed two apps
+    /// running old code and a Relaunch button each. `reconcilePackageRestarts`
+    /// already carries a landed package forward "to keep the badge lit"; this is
+    /// what makes that true.
+    func needsAction(_ result: UpdateResult) -> Bool {
+        isActionableUpdate(result)
+            || needsRestart.contains(result.id)
+            || pendingBatchRestart[result.id] != nil
+            || actionableStaged(result) != nil
+    }
+
+    /// How many rows `needsAction` marks — the badge's number.
+    var actionCount: Int { results.filter(needsAction).count }
+
+    /// Of those, the ones whose update is already on disk and only needs the app
+    /// to be relaunched to take effect. Exactly `needsAction` minus the rows that
+    /// still have something to download, so the two can't disagree about what a
+    /// relaunch-pending row is.
+    var relaunchPendingCount: Int {
+        results.filter { needsAction($0) && !isActionableUpdate($0) }.count
+    }
+
     /// A full networked refresh rewrites the whole result list. Keep it out of
     /// the way while installs are mutating individual rows and replacing bundles.
     var canRefresh: Bool {
@@ -431,11 +460,11 @@ final class AppListModel {
     }
 
     /// The count shown on the menu-bar badge. A full refresh briefly blanks every
-    /// row to `.unknown` (so `updateCount` dips to 0) before the check repopulates
+    /// row to `.unknown` (so `actionCount` dips to 0) before the check repopulates
     /// it — which made the badge flicker to the "no updates" icon and back. While a
     /// scan/check is in flight we hold the last settled count instead; otherwise we
-    /// track `updateCount` live (so ignoring/skipping an app updates it at once).
-    var badgeCount: Int { (isScanning || isChecking) ? heldBadgeCount : updateCount }
+    /// track `actionCount` live (so ignoring/skipping an app updates it at once).
+    var badgeCount: Int { (isScanning || isChecking) ? heldBadgeCount : actionCount }
     @ObservationIgnored private var heldBadgeCount = 0
 
     // MARK: - Homebrew formulae (CLI tools)
@@ -1402,7 +1431,7 @@ final class AppListModel {
         pinnedOrder = [:]
         // Snapshot the current count before we blank the rows below, so the menu-bar
         // badge holds it steady through the scan/check instead of flickering to 0.
-        heldBadgeCount = updateCount
+        heldBadgeCount = actionCount
         // Expire all cached changelog pages so the detail window re-fetches
         // after a manual refresh — the user expects fresh release notes. Drop the
         // parsed-changelog cache too, so the workbench re-loads fresh notes.

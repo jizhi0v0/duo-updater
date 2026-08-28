@@ -84,9 +84,10 @@ struct MenuContentView: View {
         }
         return showAll ? model.results
             : model.results.filter {
-                model.isActionableUpdate($0) || model.needsRestart.contains($0.id)
-                    || model.pendingBatchRestart[$0.id] != nil
-                    || model.actionableStaged($0) != nil
+                // The same predicate the menu-bar badge counts, so what the list
+                // shows and what the badge says can't drift apart — everything below
+                // it is a transient state that belongs on screen but not in a count.
+                model.needsAction($0)
                     // Hold a just-completed row for its brief "Updated ✓" beat, even
                     // though it's no longer an actionable update, before it drops out.
                     || model.justUpdated.contains($0.id)
@@ -550,6 +551,17 @@ struct MenuContentView: View {
         }
         if failed > 0 {
             return String(localized: "\(failed) of \(model.results.count) apps not checked")
+        }
+        // Nothing left to install, but apps are still running the old code. "Up to
+        // date" is the same lie the badge used to tell by staying dark: the new
+        // version is on disk, it just isn't live yet. Chrome names this state
+        // ("Nearly up to date! Relaunch Chrome to finish updating.") and so do we —
+        // one relaunch away is not the same as done. Ranked below the failed-check
+        // line for the reason that line exists: an unanswered row means we do not
+        // know, and not-knowing outranks a summary of what we do know.
+        let relaunches = model.relaunchPendingCount
+        if relaunches > 0 {
+            return String(localized: "Nearly up to date · \(relaunches) apps to relaunch")
         }
         return String(localized: "\(model.results.count) apps · up to date")
     }

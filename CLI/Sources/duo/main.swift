@@ -223,10 +223,12 @@ case "ignore", "unignore", "skip", "unskip":
 
 case "backups":
     // Which operation the operands name is worked out inside `run`, not here.
-    // This is the only branch that can die on an *operand*, and dying here beat
-    // `unrecognised()` to it: a mistyped flag whose value fell through to the
-    // operands got the value blamed for it, so `duo backups --timeout 5` said
-    // "unknown backups operation '5'" about a `5` the user never typed alone.
+    // Other branches also refuse before the gate at the bottom — `--source`,
+    // `--route`, and triage's required flags — but they refuse a value the user
+    // typed after the flag they named. This is the only one that refuses an
+    // *operand*, and an operand is where a mistyped flag's value lands: before
+    // this, `duo backups --timeout 5` answered "unknown backups operation '5'",
+    // blaming a `5` nobody typed on its own and never naming `--timeout`.
     let operands = args.operands
     let json = args.has("json")
     let assumeYes = args.has("yes")

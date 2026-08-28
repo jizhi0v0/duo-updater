@@ -35,10 +35,29 @@ enum CleanShotChannel {
     /// fall back to the app's shipped v3 `SUFeedURL` (current behavior), never to
     /// a higher channel. Graceful, non-degrading.
     static func resolveCurrent() -> ResolvedChannel? {
-        guard let key = readActivationKey(), !key.isEmpty,
+        resolve(activationKey: readActivationKey())
+    }
+
+    /// The pure half, so `ChannelBinding.allResolutions` can enumerate what this
+    /// binding is CAPABLE of without depending on whether the machine running the
+    /// tests happens to have a licensed CleanShot on it.
+    ///
+    /// That is not a hypothetical tidy-up: enumerating via `resolveCurrent()`
+    /// made the binding appear on a licensed Mac and vanish on every other one,
+    /// so the enumeration test passed for the author and failed for everybody
+    /// else — and it put a REAL licence key into a public `static let` global, in
+    /// a file whose own header says the key must never be logged or persisted.
+    /// Callers enumerate with a placeholder; only `resolveCurrent()` ever sees the
+    /// real one.
+    static func resolve(activationKey: String?) -> ResolvedChannel? {
+        guard let key = activationKey, !key.isEmpty,
               let feed = feed(forKey: key) else { return nil }
         return ResolvedChannel(channel: .stable, feedOverride: feed)
     }
+
+    /// A syntactically-valid stand-in for the licence key, for enumeration only.
+    /// Never a real key, and never used to build a request.
+    static let placeholderActivationKey = "PLACEHOLDER-NOT-A-REAL-KEY"
 
     /// Read `activationKey` from CleanShot's own defaults via CFPreferences, so
     /// it's authoritative even while CleanShot is running. Plaintext, non-keychain;

@@ -47,6 +47,68 @@ public struct ResolvedChannel: Sendable, Equatable {
         self.feedHTTPHeaders = feedHTTPHeaders
         self.sparkleChannelNames = sparkleChannelNames
     }
+
+    // MARK: - channel-anchor surface (issue #111)
+
+    /// The one field that LABELS a resolution rather than deciding what it asks
+    /// for. Same tautology `VendorProbeRecipe.nonAnchorFields` exists to stop: a
+    /// `.beta` resolution carries the literal string "beta" in `channel`, so an
+    /// anchor of `beta` would be satisfied by the mere fact that it is a beta
+    /// resolution, forever, whatever happened to the feed or the header.
+    static let nonAnchorFields: Set<String> = ["channel"]
+
+    /// The anchorable fields, in declaration order, each with the lines it
+    /// contributes — the binding-population counterpart of
+    /// `VendorProbeRecipe.channelAnchorFields`, and matched the same way (a
+    /// `.recipeAnchor` names the fields it relies on and must match in each).
+    ///
+    /// What is being anchored here is the REQUEST, not the response, and that is
+    /// the whole reason this population needs its own surface. For a feed-swap or
+    /// header-keyed app the vendor puts no channel token in the artifact at all —
+    /// the filenames differ, but by version or by build hash, never by train — so the only
+    /// thing that ever distinguished them is which URL we asked for or which
+    /// header we sent. That is not a weaker kind of proof than the recipes get:
+    /// Alfred's registered anchor is `prerelease\.xml` in its endpoint, which is
+    /// the same assertion in the same shape.
+    public var channelAnchorFields: [(label: String, lines: [String])] {
+        Mirror(reflecting: self).children.compactMap { child in
+            guard let label = child.label,
+                  !Self.nonAnchorFields.contains(label) else { return nil }
+            return (label, Self.anchorLines(of: child.value))
+        }
+    }
+
+    /// The text one named field contributes, or nil when there is no ANCHORABLE
+    /// field by that name. Callers must treat nil as a failure, never as
+    /// "nothing to check" — see `RecipeSanity.recipeAnchorFailure`.
+    public func channelAnchorSurface(ofField label: String) -> String? {
+        channelAnchorFields.first { $0.label == label }
+            .map { $0.lines.joined(separator: "\n") }
+    }
+
+    /// One line per string a value contains, walking into optionals, collections
+    /// and enum payloads. Never `String(describing:)` on a value that holds a
+    /// string: nested strings come back debug-escaped and an anchor written to
+    /// match the real text stops matching.
+    ///
+    /// **Dictionaries yield `key: value` on ONE line**, which the recipe-side
+    /// versions of this function have no reason to do and this one must. A
+    /// header's value is load-bearing, not decoration: TablePlus's server unlocks
+    /// the beta feed for the literal string `true` and treats `1`/`yes` as stable
+    /// (`TablePlusChannel`). Emitting the field and the value as two lines would
+    /// make `X-Tiny-Beta-Update.*true` unmatchable — `.` does not cross a newline
+    /// — so the only anchor anybody could write would be one that cannot tell the
+    /// working header from a broken one.
+    private static func anchorLines(of value: Any) -> [String] {
+        if let text = value as? String { return [text] }
+        if let url = value as? URL { return [url.absoluteString] }
+        if let headers = value as? [String: String] {
+            return headers.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)" }
+        }
+        let mirror = Mirror(reflecting: value)
+        guard !mirror.children.isEmpty else { return [String(describing: value)] }
+        return mirror.children.flatMap { anchorLines(of: $0.value) }
+    }
 }
 
 /// Resolves the channel a user chose for apps that hide that choice in a private
@@ -205,4 +267,86 @@ public enum ChannelBinding {
         default:                       return nil
         }
     }
+
+    /// Every resolution a binding can produce, machine-independently (issue #111).
+    ///
+    /// `resolve(bundleID:)` answers for THIS Mac — it reads the user's actual
+    /// preferences — so it cannot tell anyone which channels a binding is capable
+    /// of serving. `ChannelProofRegistry.channelBindingsNeedingProof` needs that
+    /// capability set, because the question it asks is "could this binding ever
+    /// hand someone a build from another channel", not "is it doing so right now
+    /// on this machine".
+    ///
+    /// Built by calling each resolver's PURE function with the opt-in values it
+    /// accepts, so no feed URL, header or channel is restated here — the same
+    /// discipline `preferenceWatchCandidates` uses for paths, and for the same
+    /// reason: a copy drifts, a call cannot.
+    ///
+    /// Kept honest by `everyBindingIsEnumerated`, which pins this against
+    /// `boundBundleIDs`. That is a real but partial guard, and worth stating
+    /// plainly: it catches a binding added to one list and not the other, since
+    /// `boundBundleIDs` is the list somebody already has to touch when they add a
+    /// resolver. It cannot catch a resolver added to the `resolve` switch and to
+    /// neither list — Swift gives no way to reflect over a switch's cases.
+    public static let allResolutions: [(bundleID: String, resolved: ResolvedChannel)] = [
+        (DuoPasteChannel.bundleID, DuoPasteChannel.resolve(includePrereleases: false)),
+        (DuoPasteChannel.bundleID, DuoPasteChannel.resolve(includePrereleases: true)),
+        // Fork's pref is an Int with 2 == stable; anything else (including absent,
+        // the shipped default) is the "Developer" train.
+        (ForkChannel.bundleID, ForkChannel.resolve(channelPref: 2)),
+        (ForkChannel.bundleID, ForkChannel.resolve(channelPref: nil)),
+        (SurgeChannel.bundleID, SurgeChannel.resolve(includeBeta: false)),
+        (SurgeChannel.bundleID, SurgeChannel.resolve(includeBeta: true)),
+        (TablePlusChannel.bundleID, TablePlusChannel.resolve(receiveBeta: false)),
+        (TablePlusChannel.bundleID, TablePlusChannel.resolve(receiveBeta: true)),
+        (IINAChannel.bundleID, IINAChannel.resolve(receiveBeta: false)),
+        (IINAChannel.bundleID, IINAChannel.resolve(receiveBeta: true)),
+        // Both toggles, because "internal" subsumes "pre" — a user with both on is
+        // opted into two tags at once and must be offered whichever is newer.
+        (BetterDisplayChannel.bundleID,
+         BetterDisplayChannel.resolve(preEnabled: false, internalEnabled: false)),
+        (BetterDisplayChannel.bundleID,
+         BetterDisplayChannel.resolve(preEnabled: true, internalEnabled: false)),
+        (BetterDisplayChannel.bundleID,
+         BetterDisplayChannel.resolve(preEnabled: false, internalEnabled: true)),
+        (BetterDisplayChannel.bundleID,
+         BetterDisplayChannel.resolve(preEnabled: true, internalEnabled: true)),
+        // The remaining two have no user-settable channel choice to drive.
+        // Ghostty is a fixed stable-only feed override, so `resolveCurrent()` is
+        // already a constant.
+        (GhosttyChannel.bundleID, GhosttyChannel.resolveCurrent()),
+    ] + (CleanShotChannel.resolve(activationKey: CleanShotChannel.placeholderActivationKey)
+        .map { [(CleanShotChannel.bundleID, $0)] } ?? [])
+
+    // CleanShot is enumerated through its PURE resolver with a placeholder key,
+    // never `resolveCurrent()`. It keys a personalized feed off the licence, so
+    // enumerating the live resolution would have made this list depend on whether
+    // the machine has a licensed CleanShot — present for the author, absent on CI
+    // and on anyone else's Mac, with `everyBindingIsEnumerated` failing there and
+    // only there. It would also have put a real licence key into a public global.
+    // Its channel is `.stable` either way: the key selects an ENTITLEMENT, not a
+    // train, so there is no other channel for it to cross into.
+
+    /// The four bindings `allResolutions` deliberately does NOT cover, lower-cased.
+    ///
+    /// OrbStack, Alfred, Tailscale and CapCut have bindings, but the binding only
+    /// picks which `VendorProbeRecipe` runs; the install comes from that recipe,
+    /// so their cross-channel question is already answered by
+    /// `ChannelProofRegistry.proofs` and enumerating them here would double-count
+    /// them into a second registry.
+    ///
+    /// Used two ways, and honest about the weaker one: it is what
+    /// `everyBindingIsEnumerated` subtracts to compute what SHOULD be enumerated,
+    /// and it is a term in `channelBindingsNeedingProof`'s predicate where it is
+    /// currently INERT — none of these four appears in `allResolutions`, so the
+    /// term never excludes anything. `vendorProbeBackedBindingsAreNotEnumerated`
+    /// measures that inertness rather than leaving it assumed, so the day one of
+    /// them does get enumerated (a binding that both overrides the feed and
+    /// selects a recipe), the term starts doing work and somebody is told.
+    public static let vendorProbeBackedBindings: Set<String> = [
+        OrbStackChannel.bundleID.lowercased(),
+        AlfredChannel.bundleID.lowercased(),
+        TailscaleChannel.bundleID.lowercased(),
+        CapCutChannel.bundleID.lowercased(),
+    ]
 }

@@ -27,6 +27,9 @@ public struct Args {
     /// the drift only shows up as a flag nobody validates.
     private final class Seen {
         var flags: Set<String> = []
+        /// The subset read as numbers, so `unrecognised()` can refuse a value
+        /// that is not one instead of letting it read as absent.
+        var integerFlags: Set<String> = []
         var readOperands = false
     }
 
@@ -97,7 +100,10 @@ public struct Args {
         guard let raw = flags[name], !raw.isEmpty else { return nil }
         return raw
     }
-    public func int(_ name: String) -> Int? { value(name).flatMap(Int.init) }
+    public func int(_ name: String) -> Int? {
+        seen.integerFlags.insert(name)
+        return value(name).flatMap(Int.init)
+    }
 
     /// The first token this invocation can't account for, or nil if it is clean.
     ///
@@ -108,10 +114,12 @@ public struct Args {
     /// sweep instead of the one recipe `--only` was meant to name, and `--githubb`
     /// spends the unauthenticated GitHub rate limit on the way past.
     ///
-    /// The corollary for whoever adds the next flag: read it unconditionally. A
-    /// flag read only inside an `if` is a flag this refuses whenever that `if`
-    /// is false, because from here "never asked about" and "not accepted" are
-    /// the same thing.
+    /// The corollary for whoever adds the next flag: read it unconditionally,
+    /// and read it before this runs. A flag read only inside an `if` is a flag
+    /// this refuses whenever that `if` is false, because from here "never asked
+    /// about" and "not accepted" are the same thing — and a number flag read
+    /// lazily, inside the `run` closure, opts itself out of the check below
+    /// the same way.
     public func unrecognised() -> UsageError? {
         let accepted = seen.flags.isEmpty
             ? "`duo \(subcommand)` takes no flags"
@@ -127,8 +135,19 @@ public struct Args {
         where Self.valueFlags.contains(name) && flags[name]?.isEmpty == true {
             return UsageError("--\(name) needs a value")
         }
+        // A number flag holding something that is not a number. `Int.init` fails,
+        // `int()` hands back nil, and nil is what "not given at all" looks like
+        // from every call site: `duo verify --max-concurrency 1x` swept with the
+        // default of four hosts in flight rather than the one asked for, which
+        // is the wrong way round for someone slowing a sweep to spare an
+        // endpoint. An empty value belongs to the loop above, whose message
+        // fits it better.
+        for (name, raw) in flags.sorted(by: { $0.key < $1.key })
+        where seen.integerFlags.contains(name) && !raw.isEmpty && Int(raw) == nil {
+            return UsageError("--\(name) needs a whole number, got '\(raw)'")
+        }
         // No operand in this CLI is an app named `-something`, so a leading dash
-        // here is a misspelled flag that the loop above never saw.
+        // here is a misspelled flag that the unknown-flag loop never saw.
         if let stray = positional.first(where: { $0.hasPrefix("-") }) {
             return UsageError("unknown flag '\(stray)' for `duo \(subcommand)`; \(accepted)")
         }

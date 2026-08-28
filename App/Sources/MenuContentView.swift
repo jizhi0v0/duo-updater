@@ -541,7 +541,16 @@ struct MenuContentView: View {
         if model.isRefreshing {
             return String(localized: "Checking \(model.results.count) apps…")
         }
-        let updates = model.updateCount
+        // `actionCount`, not `updateCount`: an app whose new version is on disk and
+        // only needs a relaunch HAS an update — it just already downloaded it — so
+        // it is counted here rather than given a line of its own. That also makes
+        // this number, the badge, and the number of rows below the same number,
+        // which is the whole point. (A separate "nearly up to date · N to relaunch"
+        // clause was measured instead and abandoned: with Update All beside it the
+        // line has 224-274pt depending on the language's button, Spanish already
+        // sits 9pt from truncation at two updates, and the appended half is exactly
+        // what the tail truncation eats.)
+        let updates = model.actionCount
         let failed = model.failedCheckCount
         // "up to date" is a claim about every app, and it is only true when every
         // app actually answered. With rows still in `.error` the honest line names
@@ -551,17 +560,6 @@ struct MenuContentView: View {
         }
         if failed > 0 {
             return String(localized: "\(failed) of \(model.results.count) apps not checked")
-        }
-        // Nothing left to install, but apps are still running the old code. "Up to
-        // date" is the same lie the badge used to tell by staying dark: the new
-        // version is on disk, it just isn't live yet. Chrome names this state
-        // ("Nearly up to date! Relaunch Chrome to finish updating.") and so do we —
-        // one relaunch away is not the same as done. Ranked below the failed-check
-        // line for the reason that line exists: an unanswered row means we do not
-        // know, and not-knowing outranks a summary of what we do know.
-        let relaunches = model.relaunchPendingCount
-        if relaunches > 0 {
-            return String(localized: "Nearly up to date · \(relaunches) apps to relaunch")
         }
         return String(localized: "\(model.results.count) apps · up to date")
     }

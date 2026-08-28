@@ -38,10 +38,9 @@ struct StagedNudgeLedgerTests {
     }
 
     /// Withdrawing the banner withdraws the entry with it, so the build can be
-    /// announced again when the row becomes announceable again. Without this a
-    /// staged rollout that answers with a newer version from one bucket and the old
-    /// one from the next — the banner is cleared on the way out and the row comes
-    /// back — would leave the user a lit badge and no notification, permanently.
+    /// announced again once the user un-hides the app. Without it, ignoring an app
+    /// (which clears the delivered banner) and then un-ignoring it would restore the
+    /// row and the badge with nothing in Notification Center to match, permanently.
     @Test func forgettingLetsTheSameBuildBeAnnouncedAgain() {
         var ledger = StagedNudgeLedger([chatGPT: "1.2026.238"])
         ledger.forget(key: chatGPT)

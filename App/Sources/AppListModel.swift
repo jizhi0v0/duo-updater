@@ -457,26 +457,19 @@ final class AppListModel {
         guard !prefs.isIgnored(result.app) else { return false }
         return needsRestart.contains(result.id)
             || pendingBatchRestart[result.id] != nil
-            || nudgeableStaged(result) != nil
+            // Short-circuited on the raw map first: this runs per row on the render
+            // path, and `nudgeableStaged` builds sanitised preference keys out of the
+            // full bundle path before it can answer "nothing is staged".
+            || (pendingSelfUpdate[result.id] != nil && nudgeableStaged(result) != nil)
     }
 
-    /// How many rows `needsAction` marks — the badge's number.
+    /// How many rows `needsAction` marks — the badge's number, and the popover's
+    /// "N updates available". A relaunch-pending row counts as an update here: its
+    /// new version is an update that happens to be downloaded already. Keeping it
+    /// out is what made the badge and the header disagree with the list in the
+    /// first place. `updateCount` still answers the narrower "how many are left to
+    /// install", which is what the diagnostic log wants.
     var actionCount: Int { results.filter(needsAction).count }
-
-    /// Of those, the ones whose update is already on disk and only needs the app to
-    /// be relaunched to take effect — what the status line reports when there is
-    /// nothing left to install. `needsAction` minus the rows that still have
-    /// something to download, so the two cannot disagree about what a
-    /// relaunch-pending row is.
-    ///
-    /// Deliberately not "rows showing a Relaunch button": a row that is mid-install,
-    /// mid-relaunch, or in its brief "Updated ✓" beat can satisfy this while
-    /// showing something else. All of those are transient, and the status line this
-    /// feeds is only reached when nothing is pending and nothing failed to check,
-    /// which is not a state any of them survive into.
-    var relaunchPendingCount: Int {
-        results.filter { needsAction($0) && !isActionableUpdate($0) }.count
-    }
 
     /// A full networked refresh rewrites the whole result list. Keep it out of
     /// the way while installs are mutating individual rows and replacing bundles.
@@ -3044,14 +3037,19 @@ final class AppListModel {
         }
         // Dismiss delivered "Relaunch to apply it" banners for apps that are no
         // longer actionable-staged, so a stale one doesn't linger.
+        //
+        // The banner goes; the ledger entry stays. Both sets are read against the
+        // same `results` and only `pendingSelfUpdate` is rebuilt between them — so
+        // the ONLY thing that can put an id here is the staging read coming back
+        // empty, and that read is a live process query (the parked Sparkle updater
+        // has to be enumerable) plus an unsynchronised plist read. One blind pass
+        // must not be able to forget that this build was already announced:
+        // `performLocalRescan` runs this on a 180-second backstop, so forgetting
+        // would re-announce the same build faster than the five-minute timer the
+        // ledger exists to delete. (A remote-version flap cannot reach here at all
+        // — it moves both sets together.)
         let nowActionable = Set(results.compactMap { actionableStaged($0) != nil ? $0.id : nil })
-        let withdrawn = previouslyActionable.subtracting(nowActionable)
-        for result in results where withdrawn.contains(result.id) {
-            withdrawStagedNudge(result)
-        }
-        // Rows that left the scan entirely between passes get the banner dropped
-        // too; `notifyStagedRelaunches`'s prune reclaims their ledger entries.
-        for id in withdrawn where !results.contains(where: { $0.id == id }) {
+        for id in previouslyActionable.subtracting(nowActionable) {
             UpdateNotifier.clearSelfDownloaded(appID: id)
         }
         if !nowActionable.isEmpty {
@@ -3369,17 +3367,22 @@ final class AppListModel {
     }
 
     /// Withdraw a "relaunch to apply it" nudge: the delivered banner AND the ledger
-    /// entry that suppresses a repeat, together.
+    /// entry that suppresses a repeat, together — so un-hiding the app can announce
+    /// the staged build again instead of being silenced by the record of a banner
+    /// that no longer exists.
     ///
-    /// They have to move as a pair. The banner is cleared whenever a row stops being
-    /// announceable — the user ignored the app, skipped that version, or a newer
-    /// release momentarily made the staged build trail (a staged rollout that answers
-    /// with different versions from different buckets does exactly this). Keeping the
-    /// entry through that would mean the banner never comes back when the row becomes
-    /// announceable again: badge lit, row in the list, and nothing in Notification
-    /// Center, permanently. This is also what lets the un-hide routes that never call
-    /// back here — Settings › Ignored, the row's "Don't skip", `duo ignore` arriving
-    /// over KVO — recover on their own at the next staging pass.
+    /// Exactly one caller, deliberately: ignoring an app. That is the one place where
+    /// the row stops being announceable because the *user* said so, where the hiding
+    /// is keyed on the app rather than on a version string, and where the undo
+    /// (`toggleIgnore`'s other branch) re-announces synchronously.
+    ///
+    /// The other places that clear this banner keep their entry, each for its own
+    /// reason: the staging sweep in `computeSelfUpdateStaging` (a blind staging read
+    /// must not be able to re-announce) and `skipThisVersion` (the skip gate matches
+    /// version strings exactly, so the entry covers a mismatch). Hiding an app from
+    /// the CLI — `duo ignore` / `duo skip`, which arrive through `Preferences`'s KVO
+    /// reload — keeps its entry too: un-hiding then brings back the row and the
+    /// badge without a banner, which is the quiet direction to be wrong in.
     private func withdrawStagedNudge(_ result: UpdateResult) {
         UpdateNotifier.clearSelfDownloaded(appID: result.id)
         var ledger = StagedNudgeLedger(prefs.notifiedStagedVersions)
@@ -4608,13 +4611,20 @@ final class AppListModel {
         guard let version = result.remote?.displayVersion else { return }
         prefs.skipVersion(version, result.app)
         syncDockBadge()
-        // Same cleanup as ignoring the app: a "Relaunch to apply it" banner already
-        // in Notification Center is for the version just declined (a banner only
-        // exists while the staged build is the latest, i.e. this very version), so
-        // it must not outlive the skip. Withdrawn rather than merely cleared, so
-        // that "Don't skip" — which does not route through here — gets the banner
-        // back at the next staging pass instead of never.
-        withdrawStagedNudge(result)
+        // A "Relaunch to apply it" banner already in Notification Center is for the
+        // version just declined (a banner only exists while the staged build is the
+        // latest, i.e. this very version), so it must not outlive the skip.
+        //
+        // Cleared, NOT withdrawn — unlike ignoring. The skip is recorded against the
+        // offered `displayVersion`, while the gate that has to hold afterwards
+        // (`VisibilityRules.isVersionSkipped`, through `nudgeableStaged`) is asked
+        // about `staged.version`, and it compares strings exactly where
+        // `actionableStaged` compares versions. Where those two strings differ — a
+        // build suffix, "1.2" against "1.2.0" — forgetting the ledger entry would
+        // let the very next staging pass post a banner for the version the user just
+        // skipped. The entry is the belt behind those braces. The cost is that
+        // un-skipping doesn't bring the banner back; the row and the badge do.
+        UpdateNotifier.clearSelfDownloaded(appID: result.id)
         Log.app.info("skip \(version, privacy: .public): \(result.app.name, privacy: .public)")
     }
 
@@ -5485,4 +5495,3 @@ private actor RaceGate {
         return true
     }
 }
-

@@ -357,7 +357,7 @@ public enum InPlaceSwap {
     /// can be exercised in a temporary directory without raising a password panel.
     /// Reading the live modes and building this command happen before osascript is
     /// launched, while the old bundle is still present and authoritative.
-    static func privilegedReplacementShell(newApp: URL, target: URL) throws -> String {
+    static func privilegedReplacementShell(newApp: URL, target: URL) -> String {
         // Materialize the replacement *fully* before the original is touched, then
         // swap via two same-directory renames. Never `rm` the original before its
         // replacement exists on disk: a `rm -rf target && ditto` would, if the
@@ -378,26 +378,35 @@ public enum InPlaceSwap {
         let newContents = shellQuote(target.path + ".duoupdater-new/Contents")
 
         // Preserve the directory modes that define how this particular install is
-        // maintained. Downloaded archives normally unpack as 755, but both WeType
-        // and DoubaoIme are installed root:staff 775 under `/Library/Input Methods`;
-        // their own updaters stage the next Contents directory inside the outer app
-        // and need that group-write bit. Replacing either with an archive-default
-        // bundle silently leaves its vendor updater unable to stage the next build.
-        // The same rule applies in the other direction: a 755 App Store/pkg install
-        // must not inherit a more permissive mode from its downloaded source.
+        // maintained. Downloaded archives normally unpack as 755 (measured on the
+        // vendor's own payload: every one of the 81 directories in `DoubaoIme.zip`
+        // is 755), but both WeType and DoubaoIme are installed root:staff 775 under
+        // `/Library/Input Methods`; their own updaters stage the next Contents
+        // directory inside the outer app and need that group-write bit. Replacing
+        // either with an archive-default bundle silently leaves its vendor updater
+        // unable to stage the next build — which is why `rotateContents` carries
+        // the bit recursively for those two, and why THIS path deliberately does
+        // not. Input methods never reach here any more; every other app that does
+        // would be widened on a rule measured from theirs. Two apps on the
+        // development machine take this path with a group-writable root (Microsoft
+        // Word and Excel, `root:wheel` 775) and would have had their whole
+        // interiors opened to the group on the next update, for no stated reason.
+        //
+        // So the guarantee here is exactly two levels, in both directions: the
+        // bundle and `Contents` come back with the modes the install had, and
+        // below that the source archive's own modes stand. See
+        // `aPrivilegedSwapDoesNotWidenA755Install`, which pins the limit as well as
+        // the rule.
         //
         // Apply modes to `.duoupdater-new` BEFORE its live rename. macOS can attach
         // `com.apple.macl` as soon as a bundle occupies a registered app path; a
         // later chmod was measured returning EPERM even under `with administrator
         // privileges`. Staging remains user-owned here, so an interrupted copy is
         // still removable by the unprivileged recovery sweep.
-        let bundleMode = try directoryMode(at: target)
-        let contentsMode = try directoryMode(
+        let bundleMode = directoryMode(at: target)
+        let contentsMode = directoryMode(
             at: target.appendingPathComponent("Contents", isDirectory: true))
-        let preserveModes = """
-        /bin/chmod \(String(bundleMode, radix: 8)) \(new) && \
-        /bin/chmod \(String(contentsMode, radix: 8)) \(newContents)
-        """
+        let preserveModes = modePreservationCommands([(bundleMode, new), (contentsMode, newContents)])
         // Keep the replaced bundle's ownership. `ditto` running as root preserves
         // the *source's* owner, and every source we hand it — a download we
         // extracted, a rollback copy we made — belongs to the user. Without this
@@ -434,20 +443,40 @@ public enum InPlaceSwap {
         let shell = """
         /bin/rm -rf \(new) \(old); \
         /usr/bin/ditto \(src) \(new) && \
-        \(preserveModes) && \
-        /bin/mv \(tgt) \(old) && \
+        \(preserveModes)/bin/mv \(tgt) \(old) && \
         { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt); false; }; } && \
         { \(ownership)/bin/rm -rf \(old); }
         """
         return shell
     }
 
-    private static func directoryMode(at url: URL) throws -> Int {
-        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
-        guard let raw = attrs[.posixPermissions] as? NSNumber else {
-            throw SwapError.notReplaceable(
-                "Could not read the installed app's permissions at \(url.path).")
-        }
+    /// The `chmod` clauses that carry a live install's directory modes onto the
+    /// staged replacement, each already `&&`-terminated so the caller can splice
+    /// the result straight into its command chain (empty when nothing is known).
+    ///
+    /// Best-effort by construction — a mode we could not read is simply not
+    /// restated, exactly like the ownership block, and for the same reason:
+    /// refusing to install a verified build because one `stat` came back empty is
+    /// the worse trade, and *every* root-owned app on the machine takes this path.
+    /// The `chmod`s themselves stay `&&`-chained: once we do know the mode,
+    /// failing to apply it means the install would land misconfigured, and the
+    /// original is still untouched at that point in the chain.
+    ///
+    private static func modePreservationCommands(
+        _ pairs: [(mode: Int?, quotedPath: String)]
+    ) -> String {
+        pairs.compactMap { pair -> String? in
+            guard let mode = pair.mode else { return nil }
+            return "/bin/chmod \(String(mode, radix: 8)) \(pair.quotedPath) && "
+        }.joined()
+    }
+
+    /// The POSIX mode of a directory, or nil when it cannot be read. Includes the
+    /// setuid/setgid/sticky bits deliberately: they are part of how the install is
+    /// maintained, and dropping them on a swap would be a silent change.
+    private static func directoryMode(at url: URL) -> Int? {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        guard let raw = attrs?[.posixPermissions] as? NSNumber else { return nil }
         return raw.intValue & 0o7777
     }
 

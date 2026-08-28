@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import DuoKit
 
@@ -91,5 +92,45 @@ import Testing
         let args = self.args("restart", "--json")
         _ = args.operands
         #expect(args.unrecognised()?.description.contains("`duo restart` takes no flags") == true)
+    }
+
+    /// `valueFlags` is the one hand-maintained list left in the parser, and it
+    /// fails quietly in both directions — so read the truth out of the sources
+    /// rather than restating it here, where the restatement would drift too.
+    ///
+    /// Missing an entry swallows the value into `operands` and the reader sees
+    /// its default. A spare entry is worse now than it was: `unrecognised()`
+    /// judges a command line against what the subcommand read, so a declared
+    /// flag nobody reads is refused. `--timeout` sat here unread from the first
+    /// commit and turned into `unknown flag '--timeout'` in 0.3.68 (#114).
+    @Test func valueFlagsMatchesTheFlagsReadAsValues() throws {
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // DuoKitTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // CLI
+            .appendingPathComponent("Sources")
+        // Tolerant of a wrapped call and of a camelCase name, so a read the
+        // scan cannot see stays rare — an invisible read reports as a declared
+        // flag nobody reads, which is a nudge to delete a needed entry.
+        let asValue = /\.(?:value|int|list)\(\s*"([A-Za-z0-9-]+)"\s*\)/
+
+        let files = try #require(
+            FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var read: Set<String> = []
+        for case let file as URL in files where file.pathExtension == "swift" {
+            for match in try String(contentsOf: file, encoding: .utf8).matches(of: asValue) {
+                read.insert(String(match.1))
+            }
+        }
+
+        // A regex or a layout that stopped matching would satisfy the
+        // comparison below by making it vacuous, which is the same silent
+        // drift this test exists to catch.
+        #expect(read.count > 5, "only \(read.count) flag reads found under \(sources.path)")
+        #expect(Args.valueFlags == read, """
+            valueFlags and the flags read as values have drifted.
+            declared, no read found (unrecognised() refuses it): \(Args.valueFlags.subtracting(read).sorted())
+            read, not declared (the value lands in operands): \(read.subtracting(Args.valueFlags).sorted())
+            """)
     }
 }

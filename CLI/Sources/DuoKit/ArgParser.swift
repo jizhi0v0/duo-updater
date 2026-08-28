@@ -36,9 +36,13 @@ public struct Args {
     /// flag reads as a bare boolean and its value lands in `operands`, so
     /// `--model deepseek` silently runs the default model. `--model=deepseek`
     /// keeps working either way, which is what makes it hard to notice.
+    /// Leaving one here that no subcommand reads is the same drift pointing the
+    /// other way, and since `unrecognised()` it is no longer harmless: the flag
+    /// is declared and then refused. `--timeout` shipped that way in 0.3.68.
+    /// `ArgParserTests` derives both directions from the sources instead.
     static let valueFlags: Set<String> = [
         "triage", "budget",
-        "only", "route", "max-concurrency", "timeout", "source",
+        "only", "route", "max-concurrency", "source",
         "baseline", "report", "markdown", "out", "max-calls",
         "model", "variant",
     ]

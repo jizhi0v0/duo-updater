@@ -516,10 +516,11 @@ private func storeAvailability(
 
 // MARK: - nudgeableStaged
 
-/// The periodic "Relaunch to apply it" reminder fires every 5 minutes for as
-/// long as a build stays staged. It used to ask only `actionableStaged`, which
+/// The "Relaunch to apply it" nudge used to ask only `actionableStaged`, which
 /// knows nothing about ignore or skip — so an ignored app went on banner-nagging
-/// forever while its row in the app showed nothing but the Ignored tag.
+/// (then, every 5 minutes) while its row in the app showed nothing but the
+/// Ignored tag. It is also what keeps such a row out of the menu-bar badge, which
+/// counts the same verdict through `AppListModel.needsAction`.
 @Test func anIgnoredAppIsNeverNudgedAboutItsStagedBuild() {
     let remote = fixtureResult(source: "Vendor", vendorInstallerKind: .zip)
     let never: (String) -> Bool = { _ in false }

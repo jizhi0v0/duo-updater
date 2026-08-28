@@ -10285,6 +10285,7 @@
       }
     },
     "Nearly up to date · %lld apps to relaunch": {
+      "comment": "Popover status line when nothing is left to install but apps are still running the old code. Two clauses: \"almost there\" + what remains. Russian renders both as one clause (\"Осталось перезапустить N…\" = all that remains is to relaunch N) because every two-clause phrasing measured 350-375pt against a 346pt slot.",
       "extractionState": "manual",
       "localizations": {
         "de": {

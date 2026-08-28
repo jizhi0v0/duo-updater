@@ -32,6 +32,19 @@ public struct StagedNudgeLedger: Equatable, Sendable {
         entries[key] = version
     }
 
+    /// Forget one app's entry, so the build it names can be announced again.
+    ///
+    /// The caller for this is the banner being withdrawn: whenever a delivered
+    /// "relaunch to apply it" notification is cleared because the row stopped
+    /// being announceable — ignored, version skipped, or the staged build
+    /// momentarily stopped being the latest — the entry has to go with it. Left
+    /// behind, it would suppress the banner that should return when the row
+    /// becomes announceable again, and the user would be left with a badge and a
+    /// row but nothing in Notification Center, permanently.
+    public mutating func forget(key: String) {
+        entries[key] = nil
+    }
+
     /// Forget apps that are no longer installed, so the map cannot grow without
     /// bound across the lifetime of the preference it is persisted in.
     ///

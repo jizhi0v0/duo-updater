@@ -280,6 +280,13 @@ final class Preferences {
     /// waiting for a relaunch, and an app can have both at once. Persisted so a
     /// staged build the user has decided to sit on doesn't get re-announced by
     /// every refresh, or by a DuoUpdater relaunch.
+    ///
+    /// No `legacyKey` fallback, unlike `notifiedVersions` — and that is deliberate,
+    /// not an omission to be "fixed" by copying its `wasNotified`. That map predates
+    /// the bundle-id → path key switch, so it needs the old key to avoid announcing
+    /// everything once at migration. This one is new: it has no legacy entries, so a
+    /// fallback could only match something unrelated. The residual case (an app moves
+    /// on disk, `key(for:)` changes) costs exactly one extra banner — the safe side.
     private(set) var notifiedStagedVersions: [String: String] {
         didSet { defaults.set(notifiedStagedVersions, forKey: Key.notifiedStagedVersions) }
     }

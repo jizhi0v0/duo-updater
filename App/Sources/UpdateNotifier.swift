@@ -52,8 +52,9 @@ enum UpdateNotifier {
     /// The app's own updater downloaded and staged a new version on its own —
     /// we never clicked Update. Nothing was installed by us; the bytes are staged
     /// and a relaunch applies them. Carries a Relaunch action (routed by `appID`)
-    /// and a stable per-app identifier, so the periodic re-reminder replaces the
-    /// previous banner in Notification Center rather than stacking copies.
+    /// and a stable per-app identifier — posted once per staged build, and that id is
+    /// what `clearSelfDownloaded` withdraws it by when the row stops being
+    /// announceable.
     static func selfDownloaded(app: String, version: String, appID: String) {
         post(title: app,
              body: String(localized: "\(app) downloaded \(version) on its own. Relaunch to apply it."),
@@ -124,9 +125,10 @@ enum UpdateNotifier {
         // A category id attaches the actionable buttons registered for it.
         if let categoryID { content.categoryIdentifier = categoryID }
         if !userInfo.isEmpty { content.userInfo = userInfo }
-        // A stable identifier lets a later post with the same id *replace* this
-        // banner (used by the periodic self-update reminder); nil → a fresh UUID so
-        // independent banners don't clobber each other.
+        // A stable identifier is what the clear/withdraw paths address a delivered
+        // banner by (`clearSelfDownloaded`, `clearQuitConfirmation`), and it makes a
+        // re-post replace rather than stack; nil → a fresh UUID so independent
+        // banners don't clobber each other.
         let request = UNNotificationRequest(
             identifier: identifier ?? UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)

@@ -195,13 +195,14 @@ import CryptoKit
 
 /// The concrete gap #81 was filed for: an anchor living in `entryStartPattern`.
 ///
-/// Driven through `crossChannelArtifact` itself, on a REGISTERED proof key
-/// (WeChat DevTools RC, whose proof is `.recipeAnchor("id":.*"rc")`), with the
-/// anchor moved out of `versionPattern` and into `entryStartPattern` — the field
-/// the hand-written surface never learned about. Under that surface this recipe
-/// read as un-anchored and the guard fired on a recipe that is correctly tied to
-/// its channel; the negative case below shows the guard has not simply gone
-/// quiet instead.
+/// Still a live property after #110 made anchors name their fields, and this is
+/// the test that says so: the fields a proof may name are DERIVED, so any field
+/// the recipe reads can be named — including the one the old hand-written
+/// surface never learned about. What changed is that naming it is now required
+/// rather than implied, which is why the proof is built here instead of read out
+/// of the registry (the registered WeChat RC proof names `versionPattern` and
+/// `install`, and correctly refuses a recipe anchored only in a third field).
+/// The negative case shows the guard has not simply gone quiet instead.
 @Test func theAnchorSurfaceSeesEntryStartPattern() {
     func wechatRC(versionPattern: String, entryStartPattern: String?) -> VendorProbeRecipe {
         VendorProbeRecipe(
@@ -215,29 +216,195 @@ import CryptoKit
                 kind: .pkg),
             channel: .rc)
     }
-    // The artifact itself proves nothing here — RC and Stable are served from the
-    // same directory with the same filename template, which is why this proof is
-    // an anchor and not an `.artifact` match in the first place.
+    // No `RemoteVersion` here: the artifact proves nothing for this recipe — RC
+    // and Stable are served from the same directory with the same filename
+    // template, which is why this proof is an anchor and not an `.artifact` match
+    // in the first place — so the anchor match IS the whole check.
+    func anchorFailure(_ recipe: VendorProbeRecipe) -> String? {
+        RecipeSanity.recipeAnchorFailure(
+            pattern: #""id":.*"rc""#, fields: ["entryStartPattern"],
+            channel: recipe.channel, subject: recipe)
+    }
+
+    // Anchored through `entryStartPattern`, and named there: the guard is satisfied.
+    let anchoredInEntryPattern = wechatRC(
+        versionPattern: #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#,
+        entryStartPattern: #"\{"id":\s*"rc""#)
+    #expect(anchorFailure(anchoredInEntryPattern) == nil,
+            "entryStartPattern must be nameable — a derived field list is the point of #81")
+
+    // …and the guard still fires when the anchor is not in the field that named
+    // it, so the line above is the field being reachable, not the guard going quiet.
+    //
+    // `entryStartPattern` is PRESENT here and merely lost its token, rather than
+    // being nil. A nil field's surface is the literal string "nil", which fails to
+    // match for a different reason than a real field that drifted — so testing
+    // only the nil case would not distinguish "the field is checked" from "the
+    // field does not exist", and would pass either way.
+    let driftedInEntryPattern = wechatRC(
+        versionPattern: #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#,
+        entryStartPattern: #"\{"date":""#)
+    #expect(anchorFailure(driftedInEntryPattern) != nil,
+            "a named field that still exists but lost its channel token must be complained about")
+
+    let absentEntryPattern = wechatRC(
+        versionPattern: #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#, entryStartPattern: nil)
+    #expect(anchorFailure(absentEntryPattern) != nil,
+            "a recipe with its channel anchor removed must still be complained about")
+}
+
+/// A `.recipeAnchor` whose PATTERN matches anything is the third way to write a
+/// proof that cannot fail, and the one neither `everyRegisteredAnchorNamesRealFields`
+/// nor the field-scoping closes: `""`, `a?` and `.*` all match every surface, in
+/// every field, forever.
+///
+/// Checked against the empty string, which is the cheapest total discriminator —
+/// a pattern that matches `""` matches every field of every recipe, so it can
+/// never report drift. Covers BOTH registries; the GitHub side has no anchors
+/// today and this is what stops the first one from being written that way.
+@Test func noRegisteredAnchorMatchesEverything() {
+    func vacuous(_ pattern: String) -> Bool {
+        "".range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+    for (key, proof) in ChannelProofRegistry.proofs {
+        guard case .recipeAnchor(let pattern, _) = proof else { continue }
+        #expect(!vacuous(pattern),
+                "\(key): the anchor /\(pattern)/ matches the empty string, so it matches every field of every recipe and can never report drift")
+    }
+    for (key, proof) in ChannelProofRegistry.githubProofs {
+        guard case .recipeAnchor(let pattern, _) = proof else { continue }
+        #expect(!vacuous(pattern),
+                "\(key): the anchor /\(pattern)/ matches the empty string, so it can never report drift")
+    }
+}
+
+// MARK: - anchors are checked field by field (issue #110)
+
+/// The failure #110 was filed for: one anchored field covering for another.
+///
+/// WeChat DevTools RC is the live case and the sharpest one — its RC artifact is
+/// byte-for-byte shaped like Stable's (same host, same directory, same filename
+/// template), so this anchor is the ONLY thing between an RC user and a Stable
+/// build. `"id": "rc"` sits in both `versionPattern` and the install
+/// `bodyPattern`; matched against the joined surface, either one alone kept the
+/// proof green.
+///
+/// Driven through `crossChannelArtifact` on the REGISTERED proof, so it is the
+/// shipping registry entry under test and not a hand-built stand-in. Each half is
+/// knocked out in turn: under the old any-field surface both of these passed.
+@Test func eachNamedAnchorFieldIsCheckedOnItsOwn() {
+    func wechatRC(versionPattern: String, installPattern: String) -> VendorProbeRecipe {
+        VendorProbeRecipe(
+            bundleID: "com.tencent.wechatdevtools",
+            url: URL(string: "https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/config.json")!,
+            mode: .responseBody,
+            versionPattern: versionPattern,
+            install: VendorInstallSpec(urlSource: .bodyPattern(installPattern), kind: .pkg),
+            channel: .rc)
+    }
+    let anchoredVersion = #""id":\s*"rc"[\s\S]*?"version":\s*"([0-9]+(?:\.[0-9]+)+)""#
+    let anchoredInstall = #""id":\s*"rc"[\s\S]*?"url":\s*"(https://[^"]+_darwin_arm64\.pkg)""#
+    // The same patterns with the channel block dropped — what "someone rewrites
+    // that regex" or "the vendor renames the block" actually looks like.
+    let driftedVersion = #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#
+    let driftedInstall = #""url":\s*"(https://[^"]+_darwin_arm64\.pkg)""#
+
     let remote = RemoteVersion(
         shortVersion: "1.06.2508260", version: "1.06.2508260",
         downloadURL: URL(string: "https://dldir1.qq.com/WechatWebDev/release/abc123/wechat_devtools_1.06.2508260_darwin_arm64.pkg")!,
         sourceName: "Vendor")
 
-    // Anchored ONLY through `entryStartPattern`: the guard must be satisfied.
-    let anchoredInEntryPattern = wechatRC(
-        versionPattern: #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#,
-        entryStartPattern: #"\{"id":\s*"rc""#)
     #expect(
-        RecipeSanity.crossChannelArtifact(recipe: anchoredInEntryPattern, remote: remote) == nil,
-        "an anchor that lives in entryStartPattern must satisfy .recipeAnchor")
+        RecipeSanity.crossChannelArtifact(
+            recipe: wechatRC(versionPattern: anchoredVersion, installPattern: anchoredInstall),
+            remote: remote) == nil,
+        "the recipe as shipped, anchored in both named fields, must pass")
 
-    // …and the guard still fires when the anchor is nowhere at all, so the line
-    // above is the surface widening, not the guard going quiet.
-    let unanchored = wechatRC(
-        versionPattern: #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#, entryStartPattern: nil)
+    let installDrifted = RecipeSanity.crossChannelArtifact(
+        recipe: wechatRC(versionPattern: anchoredVersion, installPattern: driftedInstall),
+        remote: remote)
+    #expect(installDrifted != nil,
+            "the install spec — the half that PICKS the artifact — lost its channel block, and the version pattern must not cover for it")
+    #expect(installDrifted?.contains("install") == true,
+            "the finding must name the field that drifted, not just the recipe: \(installDrifted ?? "nil")")
+
+    let versionDrifted = RecipeSanity.crossChannelArtifact(
+        recipe: wechatRC(versionPattern: driftedVersion, installPattern: anchoredInstall),
+        remote: remote)
+    #expect(versionDrifted != nil,
+            "the version pattern lost its channel block, and the install spec must not cover for it")
+    #expect(versionDrifted?.contains("versionPattern") == true,
+            "the finding must name the field that drifted: \(versionDrifted ?? "nil")")
+}
+
+/// The two ways a field-scoped anchor could be written so that it can never fail
+/// — the outcome worse than having no proof, because it reads as green forever.
+///
+/// Neither is reachable from the registry today (`everyRegisteredAnchorNamesRealFields`
+/// is what holds that line in a PR); this pins the runtime half, for a proof
+/// written after that test was read.
+@Test func anAnchorThatCannotFailIsItselfAFinding() {
+    let recipe = VendorProbeRegistry.recipes.first {
+        $0.bundleID == "com.tencent.wechatdevtools" && $0.channel == .rc
+    }
+    let subject = try! #require(recipe)
+
     #expect(
-        RecipeSanity.crossChannelArtifact(recipe: unanchored, remote: remote) != nil,
-        "a recipe with its channel anchor removed must still be complained about")
+        RecipeSanity.recipeAnchorFailure(
+            pattern: #""id":.*"rc""#, fields: [],
+            channel: .rc, subject: subject) != nil,
+        "an anchor naming no field matches vacuously and must be reported")
+
+    #expect(
+        RecipeSanity.recipeAnchorFailure(
+            pattern: #""id":.*"rc""#, fields: ["versionPatern"],
+            channel: .rc, subject: subject) != nil,
+        "a typo'd field name has nothing to match against and must be reported, not skipped")
+
+    // A field that exists but only LABELS the recipe is refused for the same
+    // reason `nonAnchorFields` exists: `channel` literally contains "rc".
+    #expect(
+        RecipeSanity.recipeAnchorFailure(
+            pattern: #"rc"#, fields: ["channel"],
+            channel: .rc, subject: subject) != nil,
+        "naming a labelling field must be refused, not answered with a tautology")
+}
+
+/// Every registered anchor names at least one field, and every name is a real
+/// anchorable field of the recipe or rule it is registered against.
+///
+/// This is what keeps the field names from being magic strings: a rename, a typo,
+/// or an anchor pinned to a labelling field turns the proof into something that
+/// cannot fail, and that is exactly the silent-no-op shape this file keeps being
+/// bitten by. Covers BOTH registries, so the GitHub side cannot acquire the
+/// weaker behaviour by being written later.
+@Test func everyRegisteredAnchorNamesRealFields() {
+    let recipesByKey = Dictionary(
+        VendorProbeRegistry.recipes.map { (ChannelProofKey($0.bundleID, $0.channel), $0) },
+        uniquingKeysWith: { a, _ in a })
+    for (key, proof) in ChannelProofRegistry.proofs {
+        guard case .recipeAnchor(let pattern, let fields) = proof else { continue }
+        #expect(!fields.isEmpty, "\(key): the anchor /\(pattern)/ names no field, so it cannot fail")
+        guard let recipe = recipesByKey[key] else { continue }
+        for label in fields {
+            #expect(recipe.channelAnchorSurface(ofField: label) != nil,
+                    "\(key): the anchor names '\(label)', which is not an anchorable field of VendorProbeRecipe")
+        }
+    }
+
+    let rulesByKey = Dictionary(
+        GitHubReleaseRegistry.rules.map { (ChannelProofKey($0.bundleID, $0.channel), $0) },
+        uniquingKeysWith: { a, _ in a })
+    for (key, proof) in ChannelProofRegistry.githubProofs {
+        guard case .recipeAnchor(let pattern, let fields) = proof else { continue }
+        #expect(!fields.isEmpty, "\(key): the anchor /\(pattern)/ names no field, so it cannot fail")
+        #expect(rulesByKey[key] != nil, "\(key) has a .recipeAnchor proof but no rule")
+        guard let rule = rulesByKey[key] else { continue }
+        for label in fields {
+            #expect(rule.channelAnchorSurface(ofField: label) != nil,
+                    "\(key): the anchor names '\(label)', which is not an anchorable field of GitHubReleaseRule")
+        }
+    }
 }
 
 /// An anchor that contains quotes must match wherever in the recipe it lives.
@@ -279,7 +446,7 @@ import CryptoKit
         VendorProbeRegistry.recipes.map { (ChannelProofKey($0.bundleID, $0.channel), $0) },
         uniquingKeysWith: { a, _ in a })
     for (key, proof) in ChannelProofRegistry.proofs {
-        guard case .recipeAnchor(let pattern) = proof else { continue }
+        guard case .recipeAnchor(let pattern, _) = proof else { continue }
         guard let recipe = byKey[key] else { continue }
         let labellingOnly = Mirror(reflecting: recipe).children
             .filter { $0.label.map(VendorProbeRecipe.nonAnchorFields.contains) ?? false }
@@ -302,14 +469,19 @@ import CryptoKit
         VendorProbeRegistry.recipes.map { (ChannelProofKey($0.bundleID, $0.channel), $0) },
         uniquingKeysWith: { a, _ in a })
     for (key, proof) in ChannelProofRegistry.proofs {
-        guard case .recipeAnchor(let pattern) = proof else { continue }
+        guard case .recipeAnchor(let pattern, let fields) = proof else { continue }
         let recipe = byKey[key]
         #expect(recipe != nil, "\(key) has a .recipeAnchor proof but no recipe")
         guard let recipe else { continue }
-        #expect(
-            recipe.channelAnchorSurface.range(
-                of: pattern, options: [.regularExpression, .caseInsensitive]) != nil,
-            "\(key): nothing in the recipe matches its anchor /\(pattern)/ any more")
+        // Per named field, not against the join: a proof that names two fields is
+        // asserting the token is in BOTH, and this is where that is checked
+        // offline (issue #110).
+        for label in fields.sorted() {
+            #expect(
+                recipe.channelAnchorSurface(ofField: label)?.range(
+                    of: pattern, options: [.regularExpression, .caseInsensitive]) != nil,
+                "\(key): the recipe's \(label) no longer matches its anchor /\(pattern)/")
+        }
     }
 }
 

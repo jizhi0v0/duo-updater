@@ -357,6 +357,12 @@ final class Preferences {
     /// (no false restart prompt on upgrade).
     static let stagedPackageStagedAtField = "stagedAt"
 
+    /// The build the staged package installs, when its source reported one.
+    /// Absent on entries persisted before this field existed — decoded as nil,
+    /// which leaves those entries comparing on the marketing version alone, i.e.
+    /// exactly what they did when they were written.
+    static let stagedPackageBuildField = "build"
+
     /// Overwrite the staged-package map (the model recomputes it each rescan).
     func setStagedPackages(_ map: [String: [String: String]]) {
         stagedPackages = map

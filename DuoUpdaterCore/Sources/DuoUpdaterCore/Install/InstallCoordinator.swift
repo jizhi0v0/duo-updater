@@ -183,7 +183,11 @@ public actor InstallCoordinator {
     /// Store a rollback point for `app`.
     public static func backUp(_ app: InstalledApp, route: Route) async -> BackupOutcome {
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
-        let version = app.shortVersion ?? app.buildVersion
+        // Recorded as a PAIR. Written marketing-first, the label was "1.0" for
+        // every build of a frozen-marketing app, and the workbench's "is a
+        // rollback a no-op" filter then hid the Rollback row after a real update.
+        let version = app.shortVersion
+        let buildVersion = app.buildVersion
         let fromPackage = (route == .installer)
         let fromStore = (route == .appStore)
         let path = app.path
@@ -197,7 +201,8 @@ public actor InstallCoordinator {
             }
             do {
                 try BackupStore.save(
-                    appPath: path, key: key, version: version, bundleID: bundleID,
+                    appPath: path, key: key, version: version,
+                    buildVersion: buildVersion, bundleID: bundleID,
                     fromPackageInstall: fromPackage, fromAppStore: fromStore)
                 // An input method's settings and learned dictionary live outside
                 // its bundle, so the bundle rollback point above cannot speak for

@@ -220,6 +220,10 @@ public enum SelfUpdaterStaging {
         // strictly newer staged version counts — once applied, on-disk equals
         // `version_to` and this returns nil. Mirrors the ShipIt branch.
         if requireNewerThanInstalled {
+            // version-lint:allow-marketing-first — `versionTo` IS Spotify's
+            // marketing version (its own `update.json` reports nothing else), so
+            // both sides are the same namespace here and the marketing-first pick
+            // is the correct one rather than the defect the lint hunts.
             guard let installedV = app.shortVersion ?? app.buildVersion,
                   VersionComparator.isNewer(versionTo, than: installedV) else { return nil }
         }

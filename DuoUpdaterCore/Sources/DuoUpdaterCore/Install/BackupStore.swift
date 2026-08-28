@@ -42,6 +42,16 @@ public enum BackupStore {
     public struct Backup: Sendable, Equatable {
         public let key: String
         public let version: String?
+        /// The build the backed-up bundle carried, when it had one. Nil on
+        /// backups taken before this was recorded.
+        public let buildVersion: String?
+        /// Both halves, for anything asking whether the installed copy has
+        /// actually moved on from this backup. A marketing-only comparison says
+        /// "no" for every app that keeps one marketing version across builds,
+        /// which hid the Rollback row after a real update.
+        public var versionSide: VersionSide {
+            VersionSide(marketing: version, build: buildVersion)
+        }
         public let bundlePath: URL
         public let savedAt: Date
         /// Whether the update this backup was taken for was applied by a `.pkg`
@@ -68,6 +78,9 @@ public enum BackupStore {
     /// JSON sidecar persisted next to a backed-up bundle.
     private struct Meta: Codable {
         let version: String?
+        /// Optional so sidecars written before it decode unchanged; nil leaves
+        /// the comparison marketing-only, i.e. exactly what it was.
+        var buildVersion: String?
         let bundleID: String?
         let originalPath: String
         let bundleName: String
@@ -167,7 +180,8 @@ public enum BackupStore {
     /// treat that as "no rollback point" but must NOT block the update on it.
     @discardableResult
     public static func save(
-        appPath: URL, key: String, version: String?, bundleID: String?,
+        appPath: URL, key: String, version: String?, buildVersion: String? = nil,
+        bundleID: String?,
         fromPackageInstall: Bool = false, fromAppStore: Bool = false
     ) throws -> Backup {
         let fm = FileManager.default
@@ -266,7 +280,7 @@ public enum BackupStore {
                 "backup: could not fingerprint \(name, privacy: .public) — restoring it will fall back to the signature gate")
         }
         let meta = Meta(
-            version: version, bundleID: bundleID,
+            version: version, buildVersion: buildVersion, bundleID: bundleID,
             originalPath: appPath.path, bundleName: name, savedAt: savedAt,
             fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore,
             omittedFiles: unreadable.unsealed.isEmpty ? nil : unreadable.unsealed,
@@ -324,11 +338,28 @@ public enum BackupStore {
         let legacy = legacyKey(bundleID: bundleID, path: appPath)
         if legacy != key { remove(forKey: legacy) }
         return Backup(
-            key: key, version: version, bundlePath: dest, savedAt: savedAt,
+            key: key, version: version, buildVersion: buildVersion,
+            bundlePath: dest, savedAt: savedAt,
             fromPackageInstall: fromPackageInstall, fromAppStore: fromAppStore)
     }
 
     // MARK: - Query
+
+    /// Whether restoring this backup would actually change the installed copy.
+    ///
+    /// The workbench hides a rollback that would be a no-op. That filter compared
+    /// the backup's *marketing* label against the installed marketing string, so
+    /// for an app that keeps one marketing version across builds every rollback
+    /// looked like a no-op and the row vanished — after a real update, with a
+    /// complete backup sitting on disk and no way to reach it.
+    ///
+    /// A backup with nothing comparable (an old sidecar with no version at all) is
+    /// treated as distinct: offering a rollback that turns out to be a no-op is a
+    /// far smaller failure than hiding one the user needs.
+    public static func rollbackIsDistinct(installed: VersionSide, backup: VersionSide) -> Bool {
+        guard !backup.isEmpty, !installed.isEmpty else { return true }
+        return !VersionComparator.isSame(installed, as: backup)
+    }
 
     /// The current backup for `key`, or nil if none exists.
     public static func backup(forKey key: String) -> Backup? {
@@ -339,7 +370,8 @@ public enum BackupStore {
         let bundle = dir.appendingPathComponent(meta.bundleName)
         guard FileManager.default.fileExists(atPath: bundle.path) else { return nil }
         return Backup(
-            key: key, version: meta.version, bundlePath: bundle, savedAt: meta.savedAt,
+            key: key, version: meta.version, buildVersion: meta.buildVersion,
+            bundlePath: bundle, savedAt: meta.savedAt,
             fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore)
     }
 

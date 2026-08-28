@@ -198,7 +198,7 @@ public enum BackupStore {
         // stranded in the store may waste space, but it can no longer poison the
         // next attempt.
         let staging = root.appendingPathComponent(
-            ".staging-\(key)-\(UUID().uuidString)", isDirectory: true)
+            "\(stagingPrefix(key: key))-\(UUID().uuidString)", isDirectory: true)
         sweepStagingLeftovers(in: root, key: key)
         try fm.createDirectory(at: staging, withIntermediateDirectories: false)
 
@@ -676,14 +676,29 @@ public enum BackupStore {
         return p.terminationStatus == 0
     }
 
+    /// The prefix every staging directory for `key` shares — the bundle copy's own
+    /// and `InputMethodDataBackup`'s user-data snapshot alike.
+    ///
+    /// One function rather than the literal spelled out at each site, because
+    /// `sweepStagingLeftovers` selects on exactly this and nothing else ever will:
+    /// a stager that invents its own name is stranded PERMANENTLY when its cleanup
+    /// does not run, and invisibly, since every scan of the store's root passes
+    /// `.skipsHiddenFiles` — so retention never prunes it and `backupSize` never
+    /// counts it. `InputMethodDataBackup` shipped that way briefly and its snapshot
+    /// is a copy of the user's entire input-method data directory.
+    static func stagingPrefix(key: String) -> String { ".staging-\(key)" }
+
     /// Best-effort removal of staging dirs left by earlier attempts for this app.
     /// Best-effort is the point: one that will not go is reported and stepped
     /// around, never allowed to fail the backup that follows. Hidden names, so
     /// `allBackups`' directory scan skips them either way.
-    private static func sweepStagingLeftovers(in root: URL, key: String) {
+    ///
+    /// Internal rather than private so `InputMethodDataBackupTests` can pin that
+    /// the user-data snapshot's own name is one this reclaims.
+    static func sweepStagingLeftovers(in root: URL, key: String) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(atPath: root.path) else { return }
-        for name in entries where name.hasPrefix(".staging-\(key)") {
+        for name in entries where name.hasPrefix(stagingPrefix(key: key)) {
             let leftover = root.appendingPathComponent(name)
             // Anything we copied may carry a `uchg` the source set; clear it before
             // trying, or a leftover written before this existed can never be swept.

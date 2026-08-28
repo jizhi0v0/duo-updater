@@ -68,6 +68,16 @@ public enum InputMethodDataBackup {
     /// with, and it goes when that goes.
     static let directoryName = "UserData"
 
+    /// The name of the directory this snapshot is built in before it is swapped
+    /// into place. Derived from `BackupStore.stagingPrefix` rather than spelled
+    /// out, because that prefix is what `BackupStore.sweepStagingLeftovers`
+    /// reclaims — see the comment in `save`, and
+    /// `aStrandedUserDataSnapshotIsReclaimedByTheNextBackup`, which pins the two
+    /// against each other.
+    static func stagingName(key: String) -> String {
+        "\(BackupStore.stagingPrefix(key: key))-userdata-\(UUID().uuidString)"
+    }
+
     /// One captured location: where it came from, and what it is called in the
     /// store. Stored names are flat and sanitized, so a snapshot directory is
     /// browsable and nothing can escape it via `..` or a nested path.
@@ -183,8 +193,25 @@ public enum InputMethodDataBackup {
         // Built in a hidden sibling and swapped in, for the same reason
         // `BackupStore.save` does: a half-written snapshot must not replace a
         // complete one from the previous update.
+        //
+        // The name has to START `.staging-<key>`, and that is load-bearing rather
+        // than cosmetic: `BackupStore.sweepStagingLeftovers` is what reclaims a
+        // staging directory whose `defer` never ran, and it selects on exactly
+        // that prefix. A name of our own (this read `.userdata-staging-<key>-…`
+        // before) matches nothing it looks for, so a snapshot interrupted between
+        // `createDirectory` and the swap below would be stranded PERMANENTLY —
+        // and invisibly, because every scan of the store's root passes
+        // `.skipsHiddenFiles`, so retention would never prune it and
+        // `backupSize` would never count it. That is a copy of the user's whole
+        // input-method data directory, one per interruption, that nothing on
+        // screen could account for. Keep the prefix; put the distinguishing part
+        // after the key.
+        //
+        // Safe against the sweep deleting one of ours mid-write: the sweep runs
+        // at the top of `BackupStore.save`, and `InstallCoordinator.backUp` only
+        // calls us once that has returned.
         let staging = BackupStore.root.appendingPathComponent(
-            ".userdata-staging-\(key)-\(UUID().uuidString)", isDirectory: true)
+            stagingName(key: key), isDirectory: true)
         try? fm.removeItem(at: staging)
         guard (try? fm.createDirectory(at: staging, withIntermediateDirectories: true)) != nil else {
             Log.install.error(

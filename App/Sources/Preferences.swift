@@ -87,6 +87,7 @@ final class Preferences {
         static let lastCheckDate = "LastCheckDate"
         static let lastSeenSelfVersion = "LastSeenSelfVersion"   // our own version whose notes the user has seen
         static let notifiedVersions = "NotifiedVersions"
+        static let notifiedStagedVersions = "NotifiedStagedVersions"
         static let notificationBaselineSeeded = "NotificationBaselineSeeded"
         static let marketingByBuild = "MarketingVersionByBuild"
         static let stagedPackages = "StagedPackages"
@@ -272,6 +273,17 @@ final class Preferences {
         didSet { defaults.set(notifiedVersions, forKey: Key.notifiedVersions) }
     }
 
+    /// Per-app staged build we've already posted a "downloaded it on its own —
+    /// relaunch to apply" notification for (key → the staged version). Separate
+    /// from `notifiedVersions` because it answers a different question: that one
+    /// tracks the version on *offer*, this one the version already sitting on disk
+    /// waiting for a relaunch, and an app can have both at once. Persisted so a
+    /// staged build the user has decided to sit on doesn't get re-announced by
+    /// every refresh, or by a DuoUpdater relaunch.
+    private(set) var notifiedStagedVersions: [String: String] {
+        didSet { defaults.set(notifiedStagedVersions, forKey: Key.notifiedStagedVersions) }
+    }
+
     /// Whether we've recorded an initial notification baseline yet. The first run
     /// adopts whatever's already pending *silently* — notifications are for updates
     /// that appear *after* the user first sees today's list, not a launch-time dump
@@ -284,6 +296,12 @@ final class Preferences {
     /// each check, keyed by `key(for:)`).
     func setNotifiedVersions(_ versions: [String: String]) {
         notifiedVersions = versions
+    }
+
+    /// Overwrite the staged-relaunch announcement ledger (the model rewrites the
+    /// whole map each staging pass, keyed by `key(for:)`).
+    func setNotifiedStagedVersions(_ versions: [String: String]) {
+        notifiedStagedVersions = versions
     }
 
     /// Records the marketing version each on-disk *build* was last seen with, keyed
@@ -392,6 +410,8 @@ final class Preferences {
         self.lastCheckDate = defaults.object(forKey: Key.lastCheckDate) as? Date
         self.lastSeenSelfVersion = defaults.string(forKey: Key.lastSeenSelfVersion)
         self.notifiedVersions = defaults.dictionary(forKey: Key.notifiedVersions) as? [String: String] ?? [:]
+        self.notifiedStagedVersions =
+            defaults.dictionary(forKey: Key.notifiedStagedVersions) as? [String: String] ?? [:]
         self.notificationBaselineSeeded = defaults.bool(forKey: Key.notificationBaselineSeeded)
         self.marketingByBuild = defaults.dictionary(forKey: Key.marketingByBuild) as? [String: String] ?? [:]
         self.stagedPackages =

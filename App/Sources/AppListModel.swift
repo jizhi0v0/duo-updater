@@ -621,14 +621,6 @@ final class AppListModel {
     /// so a flurry of process events collapses to one `lsappinfo` read.
     @ObservationIgnored private var restartRecheckTask: Task<Void, Never>?
 
-    /// Periodic "your app downloaded an update on its own — relaunch to apply it"
-    /// reminder. Decoupled from the (possibly hours-long) update-check interval:
-    /// once we detect a self-staged build, we nudge right away and then keep
-    /// re-nudging on this cadence until the user relaunches and it's applied. Nil
-    /// when nothing is staged.
-    @ObservationIgnored private var selfUpdateReminder: Task<Void, Never>?
-    private let selfUpdateReminderInterval: Duration = .seconds(300)  // 5 min
-
     /// Per-app download traffic, tracked to the byte and persisted across runs.
     private let trafficStore = TrafficStore()
     /// Snapshot of per-app traffic for the UI, refreshed after each recorded
@@ -3038,8 +3030,9 @@ final class AppListModel {
         }
         // Move any actionable-staged row into the actionable tier (rank 0).
         results = sorted(results)
-        // Start (or stop) the periodic relaunch reminder to match what's actionable.
-        updateSelfUpdateReminder()
+        // Announce whatever is newly staged. Nothing here re-announces a build the
+        // user has already been told about, so running this every pass is quiet.
+        notifyStagedRelaunches()
         // Same bookkeeping pass, same preconditions (`results` is current): drop any
         // downloaded installer package that no longer matches what's on offer.
         pruneStagedPackages()
@@ -3288,10 +3281,10 @@ final class AppListModel {
         }
     }
 
-    /// A staged self-update the periodic reminder may nudge about: the staged
-    /// build is the latest *and* the user hasn't hidden the app or that version.
-    /// `actionableStaged` answers only the first half — see `nudgeableStaged` for
-    /// why the second half has to be applied here.
+    /// A staged self-update worth announcing: the staged build is the latest *and*
+    /// the user hasn't hidden the app or that version. `actionableStaged` answers
+    /// only the first half — see `nudgeableStaged` for why the second half has to
+    /// be applied here.
     private func nudgeableStaged(_ result: UpdateResult) -> StagedSelfUpdate? {
         UpdatePolicy.nudgeableStaged(
             result,
@@ -3300,43 +3293,43 @@ final class AppListModel {
             isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) })
     }
 
-    /// True when any row has a staged build still worth reminding about. Drives
-    /// whether the reminder loop runs at all, so it has to use the same gate the
-    /// loop does — otherwise the loop spins every 5 minutes finding nothing.
-    private var hasNudgeableStaged: Bool {
-        results.contains { nudgeableStaged($0) != nil }
-    }
-
-    /// Keep the periodic self-update reminder in sync with `pendingSelfUpdate`:
-    /// run a loop while anything is staged, tear it down when nothing is. The loop
-    /// nudges immediately on first detection, then re-nudges every
-    /// `selfUpdateReminderInterval` so a staged build the user glanced at but didn't
-    /// act on resurfaces instead of being forgotten. Each app's banner uses a stable
-    /// identifier, so a re-nudge replaces the prior one rather than piling up.
-    private func updateSelfUpdateReminder() {
-        guard hasNudgeableStaged else {
-            selfUpdateReminder?.cancel()
-            selfUpdateReminder = nil
-            return
+    /// Announce staged relaunches — once per (app, staged build), not once per
+    /// staging pass.
+    ///
+    /// This used to be a timer that re-posted a banner for every staged build every
+    /// five minutes, for as long as it stayed staged. The stable notification
+    /// identifier kept Notification Center to one entry per app, but each repost
+    /// still alerted, so an app the user wasn't ready to relaunch nagged twelve
+    /// times an hour and never stopped. The ledger replaces the repetition with a
+    /// persisted (app → announced version) pair, so the reminder resurfaces exactly
+    /// when there is something new to say: a *different* build gets staged. See
+    /// `StagedNudgeLedger` for why the key is the version rather than the app.
+    ///
+    /// Runs from `computeSelfUpdateStaging`, which is the only place
+    /// `pendingSelfUpdate` changes, so every path that can newly stage something
+    /// (scheduled check, manual refresh, post-install rescan) announces it.
+    private func notifyStagedRelaunches() {
+        guard prefs.notifyOnUpdates else { return }
+        var ledger = StagedNudgeLedger(prefs.notifiedStagedVersions)
+        // Guard against an empty/partial pass wiping the ledger before a real scan
+        // has populated `results` — that would re-announce everything already staged.
+        if !results.isEmpty {
+            ledger.prune(liveKeys: Set(results.map { prefs.key(for: $0.app) }))
         }
-        guard selfUpdateReminder == nil else { return }  // already nudging
-        selfUpdateReminder = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                guard self.prefs.notifyOnUpdates else { self.selfUpdateReminder = nil; return }
-                for result in self.results {
-                    // Only nudge "relaunch to apply X" when X is actually the latest —
-                    // a staged build that trails a newer release goes through the
-                    // normal updates-available path instead — and only when the user
-                    // hasn't ignored the app or skipped that version.
-                    guard let staged = self.nudgeableStaged(result) else { continue }
-                    UpdateNotifier.selfDownloaded(
-                        app: result.app.name, version: staged.version, appID: result.id)
-                }
-                try? await Task.sleep(for: self.selfUpdateReminderInterval)
-                if !self.hasNudgeableStaged { self.selfUpdateReminder = nil; return }
-            }
+        for result in results {
+            // Only nudge "relaunch to apply X" when X is actually the latest — a
+            // staged build that trails a newer release goes through the normal
+            // updates-available path instead — and only when the user hasn't
+            // ignored the app or skipped that version.
+            guard let staged = nudgeableStaged(result) else { continue }
+            let key = prefs.key(for: result.app)
+            guard ledger.isNew(key: key, version: staged.version) else { continue }
+            ledger.record(key: key, version: staged.version)
+            Log.app.info("notify: \(result.app.name, privacy: .public) staged \(staged.version, privacy: .public) — relaunch nudge")
+            UpdateNotifier.selfDownloaded(
+                app: result.app.name, version: staged.version, appID: result.id)
         }
+        prefs.setNotifiedStagedVersions(ledger.entries)
     }
 
     /// Relaunch the app named by a notification's Relaunch action.
@@ -4515,9 +4508,10 @@ final class AppListModel {
             // to see it again.
             Task { await recheckAfterUnignore(result) }
         }
-        // Re-evaluate the reminder loop in both directions: ignoring the last staged
-        // app should tear it down, and un-ignoring one should arm it again.
-        updateSelfUpdateReminder()
+        // Un-ignoring an app with a staged build brings its relaunch nudge back —
+        // once, if that exact build was never announced. (Ignoring posts nothing:
+        // `nudgeableStaged` gates on it.)
+        notifyStagedRelaunches()
         Log.app.info("\(nowIgnored ? "ignore" : "unignore", privacy: .public): \(result.app.name, privacy: .public)")
     }
 
@@ -4558,10 +4552,9 @@ final class AppListModel {
         // Same cleanup as ignoring the app: a "Relaunch to apply it" banner already
         // in Notification Center is for the version just declined (a banner only
         // exists while the staged build is the latest, i.e. this very version), so
-        // it must not outlive the skip — and the reminder loop has to re-evaluate,
-        // or skipping the last nudgeable version leaves it ticking on nothing.
+        // it must not outlive the skip. Nothing to re-arm — the nudge is posted once
+        // per staged build, and `nudgeableStaged` will refuse this one from here on.
         UpdateNotifier.clearSelfDownloaded(appID: result.id)
-        updateSelfUpdateReminder()
         Log.app.info("skip \(version, privacy: .public): \(result.app.name, privacy: .public)")
     }
 

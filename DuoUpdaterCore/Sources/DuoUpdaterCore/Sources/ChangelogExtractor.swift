@@ -10,10 +10,12 @@ import Foundation
 /// result is the caller's signal to fall back to the embedded web page.
 ///
 /// If you're changing what this file extracts (not just adding support for a
-/// new recipe shape), bump `Changelog.parserGeneration` — see its doc comment.
-/// A `Changelog` this produces can be written to `ChangelogDiskCache` and served,
-/// unre-parsed, to a user on a version their notes were already cached for;
-/// without the bump, this fix never reaches them.
+/// new recipe shape) — including a `ChangelogRecipe` field edit in the registry
+/// (`ChangelogRecipe.swift`) that changes what an EXISTING cached version parses
+/// to, not just new releases — bump `Changelog.parserGeneration`; see its doc
+/// comment. A `Changelog` this produces can be written to `ChangelogDiskCache` and
+/// served, unre-parsed, to a user on a version their notes were already cached
+/// for; without the bump, this fix never reaches them.
 public enum ChangelogExtractor {
 
     /// Parse `text` into a `Changelog` per `recipe`, or nil when nothing usable

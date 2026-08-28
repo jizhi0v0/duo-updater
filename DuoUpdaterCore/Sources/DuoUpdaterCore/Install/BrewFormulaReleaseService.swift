@@ -6,7 +6,7 @@ import Foundation
 /// the release tag. From that we fetch the GitHub release body and parse it into the
 /// same structured `Changelog` the app rows render, so formula notes look native.
 /// Non-GitHub formulae (Go, GNU tools) fall back to their homepage.
-public struct FormulaRelease: Sendable, Codable {
+public struct FormulaRelease: Sendable, Codable, Hashable {
     /// Structured notes, when a GitHub release body was found and parsed. nil falls
     /// the UI back to `pageURL` (rendered in a web view).
     public let changelog: Changelog?
@@ -28,6 +28,14 @@ public struct FormulaRelease: Sendable, Codable {
 /// the GitHub Releases API for the body. Lazy by design — the UI calls this only
 /// when a formula is selected, so a screenful of outdated formulae never burns the
 /// GitHub rate limit up front.
+///
+/// This is the SECOND cross-launch disk cache whose content comes from
+/// `GitHubMarkdownParser` — `ChangelogDiskCache` is the other, and issue #112 was
+/// filed against exactly this failure mode: a version's notes cached under an
+/// older parser get served forever, because a released version's notes never
+/// change but what THIS APP extracts from them can. `cached`/`persist` below stamp
+/// and check `Changelog.parserGeneration` for the same reason and by the same
+/// rule as `ChangelogDiskCache` — see its doc comment and `Changelog.parserGeneration`'s.
 public actor BrewFormulaReleaseService {
     private let session: URLSession
     private let directory: URL
@@ -45,14 +53,36 @@ public actor BrewFormulaReleaseService {
         }
     }
 
+    /// Wraps `FormulaRelease` with the parser generation that produced it, mirroring
+    /// `ChangelogDiskCache.Stored` — kept OUT of `FormulaRelease` itself because that
+    /// type is also what the UI holds in `AppListModel.formulaReleaseStates`, and a
+    /// caching concern has no business riding along on a domain value passed around
+    /// the app. Non-optional and undefaulted for the same reason as
+    /// `ChangelogDiskCache.Stored`: an entry written before this field existed has
+    /// no honest generation to compare against, so it can't be assigned one — it can
+    /// only be unknown, and decoding it here throws, which `cached` below already
+    /// turns into a miss (same as any other corrupt/unreadable file). `persist`
+    /// still overwrites this exact key's file on the next fetch, and the sibling
+    /// prune below deletes every *other*-version file for the formula on each
+    /// successful write regardless of decodability, so this doesn't accumulate
+    /// unbounded undecodable files — same ~one-file-per-formula bound as before.
+    private struct Stored: Codable {
+        let release: FormulaRelease
+        let parserGeneration: Int
+    }
+
     /// The cross-launch disk-cached notes for a formula version, with NO `brew info`
     /// spawn and NO GitHub call. Used by the pre-warm probe and as the fast path in
-    /// `release(for:…)`. A formula version's notes are immutable, so a hit is final.
+    /// `release(for:…)`. A formula version's notes are immutable, so a hit is final
+    /// PROVIDED it was written under the running build's `Changelog.parserGeneration`
+    /// — a mismatch (or a pre-generation file with no such field at all) is treated
+    /// as a miss, same as `ChangelogDiskCache.get`.
     public func cached(for name: String, version: String) -> FormulaRelease? {
         guard let data = try? Data(contentsOf: fileURL(name: name, version: version)),
-              let release = try? JSONDecoder().decode(FormulaRelease.self, from: data)
+              let stored = try? JSONDecoder().decode(Stored.self, from: data),
+              stored.parserGeneration == Changelog.parserGeneration
         else { return nil }
-        return release
+        return stored.release
     }
 
     public func release(for name: String, version: String, token: String?) async -> FormulaRelease {
@@ -93,13 +123,24 @@ public actor BrewFormulaReleaseService {
         directory.appendingPathComponent(prefix(name: name) + sanitize(version) + ".json")
     }
 
-    /// Persist a formula version's notes, pruning any older-version file for the same
+    /// Persist a formula version's notes, stamped with the running build's
+    /// `Changelog.parserGeneration`, and prune any older-version file for the same
     /// formula (only the current version is ever shown). Best-effort.
-    private func persist(_ release: FormulaRelease, name: String, version: String) {
+    ///
+    /// Internal, not `private`: `compute` above spawns a real `brew info` `Process`
+    /// and a real GitHub request, so exercising the disk-write path (does `persist`
+    /// stamp the running generation?) through the public `release(for:…)` API would
+    /// make that test dependent on Homebrew being installed and reachable over the
+    /// network — exactly the kind of test this codebase avoids for its cache layers.
+    /// `BrewFormulaReleaseServiceTests` calls this directly instead, the same
+    /// reasoning `ChangelogDiskCache.directory` documents for its own test-only
+    /// internal visibility.
+    func persist(_ release: FormulaRelease, name: String, version: String) {
         let keep = fileURL(name: name, version: version).lastPathComponent
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try JSONEncoder().encode(release).write(
+            let stored = Stored(release: release, parserGeneration: Changelog.parserGeneration)
+            try JSONEncoder().encode(stored).write(
                 to: directory.appendingPathComponent(keep), options: .atomic)
         } catch {
             Log.app.debug("formula release disk write failed: \(error.localizedDescription, privacy: .public)")

@@ -16,6 +16,16 @@ import Foundation
 ///     page's variants (old vs new markup) without branching code.
 ///   - **Serializable.** Every field is plain data, so a recipe can later live in
 ///     a remote catalog and be fixed without shipping a new app build.
+///
+/// A field here is not just config — it's an input to `ChangelogExtractor` /
+/// `StructuredChangelogDecoder` exactly like their own source code is, and an edit
+/// that changes what an EXISTING cached version's notes parse to (`entryPattern`,
+/// `itemPatterns`, `skipSections`, `stripTags`, `escapedMarkup`, `markdownSource`,
+/// `minItemLength`, `newestLast`, `maxEntries`, `source`, …) needs the same
+/// `Changelog.parserGeneration` bump a parser-code change does — see its doc
+/// comment. Two already-merged recipe-only edits prove this isn't hypothetical:
+/// `0d9d424` (Figma's `entryPattern`/`source` moved to a different feed) and
+/// `a6ac16b` (`skipSections` added, below).
 public struct ChangelogRecipe: Codable, Sendable {
     /// `CFBundleIdentifier` (lowercased by convention) of the app this targets.
     public let bundleID: String

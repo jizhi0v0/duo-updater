@@ -8,34 +8,59 @@ import Foundation
 /// `WKWebView`.
 ///
 /// `Codable` on purpose: this is the shape an offline pipeline can pre-compute and
-/// (later) ship in a remote catalog, and it's also what `ChangelogExtractor`
-/// produces on-device. Either way the renderer only ever sees this struct.
+/// (later) ship in a remote catalog, and it's also what `ChangelogExtractor`,
+/// `StructuredChangelogDecoder`, and `GitHubMarkdownParser` produce on-device —
+/// the last of those directly for Homebrew formula release notes too, not only
+/// for app changelogs. Either way the renderer only ever sees this struct.
 public struct Changelog: Codable, Sendable, Hashable {
 
-    /// The extraction logic's generation. `ChangelogDiskCache` stamps every entry
-    /// it writes with this number and treats a stored entry whose number doesn't
-    /// match the running build's as a miss — falls through to the network, exactly
-    /// like a cold cache (see `ChangelogDiskCache`). That's what lets a parser fix
-    /// reach a version whose notes were already cached under the OLD logic: without
-    /// this, an entry written by an older build is served forever for that exact
-    /// version, no matter what `ChangelogExtractor`, `StructuredChangelogDecoder`,
-    /// or `GitHubMarkdownParser` have learned since (issue #112).
+    /// The extraction logic's generation. TWO cross-launch disk caches stamp every
+    /// entry they write with this number and treat a stored entry whose number
+    /// doesn't match the running build's as a miss — falls through to the network,
+    /// exactly like a cold cache: `ChangelogDiskCache` (app changelogs) and
+    /// `BrewFormulaReleaseService`'s own on-disk cache (Homebrew formula release
+    /// notes, which are also parsed by `GitHubMarkdownParser` — same generation,
+    /// same rule, separate store — see both types' doc comments). That's what lets
+    /// a parser fix reach a version whose notes were already cached under the OLD
+    /// logic: without this, an entry written by an older build is served forever
+    /// for that exact version, no matter what extraction has learned since
+    /// (issue #112).
     ///
-    /// **Bump this whenever a change to any of those three files could change what
-    /// a PREVIOUSLY-parsed version's `Changelog` would come out as** — a change to
-    /// parsing/extraction *rules*, not merely support for a newly-encountered vendor
-    /// shape that no cached entry could have hit. Each of those files carries a
-    /// pointer comment back here for exactly this reason: the constant living only
-    /// in the cache file, which a parser author has no reason to ever open, is the
-    /// same hand-maintained-list failure this codebase has already been bitten by
-    /// (see `VendorProbeRecipe.channelAnchorSurface`'s doc comment).
+    /// **Bump this whenever a change could alter what a PREVIOUSLY-parsed version's
+    /// `Changelog` would come out as** — a change to parsing/extraction *rules*, not
+    /// merely support for a newly-encountered vendor shape that no cached entry
+    /// could have hit. That covers two different kinds of change, both of which
+    /// need a bump:
+    /// - the extraction CODE: `ChangelogExtractor`, `StructuredChangelogDecoder`,
+    ///   `GitHubMarkdownParser`;
+    /// - the per-recipe DATA in `ChangelogRecipeRegistry` (`ChangelogRecipe.swift`)
+    ///   that's threaded into that code and changes its output just as directly —
+    ///   `entryPattern`, `itemPatterns`, `skipSections`, `stripTags`,
+    ///   `escapedMarkup`, `markdownSource`, `minItemLength`, `newestLast`,
+    ///   `maxEntries`, `source` itself, and so on. A recipe edit that changes what
+    ///   an EXISTING cached version's notes would parse to (not just what a *new*
+    ///   release's notes will) is exactly as invalidating as a code change; two
+    ///   already-merged commits prove it — `0d9d424` (Figma moved to a different
+    ///   feed with a different `entryPattern`, same bundle id) and `a6ac16b`
+    ///   (`skipSections` added, changing BetterDisplay's existing releases' output).
+    ///
+    /// Each of the four files above carries a pointer comment back here for exactly
+    /// this reason: the constant living only in the cache file, which a parser
+    /// author has no reason to ever open, is the same hand-maintained-list failure
+    /// this codebase has already been bitten by (see
+    /// `VendorProbeRecipe.channelAnchorSurface`'s doc comment). Unlike that surface,
+    /// there is no mechanical derivation for "did extraction's output change" —
+    /// parsing is a function from (recipe data, page bytes) to `Changelog`, not a
+    /// field list reflection can enumerate — so the closest available mechanical
+    /// guard is `ChangelogParserGenerationGuardTests`, which pins the actual parsed
+    /// output of two registry-driven fixtures and fails when either moves.
     ///
     /// One line per bump — what changed and why:
     /// - 1: baseline. Introduced with the generation field itself (issue #112); no
     ///   prior bump history exists because the field didn't. Ships as of this
     ///   commit already carrying the `GitHubMarkdownParser.isImageOnly` HTML `<img>`
-    ///   arm (`9963e3e`), so that fix is folded into generation 1 rather than
-    ///   triggering a bump on its own.
+    ///   arm (`9963e3e`) and `ChangelogRecipe.skipSections` (`a6ac16b`), so those are
+    ///   folded into generation 1 rather than triggering a bump on their own.
     public static let parserGeneration = 1
 
     public let entries: [Entry]
@@ -56,8 +81,18 @@ public struct Changelog: Codable, Sendable, Hashable {
     }
 
     /// Defaults to `.plain`: every producer except the GitHub one strips markup
-    /// before it gets here, and an older cached `Changelog` (this type is
-    /// `Codable` and lands on disk) decodes without the key.
+    /// before it gets here, and a `Changelog` encoded before this field existed
+    /// decodes without the key. NO LONGER the path that protects either on-disk
+    /// changelog cache, though: `ChangelogDiskCache.Stored` and
+    /// `BrewFormulaReleaseService`'s own `Stored` wrapper both carry a
+    /// `parserGeneration` (see `Changelog.parserGeneration`) that fails to decode
+    /// FIRST for an entry old enough to predate this field — by the time
+    /// `parserGeneration` existed, `itemSyntax` already did, so nothing reaches this
+    /// default through either cache any more. What still needs it: the "shape an
+    /// offline pipeline can pre-compute and ship in a remote catalog" this type is
+    /// also `Codable` for (see the type's own doc comment), which carries no
+    /// generation wrapper at all — exercised directly (bypassing both caches) by
+    /// `ChangelogItemSyntaxTests.syntaxSurvivesTheDiskCacheAndOldPayloadsDecode`.
     public let itemSyntax: ItemSyntax
 
     public init(entries: [Entry], itemSyntax: ItemSyntax = .plain) {
@@ -113,8 +148,13 @@ public struct Changelog: Codable, Sendable, Hashable {
             self.content = content
         }
 
-        // Custom decode so entries cached before `content` existed still decode —
-        // a missing key falls back to empty rather than throwing.
+        // Custom decode so an `Entry` encoded before `content` existed still
+        // decodes — a missing key falls back to empty rather than throwing. As with
+        // `itemSyntax` above, this is no longer what protects either on-disk
+        // changelog cache (both wrap `Changelog` in a `Stored` type whose own
+        // `parserGeneration` fails to decode first for an entry this old — see
+        // `Changelog.parserGeneration`'s doc comment); it remains live for the
+        // generation-less remote-catalog path this type is also `Codable` for.
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             title = try c.decodeIfPresent(String.self, forKey: .title)

@@ -17,9 +17,13 @@ import Foundation
 ///
 /// If you're changing what this file extracts (not just adding support for a
 /// new vendor shape), bump `Changelog.parserGeneration` — see its doc comment.
-/// A `Changelog` this parser produces can be written to `ChangelogDiskCache` and
-/// served, unre-parsed, to a user on a version their notes were already cached
-/// for; without the bump, this fix never reaches them.
+/// A `Changelog` this parser produces can be written to EITHER of the two
+/// cross-launch disk caches that persist one — `ChangelogDiskCache` (via
+/// `StructuredChangelogDecoder`, for the `.gitHubReleases`/`.zedGitHubReleases`
+/// recipe formats) and `BrewFormulaReleaseService`'s own on-disk cache (this file
+/// called directly, for Homebrew formula release notes) — and served, unre-parsed,
+/// to a user on a version their notes were already cached for; without the bump,
+/// this fix never reaches them.
 public enum GitHubMarkdownParser {
 
     /// Parse a single release body into a `Changelog` with one entry, or nil

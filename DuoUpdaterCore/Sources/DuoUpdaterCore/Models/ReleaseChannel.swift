@@ -60,17 +60,22 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///      `org.mozilla.firefox` with Stable. Verified against real bundles
     ///      2026-06-04; the version-suffix heuristic below silently misclassified
     ///      them (an ESR install read as `.stable`, then offered the stable build).
-    ///   0.5/0.6. Two more bundle-id-scoped rules, deliberately ahead of Keystone —
-    ///      Android Studio and DB Browser for SQLite, whose only on-disk channel
-    ///      signal is the installed BUNDLE FILENAME (not the display name or
-    ///      version string). See the block comment on each check, below, for why.
+    ///   0.5/0.6. Two more bundle-id-scoped rules, checked ahead of the ones
+    ///      below — Android Studio and DB Browser for SQLite, whose only on-disk
+    ///      channel signal is the installed BUNDLE FILENAME (not the display
+    ///      name or version string). See the block comment on each check, below,
+    ///      for why.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
     ///   2. A channel suffix on the bundle id (`com.google.Chrome.canary`).
     ///   3. A standalone channel word in the display name ("Google Chrome Dev").
-    ///   4. A Mozilla-style pre-release suffix in the version string
-    ///      ("153.0a1" → nightly) — survives only for Nightly; Beta/ESR strip it.
+    ///   4. A pre-release shape in the version string: Mozilla's `b<N>`/`a<N>`/
+    ///      `esr`, GitHub Desktop's full-semver `-beta<N>`, and a prerelease
+    ///      WORD in the version's dash-separated tail (Freelens `-nightly-…`,
+    ///      VLC `-dev`, KeePassXC `-snapshot`) for apps whose bundle id, name,
+    ///      and filename are all silent — see the block comment below for the
+    ///      anchoring that keeps ordinary build-metadata versions out of this.
     /// Nothing matched → `.stable`.
     public static func detect(
         name: String,

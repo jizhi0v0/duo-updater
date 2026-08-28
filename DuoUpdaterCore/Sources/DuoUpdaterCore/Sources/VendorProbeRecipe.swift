@@ -2878,7 +2878,7 @@ public enum VendorProbeRegistry {
         // Toolbox-MANAGED Canary/Beta — that copy stays detection-only and updates
         // through Toolbox. A HAND-INSTALLED Canary/Beta (`isToolboxManaged ==
         // false`) gets `allowInstall = true` and IS offered this one-click, which is
-        // why the dmg patterns above must stay correct and in lockstep with the
+        // why the dmg patterns below must stay correct and in lockstep with the
         // version set, not merely decorative. Team EQHXZ8M8AV.
         VendorProbeRecipe(
             bundleID: "com.google.android.studio",

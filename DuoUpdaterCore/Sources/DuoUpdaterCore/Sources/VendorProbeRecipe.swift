@@ -301,14 +301,50 @@ public struct VendorProbeRecipe: Sendable {
     /// `NSRegularExpression`'s default mode, and at least one live anchor spans
     /// a gap with `.*` (`"id":.*"rc"`). Per-field lines keep such a pattern from
     /// straddling two unrelated fields and matching something nobody meant.
+    ///
+    /// The WHOLE surface is no longer what a proof is matched against — a
+    /// `.recipeAnchor` names the fields it relies on and is checked against each
+    /// of them (see `channelAnchorFields` and issue #110). This stays as the
+    /// union those field views are cut from, and as what the tests measure.
     public var channelAnchorSurface: String {
-        Mirror(reflecting: self).children
-            .filter { child in
-                guard let label = child.label else { return false }
-                return !Self.nonAnchorFields.contains(label)
-            }
-            .flatMap { Self.anchorLines(of: $0.value) }
-            .joined(separator: "\n")
+        channelAnchorFields.flatMap(\.lines).joined(separator: "\n")
+    }
+
+    /// The anchorable fields, in declaration order, each with the lines it
+    /// contributes to `channelAnchorSurface`.
+    ///
+    /// Split per field because matching an anchor against the joined surface
+    /// passes if ANY line matches, and a token that appears in two fields makes
+    /// the guard survive either one drifting. WeChat DevTools RC is the live
+    /// case: `"id": "rc"` sits in both `versionPattern` and the install
+    /// `bodyPattern`, and the install half is the one that picks the artifact —
+    /// so if that regex alone were rewritten, the version pattern would keep the
+    /// proof green while the install fell back to whichever channel the vendor's
+    /// `config.json` lists first (Stable). Issue #110.
+    ///
+    /// Still derived by reflection: naming a field in a proof is a claim about
+    /// where the recipe's channel identity lives, but WHICH fields exist is not
+    /// something a hand-written list should get to decide — that is the mistake
+    /// `entryStartPattern` exposed. A proof may name any anchorable field,
+    /// including one added after this was written;
+    /// `everyRegisteredAnchorNamesRealFields` fails loudly on a name that is not
+    /// one, so a typo or a rename cannot turn a proof into a silent no-op.
+    public var channelAnchorFields: [(label: String, lines: [String])] {
+        Mirror(reflecting: self).children.compactMap { child in
+            guard let label = child.label,
+                  !Self.nonAnchorFields.contains(label) else { return nil }
+            return (label, Self.anchorLines(of: child.value))
+        }
+    }
+
+    /// The text one named field contributes, or nil when this recipe has no
+    /// ANCHORABLE field by that name — either no such field at all, or one that
+    /// only labels the recipe (`nonAnchorFields`). Callers must treat nil as a
+    /// failure, never as "nothing to check": a proof pinned to a field that
+    /// isn't there is a proof that cannot fail.
+    public func channelAnchorSurface(ofField label: String) -> String? {
+        channelAnchorFields.first { $0.label == label }
+            .map { $0.lines.joined(separator: "\n") }
     }
 
     /// One line per string a value contains, walking into optionals, arrays,

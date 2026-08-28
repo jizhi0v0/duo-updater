@@ -76,14 +76,35 @@ public struct GitHubReleaseRule: Sendable {
     ///
     /// One line per field, so an anchor written with `.*` cannot straddle two
     /// unrelated fields and match something nobody meant.
+    ///
+    /// As on the vendor side, the whole surface is no longer what a proof is
+    /// matched against: a `.recipeAnchor` names the fields it relies on and is
+    /// checked against each (issue #110). This stays as the union those field
+    /// views are cut from. No `githubProofs` entry is an anchor today — every
+    /// one of them is provable from the resolved URL — so this half exists so
+    /// the first rule that needs an anchor cannot get the weaker any-field
+    /// behaviour by default.
     public var channelAnchorSurface: String {
-        Mirror(reflecting: self).children
-            .filter { child in
-                guard let label = child.label else { return false }
-                return !Self.nonAnchorFields.contains(label)
-            }
-            .flatMap { Self.anchorLines(of: $0.value) }
-            .joined(separator: "\n")
+        channelAnchorFields.flatMap(\.lines).joined(separator: "\n")
+    }
+
+    /// The anchorable fields, in declaration order, each with the lines it
+    /// contributes. See `VendorProbeRecipe.channelAnchorFields` for why a proof
+    /// is matched per field rather than against the join.
+    public var channelAnchorFields: [(label: String, lines: [String])] {
+        Mirror(reflecting: self).children.compactMap { child in
+            guard let label = child.label,
+                  !Self.nonAnchorFields.contains(label) else { return nil }
+            return (label, Self.anchorLines(of: child.value))
+        }
+    }
+
+    /// The text one named field contributes, or nil when this rule has no
+    /// ANCHORABLE field by that name. Callers must treat nil as a failure: a
+    /// proof pinned to a field that isn't there is a proof that cannot fail.
+    public func channelAnchorSurface(ofField label: String) -> String? {
+        channelAnchorFields.first { $0.label == label }
+            .map { $0.lines.joined(separator: "\n") }
     }
 
     /// One line per string a value contains, walking into optionals and enum

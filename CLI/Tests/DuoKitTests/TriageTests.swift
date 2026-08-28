@@ -271,5 +271,10 @@ import DuoUpdaterCore
         #expect(Triage.budgetLabel(90) == "90-second")
         #expect(Triage.budgetLabel(30) == "30-second")
         #expect(Triage.budgetLabel(0) == "0-second")
+        // The clamp lives in `budgetLabel` because the call site that used to
+        // hold it is top-level code in `main.swift` that no test can reach, so
+        // deleting it there was green everywhere.
+        #expect(Triage.budgetLabel(-30) == "0-second")
+        #expect(Triage.budgetLabel(.nan) == "0-second")
     }
 }

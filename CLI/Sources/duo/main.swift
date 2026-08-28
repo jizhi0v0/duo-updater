@@ -290,10 +290,7 @@ case "triage":
     triage.model = args.value("model")
     if let variant = args.value("variant") { triage.variant = variant }
     if let cap = args.int("max-calls") { triage.maxCalls = max(0, cap) }
-    // Clamped like `--max-calls` on the line above, and for the same reason: a
-    // negative cap means "analyse nothing", which both of them already do, but
-    // unclamped it also reaches the one message that quotes the budget back.
-    if let budget = args.int("budget") { triage.budget = TimeInterval(max(0, budget)) }
+    if let budget = args.int("budget") { triage.budget = TimeInterval(budget) }
     triage.dryRun = args.has("dry-run")
     run = { Triage.run(triage) }
 

@@ -145,12 +145,16 @@ import Testing
     /// case is worse now: a flag that stays documented after its reader goes
     /// away is one `unrecognised()` refuses while `--help` still offers it.
     ///
-    /// Three things it deliberately does not see, so nobody reads it as more:
-    /// it compares the two sets whole rather than section by section, so a
-    /// flag documented under the wrong subcommand passes; it only knows `--`
-    /// spellings, because a single dash matched in prose picks up the tail of
-    /// every hyphenated word; and it cannot check a *default* stated in the
-    /// prose, which is what `--max-calls` got wrong.
+    /// What it does not see, listed rather than counted, since the next blind
+    /// spot belongs on this list too: it compares the two sets whole rather
+    /// than section by section, so a flag documented under the wrong
+    /// subcommand passes; it only knows `--` spellings, because a single dash
+    /// matched in prose picks up the tail of every hyphenated word, which
+    /// leaves `-h` outside it; it cannot check a *default* stated in the
+    /// prose, which is what `--max-calls` got wrong; it reads flags out of
+    /// `main.swift` alone, so moving a branch's option-building into `DuoKit`
+    /// fails it on a legitimate change; and a read whose name is not a literal
+    /// is invisible to it, which is why the registries come from the enum.
     @Test func theUsageTextAndTheFlagsArgsReadsAgree() throws {
         let main = try String(
             contentsOf: Self.sources.appendingPathComponent("duo/main.swift"), encoding: .utf8)
@@ -165,8 +169,17 @@ import Testing
         let usage = main[opening.upperBound..<closing.lowerBound]
 
         let documented = Set(usage.matches(of: /--([a-z][a-z0-9-]*)/).map { String($0.1) })
+        // The read side gets sliced too, and for the reason the documented side
+        // did: a flag named only in a comment — or in the usage text itself —
+        // would count as read, and a reader deleted while its comment survived
+        // is exactly the drift being looked for. Whole-line comments only, so
+        // this can never truncate a line that carries code.
+        let code = main.replacingCharacters(in: opening.lowerBound..<closing.upperBound, with: "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
         let readInMain = Set(
-            main.matches(of: /\.(?:value|int|list|has)\(\s*"([A-Za-z0-9-]+)"\s*\)/)
+            code.matches(of: /\.(?:value|int|list|has)\(\s*"([A-Za-z0-9-]+)"\s*\)/)
                 .map { String($0.1) })
         // Both sides are scanned, so both sides need a floor: a regex that
         // stopped matching would otherwise agree with anything.
@@ -177,10 +190,15 @@ import Testing
         // flag, so the scan cannot see them; take them from the enum too.
         let read = readInMain.union(Registry.allCases.map(\.rawValue))
         // `--help` and `-h` are answered off `CommandLine.arguments` before
-        // `Args` exists, so no scan of flag reads can find them. Derived from
-        // the line that answers them rather than written down here.
+        // `Args` exists, so no scan of flag reads can find them. Read off that
+        // line rather than written down here — and off that line only, so a
+        // `== "--all"` written somewhere else later cannot quietly excuse a
+        // flag from the check below.
+        let shortCircuit = try #require(
+            code.split(separator: "\n").first { $0.contains("CommandLine.arguments") },
+            "the pre-parse --help short-circuit has moved")
         let answeredBeforeParsing = Set(
-            main.matches(of: /== "-{1,2}([a-z][a-z0-9-]*)"/).map { String($0.1) })
+            shortCircuit.matches(of: /"-{1,2}([a-z][a-z0-9-]*)"/).map { String($0.1) })
 
         #expect(read.subtracting(documented).isEmpty,
                 "flags the CLI reads that `--help` never mentions: \(read.subtracting(documented).sorted())")

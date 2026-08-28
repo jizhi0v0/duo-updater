@@ -30,9 +30,13 @@ public struct TriageOptions: Sendable {
     /// minutes and 21k output tokens, so the old cap of 20 was three hours of
     /// wall clock against a thirty-minute job. Six calls fit the budget below.
     public var maxCalls = 6
-    /// Wall-clock ceiling for the whole step. No new call is started past it —
-    /// triage is the optional part of the sweep and must never be the reason a
-    /// scheduled run is killed halfway through.
+    /// Deadline for *starting* a call, counted from the first one — not a
+    /// ceiling on the step, which it was called until the flag became
+    /// documented and the claim had to be true: a call begun just inside it
+    /// still runs to `callTimeout`, and the report decode, the baseline load
+    /// and the opencode probe all happen before the clock starts. Triage is
+    /// the optional part of the sweep and must never be the reason a scheduled
+    /// run is killed halfway through, which is what the deadline is for.
     public var budget: TimeInterval = 900
     public var dryRun = false
 
@@ -123,6 +127,21 @@ public enum Triage {
     /// with room to spare while still bounding a hang.
     public static let callTimeout: TimeInterval = 360
 
+    /// The budget as a phrase. Whole minutes only: `--budget` used to be a flag
+    /// nobody could find, so dividing by 60 and truncating was always "15";
+    /// documented, it is a number a user picks, and `--budget 90` reading as
+    /// "1-minute" or `--budget 30` as "0-minute" makes the one message that
+    /// mentions the budget the one message worth not believing.
+    static func budgetLabel(_ budget: TimeInterval) -> String {
+        // Clamped here rather than at the call site in `main.swift`, which no
+        // test can reach: a budget below zero means the same "analyse nothing"
+        // a budget of zero does, and `Int(_:)` traps on a non-finite one.
+        let seconds = budget.isFinite ? Int(max(0, budget).rounded()) : 0
+        return seconds >= 60 && seconds % 60 == 0
+            ? "\(seconds / 60)-minute"
+            : "\(seconds)-second"
+    }
+
     public static func run(_ options: TriageOptions) -> Int32 {
         guard let data = try? Data(contentsOf: options.reportPath),
               let document = decodeReport(data) else {
@@ -182,7 +201,7 @@ public enum Triage {
             }
         }
         if skippedForTime > 0 {
-            print("  · \(skippedForTime) left unanalysed — the \(Int(options.budget / 60))-minute "
+            print("  · \(skippedForTime) left unanalysed — the \(budgetLabel(options.budget)) "
                 + "budget ran out. They stay flagged and will be picked up next sweep.")
         }
         if eligible.count > options.maxCalls {

@@ -27,7 +27,7 @@ commands:
                 against the captured response before anyone reads it.
   reconcile     Turn a verify report into GitHub issues — one per broken recipe,
                 closed automatically when it heals.
-  help          Show this message. So does --help after any command.
+  help          Show this message. So do --help and -h after any command.
 
 list / check options:
   [<app>…]            Which apps, resolved as an install path, then a bundle id,
@@ -132,7 +132,11 @@ triage options:
   --model <id>        Overrides the agent's model (default is declared in
                       .opencode/agent/duo-triage.md).
   --variant <effort>  Provider reasoning effort, e.g. max, high, minimal.
-  --max-calls N       Hard cap on model calls in one run (default 20).
+  --max-calls N       Hard cap on model calls in one run (default 6).
+  --budget N          Seconds after which no new call is started (default 900).
+                      A call already under way is left to finish, so the step
+                      can overrun by up to one call. Findings it never reached
+                      stay flagged and are picked up next sweep.
   --dry-run           List what would be asked about, call nothing.
 
   Runs opencode with no tools, in an empty temporary directory, and re-runs every

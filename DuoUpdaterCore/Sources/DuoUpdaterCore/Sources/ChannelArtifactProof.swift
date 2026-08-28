@@ -24,9 +24,33 @@ public enum ChannelArtifactProof: Sendable, Hashable {
     /// The vendor ships ONE artifact to several channels, so the URL carries no
     /// channel token and there is nothing to assert on it. The proof is instead
     /// that the recipe reads a channel-dedicated endpoint (or a channel-tagged
-    /// block of a shared feed): the regex must appear in the recipe's endpoint
-    /// URL, version pattern, or install URL source.
-    case recipeAnchor(String)
+    /// block of a shared feed).
+    ///
+    /// `fields` names the recipe fields the channel identity actually lives in
+    /// (their `Mirror` labels — `"url"`, `"versionPattern"`, `"install"`, …),
+    /// and the regex must match in EVERY one of them. That is the whole point:
+    /// matching against the joined surface passes if any single line matches, so
+    /// a token that happens to sit in two fields kept the proof green while
+    /// either one drifted. WeChat DevTools RC is the live case — `"id": "rc"` is
+    /// in both `versionPattern` and the install `bodyPattern`, and only the
+    /// install half picks the artifact (issue #110).
+    ///
+    /// Which fields to name is a per-recipe fact, not a rule to apply uniformly.
+    /// Measured across the five anchors registered on 2026-08-28:
+    ///   * **Endpoint-keyed** (IntelliJ EAP, Alfred beta) — the response body
+    ///     holds only that channel's builds, so `versionPattern` and the install
+    ///     pattern are byte-identical to their stable siblings' and contain no
+    ///     channel token to anchor on. `["url"]` is the whole proof, and naming
+    ///     anything else would be an assertion those recipes cannot satisfy.
+    ///   * **Shared-feed** (WeChat DevTools RC, OrbStack beta/canary) — one
+    ///     endpoint serves every channel, and the per-field patterns are what
+    ///     select. Both the version half and the install half must stay anchored,
+    ///     so both are named.
+    ///
+    /// An empty set, or a name that is not an anchorable field of the recipe, is
+    /// a hard finding rather than a pass — either would be a proof that cannot
+    /// fail. See `RecipeSanity.recipeAnchorFailure`.
+    case recipeAnchor(String, in: Set<String>)
 }
 
 /// A `(bundleID, channel)` pair — the same key `VendorProbeSource` selects a
@@ -58,7 +82,17 @@ public enum ChannelProofRegistry {
         // uses, so the filename proves nothing. The endpoint does: `type=eap` vs
         // stable's `type=release`, and the install pattern reads the dmg out of
         // that response body.
-        ChannelProofKey("com.jetbrains.intellij-EAP", .preview): .recipeAnchor(#"type=eap"#),
+        //
+        // `url` alone, and that is the honest scope rather than a weaker one: the
+        // response to `type=eap` contains ONLY EAP builds, so `versionPattern`
+        // (`"build": "…"`) and the install pattern (`"macM1" … "link"`) carry no
+        // channel token at all — they are what a `type=release` recipe would use
+        // verbatim. Naming them would assert something this recipe cannot satisfy.
+        // What naming `url` buys is that swapping the endpoint back to
+        // `type=release` fails the proof instead of passing on patterns that never
+        // mentioned a channel.
+        ChannelProofKey("com.jetbrains.intellij-EAP", .preview):
+            .recipeAnchor(#"type=eap"#, in: ["url"]),
         // Android Studio: each preview channel accepts builds at its own quality OR
         // MORE STABLE (the stability floor documented on the recipes), so the marker
         // has to be that whole ladder, not just the channel's own name — Canary
@@ -135,7 +169,16 @@ public enum ChannelProofRegistry {
         // if that anchor ever stops being there the recipe would start reading
         // whichever channel `config.json` lists first (Stable).
         ChannelProofKey("com.tencent.wechatdevtools", .nightly): .artifact(#"/WechatWebDev/nightly/"#),
-        ChannelProofKey("com.tencent.wechatdevtools", .rc): .recipeAnchor(#""id":.*"rc""#),
+        // Named on BOTH halves, which is what issue #110 was about. The token sits
+        // in `versionPattern` and in the install `bodyPattern`, and matching the
+        // joined surface passed on either — so if the install regex alone were
+        // rewritten (the vendor renames the block, someone retypes it), the version
+        // pattern would keep this green while the install fell back to whichever
+        // channel `config.json` lists first. Which is Stable, into an RC install,
+        // through every gate we have. Requiring both means the half that picks the
+        // artifact is checked as the half that picks the artifact.
+        ChannelProofKey("com.tencent.wechatdevtools", .rc):
+            .recipeAnchor(#""id":.*"rc""#, in: ["versionPattern", "install"]),
 
         // MARK: Everything else
         ChannelProofKey("dev.warp.Warp-Preview", .preview): .artifact(#"channel=preview"#),
@@ -145,12 +188,25 @@ public enum ChannelProofRegistry {
         // Alfred serves stable and pre-release from two endpoints that frequently
         // carry the SAME build (both were 5.7.3 (2320) on 2026-08-09), and the
         // tarball name never mentions a channel — only the endpoint can prove it.
-        ChannelProofKey("com.runningwithcrayons.Alfred", .beta): .recipeAnchor(#"prerelease\.xml"#),
+        // Endpoint-scoped for the same reason as IntelliJ EAP: this recipe's
+        // `versionPattern` and install `bodyPattern` are byte-identical to the
+        // stable Alfred recipe's (same plist shape, different endpoint), so the
+        // endpoint is not merely the best evidence — it is the only evidence there
+        // is, and the proof says so.
+        ChannelProofKey("com.runningwithcrayons.Alfred", .beta):
+            .recipeAnchor(#"prerelease\.xml"#, in: ["url"]),
         // OrbStack publishes one appcast with a `<sparkle:channel>` tag per item and
         // promotes the same dmg across channels (all three were v2.2.3_20963 on
         // 2026-08-09). The channel tag the patterns are anchored to is the proof.
-        ChannelProofKey("dev.kdrag0n.MacVirt", .beta): .recipeAnchor(#"<sparkle:channel>beta"#),
-        ChannelProofKey("dev.kdrag0n.MacVirt", .canary): .recipeAnchor(#"<sparkle:channel>canary"#),
+        // Both halves named, like WeChat RC and for the same reason: one appcast
+        // serves all three channels, and the `<sparkle:channel>` prefix on the
+        // version pattern and on the install pattern is what confines each to its
+        // own `<item>`. Losing it from the install pattern alone would let the
+        // enclosure match the first item in the feed regardless of channel.
+        ChannelProofKey("dev.kdrag0n.MacVirt", .beta):
+            .recipeAnchor(#"<sparkle:channel>beta"#, in: ["versionPattern", "install"]),
+        ChannelProofKey("dev.kdrag0n.MacVirt", .canary):
+            .recipeAnchor(#"<sparkle:channel>canary"#, in: ["versionPattern", "install"]),
         // Longbridge splits the two trains by CDN path — `/longbridge-desktop/
         // preview/` vs `/stable/` — and the artifact filename carries the
         // `-preview.N` suffix on top of that, so the URL names the channel twice.
@@ -292,15 +348,15 @@ extension RecipeSanity {
             return "resolved \(url), which carries no \(recipe.channel.rawValue) marker "
                 + "(expected /\(pattern)/) — the install may be crossing channels"
 
-        case .recipeAnchor(let pattern):
-            // Derived from the recipe, never hand-listed — see
-            // `VendorProbeRecipe.channelAnchorSurface`. The list this replaced
-            // named three fields and had already missed `entryStartPattern`.
-            let surface = recipe.channelAnchorSurface
-            guard surface.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil
-            else { return nil }
-            return "recipe is no longer anchored on /\(pattern)/ — nothing ties its "
-                + "\(recipe.channel.rawValue) install to that channel"
+        case .recipeAnchor(let pattern, let fields):
+            // Each named field's own text, never the join — see
+            // `VendorProbeRecipe.channelAnchorFields`. The fields themselves are
+            // still derived by reflection; the list this replaced named three of
+            // them by hand and had already missed `entryStartPattern`.
+            return recipeAnchorFailure(
+                pattern: pattern, fields: fields, subject: "recipe",
+                channel: recipe.channel, of: "VendorProbeRecipe",
+                surface: recipe.channelAnchorSurface(ofField:))
         }
     }
 
@@ -349,12 +405,56 @@ extension RecipeSanity {
             return "resolved \(url), which carries no \(rule.channel.rawValue) marker "
                 + "(expected /\(pattern)/) — the install may be crossing channels"
 
-        case .recipeAnchor(let pattern):
-            let surface = rule.channelAnchorSurface
-            guard surface.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil
-            else { return nil }
-            return "rule is no longer anchored on /\(pattern)/ — nothing ties its "
-                + "\(rule.channel.rawValue) install to that channel"
+        case .recipeAnchor(let pattern, let fields):
+            return recipeAnchorFailure(
+                pattern: pattern, fields: fields, subject: "rule",
+                channel: rule.channel, of: "GitHubReleaseRule",
+                surface: rule.channelAnchorSurface(ofField:))
         }
+    }
+
+    /// Match a field-scoped `.recipeAnchor` and describe the first way it fails.
+    ///
+    /// Shared by both overloads so the two registries cannot drift into different
+    /// notions of what an anchor asserts — the asymmetry issue #101 was filed
+    /// about, in miniature.
+    ///
+    /// EVERY named field must match. An anchor names the fields its channel
+    /// identity lives in, so a field that stopped carrying the token is exactly
+    /// the drift the proof exists to report, even while a sibling field still
+    /// carries it (issue #110).
+    ///
+    /// The two degenerate inputs are findings, not passes. An empty `fields`
+    /// would make the loop vacuous, and a name that is not an anchorable field —
+    /// a typo, a renamed field, or one of the labelling `nonAnchorFields` —
+    /// yields nothing to match against. Both describe a proof that could not have
+    /// failed for any input, which is the one outcome worse than no proof: it
+    /// reads as green forever. `everyRegisteredAnchorNamesRealFields` fails on
+    /// them in a PR; this is the runtime half, for a proof written after it.
+    static func recipeAnchorFailure(
+        pattern: String,
+        fields: Set<String>,
+        subject: String,
+        channel: ReleaseChannel,
+        of typeName: String,
+        surface: (String) -> String?
+    ) -> String? {
+        guard !fields.isEmpty else {
+            return "the anchor /\(pattern)/ names no field of the \(subject), so it "
+                + "cannot fail and proves nothing about which channel it reads — name "
+                + "the field(s) that tie it to \(channel.rawValue)"
+        }
+        for label in fields.sorted() {
+            guard let text = surface(label) else {
+                return "the anchor /\(pattern)/ names '\(label)', which is not an "
+                    + "anchorable field of \(typeName) (no such field, or one that only "
+                    + "labels the \(subject)) — the proof cannot fail as written"
+            }
+            guard text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil
+            else { continue }
+            return "the \(subject)'s \(label) is no longer anchored on /\(pattern)/ — "
+                + "nothing there ties its \(channel.rawValue) install to that channel"
+        }
+        return nil
     }
 }

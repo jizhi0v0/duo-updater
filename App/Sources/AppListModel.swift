@@ -159,51 +159,13 @@ final class AppListModel {
     /// the hand-off back up — see `settleQuitHandoffs`.
     struct QuitHandoff: Sendable {
         /// What has to be true on disk before the app is brought back.
-        enum Landing: Sendable {
-            /// Nothing to wait for: the new build was swapped in *before* we asked
-            /// for the quit (our own in-place install), so the quit was the last
-            /// step. Relaunch as soon as the app is actually gone.
-            case applied
-            /// The app's own updater swaps on quit. Launch only once disk shows
-            /// this exact staged version or newer — never before, or ShipIt aborts
-            /// with "App Still Running Error". If it never lands, leave the app
-            /// quit: the marker's promise was that specific build.
-            case stagedSwap(to: String)
-            /// App Store swaps once the app is gone (we quit it ourselves on the
-            /// user's Relaunch tap). Launch once disk moves past this pre-install
-            /// version — and launch anyway if it never does: we closed the user's
-            /// app for an update, so it comes back whether or not the store
-            /// delivered one.
-            case appStoreSwap(past: String)
+        ///
+        /// The enum and both of its version comparisons live in Core now
+        /// (`RelaunchLanding`), because neither could be tested here — `App` has
+        /// no test target — and both were wrong in the same way for an app whose
+        /// marketing version does not move between builds.
+        typealias Landing = RelaunchLanding
 
-            /// True once the on-disk version satisfies this landing.
-            func isSatisfied(byDiskVersion disk: String?) -> Bool {
-                switch self {
-                case .applied:
-                    return true
-                case .stagedSwap(let target):
-                    guard let disk else { return false }
-                    return disk == target || VersionComparator.isNewer(disk, than: target)
-                case .appStoreSwap(let baseline):
-                    guard let disk else { return false }
-                    return VersionComparator.isNewer(disk, than: baseline)
-                }
-            }
-
-            /// Whether the app is brought back even if the landing never happens.
-            /// Only true where *we* are the reason it's closed and the update was
-            /// merely the occasion — leaving it shut would be the bigger failure.
-            var launchesWithoutLanding: Bool {
-                if case .appStoreSwap = self { return true }
-                return false
-            }
-
-            /// Whether this landing has to poll disk at all.
-            var waitsForDisk: Bool {
-                if case .applied = self { return false }
-                return true
-            }
-        }
         /// The row at bail time — the bundle to poll and the row to refresh.
         let result: UpdateResult
         /// What the relay waits for before launching.
@@ -3045,8 +3007,11 @@ final class AppListModel {
         // all — their build is already on disk, or is App Store's to deliver — so
         // this sweep must not touch them; only the age check retires those.
         quitHandoffs = quitHandoffs.filter { id, handoff in
-            guard case .stagedSwap(let version) = handoff.landing else { return true }
-            return pendingSelfUpdate[id]?.version == version
+            guard case .stagedSwap(let side) = handoff.landing else { return true }
+            // An identity check on the marker's own armed value, NOT a landing
+            // test — it asks "is this still the build we armed against", so exact
+            // equality of the pair is what is wanted here.
+            return pendingSelfUpdate[id]?.versionSide == side
         }
         // Dismiss delivered "Relaunch to apply it" banners for apps that are no
         // longer actionable-staged, so a stale one doesn't linger.
@@ -3665,8 +3630,13 @@ final class AppListModel {
             return
         }
         let wasFrontmost = AppRestarter.isFrontmost(running)
-        let old = result.app.shortVersion ?? result.app.buildVersion
-        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old ?? "?", privacy: .public)) — letting its own updater swap & relaunch (no reopen)")
+        // The PAIR, not `shortVersion ?? buildVersion`. That chain answers "1.0"
+        // for an app that ships every build under one marketing version, and the
+        // landing test below then compares "1.0" against "1.0" forever — measured
+        // on Amp 2026-08-28, where this spun its full 900 ticks (189 s) and
+        // reported `applied=false` for a swap that had already succeeded.
+        let old = result.app.versionSide
+        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — letting its own updater swap & relaunch (no reopen)")
         for app in running { app.terminate() }
 
         // Wait for the updater: with all instances quit it swaps the (large) bundle,
@@ -3686,8 +3656,8 @@ final class AppListModel {
         var everQuit = false
         for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
-            if let disk = await Self.readShortVersionOffMain(result.app.path),
-               let old, VersionComparator.isNewer(disk, than: old) {
+            if RelaunchProgress.hasLanded(
+                old: old, disk: await Self.readVersionSideOffMain(result.app.path)) {
                 applied = true
                 break
             }
@@ -3705,7 +3675,7 @@ final class AppListModel {
                 if let staged = pendingSelfUpdate[result.id] {
                     quitHandoffs[result.id] = QuitHandoff(
                         result: result,
-                        landing: .stagedSwap(to: staged.version),
+                        landing: .stagedSwap(to: staged.versionSide),
                         // Its quit dialog is up right now, which usually means it
                         // holds the front spot even if it didn't when we started.
                         activates: wasFrontmost
@@ -3817,7 +3787,7 @@ final class AppListModel {
                     await refreshRow(handoff.result)
                     return
                 }
-                if handoff.landing.isSatisfied(byDiskVersion: await Self.readShortVersionOffMain(app.path)) {
+                if handoff.landing.isSatisfied(byDisk: await Self.readVersionSideOffMain(app.path)) {
                     landed = true
                     break
                 }
@@ -3863,10 +3833,27 @@ final class AppListModel {
         await Task.detached(priority: .utility) { readShortVersion(bundle) }.value
     }
 
-    /// Read a bundle's `CFBundleShortVersionString` straight off disk — used to
-    /// poll for a ShipIt swap landing while the app is quit.
+    /// The comparable pair, read off the main thread. Change-detectors use this.
+    nonisolated private static func readVersionSideOffMain(_ bundle: URL) async -> VersionSide {
+        await Task.detached(priority: .utility) { readVersionSide(bundle) }.value
+    }
+
+    /// Read a bundle's `CFBundleShortVersionString` straight off disk.
+    ///
+    /// **Display only.** Every change-DETECTOR reads `readVersionSide` instead:
+    /// discarding the build half is what made four separate landing checks answer
+    /// "nothing changed" for an app that ships many builds under one marketing
+    /// version. `readBundleVersions` below already returns both from one read, so
+    /// dropping one was never a saving.
     nonisolated private static func readShortVersion(_ bundle: URL) -> String? {
         readBundleVersions(bundle).short
+    }
+
+    /// Both version fields as a comparable pair — what anything asking "has this
+    /// changed / has the swap landed" must use.
+    nonisolated private static func readVersionSide(_ bundle: URL) -> VersionSide {
+        let both = readBundleVersions(bundle)
+        return VersionSide(marketing: both.short, build: both.build)
     }
 
     /// Both version fields, from **one** read of the bundle.
@@ -4079,9 +4066,9 @@ final class AppListModel {
             // Only armable against a known pre-install version — that's what tells
             // the relay the store's swap has landed. Without one, fall through to
             // today's behaviour rather than guess at a landing.
-            if let baseline = result.app.shortVersion {
+            if !result.app.versionSide.isEmpty {
                 quitHandoffs[id] = QuitHandoff(
-                    result: result, landing: .appStoreSwap(past: baseline),
+                    result: result, landing: .appStoreSwap(past: result.app.versionSide),
                     activates: false, armedAt: Date())
                 Log.install.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (still up past the App Store quit — reopen once it goes down)")
                 return

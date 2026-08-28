@@ -1481,7 +1481,7 @@ private struct AppRow: View {
             .controlSize(.small)
             .buttonStyle(.bordered)
             .tint(.orange)
-            .help("\(result.app.name) already downloaded \(staged.version) — relaunch to apply it (no extra download; a large app may take a minute to swap & reopen)")
+            .help("\(result.app.name) already downloaded \(result.stagedRelaunchLine(staged).to) — relaunch to apply it (no extra download; a large app may take a minute to swap & reopen)")
     }
 
     /// An incremental App Store update is downloaded but the app is running, so the

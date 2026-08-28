@@ -79,4 +79,32 @@ struct StagedNudgeLedgerTests {
         #expect(StagedNudgeLedger(ledger.entries) == ledger)
         #expect(!StagedNudgeLedger(ledger.entries).isNew(key: chatGPT, version: "1.2026.238"))
     }
+
+    /// The ledger's stated invariant — "when the app stages a different build,
+    /// that is a new pair and it is announced again" — held only for apps whose
+    /// marketing version moves. The caller keyed on `staged.version`, so an app
+    /// shipping many builds under one marketing string was announced once and then
+    /// silenced: quiet becoming silence, the exact failure the type documents
+    /// itself as avoiding. `buildIdentity` is what the caller keys on now.
+    @Test func buildIdentityDistinguishesBuildsSharingOneMarketingVersion() {
+        func amp(_ build: String?) -> StagedSelfUpdate {
+            StagedSelfUpdate(version: "1.0", buildVersion: build,
+                             stagedBundlePath: URL(fileURLWithPath: "/tmp/Amp.app"))
+        }
+        var ledger = StagedNudgeLedger()
+        let key = "/Applications/Amp.app"
+
+        // Ten builds, one marketing version — every one is its own announcement.
+        for build in ["121", "122", "130"] {
+            #expect(ledger.isNew(key: key, version: amp(build).buildIdentity),
+                    "build \(build) shares \"1.0\" with the last one and was swallowed")
+            ledger.record(key: key, version: amp(build).buildIdentity)
+        }
+        // ...and the same build still announces only once.
+        #expect(!ledger.isNew(key: key, version: amp("130").buildIdentity))
+
+        // A staged bundle with no CFBundleVersion falls back to the marketing
+        // string, which is the only identity it has.
+        #expect(amp(nil).buildIdentity == "1.0")
+    }
 }

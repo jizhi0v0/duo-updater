@@ -2301,7 +2301,7 @@ final class AppListModel {
             staged: SelfUpdaterStaging.staged(
                 for: result.app, requireNewerThanInstalled: false)) {
             Log.install.info("install yielded to staged self-update: \(result.app.name, privacy: .public) has \(staged.version, privacy: .public) waiting for a quit")
-            let note = String(localized: "\(result.app.name) has already downloaded \(staged.version) and will apply it when you quit it — installing now would be undone.")
+            let note = String(localized: "\(result.app.name) has already downloaded \(result.stagedRelaunchLine(staged).to) and will apply it when you quit it — installing now would be undone.")
             installNotes[id] = note
             inFlightNotes[id] = note
             installing[id] = nil
@@ -3365,11 +3365,18 @@ final class AppListModel {
             // ignored the app or skipped that version.
             guard let staged = nudgeableStaged(result) else { continue }
             let key = prefs.key(for: result.app)
-            guard ledger.isNew(key: key, version: staged.version) else { continue }
-            ledger.record(key: key, version: staged.version)
+            // `buildIdentity`, NOT `staged.version`: the latter is a marketing
+            // string an app may leave unchanged across many builds, and keying the
+            // ledger on it announces the first of them and silently swallows every
+            // one after — Amp shipped ten builds as "1.0" in a day. See
+            // `StagedSelfUpdate.buildIdentity`. Entries persisted by an older build
+            // hold a marketing version, so the first pass after this ships may
+            // re-announce one staged build per app; it self-heals on that write.
+            guard ledger.isNew(key: key, version: staged.buildIdentity) else { continue }
+            ledger.record(key: key, version: staged.buildIdentity)
             Log.app.info("notify: \(result.app.name, privacy: .public) staged \(staged.version, privacy: .public) — relaunch nudge")
             UpdateNotifier.selfDownloaded(
-                app: result.app.name, version: staged.version, appID: result.id)
+                app: result.app.name, version: result.stagedRelaunchLine(staged).to, appID: result.id)
         }
         // Only on a real change: this runs on every local rescan (the directory
         // watcher and its 180s backstop), and the neighbouring bookkeeping passes

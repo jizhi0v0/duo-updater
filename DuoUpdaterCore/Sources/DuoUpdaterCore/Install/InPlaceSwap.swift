@@ -92,6 +92,64 @@ public enum InPlaceSwap {
                 }
             } else if name.hasSuffix(newSuffix) || name.hasPrefix(stagedPrefix) {
                 try? fm.removeItem(at: entry)                 // unused new/staged leftover
+            } else if name.hasSuffix(".app"), usesContentsRotation(target: entry) {
+                recoverInterruptedRotation(in: entry)
+            }
+        }
+    }
+
+    /// Recover a `rotateContents` interrupted between its two renames: the
+    /// bundle's `Contents` is gone while `.Contents.duoupdater-old` still holds the
+    /// copy it displaced, leaving an input method the system can no longer load.
+    /// Puts it back, and clears both staging directories once the real `Contents`
+    /// is present. Best-effort, like the whole-bundle sweep it runs beside.
+    private static func recoverInterruptedRotation(in app: URL) {
+        let fm = FileManager.default
+        let contents = app.appendingPathComponent("Contents", isDirectory: true)
+        let staged = app.appendingPathComponent(rotationStagedName)
+        let backup = app.appendingPathComponent(rotationBackupName)
+
+        if !fm.fileExists(atPath: contents.path), fm.fileExists(atPath: backup.path) {
+            guard (try? fm.moveItem(at: backup, to: contents)) != nil else {
+                Log.install.error(
+                    "could not restore \(app.lastPathComponent, privacy: .public)/Contents from its pre-swap copy — the input method is still unloadable")
+                return
+            }
+            // Validated AFTER the promotion, not before: `codesign` reads a bundle,
+            // and a bare `Contents` directory is not one — so the only way to ask
+            // is with it in place, and to undo the move when the answer is no.
+            //
+            // The threat model differs from the whole-bundle sweep's on purpose.
+            // There, the orphan sits in the *enclosing* directory, which may be far
+            // more writable than the app; here it sits INSIDE the bundle, so anyone
+            // who could plant it could equally have overwritten `Contents` outright
+            // and never involved us. What this check is actually worth is catching
+            // the copy that is merely broken — a `ditto` cut off mid-write.
+            if orphanSignatureLooksValid(app) {
+                Log.install.error(
+                    "recovered an interrupted update: restored \(app.lastPathComponent, privacy: .public)/Contents from its pre-swap copy")
+            } else {
+                try? fm.moveItem(at: contents, to: backup)
+                Log.install.error(
+                    "refusing to recover \(app.lastPathComponent, privacy: .public)/Contents: the pre-swap copy fails signature validation (may be truncated) — left in place")
+                return
+            }
+        }
+
+        guard fm.fileExists(atPath: contents.path) else { return }
+        for leftover in [staged, backup] where fm.fileExists(atPath: leftover.path) {
+            do { try fm.removeItem(at: leftover) } catch {
+                // Named rather than swallowed, and this one is not housekeeping: ANY
+                // entry at a bundle's root breaks its seal, hidden and empty
+                // included. Measured on a copy of the real DoubaoIme bundle —
+                // `codesign --verify --strict` goes from "valid on disk" to
+                // "unsealed contents present in the bundle root" the moment an empty
+                // `.Contents.duoupdater-new` exists, and back again when it is
+                // removed. (`.DS_Store` is exempt by the signing rules; ours is
+                // not.) A leftover we cannot clear is an input method that fails
+                // Gatekeeper, so it has to be said out loud.
+                Log.install.error(
+                    "could not clear \(leftover.lastPathComponent, privacy: .public) inside \(app.lastPathComponent, privacy: .public) — its code signature will not validate while that is there: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -150,14 +208,23 @@ public enum InPlaceSwap {
         // throw while removing the one it displaced — observed restoring ToDesk on
         // 2026-08-26, where the app really had been replaced and the log said the
         // opposite. The inode distinguishes them.
-        let identityBefore = inode(of: target)
+        // For a rotation the outer bundle is deliberately the thing that does NOT
+        // change, so asking it would answer "unchanged" for every outcome — the
+        // failure this line exists to distinguish (`replaceItemAt` lands the new
+        // item and then throws while removing what it displaced) would be reported
+        // as "the app on disk is unchanged" with the new version live. Ask the
+        // thing the exchange actually replaces.
+        let identityTarget = usesContentsRotation(target: target)
+            ? target.appendingPathComponent("Contents", isDirectory: true)
+            : target
+        let identityBefore = inode(of: identityTarget)
         Log.install.notice(
             "swap start: \(target.lastPathComponent, privacy: .public) elevated=\(elevated, privacy: .public)")
         defer {
             if replaced {
                 Log.install.notice("swap done: \(target.lastPathComponent, privacy: .public)")
-            } else if FileManager.default.fileExists(atPath: target.path) {
-                let identityAfter = inode(of: target)
+            } else if FileManager.default.fileExists(atPath: identityTarget.path) {
+                let identityAfter = inode(of: identityTarget)
                 if let before = identityBefore, let after = identityAfter, before != after {
                     Log.install.error(
                         "swap threw for \(target.lastPathComponent, privacy: .public) but the bundle at that path was REPLACED anyway — the error came after the exchange, so the new version is live and the failure is in the cleanup")
@@ -175,6 +242,15 @@ public enum InPlaceSwap {
                 Log.install.error(
                     "swap did NOT complete and \(target.lastPathComponent, privacy: .public) is MISSING from disk — its pre-swap copy should be recovered on next launch")
             }
+        }
+
+        // Input methods keep their outer `.app` and exchange what is inside it —
+        // see `usesContentsRotation`. Never elevated, and that is not a shortcut:
+        // the elevated route cannot do this at all (see `rotateContents`).
+        if usesContentsRotation(target: target) {
+            try rotateContents(newApp: newApp, over: target)
+            replaced = true
+            return
         }
 
         if !elevated {
@@ -263,6 +339,16 @@ public enum InPlaceSwap {
     /// row promised wouldn't appear, or one it never warned about.
     public static func needsElevatedReplace(target: URL) -> Bool {
         let fm = FileManager.default
+        // An input method is updated by exchanging what is inside its bundle, so
+        // the enclosing directory is never written and its permissions are not
+        // part of the question. Without this exception every input method reads as
+        // "needs an administrator" — `/Library/Input Methods` is `root:wheel` 755 —
+        // and the row would promise a password panel that the install then does
+        // not raise. The bundle itself is still required to be writable, because
+        // that is the one permission the exchange actually uses.
+        if usesContentsRotation(target: target) {
+            return !fm.isWritableFile(atPath: target.path)
+        }
         return !fm.isWritableFile(atPath: target.path)
             || !fm.isWritableFile(atPath: target.deletingLastPathComponent().path)
     }
@@ -317,7 +403,252 @@ public enum InPlaceSwap {
         p.waitUntilExit()
     }
 
+    // MARK: - Input methods: rotate Contents, keep the outer bundle
+
+    /// Suffixes of the two staging directories the rotation renames through, kept
+    /// inside the bundle beside `Contents`.
+    ///
+    /// Deliberately NOT the names the vendors use for the same job
+    /// (`.Contents.update` / `.Contents.old` / `.Contents.abandoned` for WeType,
+    /// `Contents_update` / `Contents_backup` for DoubaoIme): a collision would let
+    /// our leading `rm -rf` delete a copy their updater is mid-way through, or let
+    /// their cleanup delete ours.
+    static let rotationStagedName = ".Contents.duoupdater-new"
+    static let rotationBackupName = ".Contents.duoupdater-old"
+
+    /// The vendors' own staging directory for a replacement `Contents` — the one
+    /// that means an update of theirs is part-way through, so rotating underneath
+    /// it would race a process about to rename `Contents` itself.
+    ///
+    /// Only the *staging* names, deliberately. WeType's `.Contents.old` /
+    /// `.Contents.abandoned` and DoubaoIme's `Contents_backup` are the copies that
+    /// were displaced, and WeType's own updater carries `cleanup old Contents
+    /// failed:` / `abandoned Contents removed failed:` — it expects them to be
+    /// left behind sometimes. Treating a leftover as "in flight" would refuse the
+    /// one-click permanently, with a message claiming an update is running that
+    /// finished days ago.
+    private static let vendorRotationStagingNames = [".Contents.update", "Contents_update"]
+
+    /// Everything either vendor is known to put beside `Contents` inside the
+    /// bundle, staging and leftovers alike. `requireOnlyContents` ignores these:
+    /// two of them are not hidden (`Contents_update`, `Contents_backup`), so
+    /// without this a bundle mid-way through — or after — a vendor update would be
+    /// refused by the wrong guard, with a message about the top level instead of
+    /// the accurate one about a racing update.
+    private static let vendorRotationEntryNames = [
+        ".Contents.update", ".Contents.old", ".Contents.abandoned",
+        "Contents_update", "Contents_backup",
+    ]
+
+    /// Whether `target` is maintained by exchanging its `Contents` rather than by
+    /// replacing the whole bundle.
+    ///
+    /// Input methods are the one class where the outer `.app` directory is an
+    /// identity and not merely a container: it is the path
+    /// `TISRegisterInputSource` was handed, and it is what the system's input
+    /// source list points at. Both vendors' own updaters keep it and rotate what
+    /// is inside — WeType's updater carries the strings
+    /// `/Library/Input Methods/WeType.app/.Contents.update`, `.Contents.old`,
+    /// `.Contents.abandoned` and `will exchange Contents: previous=`; DoubaoIme
+    /// uses `Contents_update` / `Contents_backup`. Replacing the outer directory
+    /// is what their *installers* do, and an installer does more than copy:
+    /// WeType's carries `Registered input source from …, result:` and restarts the
+    /// text-input agents. Rotating `Contents` is the update-shaped half of that
+    /// work, and it is the half that is ours to do correctly.
+    ///
+    /// Matched on the install location, like `UpdatePolicy.isInputMethod` and for
+    /// the same reason: the next input method should inherit this without anyone
+    /// remembering to register it.
+    static func usesContentsRotation(target: URL) -> Bool {
+        UpdatePolicy.isInputMethod(target)
+    }
+
+    /// Replace `target/Contents` with `newApp/Contents`, leaving the outer bundle
+    /// directory — its inode, and whatever the system has attached to it — exactly
+    /// where it was.
+    ///
+    /// **Never elevated, and elevation did not work when it was tried.** Writing
+    /// *inside* another app's bundle appears to be gated by App Management
+    /// (`kTCCServiceSystemPolicyAppBundles`) in a way that being root does not
+    /// lift. What was actually measured is one pair of `ditto` runs — one root
+    /// shell, one directory, this machine, 2026-08-28:
+    ///
+    ///     uid 0  ditto → /Library/Input Methods/.probe                 status 0
+    ///     uid 0  ditto → /Library/Input Methods/DoubaoIme.app/.probe   EPERM
+    ///
+    /// The reading — that the `osascript … with administrator privileges` child
+    /// carries no TCC identity of its own, while DuoUpdater itself holds App
+    /// Management — explains both halves and explains why the same `ditto` from
+    /// our own process succeeds. It also explains why the whole-bundle path is
+    /// unaffected: everything it writes (`.duoupdater-new`, `.duoupdater-old`) and
+    /// everything it renames sits BESIDE the bundle, so it only ever modifies the
+    /// enclosing directory's entries, never a bundle's interior. That reading is
+    /// an inference from two data points, not something Apple documents here; the
+    /// measurement is what the decision rests on.
+    ///
+    /// The first version of this raised a password panel and then failed with
+    /// `ditto: …/.Contents.duoupdater-new: Operation not permitted`. Anyone
+    /// tempted to "fix" a permission problem here by adding elevation should read
+    /// the two lines above first.
+    ///
+    /// What we give up by staying unprivileged is the vendor's `root:staff`
+    /// ownership of `Contents`; it comes back as ours. For the installs this runs
+    /// on that changes nothing about who may write it — both are `775` with group
+    /// `staff`, so the group already had exactly the owner's rights — and the
+    /// vendor's own installer restores `root:staff` the next time it runs. It is
+    /// logged rather than left silent.
+    static func rotateContents(newApp: URL, over target: URL) throws {
+        let fm = FileManager.default
+        let liveContents = target.appendingPathComponent("Contents", isDirectory: true)
+        let sourceContents = newApp.appendingPathComponent("Contents", isDirectory: true)
+
+        // Rotation replaces `Contents` and nothing else. A bundle that keeps
+        // anything else at its top level would come out of the exchange as new
+        // code beside the old copy's leftovers — a state no gate downstream
+        // inspects — so refuse instead of half-installing. Both input methods on
+        // record hold `Contents` alone.
+        // In-flight first: two of the vendors' staging names are not hidden, so
+        // the top-level check would otherwise reject them with a message about the
+        // wrong thing.
+        for name in vendorRotationStagingNames
+        where fm.fileExists(atPath: target.appendingPathComponent(name).path) {
+            throw SwapError.notReplaceable(
+                "“\(target.lastPathComponent)” has its vendor updater's “\(name)” staged inside it — "
+                + "that update is still in flight, so this one would race it.")
+        }
+        try requireOnlyContents(at: target, describedAs: "The installed")
+        try requireOnlyContents(at: newApp, describedAs: "The downloaded")
+        // The one permission the exchange uses, checked before anything moves so
+        // the refusal is a sentence rather than a half-finished rename. Elevation
+        // is deliberately not offered as a way past this: see above.
+        guard fm.isWritableFile(atPath: target.path) else {
+            throw SwapError.notReplaceable(
+                "“\(target.lastPathComponent)” is not writable by you, and an input method can only be "
+                + "updated from inside its own bundle — this copy has to be updated by the vendor's installer.")
+        }
+
+        let staged = target.appendingPathComponent(rotationStagedName)
+        try? fm.removeItem(at: staged)
+        do {
+            try fm.moveItem(at: sourceContents, to: staged)
+        } catch {
+            if isAppManagementDenial(error) {
+                throw AppManagementRequiredError(targetPath: target.path)
+            }
+            throw SwapError.notReplaceable(error.localizedDescription)
+        }
+        // Carry the live install's group-write posture onto the replacement, for
+        // the reason `modePreservationCommands` gives: the vendor's own updater
+        // has to be able to delete the `Contents` it displaces, and unlinking a
+        // tree needs write permission on every directory inside it.
+        // `replaceItemAt` preserves the mode of the directory it replaces, but
+        // only at that top level (measured).
+        if let mode = directoryMode(at: liveContents), mode & 0o020 != 0 {
+            let chmod = Process()
+            chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
+            chmod.arguments = ["-R", "g+w", staged.path]
+            chmod.standardError = FileHandle.nullDevice
+            try? chmod.run()
+            chmod.waitUntilExit()
+            if chmod.terminationStatus != 0 {
+                Log.install.error(
+                    "rotate: could not carry the group-write bit onto the new Contents of \(target.lastPathComponent, privacy: .public) — its own updater may not be able to clean up after its next update")
+            }
+        }
+
+        let ownerBefore = (try? fm.attributesOfItem(atPath: liveContents.path))?[.ownerAccountName]
+            as? String
+        do {
+            // A named backup, not `nil`. `replaceItemAt` deletes it on success
+            // (measured: the bundle holds `Contents` alone afterwards), so this
+            // costs nothing in the ordinary case — but if the exchange is cut off
+            // partway, the copy it displaced is sitting under a name the launch
+            // sweep knows to look for. With `nil` the same interruption leaves it
+            // under a name FileManager chose, which is to say unrecoverable: an
+            // input method with no `Contents` is one macOS cannot load.
+            _ = try fm.replaceItemAt(
+                liveContents, withItemAt: staged,
+                backupItemName: rotationBackupName, options: [])
+        } catch {
+            let ns = error as NSError
+            Log.install.error(
+                "rotate: replaceItemAt threw for \(target.lastPathComponent, privacy: .public)/Contents — \(ns.domain, privacy: .public) \(ns.code, privacy: .public): \(ns.localizedDescription, privacy: .public)")
+            if fm.fileExists(atPath: staged.path) {
+                do { try fm.removeItem(at: staged) } catch {
+                    Log.install.error(
+                        "rotate: left \(rotationStagedName, privacy: .public) inside \(target.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            if isAppManagementDenial(error) {
+                throw AppManagementRequiredError(targetPath: target.path)
+            }
+            throw SwapError.notReplaceable(error.localizedDescription)
+        }
+        let ownerAfter = (try? fm.attributesOfItem(atPath: liveContents.path))?[.ownerAccountName]
+            as? String
+        if let ownerBefore, ownerBefore != ownerAfter {
+            Log.install.notice(
+                "rotate: \(target.lastPathComponent, privacy: .public)/Contents changed owner from \(ownerBefore, privacy: .public) to \(ownerAfter ?? "?", privacy: .public) — unprivileged by necessity, see rotateContents")
+        }
+    }
+
+    /// Refuse a rotation on a bundle that holds more than `Contents`. Hidden
+    /// entries and the vendors' own in-bundle staging/backup names are ignored:
+    /// `.DS_Store` is not payload, and the vendor names are checked separately by
+    /// the guard that can say something accurate about them.
+    private static func requireOnlyContents(at bundle: URL, describedAs role: String) throws {
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: bundle.path)) ?? []
+        let visible = entries
+            .filter { !$0.hasPrefix(".") && !vendorRotationEntryNames.contains($0) }
+            .sorted()
+        guard visible == ["Contents"] else {
+            throw SwapError.notReplaceable(
+                "\(role) “\(bundle.lastPathComponent)” holds \(visible.joined(separator: ", ")) at its top level, "
+                + "and an input method is updated by exchanging Contents alone.")
+        }
+    }
+
     private static func privilegedReplace(newApp: URL, target: URL) throws {
+        let shell = privilegedReplacementShell(newApp: newApp, target: target)
+        let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
+
+        // One password panel at a time. The apply pool allows two concurrent
+        // swaps, and now that every root-owned bundle takes this path (28 apps in
+        // `/Applications` on the development machine, 22 of them store-installed)
+        // a batch can reach it twice at once — two system panels stacked over each
+        // other, neither saying which app it belongs to. Blocking here rather than
+        // making `replace` async is deliberate: the callers are synchronous, and
+        // the thread this parks was going to sit in `waitUntilExit` waiting on the
+        // same human anyway, so this moves the wait rather than adding one.
+        elevationPanel.lock()
+        defer { elevationPanel.unlock() }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", appleScript]
+        let errPipe = Pipe()
+        process.standardError = errPipe
+        try process.run()
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let msg = String(data: errData, encoding: .utf8) ?? "unknown error"
+            // Dismissing the password panel is a decision, not a fault: nothing was
+            // touched (the shell never ran), and the honest response is to stop
+            // offering the one-click rather than to show a red failure the user
+            // caused deliberately and would keep re-triggering.
+            if isAuthorizationDeclined(msg) {
+                throw AuthorizationDeclinedError(targetPath: target.path)
+            }
+            throw SwapError.notReplaceable(msg)
+        }
+    }
+
+    /// The authenticated shell transaction, split out so its metadata guarantees
+    /// can be exercised in a temporary directory without raising a password panel.
+    /// Reading the live modes and building this command happen before osascript is
+    /// launched, while the old bundle is still present and authoritative.
+    static func privilegedReplacementShell(newApp: URL, target: URL) -> String {
         // Materialize the replacement *fully* before the original is touched, then
         // swap via two same-directory renames. Never `rm` the original before its
         // replacement exists on disk: a `rm -rf target && ditto` would, if the
@@ -335,6 +666,38 @@ public enum InPlaceSwap {
         let old = shellQuote(target.path + ".duoupdater-old")
         let tgt = shellQuote(target.path)
         let src = shellQuote(newApp.path)
+        let newContents = shellQuote(target.path + ".duoupdater-new/Contents")
+
+        // Preserve the directory modes that define how this particular install is
+        // maintained. Downloaded archives normally unpack as 755 (measured on the
+        // vendor's own payload: every one of the 81 directories in `DoubaoIme.zip`
+        // is 755), but both WeType and DoubaoIme are installed root:staff 775 under
+        // `/Library/Input Methods`; their own updaters stage the next Contents
+        // directory inside the outer app and need that group-write bit. Replacing
+        // either with an archive-default bundle silently leaves its vendor updater
+        // unable to stage the next build — which is why `rotateContents` carries
+        // the bit recursively for those two, and why THIS path deliberately does
+        // not. Input methods never reach here any more; every other app that does
+        // would be widened on a rule measured from theirs. Two apps on the
+        // development machine take this path with a group-writable root (Microsoft
+        // Word and Excel, `root:wheel` 775) and would have had their whole
+        // interiors opened to the group on the next update, for no stated reason.
+        //
+        // So the guarantee here is exactly two levels, in both directions: the
+        // bundle and `Contents` come back with the modes the install had, and
+        // below that the source archive's own modes stand. See
+        // `aPrivilegedSwapDoesNotWidenA755Install`, which pins the limit as well as
+        // the rule.
+        //
+        // Apply modes to `.duoupdater-new` BEFORE its live rename. macOS can attach
+        // `com.apple.macl` as soon as a bundle occupies a registered app path; a
+        // later chmod was measured returning EPERM even under `with administrator
+        // privileges`. Staging remains user-owned here, so an interrupted copy is
+        // still removable by the unprivileged recovery sweep.
+        let bundleMode = directoryMode(at: target)
+        let contentsMode = directoryMode(
+            at: target.appendingPathComponent("Contents", isDirectory: true))
+        let preserveModes = modePreservationCommands([(bundleMode, new), (contentsMode, newContents)])
         // Keep the replaced bundle's ownership. `ditto` running as root preserves
         // the *source's* owner, and every source we hand it — a download we
         // extracted, a rollback copy we made — belongs to the user. Without this
@@ -371,42 +734,41 @@ public enum InPlaceSwap {
         let shell = """
         /bin/rm -rf \(new) \(old); \
         /usr/bin/ditto \(src) \(new) && \
-        /bin/mv \(tgt) \(old) && \
+        \(preserveModes)/bin/mv \(tgt) \(old) && \
         { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt); false; }; } && \
         { \(ownership)/bin/rm -rf \(old); }
         """
-        let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
+        return shell
+    }
 
-        // One password panel at a time. The apply pool allows two concurrent
-        // swaps, and now that every root-owned bundle takes this path (28 apps in
-        // `/Applications` on the development machine, 22 of them store-installed)
-        // a batch can reach it twice at once — two system panels stacked over each
-        // other, neither saying which app it belongs to. Blocking here rather than
-        // making `replace` async is deliberate: the callers are synchronous, and
-        // the thread this parks was going to sit in `waitUntilExit` waiting on the
-        // same human anyway, so this moves the wait rather than adding one.
-        elevationPanel.lock()
-        defer { elevationPanel.unlock() }
+    /// The `chmod` clauses that carry a live install's directory modes onto the
+    /// staged replacement, each already `&&`-terminated so the caller can splice
+    /// the result straight into its command chain (empty when nothing is known).
+    ///
+    /// Best-effort by construction — a mode we could not read is simply not
+    /// restated, exactly like the ownership block, and for the same reason:
+    /// refusing to install a verified build because one `stat` came back empty is
+    /// the worse trade, and *every* root-owned app on the machine takes this path.
+    /// The `chmod`s themselves stay `&&`-chained: once we do know the mode,
+    /// failing to apply it means the install would land misconfigured, and the
+    /// original is still untouched at that point in the chain.
+    ///
+    private static func modePreservationCommands(
+        _ pairs: [(mode: Int?, quotedPath: String)]
+    ) -> String {
+        pairs.compactMap { pair -> String? in
+            guard let mode = pair.mode else { return nil }
+            return "/bin/chmod \(String(mode, radix: 8)) \(pair.quotedPath) && "
+        }.joined()
+    }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", appleScript]
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        try process.run()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let msg = String(data: errData, encoding: .utf8) ?? "unknown error"
-            // Dismissing the password panel is a decision, not a fault: nothing was
-            // touched (the shell never ran), and the honest response is to stop
-            // offering the one-click rather than to show a red failure the user
-            // caused deliberately and would keep re-triggering.
-            if isAuthorizationDeclined(msg) {
-                throw AuthorizationDeclinedError(targetPath: target.path)
-            }
-            throw SwapError.notReplaceable(msg)
-        }
+    /// The POSIX mode of a directory, or nil when it cannot be read. Includes the
+    /// setuid/setgid/sticky bits deliberately: they are part of how the install is
+    /// maintained, and dropping them on a swap would be a silent change.
+    private static func directoryMode(at url: URL) -> Int? {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        guard let raw = attrs?[.posixPermissions] as? NSNumber else { return nil }
+        return raw.intValue & 0o7777
     }
 
     /// Whether an error (or anything in its underlying-error chain) is the

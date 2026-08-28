@@ -379,6 +379,27 @@ public enum BackupStore {
             throw BackupError.backupCorrupted(backup.bundlePath.lastPathComponent)
         }
         try InPlaceSwap.replace(newApp: staged, over: target)
+        // An input method's settings and learned dictionary are not in the bundle,
+        // so restoring the bundle alone rolls back the code and leaves the data at
+        // whatever the newer version made of it. Restore the snapshot taken with
+        // this backup, if there is one. Best-effort and reported: the bundle is
+        // already back, and failing the rollback now would be a worse answer than
+        // an incomplete one that says so.
+        if InPlaceSwap.usesContentsRotation(target: target) {
+            do {
+                let restored = try InputMethodDataBackup.restore(forKey: key)
+                // Said plainly because the files on disk are only half of it: a
+                // running input method holds its preferences and its mmkv/dictionary
+                // files open, so what it is using is not what was just restored
+                // until it is restarted. Not measured either way for these two apps
+                // — stated as the caveat it is rather than implied to be handled.
+                Log.install.notice(
+                    "rollback: restored \(restored.count, privacy: .public) user-data location(s) with \(target.lastPathComponent, privacy: .public) — a running input method keeps using what it already loaded until it restarts")
+            } catch {
+                Log.install.error(
+                    "rollback: \(target.lastPathComponent, privacy: .public) is back, but its user data was not restored — \(error.localizedDescription, privacy: .public)")
+            }
+        }
         return backup.version
     }
 
@@ -569,6 +590,20 @@ public enum BackupStore {
             at: url, includingPropertiesForKeys: [.fileSizeKey],
             options: [], errorHandler: nil)
         else { return 0 }
+        // Logical size, including the input-method user-data snapshot
+        // (`InputMethodDataBackup`) that now sits beside the bundle in a key
+        // directory. That snapshot is an APFS clone, so on the day it is taken it
+        // shares nearly all its blocks with the live data and this number
+        // overstates what was spent — DoubaoIme's reads 639.3 MB against 578 MB of
+        // shared extents. It is still the right number to show: the clone's blocks
+        // become the backup's own as the live copy diverges, so this is what the
+        // rollback point grows to cost, and a display saying "occupies nothing"
+        // would be wrong for every day after the first.
+        //
+        // `totalFileAllocatedSizeKey` is not the fix it looks like — measured, it
+        // reports a 40 MB clone as 40 MB allocated, identically to its source. It
+        // does not see through sharing, so switching to it changes nothing except
+        // to add a claim that is not true.
         var total: Int64 = 0
         for case let file as URL in enumerator {
             total += Int64((try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)

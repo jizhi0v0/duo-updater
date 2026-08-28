@@ -479,15 +479,17 @@ final class AppListModel {
     /// spinner. Cleared when the upgrade finishes.
     private(set) var formulaUpgradeNotes: [String: String] = [:]
 
-    /// Lazily-fetched release notes per formula (keyed by name), loaded only when a
-    /// formula is selected in the workbench — so a long outdated list never burns the
-    /// GitHub rate limit up front.
-    enum FormulaReleaseState { case loading, loaded(FormulaRelease) }
-    private(set) var formulaReleaseStates: [String: FormulaReleaseState] = [:]
+    /// Lazily-fetched release notes per formula, loaded only when a formula is
+    /// selected in the workbench — so a long outdated list never burns the GitHub
+    /// rate limit up front. Version-keyed (see `FormulaReleaseStore`): the version a
+    /// formula's notes are wanted for can move under a running session, and the
+    /// entry left from the previous one must read as a miss rather than be served
+    /// against the new version.
+    private var formulaReleases = FormulaReleaseStore()
     private let formulaReleaseService = BrewFormulaReleaseService()
 
-    func formulaReleaseState(name: String) -> FormulaReleaseState? {
-        formulaReleaseStates[name]
+    func formulaReleaseState(name: String, version: String) -> FormulaReleaseStore.State? {
+        formulaReleases.state(name: name, version: version)
     }
 
     /// Every brew-managed cask among the results. `HomebrewCaskSource` stamps each
@@ -1374,13 +1376,26 @@ final class AppListModel {
     @ObservationIgnored private var didRecoverSwaps = false
 
     /// Run the interrupted-swap recovery sweep once per session, off the main thread.
-    /// Scans `/Applications` (the only place the privileged, non-atomic swap path can
-    /// leave an orphan — user-writable locations take the atomic path).
+    ///
+    /// `/Applications` is where the privileged, non-atomic whole-bundle swap can
+    /// leave an orphan — user-writable locations take the atomic path. The input
+    /// method directories are here for a different leftover: those installs
+    /// exchange the bundle's `Contents` in place, and an exchange interrupted
+    /// between its two renames leaves `<App>.app` with no `Contents` at all, which
+    /// is an input method macOS can no longer load. Sweeping only `/Applications`
+    /// would have left exactly that state unrecoverable, because a rotation's
+    /// leftovers sit INSIDE the bundle rather than beside it.
     private func recoverInterruptedSwapsOnce() {
         guard !didRecoverSwaps else { return }
         didRecoverSwaps = true
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let roots = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            URL(fileURLWithPath: "/Library/Input Methods", isDirectory: true),
+            home.appendingPathComponent("Library/Input Methods", isDirectory: true),
+        ]
         Task.detached(priority: .utility) {
-            InPlaceSwap.recoverInterruptedSwaps(in: URL(fileURLWithPath: "/Applications"))
+            for root in roots { InPlaceSwap.recoverInterruptedSwaps(in: root) }
         }
     }
 
@@ -1774,32 +1789,46 @@ final class AppListModel {
             await Self.resolveGitHubToken(explicit: explicitToken)
         }
         for formula in brewFormulae where formula.hasUpdate {
-            guard formulaReleaseStates[formula.name] == nil else { continue }
             let version = formula.availableVersion ?? formula.installedVersion
-            // Claim the slot SYNCHRONOUSLY before suspending: the `cached(...)` await
-            // below yields the main actor, and a concurrent `ensureFormulaReleaseLoading`
-            // (user selecting this formula) would pass its own nil-guard in that window
-            // and double-fetch (`brew info` + GitHub) — the redundant work the
-            // rate-limit design avoids. `.loading` makes both guards reject.
-            formulaReleaseStates[formula.name] = .loading
+            // Cheap synchronous skip for what we already hold at this exact version.
+            // NOT the authoritative guard — that is the `claim` below, and it has to
+            // stay there so we never hold a slot we might not fill. This only keeps
+            // a refresh from spawning a task and a disk read per formula for work
+            // that is already done: `refreshBrewFormulae` runs on every menu-bar
+            // open, not just after an upgrade.
+            guard formulaReleases.state(name: formula.name, version: version) == nil else { continue }
             Task { [weak self] in
                 guard let self else { return }
-                if let cached = await self.formulaReleaseService.cached(
-                    for: formula.name, version: version) {
-                    self.formulaReleaseStates[formula.name] = .loaded(cached)
-                } else if await tokenTask.value != nil {
-                    // Fetch up front (a token means we have budget). We can't delegate
-                    // to `ensureFormulaReleaseLoading` — its own nil-guard would reject
-                    // the slot we just claimed — so do the load it would do.
-                    let release = await self.formulaReleaseService.release(
-                        for: formula.name, version: version, token: await tokenTask.value)
-                    self.formulaReleaseStates[formula.name] = .loaded(release)
-                } else {
-                    // No token and not cached: stay deliberately lazy/on-select so a
-                    // screenful of formulae can't burn the 60/hr unauthenticated
-                    // budget. Release the claimed slot so a later select can fetch it.
-                    self.formulaReleaseStates[formula.name] = nil
+                // Decide whether we will load BEFORE claiming, never the other way
+                // round. An earlier revision claimed the slot up front and released
+                // it again on the no-token/uncached path; that briefly-held claim
+                // was enough to turn away the detail pane's `.task(id:)` — which
+                // fires once per version and had no reason to fire again — leaving
+                // an open pane spinning on an entry nobody would ever fill.
+                let cached = await self.formulaReleaseService.cached(
+                    for: formula.name, version: version)
+                let token = await tokenTask.value
+                // No token and not on disk: stay deliberately lazy/on-select so a
+                // screenful of outdated formulae can't burn the 60/hr
+                // unauthenticated budget. Claiming nothing leaves the on-select
+                // path free to do its job.
+                guard cached != nil || token != nil else { return }
+                // Claiming is what serializes us against a concurrent
+                // `ensureFormulaReleaseLoading` (the user selecting this same
+                // formula): exactly one of the two wins the slot and fetches, and
+                // the loser simply drops out. Whichever order they arrive in, the
+                // `brew info` + GitHub work happens once.
+                guard self.formulaReleases.claim(name: formula.name, version: version) else { return }
+                if let cached {
+                    self.formulaReleases.finish(name: formula.name, version: version, release: cached)
+                    return
                 }
+                // A token means we have budget, so fetch up front. We can't delegate
+                // to `ensureFormulaReleaseLoading` — its own guard would reject the
+                // slot we just claimed — so do the load it would do.
+                let release = await self.formulaReleaseService.release(
+                    for: formula.name, version: version, token: token)
+                self.formulaReleases.finish(name: formula.name, version: version, release: release)
             }
         }
     }
@@ -1903,16 +1932,18 @@ final class AppListModel {
         return String(localized: "Upgrading… (\(current)/\(brewUpgradeTotal))")
     }
 
-    /// Fetch a formula's release notes once, on first selection. Idempotent: a
-    /// loaded/loading entry is left alone, so reselecting renders the cache instantly.
+    /// Fetch a formula's release notes once, on first selection. Idempotent for a
+    /// given version: a loaded/loading entry for that same version is left alone, so
+    /// reselecting renders the cache instantly. A DIFFERENT version re-fetches — the
+    /// caller must pass the version it is about to render, or the pane shows notes
+    /// for a version it is no longer displaying.
     func ensureFormulaReleaseLoading(name: String, version: String) {
-        guard formulaReleaseStates[name] == nil else { return }
-        formulaReleaseStates[name] = .loading
+        guard formulaReleases.claim(name: name, version: version) else { return }
         let explicitToken = explicitGitHubToken()
         Task {
             let token = await Self.resolveGitHubToken(explicit: explicitToken)
             let release = await formulaReleaseService.release(for: name, version: version, token: token)
-            formulaReleaseStates[name] = .loaded(release)
+            formulaReleases.finish(name: name, version: version, release: release)
         }
     }
 

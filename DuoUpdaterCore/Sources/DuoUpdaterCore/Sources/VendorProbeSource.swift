@@ -793,6 +793,7 @@ public struct VendorProbeSource: UpdateSource {
                 requiresManualInstaller: spec.kind == .pkg,
                 vendorInstallerKind: spec.kind,
                 expectedSHA512: plan.checksum,
+                nestedArchivePath: spec.nestedArchivePath,
                 downloadHeaders: spec.requestHeaders,
                 changelogURL: recipe.changelogURL,
                 publishedAt: publishedAt,

@@ -102,16 +102,37 @@ public struct VendorInstallSpec: Sendable {
     /// challenge unless a `Referer` is present.
     public let requestHeaders: [String: String]
 
+    /// Path, relative to the `.app` the download unpacks to, of a SECOND archive
+    /// that holds the real payload — for a vendor whose download is an installer
+    /// stub carrying the app inside itself.
+    ///
+    /// DoubaoIme is the case in hand: `DoubaoImeInstaller_v90703_release.zip`
+    /// unpacks to `DoubaoImeInstaller.app`, a 190 MB stub whose
+    /// `Contents/Resources` holds `DoubaoIme.zip` plus the `install.sh` it runs.
+    /// Without this the installer would extract the stub, and the bundle-id gate
+    /// would (correctly) refuse to swap `com.bytedance.inputmethod.doubaoime.installer`
+    /// over `com.bytedance.inputmethod.doubaoime`.
+    ///
+    /// The unwrap is not a hole in the gates, it moves one of them: the nested
+    /// archive lives under `Contents/Resources`, which the stub's own code
+    /// signature seals, so `VendorInstaller` verifies the stub (signature + the
+    /// installed app's Team — NOT its bundle id, which is a sibling by
+    /// construction) before reading anything out of it. Every gate then runs again
+    /// on the payload itself, bundle id included.
+    public let nestedArchivePath: String?
+
     public init(
         urlSource: URLSource,
         kind: VendorInstallerKind,
         checksumPattern: String? = nil,
-        requestHeaders: [String: String] = [:]
+        requestHeaders: [String: String] = [:],
+        nestedArchivePath: String? = nil
     ) {
         self.urlSource = urlSource
         self.kind = kind
         self.checksumPattern = checksumPattern
         self.requestHeaders = requestHeaders
+        self.nestedArchivePath = nestedArchivePath
     }
 }
 

@@ -44,6 +44,10 @@ public actor VendorInstaller {
         case noDownloadURL
         case unknownKind
         case checksumMismatch
+        /// The download unpacked, but the payload a stub was supposed to be
+        /// carrying is not where the recipe says it is. Carries the detail,
+        /// because the fix is a recipe edit and the path is the whole diagnosis.
+        case nestedPayloadMissing(String)
 
         public var errorDescription: String? {
             switch self {
@@ -55,6 +59,8 @@ public actor VendorInstaller {
                 return "This vendor update has no known installable archive format."
             case .checksumMismatch:
                 return "The download's checksum didn't match — it may be corrupt or tampered. Nothing was changed."
+            case .nestedPayloadMissing(let detail):
+                return "The installer package did not contain the app: \(detail)"
             }
         }
     }
@@ -169,7 +175,13 @@ public actor VendorInstaller {
             throw InstallError.notVendorUpdate
         }
 
-        let newApp: URL
+        var newApp: URL
+        // The delta branch below reconstructs the app from the installed copy and
+        // never sees an archive, so `nestedArchivePath` does not apply to it and is
+        // not consulted there. Unreachable today — the one recipe that declares a
+        // nested payload publishes no patches — but if a stub-shipping vendor ever
+        // also served an appcast, the symptom would be a bundle-id refusal rather
+        // than anything unsafe.
         if let patch = download.appliedPatch {
             // `expectedSHA512` describes the ARCHIVE, so it cannot speak for these
             // bytes and is deliberately not applied here. `reconstruct` checks what
@@ -196,6 +208,23 @@ public actor VendorInstaller {
             onStage(.extracting)
             newApp = try ArchiveExtractor.extractApp(
                 from: download.archiveURL, workDir: download.workDir)
+            // 3b. Some vendors ship an installer stub with the app inside it —
+            // see `VendorInstallSpec.nestedArchivePath`. Unwrap one level, having
+            // first proven the stub is the vendor's: the nested archive sits under
+            // `Contents/Resources`, which the stub's own signature seals, so a
+            // valid signature from the installed app's Team is a statement about
+            // the payload we are about to take out of it. Bundle id is NOT pinned
+            // here — a stub's id is a sibling of the app's by construction
+            // (`…doubaoime.installer` vs `…doubaoime`) — and everything below,
+            // including the id pin, then runs against the payload itself.
+            if let nested = remote.nestedArchivePath {
+                try SignatureVerifier.verifyCodeSignature(appAt: newApp)
+                try SignatureVerifier.verifyTeamIdentifierMatch(
+                    installedApp: result.app.path,
+                    downloadedApp: newApp
+                )
+                newApp = try unwrapNestedPayload(at: nested, inside: newApp, workDir: download.workDir)
+            }
         }
 
         // 4. Gate 2 + 3 + 4 — code signature valid, same Team ID, AND same signed
@@ -226,6 +255,29 @@ public actor VendorInstaller {
         try installApp(newApp, over: result.app.path)
 
         onStage(.done)
+    }
+
+    /// Extract the archive at `relativePath` inside the installer stub `stub`, and
+    /// return the `.app` it holds.
+    ///
+    /// The path is resolved and then checked to still be inside `stub`, the same
+    /// containment check `ArchiveExtractor` makes about the bundle it returns: a
+    /// registry string is not user input, but a `..` in one would otherwise reach
+    /// anywhere on disk, and this is two steps upstream of a privileged swap.
+    private func unwrapNestedPayload(at relativePath: String, inside stub: URL, workDir: URL) throws -> URL {
+        let nested = stub.appendingPathComponent(relativePath).standardizedFileURL
+        let root = stub.standardizedFileURL.path
+        guard nested.path.hasPrefix(root + "/"),
+              FileManager.default.fileExists(atPath: nested.path) else {
+            throw InstallError.nestedPayloadMissing(
+                "“\(stub.lastPathComponent)” does not hold \(relativePath).")
+        }
+        // Its own scratch directory: `extractApp` unpacks into `workDir`, and
+        // pointing it there a second time would have it choose between the stub it
+        // already unpacked and the payload it is unpacking now.
+        let inner = workDir.appendingPathComponent("nested-payload", isDirectory: true)
+        try FileManager.default.createDirectory(at: inner, withIntermediateDirectories: true)
+        return try ArchiveExtractor.extractApp(from: nested, workDir: inner)
     }
 
     // MARK: - Checksum

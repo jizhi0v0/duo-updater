@@ -65,18 +65,12 @@ public enum RestartStandoff {
         guard let staged else { return .proceed }
 
         // Only pairs where BOTH sides carry a value can be compared; a field
-        // missing on either side proves nothing either way.
-        let comparable: [(String, String)] = [
-            (staged.version, onDiskShortVersion),
-            (staged.buildVersion, onDiskBuildVersion),
-        ].compactMap { mine, theirs in
-            guard let theirs else { return nil }
-            guard let mine else { return nil }
-            return (mine, theirs)
-        }
-
-        guard !comparable.isEmpty,
-              comparable.allSatisfy({ $0.0 == $0.1 })
+        // missing on either side proves nothing either way. That rule lives in
+        // `VersionComparator.isSame` now — this function was the one place in the
+        // codebase that had it right, so the others were changed to share it
+        // rather than it being restated here.
+        let onDisk = VersionSide(marketing: onDiskShortVersion, build: onDiskBuildVersion)
+        guard VersionComparator.isSame(staged.versionSide, as: onDisk)
         else { return .holdBack(stagedVersion: staged.version) }
         return .proceed
     }

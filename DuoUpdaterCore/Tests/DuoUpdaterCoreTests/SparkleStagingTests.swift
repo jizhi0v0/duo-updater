@@ -388,4 +388,65 @@ struct SparkleStagingTests {
             "org.sparkle-project.Sparkle.Autoupdate",
         ])
     }
+
+    // MARK: - The Amp scenario, end to end
+
+    /// The failure of 2026-08-28, rebuilt on a real filesystem through the real
+    /// detector and the real policy — not asserted from remembered numbers.
+    ///
+    /// Amp had build 128 on disk, its updater had staged 129, and the feed had
+    /// already moved to 130. All three are called "1.0". The row offered
+    /// **Relaunch**, so the user relaunched into 129 and was still a build behind
+    /// — the outcome `actionableStaged`'s own doc comment says the gate exists to
+    /// prevent ("relaunching to it would still leave the user a download behind").
+    ///
+    /// This is the scenario the live test that night could NOT reproduce: by then
+    /// the staged build WAS the latest, so it exercised a different path.
+    @Test func aStagedBuildTrailingTheFeedIsOfferedAsUpdateNotRelaunch() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "1.0", build: "129")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "1.0", build: "128")
+
+            // `hasSparkleUpdater: true` on purpose — the shared `app(...)` helper
+            // leaves it false because the other cases in this suite call
+            // `sparkleStagedBundle` directly, below that gate. This one goes
+            // through `staged(for:)` so the whole production path is exercised.
+            let amp = InstalledApp(
+                name: "Sparkly", bundleID: bundleID, shortVersion: "1.0",
+                buildVersion: "128", path: installed, isMASApp: false,
+                sparkleFeedURL: nil, hasSelfUpdater: false, hasSparkleUpdater: true)
+
+            // The detector must still SEE it — the staged build is genuinely newer
+            // than what is installed, so this half is unchanged.
+            let staged = SelfUpdaterStaging.staged(
+                for: amp,
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)])
+            #expect(staged?.buildVersion == "129", "129 is newer than the installed 128")
+
+            // ...but the feed is at 130, so a relaunch would land a build that is
+            // already behind. The row has to fall through to Update.
+            let result = UpdateResult(
+                app: amp,
+                remote: RemoteVersion(
+                    shortVersion: "1.0", version: "130",
+                    downloadURL: URL(string: "https://example.com/a.dmg"),
+                    sourceName: "Sparkle"),
+                status: .updateAvailable(latest: "1.0"))
+            #expect(UpdatePolicy.actionableStaged(result, staged: staged) == nil,
+                    "staged 129 trails feed 130 — Relaunch here strands the user a build behind")
+
+            // And once the feed and the staged build agree, Relaunch is right again.
+            let caughtUp = UpdateResult(
+                app: amp,
+                remote: RemoteVersion(
+                    shortVersion: "1.0", version: "129",
+                    downloadURL: URL(string: "https://example.com/a.dmg"),
+                    sourceName: "Sparkle"),
+                status: .updateAvailable(latest: "1.0"))
+            #expect(UpdatePolicy.actionableStaged(caughtUp, staged: staged) != nil)
+        }
+    }
 }

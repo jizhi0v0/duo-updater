@@ -110,3 +110,70 @@ import Testing
     #expect(UpdateChecker.evaluate(installed: app, remote: remote)
         == .updateAvailable(latest: "1.97.0"))
 }
+
+// MARK: - Pair comparison
+
+/// The primitive every converted decision site now calls. Worth pinning
+/// directly: thirteen call sites delegate their correctness to these three
+/// functions, so a regression here is a regression everywhere at once.
+@Suite struct VersionSidePairTests {
+
+    private func s(_ m: String?, _ b: String?) -> VersionSide {
+        VersionSide(marketing: m, build: b)
+    }
+
+    /// Marketing decides when it moves — the ordinary case.
+    @Test func marketingDecidesWhenItMoves() {
+        #expect(VersionComparator.isNewer(s("1.8.0", "10"), than: s("1.7.3", "999")),
+                "a marketing bump wins even when the build number went down")
+        #expect(!VersionComparator.isNewer(s("1.7.3", "999"), than: s("1.8.0", "10")))
+    }
+
+    /// The build decides only when marketing ties — which for a frozen-marketing
+    /// app is every comparison it will ever make.
+    @Test func theBuildBreaksAFrozenMarketingTie() {
+        #expect(VersionComparator.isNewer(s("1.0", "130"), than: s("1.0", "129")))
+        #expect(!VersionComparator.isNewer(s("1.0", "129"), than: s("1.0", "130")))
+        #expect(!VersionComparator.isNewer(s("1.0", "130"), than: s("1.0", "130")))
+    }
+
+    /// Never across namespaces: a build ("45830") and a marketing version
+    /// ("1.96.0") are not on one scale, so a side missing its marketing string is
+    /// compared build-to-build or not at all.
+    @Test func neverComparesABuildAgainstAMarketingVersion() {
+        #expect(!VersionComparator.isNewer(s(nil, "45830"), than: s("1.96.0", nil)),
+                "45830 must not be read as newer than 1.96.0")
+        #expect(!VersionComparator.isNewer(s("1.96.0", nil), than: s(nil, "45830")))
+        #expect(VersionComparator.isNewer(s(nil, "45830"), than: s(nil, "45829")),
+                "build-to-build is fine")
+    }
+
+    /// "Cannot tell" fails closed. Callers use this to decide whether to offer an
+    /// update, wait for a swap, or overwrite an install; guessing "newer" there
+    /// is the expensive direction.
+    @Test func nothingComparableIsNotNewer() {
+        #expect(!VersionComparator.isNewer(VersionSide(), than: s("1.0", "1")))
+        #expect(!VersionComparator.isNewer(s("1.0", "1"), than: VersionSide()))
+        #expect(!VersionComparator.isNewer(VersionSide(), than: VersionSide()))
+    }
+
+    /// `isSame` requires every field BOTH sides carry to agree, and refuses to
+    /// call two incomparable sides equal.
+    @Test func isSameNeedsEveryComparableFieldToAgree() {
+        #expect(VersionComparator.isSame(s("1.0", "130"), as: s("1.0", "130")))
+        #expect(!VersionComparator.isSame(s("1.0", "129"), as: s("1.0", "130")),
+                "the marketing halves match; the builds do not")
+        #expect(VersionComparator.isSame(s("1.0", nil), as: s("1.0", "130")),
+                "a field missing on one side proves nothing and is skipped")
+        #expect(!VersionComparator.isSame(VersionSide(), as: s("1.0", "130")),
+                "nothing comparable is not sameness")
+    }
+
+    /// `hasReached` is the landing test: the exact build, or one past it.
+    @Test func hasReachedAcceptsTheTargetOrAnythingPastIt() {
+        let target = s("1.0", "130")
+        #expect(!VersionComparator.hasReached(target, disk: s("1.0", "129")))
+        #expect(VersionComparator.hasReached(target, disk: s("1.0", "130")))
+        #expect(VersionComparator.hasReached(target, disk: s("1.0", "131")))
+    }
+}

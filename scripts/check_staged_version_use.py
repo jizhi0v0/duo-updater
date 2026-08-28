@@ -27,7 +27,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCANNED = [ROOT / "App" / "Sources", ROOT / "CLI" / "Sources"]
+# Core included: the defect is not an App-layer speciality — `UpdatePolicy`'s
+# staged-relaunch gate had it, five lines from a sibling that had it right.
+SCANNED = [
+    ROOT / "App" / "Sources",
+    ROOT / "CLI" / "Sources",
+    ROOT / "DuoUpdaterCore" / "Sources",
+]
 
 # Rule 1: a *displayed* staged version must be formatted. Interpolation is what
 # marks a display site — logic passes the value as an argument or compares it,
@@ -39,6 +45,59 @@ DISPLAY = re.compile(r"\\\(\s*staged\.version\s*\)")
 # Rule 2: the announce-once ledger identifies a build, not a marketing version.
 LEDGER = re.compile(r"ledger\.(?:isNew|record)\s*\([^)]*version:\s*([A-Za-z0-9_.]+)")
 LEDGER_OK = "buildIdentity"
+
+# Rule 3: the general shape. A marketing-first fallback is fine for display and
+# wrong for a decision — `shortVersion ?? buildVersion` answers "1.0" for every
+# build of an app that freezes its marketing string, so any comparison fed by it
+# cannot discriminate. Thirteen sites got this wrong; `VersionSide` plus
+# `VersionComparator.isNewer(_:than:)`/`isSame(_:as:)` is what replaced them.
+MARKETING_FIRST = re.compile(
+    r"(?:shortVersion|displayVersion)\s*\?\?\s*[\w.]*[Bb]uildVersion")
+# A site where marketing-first IS correct because BOTH sides are marketing by
+# construction opts out by name, on the line or anywhere in the comment block
+# directly above it. A marker beats
+# an allowlist of line numbers: it travels with the code when the line moves, and
+# it makes the reason visible where the next reader is already looking.
+ALLOW = "version-lint:allow-marketing-first"
+# Enough lines to cover the reason written above the site — the marker is only
+# useful if it can sit at the top of the paragraph that explains it.
+ALLOW_LOOKBACK = 6
+# What makes a marketing-first pick dangerous is a comparison in the same
+# STATEMENT — which in Swift is routinely two or three lines away, because
+# `if let a = ..., \n   cond` is the idiom these sites are written in. Looking at
+# one line missed every real instance; the window is what makes the rule bite.
+# `VersionComparator.` is unambiguous. A bare `==` is not: `route == .installer`
+# sits three lines from a version pick in `InstallCoordinator.backUp` and has
+# nothing to do with versions. Requiring a version-ish operand on the SAME line
+# as the `==` keeps the rule pointed at version equality — a lint that cries wolf
+# is a lint the next person switches off, which is the failure this whole file
+# exists to prevent.
+COMPARATOR_CALL = re.compile(r"VersionComparator\.")
+EQUALITY = re.compile(r"[!=]=")
+VERSION_TOKEN = re.compile(r"[Vv]ersion|[Bb]uild|versionSide")
+COMPARISON_WINDOW = 3
+
+
+def is_version_comparison(line):
+    if COMPARATOR_CALL.search(line):
+        return True
+    return bool(EQUALITY.search(line) and VERSION_TOKEN.search(line))
+
+
+def compares_near(lines, index):
+    """Whether a version comparison appears within this statement's few lines.
+
+    A window, because Swift's `if let a = ...,\n   cond` idiom puts the
+    comparison two or three lines below the pick — looking at one line missed
+    every real instance.
+    """
+    return any(is_version_comparison(lines[i])
+               for i in range(index, min(index + COMPARISON_WINDOW, len(lines))))
+
+# Rule 4: reading only the marketing half off disk to detect a change. The pair
+# comes from one read (`readBundleVersions`); throwing the build away is what made
+# four landing checks answer "nothing moved".
+SHORT_READ = re.compile(r"readShortVersion(?:OffMain)?\s*\(")
 
 
 # A *different* type also binds the name `staged`: `stagedPackage(for:)` returns
@@ -72,8 +131,9 @@ def in_package_scope(lines, index):
 
 
 def main() -> int:
-    display_hits, ledger_hits = [], []
+    display_hits, ledger_hits, compare_hits, read_hits = [], [], [], []
     ledger_seen = 0
+    marketing_seen = 0
     files = list(swift_files())
 
     for path in files:
@@ -90,12 +150,26 @@ def main() -> int:
                 ledger_seen += 1
                 if not m.group(1).endswith(LEDGER_OK):
                     ledger_hits.append(f"{rel}:{n}: {line.strip()}")
+            if MARKETING_FIRST.search(line):
+                marketing_seen += 1
+                allowed = ALLOW in line or any(
+                    ALLOW in lines[i]
+                    for i in range(max(0, n - 1 - ALLOW_LOOKBACK), n - 1))
+                if compares_near(lines, n - 1) and not allowed:
+                    compare_hits.append(f"{rel}:{n}: {line.strip()}")
+            if SHORT_READ.search(line) and compares_near(lines, n - 1):
+                read_hits.append(f"{rel}:{n}: {line.strip()}")
 
     # Vacuity guard. A rule that matches nothing passes forever, which is worse
     # than no rule: it reports success while the thing it was written for has
     # been renamed out from under it. Both anchors below must still exist.
     if not files:
         print("✗ staged-version guard scanned no Swift files — paths moved?")
+        return 1
+    if marketing_seen == 0:
+        print("\u2717 staged-version guard found no marketing-first version pick "
+              "anywhere. Those are legitimate for DISPLAY and still exist, so zero "
+              "matches means the spelling changed and rule 3 now guards nothing.")
         return 1
     if ledger_seen == 0:
         print("✗ staged-version guard found no `ledger.isNew/record(version:)` "
@@ -117,11 +191,28 @@ def main() -> int:
               "silently swallows every later one that shares it.")
         for hit in ledger_hits:
             print(f"    {hit}")
-    if display_hits or ledger_hits:
+    if compare_hits:
+        print(f"\u2717 {len(compare_hits)} comparison(s) fed by a marketing-first "
+              "version pick.")
+        print("  `shortVersion ?? buildVersion` and `displayVersion` answer the same "
+              "string for every build of an app that freezes its marketing version.")
+        print("  Compare `VersionSide`s instead — VersionComparator.isNewer(_:than:) "
+              "/ .isSame(_:as:).")
+        for hit in compare_hits:
+            print(f"    {hit}")
+    if read_hits:
+        print(f"\u2717 {len(read_hits)} change-detector(s) reading only the marketing "
+              "half off disk.")
+        print("  `readBundleVersions` returns both from one read; use "
+              "`readVersionSide` so the build can break the tie.")
+        for hit in read_hits:
+            print(f"    {hit}")
+    if display_hits or ledger_hits or compare_hits or read_hits:
         return 1
 
-    print(f"✓ staged-version use is sound — {len(files)} files, "
-          f"{ledger_seen} ledger call(s) keyed on the build")
+    print(f"✓ version comparisons discriminate — {len(files)} files, "
+          f"{ledger_seen} ledger call(s) keyed on the build, "
+          f"{marketing_seen} marketing-first pick(s), all display-only")
     return 0
 
 

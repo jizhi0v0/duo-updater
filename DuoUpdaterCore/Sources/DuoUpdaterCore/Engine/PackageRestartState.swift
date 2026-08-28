@@ -41,13 +41,19 @@ public enum PackageRestartState: Sendable, Equatable {
     /// "Landed" is `onDiskVersion == stagedVersion`: the app now IS the version the
     /// package installs, as opposed to still being the old one (install not done) or
     /// already carrying a newer one (the staged package was superseded, not applied).
+    /// Compared as PAIRS. `onDiskVersion` and `stagedVersion` used to be bare
+    /// marketing strings, so for a vendor that keeps one marketing version across
+    /// builds they were equal before the installer had run — `.pending` was never
+    /// returned and a genuinely-unfinished install was classified as landed.
     public static func resolve(
-        onDiskVersion: String?,
-        stagedVersion: String,
+        onDiskVersion: VersionSide?,
+        stagedVersion: VersionSide,
         stagedAt: Date,
         runningLaunchDates: [Date]
     ) -> Self {
-        guard let onDiskVersion, onDiskVersion == stagedVersion else { return .pending }
+        guard let onDiskVersion,
+              VersionComparator.isSame(onDiskVersion, as: stagedVersion)
+        else { return .pending }
         let staleRunning = runningLaunchDates.contains { $0 < stagedAt }
         return staleRunning ? .readyToRestart : .settled
     }

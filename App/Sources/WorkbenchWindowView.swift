@@ -113,8 +113,11 @@ struct WorkbenchWindowView: View {
     private var rollbackableApps: [UpdateResult] {
         model.results
             .filter { result in
-                guard let backup = model.backupVersion(result.id) else { return false }
-                return result.app.shortVersion != backup
+                guard model.backupVersion(result.id) != nil else { return false }
+                // Pairs, in Core: comparing the backup's marketing LABEL against
+                // the installed marketing string hid this row for every app that
+                // keeps one marketing version across builds.
+                return model.rollbackIsDistinct(result)
             }
             .sorted { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }
     }

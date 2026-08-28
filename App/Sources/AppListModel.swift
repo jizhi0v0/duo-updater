@@ -159,51 +159,13 @@ final class AppListModel {
     /// the hand-off back up — see `settleQuitHandoffs`.
     struct QuitHandoff: Sendable {
         /// What has to be true on disk before the app is brought back.
-        enum Landing: Sendable {
-            /// Nothing to wait for: the new build was swapped in *before* we asked
-            /// for the quit (our own in-place install), so the quit was the last
-            /// step. Relaunch as soon as the app is actually gone.
-            case applied
-            /// The app's own updater swaps on quit. Launch only once disk shows
-            /// this exact staged version or newer — never before, or ShipIt aborts
-            /// with "App Still Running Error". If it never lands, leave the app
-            /// quit: the marker's promise was that specific build.
-            case stagedSwap(to: String)
-            /// App Store swaps once the app is gone (we quit it ourselves on the
-            /// user's Relaunch tap). Launch once disk moves past this pre-install
-            /// version — and launch anyway if it never does: we closed the user's
-            /// app for an update, so it comes back whether or not the store
-            /// delivered one.
-            case appStoreSwap(past: String)
+        ///
+        /// The enum and both of its version comparisons live in Core now
+        /// (`RelaunchLanding`), because neither could be tested here — `App` has
+        /// no test target — and both were wrong in the same way for an app whose
+        /// marketing version does not move between builds.
+        typealias Landing = RelaunchLanding
 
-            /// True once the on-disk version satisfies this landing.
-            func isSatisfied(byDiskVersion disk: String?) -> Bool {
-                switch self {
-                case .applied:
-                    return true
-                case .stagedSwap(let target):
-                    guard let disk else { return false }
-                    return disk == target || VersionComparator.isNewer(disk, than: target)
-                case .appStoreSwap(let baseline):
-                    guard let disk else { return false }
-                    return VersionComparator.isNewer(disk, than: baseline)
-                }
-            }
-
-            /// Whether the app is brought back even if the landing never happens.
-            /// Only true where *we* are the reason it's closed and the update was
-            /// merely the occasion — leaving it shut would be the bigger failure.
-            var launchesWithoutLanding: Bool {
-                if case .appStoreSwap = self { return true }
-                return false
-            }
-
-            /// Whether this landing has to poll disk at all.
-            var waitsForDisk: Bool {
-                if case .applied = self { return false }
-                return true
-            }
-        }
         /// The row at bail time — the bundle to poll and the row to refresh.
         let result: UpdateResult
         /// What the relay waits for before launching.
@@ -339,6 +301,10 @@ final class AppListModel {
     /// result.id → the version we have a rollback backup for, refreshed from the
     /// on-disk backup store whenever the list changes.
     private(set) var backupVersions: [String: String] = [:]
+    /// The same backups as comparable pairs. Kept beside `backupVersions` rather
+    /// than replacing it: that one is a DISPLAY string (it falls back to
+    /// "previous"), and comparing against it is what hid the Rollback row.
+    private(set) var backupSides: [String: VersionSide] = [:]
     /// Bundle *paths* of apps with at least one live process right now. Kept current
     /// by `NSWorkspace`'s launch/terminate notifications, so a row's running dot
     /// lights up/clears the moment the user opens or quits the app — no refresh
@@ -357,6 +323,15 @@ final class AppListModel {
 
     func runningVersion(_ id: String) -> String? { runningVersionByID[id] }
     func backupVersion(_ id: String) -> String? { backupVersions[id] }
+
+    /// Whether restoring this row's backup would change anything — the workbench's
+    /// filter for offering Rollback at all. Decided in Core; see
+    /// `BackupStore.rollbackIsDistinct`.
+    func rollbackIsDistinct(_ result: UpdateResult) -> Bool {
+        guard let backup = backupSides[result.id] else { return false }
+        return BackupStore.rollbackIsDistinct(
+            installed: result.app.versionSide, backup: backup)
+    }
 
     /// The "from" side of a restart line, as the user should read it. `lsappinfo`
     /// only exposes the running process's *build* (e.g. "3965"), so a bare restart
@@ -418,7 +393,7 @@ final class AppListModel {
     func isActionableUpdate(_ result: UpdateResult) -> Bool {
         guard result.hasUpdate else { return false }
         if prefs.isIgnored(result.app) { return false }
-        if prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) { return false }
+        if prefs.isVersionSkipped(result.app, version: result.remote?.versionSide) { return false }
         return true
     }
 
@@ -1030,8 +1005,17 @@ final class AppListModel {
             // Store) report a version but no date. We can't know when they shipped,
             // only that a version *change* happened between two checks — so track
             // the reported version and, on a change, log an estimated window.
+            // Build-aware, so a vendor that ships many builds under one marketing
+            // name records one event per RELEASE rather than one for the whole
+            // name. Amp published ten builds as "1.0" in a day; keyed on the
+            // marketing string the timeline logged exactly one of them.
+            //
+            // Events written by earlier builds keep their marketing-only key and
+            // are deliberately not rewritten: the history they under-counted
+            // cannot be recovered, and re-deriving it would invent dates.
             if remote.publishedAt == nil, remote.releaseHistory.isEmpty,
-               let v = remote.displayVersion {
+               case let side = remote.versionSide, !side.isEmpty,
+               case let v = side.text(withBuild: true), !v.isEmpty {
                 await releaseTimelineStore.observeForChange(
                     appID: result.app.id,
                     appName: result.app.name,
@@ -2504,11 +2488,17 @@ final class AppListModel {
                     // verdict. And because that on-disk gate is evaluated first, `mas
                     // outdated` runs only in the already-current case — never slowing a real
                     // update, and never firing for a user without mas (nil → skip on disk).
-                    if let target = result.remote?.displayVersion,
-                       let onDisk = Self.readShortVersion(result.app.path),
+                    // Pairs: `displayVersion` against a marketing-only disk read
+                    // is equal every time for a vendor that freezes its marketing
+                    // string, so "already current" was decided by two strings that
+                    // could not differ. The `mas outdated` veto below is what kept
+                    // this one honest; the pair is what makes it true on its own.
+                    if let target = result.remote?.versionSide, !target.isEmpty,
+                       case let onDisk = Self.readVersionSide(result.app.path),
+                       !onDisk.isEmpty,
                        !VersionComparator.isNewer(target, than: onDisk),
                        await masInstaller.outdatedContains(adamID: adamID) != true {
-                        Log.install.notice("App Store: \(result.app.name, privacy: .public) already current (on-disk \(onDisk, privacy: .public) ≥ target \(target, privacy: .public), not outdated per mas) — skipping install before download")
+                        Log.install.notice("App Store: \(result.app.name, privacy: .public) already current (on-disk \(onDisk.text(withBuild: true), privacy: .public) ≥ target \(target.text(withBuild: true), privacy: .public), not outdated per mas) — skipping install before download")
                         await refreshRow(result)
                         reopenAfterQuit[id] = nil
                         installing[id] = nil
@@ -2720,10 +2710,14 @@ final class AppListModel {
             // out of the list. The `!isNewer(target, onDisk)` guard keeps a genuine
             // failure (bundle still behind the target) on the normal error path below.
             if result.remote?.sourceName == "App Store",
-               let target = result.remote?.displayVersion,
-               let onDisk = Self.readShortVersion(result.app.path),
+               let target = result.remote?.versionSide, !target.isEmpty,
+               case let onDisk = Self.readVersionSide(result.app.path), !onDisk.isEmpty,
+               // Pairs. Unlike the pre-flight skip above there is NO `mas outdated`
+               // veto behind this one, so a marketing-only comparison quietly
+               // reclassified a genuinely-failed install as "already current",
+               // swallowed the error and cleared the row.
                !VersionComparator.isNewer(target, than: onDisk) {
-                Log.install.notice("install: \(result.app.name, privacy: .public) reported a failure but is already at \(onDisk, privacy: .public) on disk (target \(target, privacy: .public)) — treating as already-current, clearing the stale row")
+                Log.install.notice("install: \(result.app.name, privacy: .public) reported a failure but is already at \(onDisk.text(withBuild: true), privacy: .public) on disk (target \(target.text(withBuild: true), privacy: .public)) — treating as already-current, clearing the stale row")
                 // `false`: OUR install threw and applied nothing. Something else
                 // brought the bundle up to date, and whatever that was is not
                 // waiting on a quit from us. An app still running here is one
@@ -2879,8 +2873,8 @@ final class AppListModel {
             }
             let key = app.path.resolvingSymlinksInPath().path
             let state = PackageRestartState.resolve(
-                onDiskVersion: app.shortVersion,
-                stagedVersion: staged.version,
+                onDiskVersion: app.versionSide,
+                stagedVersion: staged.versionSide,
                 stagedAt: staged.stagedAt,
                 runningLaunchDates: launchDates[key] ?? [])
             switch state {
@@ -3044,9 +3038,18 @@ final class AppListModel {
         // in flight.) The other landings aren't derived from `pendingSelfUpdate` at
         // all — their build is already on disk, or is App Store's to deliver — so
         // this sweep must not touch them; only the age check retires those.
-        quitHandoffs = quitHandoffs.filter { id, handoff in
-            guard case .stagedSwap(let version) = handoff.landing else { return true }
-            return pendingSelfUpdate[id]?.version == version
+        // Drop only when the staging is GONE; when it merely MOVED, re-target.
+        // Dropping on any difference conflated the two, so a vendor shipping
+        // another build inside the marker's ten-minute life destroyed it — and
+        // the marker exists precisely to reopen an app that would otherwise stay
+        // closed after the swap. See `RelaunchLanding.retargeted(nowStaged:)`.
+        quitHandoffs = quitHandoffs.compactMapValues { handoff in
+            guard let landing = handoff.landing.retargeted(
+                nowStaged: pendingSelfUpdate[handoff.result.id]?.versionSide)
+            else { return nil }
+            return landing == handoff.landing ? handoff : QuitHandoff(
+                result: handoff.result, landing: landing,
+                activates: handoff.activates, armedAt: handoff.armedAt)
         }
         // Dismiss delivered "Relaunch to apply it" banners for apps that are no
         // longer actionable-staged, so a stale one doesn't linger.
@@ -3087,6 +3090,19 @@ final class AppListModel {
     /// invalidates it rather than silently re-opening a stale installer.
     struct StagedPackage: Sendable, Equatable {
         let version: String
+        /// The build the package installs, when the source reported one. Absent on
+        /// entries persisted before this field existed, and for sources that report
+        /// no build at all — in both cases the pair below degrades to marketing
+        /// only, which is what this always was.
+        let buildVersion: String?
+
+        /// The comparable pair. Everything asking "is this the version on offer"
+        /// or "has it landed" uses this: `version` alone is a marketing string,
+        /// equal release after release for a vendor that freezes it, which made
+        /// those questions answer "yes" before the installer had run.
+        var versionSide: VersionSide {
+            VersionSide(marketing: version, build: buildVersion)
+        }
         let url: URL
         /// When the package was handed to macOS's installer. Used to tell a copy
         /// running the OLD code (launched before this) from one the vendor's own
@@ -3112,7 +3128,9 @@ final class AppListModel {
                 .flatMap(TimeInterval.init).map(Date.init(timeIntervalSince1970:))
                 ?? .distantPast
             restored[id] = StagedPackage(
-                version: version, url: URL(fileURLWithPath: path), stagedAt: stagedAt)
+                version: version,
+                buildVersion: fields[Preferences.stagedPackageBuildField],
+                url: URL(fileURLWithPath: path), stagedAt: stagedAt)
         }
         stagedPackages = restored
         persistStagedPackages()
@@ -3121,7 +3139,8 @@ final class AppListModel {
     private func recordStagedPackage(_ result: UpdateResult, packageURL: URL) {
         guard let version = result.remote?.displayVersion else { return }
         stagedPackages[result.id] = StagedPackage(
-            version: version, url: packageURL, stagedAt: Date())
+            version: version, buildVersion: result.remote?.version,
+            url: packageURL, stagedAt: Date())
         persistStagedPackages()
         Log.install.info("package staged: \(result.app.name, privacy: .public) \(version, privacy: .public) → \(packageURL.lastPathComponent, privacy: .public)")
     }
@@ -3249,7 +3268,9 @@ final class AppListModel {
                 Preferences.stagedPackagePathField: $0.url.path,
                 Preferences.stagedPackageStagedAtField:
                     String($0.stagedAt.timeIntervalSince1970),
-            ]
+            ].merging($0.buildVersion.map {
+                [Preferences.stagedPackageBuildField: $0]
+            } ?? [:], uniquingKeysWith: { a, _ in a })
         })
     }
 
@@ -3259,7 +3280,11 @@ final class AppListModel {
     func stagedPackage(for result: UpdateResult) -> StagedPackage? {
         guard
             let staged = stagedPackages[result.id],
-            staged.version == result.remote?.displayVersion,
+            // Pairs, not marketing strings: a stale package from an earlier build
+            // of a frozen-marketing app compared equal to the current offer and was
+            // re-opened as if it installed it.
+            let offered = result.remote?.versionSide,
+            VersionComparator.isSame(staged.versionSide, as: offered),
             FileManager.default.fileExists(atPath: staged.url.path)
         else { return nil }
         return staged
@@ -3273,7 +3298,10 @@ final class AppListModel {
         guard !stagedPackages.isEmpty else { return }
         let onDisk = Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a })
         let offered = Dictionary(
-            results.compactMap { r in r.remote?.displayVersion.map { (r.id, $0) } },
+            results.compactMap { r -> (String, VersionSide)? in
+                guard let side = r.remote?.versionSide, !side.isEmpty else { return nil }
+                return (r.id, side)
+            },
             uniquingKeysWith: { a, _ in a })
         let kept = stagedPackages.filter { id, staged in
             // A landed package that left a stale copy running is no longer "on offer"
@@ -3291,9 +3319,11 @@ final class AppListModel {
             // Landed (the app now IS the staged version): keep so restart tracking
             // survives a one-scan flicker of the launch-time signal, even if the
             // download was swept. Reconcile settles it once the copy is fresh/gone.
-            if app.shortVersion == staged.version { return true }
+            if VersionComparator.isSame(app.versionSide, as: staged.versionSide) { return true }
             // Otherwise it's only usable while still on offer and re-openable.
-            return offered[id] == staged.version && fileThere
+            return offered[id].map {
+                VersionComparator.isSame($0, as: staged.versionSide)
+            } == true && fileThere
         }
         guard kept.count != stagedPackages.count else { return }
         stagedPackages = kept
@@ -3665,8 +3695,13 @@ final class AppListModel {
             return
         }
         let wasFrontmost = AppRestarter.isFrontmost(running)
-        let old = result.app.shortVersion ?? result.app.buildVersion
-        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old ?? "?", privacy: .public)) — letting its own updater swap & relaunch (no reopen)")
+        // The PAIR, not `shortVersion ?? buildVersion`. That chain answers "1.0"
+        // for an app that ships every build under one marketing version, and the
+        // landing test below then compares "1.0" against "1.0" forever — measured
+        // on Amp 2026-08-28, where this spun its full 900 ticks (189 s) and
+        // reported `applied=false` for a swap that had already succeeded.
+        let old = result.app.versionSide
+        Log.app.info("relaunch-staged: quitting \(result.app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — letting its own updater swap & relaunch (no reopen)")
         for app in running { app.terminate() }
 
         // Wait for the updater: with all instances quit it swaps the (large) bundle,
@@ -3686,8 +3721,10 @@ final class AppListModel {
         var everQuit = false
         for tick in 0..<maxTicks {
             try? await Task.sleep(for: .milliseconds(200))
-            if let disk = await Self.readShortVersionOffMain(result.app.path),
-               let old, VersionComparator.isNewer(disk, than: old) {
+            if RelaunchProgress.hasLanded(
+                old: old, disk: await Self.readVersionSideOffMain(result.app.path),
+                buildIsDerived: AppScanner.buildVersionIsOverridden(
+                    bundleID: result.app.bundleID)) {
                 applied = true
                 break
             }
@@ -3705,7 +3742,7 @@ final class AppListModel {
                 if let staged = pendingSelfUpdate[result.id] {
                     quitHandoffs[result.id] = QuitHandoff(
                         result: result,
-                        landing: .stagedSwap(to: staged.version),
+                        landing: .stagedSwap(to: staged.versionSide),
                         // Its quit dialog is up right now, which usually means it
                         // holds the front spot even if it didn't when we started.
                         activates: wasFrontmost
@@ -3817,7 +3854,7 @@ final class AppListModel {
                     await refreshRow(handoff.result)
                     return
                 }
-                if handoff.landing.isSatisfied(byDiskVersion: await Self.readShortVersionOffMain(app.path)) {
+                if handoff.landing.isSatisfied(byDisk: await Self.readVersionSideOffMain(app.path)) {
                     landed = true
                     break
                 }
@@ -3863,10 +3900,27 @@ final class AppListModel {
         await Task.detached(priority: .utility) { readShortVersion(bundle) }.value
     }
 
-    /// Read a bundle's `CFBundleShortVersionString` straight off disk — used to
-    /// poll for a ShipIt swap landing while the app is quit.
+    /// The comparable pair, read off the main thread. Change-detectors use this.
+    nonisolated private static func readVersionSideOffMain(_ bundle: URL) async -> VersionSide {
+        await Task.detached(priority: .utility) { readVersionSide(bundle) }.value
+    }
+
+    /// Read a bundle's `CFBundleShortVersionString` straight off disk.
+    ///
+    /// **Display only.** Every change-DETECTOR reads `readVersionSide` instead:
+    /// discarding the build half is what made four separate landing checks answer
+    /// "nothing changed" for an app that ships many builds under one marketing
+    /// version. `readBundleVersions` below already returns both from one read, so
+    /// dropping one was never a saving.
     nonisolated private static func readShortVersion(_ bundle: URL) -> String? {
         readBundleVersions(bundle).short
+    }
+
+    /// Both version fields as a comparable pair — what anything asking "has this
+    /// changed / has the swap landed" must use.
+    nonisolated private static func readVersionSide(_ bundle: URL) -> VersionSide {
+        let both = readBundleVersions(bundle)
+        return VersionSide(marketing: both.short, build: both.build)
     }
 
     /// Both version fields, from **one** read of the bundle.
@@ -4079,9 +4133,9 @@ final class AppListModel {
             // Only armable against a known pre-install version — that's what tells
             // the relay the store's swap has landed. Without one, fall through to
             // today's behaviour rather than guess at a landing.
-            if let baseline = result.app.shortVersion {
+            if !result.app.versionSide.isEmpty {
                 quitHandoffs[id] = QuitHandoff(
-                    result: result, landing: .appStoreSwap(past: baseline),
+                    result: result, landing: .appStoreSwap(past: result.app.versionSide),
                     activates: false, armedAt: Date())
                 Log.install.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (still up past the App Store quit — reopen once it goes down)")
                 return
@@ -4184,15 +4238,18 @@ final class AppListModel {
     func refreshBackupIndex() async {
         let map = await Task.detached(priority: .utility) { BackupStore.allBackups() }.value
         var byID: [String: String] = [:]
+        var sides: [String: VersionSide] = [:]
         for result in results {
             for key in BackupStore.keyCandidates(
                 bundleID: result.app.bundleID, path: result.app.path)
             where map[key] != nil {
                 byID[result.id] = map[key]?.version ?? "previous"
+                sides[result.id] = map[key]?.versionSide ?? VersionSide()
                 break
             }
         }
         backupVersions = byID
+        backupSides = sides
     }
 
     /// Restore the previous version from its backup, swapping it back over the
@@ -4628,7 +4685,12 @@ final class AppListModel {
 
     /// Decline the currently-offered version for this app; a newer one still shows.
     func skipThisVersion(_ result: UpdateResult) {
-        guard let version = result.remote?.displayVersion else { return }
+        // The PAIR, so the record says which build was declined. Recorded as the
+        // marketing string alone, a skip on an app that ships many builds under
+        // one name silenced every later build of it, permanently and across
+        // restarts. See `VisibilityRules.skipKey`.
+        let version = result.remote?.versionSide ?? VersionSide()
+        guard !version.isEmpty else { return }
         prefs.skipVersion(version, result.app)
         syncDockBadge()
         // A "Relaunch to apply it" banner already in Notification Center is for the
@@ -4645,7 +4707,7 @@ final class AppListModel {
         // skipped. The entry is the belt behind those braces. The cost is that
         // un-skipping doesn't bring the banner back; the row and the badge do.
         UpdateNotifier.clearSelfDownloaded(appID: result.id)
-        Log.app.info("skip \(version, privacy: .public): \(result.app.name, privacy: .public)")
+        Log.app.info("skip \(VisibilityRules.skipKey(version), privacy: .public): \(result.app.name, privacy: .public)")
     }
 
     // MARK: - Background scheduler
@@ -4884,7 +4946,12 @@ final class AppListModel {
         for i in next.indices where installing[next[i].id] == nil {
             guard let fresh = mergedByID[next[i].id],
                   fresh.status != next[i].status
-                    || fresh.app.shortVersion != next[i].app.shortVersion else { continue }
+                    // The PAIR, so an app that self-updated externally between
+                    // builds under one marketing name is not left on screen with a
+                    // stale `buildVersion` that later comparisons then trust.
+                    || !VersionComparator.isSame(fresh.app.versionSide,
+                                                 as: next[i].app.versionSide)
+              else { continue }
             next[i] = fresh
             changed = true
         }

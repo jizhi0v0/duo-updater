@@ -226,13 +226,36 @@ public enum VisibilityRules {
             || ignoredKeys.contains(InstallPreferenceKey.legacyKey(for: app))
     }
 
+    /// How a skipped version is written down.
+    ///
+    /// Carries the build when there is one — `"1.0 (130)"` — because the
+    /// marketing string alone cannot say WHICH build was skipped. Amp ships every
+    /// build as "1.0", so a bare "1.0" recorded once matched every release after
+    /// it and silenced the app permanently, persisted across restarts.
+    public static func skipKey(_ version: VersionSide) -> String {
+        version.text(withBuild: true)
+    }
+
+    /// Whether the user has skipped exactly this version.
+    ///
+    /// **Legacy entries are honoured only when there is no build to disambiguate.**
+    /// A value written before `skipKey` carried a build is a bare marketing
+    /// string; for an app that has a `CFBundleVersion` that string cannot identify
+    /// a build, and honouring it is precisely the permanent-silencing bug. So such
+    /// an entry stops matching once the app has a build — the user sees that one
+    /// version offered again and their next skip rewrites the entry in the current
+    /// format. For an app with no build at all the marketing string IS the whole
+    /// identity, and the legacy entry keeps working unchanged.
     public static func isVersionSkipped(
-        _ app: InstalledApp, version: String?, skippedVersions: [String: String]
+        _ app: InstalledApp, version: VersionSide?, skippedVersions: [String: String]
     ) -> Bool {
-        guard let version else { return false }
-        let skipped = skippedVersions[InstallPreferenceKey.key(for: app)]
+        guard let version, !version.isEmpty else { return false }
+        guard let skipped = skippedVersions[InstallPreferenceKey.key(for: app)]
             ?? skippedVersions[InstallPreferenceKey.legacyKey(for: app)]
-        return skipped == version
+        else { return false }
+        if skipped == skipKey(version) { return true }
+        guard version.build == nil else { return false }
+        return skipped == version.marketing
     }
 }
 

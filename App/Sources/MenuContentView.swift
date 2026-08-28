@@ -1023,7 +1023,7 @@ private struct AppRow: View {
         Divider()
         if result.hasUpdate {
             let offered = result.remote?.displayVersion ?? String(localized: "this version")
-            if model.prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) {
+            if model.prefs.isVersionSkipped(result.app, version: result.remote?.versionSide) {
                 Button("Don’t skip \(offered)") { model.prefs.clearSkip(result.app) }
             } else {
                 Button("Skip \(offered)") { model.skipThisVersion(result) }
@@ -1265,7 +1265,7 @@ private struct AppRow: View {
             // the context menu, so an ignored app never offers an Update button.
             ignoredTag
         } else if result.hasUpdate
-            && model.prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) {
+            && model.prefs.isVersionSkipped(result.app, version: result.remote?.versionSide) {
             skippedTag
         } else if let staged = model.actionableStaged(result) {
             // The app's own updater already downloaded *the latest* and is waiting to

@@ -6,12 +6,16 @@ import Foundation
 struct PackageRestartStateTests {
     private let handOff = Date(timeIntervalSince1970: 1_000_000)
 
+    /// These cases all predate the pair comparison and describe apps whose
+    /// marketing version moves, so a marketing-only side is the faithful fixture.
+    private func v(_ marketing: String) -> VersionSide { VersionSide(marketing: marketing) }
+
     /// The install hasn't landed: the on-disk version is still not the one the
     /// package installs (user hasn't clicked through the Installer, or cancelled).
     @Test func notLandedIsPending() {
         #expect(PackageRestartState.resolve(
-            onDiskVersion: "2.02.2608040",   // still the old build on disk
-            stagedVersion: "2.02.2608182",
+            onDiskVersion: v("2.02.2608040"),   // still the old build on disk
+            stagedVersion: v("2.02.2608182"),
             stagedAt: handOff,
             runningLaunchDates: [handOff.addingTimeInterval(-60)]) == .pending)
     }
@@ -22,8 +26,8 @@ struct PackageRestartStateTests {
     /// frozen at Electron's across every build.
     @Test func landedWithAnOlderRunningCopyAsksForRestart() {
         #expect(PackageRestartState.resolve(
-            onDiskVersion: "2.02.2608182",
-            stagedVersion: "2.02.2608182",
+            onDiskVersion: v("2.02.2608182"),
+            stagedVersion: v("2.02.2608182"),
             stagedAt: handOff,
             runningLaunchDates: [handOff.addingTimeInterval(-3600)]) == .readyToRestart)
     }
@@ -33,8 +37,8 @@ struct PackageRestartStateTests {
     /// 正好看不见" case, free from the launch-time signal.
     @Test func landedButVendorAlreadyRelaunchedIsSettled() {
         #expect(PackageRestartState.resolve(
-            onDiskVersion: "2.02.2608182",
-            stagedVersion: "2.02.2608182",
+            onDiskVersion: v("2.02.2608182"),
+            stagedVersion: v("2.02.2608182"),
             stagedAt: handOff,
             runningLaunchDates: [handOff.addingTimeInterval(120)]) == .settled)
     }
@@ -42,8 +46,8 @@ struct PackageRestartStateTests {
     /// Landed and the app isn't running at all — nothing to restart.
     @Test func landedWithNothingRunningIsSettled() {
         #expect(PackageRestartState.resolve(
-            onDiskVersion: "2.02.2608182",
-            stagedVersion: "2.02.2608182",
+            onDiskVersion: v("2.02.2608182"),
+            stagedVersion: v("2.02.2608182"),
             stagedAt: handOff,
             runningLaunchDates: []) == .settled)
     }
@@ -52,8 +56,8 @@ struct PackageRestartStateTests {
     /// — the old process is running old code no matter how many fresh ones joined it.
     @Test func anyOlderInstanceAmongNewerOnesStillCountsStale() {
         #expect(PackageRestartState.resolve(
-            onDiskVersion: "2.02.2608182",
-            stagedVersion: "2.02.2608182",
+            onDiskVersion: v("2.02.2608182"),
+            stagedVersion: v("2.02.2608182"),
             stagedAt: handOff,
             runningLaunchDates: [
                 handOff.addingTimeInterval(300),
@@ -66,8 +70,8 @@ struct PackageRestartStateTests {
     /// toward offering a restart rather than silently deciding it's fresh.
     @Test func anUnknownLaunchDateCountsAsStale() {
         #expect(PackageRestartState.resolve(
-            onDiskVersion: "2.02.2608182",
-            stagedVersion: "2.02.2608182",
+            onDiskVersion: v("2.02.2608182"),
+            stagedVersion: v("2.02.2608182"),
             stagedAt: handOff,
             runningLaunchDates: [.distantPast]) == .readyToRestart)
     }
@@ -76,9 +80,28 @@ struct PackageRestartStateTests {
     /// not applied, so it's not "landed" — no restart is owed to THIS package.
     @Test func aNewerOnDiskVersionIsNotThisPackageLanding() {
         #expect(PackageRestartState.resolve(
-            onDiskVersion: "2.02.2608190",
-            stagedVersion: "2.02.2608182",
+            onDiskVersion: v("2.02.2608190"),
+            stagedVersion: v("2.02.2608182"),
             stagedAt: handOff,
             runningLaunchDates: [handOff.addingTimeInterval(-60)]) == .pending)
+    }
+
+    /// The frozen-marketing case, which the marketing-only signature could not
+    /// even express. On disk build 128, the package installs 130, both called
+    /// "1.0": `onDiskVersion == stagedVersion` was true, so a package that had not
+    /// run yet was classified as landed and the row stopped asking for the install.
+    @Test func aFrozenMarketingVersionIsNotLandedUntilTheBuildMoves() {
+        let staged = VersionSide(marketing: "1.0", build: "130")
+        #expect(PackageRestartState.resolve(
+            onDiskVersion: VersionSide(marketing: "1.0", build: "128"),
+            stagedVersion: staged, stagedAt: handOff,
+            runningLaunchDates: [handOff.addingTimeInterval(-60)]) == .pending,
+            "build 128 is not build 130 — the installer has not run")
+
+        #expect(PackageRestartState.resolve(
+            onDiskVersion: VersionSide(marketing: "1.0", build: "130"),
+            stagedVersion: staged, stagedAt: handOff,
+            runningLaunchDates: [handOff.addingTimeInterval(-3600)]) == .readyToRestart,
+            "the build arrived, and a copy from before the hand-off is still up")
     }
 }

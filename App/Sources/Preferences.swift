@@ -357,6 +357,12 @@ final class Preferences {
     /// (no false restart prompt on upgrade).
     static let stagedPackageStagedAtField = "stagedAt"
 
+    /// The build the staged package installs, when its source reported one.
+    /// Absent on entries persisted before this field existed — decoded as nil,
+    /// which leaves those entries comparing on the marketing version alone, i.e.
+    /// exactly what they did when they were written.
+    static let stagedPackageBuildField = "build"
+
     /// Overwrite the staged-package map (the model recomputes it each rescan).
     func setStagedPackages(_ map: [String: [String: String]]) {
         stagedPackages = map
@@ -568,12 +574,12 @@ final class Preferences {
 
     // MARK: - Skip version
 
-    func isVersionSkipped(_ app: InstalledApp, version: String?) -> Bool {
+    func isVersionSkipped(_ app: InstalledApp, version: VersionSide?) -> Bool {
         VisibilityRules.isVersionSkipped(app, version: version, skippedVersions: skippedVersions)
     }
 
-    func skipVersion(_ version: String, _ app: InstalledApp) {
-        skippedVersions[key(for: app)] = version
+    func skipVersion(_ version: VersionSide, _ app: InstalledApp) {
+        skippedVersions[key(for: app)] = VisibilityRules.skipKey(version)
     }
 
     func clearSkip(_ app: InstalledApp) {

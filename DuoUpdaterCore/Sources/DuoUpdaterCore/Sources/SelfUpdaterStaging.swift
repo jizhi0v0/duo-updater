@@ -38,6 +38,14 @@ public struct StagedSelfUpdate: Sendable, Hashable {
     /// front of it. `UpdateResult.stagedRelaunchLine` is what a row or a
     /// notification should show.
     public var buildIdentity: String { buildVersion ?? version }
+
+    /// Both version strings the staged bundle carries, for comparison against an
+    /// installed copy or a remote offer. Prefer this over ``buildIdentity`` where
+    /// the other side also has a pair: `buildIdentity` collapses to one string and
+    /// so has to assume a namespace, while a pair comparison does not.
+    public var versionSide: VersionSide {
+        VersionSide(marketing: version, build: buildVersion)
+    }
 }
 
 /// Detects updates that an app's *own* Squirrel updater (Electron's
@@ -212,6 +220,10 @@ public enum SelfUpdaterStaging {
         // strictly newer staged version counts — once applied, on-disk equals
         // `version_to` and this returns nil. Mirrors the ShipIt branch.
         if requireNewerThanInstalled {
+            // version-lint:allow-marketing-first — `versionTo` IS Spotify's
+            // marketing version (its own `update.json` reports nothing else), so
+            // both sides are the same namespace here and the marketing-first pick
+            // is the correct one rather than the defect the lint hunts.
             guard let installedV = app.shortVersion ?? app.buildVersion,
                   VersionComparator.isNewer(versionTo, than: installedV) else { return nil }
         }

@@ -76,8 +76,11 @@ Sourcegraph 的 AI coding agent macOS 客户端（ampcode.com）。
 | 签名 / 公证 | `Developer ID Application: Amp Frontier Corporation (PZT9BJUAA5)`，`spctl -a -t install` → `accepted / source=Notarized Developer ID`；架构为 universal (x86_64 + arm64) |
 
 ## 已知问题
-- `/Applications` 下同时存在 `Amp.app` 与 `Amp 2.app`（本机残留的重复安装，与本次审计
-  无关，`duo check amp` 会因为重名报歧义、需要按路径消歧）。
+- `/Applications` 下同时存在 `Amp.app`（本文档主体，`com.ampcode.amp.macos`，Sparkle）
+  与 `Amp 2.app`——**排查后确认不是重复安装**，是 bundle id `com.ampcode.amp.ios` 的
+  iOS 版 Amp（`SC_Info` + `Wrapper/` 结构，App Store 管理，`isiOSAppOnMac` 路径），
+  与本文档描述的 macOS app 是两个独立产品。副作用：`duo check amp`（不带路径）会因
+  两者同名报歧义，需要按路径消歧；两者互不影响，均按各自机制正常工作。
 
 ## 建议下一步
 无代码改动。这是一次"零接入成本"确认：Amp 是标准 Sparkle app，`SUFeedURL` +

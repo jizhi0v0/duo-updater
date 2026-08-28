@@ -12,9 +12,15 @@ import Foundation
 /// version ships the *key* changes, so the new notes are fetched fresh; the prior
 /// version's entry stays valid (and is pruned, since only the newest is shown).
 ///
-/// `fetchedAt` is recorded for diagnostics / future age-based policy; freshness of
-/// the "open window" stale-while-revalidate path is driven by the model + the
-/// in-memory cache, not by a TTL here.
+/// `fetchedAt` is recorded for diagnostics only — nothing in this type reads it
+/// back. It is NOT the seed of a future age-based policy: freshness of the "open
+/// window" stale-while-revalidate path is driven by the model + the in-memory
+/// cache, and the invalidation problem an age policy would otherwise be reached
+/// for is `parserGeneration`'s job (below), which is the exact-match answer
+/// rather than the approximate one — see its doc comment for why a TTL was
+/// rejected. Kept for the same reason a log line carries a timestamp: reading a
+/// support bundle's cache directory and seeing how old an entry is remains
+/// useful on its own, independent of any invalidation this cache performs.
 ///
 /// A released version's *notes* never change, but what THIS APP extracts from them
 /// can — a parser fix. `Stored.parserGeneration` (below) is what that side of

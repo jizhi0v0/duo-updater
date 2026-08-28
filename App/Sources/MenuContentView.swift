@@ -84,9 +84,10 @@ struct MenuContentView: View {
         }
         return showAll ? model.results
             : model.results.filter {
-                model.isActionableUpdate($0) || model.needsRestart.contains($0.id)
-                    || model.pendingBatchRestart[$0.id] != nil
-                    || model.actionableStaged($0) != nil
+                // The same predicate the menu-bar badge counts, so what the list
+                // shows and what the badge says can't drift apart — everything below
+                // it is a transient state that belongs on screen but not in a count.
+                model.needsAction($0)
                     // Hold a just-completed row for its brief "Updated ✓" beat, even
                     // though it's no longer an actionable update, before it drops out.
                     || model.justUpdated.contains($0.id)
@@ -540,7 +541,16 @@ struct MenuContentView: View {
         if model.isRefreshing {
             return String(localized: "Checking \(model.results.count) apps…")
         }
-        let updates = model.updateCount
+        // `actionCount`, not `updateCount`: an app whose new version is on disk and
+        // only needs a relaunch HAS an update — it just already downloaded it — so
+        // it is counted here rather than given a line of its own. That also makes
+        // this number, the badge, and the number of rows below the same number,
+        // which is the whole point. (A separate "nearly up to date · N to relaunch"
+        // clause was measured instead and abandoned: with Update All beside it the
+        // line has 224-274pt depending on the language's button, Spanish already
+        // sits 9pt from truncation at two updates, and the appended half is exactly
+        // what the tail truncation eats.)
+        let updates = model.actionCount
         let failed = model.failedCheckCount
         // "up to date" is a claim about every app, and it is only true when every
         // app actually answered. With rows still in `.error` the honest line names

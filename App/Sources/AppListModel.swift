@@ -424,6 +424,53 @@ final class AppListModel {
 
     var updateCount: Int { results.filter(isActionableUpdate).count }
 
+    /// A row the popover lists as still having something for the user to do: a
+    /// pending update, or a relaunch that finishes one already on disk.
+    ///
+    /// The badge counts these, not `updateCount`. The version-comparison half of
+    /// `needsRestart` is only reached under `if !result.hasUpdate` (a row with
+    /// something newer to install shows Update instead), so counting updates alone
+    /// put the menu bar at "no updates" while the list underneath it showed apps
+    /// running old code with a Relaunch button each. `computeRestartInfo` carries a
+    /// landed package forward "to keep the badge lit"; this is what makes that true.
+    /// (Only that half: `packageRestartPending` decides on launch TIME and never
+    /// reads `hasUpdate`, so a landed pkg CAN coexist with a pending update. It
+    /// costs nothing here — this is an OR — but it is why the two are not the
+    /// mutually exclusive pair the first version of this comment claimed.)
+    ///
+    /// The three relaunch terms are gated on the user's verdict, which
+    /// `isActionableUpdate` applies for itself and they do not carry: an ignored
+    /// row stays in `results` with `remote: nil` and renders as a muted "Ignored"
+    /// tag with no button at all (`MenuContentView.trailing` puts that branch ahead
+    /// of both relaunch branches). Counting one would light the badge with nothing
+    /// on the other end of the click, forever — the same "hidden in the app, still
+    /// nagging" shape `UpdatePolicy.nudgeableStaged` exists to prevent, which is
+    /// also why the staged term goes through `nudgeableStaged` rather than raw
+    /// `actionableStaged` (it applies the skipped-version verdict too).
+    ///
+    /// An uninstalled app cannot strand the badge even though
+    /// `reconcilePackageRestarts` carries a `packageRestartPending` entry across a
+    /// blind pass indefinitely: the count filters `results`, and a deleted app has
+    /// no row there.
+    func needsAction(_ result: UpdateResult) -> Bool {
+        if isActionableUpdate(result) { return true }
+        guard !prefs.isIgnored(result.app) else { return false }
+        return needsRestart.contains(result.id)
+            || pendingBatchRestart[result.id] != nil
+            // Short-circuited on the raw map first: this runs per row on the render
+            // path, and `nudgeableStaged` builds sanitised preference keys out of the
+            // full bundle path before it can answer "nothing is staged".
+            || (pendingSelfUpdate[result.id] != nil && nudgeableStaged(result) != nil)
+    }
+
+    /// How many rows `needsAction` marks — the badge's number, and the popover's
+    /// "N updates available". A relaunch-pending row counts as an update here: its
+    /// new version is an update that happens to be downloaded already. Keeping it
+    /// out is what made the badge and the header disagree with the list in the
+    /// first place. `updateCount` still answers the narrower "how many are left to
+    /// install", which is what the diagnostic log wants.
+    var actionCount: Int { results.filter(needsAction).count }
+
     /// A full networked refresh rewrites the whole result list. Keep it out of
     /// the way while installs are mutating individual rows and replacing bundles.
     var canRefresh: Bool {
@@ -431,11 +478,11 @@ final class AppListModel {
     }
 
     /// The count shown on the menu-bar badge. A full refresh briefly blanks every
-    /// row to `.unknown` (so `updateCount` dips to 0) before the check repopulates
+    /// row to `.unknown` (so `actionCount` dips to 0) before the check repopulates
     /// it — which made the badge flicker to the "no updates" icon and back. While a
     /// scan/check is in flight we hold the last settled count instead; otherwise we
-    /// track `updateCount` live (so ignoring/skipping an app updates it at once).
-    var badgeCount: Int { (isScanning || isChecking) ? heldBadgeCount : updateCount }
+    /// track `actionCount` live (so ignoring/skipping an app updates it at once).
+    var badgeCount: Int { (isScanning || isChecking) ? heldBadgeCount : actionCount }
     @ObservationIgnored private var heldBadgeCount = 0
 
     // MARK: - Homebrew formulae (CLI tools)
@@ -591,14 +638,6 @@ final class AppListModel {
     /// restart-info recompute (see `handleRunningAppsChange`). Cancel-and-reschedule,
     /// so a flurry of process events collapses to one `lsappinfo` read.
     @ObservationIgnored private var restartRecheckTask: Task<Void, Never>?
-
-    /// Periodic "your app downloaded an update on its own — relaunch to apply it"
-    /// reminder. Decoupled from the (possibly hours-long) update-check interval:
-    /// once we detect a self-staged build, we nudge right away and then keep
-    /// re-nudging on this cadence until the user relaunches and it's applied. Nil
-    /// when nothing is staged.
-    @ObservationIgnored private var selfUpdateReminder: Task<Void, Never>?
-    private let selfUpdateReminderInterval: Duration = .seconds(300)  // 5 min
 
     /// Per-app download traffic, tracked to the byte and persisted across runs.
     private let trafficStore = TrafficStore()
@@ -1415,7 +1454,7 @@ final class AppListModel {
         pinnedOrder = [:]
         // Snapshot the current count before we blank the rows below, so the menu-bar
         // badge holds it steady through the scan/check instead of flickering to 0.
-        heldBadgeCount = updateCount
+        heldBadgeCount = actionCount
         // Expire all cached changelog pages so the detail window re-fetches
         // after a manual refresh — the user expects fresh release notes. Drop the
         // parsed-changelog cache too, so the workbench re-loads fresh notes.
@@ -3011,6 +3050,17 @@ final class AppListModel {
         }
         // Dismiss delivered "Relaunch to apply it" banners for apps that are no
         // longer actionable-staged, so a stale one doesn't linger.
+        //
+        // The banner goes; the ledger entry stays. Both sets are read against the
+        // same `results` and only `pendingSelfUpdate` is rebuilt between them — so
+        // the ONLY thing that can put an id here is the staging read coming back
+        // empty, and that read is a live process query (the parked Sparkle updater
+        // has to be enumerable) plus an unsynchronised plist read. One blind pass
+        // must not be able to forget that this build was already announced:
+        // `performLocalRescan` runs this on a 180-second backstop, so forgetting
+        // would re-announce the same build faster than the five-minute timer the
+        // ledger exists to delete. (A remote-version flap cannot reach here at all
+        // — it moves both sets together.)
         let nowActionable = Set(results.compactMap { actionableStaged($0) != nil ? $0.id : nil })
         for id in previouslyActionable.subtracting(nowActionable) {
             UpdateNotifier.clearSelfDownloaded(appID: id)
@@ -3022,8 +3072,9 @@ final class AppListModel {
         }
         // Move any actionable-staged row into the actionable tier (rank 0).
         results = sorted(results)
-        // Start (or stop) the periodic relaunch reminder to match what's actionable.
-        updateSelfUpdateReminder()
+        // Announce whatever is newly staged. Nothing here re-announces a build the
+        // user has already been told about, so running this every pass is quiet.
+        notifyStagedRelaunches()
         // Same bookkeeping pass, same preconditions (`results` is current): drop any
         // downloaded installer package that no longer matches what's on offer.
         pruneStagedPackages()
@@ -3272,10 +3323,10 @@ final class AppListModel {
         }
     }
 
-    /// A staged self-update the periodic reminder may nudge about: the staged
-    /// build is the latest *and* the user hasn't hidden the app or that version.
-    /// `actionableStaged` answers only the first half — see `nudgeableStaged` for
-    /// why the second half has to be applied here.
+    /// A staged self-update worth announcing: the staged build is the latest *and*
+    /// the user hasn't hidden the app or that version. `actionableStaged` answers
+    /// only the first half — see `nudgeableStaged` for why the second half has to
+    /// be applied here.
     private func nudgeableStaged(_ result: UpdateResult) -> StagedSelfUpdate? {
         UpdatePolicy.nudgeableStaged(
             result,
@@ -3284,42 +3335,73 @@ final class AppListModel {
             isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) })
     }
 
-    /// True when any row has a staged build still worth reminding about. Drives
-    /// whether the reminder loop runs at all, so it has to use the same gate the
-    /// loop does — otherwise the loop spins every 5 minutes finding nothing.
-    private var hasNudgeableStaged: Bool {
-        results.contains { nudgeableStaged($0) != nil }
+    /// Announce staged relaunches — once per (app, staged build), not once per
+    /// staging pass.
+    ///
+    /// This used to be a timer that re-posted a banner for every staged build every
+    /// five minutes, for as long as it stayed staged. The stable notification
+    /// identifier kept Notification Center to one entry per app, but each repost
+    /// still alerted, so an app the user wasn't ready to relaunch nagged twelve
+    /// times an hour and never stopped. The ledger replaces the repetition with a
+    /// persisted (app → announced version) pair, so the reminder resurfaces exactly
+    /// when there is something new to say: a *different* build gets staged. See
+    /// `StagedNudgeLedger` for why the key is the version rather than the app.
+    ///
+    /// Runs from `computeSelfUpdateStaging`, which is the only place
+    /// `pendingSelfUpdate` changes, so every path that can newly stage something
+    /// (scheduled check, manual refresh, post-install rescan) announces it.
+    private func notifyStagedRelaunches() {
+        guard prefs.notifyOnUpdates else { return }
+        var ledger = StagedNudgeLedger(prefs.notifiedStagedVersions)
+        // Guard against an empty/partial pass wiping the ledger before a real scan
+        // has populated `results` — that would re-announce everything already staged.
+        if !results.isEmpty {
+            ledger.prune(liveKeys: Set(results.map { prefs.key(for: $0.app) }))
+        }
+        for result in results {
+            // Only nudge "relaunch to apply X" when X is actually the latest — a
+            // staged build that trails a newer release goes through the normal
+            // updates-available path instead — and only when the user hasn't
+            // ignored the app or skipped that version.
+            guard let staged = nudgeableStaged(result) else { continue }
+            let key = prefs.key(for: result.app)
+            guard ledger.isNew(key: key, version: staged.version) else { continue }
+            ledger.record(key: key, version: staged.version)
+            Log.app.info("notify: \(result.app.name, privacy: .public) staged \(staged.version, privacy: .public) — relaunch nudge")
+            UpdateNotifier.selfDownloaded(
+                app: result.app.name, version: staged.version, appID: result.id)
+        }
+        // Only on a real change: this runs on every local rescan (the directory
+        // watcher and its 180s backstop), and the neighbouring bookkeeping passes
+        // guard their writes the same way.
+        if ledger.entries != prefs.notifiedStagedVersions {
+            prefs.setNotifiedStagedVersions(ledger.entries)
+        }
     }
 
-    /// Keep the periodic self-update reminder in sync with `pendingSelfUpdate`:
-    /// run a loop while anything is staged, tear it down when nothing is. The loop
-    /// nudges immediately on first detection, then re-nudges every
-    /// `selfUpdateReminderInterval` so a staged build the user glanced at but didn't
-    /// act on resurfaces instead of being forgotten. Each app's banner uses a stable
-    /// identifier, so a re-nudge replaces the prior one rather than piling up.
-    private func updateSelfUpdateReminder() {
-        guard hasNudgeableStaged else {
-            selfUpdateReminder?.cancel()
-            selfUpdateReminder = nil
-            return
-        }
-        guard selfUpdateReminder == nil else { return }  // already nudging
-        selfUpdateReminder = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                guard self.prefs.notifyOnUpdates else { self.selfUpdateReminder = nil; return }
-                for result in self.results {
-                    // Only nudge "relaunch to apply X" when X is actually the latest —
-                    // a staged build that trails a newer release goes through the
-                    // normal updates-available path instead — and only when the user
-                    // hasn't ignored the app or skipped that version.
-                    guard let staged = self.nudgeableStaged(result) else { continue }
-                    UpdateNotifier.selfDownloaded(
-                        app: result.app.name, version: staged.version, appID: result.id)
-                }
-                try? await Task.sleep(for: self.selfUpdateReminderInterval)
-                if !self.hasNudgeableStaged { self.selfUpdateReminder = nil; return }
-            }
+    /// Withdraw a "relaunch to apply it" nudge: the delivered banner AND the ledger
+    /// entry that suppresses a repeat, together — so un-hiding the app can announce
+    /// the staged build again instead of being silenced by the record of a banner
+    /// that no longer exists.
+    ///
+    /// Exactly one caller, deliberately: ignoring an app. That is the one place where
+    /// the row stops being announceable because the *user* said so, where the hiding
+    /// is keyed on the app rather than on a version string, and where the undo
+    /// (`toggleIgnore`'s other branch) re-announces synchronously.
+    ///
+    /// The other places that clear this banner keep their entry, each for its own
+    /// reason: the staging sweep in `computeSelfUpdateStaging` (a blind staging read
+    /// must not be able to re-announce) and `skipThisVersion` (the skip gate matches
+    /// version strings exactly, so the entry covers a mismatch). Hiding an app from
+    /// the CLI — `duo ignore` / `duo skip`, which arrive through `Preferences`'s KVO
+    /// reload — keeps its entry too: un-hiding then brings back the row and the
+    /// badge without a banner, which is the quiet direction to be wrong in.
+    private func withdrawStagedNudge(_ result: UpdateResult) {
+        UpdateNotifier.clearSelfDownloaded(appID: result.id)
+        var ledger = StagedNudgeLedger(prefs.notifiedStagedVersions)
+        ledger.forget(key: prefs.key(for: result.app))
+        if ledger.entries != prefs.notifiedStagedVersions {
+            prefs.setNotifiedStagedVersions(ledger.entries)
         }
     }
 
@@ -4489,8 +4571,9 @@ final class AppListModel {
         if nowIgnored {
             // A "Relaunch to apply it" banner already sitting in Notification Center
             // outlives the ignore on its own — clearing notifications isn't what
-            // anyone does next after ignoring an app.
-            UpdateNotifier.clearSelfDownloaded(appID: result.id)
+            // anyone does next after ignoring an app. Withdrawn, not just cleared,
+            // so un-ignoring can announce it again.
+            withdrawStagedNudge(result)
         } else {
             // Un-ignoring has to ask. While the app was ignored no refresh spent a
             // request on it, so its row carries no remote at all — without this it
@@ -4499,9 +4582,11 @@ final class AppListModel {
             // to see it again.
             Task { await recheckAfterUnignore(result) }
         }
-        // Re-evaluate the reminder loop in both directions: ignoring the last staged
-        // app should tear it down, and un-ignoring one should arm it again.
-        updateSelfUpdateReminder()
+        // Un-ignoring an app with a staged build brings its relaunch nudge back,
+        // once — the ignore withdrew the ledger entry, so this is a real announce
+        // rather than a no-op. (Ignoring posts nothing: `nudgeableStaged` gates on
+        // it, and the withdrawal above has already run.)
+        notifyStagedRelaunches()
         Log.app.info("\(nowIgnored ? "ignore" : "unignore", privacy: .public): \(result.app.name, privacy: .public)")
     }
 
@@ -4539,13 +4624,20 @@ final class AppListModel {
         guard let version = result.remote?.displayVersion else { return }
         prefs.skipVersion(version, result.app)
         syncDockBadge()
-        // Same cleanup as ignoring the app: a "Relaunch to apply it" banner already
-        // in Notification Center is for the version just declined (a banner only
-        // exists while the staged build is the latest, i.e. this very version), so
-        // it must not outlive the skip — and the reminder loop has to re-evaluate,
-        // or skipping the last nudgeable version leaves it ticking on nothing.
+        // A "Relaunch to apply it" banner already in Notification Center is for the
+        // version just declined (a banner only exists while the staged build is the
+        // latest, i.e. this very version), so it must not outlive the skip.
+        //
+        // Cleared, NOT withdrawn — unlike ignoring. The skip is recorded against the
+        // offered `displayVersion`, while the gate that has to hold afterwards
+        // (`VisibilityRules.isVersionSkipped`, through `nudgeableStaged`) is asked
+        // about `staged.version`, and it compares strings exactly where
+        // `actionableStaged` compares versions. Where those two strings differ — a
+        // build suffix, "1.2" against "1.2.0" — forgetting the ledger entry would
+        // let the very next staging pass post a banner for the version the user just
+        // skipped. The entry is the belt behind those braces. The cost is that
+        // un-skipping doesn't bring the banner back; the row and the badge do.
         UpdateNotifier.clearSelfDownloaded(appID: result.id)
-        updateSelfUpdateReminder()
         Log.app.info("skip \(version, privacy: .public): \(result.app.name, privacy: .public)")
     }
 
@@ -4899,10 +4991,10 @@ final class AppListModel {
     /// notified (by the time the background check ran, it already had it in hand).
     private func notifyNewUpdates() {
         guard prefs.notifyOnUpdates else { return }
-        // Self-staged builds (the app downloaded its own update) are announced by the
-        // periodic relaunch reminder `computeSelfUpdateStaging` arms — on their own
-        // cadence — so they ride along here only as much as they always did via
-        // `isActionableUpdate`.
+        // Self-staged builds (the app downloaded its own update) get their own
+        // "relaunch to apply it" banner from `notifyStagedRelaunches`, on the staging
+        // pass rather than here — so they ride along in this count only as much as
+        // they always did via `isActionableUpdate`.
         let actionable = results.filter(isActionableUpdate)
         // The version we'd announce for each app; key by `key(for:)` to match how
         // ignore/skip identify an app (survives the app moving on disk).

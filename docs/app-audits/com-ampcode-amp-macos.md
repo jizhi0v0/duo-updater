@@ -65,6 +65,16 @@ Sourcegraph 的 AI coding agent macOS 客户端（ampcode.com）。
   Sparkle 自己的 ed25519 签名校验覆盖了下载完整性，不依赖 duo-updater 另外做 Team ID 比对
 - 阻塞: 无
 
+### 验证记录（2026-08-28，build 128 dmg，用户实际下载的安装包）
+挂载真实 dmg 核对，四项全过：
+
+| 检查 | 结果 |
+|------|------|
+| 文件大小 | 5,391,585 字节，与 feed 里 build 128 `<enclosure length="5391585">` 完全一致 |
+| dmg 结构 | 根目录 `Amp.app` + `/Applications` 符号链接（标准布局） |
+| Bundle ID / 版本 | `com.ampcode.amp.macos`，`CFBundleShortVersionString 1.0` / `CFBundleVersion 128`，与已安装 copy 一致 |
+| 签名 / 公证 | `Developer ID Application: Amp Frontier Corporation (PZT9BJUAA5)`，`spctl -a -t install` → `accepted / source=Notarized Developer ID`；架构为 universal (x86_64 + arm64) |
+
 ## 已知问题
 - `/Applications` 下同时存在 `Amp.app` 与 `Amp 2.app`（本机残留的重复安装，与本次审计
   无关，`duo check amp` 会因为重名报歧义、需要按路径消歧）。

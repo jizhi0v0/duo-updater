@@ -568,12 +568,12 @@ final class Preferences {
 
     // MARK: - Skip version
 
-    func isVersionSkipped(_ app: InstalledApp, version: String?) -> Bool {
+    func isVersionSkipped(_ app: InstalledApp, version: VersionSide?) -> Bool {
         VisibilityRules.isVersionSkipped(app, version: version, skippedVersions: skippedVersions)
     }
 
-    func skipVersion(_ version: String, _ app: InstalledApp) {
-        skippedVersions[key(for: app)] = version
+    func skipVersion(_ version: VersionSide, _ app: InstalledApp) {
+        skippedVersions[key(for: app)] = VisibilityRules.skipKey(version)
     }
 
     func clearSkip(_ app: InstalledApp) {

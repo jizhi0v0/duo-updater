@@ -117,9 +117,13 @@ public enum Visibility {
             // still reports a remote version, and keying on that recorded a skip
             // for the version the user is happily running — which would then
             // silently hide the *next* real update's row until it changed again.
-            guard result.hasUpdate, let version = result.remote?.displayVersion else {
+            guard result.hasUpdate, let side = result.remote?.versionSide, !side.isEmpty else {
                 return .failure("no update offered, so there is no version to skip")
             }
+            // Build-aware, matching the app's `skipVersion`: a bare marketing
+            // string cannot say which build was skipped, and for an app that keeps
+            // one marketing version across builds that silenced it for good.
+            let version = VisibilityRules.skipKey(side)
             var skipped = defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey)
                 as? [String: String] ?? [:]
             guard skipped[key] != version else { return .failure("\(version) already skipped") }

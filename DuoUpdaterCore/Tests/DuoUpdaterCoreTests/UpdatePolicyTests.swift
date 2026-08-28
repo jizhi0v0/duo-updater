@@ -523,7 +523,7 @@ private func storeAvailability(
 /// counts the same verdict through `AppListModel.needsAction`.
 @Test func anIgnoredAppIsNeverNudgedAboutItsStagedBuild() {
     let remote = fixtureResult(source: "Vendor", vendorInstallerKind: .zip)
-    let never: (String) -> Bool = { _ in false }
+    let never: (VersionSide) -> Bool = { _ in false }
 
     #expect(
         UpdatePolicy.nudgeableStaged(
@@ -543,12 +543,12 @@ private func storeAvailability(
     #expect(
         UpdatePolicy.nudgeableStaged(
             remote, staged: staged("2.0"), isIgnored: false,
-            isVersionSkipped: { $0 == "2.0" }) == nil,
+            isVersionSkipped: { $0.marketing == "2.0" }) == nil,
         "the staged version is the one the user skipped")
     #expect(
         UpdatePolicy.nudgeableStaged(
             remote, staged: staged("2.0"), isIgnored: false,
-            isVersionSkipped: { $0 == "1.9" }) != nil,
+            isVersionSkipped: { $0.marketing == "1.9" }) != nil,
         "a different version was skipped — this one still nudges")
 }
 

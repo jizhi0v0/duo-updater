@@ -538,11 +538,11 @@ public enum UpdatePolicy {
         _ result: UpdateResult,
         staged: StagedSelfUpdate?,
         isIgnored: Bool,
-        isVersionSkipped: (String) -> Bool
+        isVersionSkipped: (VersionSide) -> Bool
     ) -> StagedSelfUpdate? {
         guard !isIgnored else { return nil }
         guard let staged = actionableStaged(result, staged: staged) else { return nil }
-        return isVersionSkipped(staged.version) ? nil : staged
+        return isVersionSkipped(staged.versionSide) ? nil : staged
     }
 
     /// Normalize app bundle paths reported by running processes back to the live

@@ -380,7 +380,7 @@ final class AppListModel {
     func isActionableUpdate(_ result: UpdateResult) -> Bool {
         guard result.hasUpdate else { return false }
         if prefs.isIgnored(result.app) { return false }
-        if prefs.isVersionSkipped(result.app, version: result.remote?.displayVersion) { return false }
+        if prefs.isVersionSkipped(result.app, version: result.remote?.versionSide) { return false }
         return true
     }
 
@@ -4615,7 +4615,12 @@ final class AppListModel {
 
     /// Decline the currently-offered version for this app; a newer one still shows.
     func skipThisVersion(_ result: UpdateResult) {
-        guard let version = result.remote?.displayVersion else { return }
+        // The PAIR, so the record says which build was declined. Recorded as the
+        // marketing string alone, a skip on an app that ships many builds under
+        // one name silenced every later build of it, permanently and across
+        // restarts. See `VisibilityRules.skipKey`.
+        let version = result.remote?.versionSide ?? VersionSide()
+        guard !version.isEmpty else { return }
         prefs.skipVersion(version, result.app)
         syncDockBadge()
         // A "Relaunch to apply it" banner already in Notification Center is for the
@@ -4632,7 +4637,7 @@ final class AppListModel {
         // skipped. The entry is the belt behind those braces. The cost is that
         // un-skipping doesn't bring the banner back; the row and the badge do.
         UpdateNotifier.clearSelfDownloaded(appID: result.id)
-        Log.app.info("skip \(version, privacy: .public): \(result.app.name, privacy: .public)")
+        Log.app.info("skip \(VisibilityRules.skipKey(version), privacy: .public): \(result.app.name, privacy: .public)")
     }
 
     // MARK: - Background scheduler

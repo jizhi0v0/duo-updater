@@ -109,7 +109,7 @@ public struct Settings: Sendable {
     public func isHidden(_ result: UpdateResult) -> Bool {
         VisibilityRules.isIgnored(result.app, ignoredKeys: ignoredKeys)
             || VisibilityRules.isVersionSkipped(
-                result.app, version: result.remote?.displayVersion,
+                result.app, version: result.remote?.versionSide,
                 skippedVersions: skippedVersions)
     }
 }

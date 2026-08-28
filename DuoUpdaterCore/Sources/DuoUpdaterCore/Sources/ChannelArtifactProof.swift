@@ -38,10 +38,15 @@ public enum ChannelArtifactProof: Sendable, Hashable {
     /// Which fields to name is a per-recipe fact, not a rule to apply uniformly.
     /// Measured across the five anchors registered on 2026-08-28:
     ///   * **Endpoint-keyed** (IntelliJ EAP, Alfred beta) — the response body
-    ///     holds only that channel's builds, so `versionPattern` and the install
-    ///     pattern are byte-identical to their stable siblings' and contain no
-    ///     channel token to anchor on. `["url"]` is the whole proof, and naming
-    ///     anything else would be an assertion those recipes cannot satisfy.
+    ///     holds only that channel's builds, so neither `versionPattern` nor the
+    ///     install pattern carries a channel token to anchor on. `["url"]` is the
+    ///     whole proof, and naming anything else would be an assertion those
+    ///     recipes cannot satisfy. (Their INSTALL patterns are byte-identical to
+    ///     their stable siblings'; their version patterns are not, and that is not
+    ///     an oversight to normalise away — IntelliJ EAP reads `"build"` where
+    ///     stable reads `"version"` because `versionIsBuild` compares the build,
+    ///     and Alfred beta's is merely written more strictly. Neither difference
+    ///     names a channel, which is the property that matters here.)
     ///   * **Shared-feed** (WeChat DevTools RC, OrbStack beta/canary) — one
     ///     endpoint serves every channel, and the per-field patterns are what
     ///     select. Both the version half and the install half must stay anchored,
@@ -50,6 +55,15 @@ public enum ChannelArtifactProof: Sendable, Hashable {
     /// An empty set, or a name that is not an anchorable field of the recipe, is
     /// a hard finding rather than a pass — either would be a proof that cannot
     /// fail. See `RecipeSanity.recipeAnchorFailure`.
+    ///
+    /// **Granularity is the whole field**, and `install` is one field. Naming it
+    /// asserts the token is somewhere in the install spec — the `urlSource`
+    /// pattern, but also `kind`, `checksumPattern` and `requestHeaders`. So the
+    /// shape this case exists to close survives one level down: a
+    /// `.bodyTemplate(_, fields: [withToken, withoutToken])` would stay green
+    /// while the sub-pattern that actually resolves the URL drifted. Not reachable
+    /// today — no anchored recipe uses `bodyTemplate` — and said out loud rather
+    /// than left for the next person to discover the way #110 was discovered.
     case recipeAnchor(String, in: Set<String>)
 }
 
@@ -86,8 +100,11 @@ public enum ChannelProofRegistry {
         // `url` alone, and that is the honest scope rather than a weaker one: the
         // response to `type=eap` contains ONLY EAP builds, so `versionPattern`
         // (`"build": "…"`) and the install pattern (`"macM1" … "link"`) carry no
-        // channel token at all — they are what a `type=release` recipe would use
-        // verbatim. Naming them would assert something this recipe cannot satisfy.
+        // channel token at all. Naming either would assert something this recipe
+        // cannot satisfy. (The install pattern is byte-identical to the stable
+        // recipe's; the version pattern is NOT — stable reads `"version"` and this
+        // reads `"build"`, because `versionIsBuild` compares the build. That
+        // difference is deliberate and says nothing about the channel.)
         // What naming `url` buys is that swapping the endpoint back to
         // `type=release` fails the proof instead of passing on patterns that never
         // mentioned a channel.
@@ -189,10 +206,11 @@ public enum ChannelProofRegistry {
         // carry the SAME build (both were 5.7.3 (2320) on 2026-08-09), and the
         // tarball name never mentions a channel — only the endpoint can prove it.
         // Endpoint-scoped for the same reason as IntelliJ EAP: this recipe's
-        // `versionPattern` and install `bodyPattern` are byte-identical to the
-        // stable Alfred recipe's (same plist shape, different endpoint), so the
-        // endpoint is not merely the best evidence — it is the only evidence there
-        // is, and the proof says so.
+        // install `bodyPattern` is byte-identical to the stable Alfred recipe's
+        // (same plist shape, different endpoint) and its `versionPattern` differs
+        // only in strictness — neither names a channel. So the endpoint is not
+        // merely the best evidence, it is the only evidence there is, and the
+        // proof says so.
         ChannelProofKey("com.runningwithcrayons.Alfred", .beta):
             .recipeAnchor(#"prerelease\.xml"#, in: ["url"]),
         // OrbStack publishes one appcast with a `<sparkle:channel>` tag per item and
@@ -310,6 +328,34 @@ public enum ChannelProofRegistry {
         #"(?i)(?<![a-z0-9])(beta|canary|nightly|alpha|insider|snapshot|preview|eap|esr|ptb|devedition)(?![a-z0-9])"#
 }
 
+/// What `RecipeSanity.recipeAnchorFailure` needs from whatever it is judging.
+///
+/// The three call sites used to hand it `subject`, a type name, and a surface
+/// closure as three independent strings that had to agree; nothing linked them,
+/// so `subject: "rule", of: "VendorProbeRecipe", surface: recipe…` compiled and
+/// produced a self-contradictory finding. That is the same hand-paired-list shape
+/// this file argues against everywhere else, so it is derived instead: conforming
+/// a type supplies all three at once and a caller cannot mismatch them.
+protocol ChannelAnchorSubject {
+    /// What to call one of these in a finding ("recipe", "rule", "binding").
+    static var anchorSubjectName: String { get }
+    /// The type name to blame when a proof names a field this type does not have.
+    static var anchorTypeName: String { get }
+    /// The text one named field contributes, or nil when there is no ANCHORABLE
+    /// field by that name — see the implementations' own docs.
+    func channelAnchorSurface(ofField label: String) -> String?
+}
+
+extension VendorProbeRecipe: ChannelAnchorSubject {
+    static var anchorSubjectName: String { "recipe" }
+    static var anchorTypeName: String { "VendorProbeRecipe" }
+}
+
+extension GitHubReleaseRule: ChannelAnchorSubject {
+    static var anchorSubjectName: String { "rule" }
+    static var anchorTypeName: String { "GitHubReleaseRule" }
+}
+
 extension RecipeSanity {
 
     /// The check that catches an install spec resolving the WRONG CHANNEL's build.
@@ -354,9 +400,7 @@ extension RecipeSanity {
             // still derived by reflection; the list this replaced named three of
             // them by hand and had already missed `entryStartPattern`.
             return recipeAnchorFailure(
-                pattern: pattern, fields: fields, subject: "recipe",
-                channel: recipe.channel, of: "VendorProbeRecipe",
-                surface: recipe.channelAnchorSurface(ofField:))
+                pattern: pattern, fields: fields, channel: recipe.channel, subject: recipe)
         }
     }
 
@@ -407,9 +451,7 @@ extension RecipeSanity {
 
         case .recipeAnchor(let pattern, let fields):
             return recipeAnchorFailure(
-                pattern: pattern, fields: fields, subject: "rule",
-                channel: rule.channel, of: "GitHubReleaseRule",
-                surface: rule.channelAnchorSurface(ofField:))
+                pattern: pattern, fields: fields, channel: rule.channel, subject: rule)
         }
     }
 
@@ -417,7 +459,9 @@ extension RecipeSanity {
     ///
     /// Shared by both overloads so the two registries cannot drift into different
     /// notions of what an anchor asserts — the asymmetry issue #101 was filed
-    /// about, in miniature.
+    /// about, in miniature. The subject's own name and type name come from
+    /// `ChannelAnchorSubject` rather than from arguments, so a caller cannot pair
+    /// one type's surface with another's label either.
     ///
     /// EVERY named field must match. An anchor names the fields its channel
     /// identity lives in, so a field that stopped carrying the token is exactly
@@ -431,28 +475,27 @@ extension RecipeSanity {
     /// failed for any input, which is the one outcome worse than no proof: it
     /// reads as green forever. `everyRegisteredAnchorNamesRealFields` fails on
     /// them in a PR; this is the runtime half, for a proof written after it.
-    static func recipeAnchorFailure(
+    static func recipeAnchorFailure<Subject: ChannelAnchorSubject>(
         pattern: String,
         fields: Set<String>,
-        subject: String,
         channel: ReleaseChannel,
-        of typeName: String,
-        surface: (String) -> String?
+        subject: Subject
     ) -> String? {
+        let name = Subject.anchorSubjectName
         guard !fields.isEmpty else {
-            return "the anchor /\(pattern)/ names no field of the \(subject), so it "
-                + "cannot fail and proves nothing about which channel it reads — name "
-                + "the field(s) that tie it to \(channel.rawValue)"
+            return "the anchor /\(pattern)/ names no fields at all, so it cannot fail "
+                + "and proves nothing about which channel the \(name) reads — name the "
+                + "field(s) that tie it to \(channel.rawValue)"
         }
         for label in fields.sorted() {
-            guard let text = surface(label) else {
+            guard let text = subject.channelAnchorSurface(ofField: label) else {
                 return "the anchor /\(pattern)/ names '\(label)', which is not an "
-                    + "anchorable field of \(typeName) (no such field, or one that only "
-                    + "labels the \(subject)) — the proof cannot fail as written"
+                    + "anchorable field of \(Subject.anchorTypeName) (no such field, or "
+                    + "one that only labels the \(name)) — the proof cannot fail as written"
             }
             guard text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil
             else { continue }
-            return "the \(subject)'s \(label) is no longer anchored on /\(pattern)/ — "
+            return "the \(name)'s \(label) is no longer anchored on /\(pattern)/ — "
                 + "nothing there ties its \(channel.rawValue) install to that channel"
         }
         return nil

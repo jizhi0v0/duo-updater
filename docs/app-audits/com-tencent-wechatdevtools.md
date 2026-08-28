@@ -116,7 +116,7 @@ https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/
 | `Models/ReleaseChannel.swift` | 新增 `.rc`；刻意不进 `nonStable`/`channelWord`（"rc" 太短，泛匹配会误伤） |
 | `Scan/AppScanner.swift` | `weChatDevToolsIdentity` 读 `package.json` → 真版本 + 渠道；bundle id 改写为 `com.tencent.wechatdevtools` |
 | `Sources/VendorProbeRecipe.swift` | 三条 recipe，同一个 `config.json`，各自锚 `"id"`，一键 arm64 pkg |
-| `Sources/ChannelArtifactProof.swift` | nightly = artifact 证明；rc = recipeAnchor（rc 的包和 stable 同目录同命名，URL 证不了） |
+| `Sources/ChannelArtifactProof.swift` | nightly = artifact 证明；rc = recipeAnchor（rc 的包和 stable 同目录同命名，URL 证不了）。**2026-08-28 (#110)**：该 anchor 现在显式限定字段 `in: ["versionPattern", "install"]`，两个字段都必须匹配才算通过——`"id": "rc"` 在这两处都出现过，而旧的"任一字段命中即通过"意味着只改坏 install 那半边（真正挑包的那半边）时 versionPattern 会替它兜住，proof 照样绿。改 recipe 时两处要一起改，只改一处会在 PR 里红。 |
 | `Sources/ChangelogRecipe.swift` + `StructuredChangelogDecoder.swift` | 新增 `.weChatDevToolsLog`，version-templated 到 `logs/<channel>_v<version>.json` |
 | `CLI/Sources/DuoKit/Verify.swift` | changelog sweep 的版本按 (bundleID, channel) 取，不再按 bundleID 一把抓 |
 | `application-test/.../channel-verify` | 支持 `.pkg` 输入；镜像 scanner 的身份改写 |

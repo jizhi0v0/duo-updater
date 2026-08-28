@@ -222,9 +222,8 @@ import CryptoKit
     // in the first place — so the anchor match IS the whole check.
     func anchorFailure(_ recipe: VendorProbeRecipe) -> String? {
         RecipeSanity.recipeAnchorFailure(
-            pattern: #""id":.*"rc""#, fields: ["entryStartPattern"], subject: "recipe",
-            channel: recipe.channel, of: "VendorProbeRecipe",
-            surface: recipe.channelAnchorSurface(ofField:))
+            pattern: #""id":.*"rc""#, fields: ["entryStartPattern"],
+            channel: recipe.channel, subject: recipe)
     }
 
     // Anchored through `entryStartPattern`, and named there: the guard is satisfied.
@@ -236,10 +235,47 @@ import CryptoKit
 
     // …and the guard still fires when the anchor is not in the field that named
     // it, so the line above is the field being reachable, not the guard going quiet.
-    let unanchored = wechatRC(
+    //
+    // `entryStartPattern` is PRESENT here and merely lost its token, rather than
+    // being nil. A nil field's surface is the literal string "nil", which fails to
+    // match for a different reason than a real field that drifted — so testing
+    // only the nil case would not distinguish "the field is checked" from "the
+    // field does not exist", and would pass either way.
+    let driftedInEntryPattern = wechatRC(
+        versionPattern: #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#,
+        entryStartPattern: #"\{"date":""#)
+    #expect(anchorFailure(driftedInEntryPattern) != nil,
+            "a named field that still exists but lost its channel token must be complained about")
+
+    let absentEntryPattern = wechatRC(
         versionPattern: #""version":\s*"([0-9]+(?:\.[0-9]+)+)""#, entryStartPattern: nil)
-    #expect(anchorFailure(unanchored) != nil,
+    #expect(anchorFailure(absentEntryPattern) != nil,
             "a recipe with its channel anchor removed must still be complained about")
+}
+
+/// A `.recipeAnchor` whose PATTERN matches anything is the third way to write a
+/// proof that cannot fail, and the one neither `everyRegisteredAnchorNamesRealFields`
+/// nor the field-scoping closes: `""`, `a?` and `.*` all match every surface, in
+/// every field, forever.
+///
+/// Checked against the empty string, which is the cheapest total discriminator —
+/// a pattern that matches `""` matches every field of every recipe, so it can
+/// never report drift. Covers BOTH registries; the GitHub side has no anchors
+/// today and this is what stops the first one from being written that way.
+@Test func noRegisteredAnchorMatchesEverything() {
+    func vacuous(_ pattern: String) -> Bool {
+        "".range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+    for (key, proof) in ChannelProofRegistry.proofs {
+        guard case .recipeAnchor(let pattern, _) = proof else { continue }
+        #expect(!vacuous(pattern),
+                "\(key): the anchor /\(pattern)/ matches the empty string, so it matches every field of every recipe and can never report drift")
+    }
+    for (key, proof) in ChannelProofRegistry.githubProofs {
+        guard case .recipeAnchor(let pattern, _) = proof else { continue }
+        #expect(!vacuous(pattern),
+                "\(key): the anchor /\(pattern)/ matches the empty string, so it can never report drift")
+    }
 }
 
 // MARK: - anchors are checked field by field (issue #110)
@@ -315,25 +351,22 @@ import CryptoKit
 
     #expect(
         RecipeSanity.recipeAnchorFailure(
-            pattern: #""id":.*"rc""#, fields: [], subject: "recipe",
-            channel: .rc, of: "VendorProbeRecipe",
-            surface: subject.channelAnchorSurface(ofField:)) != nil,
+            pattern: #""id":.*"rc""#, fields: [],
+            channel: .rc, subject: subject) != nil,
         "an anchor naming no field matches vacuously and must be reported")
 
     #expect(
         RecipeSanity.recipeAnchorFailure(
-            pattern: #""id":.*"rc""#, fields: ["versionPatern"], subject: "recipe",
-            channel: .rc, of: "VendorProbeRecipe",
-            surface: subject.channelAnchorSurface(ofField:)) != nil,
+            pattern: #""id":.*"rc""#, fields: ["versionPatern"],
+            channel: .rc, subject: subject) != nil,
         "a typo'd field name has nothing to match against and must be reported, not skipped")
 
     // A field that exists but only LABELS the recipe is refused for the same
     // reason `nonAnchorFields` exists: `channel` literally contains "rc".
     #expect(
         RecipeSanity.recipeAnchorFailure(
-            pattern: #"rc"#, fields: ["channel"], subject: "recipe",
-            channel: .rc, of: "VendorProbeRecipe",
-            surface: subject.channelAnchorSurface(ofField:)) != nil,
+            pattern: #"rc"#, fields: ["channel"],
+            channel: .rc, subject: subject) != nil,
         "naming a labelling field must be refused, not answered with a tautology")
 }
 
@@ -365,6 +398,7 @@ import CryptoKit
     for (key, proof) in ChannelProofRegistry.githubProofs {
         guard case .recipeAnchor(let pattern, let fields) = proof else { continue }
         #expect(!fields.isEmpty, "\(key): the anchor /\(pattern)/ names no field, so it cannot fail")
+        #expect(rulesByKey[key] != nil, "\(key) has a .recipeAnchor proof but no rule")
         guard let rule = rulesByKey[key] else { continue }
         for label in fields {
             #expect(rule.channelAnchorSurface(ofField: label) != nil,

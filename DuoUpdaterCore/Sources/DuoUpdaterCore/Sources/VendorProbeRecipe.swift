@@ -353,7 +353,7 @@ public struct VendorProbeRecipe: Sendable {
     /// Not `String(describing:)` on the field, because that renders any string
     /// nested inside something else through its DEBUG description — quotes come
     /// back escaped (`Optional("{\"id\":")`) and an anchor written to match the
-    /// vendor's actual text stops matching. Two of the five anchors registered
+    /// vendor's actual text stops matching. Three of the five anchors registered
     /// today contain quotes or angle brackets, so this is not hypothetical: it
     /// is why the old hand-written surface reached into `install?.urlSource`
     /// with `String(describing:)` and quietly could not have matched a quoted

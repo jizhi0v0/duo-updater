@@ -74,16 +74,18 @@ public struct GitHubReleaseRule: Sendable {
     /// arrives and nobody adds it. `channelAnchorSurfaceCoversEveryGitHubRuleField`
     /// makes adding one a decision somebody states out loud.
     ///
-    /// One line per field, so an anchor written with `.*` cannot straddle two
-    /// unrelated fields and match something nobody meant.
+    /// One line per STRING the rule holds — a field contributes as many lines as
+    /// it has strings — so an anchor written with `.*` cannot straddle two
+    /// unrelated values and match something nobody meant.
     ///
-    /// As on the vendor side, the whole surface is no longer what a proof is
+    /// As on the vendor side, this whole-surface join is no longer what a proof is
     /// matched against: a `.recipeAnchor` names the fields it relies on and is
-    /// checked against each (issue #110). This stays as the union those field
-    /// views are cut from. No `githubProofs` entry is an anchor today — every
-    /// one of them is provable from the resolved URL — so this half exists so
-    /// the first rule that needs an anchor cannot get the weaker any-field
-    /// behaviour by default.
+    /// checked against each, via `channelAnchorSurface(ofField:)` below (issue
+    /// #110). This stays as the union those field views are cut from, and as what
+    /// the tests measure. No `githubProofs` entry is an anchor today — every one
+    /// of them is provable from the resolved URL — so the per-field half below
+    /// exists so that the first rule which does need an anchor cannot silently get
+    /// the weaker any-field behaviour.
     public var channelAnchorSurface: String {
         channelAnchorFields.flatMap(\.lines).joined(separator: "\n")
     }

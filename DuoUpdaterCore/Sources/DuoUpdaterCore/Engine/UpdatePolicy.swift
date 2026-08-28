@@ -189,15 +189,6 @@ public enum UpdatePolicy {
             && ElevationRules.isDeclined(result.app, declinedKeys: settings.declinedElevationKeys)
     }
 
-    /// True when this update is a `pkg` (a `pkg` cask, or a vendor pkg): we
-    /// download the official package and open it in the system installer (which
-    /// prompts for admin itself).
-    ///
-    /// For Vendor we key strictly on a `.pkg` install spec — NOT on
-    /// `requiresManualInstaller`, which a *detection-only* vendor recipe also
-    /// sets (meaning "send the user to download by hand"). Conflating the two
-    /// made detection-only apps (LM Studio, Chrome, …) wrongly show an installer
-    /// button pointed at their version-check endpoint.
     /// Whether this update can be applied to an input method the only way we will
     /// apply one — by exchanging the bundle's `Contents`, which needs the download
     /// to *be* an app bundle. Deliberately stricter than the source branches
@@ -225,6 +216,15 @@ public enum UpdatePolicy {
         return parent.hasSuffix("/Library/Input Methods")
     }
 
+    /// True when this update is a `pkg` (a `pkg` cask, or a vendor pkg): we
+    /// download the official package and open it in the system installer (which
+    /// prompts for admin itself).
+    ///
+    /// For Vendor we key strictly on a `.pkg` install spec — NOT on
+    /// `requiresManualInstaller`, which a *detection-only* vendor recipe also
+    /// sets (meaning "send the user to download by hand"). Conflating the two
+    /// made detection-only apps (LM Studio, Chrome, …) wrongly show an installer
+    /// button pointed at their version-check endpoint.
     public static func requiresInstaller(
         _ result: UpdateResult,
         environment: InstallEnvironment

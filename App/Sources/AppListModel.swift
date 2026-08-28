@@ -3106,7 +3106,14 @@ final class AppListModel {
         // Leaving the file is the safe half of the trade and costs nothing: the
         // 24-hour sweep reclaims it. Forgetting the entry below stays
         // unconditional — the user asked, and the row must not go on offering an
-        // Install they have said they don't want.
+        // Install they have said they don't want. The error goes with it for the
+        // same reason: the user is abandoning the update this row was attempting,
+        // and a lingering red error for an attempt they just called off is not
+        // informative, it's noise. Nothing else would ever clear it either — the
+        // row is `.updateAvailable` by construction here (`stagedPackage(for:)`
+        // requires a remote version on offer), and `pruneSettledInstallErrors`
+        // only settles `.upToDate` rows — so without this it would survive every
+        // rescan until the user starts another install on this row.
         if await InstallerWindowCloser.closeWindow(showing: staged.url) {
             _ = PackageInstaller.discardWorkDirectory(containing: staged.url)
         }
@@ -3130,17 +3137,7 @@ final class AppListModel {
         persistStagedPackages()
         installNotes[result.id] = nil
         inFlightNotes[result.id] = nil
-        // installErrors is deliberately left alone. Any error sitting here did not
-        // come from the package we just threw away: `openStagedPackage`'s own
-        // failure path already clears `stagedPackages[id]` itself (so this
-        // function would have returned above, at the `guard let staged` — there
-        // would be nothing left to discard), and the only other writer that can
-        // reach this row while a staged package still validates is a *separate*
-        // install attempt — e.g. "Update All" re-queues this row (staging doesn't
-        // clear `hasUpdate`, so `installAllTargets` still offers it) and its fresh
-        // download fails before `PackageInstaller.downloadAndOpen` reaches
-        // `beforeOpen`/`retireStagedPackage`. That error describes THAT attempt,
-        // not this discard, and stays on the row for the user to see.
+        installErrors[result.id] = nil
         Log.install.info("package discarded by user: \(result.app.name, privacy: .public) \(staged.version, privacy: .public)")
     }
 

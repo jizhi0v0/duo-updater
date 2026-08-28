@@ -255,27 +255,43 @@ import CryptoKit
 
 /// A `.recipeAnchor` whose PATTERN matches anything is the third way to write a
 /// proof that cannot fail, and the one neither `everyRegisteredAnchorNamesRealFields`
-/// nor the field-scoping closes: `""`, `a?` and `.*` all match every surface, in
-/// every field, forever.
+/// nor the field-scoping closes.
 ///
-/// Checked against the empty string, which is the cheapest total discriminator —
-/// a pattern that matches `""` matches every field of every recipe, so it can
-/// never report drift. Covers BOTH registries; the GitHub side has no anchors
-/// today and this is what stops the first one from being written that way.
+/// Probed against several unrelated strings rather than just `""`. The empty
+/// string alone is NOT the total discriminator an earlier version of this claimed:
+/// it catches `""`, `a?` and `.*`, but `.+` and `.` match every real surface while
+/// failing on `""`, so they would have slipped through while asserting nothing
+/// beyond "this field is non-empty". A pattern that matches all of these probes is
+/// not distinguishing anything about a channel.
+///
+/// Covers all THREE registries. The GitHub side has no anchors today, and on the
+/// binding side this is the half `everyBindingProofFailsOnItsOwnStableSibling`
+/// cannot backstop: TablePlus's stable `feedHTTPHeaders` surface is `""`, so `.+`
+/// would pass that test too.
 @Test func noRegisteredAnchorMatchesEverything() {
+    // Deliberately unlike any real feed URL, header or vendor marker.
+    let arbitrary = ["x", "0", "   ", "zzz zzz"]
+    func matches(_ pattern: String, _ text: String) -> Bool {
+        text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+    // Two ways to assert nothing, and they need different probes — which is the
+    // bug an earlier version of this test had, checking only the first:
+    //   * matching `""` means matching every surface there is (`.*`, `a?`, `^`);
+    //   * matching every arbitrary NON-empty string means the anchor only asserts
+    //     "this field is non-empty" (`.+`, `.`), which no channel proof should be.
     func vacuous(_ pattern: String) -> Bool {
-        "".range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+        matches(pattern, "") || arbitrary.allSatisfy { matches(pattern, $0) }
     }
-    for (key, proof) in ChannelProofRegistry.proofs {
-        guard case .recipeAnchor(let pattern, _) = proof else { continue }
-        #expect(!vacuous(pattern),
-                "\(key): the anchor /\(pattern)/ matches the empty string, so it matches every field of every recipe and can never report drift")
+    func check(_ label: String, _ map: [ChannelProofKey: ChannelArtifactProof]) {
+        for (key, proof) in map {
+            guard case .recipeAnchor(let pattern, _) = proof else { continue }
+            #expect(!vacuous(pattern),
+                    "\(label) \(key): the anchor /\(pattern)/ matches arbitrary unrelated text, so it can never report drift")
+        }
     }
-    for (key, proof) in ChannelProofRegistry.githubProofs {
-        guard case .recipeAnchor(let pattern, _) = proof else { continue }
-        #expect(!vacuous(pattern),
-                "\(key): the anchor /\(pattern)/ matches the empty string, so it can never report drift")
-    }
+    check("vendor", ChannelProofRegistry.proofs)
+    check("github", ChannelProofRegistry.githubProofs)
+    check("binding", ChannelProofRegistry.bindingProofs)
 }
 
 // MARK: - anchors are checked field by field (issue #110)

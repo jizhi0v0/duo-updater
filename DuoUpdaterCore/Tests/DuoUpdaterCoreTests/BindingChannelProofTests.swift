@@ -28,7 +28,13 @@ import Foundation
             ChannelProofKey("com.nssurge.surge-mac", .beta),
             ChannelProofKey("com.tinyapp.tableplus", .beta),
             ChannelProofKey("com.colliderli.iina", .beta),
-        ]), "the request-keyed binding population changed: \(needing.map(\.description).sorted())")
+            ChannelProofKey("pro.betterdisplay.BetterDisplay", .beta),
+            ChannelProofKey("pro.betterdisplay.BetterDisplay", .unstable),
+        ]), "the binding population changed: \(needing.map(\.description).sorted())")
+        // Deduplicated: BetterDisplay reaches `.unstable` from two preference
+        // combinations, and the population is a set of keys, not of routes to one.
+        #expect(ChannelProofRegistry.channelBindingsNeedingProof.count == needing.count,
+                "channelBindingsNeedingProof returned duplicate keys")
     }
 
     /// Every member of that population carries a proof, and nothing else does.
@@ -84,7 +90,14 @@ import Foundation
                 Issue.record("\(key): a binding proof must be a .recipeAnchor")
                 continue
             }
-            let stable = try! #require(stableByID[key.bundleID])
+            // `guard`, not `try! #require`: a proof registered for a binding with
+            // no enumerated stable resolution is a real (if unlikely) mistake, and
+            // it should read as one failing test rather than a `fatalError` that
+            // takes the whole test binary down with it.
+            guard let stable = stableByID[key.bundleID] else {
+                Issue.record("\(key): no stable resolution enumerated for this bundle id, so the proof cannot be shown to discriminate")
+                continue
+            }
             // Matched the way the guard matches it — per named field, same options.
             let matched = fields.contains { label in
                 stable.channelAnchorSurface(ofField: label)?
@@ -169,10 +182,37 @@ import Foundation
     /// came from, so a shared key would be checked against the wrong one while the
     /// exhaustiveness tests all passed.
     @Test func bindingProofsDoNotCollideWithTheOtherRegistries() {
+        // POPULATIONS, not just the keys somebody happened to register. A bundle
+        // id that two populations could both serve on one channel is the
+        // ambiguity — `ChannelProofKey` records no population, so the entry
+        // written for one would be checked against the other — and it is ambiguous
+        // whether or not both entries exist yet. Comparing registered keys alone
+        // would pass in exactly the window where the mistake is still invisible.
+        let bindingPopulation = Set(ChannelProofRegistry.channelBindingsNeedingProof)
+        #expect(bindingPopulation.isDisjoint(with: Set(ChannelProofRegistry.channelRecipesWithInstall)),
+                "a (bundleID, channel) is served by both the vendor recipe and binding populations")
+        #expect(bindingPopulation.isDisjoint(with: Set(ChannelProofRegistry.channelGitHubRulesWithInstall)),
+                "a (bundleID, channel) is served by both the GitHub rule and binding populations")
+        // …and the registered maps, which is the weaker statement kept because a
+        // proof can be written before its population entry exists.
         let binding = Set(ChannelProofRegistry.bindingProofs.keys)
         #expect(binding.isDisjoint(with: Set(ChannelProofRegistry.proofs.keys)),
                 "a key is in both the vendor and binding proof maps")
         #expect(binding.isDisjoint(with: Set(ChannelProofRegistry.githubProofs.keys)),
                 "a key is in both the GitHub and binding proof maps")
+    }
+
+    /// The `vendorProbeBackedBindings` term in the population predicate excludes
+    /// nothing today, and that is measured rather than assumed.
+    ///
+    /// It is the one hand-written list in an otherwise derived pipeline, and its
+    /// failure direction is silent narrowing — it can only REMOVE rows. Pinning
+    /// its inertness means the day a binding both overrides a feed and selects a
+    /// recipe, the term starts excluding something and this test says so instead
+    /// of the row quietly leaving the population.
+    @Test func vendorProbeBackedBindingsAreNotEnumerated() {
+        let enumerated = Set(ChannelBinding.allResolutions.map { $0.bundleID.lowercased() })
+        #expect(enumerated.isDisjoint(with: ChannelBinding.vendorProbeBackedBindings),
+                "a vendor-probe-backed binding is now enumerated — the predicate term that excludes it has stopped being inert, so decide out loud whether its install really comes from the recipe")
     }
 }

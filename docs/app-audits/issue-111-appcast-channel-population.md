@@ -594,6 +594,30 @@ What shipped:
   machine-independently, built by calling each resolver's own pure function so no
   feed URL or header is restated.
 
+**Correction to an earlier draft of this section.** It said "for all four,
+stable and non-stable are the same filename from the same host". That
+contradicts §1's own raw output and is false for three of the four — Fork serves
+`Fork-2.66.7.dmg` against `Fork-2.69.0.dmg`, Surge puts a per-build hash in the
+name, and only TablePlus reuses `TablePlus.dmg` (under different build-numbered
+paths). The claim §1 actually measured, and the one the conclusion rests on, is
+that **none of these vendors puts a channel TOKEN in the artifact** — a version
+or a hash is not a channel. §4 is preserved as the record of what was checked;
+this section supersedes its conclusion, not its measurements.
+
+**Population widened after review.** §3 called BetterDisplay a no-op because
+`SparkleAppcastSource` filters by `<sparkle:channel>`. That is right about the
+filtering and wrong about the risk: the tag NAMES are a per-app constant
+(`BetterDisplayChannel.preTag`/`internalTag`), because its feed spells them
+`pre`/`internal` and no `ReleaseChannel` case does. Retype one and
+`allowedChannels` builds a set matching nothing in the feed, so the user matches
+only untagged items and is silently offered **stable** — the failure
+`ResolvedChannel.sparkleChannelNames`' own doc warns about, and one
+`allowedChannels` cannot catch because it cannot validate a name it is handed.
+So the predicate covers hand-declared tags too, and BetterDisplay `.beta` and
+`.unstable` carry proofs. DuoPaste stays excluded on the sharper distinction:
+its tag is DERIVED from `ReleaseChannel.rawValue` in shared code, so there is no
+per-app constant to mistype.
+
 Two things this does NOT do, stated plainly because the opposite impression is
 the "green check nobody should trust" §4 rightly worried about:
 
@@ -602,8 +626,8 @@ the "green check nobody should trust" §4 rightly worried about:
    away — not when a vendor retires it. §4's third option (a live differential
    check) remains the answer to the vendor-side failure and is not a substitute
    for this one, nor this for it.
-2. **It cannot see inside the response.** For all four, stable and non-stable are
-   the same filename from the same host.
+2. **It cannot see inside the response.** No binding here resolves an artifact
+   that names its channel.
 
 The strongest property the tests do pin, which the recipe-side registry cannot
 state as directly: `everyBindingProofFailsOnItsOwnStableSibling` asserts each

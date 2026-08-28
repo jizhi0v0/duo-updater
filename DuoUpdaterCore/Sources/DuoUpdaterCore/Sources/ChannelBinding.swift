@@ -65,7 +65,7 @@ public struct ResolvedChannel: Sendable, Equatable {
     /// What is being anchored here is the REQUEST, not the response, and that is
     /// the whole reason this population needs its own surface. For a feed-swap or
     /// header-keyed app the vendor puts no channel token in the artifact at all —
-    /// stable and beta are the same filename from the same host — so the only
+    /// the filenames differ, but by version or by build hash, never by train — so the only
     /// thing that ever distinguished them is which URL we asked for or which
     /// header we sent. That is not a weaker kind of proof than the recipes get:
     /// Alfred's registered anchor is `prerelease\.xml` in its endpoint, which is
@@ -311,21 +311,38 @@ public enum ChannelBinding {
          BetterDisplayChannel.resolve(preEnabled: false, internalEnabled: true)),
         (BetterDisplayChannel.bundleID,
          BetterDisplayChannel.resolve(preEnabled: true, internalEnabled: true)),
-        // The remaining four have no pure resolver to drive because they have no
-        // user-settable choice to drive it with. Ghostty is a fixed stable-only
-        // feed override; CleanShot keys a personalized feed off the licence and
-        // exposes one channel. `resolveCurrent()` is machine-independent for both.
+        // The remaining two have no user-settable channel choice to drive.
+        // Ghostty is a fixed stable-only feed override, so `resolveCurrent()` is
+        // already a constant.
         (GhosttyChannel.bundleID, GhosttyChannel.resolveCurrent()),
-    ] + (CleanShotChannel.resolveCurrent().map { [(CleanShotChannel.bundleID, $0)] } ?? [])
+    ] + (CleanShotChannel.resolve(activationKey: CleanShotChannel.placeholderActivationKey)
+        .map { [(CleanShotChannel.bundleID, $0)] } ?? [])
 
-    /// The bundle ids `allResolutions` covers, lower-cased for comparison with
-    /// `boundBundleIDs`.
+    // CleanShot is enumerated through its PURE resolver with a placeholder key,
+    // never `resolveCurrent()`. It keys a personalized feed off the licence, so
+    // enumerating the live resolution would have made this list depend on whether
+    // the machine has a licensed CleanShot — present for the author, absent on CI
+    // and on anyone else's Mac, with `everyBindingIsEnumerated` failing there and
+    // only there. It would also have put a real licence key into a public global.
+    // Its channel is `.stable` either way: the key selects an ENTITLEMENT, not a
+    // train, so there is no other channel for it to cross into.
+
+    /// The four bindings `allResolutions` deliberately does NOT cover, lower-cased.
     ///
-    /// Excludes the four bindings whose channel choice exists only to pick a
-    /// `VendorProbeRecipe` — OrbStack, Alfred, Tailscale and CapCut resolve their
-    /// INSTALL through `VendorProbeRegistry`, so their cross-channel question is
-    /// already answered by `ChannelProofRegistry.proofs` and enumerating them here
-    /// would double-count them into a second registry.
+    /// OrbStack, Alfred, Tailscale and CapCut have bindings, but the binding only
+    /// picks which `VendorProbeRecipe` runs; the install comes from that recipe,
+    /// so their cross-channel question is already answered by
+    /// `ChannelProofRegistry.proofs` and enumerating them here would double-count
+    /// them into a second registry.
+    ///
+    /// Used two ways, and honest about the weaker one: it is what
+    /// `everyBindingIsEnumerated` subtracts to compute what SHOULD be enumerated,
+    /// and it is a term in `channelBindingsNeedingProof`'s predicate where it is
+    /// currently INERT — none of these four appears in `allResolutions`, so the
+    /// term never excludes anything. `vendorProbeBackedBindingsAreNotEnumerated`
+    /// measures that inertness rather than leaving it assumed, so the day one of
+    /// them does get enumerated (a binding that both overrides the feed and
+    /// selects a recipe), the term starts doing work and somebody is told.
     public static let vendorProbeBackedBindings: Set<String> = [
         OrbStackChannel.bundleID.lowercased(),
         AlfredChannel.bundleID.lowercased(),

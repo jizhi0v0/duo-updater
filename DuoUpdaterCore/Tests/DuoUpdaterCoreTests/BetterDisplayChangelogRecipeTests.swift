@@ -10,7 +10,12 @@ import Testing
 /// line and the download button are what the parser has to make decisions about;
 /// the other five change bullets add nothing to the test. Everything kept is
 /// verbatim. v5.0.2's body is whole.
-private let betterDisplayReleasesFixture = #"""
+// Not `private`: reused by ChangelogParserGenerationGuardTests (issue #112) — it
+// is the one fixture in this test target whose parse depends on BOTH
+// `GitHubMarkdownParser.isImageOnly` (the download button) AND
+// `ChangelogRecipe.skipSections` (the contributor roster), so pinning its output
+// there catches a regression to either without a second fixture.
+let betterDisplayReleasesFixture = #"""
 [
  {
   "tag_name": "v5.0.2",

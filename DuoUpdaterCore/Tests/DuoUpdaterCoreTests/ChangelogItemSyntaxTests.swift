@@ -32,8 +32,15 @@ import Foundation
         #expect(log.entries.first?.items.first == "a * b and _c_")
     }
 
-    /// The flag rides along in the on-disk cache, and a `Changelog` written
-    /// before the flag existed must still decode (as plain).
+    /// The flag rides along in `Changelog`'s own `Codable` conformance, and a
+    /// `Changelog` written before the flag existed must still decode (as plain).
+    /// Decoded here directly, NOT through either on-disk changelog cache: as of
+    /// issue #112 both `ChangelogDiskCache` and `BrewFormulaReleaseService` wrap
+    /// `Changelog` in a `Stored` type carrying `parserGeneration`, whose own
+    /// decode fails first for a payload this old (see
+    /// `Changelog.parserGeneration`'s doc comment) — so this tolerance is no
+    /// longer reachable via either cache, only via the generation-less
+    /// remote-catalog path `Changelog` is also `Codable` for.
     @Test func syntaxSurvivesTheDiskCacheAndOldPayloadsDecode() throws {
         let log = Changelog(
             entries: [.init(title: nil, version: "1.0", date: nil, items: ["x"], content: [])],

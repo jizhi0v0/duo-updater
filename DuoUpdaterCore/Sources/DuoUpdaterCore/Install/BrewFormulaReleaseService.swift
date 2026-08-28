@@ -100,7 +100,7 @@ public actor BrewFormulaReleaseService {
     }
 
     private func compute(name: String, version: String, token: String?) async -> FormulaRelease {
-        guard let info = Self.brewInfo(name: name) else {
+        guard let info = await Self.brewInfoOffActor(name: name) else {
             return FormulaRelease(changelog: nil, pageURL: nil)
         }
         guard let gh = Self.deriveGitHub(fromStableURL: info.stableURL) else {
@@ -165,7 +165,55 @@ public actor BrewFormulaReleaseService {
 
     // MARK: - brew info (local)
 
-    private struct Info { let homepage: URL?; let stableURL: String? }
+    /// `Sendable` because `brewInfoOffActor` resumes a continuation with it from a
+    /// Dispatch thread — it crosses a concurrency domain, it isn't decoration.
+    private struct Info: Sendable { let homepage: URL?; let stableURL: String? }
+
+    /// Runs `brewInfo` on a Dispatch thread, so the ~0.5s subprocess never occupies
+    /// this actor. The hop is load-bearing: `brewInfo` is already effectively
+    /// non-isolated (it's `static`), but that alone changes nothing — a *synchronous*
+    /// call has no ability to switch executors (SE-0338), so it runs to completion on
+    /// whatever executor calls it. Called synchronously from `compute`, that executor
+    /// is this actor, and the actor stays occupied for the whole subprocess.
+    ///
+    /// That serialized every client behind every other. With a GitHub token configured
+    /// `prewarmFormulaReleases` calls `release(...)` for each uncached outdated formula
+    /// — without a token it only reads the disk cache and never spawns a subprocess at
+    /// all, so the storm below is token-gated — and the interactive path
+    /// (`ensureFormulaReleaseLoading`, on user select) shares this actor. So selecting
+    /// a formula whose notes were ALREADY on disk still spun for N x 0.5s: its cheap
+    /// `cached(...)` hop queued behind the whole blocking chain. #112's parser
+    /// generation invalidates every entry once after an upgrade, which is exactly when
+    /// N is largest (11 of 23 outdated formulae on the author's machine, ~7s).
+    ///
+    /// Dispatch, NOT `Task.detached`: a detached task still runs on the *cooperative*
+    /// pool, which is width-capped near the core count and does not overcommit when one
+    /// of its threads blocks. Fanning out N blocking `waitUntilExit()` calls there
+    /// saturates the `.utility` band and stalls unrelated `.utility` work — this repo
+    /// puts `BackupStore.pruneOrphans`, `runChannelSwitchRecheck` and the `lsappinfo`
+    /// probe in that band, and they overlap the very refresh that triggers this.
+    /// Measured 23-wide on a 14-core M3 Max, worst added stall for an unrelated,
+    /// freshly-enqueued `.utility` task:
+    ///
+    ///     Task.detached          0.95 - 1.07s     fan-out wall 2.34s
+    ///     DispatchQueue.global   0.02 - 0.06s     fan-out wall 2.36s
+    ///
+    /// Same wall clock, ~25x less collateral, because Dispatch grows its pool when a
+    /// thread blocks. That is why there is no concurrency limit here: a bound would be
+    /// treating a symptom of the wrong vehicle.
+    ///
+    /// If you re-measure, probe in the SAME QoS band as the blocked threads. Darwin
+    /// pools per-QoS, so a probe on `.medium` (or any other band) reports ~0.01s and
+    /// looks perfectly healthy while `.utility` is fully saturated. An earlier revision
+    /// of this comment shipped that ~0.01s figure and concluded, wrongly, that the
+    /// vehicle didn't matter.
+    private static func brewInfoOffActor(name: String) async -> Info? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Info?, Never>) in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: Self.brewInfo(name: name))
+            }
+        }
+    }
 
     /// Read `homepage` + `urls.stable.url` for one formula from `brew info
     /// --json=v2` — local, no network, authoritative for the installed formula.

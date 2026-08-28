@@ -150,6 +150,43 @@ struct GatewayRetryTests {
         #expect(URLSession.retryableGatewayStatuses == [502, 503, 504])
     }
 
+    /// Every other test injects a 1 ms delay, so without this the production
+    /// constant is pinned by nothing: raising it to 30 s would keep the whole
+    /// suite green while melting a 130-app fan-out.
+    @Test func theProductionDelayIsPinned() {
+        #expect(URLSession.gatewayRetryDelay == .milliseconds(800))
+    }
+
+    /// `.redirectFilename` recipes read the version from a HEAD's resolved URL, so
+    /// HEAD is a real version-read path here, not just a permitted method.
+    @Test func headIsRetriedLikeAnyOtherIdempotentRead() async throws {
+        let result = try await Self.fetch(scripting: [503, 200], method: "HEAD")
+        #expect(result.status == 200)
+        #expect(result.requests == ["HEAD", "HEAD"])
+    }
+
+    /// Cancelling during the wait must not invent a failure shape no caller knows.
+    /// `VendorProbeSource.transportFailure` renders a non-`URLError` through
+    /// `NSError.code`, which would print a nonexistent "URLError 1"; cancelling a
+    /// plain `data(for:)` has always yielded `URLError(.cancelled)`.
+    @Test func cancellationDuringTheWaitSurfacesAsACancelledURLError() async throws {
+        ScriptedProtocol.script.load([504, 200])
+        let session = Self.session()
+        let task = Task {
+            try await session.versionFeedData(
+                for: URLRequest(url: Self.url), label: "test", retryDelay: .seconds(30))
+        }
+        // Let the first attempt land and the sleep begin.
+        try await Task.sleep(for: .milliseconds(150))
+        task.cancel()
+
+        await #expect(throws: URLError.self) { try await task.value }
+        do { _ = try await task.value }
+        catch let error as URLError { #expect(error.code == .cancelled) }
+        // The retry never went out.
+        #expect(ScriptedProtocol.script.requests == ["GET"])
+    }
+
     /// The reported case, end to end: Headlamp's check died because one
     /// `api.github.com` 504 was a terminal answer. Through the real source, the
     /// same 504 now resolves to a version.

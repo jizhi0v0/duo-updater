@@ -65,9 +65,20 @@ public extension URLSession {
             return first
         }
 
+        // `.info` rather than the `.debug` this file's own convention gives HTTP
+        // statuses: this is not a status, it is us deciding to send a second
+        // request. When the retry succeeds nothing else logs at all — the source's
+        // `.error` never fires — so at `.debug` a gateway hiccup would leave no
+        // trace anywhere.
         Log.source.info(
             "\(label, privacy: .public): HTTP \(http.statusCode, privacy: .public) — retrying once")
-        try await Task.sleep(for: retryDelay)
+        // Cancellation must not change the *shape* of the failure a caller sees.
+        // `Task.sleep` throws `CancellationError`, which is not a `URLError`, and
+        // `VendorProbeSource.transportFailure` would render it as "URLError 1" — a
+        // code that does not exist. Cancelling a `data(for:)` has always produced
+        // `URLError(.cancelled)`; keep that, so every existing catch stays honest.
+        do { try await Task.sleep(for: retryDelay) }
+        catch { throw URLError(.cancelled) }
         let second = try await data(for: request)
         let status = (second.1 as? HTTPURLResponse)?.statusCode
         Log.source.info(

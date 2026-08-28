@@ -645,7 +645,8 @@ public struct VendorProbeSource: UpdateSource {
                 // filename (e.g. "ToDesk_4.7.6.0.dmg").
                 request.httpMethod = "HEAD"
                 let response: URLResponse
-                do { (_, response) = try await session.data(for: request) }
+                do { (_, response) = try await session.versionFeedData(
+                    for: request, label: "VendorProbe HEAD \(recipe.bundleID)") }
                 catch { return .failure(Self.transportFailure(error)) }
                 guard let http = response as? HTTPURLResponse else {
                     return .failure(.nonHTTPResponse)
@@ -667,7 +668,8 @@ public struct VendorProbeSource: UpdateSource {
                 // the Location path, so `text` is the full redirect target.
                 request.httpMethod = "GET"
                 let response: URLResponse
-                do { (_, response) = try await Self.noRedirectSession.data(for: request) }
+                do { (_, response) = try await Self.noRedirectSession.versionFeedData(
+                    for: request, label: "VendorProbe redirect \(recipe.bundleID)") }
                 catch { return .failure(Self.transportFailure(error)) }
                 guard let http = response as? HTTPURLResponse else {
                     return .failure(.nonHTTPResponse)

@@ -3038,12 +3038,18 @@ final class AppListModel {
         // in flight.) The other landings aren't derived from `pendingSelfUpdate` at
         // all — their build is already on disk, or is App Store's to deliver — so
         // this sweep must not touch them; only the age check retires those.
-        quitHandoffs = quitHandoffs.filter { id, handoff in
-            guard case .stagedSwap(let side) = handoff.landing else { return true }
-            // An identity check on the marker's own armed value, NOT a landing
-            // test — it asks "is this still the build we armed against", so exact
-            // equality of the pair is what is wanted here.
-            return pendingSelfUpdate[id]?.versionSide == side
+        // Drop only when the staging is GONE; when it merely MOVED, re-target.
+        // Dropping on any difference conflated the two, so a vendor shipping
+        // another build inside the marker's ten-minute life destroyed it — and
+        // the marker exists precisely to reopen an app that would otherwise stay
+        // closed after the swap. See `RelaunchLanding.retargeted(nowStaged:)`.
+        quitHandoffs = quitHandoffs.compactMapValues { handoff in
+            guard let landing = handoff.landing.retargeted(
+                nowStaged: pendingSelfUpdate[handoff.result.id]?.versionSide)
+            else { return nil }
+            return landing == handoff.landing ? handoff : QuitHandoff(
+                result: handoff.result, landing: landing,
+                activates: handoff.activates, armedAt: handoff.armedAt)
         }
         // Dismiss delivered "Relaunch to apply it" banners for apps that are no
         // longer actionable-staged, so a stale one doesn't linger.

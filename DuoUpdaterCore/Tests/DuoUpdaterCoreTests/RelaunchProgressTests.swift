@@ -87,3 +87,44 @@ import Testing
         #expect(!RelaunchLanding.applied.launchesWithoutLanding)
     }
 }
+
+/// The continuous-release window: an armed relaunch marker must survive the
+/// vendor shipping another build while the user is still answering a save prompt.
+@Suite struct ArmedLandingRetargetTests {
+
+    private func amp(_ build: String) -> VersionSide {
+        VersionSide(marketing: "1.0", build: build)
+    }
+
+    /// The bug. Marker armed for 130, app stages 131 inside the ten-minute
+    /// window, marker dropped — and when the user finally quits, an app staged
+    /// with `launchAfterInstallation=false` stays closed with nobody to reopen it.
+    @Test func aMarkerSurvivesTheVendorShippingAnotherBuild() {
+        let armed = RelaunchLanding.stagedSwap(to: amp("130"))
+        let after = armed.retargeted(nowStaged: amp("131"))
+        #expect(after != nil, "the app still has a pending swap and the user still asked for a relaunch")
+        #expect(after == .stagedSwap(to: amp("131")), "and it now waits for the build that will actually land")
+    }
+
+    /// Staging genuinely gone: nothing will land, so the marker is dead.
+    @Test func aMarkerIsDroppedWhenStagingDisappears() {
+        #expect(RelaunchLanding.stagedSwap(to: amp("130")).retargeted(nowStaged: nil) == nil)
+        #expect(RelaunchLanding.stagedSwap(to: amp("130"))
+            .retargeted(nowStaged: VersionSide()) == nil)
+    }
+
+    /// Unchanged staging keeps the same target — the ordinary case.
+    @Test func anUnchangedMarkerIsKept() {
+        let armed = RelaunchLanding.stagedSwap(to: amp("130"))
+        #expect(armed.retargeted(nowStaged: amp("130")) == armed)
+    }
+
+    /// The other landings are not derived from the staging area at all: their
+    /// build is already on disk, or is the App Store's to deliver. The sweep must
+    /// not touch them.
+    @Test func otherLandingsAreNeverTouchedBythisSweep() {
+        #expect(RelaunchLanding.applied.retargeted(nowStaged: nil) == .applied)
+        let store = RelaunchLanding.appStoreSwap(past: amp("128"))
+        #expect(store.retargeted(nowStaged: nil) == store)
+    }
+}

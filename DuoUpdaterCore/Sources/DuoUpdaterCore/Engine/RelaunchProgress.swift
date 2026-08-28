@@ -53,6 +53,31 @@ public enum RelaunchLanding: Sendable, Equatable {
         }
     }
 
+    /// What an armed marker becomes when the staging area has moved on, or nil
+    /// when it should be dropped.
+    ///
+    /// A `.stagedSwap` marker is armed when the app refused to quit (a save
+    /// prompt) and lives for `quitHandoffMaxAge` — ten minutes — waiting for the
+    /// user to answer. The sweep used to drop it whenever the staged build was no
+    /// longer the exact one it was armed against, which conflates two cases:
+    ///
+    ///   * **staging is gone** — nothing left to land, so the marker is dead. Drop.
+    ///   * **staging moved** — the vendor shipped another build inside that ten
+    ///     minutes. The app still has a pending swap and the user still asked for
+    ///     a relaunch, so abandoning it strands the app closed after the swap,
+    ///     which is the exact failure the marker exists to prevent. Amp published
+    ///     ten builds in one day; a ten-minute window catching one of them is not
+    ///     a corner case.
+    ///
+    /// Dropping was not even conservative: `hasReached` accepts a build newer than
+    /// the target, so a marker left pointing at the old build would have relayed
+    /// correctly anyway. Re-targeting just keeps the landing test exact.
+    public func retargeted(nowStaged: VersionSide?) -> RelaunchLanding? {
+        guard case .stagedSwap = self else { return self }
+        guard let nowStaged, !nowStaged.isEmpty else { return nil }
+        return .stagedSwap(to: nowStaged)
+    }
+
     /// Whether this landing has to poll disk at all.
     public var waitsForDisk: Bool {
         if case .applied = self { return false }

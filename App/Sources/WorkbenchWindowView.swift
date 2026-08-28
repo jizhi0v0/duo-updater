@@ -930,11 +930,21 @@ private struct FormulaDetailPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // Load notes for the upgrade target when there is one, else the installed
         // version (so an up-to-date formula still shows its current release notes).
-        .task {
-            model.ensureFormulaReleaseLoading(
-                name: formula.name,
-                version: formula.availableVersion ?? formula.installedVersion)
+        // Keyed on that version, not a bare `.task`: the pane's identity upstream is
+        // `brew:formula:<name>`, so a refresh that reveals a NEWER available version
+        // for the formula on screen moves this version string WITHOUT rebuilding the
+        // view — and a bare `.task` would never re-fire, leaving the pane on the
+        // notes for a version it is no longer displaying. See `FormulaReleaseStore`
+        // for which refreshes actually move it (a plain `brew upgrade` does not).
+        .task(id: notesVersion) {
+            model.ensureFormulaReleaseLoading(name: formula.name, version: notesVersion)
         }
+    }
+
+    /// The version whose notes the pane shows: the upgrade target when there is one,
+    /// else what's installed.
+    private var notesVersion: String {
+        formula.availableVersion ?? formula.installedVersion
     }
 
     private var header: some View {
@@ -974,7 +984,7 @@ private struct FormulaDetailPane: View {
 
     @ViewBuilder
     private var notes: some View {
-        switch model.formulaReleaseState(name: formula.name) {
+        switch model.formulaReleaseState(name: formula.name, version: notesVersion) {
         case .loaded(let release):
             if let changelog = release.changelog {
                 ChangelogEntriesView(changelog: changelog)

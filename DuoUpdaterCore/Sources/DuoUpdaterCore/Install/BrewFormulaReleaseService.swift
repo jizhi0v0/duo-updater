@@ -59,7 +59,7 @@ public actor BrewFormulaReleaseService {
 
     /// Wraps `FormulaRelease` with the parser generation that produced it, mirroring
     /// `ChangelogDiskCache.Stored` — kept OUT of `FormulaRelease` itself because that
-    /// type is also what the UI holds in `AppListModel.formulaReleaseStates`, and a
+    /// type is also what the UI holds in `FormulaReleaseStore`, and a
     /// caching concern has no business riding along on a domain value passed around
     /// the app. Non-optional and undefaulted for the same reason as
     /// `ChangelogDiskCache.Stored`: an entry written before this field existed has

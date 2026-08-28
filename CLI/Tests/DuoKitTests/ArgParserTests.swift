@@ -153,8 +153,10 @@ import Testing
     /// leaves `-h` outside it; it cannot check a *default* stated in the
     /// prose, which is what `--max-calls` got wrong; it reads flags out of
     /// `main.swift` alone, so moving a branch's option-building into `DuoKit`
-    /// fails it on a legitimate change; and a read whose name is not a literal
-    /// is invisible to it, which is why the registries come from the enum.
+    /// fails it on a legitimate change; a read whose name is not a literal is
+    /// invisible to it, which is why the registries come from the enum; and it
+    /// strips `//` comments only, so a read commented out inside `/* */` still
+    /// counts as a read.
     @Test func theUsageTextAndTheFlagsArgsReadsAgree() throws {
         let main = try String(
             contentsOf: Self.sources.appendingPathComponent("duo/main.swift"), encoding: .utf8)

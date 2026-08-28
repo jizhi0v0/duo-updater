@@ -318,6 +318,46 @@ public enum InPlaceSwap {
     }
 
     private static func privilegedReplace(newApp: URL, target: URL) throws {
+        let shell = try privilegedReplacementShell(newApp: newApp, target: target)
+        let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
+
+        // One password panel at a time. The apply pool allows two concurrent
+        // swaps, and now that every root-owned bundle takes this path (28 apps in
+        // `/Applications` on the development machine, 22 of them store-installed)
+        // a batch can reach it twice at once — two system panels stacked over each
+        // other, neither saying which app it belongs to. Blocking here rather than
+        // making `replace` async is deliberate: the callers are synchronous, and
+        // the thread this parks was going to sit in `waitUntilExit` waiting on the
+        // same human anyway, so this moves the wait rather than adding one.
+        elevationPanel.lock()
+        defer { elevationPanel.unlock() }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", appleScript]
+        let errPipe = Pipe()
+        process.standardError = errPipe
+        try process.run()
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let msg = String(data: errData, encoding: .utf8) ?? "unknown error"
+            // Dismissing the password panel is a decision, not a fault: nothing was
+            // touched (the shell never ran), and the honest response is to stop
+            // offering the one-click rather than to show a red failure the user
+            // caused deliberately and would keep re-triggering.
+            if isAuthorizationDeclined(msg) {
+                throw AuthorizationDeclinedError(targetPath: target.path)
+            }
+            throw SwapError.notReplaceable(msg)
+        }
+    }
+
+    /// The authenticated shell transaction, split out so its metadata guarantees
+    /// can be exercised in a temporary directory without raising a password panel.
+    /// Reading the live modes and building this command happen before osascript is
+    /// launched, while the old bundle is still present and authoritative.
+    static func privilegedReplacementShell(newApp: URL, target: URL) throws -> String {
         // Materialize the replacement *fully* before the original is touched, then
         // swap via two same-directory renames. Never `rm` the original before its
         // replacement exists on disk: a `rm -rf target && ditto` would, if the
@@ -335,6 +375,29 @@ public enum InPlaceSwap {
         let old = shellQuote(target.path + ".duoupdater-old")
         let tgt = shellQuote(target.path)
         let src = shellQuote(newApp.path)
+        let newContents = shellQuote(target.path + ".duoupdater-new/Contents")
+
+        // Preserve the directory modes that define how this particular install is
+        // maintained. Downloaded archives normally unpack as 755, but both WeType
+        // and DoubaoIme are installed root:staff 775 under `/Library/Input Methods`;
+        // their own updaters stage the next Contents directory inside the outer app
+        // and need that group-write bit. Replacing either with an archive-default
+        // bundle silently leaves its vendor updater unable to stage the next build.
+        // The same rule applies in the other direction: a 755 App Store/pkg install
+        // must not inherit a more permissive mode from its downloaded source.
+        //
+        // Apply modes to `.duoupdater-new` BEFORE its live rename. macOS can attach
+        // `com.apple.macl` as soon as a bundle occupies a registered app path; a
+        // later chmod was measured returning EPERM even under `with administrator
+        // privileges`. Staging remains user-owned here, so an interrupted copy is
+        // still removable by the unprivileged recovery sweep.
+        let bundleMode = try directoryMode(at: target)
+        let contentsMode = try directoryMode(
+            at: target.appendingPathComponent("Contents", isDirectory: true))
+        let preserveModes = """
+        /bin/chmod \(String(bundleMode, radix: 8)) \(new) && \
+        /bin/chmod \(String(contentsMode, radix: 8)) \(newContents)
+        """
         // Keep the replaced bundle's ownership. `ditto` running as root preserves
         // the *source's* owner, and every source we hand it — a download we
         // extracted, a rollback copy we made — belongs to the user. Without this
@@ -371,42 +434,21 @@ public enum InPlaceSwap {
         let shell = """
         /bin/rm -rf \(new) \(old); \
         /usr/bin/ditto \(src) \(new) && \
+        \(preserveModes) && \
         /bin/mv \(tgt) \(old) && \
         { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt); false; }; } && \
         { \(ownership)/bin/rm -rf \(old); }
         """
-        let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
+        return shell
+    }
 
-        // One password panel at a time. The apply pool allows two concurrent
-        // swaps, and now that every root-owned bundle takes this path (28 apps in
-        // `/Applications` on the development machine, 22 of them store-installed)
-        // a batch can reach it twice at once — two system panels stacked over each
-        // other, neither saying which app it belongs to. Blocking here rather than
-        // making `replace` async is deliberate: the callers are synchronous, and
-        // the thread this parks was going to sit in `waitUntilExit` waiting on the
-        // same human anyway, so this moves the wait rather than adding one.
-        elevationPanel.lock()
-        defer { elevationPanel.unlock() }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", appleScript]
-        let errPipe = Pipe()
-        process.standardError = errPipe
-        try process.run()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let msg = String(data: errData, encoding: .utf8) ?? "unknown error"
-            // Dismissing the password panel is a decision, not a fault: nothing was
-            // touched (the shell never ran), and the honest response is to stop
-            // offering the one-click rather than to show a red failure the user
-            // caused deliberately and would keep re-triggering.
-            if isAuthorizationDeclined(msg) {
-                throw AuthorizationDeclinedError(targetPath: target.path)
-            }
-            throw SwapError.notReplaceable(msg)
+    private static func directoryMode(at url: URL) throws -> Int {
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard let raw = attrs[.posixPermissions] as? NSNumber else {
+            throw SwapError.notReplaceable(
+                "Could not read the installed app's permissions at \(url.path).")
         }
+        return raw.intValue & 0o7777
     }
 
     /// Whether an error (or anything in its underlying-error chain) is the

@@ -77,7 +77,18 @@ import Foundation
                 withDestinationPath: "Wrapper/Inner.app")
         }
         var plist: [String: Any] = ["CFBundleIdentifier": "com.example.subject"]
-        if let floor { plist["LSMinimumSystemVersion"] = floor }
+        if wrapped {
+            // What a REAL wrapped bundle carries. Read off the two on this
+            // machine 2026-08-30 (`Amp 2.app`, `Aqara Home.app`): both declare
+            // `CFBundleSupportedPlatforms = [iPhoneOS]` and state their floor as
+            // `MinimumOSVersion` (26.0 and 18.0), with NO
+            // `LSMinimumSystemVersion` at all. A fixture that wrote the macOS key
+            // into a wrapped layout would be testing a bundle that does not exist.
+            plist["CFBundleSupportedPlatforms"] = ["iPhoneOS"]
+            if let floor { plist["MinimumOSVersion"] = floor }
+        } else if let floor {
+            plist["LSMinimumSystemVersion"] = floor
+        }
         let data = try PropertyListSerialization.data(
             fromPropertyList: plist, format: .xml, options: 0)
         try data.write(to: interior.appendingPathComponent("Info.plist"))
@@ -102,18 +113,31 @@ import Foundation
         }
     }
 
-    /// A wrapped iPhone/iPad app keeps its plist under `Wrapper/<Inner>.app/`.
-    /// Reading a hardcoded `Contents/Info.plist` would not throw here — it would
-    /// find nothing, report "no floor declared", and wave every wrapped app
-    /// through forever. That silence is the whole reason this goes through
-    /// `BundleLayout.interiorPrefix`, so it gets its own case.
-    @Test func readsTheFloorOutOfAWrappedBundleToo() throws {
+    /// An iOS-on-Mac bundle is declined DELIBERATELY, not by accident.
+    ///
+    /// The first version of this gate claimed `BundleLayout` was what kept
+    /// wrapped apps from being waved through. It is not: real wrapped bundles
+    /// carry no `LSMinimumSystemVersion` at all, so reaching the right plist
+    /// finds nothing either way. Reading their `MinimumOSVersion` instead would
+    /// be worse — an iOS version compared against a macOS one, the
+    /// cross-namespace comparison this repo forbids, which looks fine only while
+    /// iOS 26 / macOS 26 happen to line up.
+    ///
+    /// So the gate declines by platform, and this pins that it declines for the
+    /// stated reason rather than by failing to find a file: the fixture DOES
+    /// carry a floor (in the key real bundles use) and it is still not read.
+    @Test func anIOSAppOnMacIsDeclinedByPlatformNotByAccident() throws {
         try withTempDir { dir in
             let app = try makeBundle(floor: "26.0", wrapped: true, in: dir)
             #expect(FileManager.default.fileExists(
                 atPath: app.appendingPathComponent("Contents/Info.plist").path) == false,
-                "premise: a wrapped bundle has no Contents/Info.plist to find")
-            #expect(SignatureVerifier.declaredMinimumSystemVersion(ofAppAt: app) == "26.0")
+                "premise: a wrapped bundle has no Contents/Info.plist")
+            let interior = app.appendingPathComponent("Wrapper/Inner.app/Info.plist")
+            #expect(FileManager.default.fileExists(atPath: interior.path),
+                "premise: the fixture really does declare a floor, at the real path")
+            #expect(SignatureVerifier.declaredMinimumSystemVersion(ofAppAt: app) == nil)
+            // And therefore the gate passes it, on any host.
+            try SignatureVerifier.verifyRunnableSystemVersion(appAt: app, osVersion: "15.0.0")
         }
     }
 
@@ -145,32 +169,93 @@ import Foundation
         }
     }
 
-    /// The gate's default argument must read the host through the same
-    /// definition the feed-level filter uses, or the two can disagree and produce
-    /// an update that is offered forever and refused at the last step every time.
-    @Test func theGateAndTheFeedFilterAgreeOnWhatThisMacIsRunning() {
-        #expect(HostOS.numericVersion() == SparkleAppcastSource.numericSystemVersion())
-        // Three components, so a two-component vendor floor compares without a
-        // special case.
-        #expect(HostOS.numericVersion().split(separator: ".").count == 3)
+    /// `HostOS.numericVersion()`'s FORMAT, which is the part another reading
+    /// could get wrong. (Asserting it equals
+    /// `SparkleAppcastSource.numericSystemVersion()` would be a tautology — that
+    /// function is now literally a call to this one — and would stay green even
+    /// if someone re-inlined `ProcessInfo` there, since both spellings produce
+    /// the same string on any given machine. Format is the falsifiable part.)
+    ///
+    /// Three components, so a two-component vendor floor ("13.1") compares
+    /// against it with no special case, and it matches what Sparkle itself sends
+    /// its own comparator (`SUOperatingSystem.m` formats `"%ld.%ld.%ld"`).
+    @Test func theHostVersionIsThreeNumericComponents() {
+        let host = HostOS.numericVersion()
+        let parts = host.split(separator: ".")
+        #expect(parts.count == 3)
+        #expect(parts.allSatisfy { $0.allSatisfy(\.isNumber) }, "got \(host)")
+        #expect(SignatureVerifier.canRun(minimumSystemVersion: "10.13", on: host))
+    }
+
+    // MARK: - Not worth a second full download
+
+    /// A gate-6 refusal must NOT be dressed up as a recoverable delta-route
+    /// failure. `InstallCoordinator` responds to `DeltaRouteFailure` by fetching
+    /// the whole archive and running the identical gates — and the OS floor is a
+    /// property of the version, so the retry is guaranteed to fail the same way
+    /// after spending the full download. (Gate 5 has the same shape and is
+    /// classified with it.) Trust gates stay retryable: a bad patch really can
+    /// produce a bundle whose signature is broken where the full archive's is not.
+    @Test func aLivenessRefusalIsNotWorthRefetchingTheFullArchive() {
+        #expect(!deltaRouteFailureIsWorthRetrying(
+            SignatureVerifier.VerifyError.unsupportedSystemVersion(required: "27.0", host: "26.6.0")))
+        #expect(!deltaRouteFailureIsWorthRetrying(
+            SignatureVerifier.VerifyError.unrunnableArchitecture(built: "x86_64", host: "arm64")))
+
+        #expect(deltaRouteFailureIsWorthRetrying(
+            SignatureVerifier.VerifyError.edSignatureInvalid))
+        #expect(deltaRouteFailureIsWorthRetrying(
+            SignatureVerifier.VerifyError.codeSignatureInvalid(-67062)))
+        #expect(deltaRouteFailureIsWorthRetrying(
+            SignatureVerifier.VerifyError.teamIdentifierMismatch(
+                installed: "AAA", downloaded: "BBB")))
+        // Anything that is not a gate failure at all — an unpack error, a disk
+        // error — keeps the old behaviour: retry with the full archive.
+        #expect(deltaRouteFailureIsWorthRetrying(URLError(.timedOut)))
     }
 
     /// Grounding: every app bundle installed on this machine either declares no
     /// floor or declares one this Mac satisfies — i.e. the gate would refuse
-    /// nothing that is already installed and working. A gate that fails this is
-    /// mis-comparing, and would surface as "everything suddenly can't update".
+    /// nothing that is already installed and working. A gate that mis-compares
+    /// would surface to users as "everything suddenly cannot update".
+    ///
+    /// Walks all of `AppScanner.defaultRoots`, not just `/Applications` — the
+    /// first version of this test missed `~/Applications` and `/Library/Input
+    /// Methods`, which is where the bundles least likely to state a modern floor
+    /// actually live.
+    ///
+    /// Skips rather than fails when a root has nothing in it, so this is not a
+    /// machine-shaped landmine on a bare CI runner; and it carries its own
+    /// non-vacuity control, because on a fail-open gate "nothing was refused" is
+    /// also what a completely disabled gate looks like.
     @Test func noAppAlreadyInstalledOnThisMacWouldBeRefused() throws {
-        let apps = (try? FileManager.default.contentsOfDirectory(
-            at: URL(fileURLWithPath: "/Applications"),
-            includingPropertiesForKeys: nil)) ?? []
-        let bundles = apps.filter { $0.pathExtension == "app" }
-        try #require(!bundles.isEmpty, "premise: this machine has apps in /Applications")
         let host = HostOS.numericVersion()
-        for app in bundles {
-            let declared = SignatureVerifier.declaredMinimumSystemVersion(ofAppAt: app)
-            #expect(
-                SignatureVerifier.canRun(minimumSystemVersion: declared, on: host),
-                "\(app.lastPathComponent) declares \(declared ?? "nil") and is installed on \(host)")
+
+        // Non-vacuity: the same call that must pass everything below must still
+        // refuse something. Without this, replacing `canRun` with `return true`
+        // leaves this test green.
+        #expect(!SignatureVerifier.canRun(minimumSystemVersion: "99.0", on: host))
+
+        let roots = ["/Applications", "/Applications/Utilities",
+                     NSHomeDirectory() + "/Applications", "/Library/Input Methods"]
+        var checked = 0
+        for root in roots {
+            let entries = (try? FileManager.default.contentsOfDirectory(
+                at: URL(fileURLWithPath: root), includingPropertiesForKeys: nil)) ?? []
+            for app in entries where app.pathExtension == "app" {
+                checked += 1
+                let declared = SignatureVerifier.declaredMinimumSystemVersion(ofAppAt: app)
+                #expect(
+                    SignatureVerifier.canRun(minimumSystemVersion: declared, on: host),
+                    "\(app.lastPathComponent) declares \(declared ?? "nil") and runs on \(host)")
+            }
+        }
+        if checked == 0 {
+            // A runner with no apps installed proves nothing either way; say so
+            // rather than passing as if it had.
+            Issue.record(
+                "no installed bundles found in any scan root — this test proved nothing here",
+                severity: .warning)
         }
     }
 }

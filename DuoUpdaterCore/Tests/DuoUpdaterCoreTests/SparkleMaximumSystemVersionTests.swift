@@ -84,6 +84,50 @@ import Foundation
         #expect(Self.usable(min: "28.0", max: nil, on: "27.0.0").isEmpty)
     }
 
+    /// A capped OLD item beside an uncapped NEW one — the standard use of the
+    /// field (route legacy Macs to a legacy build), and the shape every other
+    /// test here misses by using a one-item feed.
+    ///
+    /// Pins the consequence nobody had written down: `usableItems` also feeds
+    /// `structuredChangelog` and `releaseHistory`, so a capped release does not
+    /// merely go un-offered — it disappears from the release timeline too. That
+    /// matches what the architecture filter already does deliberately, and is
+    /// asserted here so a future change to either has to face it.
+    @Test func aCappedLegacyItemIsDroppedFromTheHistoryToo() {
+        let feed = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+          <channel>
+            <item>
+              <sparkle:shortVersionString>2.0</sparkle:shortVersionString>
+              <sparkle:version>200</sparkle:version>
+              <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+              <enclosure url="https://example.com/Subject-2.0.dmg" sparkle:version="200" length="100"/>
+            </item>
+            <item>
+              <sparkle:shortVersionString>1.9</sparkle:shortVersionString>
+              <sparkle:version>190</sparkle:version>
+              <sparkle:maximumSystemVersion>15.0</sparkle:maximumSystemVersion>
+              <enclosure url="https://example.com/Subject-1.9.dmg" sparkle:version="190" length="100"/>
+            </item>
+          </channel>
+        </rss>
+        """
+        let items = SparkleAppcastParser.parse(Data(feed.utf8))
+        #expect(items.count == 2, "premise: the feed really has both items")
+
+        // A modern Mac: the capped legacy item is gone entirely, history included.
+        let modern = SparkleAppcastSource.usableItems(for: Self.app, from: items, osVersion: "27.0.0")
+        #expect(modern.count == 1)
+        #expect(modern.first?.shortVersionString == "2.0")
+
+        // A legacy Mac: the new item is below its floor, the old one is within
+        // its cap — which is exactly the routing the vendor wrote the cap for.
+        let legacy = SparkleAppcastSource.usableItems(for: Self.app, from: items, osVersion: "14.0.0")
+        #expect(legacy.count == 1)
+        #expect(legacy.first?.shortVersionString == "1.9")
+    }
+
     /// Both bounds together, which is how obdev writes it: inside the window the
     /// build is offered, outside it in either direction it is not.
     @Test func theWindowIsClosedAtBothEnds() {

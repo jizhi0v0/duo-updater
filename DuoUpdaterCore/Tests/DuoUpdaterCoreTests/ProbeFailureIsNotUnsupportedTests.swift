@@ -167,6 +167,47 @@ import Foundation
         #expect(uncovered.status == .unknown)
     }
 
+    /// The row Toolbox owns must stay Toolbox's, even when the borrowed probe
+    /// fails.
+    ///
+    /// Android Studio Canary/Beta are the one case where a Toolbox-managed app is
+    /// still routed through a `VendorProbeRecipe`: we borrow it for a version
+    /// Toolbox's own cache reports unreliably, and the install goes through
+    /// Toolbox regardless. Before probes threw, a failed borrow arrived as nil and
+    /// the row landed on `.toolboxManaged` — the "open Toolbox" button, which is
+    /// valid whether or not the version read came back. Letting the throw win
+    /// instead replaced it with a Failed/Retry badge, taking away the only action
+    /// the row had in order to offer a retry of a version number.
+    @Test func aToolboxOwnedRowSurvivesItsBorrowedProbeFailing() async {
+        let recipe = VendorProbeRecipe(
+            bundleID: "com.google.android.studio", url: Self.unreachable,
+            mode: .responseBody, versionPattern: #"([0-9.]+)"#, channel: .canary)
+        let app = InstalledApp(
+            name: "Android Studio", bundleID: "com.google.android.studio",
+            shortVersion: "2025.2", buildVersion: "AI-252.0.0",
+            path: URL(fileURLWithPath: "/Applications/Android Studio Preview.app"),
+            isMASApp: false, isToolboxManaged: true, sparkleFeedURL: nil,
+            releaseChannel: .canary)
+        #expect(app.prefersVendorProbeOverToolbox)  // linchpin: this app reaches the loop
+
+        let result = await UpdateChecker(sources: [VendorProbeSource(recipes: [recipe])])
+            .check(app)
+
+        #expect(result.status == .toolboxManaged)
+    }
+
+    /// The other side of that guard: an app NO channel owns still reports the
+    /// failure, so the narrowing above cannot quietly swallow every error.
+    @Test func anUnmanagedRowStillReportsTheFailure() async {
+        let source = VendorProbeSource(recipes: [Self.recipe(url: Self.unreachable)])
+        let result = await UpdateChecker(sources: [source])
+            .check(Self.app(bundleID: "com.example.subject"))
+        guard case .error = result.status else {
+            Issue.record("expected .error, got \(result.status)")
+            return
+        }
+    }
+
     /// Throwing must not change WHICH source answers. The checker continues past
     /// a throw exactly as it does past a nil, so a working source ahead of (or
     /// behind) a failing probe still wins, and no error is reported.

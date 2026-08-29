@@ -146,9 +146,29 @@ public struct UpdateChecker: Sendable {
             }
         }
 
-        if let lastError {
+        // A Toolbox-managed row outranks a failed read, and only this one does.
+        //
+        // Toolbox is the *installer* for these apps; the only reason a source ran at
+        // all is `prefersVendorProbeOverToolbox` — Android Studio Canary/Beta, where
+        // we borrow the vendor probe for a version Toolbox's own cache reports
+        // unreliably. The action is "open Toolbox" either way, and it is valid
+        // whether or not that borrowed read came back. Reporting `.error` instead
+        // takes the Toolbox button off the row and offers a Retry for a version
+        // number, which is the one thing the user does not need in order to act.
+        // (Before vendor probes threw, this arrived as a nil and landed on
+        // `.toolboxManaged` below — this keeps that.)
+        //
+        // Deliberately NOT extended to `.appStoreManaged`/`.testFlightManaged`: a
+        // MAS row reaches `.error` when `MacAppStoreSource` itself threw — the
+        // lookup for the app the store *does* own failed — and that is worth
+        // surfacing as a failed check, not papering over with "managed by the App
+        // Store". TestFlight returns before the loop and never gets here.
+        if let lastError, !app.isToolboxManaged {
             Log.check.error("\(label, privacy: .public): all sources exhausted, last error → .error(\(lastError, privacy: .public))")
             return UpdateResult(app: app, remote: nil, status: .error(lastError))
+        }
+        if let lastError {
+            Log.check.error("\(label, privacy: .public): \(lastError, privacy: .public) — Toolbox owns this app, reporting it as managed")
         }
         // Apps whose updates a known channel already owns aren't "unknown" —
         // they're managed elsewhere. Toolbox takes precedence over the store flag

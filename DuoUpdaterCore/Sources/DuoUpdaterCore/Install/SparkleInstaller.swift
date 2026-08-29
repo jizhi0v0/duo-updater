@@ -252,6 +252,12 @@ public actor SparkleInstaller {
         // by filename, which cannot see inside a Mach-O; this reads the real
         // slices, so a mis-named artifact is refused instead of installed.
         try SignatureVerifier.verifyRunnableArchitecture(appAt: newApp)
+        // Gate 6 — and this Mac is not below the OS floor the bundle declares.
+        // Same shape of claim as gate 5 and the same blind spot behind it: the
+        // download was selected from what a source published, and most sources
+        // publish no OS requirement at all, so the artifact's own plist is the
+        // first place the answer exists.
+        try SignatureVerifier.verifyRunnableSystemVersion(appAt: newApp)
 
         // 5. Swap the bundle into place. We do this even while the app is
         // running: macOS keeps the live process on the code it already mapped,

@@ -188,6 +188,22 @@ public struct SparkleAppcastSource: UpdateSource {
                VersionComparator.compare(osVersion, minOS) == .orderedAscending {
                 return false
             }
+            // And the maximum — the vendor saying "this build is not for an OS
+            // this new", which is the only way any source we read can express
+            // "we haven't adapted to macOS 27 yet". Sparkle's own resolver
+            // honours it (`SPUAppcastItemStateResolver
+            // -isMaximumOperatingSystemVersionOK:`, which is `!= NSOrderedAscending`
+            // on max-vs-host — mirrored exactly here) and it ships a dedicated
+            // user-facing string for the case, so a feed that sets it means it.
+            //
+            // Rare, not dead: none of the 14 reachable feeds among this machine's
+            // installed Sparkle apps declared one when measured 2026-08-30. It is
+            // three lines and its absence is silent, which is the combination
+            // that leaves a field unimplemented for years.
+            if let maxOS = item.maximumSystemVersion, !maxOS.isEmpty,
+               VersionComparator.compare(maxOS, osVersion) == .orderedAscending {
+                return false
+            }
             // A per-architecture twin (TablePro publishes an arm64 and an x86_64
             // item per release, same version) this Mac cannot run at all — never
             // offer it, changelog history included. See `archVerdict`.
@@ -330,10 +346,13 @@ public struct SparkleAppcastSource: UpdateSource {
     }
 
     /// e.g. "26.6.0" — used to evaluate `minimumSystemVersion`.
-    static func numericSystemVersion() -> String {
-        let v = ProcessInfo.processInfo.operatingSystemVersion
-        return "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
-    }
+    ///
+    /// Forwards to `HostOS.numericVersion()`: the install-time OS gate
+    /// (`SignatureVerifier` gate 6) has to answer "what is this Mac running?"
+    /// the same way this one does, and two independent readings of
+    /// `operatingSystemVersion` is exactly the shape that drifts. Kept as a name
+    /// here because callers already reach for it through this type.
+    static func numericSystemVersion() -> String { HostOS.numericVersion() }
 
     /// A feed fetch that came back with a non-200. `LocalizedError`, not a bare
     /// `Error`: without a description this surfaced as "The operation couldn't be
@@ -365,6 +384,7 @@ struct SparkleAppcastItem {
     var enclosureLength: Int64?
     var edSignature: String?
     var minimumSystemVersion: String?
+    var maximumSystemVersion: String?
     var deltaFrom: String?
     /// Patches published alongside this release inside `<sparkle:deltas>`, each
     /// naming the one build it upgrades from. Empty for the vast majority of feeds.
@@ -510,6 +530,8 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             if current?.shortVersionString == nil, !text.isEmpty {
                 current?.shortVersionString = text
             }
+        case "sparkle:maximumSystemVersion":
+            current?.maximumSystemVersion = text
         case "sparkle:minimumSystemVersion":
             current?.minimumSystemVersion = text
         case "sparkle:channel":

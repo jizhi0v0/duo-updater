@@ -88,12 +88,37 @@ struct GitHubEndpointAuditTests {
             .contains { $0.hasPrefix("anonymousDespiteToken:") })
     }
 
-    /// A redirect we cannot name is still worth nothing to report *as a rename*:
-    /// without the canonical slug there is no actionable fix to state, and the
-    /// anonymous-ceiling complaint already covers the consequence.
-    @Test func aRedirectWithNoReleaseToNameItReportsNoRename() {
-        #expect(!Verify.endpointComplaints([Self.observation(canonical: nil)])
-            .contains { $0.hasPrefix("staleSlug:") })
+    // MARK: - a redirect nobody can name
+
+    /// A redirect we cannot name is not reported as a rename — there is no
+    /// canonical slug to put in the message — but it must not be reported as
+    /// *nothing* either. Every non-2xx answer arrives this way (no body, so no
+    /// `html_url`), and a 403 from an exhausted anonymous budget is the loudest
+    /// form of the problem this whole audit exists to explain.
+    @Test func aRedirectWithNoReleaseToNameItFallsBackToTheWeakerComplaint() {
+        let complaints = Verify.endpointComplaints([Self.observation(canonical: nil)])
+        #expect(!complaints.contains { $0.hasPrefix("staleSlug:") })
+        let unnamed = complaints.first { $0.hasPrefix("staleSlugUnnamed:") }
+        #expect(unnamed != nil, "a redirect with no name must still be reported")
+        #expect(unnamed?.contains("block/goose") == true, "it has to name what we asked for")
+    }
+
+    /// The 403 shape end to end: no token would have helped, because the token
+    /// never reached the endpoint that answered. Both halves have to speak.
+    @Test func anExhaustedBudgetBehindARenameReportsBothHalves() {
+        let complaints = Verify.endpointComplaints([Self.observation(
+            requested: "block/goose", canonical: nil, redirected: true,
+            ceiling: 60, sentToken: true)])
+        #expect(complaints.contains { $0.hasPrefix("staleSlugUnnamed:") })
+        #expect(complaints.contains { $0.hasPrefix("anonymousDespiteToken:") })
+    }
+
+    /// Named and unnamed are alternatives, never both — two lines describing one
+    /// redirect would read as two problems.
+    @Test func aNamedRenameSuppressesTheWeakerLine() {
+        let complaints = Verify.endpointComplaints([Self.observation()])
+        #expect(complaints.contains { $0.hasPrefix("staleSlug:") })
+        #expect(!complaints.contains { $0.hasPrefix("staleSlugUnnamed:") })
     }
 
     // MARK: - one rule, several requests

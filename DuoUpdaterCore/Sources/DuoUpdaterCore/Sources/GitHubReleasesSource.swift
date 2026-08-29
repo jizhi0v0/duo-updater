@@ -452,6 +452,16 @@ public struct GitHubReleasesSource: UpdateSource {
         guard (200..<300).contains(http.statusCode) else {
             let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "?"
             Log.source.error("GitHub \(rule.slug, privacy: .public): HTTP \(http.statusCode, privacy: .public) (ratelimit-remaining=\(remaining, privacy: .public))")
+            // Record the failure too, and record it BEFORE throwing. A 403 is the
+            // loudest form of the very problem this audit exists to explain — the
+            // anonymous budget running out under a rule that lost its token to a
+            // rename redirect — so skipping the bad-status path would leave the
+            // sweep silent exactly when it matters most. There is no body to name
+            // the canonical repo from, but the final URL and the rate-limit ceiling
+            // are both on this response.
+            GitHubEndpointAudit.record(
+                requestedSlug: rule.slug, requestedURL: url, response: http,
+                firstReleaseHTMLURL: nil, sentToken: token != nil)
             throw GitHubError.badStatus(http.statusCode)
         }
         // Walk releases in document order (GitHub returns newest first) and take

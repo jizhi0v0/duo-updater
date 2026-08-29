@@ -452,6 +452,19 @@ public enum Verify {
                 + "is ever reused) and, until then, following it costs the request "
                 + "its Authorization header")
         }
+        else if observations.contains(where: \.redirectedButUnnamed),
+                let requested = observations.first?.requestedSlug {
+            // The redirect happened but nothing in the answer could name the
+            // canonical repo — no release to read `html_url` from, which is every
+            // non-2xx response and any empty release list. Say the weaker thing
+            // rather than nothing: this is the case with the least information and
+            // it must not also be the case with the least output.
+            complaints.append(
+                "staleSlugUnnamed: GitHub redirected this request away from "
+                + "\(requested), so the registry's slug is out of date, but the "
+                + "answer carried no release to name the repo it really is. "
+                + "Resolve it with `gh api repos/\(requested) -q .full_name`")
+        }
         if observations.contains(where: \.authSilentlyDropped) {
             complaints.append(
                 "anonymousDespiteToken: this request carried a token and came back "

@@ -27,6 +27,25 @@ struct GitHubEndpointAuditTests {
             URL(string: "https://example.com/aaif-goose/goose")) == nil)
     }
 
+    /// The host test is an exact match or a real subdomain. `hasSuffix` is the
+    /// obvious way to write it and it is wrong: these three all end in
+    /// "github.com" without being it, and GitHub Enterprise instances on custom
+    /// domains are named exactly like this. A false slug is worse than no slug —
+    /// it makes the sweep tell someone to repoint a rule at a repo that does not
+    /// exist, which kills detection for that app outright.
+    @Test func aHostThatMerelyEndsInGitHubDotComIsNotGitHub() {
+        for host in ["mygithub.com", "evil-github.com", "notgithub.com"] {
+            #expect(GitHubEndpointAudit.slug(fromHTMLURL:
+                URL(string: "https://\(host)/aaif-goose/goose")) == nil,
+                "\(host) must not be read as github.com")
+        }
+    }
+
+    @Test func arealGitHubSubdomainIsStillGitHub() {
+        #expect(GitHubEndpointAudit.slug(fromHTMLURL:
+            URL(string: "https://api.github.com/aaif-goose/goose")) == "aaif-goose/goose")
+    }
+
     @Test func aURLTooShortToCarryASlugYieldsNothing() {
         #expect(GitHubEndpointAudit.slug(fromHTMLURL:
             URL(string: "https://github.com/aaif-goose")) == nil)
@@ -86,6 +105,67 @@ struct GitHubEndpointAuditTests {
         #expect(!Self.observation(
             requested: "aaif-goose/goose", canonical: "aaif-goose/goose",
             ceiling: nil, sentToken: true).authSilentlyDropped)
+    }
+
+    // MARK: - a redirect nobody can name
+
+    /// Every non-2xx answer lands here: no body, so no `html_url`, so no
+    /// canonical name — but the redirect still happened and still cost the
+    /// request its token. Without `redirectedButUnnamed` the case carrying the
+    /// least information would also be the case the sweep says nothing about.
+    @Test func aRedirectWithNothingToNameItStillSpeaks() {
+        let observed = GitHubEndpointAudit.Observation(
+            requestedSlug: "block/goose", canonicalSlug: nil, redirected: true,
+            rateLimitCeiling: 60, sentToken: false)
+        #expect(observed.staleSlug == nil, "there is no name to give")
+        #expect(observed.redirectedButUnnamed)
+    }
+
+    @Test func aNamedRedirectIsNotAlsoReportedAsUnnamed() {
+        let observed = GitHubEndpointAudit.Observation(
+            requestedSlug: "block/goose", canonicalSlug: "aaif-goose/goose",
+            redirected: true, rateLimitCeiling: 60, sentToken: true)
+        #expect(!observed.redirectedButUnnamed, "the named complaint covers it")
+    }
+
+    @Test func noRedirectIsNeverUnnamed() {
+        let url = "https://github.com/aaif-goose/goose/releases/tag/v1"
+        let observed = GitHubEndpointAudit.Observation(
+            requestedSlug: "aaif-goose/goose",
+            canonicalSlug: GitHubEndpointAudit.slug(fromHTMLURL: URL(string: url)),
+            redirected: false, rateLimitCeiling: 5000, sentToken: true)
+        #expect(!observed.redirectedButUnnamed)
+    }
+
+    // MARK: - the failure path really does record (network)
+
+    /// The finding this test exists for: `record` used to sit *after* the
+    /// `guard (200..<300)` in `fetchReleases`, so a non-2xx threw before anything
+    /// was written and the ledger came back empty. That is the 403 case — an
+    /// exhausted anonymous budget under a rule that lost its token to a rename
+    /// redirect — i.e. the audit was blind in precisely the situation it was
+    /// built to explain.
+    ///
+    /// Asserting on `endpointComplaints` cannot catch that: it takes observations
+    /// as input, so it passes whether or not any were ever recorded. The only
+    /// thing that pins it is driving a real non-2xx through the real source and
+    /// looking at the ledger. Hits the network; 404 is stable and costs one
+    /// request.
+    @Test func aNonSuccessResponseIsStillRecorded() async throws {
+        let source = GitHubReleasesSource(token: GitHubToken.resolve())
+        let rule = GitHubReleaseRule(
+            bundleID: "com.example.nonexistent",
+            owner: "jizhi0v0", repo: "duo-updater-no-such-repo-135")
+        let ledger = GitHubEndpointAudit.Ledger()
+        let outcome = await GitHubEndpointAudit.$ledger.withValue(ledger) {
+            await source.resolveDiagnostic(rule)
+        }
+        #expect(outcome.failure?.kind == "httpStatus404", "expected the 404 path")
+        let observed = try #require(
+            ledger.observations.first,
+            "a non-2xx must still be recorded — this is the whole finding")
+        #expect(observed.requestedSlug == "jizhi0v0/duo-updater-no-such-repo-135")
+        #expect(observed.canonicalSlug == nil, "no body, so nothing to name it with")
     }
 
     // MARK: - the app pays nothing

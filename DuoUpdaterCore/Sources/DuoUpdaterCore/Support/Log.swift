@@ -18,6 +18,12 @@ import os
 ///                 the breadcrumbs you want when reconstructing one check).
 ///   • `.info`   — milestones: a scan finished, an update found, an install
 ///                 stage advanced.
+///   • `.notice` — the default level, and the lowest one the unified log keeps
+///                 ON DISK for a third-party subsystem: `.debug` and `.info` are
+///                 memory-only and gone by the time anyone goes looking. Use it
+///                 for the handful of lines that have to survive to explain a
+///                 state the user can still see — why a row stopped answering,
+///                 say — without being an `.error` in their face.
 ///   • `.error`  — a source threw, an install failed: the things that turn into
 ///                 an `.error` row or a swallowed surprise.
 ///

@@ -384,7 +384,12 @@ public enum UpdateStatus: Sendable, Equatable {
     case upToDate
     /// A newer version exists. `latest` is the display string.
     case updateAvailable(latest: String)
-    /// No source could answer for this app (no feed, not on MAS, no cask).
+    /// No source *covers* this app — no feed, not on MAS, no cask, no recipe.
+    /// Nothing was tried and failed here: a source that applied and then couldn't
+    /// answer is `.error(_)`, which is retryable and says so. Keeping the two
+    /// apart is the whole point of the distinction — the row renders this one as
+    /// a dead "—", and a transient timeout wearing that badge reads as a
+    /// permanent verdict the user has no way to act on.
     case unknown
     /// The app came from the Mac App Store, which manages its updates. We can't
     /// read a trustworthy Mac version (the public lookup reports the iOS track

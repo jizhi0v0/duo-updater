@@ -185,6 +185,16 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
       已接入 `IINAChannel`（feed-swap：stable `appcast.xml` ↔ beta `appcast-beta.xml`），
       注册到 `ChannelBinding`，测试通过。
 
+- [ ] **Carbon Copy Cloner** · `com.bombich.ccc` — Settings → Software Update →
+      **"Inform me of beta releases"** checkbox（`https://bombich.com/software/updates/ccc7_rn_beta.html`
+      当前列出 "CCC 7.1.7-b7 (pre-release)"，证明轨道存在）。stable 已接
+      VendorProbe（2026-08-29，见 `docs/app-audits/com-bombich-ccc.md`）。beta 阻塞：
+      本机没有装这个 app，拿不到勾选后的 `defaults read com.bombich.ccc` 输出；公开
+      端点也测不出来——`download_ccc.php?v=beta` 转到普通下载页（非文件），
+      `?v=latest-beta` 直接落回 stable 的同一个 zip。真正的 beta 内容大概率要在勾选
+      偏好后抓包看 `SUFeedURL`（`https://api.bombich.com/updates/ccc`，注意这个端点
+      本身对任何请求都回空 body）实际请求发生了什么变化才能确认——需要用户协助。
+
 ---
 
 ## §2c 扫描 2026-08-27（CapCut 落地后复扫）

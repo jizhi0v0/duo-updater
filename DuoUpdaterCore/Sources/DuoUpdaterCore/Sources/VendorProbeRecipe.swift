@@ -5690,6 +5690,64 @@ public enum VendorProbeRegistry {
                 #"<key>ReleaseLifecycle</key>\s*<string>nightly</string>[\s\S]*?<key>BundleShortVersionString</key>\s*<string>([^<]+)</string>"#,
             entryStartPattern: #"<key>ReleaseLifecycle</key>\s*<string>"#,
             channel: .nightly),
+
+        // Carbon Copy Cloner (Bombich Software) — the app DOES ship a Sparkle
+        // `SUFeedURL` (`https://api.bombich.com/updates/ccc`, confirmed reading
+        // the real Info.plist inside the vendor's own download), so it is not the
+        // "no Sparkle at all" case it first looks like. But that feed answers
+        // every request we tried — plain GET, several User-Agents including a
+        // Sparkle-shaped one, an `appVersion` query param, and the same
+        // `URLSession`/UA `SparkleAppcastSource` itself sends — with HTTP 200 and
+        // a ZERO-BYTE body (verified 2026-08-29, five variants, all `Content-Length: 0`).
+        // `SparkleAppcastSource` would parse that into an empty item list and
+        // report "no update" forever: a silent dead source, not a missing one.
+        // Homebrew's cask carries `auto_updates: true`, so `HomebrewCaskSource`
+        // correctly refuses it too — there is no standard source left to answer.
+        //
+        // The endpoint that DOES work is the one the cask's own `livecheck` block
+        // already relies on: `download_ccc.php?v=latest` 302s (through a second
+        // hop at `api.bombich.com/download/ccc?v=latest`) to a versioned filename
+        // on the CDN — `ccc-7.1.6.8368.zip` — confirmed with a plain HEAD request
+        // via `URLSession` (the exact request `.redirectFilename` issues), which
+        // follows both hops and lands on the CDN URL without downloading the 27 MB
+        // body. `7.1.6` matches the installed app's `CFBundleShortVersionString`
+        // exactly (`8368` matches `CFBundleVersion`), and CCC bumps its marketing
+        // version on every release (7.0 → 7.0.4 → 7.1 → … → 7.1.6, roughly
+        // quarterly per `https://bombich.com/software/updates/ccc7_rn.html`) — not
+        // a frozen-marketing app — so the default marketing-only comparison
+        // (`versionIsBuild: false`) is correct, no build-number routing needed.
+        // The filename's marketing segment is 2 OR 3 dot-groups depending on era
+        // (`ccc-7.1.1234.zip` for a bare `7.1` release vs `ccc-7.1.6.8368.zip`),
+        // which is exactly why the cask's own `livecheck` comment calls out a
+        // "variable number of parts" — the pattern below accepts both, always
+        // taking everything before the trailing 3+ digit build segment.
+        //
+        // BETA CHANNEL — investigated, not wired up. Same bundle id
+        // (`com.bombich.ccc`), opted into from CCC's own Settings → Software
+        // Update → "Inform me of beta releases" (confirmed via
+        // `https://bombich.com/software/updates/ccc7_rn_beta.html`, which lists
+        // "CCC 7.1.7-b7 (pre-release)"). There is no public unauthenticated beta
+        // download: `download_ccc.php?v=beta` redirects to the plain download
+        // page (not a file) and `?v=latest-beta` just resolves to the SAME stable
+        // zip as `?v=latest` (verified 2026-08-29) — neither is a real beta
+        // artifact. The beta feed is presumably reached only through whatever the
+        // real app sends once the preference is enabled (a header or query param
+        // on the same broken `SUFeedURL`, unreproducible from outside), which
+        // needs the user's own packet capture with the beta toggle on to pin down
+        // — not attempted here.
+        //
+        // No `install`: this is detection-only. CCC installs a privileged helper
+        // (`com.bombich.ccchelper`), a LaunchDaemon and an XPC service alongside
+        // the `.app`, so an in-place bundle swap is a materially bigger claim than
+        // the zip-swap one-clicks already in this registry; adding it is a
+        // separate decision.
+        VendorProbeRecipe(
+            bundleID: "com.bombich.ccc",
+            url: URL(string: "https://bombich.com/software/download_ccc.php?v=latest")!,
+            mode: .redirectFilename,
+            versionPattern: #"^ccc-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
+            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latest"),
+            changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn.html")),
     ]
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus

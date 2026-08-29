@@ -11,4 +11,10 @@ enum RunningApps {
     static func bundleURLs() -> [URL] {
         NSWorkspace.shared.runningApplications.compactMap(\.bundleURL)
     }
+
+    /// The identifiers behind those processes. Needed for bundles whose running
+    /// copy cannot be recognised by path — see `InstallEnvironment.runningBundleIDs`.
+    static func bundleIDs() -> Set<String> {
+        Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+    }
 }

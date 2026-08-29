@@ -237,6 +237,14 @@ public enum AppRestarter {
         let candidates = app.bundleID.map {
             NSRunningApplication.runningApplications(withBundleIdentifier: $0)
         } ?? NSWorkspace.shared.runningApplications
+        // A wrapped iPhone/iPad app runs out of a per-launch shadow container, so
+        // its `bundleURL` never resolves to the installed bundle and this filter
+        // would drop every live instance (measured — see
+        // `InstallEnvironment.runningBundleIDs`). The identifier query above has
+        // already narrowed to this app, and a second copy of a store-installed
+        // wrapped app is not a state that arises, so the path filter has nothing
+        // left to disambiguate.
+        guard !app.isiOSAppOnMac else { return candidates }
         return candidates.filter { matchesBundlePath($0.bundleURL, target: target) }
     }
 

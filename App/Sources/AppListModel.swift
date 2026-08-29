@@ -312,6 +312,10 @@ final class AppListModel {
     /// (e.g. two Android Studio versions side by side) sharing one bundle id, and
     /// only the install whose bundle is actually executing should light up.
     private(set) var runningAppPaths: Set<String> = []
+    /// The identifiers behind the same processes, read in the same pass. Carries
+    /// the running answer for bundles no path can match — see
+    /// `InstallEnvironment.runningBundleIDs`.
+    private(set) var runningBundleIDs: Set<String> = []
 
     /// Whether *this exact install* currently has a running process — drives the
     /// green "live" dot in the menu and workbench. Matched on the bundle path so a
@@ -1571,7 +1575,8 @@ final class AppListModel {
             isHelperEnabled: helperEnabled,
             runningAppPaths: runningAppPaths,
             stagedSelfUpdates: pendingSelfUpdate,
-            elevationRequiredPaths: elevationRequiredPaths)
+            elevationRequiredPaths: elevationRequiredPaths,
+            runningBundleIDs: runningBundleIDs)
     }
 
     /// The install paths that need an administrator prompt to replace.
@@ -5057,10 +5062,12 @@ final class AppListModel {
     /// match how `AppScanner` records `InstalledApp.path` (it resolves symlinks too),
     /// so the comparison in `isRunning` lines up.
     private func refreshRunningApps() {
+        // One snapshot, both readings: a second `runningApplications` call could
+        // straddle an app launching or quitting and leave the two disagreeing.
+        let running = NSWorkspace.shared.runningApplications
         runningAppPaths = Set(
-            NSWorkspace.shared.runningApplications.compactMap {
-                $0.bundleURL.map(UpdatePolicy.runtimeBundlePath)
-            })
+            running.compactMap { $0.bundleURL.map(UpdatePolicy.runtimeBundlePath) })
+        runningBundleIDs = Set(running.compactMap(\.bundleIdentifier))
     }
 
     /// Post a "new updates available" banner for actionable updates the user hasn't

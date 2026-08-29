@@ -630,6 +630,22 @@ private func storeAvailability(
         ampRemote(latestBuild: "130", installedBuild: "130"),
         staged: ampStaged("129")) == nil,
         "staged 129 below installed 130 would be a downgrade")
+
+    // The moment the swap lands, installed == staged and this goes nil — the row
+    // has nothing left to offer. Pinned because `AppListModel`'s banner sweep was
+    // built on the opposite assumption: it withdrew "Relaunch to apply it" only for
+    // ids that *left* the actionable set between two passes, and every caller
+    // re-reads disk before that set is taken. So on the one pass where a relaunch
+    // had just succeeded, the id was already absent from both the before and the
+    // after, the difference was empty, and Amp's "downloaded 1.0 (131) on its own"
+    // banner stayed in Notification Center under the "Now running 1.0."
+    // confirmation. The sweep now asks who should have a banner standing, not who
+    // left; if this expectation ever flips, that sweep starts withdrawing banners
+    // for rows that still need them.
+    #expect(UpdatePolicy.actionableStaged(
+        ampRemote(latestBuild: "131", installedBuild: "131"),
+        staged: ampStaged("131")) == nil,
+        "the staged build is on disk — applied, so no Relaunch is outstanding")
 }
 
 // MARK: - runtimeBundlePath

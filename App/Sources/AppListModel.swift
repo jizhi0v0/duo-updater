@@ -3013,10 +3013,6 @@ final class AppListModel {
     /// parked Sparkle installers, which is why it does not belong on the main
     /// actor.
     private func computeSelfUpdateStaging() async {
-        // Track which apps were surfacing a *Relaunch* (actionable staged = the
-        // staged build is the latest) so we can clear their banner if they stop —
-        // applied, staging gone, OR a newer release now makes the staged build trail.
-        let previouslyActionable = Set(results.compactMap { actionableStaged($0) != nil ? $0.id : nil })
         let apps = results.map(\.app).filter(SelfUpdaterStaging.mayHaveStaging)
         let staged = await Task.detached(priority: .utility) {
             // Asked once for the whole sweep rather than per app: the answer is a
@@ -3051,23 +3047,37 @@ final class AppListModel {
                 result: handoff.result, landing: landing,
                 activates: handoff.activates, armedAt: handoff.armedAt)
         }
-        // Dismiss delivered "Relaunch to apply it" banners for apps that are no
-        // longer actionable-staged, so a stale one doesn't linger.
+        // Dismiss delivered "Relaunch to apply it" banners for every row that is not
+        // currently offering a Relaunch. The standing question ("who should have a
+        // banner right now?"), NOT the transition one ("who left the set since last
+        // pass?").
         //
-        // The banner goes; the ledger entry stays. Both sets are read against the
-        // same `results` and only `pendingSelfUpdate` is rebuilt between them — so
-        // the ONLY thing that can put an id here is the staging read coming back
-        // empty, and that read is a live process query (the parked Sparkle updater
-        // has to be enumerable) plus an unsynchronised plist read. One blind pass
-        // must not be able to forget that this build was already announced:
-        // `performLocalRescan` runs this on a 180-second backstop, so forgetting
-        // would re-announce the same build faster than the five-minute timer the
-        // ledger exists to delete. (A remote-version flap cannot reach here at all
-        // — it moves both sets together.)
+        // The transition form could never fire for the case it was written for. Its
+        // "previously" set was re-derived from `results` at the top of this function,
+        // and every caller re-reads disk before getting here — `performLocalRescan`
+        // rescans wholesale, `refreshRow` rechecks the one row. So by the time it was
+        // computed, an applied row's on-disk version had already caught up with the
+        // staged build, `actionableStaged` returned nil (it refuses a staged build
+        // that isn't newer than what's installed), and the id was missing from BOTH
+        // sets — `subtracting` yielded nothing. Relaunching Amp left "Amp downloaded
+        // 1.0 (131) on its own. Relaunch to apply it." sitting in Notification Center
+        // under the "Now running 1.0." confirmation, because the applied case is
+        // exactly the case where the two reads move together. Asking the standing
+        // question has no such window, and also covers a build the app applied while
+        // we weren't running.
+        //
+        // The banner goes; the ledger entry stays. The only other thing that can put
+        // an id here is the staging read coming back empty, and that read is a live
+        // process query (the parked Sparkle updater has to be enumerable) plus an
+        // unsynchronised plist read. One blind pass must not be able to forget that
+        // this build was already announced: `performLocalRescan` runs this on a
+        // 180-second backstop, so forgetting would re-announce the same build faster
+        // than the five-minute timer the ledger exists to delete. Withdrawing a banner
+        // that was never posted costs nothing; re-posting one the user already
+        // dismissed does.
         let nowActionable = Set(results.compactMap { actionableStaged($0) != nil ? $0.id : nil })
-        for id in previouslyActionable.subtracting(nowActionable) {
-            UpdateNotifier.clearSelfDownloaded(appID: id)
-        }
+        UpdateNotifier.clearSelfDownloaded(
+            appIDs: results.map(\.id).filter { !nowActionable.contains($0) })
         if !nowActionable.isEmpty {
             let names = results.filter { nowActionable.contains($0.id) }
                 .map { "\($0.app.name)→\(pendingSelfUpdate[$0.id]!.version)" }.joined(separator: ", ")

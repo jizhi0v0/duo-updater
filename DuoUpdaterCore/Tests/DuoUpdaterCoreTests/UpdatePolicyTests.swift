@@ -70,10 +70,12 @@ private func environment(
     helperEnabled: Bool = false,
     running: Set<String> = [],
     staged: [String: StagedSelfUpdate] = [:],
-    elevationRequired: Set<String> = []
+    elevationRequired: Set<String> = [],
+    runningIDs: Set<String> = []
 ) -> InstallEnvironment {
     InstallEnvironment(isHelperEnabled: helperEnabled, runningAppPaths: running,
-                       stagedSelfUpdates: staged, elevationRequiredPaths: elevationRequired)
+                       stagedSelfUpdates: staged, elevationRequiredPaths: elevationRequired,
+                       runningBundleIDs: runningIDs)
 }
 
 private func staged(_ version: String) -> StagedSelfUpdate {
@@ -239,10 +241,41 @@ private func storeAvailability(
             expected: false
         ),
         (
-            name: "iOS-on-Mac app is not auto-installable",
+            // The mas route cannot install one at all — no Mac-store entry, so
+            // `mas install` errors "No apps found for ADAM ID".
+            name: "iOS-on-Mac app is not auto-installable on the mas route",
             result: fixtureResult(
                 source: "App Store", appStore: storeAvailability(), app: fixtureApp(isiOSAppOnMac: true)),
             settings: defaultSettings(), environment: environment(helperEnabled: true),
+            expected: false
+        ),
+        (
+            // The AX route presses the product page's own Update button, and that
+            // page is the same for a wrapped iPad app as for a native Mac one
+            // (probed live, macOS 26, 2026-08-29). This row is the whole point of
+            // the split: without it, restoring the blanket exclusion passes.
+            name: "iOS-on-Mac app IS auto-installable on the AX route",
+            result: fixtureResult(
+                source: "App Store", appStore: storeAvailability(), app: fixtureApp(isiOSAppOnMac: true)),
+            settings: defaultSettings(strategy: .incremental), environment: environment(),
+            expected: true
+        ),
+        (
+            // …and the split must not have flipped the ordinary case with it.
+            name: "native Mac App Store app is auto-installable on the AX route",
+            result: fixtureResult(source: "App Store", appStore: storeAvailability()),
+            settings: defaultSettings(strategy: .incremental), environment: environment(),
+            expected: true
+        ),
+        (
+            // The developer-opted-out flag guards BOTH routes, so lifting the
+            // iOS-on-Mac exclusion must not let this one through.
+            name: "iOS-on-Mac app Apple marks Mac-incompatible stays out on the AX route",
+            result: fixtureResult(
+                source: "App Store",
+                appStore: storeAvailability(latestMacCompatible: false),
+                app: fixtureApp(isiOSAppOnMac: true)),
+            settings: defaultSettings(strategy: .incremental), environment: environment(),
             expected: false
         ),
         (
@@ -1063,4 +1096,44 @@ struct LaggingRemoteVersionTests {
     #expect(UpdatePolicy.canAutoInstall(
         fixtureResult(source: "Vendor", vendorInstallerKind: .zip, app: app),
         settings: defaultSettings(), environment: environment()))
+}
+
+
+// MARK: - Running detection
+
+/// A wrapped iPhone/iPad app runs out of a per-launch shadow container, so its
+/// process reports a `bundleURL` that can never equal the installed bundle —
+/// measured on macOS 26 (2026-08-29): Aqara Home reported
+/// `/private/var/folders/…/X/<uuid>/d/Wrapper/AqaraHome.app` while installed at
+/// `/Applications/Aqara Home.app`. Path matching therefore answers "not running"
+/// for a live wrapped app, which silently disarms the reopen after the store
+/// quits it (`AppStoreQuitPolicy.armsReopen` keys on exactly this) and hides the
+/// "App Store can't replace it while it's open" note.
+@Test func aWrappedAppIsRecognisedAsRunningByIdentifier() {
+    let app = fixtureApp(isiOSAppOnMac: true)
+    let result = UpdateResult(app: app, remote: nil, status: .unknown)
+
+    // What the host can actually observe for a running wrapped app: the shadow
+    // path (which matches nothing) plus the identifier (which does).
+    let shadow: Set<String> = ["/private/var/folders/x/y/d/Wrapper/Inner.app"]
+    #expect(UpdatePolicy.isRunning(
+        result, environment: environment(running: shadow, runningIDs: ["com.example.fixture"])))
+
+    // Same observation without the identifier set is the pre-fix behaviour, and
+    // it is wrong — kept as a row so the fix cannot be quietly reverted.
+    #expect(!UpdatePolicy.isRunning(result, environment: environment(running: shadow)))
+}
+
+/// Path stays the discriminator for every other app: two copies in different
+/// places are different installs, and only the one being replaced reads as
+/// running. Sharing an identifier must not make the other copy count.
+@Test func aNormalAppIsStillMatchedByPathNotIdentifier() {
+    let result = UpdateResult(app: fixtureApp(), remote: nil, status: .unknown)
+
+    #expect(UpdatePolicy.isRunning(result, environment: environment(running: [fixturePath])))
+    #expect(!UpdatePolicy.isRunning(
+        result,
+        environment: environment(
+            running: ["/Users/someone/Applications/Fixture.app"],
+            runningIDs: ["com.example.fixture"])))
 }

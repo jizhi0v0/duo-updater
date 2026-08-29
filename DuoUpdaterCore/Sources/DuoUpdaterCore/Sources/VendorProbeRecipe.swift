@@ -2228,7 +2228,22 @@ public enum VendorProbeRegistry {
         // the no-max bucket carrying the universal dmg. If Tencent ever reorders
         // those three, the enclosure-less bucket could win and one-click would go
         // quiet: visible in the nightly sweep, and strictly better than the silent
-        // wrong-artifact install the un-sliced version risks. Structured notes come from a
+        // wrong-artifact install the un-sliced version risks.
+        //
+        // The pattern is `<item[\s>]`, not the literal `<item>` the feed uses
+        // today, because the literal form fails OPEN in the worst way: an
+        // attribute on the tag (`<item id="269579">`) would match zero times,
+        // `highestVersionEntry` would return nil for having fewer than two
+        // entries, and every reader would revert to whole-body first-match —
+        // this bug, back, behind nothing but a `entryPatternNoMatch` warning
+        // nobody reads until the nightly sweep. The character class costs
+        // nothing and cannot match `<items>`.
+        //
+        // One property worth knowing before reading a sweep report: slicing
+        // needs at least TWO matches to mean anything, so if Tencent ever trims
+        // the feed to a single item this recipe still answers correctly (the
+        // whole body IS that item) while reporting `entryPatternNoMatch`. That
+        // warning would be a false alarm, not a regression. Structured notes come from a
         // ChangelogRecipe over the official per-version updates page; changelogURL is
         // the webview fallback.
         VendorProbeRecipe(
@@ -2239,7 +2254,7 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://mac.weixin.qq.com/"),
             changelogURL: URL(string: "https://weixin.qq.com/updates?platform=mac"),
             selectHighest: true,
-            entryStartPattern: #"<item>"#,
+            entryStartPattern: #"<item[\s>]"#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"<enclosure url="(https://[^"]+\.dmg[^"]*)""#),
                 kind: .dmg)),

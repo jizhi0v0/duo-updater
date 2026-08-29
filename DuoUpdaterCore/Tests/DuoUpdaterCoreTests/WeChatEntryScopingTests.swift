@@ -75,8 +75,8 @@ import Foundation
 
     /// Every item's own enclosure, in document order — derived from the fixture
     /// rather than hand-listed, so a re-capture cannot leave a stale copy behind.
-    private static func enclosures(in body: String) -> [String] {
-        body.components(separatedBy: "<item>").dropFirst().map { item in
+    private static func enclosures(in body: String, tag: String = "<item>") -> [String] {
+        body.components(separatedBy: tag).dropFirst().map { item in
             guard let r = item.range(of: #"<enclosure url="[^"]+""#, options: .regularExpression)
             else { return "NONE" }
             return String(item[r]).replacingOccurrences(of: #"<enclosure url=""#, with: "")
@@ -99,8 +99,35 @@ import Foundation
     }
 
     @Test func theRecipeSlicesTheFeedIntoItems() throws {
-        #expect(try recipe().entryStartPattern == "<item>")
+        #expect(try recipe().entryStartPattern == #"<item[\s>]"#)
         #expect(try recipe().selectHighest)
+    }
+
+    /// The slicer must survive an attribute on the tag. A literal `<item>`
+    /// pattern fails OPEN in the worst possible way: zero matches means
+    /// `highestVersionEntry` sees fewer than two entries, returns nil, and every
+    /// reader reverts to whole-body first-match — this PR's bug, restored,
+    /// behind nothing but a warning in the nightly sweep.
+    ///
+    /// Same body as the regression above (legacy item first), only with an
+    /// attribute added to every tag, so the assertion is the same pairing.
+    @Test func anAttributeOnTheItemTagDoesNotDisableTheSlicing() async throws {
+        let items = Self.feed.components(separatedBy: "<item>")
+        var rest = Array(items.dropFirst())
+        rest.insert(rest.remove(at: 3), at: 0)
+        let attributed = items[0] + rest.map { #"<item xml:lang="zh">"# + $0 }.joined()
+        #expect(!attributed.contains("<item>"), "premise: no bare tag is left to match")
+        #expect(Self.enclosures(in: attributed, tag: #"<item xml:lang="zh">"#).first
+            == "WeChatMac_10_15.dmg", "premise: the legacy artifact leads")
+
+        let server = try RecipeVerificationTests.StubServer(
+            body: attributed, contentType: "application/xml")
+        defer { server.stop() }
+        let outcome = await VendorProbeSource().probeDiagnostic(try recipe().with(url: server.url))
+
+        #expect(outcome.remote?.shortVersion == "4.1.13")
+        #expect(outcome.remote?.downloadURL?.lastPathComponent
+            == "xWeChatMac_universal_4.1.13.11_269579.dmg")
     }
 
     /// Against the real body as Tencent orders it today: version and download URL

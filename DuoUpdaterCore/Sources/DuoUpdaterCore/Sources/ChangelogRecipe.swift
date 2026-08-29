@@ -2398,6 +2398,64 @@ public enum ChangelogRecipeRegistry {
             ],
             mode: .json,
             maxEntries: 40),
+
+        // QQ音乐 (QQMusic Mac) — the vendor publishes release notes NOWHERE a
+        // reader can reach: `y.qq.com/download/index.html` is a JS shell whose
+        // served HTML contains no note text at all (measured 2026-08-29), and
+        // there is no blog, no appcast and no per-version page. The notes exist
+        // only as the `Fdesc` string of the Mac object inside the page's own JSONP
+        // data file, which is also this app's `VendorProbeRecipe` endpoint.
+        //
+        // One entry, by construction: the file states only the CURRENT release per
+        // platform, so there is no history to page through.
+        //
+        // The Mac object (verbatim, 2026-08-29):
+        //   "ID":2,"Ftype":2,"Ftitle":"Mac","Fversion":"最新版:11.8.1",…,
+        //   "Fdesc":"「AI声景疗愈」…开启\n|「AI伴听」…开启\n|「其他」其他体验优化\n|\n\n|发布时间：2026-08-03",
+        //   "Flink1":"https://c.y.qq.com/…QQMusicMac11.8.1Build01.dmg&sign=…"
+        // Note the separator is a JSON-escaped `\n` followed by a `|`, so on the
+        // regex path every newline is the two characters `\` `n` — the item
+        // pattern has to spell it `\\n`, and the trailing `\n|\n\n|` run before
+        // 发布时间 has to be eaten by the entry pattern or it becomes a bullet.
+        //
+        // ANCHORING — the file holds TWO `"Ftitle":"Mac"` objects: the live client
+        // (ID 2) and a 2020-era legacy record (ID 15, 7.0.0, "QQ音乐Mac7.0全新改版").
+        // Without a discriminator the pane would list a six-year-old release under
+        // its own version header. The entry pattern requires the object's own
+        // `Flink1` to be a VERSIONED Mac dmg (`QQMusicMac<digit>`); the legacy
+        // record links `QQMusicMac_Mgr.dmg`, so it is excluded structurally rather
+        // than by an `ID` literal that a table edit could renumber. `[^{}]` between
+        // fields is what keeps a lazy gap from wandering into the next platform's
+        // object.
+        //
+        // The date is captured out of `Fdesc`'s own 发布时间 tail so it can only be
+        // this entry's — it is display-only here, and `ReleaseDate` cannot parse a
+        // bare zone-less day anyway (see the probe recipe's comment).
+        //
+        // ONE item pattern, not the usual redundant list: it already degenerates
+        // correctly. `(?:^|\\n)` matches the start of the body, so a future `Fdesc`
+        // with no separators at all yields the whole string as a single note rather
+        // than nothing. A second pattern here could never fire.
+        //
+        // The item body is `(?:[^\\]|\\(?!n))+?`, not `[^\\]+?`: a note has to run
+        // THROUGH an escaped quote (`\\"`) while still stopping at the `\\n`
+        // separator. The plain negated class cannot tell the two apart — it stops
+        // at every backslash, which drops the note carrying the quote instead of
+        // splitting it (the extractor is satisfied by the OTHER notes matching, so
+        // nothing reports the loss). No live note carries a quote today; the
+        // regression test does.
+        ChangelogRecipe(
+            bundleID: "com.tencent.qqmusicmac",
+            source: URL(string: "https://y.qq.com/download/download.js")!,
+            entryPattern:
+                #""Ftitle":"Mac"[^{}]*?"Fversion":"[^"]*?(?<version>[0-9]+(?:\.[0-9]+)+)""#
+                + #"[^{}]*?"Fdesc":"(?<body>(?:[^"\\]|\\.)*?)(?:\\n\|?)*"#
+                + #"发布时间[:：]\s*(?<date>[0-9]{4}-[0-9]{1,2}-[0-9]{1,2})"#
+                + #"(?:[^"\\]|\\.)*"[^{}]*?"Flink1":"[^"]*QQMusicMac[0-9]"#,
+            itemPatterns: [#"(?:^|\\n)\|?(?<item>(?:[^\\]|\\(?!n))+?)(?=\\n|$)"#],
+            mode: .json,
+            maxEntries: 1,
+            minItemLength: 2),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

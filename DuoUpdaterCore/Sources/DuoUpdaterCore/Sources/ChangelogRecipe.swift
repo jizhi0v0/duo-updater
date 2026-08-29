@@ -2341,9 +2341,10 @@ public enum ChangelogRecipeRegistry {
         //
         // Three shapes in the live data the patterns are built around, not guessed:
         //
-        //  1. **`more` is empty for 11 of 100 releases, and the note moves into the
-        //     detail object's `title`.** Those are not note-less releases — 4.54.9's
-        //     title is "百度网盘优化了一些已知的体验问题，欢迎升级体验~", the whole note.
+        //  1. **`more` is empty for 11 of the 141 releases the feed returns, and
+        //     the note moves into the detail object's `title`.** Those are not
+        //     note-less releases — 4.54.9's title is
+        //     "百度网盘优化了一些已知的体验问题，欢迎升级体验~", the whole note.
         //     So `body` captures the WHOLE detail object and the item patterns are
         //     ordered: bullets first, the title only when there are none.
         //     Capturing just the `more` array would not have shown eleven blank
@@ -2351,9 +2352,16 @@ public enum ChangelogRecipeRegistry {
         //     yield nothing (`guard !noteHits.isEmpty`), so those eleven releases
         //     would be MISSING from the changelog entirely, with no blank row to
         //     notice. The fallback is what keeps them.
-        //  2. **The key order inside `detail` is not fixed** — 97 of 100 are
-        //     `more, stable, title` and 3 are `feature_tips, more, title` — so
-        //     nothing may assume `more` comes first.
+        //  2. **The key order inside `detail` is not fixed, and neither is the key
+        //     set** — measured over all 141 entries (`num=200`; the feed's own
+        //     `total` says 145): `more` and `title` are on every one, `stable` on
+        //     97, `feature_tips` on 44. So nothing may assume `more` comes first,
+        //     and `feature_tips` is a third of the feed rather than a curiosity.
+        //     It is a plain STRING in all 44 (`"mac版可以xxx啦"`, vendor filler,
+        //     never a release note), which is the only reason the punctuation
+        //     anchoring below declines it — a value preceded by `:`. Were the
+        //     vendor to make it an array, its elements would start rendering as
+        //     notes.
         //  3. **The version string gained a space at some point**: recent releases
         //     say `百度网盘Mac电脑客户端V8.7.9`, older ones `百度网盘Mac电脑客户端 V4.15.0`,
         //     and the oldest drop the prose entirely (`Mac版 V3.9.5`). Anchoring on

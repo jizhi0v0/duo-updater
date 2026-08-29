@@ -207,13 +207,17 @@ struct BaiduNetdiskProbeRecipeTests {
     ///   * 8.7.9 — the ordinary case: one bullet in `more`.
     ///   * 8.7.0 — two bullets, so an item pattern that stops after one shows up.
     ///   * 4.54.9 — `more` is EMPTY and the real note sits in the detail object's
-    ///     `title`. 11 of the 100 live releases look like this. Capturing only the
+    ///     `title`. 11 of the 141 releases the feed returns look like this
+    ///     (re-measured 2026-08-29 at `num=200`). Capturing only the
     ///     `more` array would not leave them blank — the extractor drops an entry
     ///     whose item patterns yield nothing — it would drop them from the
     ///     changelog outright, which is why the fallback pattern is load-bearing
     ///     and why `theTitleFallbackIsWhatKeepsThoseReleasesAtAll` exists.
     ///   * 4.3.0 — the older shape: `feature_tips` sorts BEFORE `more` inside
     ///     `detail`, and the version label carries a space (`客户端 V4.3.0`).
+    ///     44 of the 141 carry `feature_tips`, so this is a third of the feed
+    ///     rather than a curiosity — `theOlderKeyOrderAndSpacedVersionLabelStillParse`
+    ///     is what keeps its value out of the notes.
     private static let changelogBody = """
         {"errmsg":"","errno":0,"errorno":0,"list":[\
         {"detail":[{"more":["【团队空间】空间布局全新改版，新增大图视图模式，并支持视频的滑动预览"],\

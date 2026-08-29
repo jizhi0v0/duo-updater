@@ -93,4 +93,97 @@ public enum RecipeSanity {
         return "remote is BEHIND the installed copy (\(remoteValue) < \(installedValue)) — "
             + "the recipe may be reading a different version scheme than the app reports"
     }
+
+    /// A recipe that only DETECTS, whose own response already names a
+    /// downloadable artifact — "this one could probably install, and nobody has
+    /// said why it doesn't".
+    ///
+    /// This exists because the sweep had no way to ask that question, and the gap
+    /// is not hypothetical. Wispr Flow, AionUi and Devin sat detection-only for
+    /// twelve days behind a stated blocker — "the vendor splits Intel and arm64
+    /// and the install spec cannot choose" — that was false for all three: each
+    /// probe URL was already the arm64 one. Nothing could have caught it. The
+    /// registry-derived tests assert what a recipe DOES, and "no install spec" is
+    /// a legal state indistinguishable from a deliberate one; `duo verify` swept
+    /// them green every night because detecting was all they claimed to do; and
+    /// none of the three was installed on any machine that would have shown a
+    /// missing Update button. A false justification in a comment is invisible to
+    /// every check that reads code.
+    ///
+    /// Advisory, and deliberately a *note* rather than a warning: several recipes
+    /// are detection-only for reasons that are real and permanent — LibreWolf is
+    /// ad-hoc signed, Alcove's public artifact is a stale trial build, Sogou's
+    /// installer does far more than rotate a bundle — and this must never file an
+    /// issue against them. It says "look once, then record the answer", and the
+    /// place to record it is the recipe's own comment (plus the sweep baseline,
+    /// which is what stops a settled answer from being asked again).
+    ///
+    /// False negatives are fine and false positives are not, so the match is
+    /// narrow: an absolute `https` URL ending in an installer extension. The
+    /// sample it reads is head-and-tail condensed, so an artifact buried in the
+    /// middle of a long feed simply goes unreported rather than guessed at.
+    public static func oneClickCandidate(
+        recipe: VendorProbeRecipe, bodySample: String?
+    ) -> String? {
+        guard recipe.install == nil, let body = bodySample,
+              let artifact = firstArtifactURL(in: body)
+        else { return nil }
+        return "detection-only, but the response names an installable artifact"
+            + " (\(artifact)) — if that is deliberate, say so in the recipe"
+    }
+
+    /// First artifact URL in `text` that a one-click could plausibly fetch.
+    ///
+    /// Three rules, each of which a live sweep on 2026-08-29 had to teach this
+    /// function — the first version got LibreWolf wrong and Sogou missing:
+    ///
+    ///  - **Source archives are not artifacts.** A forge's release JSON always
+    ///    carries `tarball_url` / `zipball_url` pointing at `/archive/<tag>.tar.gz`,
+    ///    and on LibreWolf's Codeberg release that is the FIRST match in the body —
+    ///    so the note pointed at the project's source instead of the
+    ///    `…-macos-arm64-package.dmg` sitting further down the same response.
+    ///  - **`http` counts.** Sogou's update endpoint answers
+    ///    `update_pack_url=http://pro.cdn.ime.sogou.com/autosetup….zip`, and an
+    ///    https-only match reported nothing for the one recipe in the registry
+    ///    whose vendor still serves plain http. `VendorProbeSource.preferHTTPS`
+    ///    upgrades such a URL at install time, so refusing to see it here only
+    ///    hides a real candidate.
+    ///  - **Stop at quotes and brackets.** The character class excludes `"` and
+    ///    `'` so a match cannot run out of one JSON string and across the next
+    ///    keys — the failure that makes a "URL" hundreds of characters long.
+    ///  - **The extension must END its path component.** The match is lazy, so
+    ///    without the boundary `…/App-1.0.dmg.sig` yields `…/App-1.0.dmg` — a URL
+    ///    this function never saw, invented by truncating a detached signature.
+    ///    Feeds publish `.dmg.sig` and `.dmg.sha256sum` beside every build, and
+    ///    the sample window can hold the sibling while missing the artifact. With
+    ///    the boundary such a body reports nothing, which is the direction this
+    ///    function is supposed to fail in.
+    ///
+    /// Two kinds of candidate stay invisible, both deliberately. A vendor that
+    /// publishes only asset NAMES (Alcove lists `Alcove.dmg` with no URL) has
+    /// nothing to match. And the text this reads is the head-and-tail condensed
+    /// sample, so a long feed that buries the mac build in the middle goes
+    /// unreported — measured on LibreWolf, whose Codeberg release is 21,300 bytes
+    /// with the first `…-macos-arm64-package.dmg` at offset 11,217, past both
+    /// ends of the window. Reading whole bodies here would mean carrying every
+    /// swept feed in memory and through redaction to raise an advisory note.
+    /// Silence costs a note nobody reads; a wrong URL costs somebody an
+    /// investigation.
+    static func firstArtifactURL(in text: String) -> String? {
+        let pattern = #"https?://[^\s"'<>)\]}]+?\.(?:dmg|pkg|zip|tar\.gz)(?![A-Za-z0-9.])(?:\?[^\s"'<>)\]}]*)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let full = NSRange(text.startIndex..., in: text)
+        for match in regex.matches(in: text, range: full) {
+            guard let range = Range(match.range, in: text) else { continue }
+            let candidate = String(text[range])
+            if Self.sourceArchivePaths.contains(where: candidate.contains) { continue }
+            return candidate
+        }
+        return nil
+    }
+
+    /// Path fragments that mean "this is the repository's source, not a build".
+    /// Codeberg and GitHub both mint these for every release, whether or not the
+    /// project ships a binary.
+    private static let sourceArchivePaths = ["/archive/", "/tarball", "/zipball"]
 }

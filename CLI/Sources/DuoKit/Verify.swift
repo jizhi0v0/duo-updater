@@ -280,6 +280,21 @@ public enum Verify {
             if let note = await rolloutTrackComplaint(recipe, source: source) {
                 finding = finding.observing(note)
             }
+            // "This one only detects, and its own answer names an installer." The
+            // sweep could not previously ask that, which is how three recipes kept
+            // a blocker that had stopped being true — see
+            // `RecipeSanity.oneClickCandidate`. A note, never a warning: the
+            // recipes that are detection-only on purpose must not be issued
+            // against, and the baseline is what settles the ones already answered.
+            // Only for a probe that ANSWERED. `bodySample` is populated on
+            // failures too — that is its main job — so a vendor serving a CDN
+            // error page with a `.zip` link on it would otherwise get "you could
+            // install this" stapled to the failure someone is trying to read.
+            if outcome.succeeded, let candidate = RecipeSanity.oneClickCandidate(
+                recipe: recipe, bodySample: outcome.bodySample) {
+                finding = finding.observing(
+                    Finding.machineNotePrefix + "oneClickCandidate: " + candidate)
+            }
             return finding
         }
     }

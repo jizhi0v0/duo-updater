@@ -5118,6 +5118,85 @@ public enum VendorProbeRegistry {
             channel: .beta, urlKey: "lastest_url",
             packageToken: "capcutpc_beta", patchSegment: #"[0-9]+(?:-beta[0-9]+)?"#,
             versionIsBuild: true),
+
+        // 百度网盘 (Baidu Netdisk) — reads the endpoint the vendor's own download
+        // page is built from: `pan.baidu.com/disk/cmsdata?do=client` answers a small
+        // JSON with one object per product line (`android`, `guanjia` = the Windows
+        // client, `linux`, `mac`, `tv`, `genflow-pro-pc-mac`, …), each carrying that
+        // line's version, its architecture URLs and a publish stamp. It answers
+        // anonymously — no cookie, no Referer, the browser-like default UA is fine
+        // (measured 2026-08-29).
+        //
+        // Nothing standard can cover this app. It ships `Squirrel.framework` and an
+        // electron-updater `Contents/Resources/app-update.yml` naming
+        // `https://netdisk-pc.cdn.bcebos.com/update/`, but that feed is DEAD:
+        // `latest-mac.yml`, `latest-mac-arm64.yml` and the directory itself all 404.
+        // The updater that actually runs is `libkernel.dylib`'s
+        // `http://update.pan.baidu.com/autoupdate`, which answers 200 with a
+        // ZERO-BYTE body to every request we can form — its parameters are not in
+        // the clear, and it is plain HTTP besides. There is no Sparkle appcast, and
+        // the Homebrew cask cannot apply (this copy was installed by hand, and the
+        // brew provenance gate only adopts what brew installed).
+        //
+        // ANCHORING — the body carries several `…_arm64.dmg` URLs and only one is
+        // this app. `MACguanjia` (the Netdisk Mac client) sits beside
+        // `MACGenFlowPro` (库库GenFlow, a different Baidu product on the same CDN),
+        // and the netdisk entry itself publishes x64 / arm64 / universal side by
+        // side. So both patterns pin the product path AND the architecture: a bare
+        // `_arm64\.dmg` matches `KukuAI_1.3.6_arm64.dmg` FIRST in the real body.
+        //
+        // The version pattern uses a BACKREFERENCE so the directory version and the
+        // filename version have to agree — the version this reports is then, by
+        // construction, the version of the file the install spec downloads. A
+        // mismatch degrades to "unknown", which is the safe direction.
+        //
+        // One-click verified 2026-08-29 by hashing the artifact this recipe
+        // resolves: `…/MACguanjia/8.7.9/BaiduNetdisk_mac_8.7.9_arm64.dmg` is MD5
+        // `23bfa249b059597234bfd396bf631300` — the CDN's own ETag, and the same
+        // bytes as the downloaded image, whose `BaiduNetdisk_mac.app` is bundle id
+        // `com.baidu.BaiduNetdisk-mac`, Team `738UU3Y57V` (the installed copy's
+        // team), `lipo -archs` arm64, and `spctl -a -t install` "Notarized
+        // Developer ID". The install source must stay `.bodyPattern`: that CDN
+        // answers **405 Method Not Allowed** to HEAD, so a `.redirect` source could
+        // not resolve it at all.
+        //
+        // FROZEN-MARKETING GRANULARITY, stated rather than assumed: the feed
+        // exposes only a marketing version (`8.7.9`) while the bundle also carries a
+        // build (`CFBundleVersion` 473) the feed never mentions. `VersionComparator`
+        // ties on marketing, finds no remote build, and answers "not newer" — so a
+        // build-only respin is invisible here, never a phantom update. Baidu's mac
+        // line does move its marketing version (the same body has the Windows client
+        // at 8.7.9.102 and linux at 8.7.0), so this is a granularity limit, not a
+        // dead discriminator.
+        //
+        // No `publishedAtPattern`: `publish` is `"2026-08-28 14:39:00"` —
+        // space-separated and zone-less, a shape `ReleaseDate` does not parse, so
+        // the pattern would silently yield nothing. It is Asia/Shanghai (that stamp
+        // is two minutes before the artifact's own `Last-Modified: Fri, 28 Aug 2026
+        // 06:41:09 GMT`), exactly the assumption `ReleaseDate`'s zone-less branch
+        // warns about — reading it as UTC would place every Baidu release eight
+        // hours early in the timeline.
+        //
+        // `changelogURL` is the vendor's own 版本更新 page, which has a Mac版 tab.
+        // Note the page is a JS shell — its eight `<section>`s ship EMPTY and are
+        // filled from `/disk/cmsdata?platform=mac&…`, so it is only good as the
+        // human-facing fallback; the parsed notes come from a `ChangelogRecipe`
+        // reading that same endpoint (see `ChangelogRecipeRegistry`). The
+        // `feature_tips` field on THIS response is empty for `mac` and is not it.
+        VendorProbeRecipe(
+            bundleID: "com.baidu.BaiduNetdisk-mac",
+            url: URL(string: "https://pan.baidu.com/disk/cmsdata?do=client")!,
+            mode: .responseBody,
+            versionPattern:
+                #"/MACguanjia/([0-9]+(?:\.[0-9]+)+)/BaiduNetdisk_mac_\1_arm64\.dmg"#,
+            // The probe URL is a JSON API, so it must not be what a "download page"
+            // link opens; pan.baidu.com/download is the product's own page.
+            downloadURL: URL(string: "https://pan.baidu.com/download"),
+            changelogURL: URL(string: "https://pan.baidu.com/disk/version"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"(https://pkg-ant\.baidu\.com/issue/netdisk/MACguanjia/[0-9][^"]*/BaiduNetdisk_mac_[0-9][^"]*_arm64\.dmg)"#),
+                kind: .dmg)),
     ]
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus

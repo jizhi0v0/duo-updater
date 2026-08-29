@@ -378,16 +378,25 @@ public enum Verify {
             if index > 0 { try? await Task.sleep(for: options.perHostDelay) }
             // See the vendor sweep: counts requests, not probes.
             let tally = GatewayRetry.Tally()
+            // What the endpoint answered, as opposed to what we asked it. This is
+            // the only check here that can see an UPSTREAM rename: the redirect
+            // makes detection keep working, so every other signal stays green while
+            // the request quietly loses its token. See ``GitHubEndpointAudit``.
+            let audit = GitHubEndpointAudit.Ledger()
             var attempt = 0
-            var outcome = await GatewayRetry.$tally.withValue(tally) {
-                await source.resolveDiagnostic(rule)
+            var outcome = await GitHubEndpointAudit.$ledger.withValue(audit) {
+                await GatewayRetry.$tally.withValue(tally) {
+                    await source.resolveDiagnostic(rule)
+                }
             }
             while attempt < options.infraRetries,
                   outcome.failure?.classification == .infra {
                 attempt += 1
                 try? await Task.sleep(for: .seconds(attempt))
-                outcome = await GatewayRetry.$tally.withValue(tally) {
-                    await source.resolveDiagnostic(rule)
+                outcome = await GitHubEndpointAudit.$ledger.withValue(audit) {
+                    await GatewayRetry.$tally.withValue(tally) {
+                        await source.resolveDiagnostic(rule)
+                    }
                 }
             }
             var finding = classify(
@@ -415,9 +424,54 @@ public enum Verify {
                    publishedAt: outcome.remote?.publishedAt) {
                 finding = finding.adding(warning: complaint)
             }
+            for complaint in Self.endpointComplaints(audit.observations) {
+                finding = finding.adding(warning: complaint)
+            }
             out.append(finding)
         }
         return out
+    }
+
+    /// Turn what the endpoint answered into findings. Both of these are `.warn`
+    /// rather than `.broken` on purpose: the rule still returns the right version
+    /// today, so calling it broken would be wrong and would spend the streak
+    /// machinery on something that is not an outage.
+    ///
+    /// One rule can produce several observations (`/releases/latest` plus the list
+    /// fallback), so each complaint is emitted once however many requests it took.
+    static func endpointComplaints(
+        _ observations: [GitHubEndpointAudit.Observation]
+    ) -> [String] {
+        var complaints: [String] = []
+        if let stale = observations.compactMap(\.staleSlug).first,
+           let requested = observations.first?.requestedSlug {
+            complaints.append(
+                "staleSlug: the registry says \(requested), GitHub answers as "
+                + "\(stale) — the rule is riding a rename redirect. Repoint it: "
+                + "the redirect is not permanent (GitHub drops it if the old name "
+                + "is ever reused) and, until then, following it costs the request "
+                + "its Authorization header")
+        } else if observations.contains(where: \.redirectedButUnnamed),
+                  let requested = observations.first?.requestedSlug {
+            // The redirect happened but nothing in the answer could name the
+            // canonical repo — no release to read `html_url` from, which is every
+            // non-2xx response and any empty release list. Say the weaker thing
+            // rather than nothing: this is the case with the least information and
+            // it must not also be the case with the least output.
+            complaints.append(
+                "staleSlugUnnamed: GitHub redirected this request away from "
+                + "\(requested), so the registry's slug is out of date, but the "
+                + "answer carried no release to name the repo it really is. "
+                + "Resolve it with `gh api repos/\(requested) -q .full_name`")
+        }
+        if observations.contains(where: \.authSilentlyDropped) {
+            complaints.append(
+                "anonymousDespiteToken: this request carried a token and came back "
+                + "x-ratelimit-limit: 60, the anonymous ceiling — the token is not "
+                + "reaching the endpoint that answered, so this rule is competing "
+                + "for the shared 60/hour per-IP budget")
+        }
+        return complaints
     }
 
     // MARK: - changelog recipes

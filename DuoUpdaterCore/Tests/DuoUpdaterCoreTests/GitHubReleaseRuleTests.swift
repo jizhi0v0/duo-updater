@@ -596,9 +596,19 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(picked("net.ankiweb.anki", anki, .x86_64) == "anki-26.08.1-mac-intel.dmg")
 }
 
-/// The repo slug is the one part of a rule no other test touches: a typo or an
-/// upstream rename leaves every pattern fixture green while detection is dead in
-/// production. Pinned against the slugs verified live on 2026-08-16.
+/// The repo slug is the one part of a rule no other test touches: a typo leaves
+/// every pattern fixture green while detection is dead in production. Pinned
+/// against the slugs verified live on 2026-08-16, re-pinned 2026-08-29.
+///
+/// ⚠️ **This does NOT catch an upstream rename, and the comment used to claim it
+/// did.** It compares our string to our own pinned copy, so a repo renamed on
+/// GitHub's side leaves both sides equal and this test green — which is exactly
+/// what happened: `block/goose`, `containers/podman-desktop` and
+/// `headlamp-k8s/headlamp` were all renamed with nothing here noticing, and each
+/// one silently dropped to the anonymous rate-limit budget because URLSession
+/// drops `Authorization` while following GitHub's 301. What this test does catch
+/// is *us* changing a slug without meaning to. Catching the other direction
+/// needs a live comparison against the repo's `full_name`; see #135.
 @Test func batchRuleSlugsArePinned() {
     let expected: [String: String] = [
         "com.ccswitch.desktop": "farion1231/cc-switch",
@@ -608,7 +618,8 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         "net.kovidgoyal.kitty": "kovidgoyal/kitty",
         "net.sourceforge.sqlitebrowser": "sqlitebrowser/sqlitebrowser",
         "com.jgraph.drawio.desktop": "jgraph/drawio-desktop",
-        "io.podmandesktop.PodmanDesktop": "containers/podman-desktop",
+        // Renamed upstream; re-pinned 2026-08-29 (was containers/podman-desktop). #135
+        "io.podmandesktop.PodmanDesktop": "podman-desktop/podman-desktop",
         "com.bitwarden.desktop": "bitwarden/clients",
         "com.vscodium": "VSCodium/vscodium",
         "com.vscodium.VSCodiumInsiders": "VSCodium/vscodium-insiders",
@@ -619,7 +630,8 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         "com.sequel-ace.sequel-ace": "Sequel-Ace/Sequel-Ace",
         "com.ameba.SwiftBar": "swiftbar/SwiftBar",
         "io.ganeshrvel.openmtp": "ganeshrvel/openmtp",
-        "com.microsoft.Headlamp": "headlamp-k8s/headlamp",
+        // Renamed upstream; re-pinned 2026-08-29 (was headlamp-k8s/headlamp). #135
+        "com.microsoft.Headlamp": "kubernetes-sigs/headlamp",
         "com.objective-see.lulu.app": "objective-see/LuLu",
         "digital.twisted.noTunes": "tombonez/noTunes",
         "app.cyan.markedit": "MarkEdit-app/MarkEdit",
@@ -632,7 +644,8 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         "com.pais.handy": "cjpais/Handy",
         "co.palokaj.battery": "actuallymentor/battery",
         "me.qii404.another-redis-desktop-manager": "qishibo/AnotherRedisDesktopManager",
-        "com.electron.goose": "block/goose",
+        // Renamed upstream; re-pinned 2026-08-29 (was block/goose). #135
+        "com.electron.goose": "aaif-goose/goose",
         "com.puremac.app": "momenbasel/PureMac",
         "art.ginzburg.MiddleClick": "artginzburg/MiddleClick",
         "com.theron.UnnaturalScrollWheels": "ther0n/UnnaturalScrollWheels",

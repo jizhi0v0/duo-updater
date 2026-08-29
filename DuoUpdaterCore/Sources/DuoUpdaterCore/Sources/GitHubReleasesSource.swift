@@ -452,12 +452,31 @@ public struct GitHubReleasesSource: UpdateSource {
         guard (200..<300).contains(http.statusCode) else {
             let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining") ?? "?"
             Log.source.error("GitHub \(rule.slug, privacy: .public): HTTP \(http.statusCode, privacy: .public) (ratelimit-remaining=\(remaining, privacy: .public))")
+            // Record the failure too, and record it BEFORE throwing. A 403 is the
+            // loudest form of the very problem this audit exists to explain — the
+            // anonymous budget running out under a rule that lost its token to a
+            // rename redirect — so skipping the bad-status path would leave the
+            // sweep silent exactly when it matters most. There is no body to name
+            // the canonical repo from, but the final URL and the rate-limit ceiling
+            // are both on this response.
+            GitHubEndpointAudit.record(
+                requestedSlug: rule.slug, requestedURL: url, response: http,
+                firstReleaseHTMLURL: nil, sentToken: token != nil)
             throw GitHubError.badStatus(http.statusCode)
         }
         // Walk releases in document order (GitHub returns newest first) and take
         // the first whose tag the pattern matches — for prerelease channels this
         // skips interleaved stable releases.
-        return Self.releases(from: data, list: list)
+        let decoded = Self.releases(from: data, list: list)
+        // Verification-only bookkeeping: notice a slug that GitHub had to redirect,
+        // and an authenticated request that came back on the anonymous budget
+        // anyway. Recorded here because this is the last place the response and the
+        // decoded body are both in hand. No-op when no ledger is installed, which
+        // is every path except `duo verify`. See ``GitHubEndpointAudit``.
+        GitHubEndpointAudit.record(
+            requestedSlug: rule.slug, requestedURL: url, response: http,
+            firstReleaseHTMLURL: decoded.first?.htmlURL, sentToken: token != nil)
+        return decoded
     }
 
     private struct Resolution {
@@ -1170,9 +1189,18 @@ public enum GitHubReleaseRegistry {
         // anchor keeps the airgap variant out; without it a substring match would
         // hand the user a gigabyte download for the same app.
         // One-click: io.podmandesktop.PodmanDesktop, Team HYSCB8KRL2, notarized.
+        //
+        // ⚠️ Renamed containers/podman-desktop
+        // -> podman-desktop/podman-desktop (measured 2026-08-29). The canonical
+        // name is pinned here on purpose, and it is not cosmetic: GitHub answers the
+        // old slug with a 301 to `/repositories/<id>/…`, and URLSession drops
+        // `Authorization` while following it — the fetch that actually returns
+        // the releases came back `x-ratelimit-limit: 60`, i.e. ANONYMOUS,
+        // whatever token the user configured. Three rules were quietly doing
+        // that. See #135.
         GitHubReleaseRule(
             bundleID: "io.podmandesktop.PodmanDesktop",
-            owner: "containers", repo: "podman-desktop",
+            owner: "podman-desktop", repo: "podman-desktop",
             installAssetPattern: #"^podman-desktop-[0-9.]+-arm64\.dmg$"#,
             installerKind: .dmg),
 
@@ -1386,9 +1414,18 @@ public enum GitHubReleaseRegistry {
         // APP tag instead. (No prereleases in this repo, so the list can't hand back
         // a preview build.) One-click: com.microsoft.Headlamp, Team 5N2JF58U87,
         // notarized.
+        //
+        // ⚠️ Renamed headlamp-k8s/headlamp
+        // -> kubernetes-sigs/headlamp (measured 2026-08-29). The canonical name
+        // is pinned here on purpose, and it is not cosmetic: GitHub answers the
+        // old slug with a 301 to `/repositories/<id>/…`, and URLSession drops
+        // `Authorization` while following it — the fetch that actually returns
+        // the releases came back `x-ratelimit-limit: 60`, i.e. ANONYMOUS,
+        // whatever token the user configured. Three rules were quietly doing
+        // that. See #135.
         GitHubReleaseRule(
             bundleID: "com.microsoft.Headlamp",
-            owner: "headlamp-k8s", repo: "headlamp",
+            owner: "kubernetes-sigs", repo: "headlamp",
             usePrereleases: true,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Headlamp-[0-9.]+-mac-arm64\.dmg$"#,
@@ -1518,8 +1555,8 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^Another-Redis-Desktop-Manager-mac-[0-9.]+-arm64\.dmg$"#,
             installerKind: .dmg),
 
-        // Goose (block/goose) — the `goose-*-apple-darwin.tar.gz` assets beside the
-        // app are the CLI and `goose-source-*.zip` is a source drop, so the app is
+        // Goose (aaif-goose/goose) — the `goose-*-apple-darwin.tar.gz` assets beside
+        // the app are the CLI and `goose-source-*.zip` is a source drop, so the app is
         // anchored by literal name. BOTH macOS builds are matched: `Goose.zip` is
         // arm64-ONLY (checked with `file`: a single arm64 slice, not a universal
         // binary) and `Goose_intel_mac.zip` is the Intel build. Matching only
@@ -1532,9 +1569,18 @@ public enum GitHubReleaseRegistry {
         // token-free `Goose.zip`.
         // One-click: com.electron.goose, Team 5N2JF58U87, notarized — verified on
         // BOTH assets.
+        //
+        // ⚠️ Renamed block/goose
+        // -> aaif-goose/goose (measured 2026-08-29). The canonical name
+        // is pinned here on purpose, and it is not cosmetic: GitHub answers the
+        // old slug with a 301 to `/repositories/<id>/…`, and URLSession drops
+        // `Authorization` while following it — the fetch that actually returns
+        // the releases came back `x-ratelimit-limit: 60`, i.e. ANONYMOUS,
+        // whatever token the user configured. Three rules were quietly doing
+        // that. See #135.
         GitHubReleaseRule(
             bundleID: "com.electron.goose",
-            owner: "block", repo: "goose",
+            owner: "aaif-goose", repo: "goose",
             installAssetPattern: #"^Goose(_intel_mac)?\.zip$"#,
             installerKind: .zip),
 

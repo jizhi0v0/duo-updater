@@ -459,14 +459,21 @@ public struct VendorProbeSource: UpdateSource {
         let status: Int?
     }
 
-    /// Run one recipe. Returns nil (→ "unknown") on any non-confident outcome.
-    /// `allowInstall` false forces a detection-only result even when the recipe
-    /// carries an install spec — used for apps whose install another channel owns
-    /// (Toolbox-managed), where we want the version but not an in-place swap.
+    /// Run one recipe. `allowInstall` false forces a detection-only result even
+    /// when the recipe carries an install spec — used for apps whose install
+    /// another channel owns (Toolbox-managed), where we want the version but not
+    /// an in-place swap.
     ///
-    /// Never throws: every failure is captured as a `ProbeFailure` on the
-    /// outcome, so callers that only want the version read `outcome.remote` and
-    /// get exactly the old best-effort `nil`.
+    /// Never throws, and never answers with nothing at all: every non-confident
+    /// outcome comes back as an outcome carrying a `ProbeFailure`. That pairing is
+    /// a precondition the rest of the file relies on — `ProbeOutcome.failure` is
+    /// non-nil exactly when `remote` is nil — so a new early return here needs a
+    /// `ProbeFailure` naming its reason, never a bare "no version".
+    ///
+    /// Deciding what that reason MEANS is `latestVersion(for:)`'s job, and it is
+    /// not the old best-effort nil: only `.notApplicable` still degrades to nil
+    /// (the silent "—"), and every other classification is thrown and rendered as
+    /// a retryable `.error` row. See ``ProbeFailure``.
     func probeOutcome(_ recipe: VendorProbeRecipe, allowInstall: Bool = true) async -> ProbeOutcome {
         let started = DispatchTime.now()
         func elapsed() -> Int {

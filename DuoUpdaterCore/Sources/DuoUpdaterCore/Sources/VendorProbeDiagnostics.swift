@@ -2,17 +2,26 @@ import Foundation
 
 /// Why a vendor probe didn't produce a version.
 ///
-/// `VendorProbeSource` is deliberately best-effort: every failure degrades to
-/// `nil` so a broken recipe can never manufacture a false "update available."
-/// That is right for the running app and useless for anyone asking *why* — a
-/// vendor rewriting their download page and the office wifi dropping look
-/// identical from the outside.
+/// `VendorProbeSource` never manufactures a false "update available": it reports
+/// a version or it reports nothing. What it used to do on top of that was
+/// degrade every failure to a bare `nil`, which is useless to anyone asking
+/// *why* — a vendor rewriting their download page and the office wifi dropping
+/// look identical from the outside.
 ///
 /// These cases split that single `nil` back apart, so an automated sweep can
 /// tell "this recipe needs a human" (`Classification.recipe`) from "try again
 /// later" (`.infra`) from "this recipe doesn't apply here" (`.notApplicable`).
-/// Nothing in the shipping check path branches on them; they exist so failure is
-/// attributable.
+///
+/// **`classification` is load-bearing in the shipping check path, not only in
+/// sweeps.** `VendorProbeSource.latestVersion(for:)` returns nil for
+/// `.notApplicable` and *throws* for everything else, and `UpdateChecker` turns
+/// that throw into an `.error` row — a red "Failed" badge with a Retry button —
+/// where the nil stays the silent "—" that means no source covers this app.
+/// So adding a case here decides what a user sees: `.notApplicable` for a
+/// condition this Mac can do nothing about (no device identity, no recipe for
+/// this track), the other two for a check that genuinely failed and is worth
+/// retrying. Picking `.recipe` for an expected refusal puts a permanent red row
+/// on every affected machine.
 public enum ProbeFailure: Error, Sendable, Equatable {
     /// Toolbox-managed, channel gate refused, or no recipe for this bundle id.
     case notApplicable(String)

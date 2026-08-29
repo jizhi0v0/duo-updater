@@ -7,13 +7,9 @@ public struct SparkleAppcastSource: UpdateSource {
     public let name = "Sparkle"
 
     private let session: URLSession
-    private let currentSystemVersion: String
 
-    public init(session: URLSession = .updates, currentSystemVersion: String? = nil) {
+    public init(session: URLSession = .updates) {
         self.session = session
-        self.currentSystemVersion = currentSystemVersion
-            ?? ProcessInfo.processInfo.operatingSystemVersionString
-        // operatingSystemVersionString is verbose; prefer the numeric form.
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -48,7 +44,15 @@ public struct SparkleAppcastSource: UpdateSource {
 
         let items = SparkleAppcastParser.parse(data)
         let usable = Self.usableItems(for: app, from: items, osVersion: Self.numericSystemVersion())
-        guard let best = usable.first else { return nil }
+        guard let best = usable.first else {
+            // Distinguish "the vendor capped every item for an OS this new" from
+            // "the feed had nothing", which the caller cannot tell apart.
+            if items.contains(where: { ($0.maximumSystemVersion?.isEmpty == false) }) {
+                Log.source.info(
+                    "sparkle: every item filtered for \(app.bundleID ?? "?", privacy: .public) — feed declares a maximum system version")
+            }
+            return nil
+        }
 
         // When the feed inlines Markdown notes (e.g. Surge's `<markdownDescription>`)
         // rather than HTML, parse them into a native, multi-version changelog so the
@@ -190,16 +194,38 @@ public struct SparkleAppcastSource: UpdateSource {
             }
             // And the maximum — the vendor saying "this build is not for an OS
             // this new", which is the only way any source we read can express
-            // "we haven't adapted to macOS 27 yet". Sparkle's own resolver
-            // honours it (`SPUAppcastItemStateResolver
-            // -isMaximumOperatingSystemVersionOK:`, which is `!= NSOrderedAscending`
-            // on max-vs-host — mirrored exactly here) and it ships a dedicated
-            // user-facing string for the case, so a feed that sets it means it.
+            // "we haven't adapted to macOS 27 yet". The PREDICATE is Sparkle's
+            // exactly (`SPUAppcastItemStateResolver -isMaximumOperatingSystemVersionOK:`
+            // is `!= NSOrderedAscending` on max-vs-host).
+            //
+            // ⚠️ The REPORTING is not, and the difference is user-visible. Sparkle
+            // keeps the item and names the condition — `SPUBasicUpdateDriver.m`
+            // "Your macOS version is too new", `SPUNoUpdateFoundInfo.m` an
+            // explanation carrying the version and the cap, and a dedicated error
+            // code in `SUErrors.h`. Dropping it here instead means `latestVersion`
+            // returns nil and the app reads as UP TO DATE, indistinguishable from
+            // "no newer version exists".
+            //
+            // That asymmetry is worse for max than for min, and deliberately
+            // accepted for now rather than hidden: a min-filtered item reappears
+            // when the user upgrades macOS, a max-filtered one NEVER does. The
+            // motivating case (obdev caps stable at 26.99; user moves to macOS 27)
+            // therefore reads as "up to date" indefinitely. Surfacing it properly
+            // needs a "blocked by the vendor's own OS ceiling" state that
+            // `RemoteVersion` has no room for today; filtering is still the right
+            // default meanwhile, because the alternative is installing a build the
+            // vendor has said is not for this Mac. Tracked, not forgotten.
+            //
+            // Note this also removes capped items from `structuredChangelog` and
+            // `releaseHistory` below, since both read this same list — consistent
+            // with what the architecture filter already does ("never offer it,
+            // changelog history included"), and called out because it is a
+            // behaviour change that no test covers.
             //
             // Rare, not dead: none of the 14 reachable feeds among this machine's
-            // installed Sparkle apps declared one when measured 2026-08-30. It is
-            // three lines and its absence is silent, which is the combination
-            // that leaves a field unimplemented for years.
+            // installed Sparkle apps declared one (2026-08-30), but WeChat's feed
+            // caps 3 of its 7 items — that one is read by `VendorProbeSource`,
+            // which consults NEITHER bound, so this filter never sees it.
             if let maxOS = item.maximumSystemVersion, !maxOS.isEmpty,
                VersionComparator.compare(maxOS, osVersion) == .orderedAscending {
                 return false

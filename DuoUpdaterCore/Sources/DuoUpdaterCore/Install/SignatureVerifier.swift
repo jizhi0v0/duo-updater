@@ -311,20 +311,39 @@ public enum SignatureVerifier {
     /// bandwidth, it can only keep us from swapping in a bundle that will not
     /// launch and reporting success.
     ///
-    /// Read through `BundleLayout.interiorPrefix` rather than a hardcoded
+    /// Read through `BundleLayout.infoPlistURL` rather than a hardcoded
     /// `Contents/`: a wrapped iPhone/iPad app keeps its plist under
-    /// `Wrapper/<Inner>.app/`, and reading the wrong path here would not fail —
-    /// it would read nothing, which this gate treats as "no floor declared" and
-    /// waves through. Silent per-layout blindness, not an error.
+    /// `Wrapper/<Inner>.app/`, and reading the wrong path would not fail — it
+    /// would read nothing and wave the bundle through.
+    ///
+    /// **This gate does not apply to iOS apps running on Apple silicon, and says
+    /// so explicitly rather than by accident.** Measured on the two wrapped
+    /// bundles on one machine 2026-08-30 (`Amp 2.app`, `Aqara Home.app`): both
+    /// declare `CFBundleSupportedPlatforms = [iPhoneOS]` and carry
+    /// `MinimumOSVersion` (26.0 and 18.0) with **no `LSMinimumSystemVersion` at
+    /// all**. So reaching the right plist buys this gate nothing for them — and
+    /// reading `MinimumOSVersion` instead would be worse, not better: it is an
+    /// **iOS** version, and comparing it against a macOS version is precisely the
+    /// cross-namespace comparison this repo forbids. It looks harmless only while
+    /// the two numbering schemes happen to be aligned (iOS 26 / macOS 26); on a
+    /// macOS 15 host an iOS-18 floor would read as satisfied for the wrong
+    /// reason. Declining by platform is the honest answer, and it keeps a future
+    /// reader from "fixing" this by wiring the iOS key in.
     static func declaredMinimumSystemVersion(
         ofAppAt appURL: URL, fileManager: FileManager = .default
     ) -> String? {
-        let prefix = BundleLayout.interiorPrefix(for: appURL, fileManager: fileManager)
-        let plistURL = appURL.appendingPathComponent(prefix + "Info.plist")
+        let plistURL = BundleLayout.infoPlistURL(for: appURL, fileManager: fileManager)
         guard
             let data = try? Data(contentsOf: plistURL),
             let plist = try? PropertyListSerialization
-                .propertyList(from: data, format: nil) as? [String: Any],
+                .propertyList(from: data, format: nil) as? [String: Any]
+        else { return nil }
+        // An iOS bundle's floor is stated in iOS terms. Never compare it to macOS.
+        if let platforms = plist["CFBundleSupportedPlatforms"] as? [String],
+           platforms.contains("iPhoneOS") {
+            return nil
+        }
+        guard
             let declared = (plist["LSMinimumSystemVersion"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
             !declared.isEmpty
@@ -335,11 +354,15 @@ public enum SignatureVerifier {
     /// Whether a bundle declaring `minimumSystemVersion` can launch on a Mac
     /// running `osVersion`.
     ///
-    /// Fails OPEN on anything it cannot read as a version — a nil/empty value, or
-    /// a string with no numeric component at all. Same rule gate 5 states for an
-    /// unreadable Mach-O header, and for the same reason: this gate exists to
-    /// catch a build we can PROVE is wrong for the machine, so an unparseable
-    /// value must not start refusing updates that install fine today.
+    /// Fails OPEN on anything it cannot read as a version. That covers more than
+    /// a digit-free string: because `VersionComparator` ranks a text token below
+    /// a numeric one, any value whose FIRST token is non-numeric ("macOS 13.0",
+    /// "13.0 (Ventura)") also compares as satisfied regardless of the number that
+    /// follows it. Stated because it is easy to read the guard below as narrower
+    /// than it is. Same rule gate 5 states for an unreadable Mach-O header, and
+    /// for the same reason: this gate exists to catch a build we can PROVE is
+    /// wrong for the machine, so an unparseable value must not start refusing
+    /// updates that install fine today.
     ///
     /// How much of a real population this covers, measured over the 143 app
     /// bundles on one machine 2026-08-30: 140 declare `LSMinimumSystemVersion`,
@@ -366,7 +389,16 @@ public enum SignatureVerifier {
         fileManager: FileManager = .default
     ) throws {
         let declared = declaredMinimumSystemVersion(ofAppAt: url, fileManager: fileManager)
-        guard !canRun(minimumSystemVersion: declared, on: osVersion) else { return }
+        guard !canRun(minimumSystemVersion: declared, on: osVersion) else {
+            // Log the fail-open too. A gate that silently declines to fire is
+            // exactly the thing nobody notices, and `declared == nil` is the
+            // shape every miss enumerated above collapses to.
+            if declared == nil {
+                Log.install.info(
+                    "gate 6 no floor declared \(url.lastPathComponent, privacy: .public) — allowing")
+            }
+            return
+        }
         // `declared` is non-nil here: a nil floor is runnable by definition above.
         throw VerifyError.unsupportedSystemVersion(
             required: declared ?? "?", host: osVersion)

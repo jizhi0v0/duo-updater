@@ -193,6 +193,31 @@ public enum DeltaApplier {
 /// A distinct type rather than a flag because it decides whether an install gets a
 /// second attempt: only failures wrapped in this are retried, so a genuine gate
 /// failure on the full route still stops the install instead of looping.
+/// Whether a failure on the patch route is worth retrying with the full archive.
+///
+/// The delta route's premise is that anything that goes wrong applying a patch
+/// is recoverable by taking the full download instead — true for the TRUST gates
+/// (a bad patch really can produce a bundle whose signature is broken while the
+/// full archive's is fine) and false for the LIVENESS gates. An OS floor or a
+/// missing architecture slice is a property of the VERSION, not of how its bytes
+/// arrived: the full archive carries the same bundle and is refused for the same
+/// reason. Retrying buys the user a second, full-size download — hundreds of
+/// megabytes for a large app — and the identical refusal.
+///
+/// Lives here rather than inline in the two installers so both classify the same
+/// way and the rule can be tested without running an install.
+public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
+    guard let verify = error as? SignatureVerifier.VerifyError else { return true }
+    switch verify {
+    case .unsupportedSystemVersion, .unrunnableArchitecture:
+        return false
+    case .edSignatureMissing, .edSignatureInvalid, .codeSignatureInvalid,
+         .noTeamIdentifier, .teamIdentifierMismatch,
+         .noBundleIdentifier, .bundleIdentifierMismatch:
+        return true
+    }
+}
+
 public struct DeltaRouteFailure: LocalizedError {
     public let underlying: Error
     /// Bytes the abandoned patch attempt already pulled over the network.

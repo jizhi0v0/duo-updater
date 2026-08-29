@@ -165,6 +165,10 @@ public actor VendorInstaller {
         do {
             try applyVerified(result, download: download, onStage: onStage)
         } catch {
+            // A liveness gate (OS floor, architecture) fails identically on the
+            // full archive, so re-downloading it spends the bytes to learn
+            // nothing. See `deltaRouteFailureIsWorthRetrying`.
+            guard deltaRouteFailureIsWorthRetrying(error) else { throw error }
             throw DeltaRouteFailure(
                 underlying: error, bytesSpent: download.bytesDownloaded)
         }

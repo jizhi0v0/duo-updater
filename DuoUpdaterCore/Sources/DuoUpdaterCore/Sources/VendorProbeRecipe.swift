@@ -247,6 +247,31 @@ public struct VendorProbeRecipe: Sendable {
     /// already runs on" and changes nothing. See `VendorHostRequirement`.
     public let hostRequirement: VendorHostRequirement?
 
+    /// Restricts this recipe to an installed app whose `CFBundleShortVersionString`
+    /// matches this pattern (searched, not required to anchor the whole string —
+    /// callers write their own `^`/`$` where that matters). nil (the overwhelming
+    /// common case) means "any installed version of this bundle id" and changes
+    /// nothing.
+    ///
+    /// Exists for a vendor that keeps more than one MAJOR-VERSION generation
+    /// under one shared bundle id, each independently and currently maintained,
+    /// where crossing from one to another is a separate (often separately
+    /// priced) product decision, not "the next version of what you have" —
+    /// Carbon Copy Cloner is the case in hand: CCC 5/6/7 all report
+    /// `com.bombich.ccc`, Bombich keeps shipping point releases to all three
+    /// (`ccc-5.1.28.6213.zip`, `ccc-6.1.13.7699.zip`, `ccc-7.1.6.8368.zip`, all
+    /// live 2026-08-29), and upgrading between majors needs a new license
+    /// ("We do not sell CCC 4 or CCC 5 licenses. To use CCC 4 or 5, please
+    /// purchase a CCC 6 license" — bombich.com/en/kb/ccc/6). Without this gate a
+    /// CCC 5 install on Big Sur — which cannot even run CCC 7 (Ventura+) — would
+    /// be told a "7.1.6" update exists, because the marketing string genuinely
+    /// does sort higher; that comparison is real by numeral and wrong by
+    /// product, the same shape of trap `VersionComparator`'s "never compare
+    /// across namespaces" rule exists for. This is `hostRequirement`'s twin,
+    /// gating on the INSTALLED APP's own version rather than on the Mac running
+    /// it — see `matchesInstalled(version:)`.
+    public let installedVersionPattern: String?
+
     /// The endpoint to probe (a stable "latest" redirect, or a version API).
     ///
     /// When `identity` is set this carries its placeholder token and is NOT a
@@ -297,12 +322,15 @@ public struct VendorProbeRecipe: Sendable {
     /// whatever happened to the endpoint. `bundleID`/`variant` are the same
     /// shape of tautology; `downloadURL`/`changelogURL` are where the user is
     /// SENT, not where the version is read; `hostRequirement` is about the
-    /// machine, not the channel.
+    /// machine, not the channel; `installedVersionPattern` is `hostRequirement`'s
+    /// twin — about which already-installed generation this recipe applies to,
+    /// not about the channel or where THIS recipe reads its own answer from.
     ///
     /// Everything else is in, including fields added after this list was
     /// written — see `channelAnchorSurface`.
     static let nonAnchorFields: Set<String> = [
         "bundleID", "channel", "variant", "downloadURL", "changelogURL", "hostRequirement",
+        "installedVersionPattern",
     ]
 
     /// Everything this recipe says about WHERE it reads and WHAT it looks for —
@@ -595,7 +623,8 @@ public struct VendorProbeRecipe: Sendable {
         identities: [ProbeIdentity] = [],
         track: RolloutTrack? = nil,
         variant: String? = nil,
-        hostRequirement: VendorHostRequirement? = nil
+        hostRequirement: VendorHostRequirement? = nil,
+        installedVersionPattern: String? = nil
     ) {
         self.bundleID = bundleID
         self.channel = channel
@@ -604,6 +633,7 @@ public struct VendorProbeRecipe: Sendable {
         self.track = track
         self.variant = variant
         self.hostRequirement = hostRequirement
+        self.installedVersionPattern = installedVersionPattern
         self.mode = mode
         self.versionPattern = versionPattern
         self.downloadURL = downloadURL
@@ -848,7 +878,8 @@ public struct VendorProbeRecipe: Sendable {
             entryStartPattern: entryStartPattern ?? self.entryStartPattern,
             install: install, requestBody: requestBody, requestHeaders: requestHeaders,
             followRedirects: followRedirects, channel: channel, identities: identities,
-            track: track, variant: variant, hostRequirement: hostRequirement)
+            track: track, variant: variant, hostRequirement: hostRequirement,
+            installedVersionPattern: installedVersionPattern)
     }
 
     /// Whether this recipe's build can run on the described machine. A recipe with
@@ -856,6 +887,21 @@ public struct VendorProbeRecipe: Sendable {
     /// recipe's behaviour identical.
     public func runs(onOS osVersion: String, arch: HostArch) -> Bool {
         hostRequirement?.isSatisfied(byOS: osVersion, arch: arch) ?? true
+    }
+
+    /// Whether this recipe applies to an already-installed copy reporting
+    /// `installed` as its `CFBundleShortVersionString`. A recipe with no
+    /// `installedVersionPattern` applies to any installed version — the default
+    /// that keeps every existing recipe's behaviour identical. A recipe THAT SETS
+    /// one fails closed on a missing/unreadable installed version or an invalid
+    /// pattern (a recipe author's bug caught by its own tests, not something to
+    /// paper over at call time) — better this recipe silently declines than
+    /// silently applies to every generation it was written to exclude.
+    public func matchesInstalled(version installed: String?) -> Bool {
+        guard let pattern = installedVersionPattern else { return true }
+        guard let installed, let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        let range = NSRange(installed.startIndex..., in: installed)
+        return regex.firstMatch(in: installed, options: [], range: range) != nil
     }
 }
 
@@ -5521,6 +5567,420 @@ public enum VendorProbeRegistry {
                 urlSource: .bodyPattern(
                     #"(https://c\.y\.qq\.com/cgi-bin/file_redirect\.fcg\?[^"]*QQMusicMac[0-9][^"]*Build[0-9]+\.dmg[^"]*)"#),
                 kind: .dmg)),
+
+        // MARK: - 2026-08-29 TimeMachineEditor
+
+        // TimeMachineEditor has no Sparkle feed (confirmed: the vendor's own pkg,
+        // downloaded and expanded 2026-08-29, carries no `SUFeedURL` in its app's
+        // Info.plist and no `Sparkle.framework`), no MAS listing, no GitHub repo —
+        // the vendor's own tiny site is the only surface. Its Homebrew cask
+        // (`timemachineeditor`) is `auto_updates: true`, which makes
+        // `HomebrewCaskSource` skip it, so this probe is the only source that can
+        // ever answer for this bundle id.
+        //
+        // No JSON/version API exists — the homepage IS the release note: a single
+        // download link whose visible text carries the version
+        // (`<a href="…/TimeMachineEditor.pkg">TimeMachineEditor 5.2.2</a> (2023,
+        // February 16) …`, fetched 2026-08-29). This is exactly the endpoint
+        // Homebrew's own `livecheck` block resolves against (`url :homepage`,
+        // regex `href=.*TimeMachineEditor\s*v?(\d+(?:\.\d+)+)`), independently
+        // confirming it's the vendor's intended version surface, not a guess. The
+        // pattern here is anchored to the literal href AND the `</a>` boundary so
+        // it cannot drift onto the nearby "macOS 10.13" floor mentioned in the same
+        // sentence.
+        //
+        // Verified against the real artifact, not just the page text: the pkg was
+        // downloaded and expanded 2026-08-29.
+        // `PackageInfo` reads `CFBundleShortVersionString="5.2.2"
+        // CFBundleVersion="219" CFBundleIdentifier="com.tclementdev.timemachineeditor.application"`
+        // — the probed "5.2.2" matches the MARKETING field exactly, so no
+        // `versionIsBuild`. Signed "Developer ID Installer: Thomas CLEMENT
+        // (68GTH78H6S)", notarized.
+        //
+        // kind MUST be `.pkg`, not `.dmg`/`.zip`: the payload installs siblings
+        // outside the `.app` — `/Library/LaunchDaemons/
+        // com.tclementdev.timemachineeditor.scheduler.plist`, a scheduler binary
+        // and `tmectl` CLI under `/Library/TimeMachineEditor/`, plus a
+        // `com.tclementdev.timemachineeditor.upgrader` pre/postinstall script that
+        // manages the daemon across upgrades. A bundle-only unpack would leave the
+        // new `.app` next to a stale daemon with nothing to notice. The download
+        // URL itself is a static, unversioned filename that always serves the
+        // current release, so `.fixed` needs no pattern.
+        //
+        // Single channel: the vendor ships no beta/nightly, so there is nothing to
+        // gate — `channel` stays the default `.stable`.
+        //
+        // Delta/binary patch: not checked for — this is not a Sparkle app (no
+        // `SUFeedURL`, no `Sparkle.framework` in the bundle) and the download is a
+        // ~1MB pkg with no companion `.delta`/`.patch` artifact anywhere on the
+        // page, so there is nothing here to consume.
+        VendorProbeRecipe(
+            bundleID: "com.tclementdev.timemachineeditor.application",
+            url: URL(string: "https://tclementdev.com/timemachineeditor/")!,
+            mode: .responseBody,
+            versionPattern:
+                #"<a href="https://tclementdev\.com/timemachineeditor/TimeMachineEditor\.pkg">TimeMachineEditor\s+([0-9]+(?:\.[0-9]+)+)</a>"#,
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://tclementdev.com/timemachineeditor/TimeMachineEditor.pkg")!),
+                kind: .pkg)),
+
+        // Little Snitch (Objective Development) — application-firewall / Network
+        // Extension. No Sparkle feed: `SUFeedURL` is absent from both a real
+        // mounted 6.4.1 (stable) and 6.5-nightly-(7301) bundle (2026-08-29). The
+        // app updates itself through a bespoke component (`Little Snitch Software
+        // Update.app`) that talks to a dynamic endpoint
+        // (`sw-update.obdev.at/update-feeds/software-update.php`) whose request
+        // shape isn't known — a plain GET answers "Malformed Request", and
+        // learning the real query params needs packet capture of the running
+        // client, not attempted here. The Homebrew cask (`little-snitch`) is
+        // `auto_updates: true` (`brew info --cask little-snitch`), so
+        // `HomebrewCaskSource` deliberately skips it — this recipe is what keeps
+        // the app off `.unknown`.
+        //
+        // obdev separately publishes a STATIC per-major-version fallback feed at
+        // `sw-update.obdev.at/update-feeds/littlesnitch6.plist` — the exact URL
+        // Homebrew's own `little-snitch` cask uses in its `livecheck` block
+        // (`Casks/l/little-snitch.rb`), so this is a vendor endpoint a third
+        // party (Homebrew) already depends on for the same purpose, not a guess.
+        // It's an XML plist ARRAY with one entry per release lifecycle
+        // (`nightly`, `final`); `final` is what this recipe reads.
+        //
+        // VERSION SCHEME, verified against the real mounted stable bundle
+        // (2026-08-29): the feed's `final` entry's `BundleVersion` ("7212") is
+        // byte-identical to the installed `CFBundleVersion`, and its
+        // `BundleShortVersionString` ("6.4.1") matches `CFBundleShortVersionString`
+        // too — so a plain marketing compare would also work for THIS entry, but
+        // `versionIsBuild` is used anyway to share one comparison basis with the
+        // nightly recipe below, where the feed's short-version field does NOT
+        // match the installed bundle.
+        //
+        // `entryStartPattern` slices the two-entry array so `final`'s fields can
+        // never be read out of the `nightly` entry (or vice versa) regardless of
+        // which the feed happens to list first.
+        //
+        // No `install`: the feed states `InstallationMechanism: ReplaceBundle`
+        // (a full `.app` swap, which is what `VendorInstaller` does too), but
+        // Little Snitch ships a Network Extension
+        // (`at.obdev.littlesnitch.networkextension.systemextension`, under
+        // `Contents/Library/SystemExtensions/`) and a privileged daemon rooted at
+        // `/Library/Little Snitch/`. Whether a bare `.app` swap re-activates the
+        // extension as cleanly as the vendor's own updater does is NOT verified
+        // on a real machine here — detection only until that's confirmed
+        // end-to-end. Team `MLZF7K7B5R`.
+        VendorProbeRecipe(
+            bundleID: "at.obdev.littlesnitch",
+            url: URL(string: "https://sw-update.obdev.at/update-feeds/littlesnitch6.plist")!,
+            mode: .responseBody,
+            versionPattern:
+                #"<key>ReleaseLifecycle</key>\s*<string>final</string>[\s\S]*?<key>BundleVersion</key>\s*<string>(\d+)</string>"#,
+            downloadURL: URL(string: "https://obdev.at/littlesnitch/download.html"),
+            changelogURL: URL(string: "https://obdev.at/products/littlesnitch/releasenotes6.html"),
+            versionIsBuild: true,
+            displayVersionPattern:
+                #"<key>ReleaseLifecycle</key>\s*<string>final</string>[\s\S]*?<key>BundleShortVersionString</key>\s*<string>([^<]+)</string>"#,
+            entryStartPattern: #"<key>ReleaseLifecycle</key>\s*<string>"#),
+
+        // Little Snitch, NIGHTLY channel — same bundle id, no separate cask
+        // `auto_updates` quirk to work around (the nightly cask is ALSO
+        // `auto_updates: true`), and no in-app preference toggle: the stable
+        // 6.4.1 bundle carries zero "nightly" strings anywhere (grepped the
+        // whole mounted `.app`, 2026-08-29). A Nightly install is a completely
+        // separate download (`little-snitch@nightly` cask, which
+        // `conflicts_with` the stable cask) that happens to keep the SAME bundle
+        // id — confirmed both from the nightly cask's own `uninstall quit:
+        // "at.obdev.littlesnitch"` line and directly, by mounting the
+        // 6.5-nightly-(7301) dmg and reading its Info.plist.
+        //
+        // CHANNEL SIGNAL: unlike every other same-bundle-id app in this
+        // registry, Object Development bakes the channel word straight into the
+        // installed `CFBundleShortVersionString` itself — "6.5 nightly (7301)",
+        // confirmed against the real mounted nightly bundle (not just the feed).
+        // Diffing the two Info.plists shows ONLY `CFBundleShortVersionString`
+        // and `CFBundleVersion` differ; the bundle id, name and everything else
+        // are identical. `ReleaseChannel.detect()` needed a new step for this
+        // (see step "0.7" there): the shape is `"<num> nightly (<build>)"` —
+        // space-separated with a parenthesized build suffix — not the dash-tail
+        // shape (`versionTailPattern`) step 4 already recognizes, so without the
+        // new rule this install would silently read as `.stable`.
+        //
+        // FEED-VS-BUNDLE TRAP (exactly the shape this registry's notes warn
+        // about elsewhere): the feed's `BundleShortVersionString` for the
+        // `nightly` entry is plain "6.5" — it STRIPS the " nightly (7301)"
+        // suffix the real installed bundle carries. Never trust that field for
+        // channel detection. `versionIsBuild` sidesteps it entirely by comparing
+        // `BundleVersion` "7301", which DOES match the installed
+        // `CFBundleVersion` byte-for-byte.
+        //
+        // Same static feed as stable, `nightly` lifecycle entry. No `install`,
+        // same reasoning as the stable recipe above — and this channel is
+        // explicitly the least-tested of the two by the vendor's own process.
+        // No `changelogURL`: obdev's public release-notes page
+        // (`releasenotes6.html`, used above) covers stable only — it has no
+        // mention of "nightly" anywhere (checked 2026-08-29) — and the per-build
+        // notes endpoint the feed points at
+        // (`releasenotes-legacy-swu.php?version=<build>`) is pinned to whichever
+        // build this comment was written against, which would go stale the next
+        // nightly ships. Leaving this nil renders the normal "no release notes"
+        // state rather than a URL that quietly stops matching the version on
+        // screen.
+        VendorProbeRecipe(
+            bundleID: "at.obdev.littlesnitch",
+            url: URL(string: "https://sw-update.obdev.at/update-feeds/littlesnitch6.plist")!,
+            mode: .responseBody,
+            versionPattern:
+                #"<key>ReleaseLifecycle</key>\s*<string>nightly</string>[\s\S]*?<key>BundleVersion</key>\s*<string>(\d+)</string>"#,
+            downloadURL: URL(string: "https://obdev.at/littlesnitch/download-nightly.html"),
+            versionIsBuild: true,
+            displayVersionPattern:
+                #"<key>ReleaseLifecycle</key>\s*<string>nightly</string>[\s\S]*?<key>BundleShortVersionString</key>\s*<string>([^<]+)</string>"#,
+            entryStartPattern: #"<key>ReleaseLifecycle</key>\s*<string>"#,
+            channel: .nightly),
+
+        // Carbon Copy Cloner — THREE independently maintained major-version
+        // generations (5, 6, 7) all report the SAME bundle id `com.bombich.ccc`,
+        // confirmed 2026-08-29 by downloading and expanding all three real zips:
+        // `com.bombich.ccc` 5.1.28/6213, `com.bombich.ccc` 6.1.13/7699,
+        // `com.bombich.ccc` 7.1.6/8368 — same Team `L4F2DED5Q7`. Bombich still
+        // ships point releases to all three (bombich.com/download lists
+        // `?v=ccc5`/`?v=ccc6`/`?v=ccc7` as live download links alongside
+        // `?v=latest`, which is a permanent alias for whichever is newest —
+        // currently ccc7) and crossing generations is a PAID upgrade, not a free
+        // update: "We do not sell CCC 4 or CCC 5 licenses. To use CCC 4 or 5,
+        // please purchase a CCC 6 license" (bombich.com/en/kb/ccc/6). CCC 7 also
+        // requires Ventura+ (bombich.com/download's own compatibility table),
+        // which a CCC 5 install on High Sierra–Big Sur or a CCC 6 install on
+        // Catalina–Monterey cannot run at all.
+        //
+        // Each generation therefore gets its own recipe, gated with
+        // `installedVersionPattern` so `VendorProbeSource` only offers a
+        // same-generation point release — never routes a CCC 5/6 install through
+        // `?v=latest`'s CCC 7 answer just because "7.1.6" sorts numerically
+        // above "5.1.28"/"6.1.13". Without this gate every CCC 5/6 install in
+        // this registry would have been a phantom cross-generation "update"
+        // forever, silently, the same shape of bug `VersionComparator`'s
+        // "never compare across namespaces" rule exists to prevent — just one
+        // this registry had not modeled before because no other vendor here
+        // keeps multiple ACTIVELY maintained generations under one bundle id.
+        //
+        // stable (CCC 7) — the app DOES ship a Sparkle
+        // `SUFeedURL` (`https://api.bombich.com/updates/ccc`, confirmed reading
+        // the real Info.plist inside the vendor's own download), so it is not the
+        // "no Sparkle at all" case it first looks like. But that feed answers
+        // every request we tried — plain GET, several User-Agents including a
+        // Sparkle-shaped one, an `appVersion` query param, and the same
+        // `URLSession`/UA `SparkleAppcastSource` itself sends — with HTTP 200 and
+        // a ZERO-BYTE body (verified 2026-08-29, five variants, all `Content-Length: 0`).
+        // `SparkleAppcastSource` would parse that into an empty item list and
+        // report "no update" forever: a silent dead source, not a missing one.
+        // Homebrew's cask carries `auto_updates: true`, so `HomebrewCaskSource`
+        // correctly refuses it too — there is no standard source left to answer.
+        //
+        // The endpoint that DOES work is the `download_ccc.php` one the cask's own
+        // `livecheck` block relies on — but this recipe probes `?v=ccc7`, NOT the
+        // `?v=latest` the cask uses. Both 302 (through a second hop at
+        // `api.bombich.com/download/ccc?v=…`) to the same versioned filename on the
+        // CDN today — `ccc-7.1.6.8368.zip`, both confirmed 2026-08-30 with plain
+        // HEAD requests (the exact request `.redirectFilename` issues), which
+        // follow both hops and land on the CDN URL without downloading the 27 MB
+        // body. They stop being the same file the day CCC 8 ships: `?v=latest` is
+        // a permanent alias for whichever generation is NEWEST, so it would then
+        // answer this CCC-7-scoped recipe with a CCC 8 artifact and hand every CCC
+        // 7 install a phantom paid major-version "update" — the exact bug
+        // `installedVersionPattern` exists to prevent, arriving through the URL
+        // instead of through the version comparison. `?v=ccc7` is a
+        // per-generation alias like the `?v=ccc5`/`?v=ccc6` the two recipes below
+        // use, and those are the evidence it will keep pointing at CCC 7: both are
+        // still live and still serving their own generation's last build years
+        // after they stopped being "latest".
+        //
+        // `versionPattern` is anchored to major 7 for the same reason, as a second
+        // independent guard: if Bombich ever repoints `?v=ccc7` (or drops it), an
+        // `ccc-8.…` filename fails to match and the probe reports nothing rather
+        // than a cross-generation version. Failing closed here is right — a recipe
+        // that goes quiet shows up in the nightly `duo verify` sweep, a recipe
+        // that reports a paid upgrade as a point release does not. `7.1.6` matches the installed app's `CFBundleShortVersionString`
+        // exactly (`8368` matches `CFBundleVersion`), and CCC bumps its marketing
+        // version on every release (7.0 → 7.0.4 → 7.1 → … → 7.1.6, roughly
+        // quarterly per `https://bombich.com/software/updates/ccc7_rn.html`) — not
+        // a frozen-marketing app — so the default marketing-only comparison
+        // (`versionIsBuild: false`) is correct, no build-number routing needed.
+        // The filename's marketing segment is 2 OR 3 dot-groups depending on era
+        // (`ccc-7.1.1234.zip` for a bare `7.1` release vs `ccc-7.1.6.8368.zip`),
+        // which is exactly why the cask's own `livecheck` comment calls out a
+        // "variable number of parts" — the pattern below accepts both, always
+        // taking everything before the trailing 3+ digit build segment.
+        //
+        // No `install`: this is detection-only. CCC installs a privileged helper
+        // (`com.bombich.ccchelper`), a LaunchDaemon and an XPC service alongside
+        // the `.app`, so an in-place bundle swap is a materially bigger claim than
+        // the zip-swap one-clicks already in this registry; adding it is a
+        // separate decision.
+        //
+        // `hostRequirement.minimumSystemVersion`: read from the real 7.1.6 binary's
+        // `LSMinimumSystemVersion` (13.1), which agrees with Bombich's own
+        // published requirement for this generation ("macOS 13 Ventura (13.1+)").
+        // This is safe to pin as a STATIC floor — unlike a per-release value that
+        // could drift, Bombich documents system requirements per MAJOR VERSION as
+        // its own standing KB article and a Wayback snapshot of CCC 6's equivalent
+        // page from 2022-05 (a year after its 2021 launch) already stated the same
+        // floor CCC 6 still states today, 2023-11 — i.e. the floor is a fixed
+        // per-generation commitment for that generation's whole lifetime, the same
+        // shape `hostRequirement` already models for Raycast v2 (macOS 26+,
+        // permanent for that track), not the shape Sparkle's per-item
+        // `minimumSystemVersion` exists for (a value that legitimately varies
+        // release to release, and is read fresh from each item for that reason).
+        VendorProbeRecipe(
+            bundleID: "com.bombich.ccc",
+            url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc7")!,
+            mode: .redirectFilename,
+            versionPattern: #"^ccc-(7\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
+            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc7"),
+            changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn.html"),
+            variant: "ccc7",
+            hostRequirement: VendorHostRequirement(minimumSystemVersion: "13.1"),
+            installedVersionPattern: #"^7\."#),
+
+        // beta (CCC 7) — same bundle id, opted into from
+        // CCC's own Settings → Software Update → "Inform me of beta releases".
+        // The blocker recorded on 2026-08-29 (needs the user's own packet
+        // capture — `?v=beta` redirects to the plain download page, and
+        // `?v=latest-beta` just resolves to the stable zip) turned out to be a
+        // wrong guess at the query param spelling, not a real auth wall:
+        // `?v=latestbeta` (no hyphen) 302s through the same two-hop chain as
+        // stable to a genuine beta artifact —
+        // `ccc-7.1.7-b7.8389.zip` — confirmed 2026-08-29 by downloading and
+        // expanding the real zip: `CFBundleShortVersionString="7.1.7-b7"
+        // CFBundleVersion="8389" CFBundleIdentifier="com.bombich.ccc"`, Team
+        // `L4F2DED5Q7`, notarized. Marketing matches the probed capture group
+        // exactly, so `versionIsBuild` stays the default `false`, same as
+        // stable.
+        //
+        // CHANNEL SIGNAL: `CFBundleShortVersionString` carries a short `-b<N>`
+        // suffix ("7.1.7-b7") that `ReleaseChannel.detect()` needed a new
+        // bundle-id-scoped rule for (step 0.8) — it is neither the Mozilla
+        // `b<N>` shape (requires exactly one dot, no dash) nor the full-word
+        // `-beta<N>` shape (GitHub Desktop's), so without that rule this would
+        // silently read as `.stable`.
+        //
+        // No `changelogURL` beyond what's already public: the same
+        // `ccc7_rn_beta.html` page the stable investigation already found
+        // (lists "CCC 7.1.7-b7 (pre-release)") is reused here directly rather
+        // than re-verified as a separate discovery.
+        //
+        // `?v=latestbeta` is itself a "latest" alias, and unlike stable there is
+        // no per-generation twin to switch to: probed 2026-08-30, `?v=ccc7beta`
+        // and `?v=ccc7-beta` both answer with the STABLE ccc7 zip (the endpoint
+        // prefix-matches `ccc7` and ignores the rest) and `?v=beta7` falls back to
+        // the plain download page. So the anchor on `versionPattern` — major 7,
+        // same as stable's — is the only guard available here, and it fails closed:
+        // the first CCC 8 beta produces an `ccc-8.…-b<N>.…zip` filename this
+        // pattern does not match, so the probe reports nothing (and surfaces in the
+        // nightly sweep) instead of offering a CCC 7 install a CCC 8 beta.
+        //
+        // No `install`, same reasoning as stable — the privileged-helper
+        // footprint applies equally to both channels. `installedVersionPattern`
+        // scopes this to CCC 7 for the same reason stable's does — there is no
+        // evidence CCC 5/6 currently ship a beta at all (`?v=beta`/`?v=latestbeta`
+        // only ever answered with a CCC 7 artifact, 2026-08-29), so this is
+        // scoped to what was actually observed, not assumed to generalize.
+        VendorProbeRecipe(
+            bundleID: "com.bombich.ccc",
+            url: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta")!,
+            mode: .redirectFilename,
+            versionPattern: #"^ccc-(7(?:\.[0-9]+)+-b[0-9]+)\.[0-9]{3,}\.zip$"#,
+            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta"),
+            changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn_beta.html"),
+            channel: .beta,
+            hostRequirement: VendorHostRequirement(minimumSystemVersion: "13.1"),
+            installedVersionPattern: #"^7\."#),
+
+        // stable (CCC 6) — DOES carry a Sparkle `SUFeedURL`
+        // (`https://update.bombich.com/software/updates/ccc.php`, read from the
+        // mounted 6.1.13 bundle) — a DIFFERENT literal URL than CCC 7's
+        // (`api.bombich.com/updates/ccc`), so this is not simply "same feed,
+        // different app". But it 301s → 302s straight into that exact CCC 7
+        // feed URL and returns the identical HTTP 200 + zero-byte body (verified
+        // 2026-08-29 following the full redirect chain) — so Bombich's whole
+        // Sparkle update backend is dead across all three generations, not a
+        // CCC-7-specific outage, and `SparkleAppcastSource` is a dead end here
+        // too. No MAS listing, no GitHub repo. Same `download_ccc.php` endpoint
+        // as detection, `v=ccc6`
+        // instead of `latest`/`latestbeta` — confirmed 2026-08-29 with a plain
+        // HEAD request: two-hop redirect to `ccc-6.1.13.7699.zip`, matching the
+        // mounted bundle's `CFBundleShortVersionString`/`CFBundleVersion`
+        // exactly. Same filename shape as CCC 7 (`ccc-<marketing>.<build>.zip`),
+        // so the same pattern applies, anchored to major 6 the way CCC 7's is to
+        // major 7 — a per-generation endpoint that ever answered with another
+        // generation's file would be a vendor-side change, and this recipe should
+        // go quiet and get triaged rather than quietly report it.
+        //
+        // `installedVersionPattern` pins this to CCC 6 — without it this recipe
+        // and CCC 7's would both match a CCC 6 install (nothing else
+        // distinguishes them structurally) and `VendorProbeSource.best(of:)`
+        // would report whichever answered a higher version, which is CCC 7's,
+        // recreating the exact bug this whole three-recipe split exists to fix.
+        //
+        // `variant` is required here too, separately from that: three recipes
+        // share (bundleID, channel) = (`com.bombich.ccc`, `.stable`), and
+        // `channelProofsCoverEveryChannelRecipe` requires every recipe in such a
+        // group to carry a distinct `variant` — otherwise they'd collide onto
+        // one `recipeID` and share a verify baseline / issue history despite
+        // being three different endpoints.
+        //
+        // changelogURL: CCC 6's own release-notes page (distinct from CCC 7's
+        // `ccc7_rn.html`) — verified 200 with real per-version content
+        // 2026-08-29, titled "CCC 6 Release Notes".
+        //
+        // No `install`: same privileged-helper footprint as CCC 7 (confirmed by
+        // the same category of components in the mounted 6.1.13 app), so
+        // detection-only for the same reason.
+        //
+        // `hostRequirement.minimumSystemVersion`: 10.15, read from the real 6.1.13
+        // binary's `LSMinimumSystemVersion` and independently confirmed against a
+        // Wayback Machine snapshot of Bombich's own CCC 6 system-requirements page
+        // from 2022-05-18 (a year after CCC 6's 2021 launch) — it already stated
+        // "macOS 10.15 Catalina" as the floor back then, and the current page
+        // (last updated 2023-11-06) still does. Two-plus years with no floor
+        // movement is why this is safe as a static value — see the longer
+        // reasoning on the CCC 7 stable recipe above.
+        VendorProbeRecipe(
+            bundleID: "com.bombich.ccc",
+            url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc6")!,
+            mode: .redirectFilename,
+            versionPattern: #"^ccc-(6\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
+            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc6"),
+            changelogURL: URL(string: "https://bombich.com/en/kb/ccc/6/release-notes"),
+            variant: "ccc6",
+            hostRequirement: VendorHostRequirement(minimumSystemVersion: "10.15"),
+            installedVersionPattern: #"^6\."#),
+
+        // stable (CCC 5) — same reasoning as CCC 6 above, one generation older.
+        // `v=ccc5` confirmed 2026-08-29: two-hop redirect to
+        // `ccc-5.1.28.6213.zip`, matching the mounted bundle's
+        // `CFBundleShortVersionString`/`CFBundleVersion` exactly (Team
+        // `L4F2DED5Q7`, same as 6 and 7). Same filename shape, same pattern,
+        // anchored to major 5 for the same reason CCC 6's is to major 6.
+        // `installedVersionPattern` pins this to CCC 5 for the identical reason
+        // CCC 6's does. changelogURL is CCC 5's own release-notes page, verified
+        // 200 2026-08-29. No `install`, same reasoning as the other two.
+        //
+        // `hostRequirement.minimumSystemVersion`: 10.10, read from the real
+        // 5.1.28 binary's `LSMinimumSystemVersion` — and this one has a second,
+        // independent witness: Bombich's own CCC 5 system-requirements KB page
+        // (last updated 2021-02-16, effectively frozen since — CCC 5's
+        // development ceased when CCC 6 shipped in May 2021) states "OS X 10.10
+        // Yosemite" as the floor verbatim. Two sources, same number.
+        VendorProbeRecipe(
+            bundleID: "com.bombich.ccc",
+            url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc5")!,
+            mode: .redirectFilename,
+            versionPattern: #"^ccc-(5\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
+            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc5"),
+            changelogURL: URL(string: "https://bombich.com/en/kb/ccc/5/release-notes"),
+            variant: "ccc5",
+            hostRequirement: VendorHostRequirement(minimumSystemVersion: "10.10"),
+            installedVersionPattern: #"^5\."#),
     ]
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus

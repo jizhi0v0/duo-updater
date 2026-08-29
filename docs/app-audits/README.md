@@ -89,6 +89,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**AionUi**](com-aionui-app.md) · `com.aionui.app` — P (detection-only) · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Msty Studio**](MstyStudio.md) · `MstyStudio` — P (detection-only) · real DMG + live probe ✓ · 2026-08-17
 - [x] [**Grok Bot**](com-anysphere-sand.md) · `com.anysphere.sand` — P (one-click arm64 dmg, Team DCNK4UB866) · xAI 的产品但由 Anysphere 构建，走 Cursor 的更新基建（`api2.cursor.sh` / `downloads.cursor.com`），接口上的 app name 是 `sand` · asar 里的 nightly/dogfood 两轨客户端与服务端都不可达，故单 channel · 官网按钮那条无版本号、cask livecheck 那条最新时回 204，都不用 · 真实 DMG + live probe ✓ · 2026-08-29
+- [x] [**TimeMachineEditor**](com-tclementdev-timemachineeditor-application.md) · `com.tclementdev.timemachineeditor.application` — P (one-click pkg, Team 68GTH78H6S) · cask `auto_updates:true` 被跳过，故 vendor 主页是唯一版本源 · 无 JSON API，读首页下载链接文字里的版本号，与 Homebrew 自己的 livecheck 独立印证 · pkg 装了 LaunchDaemon，故一键必须走 `.pkg` 而非 dmg/zip · 真实 pkg 展开验证 + live probe ✓ · 2026-08-29
 
 - [x] [**搜狗输入法 (SogouInput)**](com-sogou-inputmethod-sogou.md) · `com.sogou.inputmethod.sogou` — P · 版本读**厂商自己的条件更新接口**（pin `v=0.0.0.1` 装成很旧的客户端去问；已验证不做分段升级，六个历史版本都答同一个最新版）· 返回的版本与 `CFBundleShortVersionString` 四段完全一致，无需任何裁剪 · 哨兵 `1.0.0.1` 由 `update_pack_url` 守卫挡掉 · 不发设备 hash · notes 走更新日志页 · detection-only（装机附带两个 LaunchAgent + QuickLook + 用户目录迁移；自更新 payload 另有 pre/post/switch 脚本）· 2026-08-28
 - [x] [**豆包输入法 (DoubaoIme)**](com-bytedance-inputmethod-doubaoime.md) · `com.bytedance.inputmethod.doubaoime` — P+C · 比厂商 version code（装机侧在自定义键 `Wave Build Version Number`，CFBundleVersion 是废号 1）· changelog 走 app 自己的更新接口 · detection-only（输入法整类闸）· channel-verify ✓ · 2026-08-21
@@ -96,6 +97,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**WorkBuddy (Tencent)**](com-workbuddy-workbuddy.md) · `com.workbuddy.workbuddy-ai` + `com.workbuddy.workbuddy` — P (one-click, both sites) · 两站两个独立 app，非 channel · 每站按架构分两条 recipe · 两站真实 DMG channel-verify ✓ · 2026-08-27
 - [x] [**Canva**](com-canva-CanvaDesktop.md) · `com.canva.CanvaDesktop` — P (one-click, dmg + feed sha512) · Electron 套壳，端点取自 app 自带 `app-update.yml` · cask 是 `auto_updates` 且滞后一版 · beta 轨道 2024-11 起废弃，pattern 以数字点结尾拒读 · 真实 DMG + live probe + `duo check` 全链 ✓ · 2026-08-27
+- [x] [**Little Snitch**](at-obdev-littlesnitch.md) · `at.obdev.littlesnitch` — P(stable/nightly) C(stable only) · 2 channels，共享 bundle id，channel 词烤进 `CFBundleShortVersionString`（`ReleaseChannel.detect()` 新增 0.7 步）· 端点是 Homebrew cask 自己 livecheck 也在用的 obdev 静态 feed，两 cask 均 `auto_updates` 故原本 `.unknown` · **detection-only**：网络防火墙 + System Extension，一键需要真机红→绿验证才能开 · 未装机审计，从官方 dmg 挂载验证 · 2026-08-29
+- [x] [**Carbon Copy Cloner**](com-bombich-ccc.md) · `com.bombich.ccc` — P(CCC5/CCC6/CCC7 stable + CCC7 beta，均 detection-only) · **三个独立、仍在维护的大版本代际共用同一 bundle id**（真机核实），`?v=latest` 只给最新的 CCC7，跨代际比较会把 CCC5/6 用户导向一次付费大版本升级——修法是新增 `VendorProbeRecipe.installedVersionPattern`（`hostRequirement` 的对偶，锁定装机代际）+ `VendorProbeSource` 新增一道过滤，四条 recipe 各自独立 `variant` · 有 `SUFeedURL` 但两条(CCC7 自己的 + CCC5/6 共用的)都回空 body，Sparkle 静默失效；改读 cask 自带 livecheck 同款的 `download_ccc.php?v=<latest|ccc6|ccc5>` 重定向文件名 · cask 是 `auto_updates` · beta 用 `?v=latestbeta`（无连字符，2026-08-29 补齐）· channel 信号是版本串 `-b<N>` 短后缀，`ReleaseChannel.detect()` 新增 step 0.8 · 2026-08-29
 
 ## Single-channel — GitHub Releases
 

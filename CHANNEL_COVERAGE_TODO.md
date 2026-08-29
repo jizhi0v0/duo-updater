@@ -185,6 +185,17 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
       已接入 `IINAChannel`（feed-swap：stable `appcast.xml` ↔ beta `appcast-beta.xml`），
       注册到 `ChannelBinding`，测试通过。
 
+- [x] **Carbon Copy Cloner** · `com.bombich.ccc` — Settings → Software Update →
+      **"Inform me of beta releases"** checkbox。**已接入（2026-08-29，见
+      `docs/app-audits/com-bombich-ccc.md`）**——此前记为"阻塞，需人工抓包"，实际
+      不需要：`download_ccc.php?v=latestbeta`（**无连字符**，之前只试过 `?v=beta` 和
+      `?v=latest-beta`）就直接 302 到真实 beta 构件
+      （`ccc-7.1.7-b7.8389.zip`），跟 stable 同构。真机验证过下载并展开的真实 zip
+      （`CFBundleShortVersionString="7.1.7-b7"`，Team `L4F2DED5Q7`，与 stable 一致，
+      已公证）。channel 信号是版本串的短 `-b<N>` 后缀，`ReleaseChannel.detect()` 新增
+      按 bundle id 限定的 step 0.8。两 channel 均仅检测，未接一键（装机带特权
+      helper/LaunchDaemon/XPC，一键是独立范围决策）。
+
 ---
 
 ## §2c 扫描 2026-08-27（CapCut 落地后复扫）

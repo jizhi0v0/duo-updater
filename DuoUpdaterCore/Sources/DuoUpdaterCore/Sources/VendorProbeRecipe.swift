@@ -2204,8 +2204,31 @@ public enum VendorProbeRegistry {
         // One-click dmg: the enclosure is on Tencent's own CDN, same channel, signed
         // by the same Team `5A4RE8SF68` (Tencent Mobile International) as the installed
         // app — the VendorInstaller signature gate enforces it. `.bodyPattern` takes
-        // the FIRST `<enclosure>` (newest item, listed first); its `?t=<token>` query
-        // is read fresh from each probe's feed. Structured notes come from a
+        // the FIRST `<enclosure>` in whatever text it is handed; its `?t=<token>`
+        // query is read fresh from each probe's feed.
+        //
+        // `entryStartPattern` is what makes that safe. Without it the two readers
+        // select INDEPENDENTLY over the whole body — the version is the highest
+        // found anywhere (`selectHighest`), the download URL is the first enclosure
+        // found anywhere — and this feed carries 7 items spanning four generations
+        // (4.1.13.11 down to 2.3.31.22, read live 2026-08-30). They coincide only
+        // because Tencent happens to list newest first; a reordering that put the
+        // legacy `WeChatMac_10_15.dmg` item first would report "4.1.13" while
+        // installing a 3.8 build, silently. That is the #76 shape exactly, and an
+        // ordering argument is not a guard. `<item>` occurs 7 times in the body and
+        // never nested, so it slices between releases and not inside one.
+        //
+        // Tencent also buckets ONE version by OS across three of those items
+        // (`min12.0` with no max, `min12.0/max14.3`, and `min14.3/max15.0` which
+        // carries NO enclosure at all and tells the user to visit the website).
+        // Nothing here reads those bounds — `VendorProbeSource` consults neither,
+        // unlike `SparkleAppcastSource`. What keeps this correct is the tie-break in
+        // `highestVersionEntry`: `best` is replaced only on a STRICTLY newer
+        // version, so among the three items that all read "4.1.13" the FIRST wins —
+        // the no-max bucket carrying the universal dmg. If Tencent ever reorders
+        // those three, the enclosure-less bucket could win and one-click would go
+        // quiet: visible in the nightly sweep, and strictly better than the silent
+        // wrong-artifact install the un-sliced version risks. Structured notes come from a
         // ChangelogRecipe over the official per-version updates page; changelogURL is
         // the webview fallback.
         VendorProbeRecipe(
@@ -2216,6 +2239,7 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://mac.weixin.qq.com/"),
             changelogURL: URL(string: "https://weixin.qq.com/updates?platform=mac"),
             selectHighest: true,
+            entryStartPattern: #"<item>"#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(#"<enclosure url="(https://[^"]+\.dmg[^"]*)""#),
                 kind: .dmg)),

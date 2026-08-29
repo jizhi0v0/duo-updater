@@ -207,8 +207,11 @@ struct BaiduNetdiskProbeRecipeTests {
     ///   * 8.7.9 — the ordinary case: one bullet in `more`.
     ///   * 8.7.0 — two bullets, so an item pattern that stops after one shows up.
     ///   * 4.54.9 — `more` is EMPTY and the real note sits in the detail object's
-    ///     `title`. 11 of the 100 live releases look like this; capturing only the
-    ///     `more` array would render them as blank entries.
+    ///     `title`. 11 of the 100 live releases look like this. Capturing only the
+    ///     `more` array would not leave them blank — the extractor drops an entry
+    ///     whose item patterns yield nothing — it would drop them from the
+    ///     changelog outright, which is why the fallback pattern is load-bearing
+    ///     and why `theTitleFallbackIsWhatKeepsThoseReleasesAtAll` exists.
     ///   * 4.3.0 — the older shape: `feature_tips` sorts BEFORE `more` inside
     ///     `detail`, and the version label carries a space (`客户端 V4.3.0`).
     private static let changelogBody = """
@@ -308,12 +311,49 @@ struct BaiduNetdiskProbeRecipeTests {
         #expect(!entry.items.contains("更新内容："))
     }
 
-    /// No entry may be empty: an entry with no items is exactly what the
-    /// `more`-only pattern produced, and it renders as a version with a blank
-    /// body rather than as a visible failure.
-    @Test func noEntryIsRenderedWithoutAnyNote() throws {
-        for entry in try Self.parsed().entries {
-            #expect(!entry.items.isEmpty, "\(entry.version) parsed to no items")
-        }
+    /// The fallback pattern is load-bearing, and this is the test that says so.
+    ///
+    /// Asserting "no parsed entry has empty items" would NOT say it: the extractor
+    /// refuses to append an entry whose item patterns yield nothing
+    /// (`guard !noteHits.isEmpty`), so such an entry can never reach `entries` and
+    /// that assertion passes no matter what the recipe does. The regression the
+    /// fallback prevents is a release going MISSING, so the test has to rebuild the
+    /// recipe without the fallback and watch 4.54.9 disappear.
+    @Test func theTitleFallbackIsWhatKeepsThoseReleasesAtAll() throws {
+        let real = try Self.changelogRecipe()
+        #expect(real.itemPatterns.count == 2,
+                "the fallback this test removes is gone; it now proves nothing")
+        let bulletsOnly = ChangelogRecipe(
+            bundleID: real.bundleID,
+            source: real.source,
+            entryPattern: real.entryPattern,
+            itemPatterns: [real.itemPatterns[0]],
+            mode: real.mode,
+            maxEntries: real.maxEntries)
+        let stripped = try #require(
+            ChangelogExtractor.extract(from: Self.changelogBody, using: bulletsOnly))
+        // Not "4.54.9 is blank" — it is not there at all.
+        let full = try Self.parsed().entries.count
+        #expect(!stripped.entries.contains { $0.version == "4.54.9" })
+        #expect(stripped.entries.count == full - 1)
+    }
+
+    /// A note carrying an escaped quote must stay ONE item, not vanish.
+    ///
+    /// `[^"]+` stops at the backslash's quote, and because the array's other
+    /// elements still match, `firstNonEmptyItemHits` is satisfied and never tries
+    /// the fallback — the entry simply renders with fewer notes than the vendor
+    /// published, which nothing reports. No live item carries a quote today, so
+    /// this fixture is the only thing standing between the pattern and that.
+    @Test func anEscapedQuoteInsideANoteDoesNotSwallowIt() throws {
+        let body = """
+            {"list":[{"detail":[{"more":["她说\\"你好\\"，然后走了","第二条"],            "stable":true,"title":"百度网盘全新升级"}],"publish":"2026-08-28 14:39:00",            "version":"百度网盘Mac电脑客户端V9.0.0"}]}
+            """
+        let log = try #require(
+            ChangelogExtractor.extract(from: body, using: try Self.changelogRecipe()))
+        let entry = try #require(log.entries.first)
+        #expect(entry.version == "9.0.0")
+        // `.json` decoding turns the escapes back into real quotes.
+        #expect(entry.items == ["她说\"你好\"，然后走了", "第二条"])
     }
 }

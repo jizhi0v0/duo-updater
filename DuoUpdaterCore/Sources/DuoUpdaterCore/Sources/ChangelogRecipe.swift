@@ -2345,8 +2345,12 @@ public enum ChangelogRecipeRegistry {
         //     detail object's `title`.** Those are not note-less releases — 4.54.9's
         //     title is "百度网盘优化了一些已知的体验问题，欢迎升级体验~", the whole note.
         //     So `body` captures the WHOLE detail object and the item patterns are
-        //     ordered: bullets first, the title only when there are none. Capturing
-        //     just the `more` array would have shown eleven empty entries.
+        //     ordered: bullets first, the title only when there are none.
+        //     Capturing just the `more` array would not have shown eleven blank
+        //     entries — `ChangelogExtractor` drops an entry whose item patterns
+        //     yield nothing (`guard !noteHits.isEmpty`), so those eleven releases
+        //     would be MISSING from the changelog entirely, with no blank row to
+        //     notice. The fallback is what keeps them.
         //  2. **The key order inside `detail` is not fixed** — 97 of 100 are
         //     `more, stable, title` and 3 are `feature_tips, more, title` — so
         //     nothing may assume `more` comes first.
@@ -2360,6 +2364,16 @@ public enum ChangelogRecipeRegistry {
         // separates `more`'s elements from the keys and from `title`'s value in
         // the same object (a key is followed by `:`, a value preceded by one).
         //
+        // Its body is `(?:[^"\\]|\\.)+` rather than `[^"]+` so a note containing an
+        // escaped quote stays one element. `[^"]+` stops at the backslash's quote
+        // and the element is then SILENTLY DROPPED, not reported: the array's other
+        // elements still match, so `firstNonEmptyItemHits` is satisfied, never tries
+        // the fallback, and the entry renders with fewer notes than the vendor
+        // published. (Measured on `"more":["say \"hi\" now","b"]`: `[^"]+` yields
+        // `["b"]` alone.) No live item carries a quote today — 0 of 165 — which is
+        // exactly why this would have gone unnoticed; the recipe is `.json` because
+        // this feed's strings are escaped, so the item pattern has to agree.
+        //
         // Verified 2026-08-29 against the live 40-entry response: all 40 entries
         // match, and every version, date and item list is byte-identical to what
         // `json.loads` produces for that entry — including all 7 that fall through
@@ -2371,7 +2385,7 @@ public enum ChangelogRecipeRegistry {
                 #"\{"detail":\[\{(?<body>.*?)\}\],"publish":"(?<date>[^"]+)""#
                 + #".*?"version":"[^"]*?V(?<version>[0-9]+(?:\.[0-9]+)*)""#,
             itemPatterns: [
-                #"[\[,]"(?<item>[^"]+)"(?=[,\]])"#,
+                #"[\[,]"(?<item>(?:[^"\\]|\\.)+)"(?=[,\]])"#,
                 #""title":"(?<item>[^"]+)""#,
             ],
             mode: .json,

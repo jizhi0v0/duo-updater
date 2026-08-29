@@ -151,7 +151,13 @@ newest-first。取 `num=40` 与 `maxEntries` 对齐，24 KB（`num=100` 是 58 K
    这些不是「没有更新说明的版本」—— 4.54.9 的 title 就是
    「百度网盘优化了一些已知的体验问题，欢迎升级体验~」，那就是全文。
    所以 `body` 捕获**整个 detail 对象**，`itemPatterns` 有序：先取 `more` 的元素，
-   一条都没有时才回落到 `title`。只捕 `more` 数组的话，会有 11 条渲染成空条目。
+   一条都没有时才回落到 `title`。
+
+   > 只捕 `more` 数组的后果**不是「11 条渲染成空条目」** —— `ChangelogExtractor`
+   > 对 item 一条都没解析出来的 entry 直接 `guard !noteHits.isEmpty else { return }`
+   > **丢弃**，所以那 11 个版本会从更新日志里**整个消失**，连一行空的都看不到。
+   > 回落 pattern 是唯一让它们留下来的东西，`theTitleFallbackIsWhatKeepsThoseReleasesAtAll`
+   > 守的就是这条。
 2. **`detail` 里的 key 顺序不固定** —— 97 条是 `more, stable, title`，
    3 条是 `feature_tips, more, title`。任何「`more` 是第一个 key」的假设都会漏。
 3. **版本串的写法变过三次** —— 近期 `百度网盘Mac电脑客户端V8.7.9`，
@@ -161,6 +167,14 @@ newest-first。取 `num=40` 与 `maxEntries` 对齐，24 KB（`num=100` 是 58 K
 第一条 item pattern 靠**标点**认 JSON 数组元素 —— 由 `[` 或 `,` 起、由 `,` 或 `]`
 收的字符串。这正好把 `more` 的元素与同一对象里的 key（后面跟 `:`）和 `title` 的值
 （前面是 `:`）分开。
+
+元素主体写的是 `(?:[^"\\]|\\.)+` 而不是 `[^"]+`，因为后者**会静默吞掉带转义引号的
+那一条**：`[^"]+` 在反斜杠的那个引号处就停了，而数组里其它元素照样匹配，
+`firstNonEmptyItemHits` 因此认为「有结果」、不会去试回落 pattern —— 该 entry 就比厂商
+实际发布的少一条 note，全程没有任何报错。实测 `"more":["say \"hi\" now","b"]`：
+旧写法只返回 `["b"]`。现网 165 条 item 里一条引号都没有，**这正是它会长期不被发现的
+原因**；recipe 之所以是 `.json` 就是因为这个 feed 的字符串是转义的，item pattern 必须
+跟上。（改动前后对 100 条真实数据的输出逐条一致。）
 
 ### 验证
 

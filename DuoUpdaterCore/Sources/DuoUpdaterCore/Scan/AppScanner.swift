@@ -275,11 +275,7 @@ public struct AppScanner: Sendable {
         // bundle has no readable Info.plist and the app is silently dropped.
         let wrappedBundle = bundleURL.appendingPathComponent("WrappedBundle")
         let isiOSAppOnMac = fm.fileExists(atPath: wrappedBundle.path)
-        let infoURL: URL = isiOSAppOnMac
-            ? wrappedBundle.appendingPathComponent("Info.plist")
-            : bundleURL
-                .appendingPathComponent("Contents", isDirectory: true)
-                .appendingPathComponent("Info.plist")
+        let infoURL = BundleLayout.infoPlistURL(for: bundleURL, fileManager: fm)
 
         guard
             let data = try? Data(contentsOf: infoURL),

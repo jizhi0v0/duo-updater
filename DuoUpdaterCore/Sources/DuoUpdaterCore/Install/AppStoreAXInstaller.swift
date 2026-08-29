@@ -341,7 +341,7 @@ public actor AppStoreAXInstaller {
     /// `fallbackShort` (the caller's known current version) is used only if the
     /// Info.plist can't be read at that instant.
     private func installedVersions(_ appPath: URL, fallbackShort: String? = nil) -> (short: String?, build: String?) {
-        let plist = appPath.appendingPathComponent("Contents/Info.plist")
+        let plist = BundleLayout.infoPlistURL(for: appPath)
         let dict = NSDictionary(contentsOf: plist)
         let short = (dict?["CFBundleShortVersionString"] as? String) ?? fallbackShort
         let build = dict?["CFBundleVersion"] as? String

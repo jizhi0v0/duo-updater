@@ -21,7 +21,7 @@ public enum InstalledBuild {
     /// Returns nil when the bundle is unreadable or declares no build, so callers
     /// fall back rather than record a wrong value.
     public static func read(at bundleURL: URL) -> String? {
-        let plist = bundleURL.appendingPathComponent("Contents/Info.plist")
+        let plist = BundleLayout.infoPlistURL(for: bundleURL)
         guard let data = try? Data(contentsOf: plist),
               let object = try? PropertyListSerialization.propertyList(
                   from: data, format: nil),

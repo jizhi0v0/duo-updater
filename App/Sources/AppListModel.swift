@@ -3944,7 +3944,7 @@ final class AppListModel {
     nonisolated private static func readBundleVersions(
         _ bundle: URL
     ) -> (short: String?, build: String?) {
-        let info = bundle.appendingPathComponent("Contents/Info.plist")
+        let info = BundleLayout.infoPlistURL(for: bundle)
         guard let data = try? Data(contentsOf: info),
               let dict = (try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil)) as? [String: Any]

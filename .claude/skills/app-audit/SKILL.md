@@ -384,15 +384,27 @@ recipe had already shipped:
 - **WeChat** (`dldir1.qq.com/weixin/mac/mac-release.xml`): 7 items, 3 of them
   capped (`min12.0/max14.3`, `min14.3/max15.0`, `max10.10.6`). The SAME version is
   bucketed by OS into different artifacts, and one bucket carries no enclosure at
-  all. The recipe reads it with a bare regex — those buckets are invisible to the
-  code, and "本机匹配 item 1，安全" is a human conclusion written in prose, not a
-  judgement anything re-evaluates when the vendor reorders the feed.
+  all. The recipe reads it with a bare regex, so **those buckets are invisible to
+  the code** — that part is durable, and it is the point of this section. (The
+  separate hazard the same audit left open, version and download URL selected
+  independently so a vendor reorder could pair "4.1.13" with a 3.8 artifact, was
+  a real bug and has since been closed with `entryStartPattern`. Which is the
+  lesson twice over: the audit doc reasoned about the ordering in prose and
+  moved on, and prose does not re-evaluate itself when the vendor changes the
+  feed.)
 
 ```bash
 # Look for BOTH bounds. Do not grep only for the one you expect to find.
 curl -sS "<feed>" | grep -iE "minimumSystemVersion|maximumSystemVersion|LSMinimum|depends_on|macos"
-# And read the floor off the real artifact, which never lies:
+# And read the floor off the real artifact, which never lies. Mind the layout:
 /usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "<downloaded>.app/Contents/Info.plist"
+# An iPhone/iPad app running on Apple silicon has NO Contents/ — its plist is
+# under Wrapper/<Inner>.app/ and it states an **iOS** floor in a different key.
+# Reading the wrong path returns "Does Not Exist", which is not "no floor".
+/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' \
+  "<downloaded>.app/$(readlink "<downloaded>.app/WrappedBundle")/Info.plist"
+# Never compare that number against a macOS version — different namespaces, and
+# it looks fine only while iOS 26 / macOS 26 happen to line up.
 ```
 
 **Write the numbers into the audit doc, not just a yes/no.** A floor the app has
@@ -402,11 +414,15 @@ recipe. If the feed buckets by OS, say explicitly WHICH bucket the recipe's
 pattern lands on and WHY it cannot drift onto another one — an ordering argument
 is not enough on its own, that is what `entryStartPattern` is for.
 
-**Where the answer already gets honoured, and where it does not:** apps read by
-`SparkleAppcastSource` get both bounds filtered in `usableItems` for free. Apps
-read by `VendorProbeSource` do **not** — even when the endpoint is a Sparkle
-appcast, the recipe reads it with regexes and no bound is consulted. WeChat is
-exactly that case. Do not assume "it's an appcast" means "the bounds are handled".
+**Where the answer gets honoured, and where it does not:** `SparkleAppcastSource`
+filters items on the bounds it parses, inside `usableItems` — **go read which
+bounds it parses today** rather than trusting this line, the same way you would
+for `VendorProbeRecipe`'s field list above. `VendorProbeSource` consults
+**neither** bound, and that half does not drift: even when the endpoint is a
+Sparkle appcast, a recipe reads it with regexes and nothing looks at a
+`min`/`maxSystemVersion` anywhere. WeChat is exactly that case. Do not assume
+"it's an appcast" means "the bounds are handled" — the source that reads it
+decides that, not the format it is written in.
 
 **Delta / binary patch — how to actually check:**
 

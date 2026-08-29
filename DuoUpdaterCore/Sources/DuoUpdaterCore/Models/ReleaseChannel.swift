@@ -69,6 +69,10 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///      channel bakes the word "nightly" straight into
     ///      `CFBundleShortVersionString` in a shape ("6.5 nightly (7301)") none
     ///      of steps 3/4 below recognize. See the block comment on the check.
+    ///   0.8. A fifth bundle-id-scoped rule — Carbon Copy Cloner, whose Beta
+    ///      channel abbreviates to a `-b<N>` suffix ("7.1.7-b7") distinct from
+    ///      both pre-release shapes step 4 already recognizes. See the block
+    ///      comment on the check.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
@@ -175,6 +179,24 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
            !version.isEmpty,
            hasStandaloneWord("nightly", in: version) {
             return .nightly
+        }
+
+        // 0.8 Carbon Copy Cloner — Stable and Beta share bundle id
+        //     `com.bombich.ccc` and `CFBundleName` ("Carbon Copy Cloner" — no
+        //     channel word for step 3), and Beta ships no bundle-id suffix. The
+        //     channel signal is a short `-b<N>` suffix on
+        //     `CFBundleShortVersionString` ("7.1.7-b7", confirmed against a real
+        //     downloaded beta build, 2026-08-29) — a THIRD shape distinct from
+        //     both patterns step 4 already recognizes: it isn't the Mozilla
+        //     `<maj>.<min>b<n>` shape (that requires exactly one dot before the
+        //     bare `b`, no dash — "155.0b5"), and it isn't the full-word
+        //     `-beta<N>` shape GitHub Desktop uses ("3.5.12-beta2") — Bombich
+        //     abbreviates to `-b7`, not `-beta7`. Without this rule the version
+        //     would silently read as `.stable`.
+        if bundleID == "com.bombich.ccc",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+(\.[0-9]+)+-b[0-9]+"#, version) {
+            return .beta
         }
 
         // 1. Keystone's own channel id — authoritative when present.

@@ -13,18 +13,26 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | ✗（见下）| ✗（auto_updates）| —   | —      | ✓           |
-| **beta**     | ✗（见下）| —        | —   | —      | ✗（需人工抓包）|
+| **beta**     | ✗（见下）| —        | —   | —      | ✓（2026-08-29 补齐）|
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**（本次新增）
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**（两个 channel）
 
 ## Channel 详情
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
-| stable  | `com.bombich.ccc` | — | `download_ccc.php?v=latest` 重定向文件名 | 无 | ✓（本次接入） |
-| beta    | `com.bombich.ccc` | 共享 | Settings → Software Update → "Inform me of beta releases" 勾选项 | 未知（疑似同一 `SUFeedURL` 请求上叠加的 header/参数）| 阻塞，需人工抓包 |
+| stable  | `com.bombich.ccc` | — | `download_ccc.php?v=latest` 重定向文件名 | `ReleaseChannel.detect()` 默认 `.stable` | ✓ |
+| beta    | `com.bombich.ccc` | 共享 | `download_ccc.php?v=latestbeta` 重定向文件名 + `CFBundleShortVersionString` 的 `-b<N>` 后缀（`detect()` 新增 step 0.8）| `channel: .beta` | ✓（2026-08-29 补齐，见下）|
+
+**2026-08-29 补记：此前记为"阻塞，需人工抓包"的判断是错的，不是查不到，是没试对参数。**
+用户提供了 `download_ccc.php?v=latestbeta`（**无连字符**，区别于之前试过的
+`?v=beta`/`?v=latest-beta`）——这个变体当时没试过。实测这条路径直接跟 stable 一样两跳
+302 到一个真实的 beta 构件（`ccc-7.1.7-b7.8389.zip`），完全不需要抓包或猜 `SUFeedURL`
+的请求形状。
 
 ## 更新检测
+
+### stable
 
 - 源: VendorProbe，`.redirectFilename` 模式
 - 端点: `https://bombich.com/software/download_ccc.php?v=latest`
@@ -37,6 +45,27 @@
   会变（7.0→7.0.4→7.1→…→7.1.6，参照 `https://bombich.com/software/updates/ccc7_rn.html`
   的发布历史），不是冻结 marketing 的 app，默认 marketing-only 比较（`versionIsBuild:
   false`）成立。
+
+### beta
+
+- 源: VendorProbe，`.redirectFilename` 模式，同一台端点换个 query 值
+- 端点: `https://bombich.com/software/download_ccc.php?v=latestbeta`（**无连字符**——
+  `?v=beta`、`?v=latest-beta` 都是死路，`?v=latestbeta` 才是真的）。同样两跳 302 到
+  CDN：`bombich.scdn1.secure.raxcdn.com/software/files/ccc-7.1.7-b7.8389.zip`
+- 真机验证（2026-08-29，下载并展开真实 zip）: `CFBundleShortVersionString="7.1.7-b7"
+  CFBundleVersion="8389" CFBundleIdentifier="com.bombich.ccc"`，Team `L4F2DED5Q7`（与
+  stable 一致），已公证
+- 版本方案: 文件名 `ccc-<marketing>-b<N>.<build>.zip`（例：`7.1.7-b7`），正则在原有
+  marketing 分组末尾加 `-b[0-9]+`，捕获组连同 beta 后缀一起取出，与
+  `CFBundleShortVersionString` 逐字符一致，`versionIsBuild` 同样不需要开
+- **channel 检测信号**: `CFBundleShortVersionString` 的 `-b<N>` 短后缀——不是 Mozilla
+  的 `b<N>`（要求恰好一个点、无连字符，如 `155.0b5`），也不是 GitHub Desktop 那种全词
+  `-beta<N>`（如 `3.5.12-beta2`）。`ReleaseChannel.detect()` 原有 step 4 两条规则都
+  接不住，补了一条按 bundle id 限定的 step 0.8（同 Little Snitch 那条 0.7 一个思路：
+  bundle id 共享、版本串本身就是唯一信号时，才值得为单个 app 单独开规则，不改全局
+  pattern）
+- changelog: 复用之前调查阶段就已经找到的 `ccc7_rn_beta.html`（当时只是没接进 recipe）
+
 - 注意事项:
   - **Info.plist 确实有 `SUFeedURL`**（`https://api.bombich.com/updates/ccc`），
     这一点最初的调查前提是错的（并非"没有暴露给静态扫描"）。但该端点对所有测试过的
@@ -65,8 +94,8 @@
 - 来源: VendorProbe 的 `changelogURL` 指向厂商自己的发布记录页
   `https://bombich.com/software/updates/ccc7_rn.html`（三段式版本号，按发布倒序列出
   7.0 → 7.1.6，2026-08-29 核对）
-- 跟随 channel: 否（只有 stable 页面被接入；beta 有独立页面
-  `ccc7_rn_beta.html`，但 beta 检测本身被阻塞，暂不需要）
+- 跟随 channel: 是——stable 的 `changelogURL` 指向 `ccc7_rn.html`，beta 的
+  `changelogURL` 指向独立页面 `ccc7_rn_beta.html`
 - Recipe 状态: 不需要独立 `ChangelogRecipe`——`changelogURL` 已经是一个可读的人工
   发布记录页，在详情窗口以 WebView 呈现即可，不需要结构化解析
 
@@ -83,21 +112,11 @@
 
 ## 已知问题
 
-- **Beta channel 未接入**，需要人工协助才能继续：
-  - 同 bundle id `com.bombich.ccc`，通过 Settings → Software Update → "Inform me
-    of beta releases" 勾选项启用（`https://bombich.com/software/updates/ccc7_rn_beta.html`
-    显示当前 beta 是 "CCC 7.1.7-b7 (pre-release)"，证明轨道确实存在）。
-  - 公开端点没有对应的 beta 构建：`download_ccc.php?v=beta` 重定向到普通下载页
-    （不是文件），`?v=latest-beta` 直接回退到和 `?v=latest` 完全相同的 stable zip
-    （2026-08-29 实测两者）。
-  - 真正的 beta 内容大概率要在勾选该偏好后，观察真实 app 对 `SUFeedURL`
-    （`https://api.bombich.com/updates/ccc`）发出的实际请求（多半是叠加了某个
-    header 或查询参数）才能确认——这需要用户用抓包工具（Charles/mitmproxy）在开着
-    beta 开关的真机上验证，本次调查到此为止，未继续猜测。
 - Sparkle `SUFeedURL` 本身处于失效状态（见"更新检测"），如果 Bombich 之后修好这个
   端点，`SparkleAppcastSource` 会自动开始生效并可能与本次新增的 VendorProbe
   同时应答——`UpdateChecker` 的优先链会让 Sparkle 赢（先于 VendorProbe），行为仍然
   正确，不需要预先处理。
+- 一键安装仍未接（stable、beta 都是），见下"建议下一步"。
 
 ## 建议下一步
 
@@ -105,9 +124,11 @@
    新增 `com.bombich.ccc` 的 `VendorProbeRecipe`（`.redirectFilename`，
    `download_ccc.php?v=latest`）；回归测试
    `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CarbonCopyClonerProbeRecipeTests.swift`。
-2. **beta channel**：需要用户抓包（Settings 里勾上 "Inform me of beta releases"
-   后，观察真实 app 对 `api.bombich.com/updates/ccc` 发出的请求头/参数），拿到证据
-   后再决定是走同一 `SUFeedURL`（改造 `SparkleAppcastSource`/`ChannelBinding`）还是
-   一个独立的 VendorProbe beta 端点。
-3. **一键安装**：技术上可行（zip 直出 `.app`，Team `L4F2DED5Q7`），但因为装机带特权
-   helper/LaunchDaemon/XPC，是否要做需要单独决定，未在本次默认加入。
+2. **beta 检测已完成（2026-08-29）**：同一文件新增第二条 `com.bombich.ccc` recipe
+   （`channel: .beta`，`download_ccc.php?v=latestbeta`），`ReleaseChannel.swift`
+   新增 step 0.8 识别 `-b<N>` 短后缀，测试同一份文件里补齐（stable/beta 各自的
+   pattern 互不误伤 + `detect()` 单测 + 负控制）。此前记为"需要用户抓包"的阻塞
+   已解除——是没试对 query 参数拼写，不是真的需要抓包。
+3. **一键安装**：技术上可行（zip 直出 `.app`，Team `L4F2DED5Q7`，两个 channel 同一个
+   Team，签名闸能一致通过），但因为装机带特权 helper/LaunchDaemon/XPC，是否要做需要
+   单独决定，未在本次默认加入。

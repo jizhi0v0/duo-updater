@@ -5722,20 +5722,6 @@ public enum VendorProbeRegistry {
         // "variable number of parts" — the pattern below accepts both, always
         // taking everything before the trailing 3+ digit build segment.
         //
-        // BETA CHANNEL — investigated, not wired up. Same bundle id
-        // (`com.bombich.ccc`), opted into from CCC's own Settings → Software
-        // Update → "Inform me of beta releases" (confirmed via
-        // `https://bombich.com/software/updates/ccc7_rn_beta.html`, which lists
-        // "CCC 7.1.7-b7 (pre-release)"). There is no public unauthenticated beta
-        // download: `download_ccc.php?v=beta` redirects to the plain download
-        // page (not a file) and `?v=latest-beta` just resolves to the SAME stable
-        // zip as `?v=latest` (verified 2026-08-29) — neither is a real beta
-        // artifact. The beta feed is presumably reached only through whatever the
-        // real app sends once the preference is enabled (a header or query param
-        // on the same broken `SUFeedURL`, unreproducible from outside), which
-        // needs the user's own packet capture with the beta toggle on to pin down
-        // — not attempted here.
-        //
         // No `install`: this is detection-only. CCC installs a privileged helper
         // (`com.bombich.ccchelper`), a LaunchDaemon and an XPC service alongside
         // the `.app`, so an in-place bundle swap is a materially bigger claim than
@@ -5748,6 +5734,44 @@ public enum VendorProbeRegistry {
             versionPattern: #"^ccc-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latest"),
             changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn.html")),
+
+        // Carbon Copy Cloner, BETA channel — same bundle id, opted into from
+        // CCC's own Settings → Software Update → "Inform me of beta releases".
+        // The blocker recorded on 2026-08-29 (needs the user's own packet
+        // capture — `?v=beta` redirects to the plain download page, and
+        // `?v=latest-beta` just resolves to the stable zip) turned out to be a
+        // wrong guess at the query param spelling, not a real auth wall:
+        // `?v=latestbeta` (no hyphen) 302s through the same two-hop chain as
+        // stable to a genuine beta artifact —
+        // `ccc-7.1.7-b7.8389.zip` — confirmed 2026-08-29 by downloading and
+        // expanding the real zip: `CFBundleShortVersionString="7.1.7-b7"
+        // CFBundleVersion="8389" CFBundleIdentifier="com.bombich.ccc"`, Team
+        // `L4F2DED5Q7`, notarized. Marketing matches the probed capture group
+        // exactly, so `versionIsBuild` stays the default `false`, same as
+        // stable.
+        //
+        // CHANNEL SIGNAL: `CFBundleShortVersionString` carries a short `-b<N>`
+        // suffix ("7.1.7-b7") that `ReleaseChannel.detect()` needed a new
+        // bundle-id-scoped rule for (step 0.8) — it is neither the Mozilla
+        // `b<N>` shape (requires exactly one dot, no dash) nor the full-word
+        // `-beta<N>` shape (GitHub Desktop's), so without that rule this would
+        // silently read as `.stable`.
+        //
+        // No `changelogURL` beyond what's already public: the same
+        // `ccc7_rn_beta.html` page the stable investigation already found
+        // (lists "CCC 7.1.7-b7 (pre-release)") is reused here directly rather
+        // than re-verified as a separate discovery.
+        //
+        // No `install`, same reasoning as stable — the privileged-helper
+        // footprint applies equally to both channels.
+        VendorProbeRecipe(
+            bundleID: "com.bombich.ccc",
+            url: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta")!,
+            mode: .redirectFilename,
+            versionPattern: #"^ccc-([0-9]+(?:\.[0-9]+)+-b[0-9]+)\.[0-9]{3,}\.zip$"#,
+            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta"),
+            changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn_beta.html"),
+            channel: .beta),
     ]
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus

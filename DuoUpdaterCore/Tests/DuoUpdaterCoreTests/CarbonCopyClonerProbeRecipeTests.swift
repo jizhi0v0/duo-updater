@@ -32,13 +32,30 @@ private let cccTwoSegmentMarketingFixture = "ccc-7.1.1234.zip"
 /// pins the empty response so a future change can't quietly start trusting it.
 private let cccBrokenSparkleFeedFixture = ""
 
+/// Beta channel, unblocked 2026-08-29 by trying `?v=latestbeta` (no hyphen) —
+/// the query param the 2026-08-29 stable investigation never tried (it tried
+/// `?v=beta` and `?v=latest-beta`, both dead ends). Captured with a plain
+/// `URLSession` HEAD request against the live endpoint:
+///   `https://bombich.com/software/download_ccc.php?v=latestbeta`
+///   → 302 → `https://api.bombich.com/download/ccc?v=latestbeta`
+///   → 302 → `https://bombich.scdn1.secure.raxcdn.com/software/files/ccc-7.1.7-b7.8389.zip`
+/// Downloaded and expanded the real zip: `CFBundleShortVersionString="7.1.7-b7"
+/// CFBundleVersion="8389" CFBundleIdentifier="com.bombich.ccc"`, Team
+/// `L4F2DED5Q7`, notarized — the marketing field matches the probed capture
+/// group exactly.
+private let cccBetaRedirectFixture = "ccc-7.1.7-b7.8389.zip"
+
 @Suite struct CarbonCopyClonerProbeRecipeTests {
-    private func recipe() -> VendorProbeRecipe? {
-        VendorProbeRegistry.recipes.first { $0.bundleID == "com.bombich.ccc" }
+    private func stableRecipe() -> VendorProbeRecipe? {
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.bombich.ccc" && $0.channel == .stable }
+    }
+
+    private func betaRecipe() -> VendorProbeRecipe? {
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.bombich.ccc" && $0.channel == .beta }
     }
 
     @Test func recipeExistsAndUsesRedirectFilenameMode() throws {
-        let recipe = try #require(self.recipe())
+        let recipe = try #require(self.stableRecipe())
         guard case .redirectFilename = recipe.mode else {
             Issue.record("expected the redirect-filename mode"); return
         }
@@ -49,13 +66,13 @@ private let cccBrokenSparkleFeedFixture = ""
     }
 
     @Test func readsTheThreeSegmentMarketingVersionFromTheRedirectTarget() throws {
-        let recipe = try #require(self.recipe())
+        let recipe = try #require(self.stableRecipe())
         #expect(VendorProbeRecipe.extractVersion(
             from: cccRedirectFixture, pattern: recipe.versionPattern) == "7.1.6")
     }
 
     @Test func readsTheTwoSegmentHistoricalMarketingForm() throws {
-        let recipe = try #require(self.recipe())
+        let recipe = try #require(self.stableRecipe())
         #expect(VendorProbeRecipe.extractVersion(
             from: cccTwoSegmentMarketingFixture, pattern: recipe.versionPattern) == "7.1")
     }
@@ -70,19 +87,79 @@ private let cccBrokenSparkleFeedFixture = ""
 
     /// Detection-only: CCC installs a privileged helper, a LaunchDaemon and an
     /// XPC service alongside the `.app`, so a one-click in-place swap is a
-    /// separate decision this recipe deliberately does not make.
+    /// separate decision this recipe deliberately does not make. Applies to
+    /// both channels.
     @Test func detectionOnlyNoInstallSpec() throws {
-        let recipe = try #require(self.recipe())
-        #expect(recipe.install == nil)
+        #expect(try #require(self.stableRecipe()).install == nil)
+        #expect(try #require(self.betaRecipe()).install == nil)
     }
 
-    @Test func stableChannelOnly() throws {
-        let recipe = try #require(self.recipe())
+    @Test func stableRecipeIsStableChannel() throws {
+        let recipe = try #require(self.stableRecipe())
         #expect(recipe.channel == .stable)
     }
 
     @Test func changelogPointsAtTheVendorsOwnReleaseNotesPage() throws {
-        let recipe = try #require(self.recipe())
+        let recipe = try #require(self.stableRecipe())
         #expect(recipe.changelogURL?.absoluteString == "https://bombich.com/software/updates/ccc7_rn.html")
+    }
+
+    // MARK: - Beta channel
+
+    @Test func betaRecipeExistsAndUsesTheLatestbetaEndpoint() throws {
+        let recipe = try #require(self.betaRecipe())
+        #expect(recipe.url.absoluteString == "https://bombich.com/software/download_ccc.php?v=latestbeta")
+        guard case .redirectFilename = recipe.mode else {
+            Issue.record("expected the redirect-filename mode"); return
+        }
+    }
+
+    @Test func betaRecipeReadsTheMarketingVersionWithItsBetaSuffix() throws {
+        let recipe = try #require(self.betaRecipe())
+        #expect(VendorProbeRecipe.extractVersion(
+            from: cccBetaRedirectFixture, pattern: recipe.versionPattern) == "7.1.7-b7")
+    }
+
+    /// The stable pattern must NOT accidentally match a beta filename — if it
+    /// did, a beta artifact could be misread through the stable recipe's
+    /// version comparison instead of being isolated to its own channel.
+    @Test func stablePatternDoesNotMatchABetaFilename() throws {
+        let recipe = try #require(self.stableRecipe())
+        #expect(VendorProbeRecipe.extractVersion(
+            from: cccBetaRedirectFixture, pattern: recipe.versionPattern) == nil)
+    }
+
+    /// Symmetric to the above: the beta pattern (which requires the `-b<N>`
+    /// suffix) must not match an ordinary stable filename either.
+    @Test func betaPatternDoesNotMatchAStableFilename() throws {
+        let recipe = try #require(self.betaRecipe())
+        #expect(VendorProbeRecipe.extractVersion(
+            from: cccRedirectFixture, pattern: recipe.versionPattern) == nil)
+    }
+
+    @Test func betaRecipeChangelogPointsAtTheVendorsPrereleaseNotesPage() throws {
+        let recipe = try #require(self.betaRecipe())
+        #expect(recipe.changelogURL?.absoluteString == "https://bombich.com/software/updates/ccc7_rn_beta.html")
+    }
+
+    /// `ReleaseChannel.detect()` needed a new bundle-id-scoped rule (step 0.8)
+    /// for the short `-b<N>` suffix CCC's beta uses — it matches neither the
+    /// Mozilla `<maj>.<min>b<n>` shape (exactly one dot, no dash) nor the
+    /// full-word `-beta<N>` shape (GitHub Desktop's). Verified against the
+    /// real downloaded beta build's `CFBundleShortVersionString` and the
+    /// installed stable string, plus one negative control confirming the rule
+    /// is scoped to this bundle id and not a global pattern change.
+    @Test func detectRecognizesTheShortBetaSuffix() {
+        #expect(ReleaseChannel.detect(
+            name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
+            keystoneChannel: nil, version: "7.1.7-b7") == .beta)
+        #expect(ReleaseChannel.detect(
+            name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
+            keystoneChannel: nil, version: "7.1.6") == .stable)
+        // Scoped to this bundle id: an unrelated app with a superficially
+        // similar-looking tail is not swept up by this rule.
+        #expect(ReleaseChannel.detect(
+            name: "Some App", bundleID: "com.example.other",
+            keystoneChannel: nil, version: "7.1.7-b7") == .stable)
     }
 }

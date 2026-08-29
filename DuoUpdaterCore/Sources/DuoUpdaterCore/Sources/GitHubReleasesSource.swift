@@ -457,7 +457,16 @@ public struct GitHubReleasesSource: UpdateSource {
         // Walk releases in document order (GitHub returns newest first) and take
         // the first whose tag the pattern matches — for prerelease channels this
         // skips interleaved stable releases.
-        return Self.releases(from: data, list: list)
+        let decoded = Self.releases(from: data, list: list)
+        // Verification-only bookkeeping: notice a slug that GitHub had to redirect,
+        // and an authenticated request that came back on the anonymous budget
+        // anyway. Recorded here because this is the last place the response and the
+        // decoded body are both in hand. No-op when no ledger is installed, which
+        // is every path except `duo verify`. See ``GitHubEndpointAudit``.
+        GitHubEndpointAudit.record(
+            requestedSlug: rule.slug, requestedURL: url, response: http,
+            firstReleaseHTMLURL: decoded.first?.htmlURL, sentToken: token != nil)
+        return decoded
     }
 
     private struct Resolution {

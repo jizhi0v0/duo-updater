@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.71
+
+**The "relaunch to apply it" reminder now goes away once you have relaunched.** When an app's own updater downloaded a build in the background, Duo Updater told you so and offered a Relaunch button on the notification. Taking it worked — the app came back on the new build and said "Now running 1.0." — but the reminder it replaced stayed in Notification Center underneath, still asking you to relaunch something you had just relaunched. Duo Updater was watching for the reminder to *stop* being relevant, and the moment it checked was the one moment that had already been accounted for. It now takes the reminder down whenever there is no relaunch outstanding, which also clears one left behind by an app that applied its own update while Duo Updater was not running.
+
 ## 0.3.70
 
 **Apps that ship many builds under one version number are handled properly now — everywhere.** A Mac app carries two version strings: the one it shows you ("1.0") and a build number that actually counts up. Most apps move both. Some move only the build: Amp shipped ten builds in a single day, every one of them called 1.0; Surge has shipped four separate releases as 6.9.0; JetBrains' preview builds do the same. Duo Updater decided "has this changed?" by comparing the *shown* version in about a dozen places, and for those apps that comparison can only ever answer "no" — or, where it asked "are these the same?", "yes" — whatever had really happened. What follows is what that broke. It is one mistake, found because Amp made it visible.

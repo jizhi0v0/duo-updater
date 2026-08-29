@@ -2320,6 +2320,62 @@ public enum ChangelogRecipeRegistry {
             entryPattern: Self.workBuddyEntryPattern,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
             acknowledgedStaleEntry: "5.2.7"),
+
+        // 百度网盘 — the notes ARE published, just not anywhere a person would
+        // look: `pan.baidu.com/disk/version` ("版本更新") renders eight empty
+        // `<section>`s and fills the Mac版 tab from JS, so the page's own markup
+        // carries no release note at all. `changelog.js` shows what it asks for —
+        // `/disk/cmsdata?platform=<tab>&page=<n>&num=<n>` — which is the same
+        // `/disk/cmsdata` endpoint the version probe reads, on its other calling
+        // convention. This recipe reads that endpoint directly; the human page is
+        // what `VendorProbeRegistry`'s `changelogURL` points at for the fallback.
+        //
+        // 145 releases are on offer; `num=40` matches `maxEntries` so the request
+        // is 24 KB rather than 58 KB. Newest-first, so no `newestLast`.
+        //
+        // Entry shape (verbatim, compact — the vendor emits no spaces):
+        //   {"detail":[{"more":["【团队空间】…"],"stable":true,"title":"百度网盘全新升级"}],
+        //    "publish":"2026-08-28 14:39:00","size":"444.2M","system":"Mac OS X 10.13+",
+        //    "title":"百度网盘Mac电脑客户端V8.7.9","url":"…_x64.dmg","url_1":"…_arm64.dmg",
+        //    "version":"百度网盘Mac电脑客户端V8.7.9"}
+        //
+        // Three shapes in the live data the patterns are built around, not guessed:
+        //
+        //  1. **`more` is empty for 11 of 100 releases, and the note moves into the
+        //     detail object's `title`.** Those are not note-less releases — 4.54.9's
+        //     title is "百度网盘优化了一些已知的体验问题，欢迎升级体验~", the whole note.
+        //     So `body` captures the WHOLE detail object and the item patterns are
+        //     ordered: bullets first, the title only when there are none. Capturing
+        //     just the `more` array would have shown eleven empty entries.
+        //  2. **The key order inside `detail` is not fixed** — 97 of 100 are
+        //     `more, stable, title` and 3 are `feature_tips, more, title` — so
+        //     nothing may assume `more` comes first.
+        //  3. **The version string gained a space at some point**: recent releases
+        //     say `百度网盘Mac电脑客户端V8.7.9`, older ones `百度网盘Mac电脑客户端 V4.15.0`,
+        //     and the oldest drop the prose entirely (`Mac版 V3.9.5`). Anchoring on
+        //     `V` + digits rather than on the label survives all three.
+        //
+        // The first item pattern reads a JSON array element by its PUNCTUATION —
+        // a string opened by `[` or `,` and closed by `,` or `]` — which is what
+        // separates `more`'s elements from the keys and from `title`'s value in
+        // the same object (a key is followed by `:`, a value preceded by one).
+        //
+        // Verified 2026-08-29 against the live 40-entry response: all 40 entries
+        // match, and every version, date and item list is byte-identical to what
+        // `json.loads` produces for that entry — including all 7 that fall through
+        // to the title.
+        ChangelogRecipe(
+            bundleID: "com.baidu.BaiduNetdisk-mac",
+            source: URL(string: "https://pan.baidu.com/disk/cmsdata?platform=mac&page=1&num=40")!,
+            entryPattern:
+                #"\{"detail":\[\{(?<body>.*?)\}\],"publish":"(?<date>[^"]+)""#
+                + #".*?"version":"[^"]*?V(?<version>[0-9]+(?:\.[0-9]+)*)""#,
+            itemPatterns: [
+                #"[\[,]"(?<item>[^"]+)"(?=[,\]])"#,
+                #""title":"(?<item>[^"]+)""#,
+            ],
+            mode: .json,
+            maxEntries: 40),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

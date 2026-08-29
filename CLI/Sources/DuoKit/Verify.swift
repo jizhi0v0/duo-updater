@@ -451,9 +451,8 @@ public enum Verify {
                 + "the redirect is not permanent (GitHub drops it if the old name "
                 + "is ever reused) and, until then, following it costs the request "
                 + "its Authorization header")
-        }
-        else if observations.contains(where: \.redirectedButUnnamed),
-                let requested = observations.first?.requestedSlug {
+        } else if observations.contains(where: \.redirectedButUnnamed),
+                  let requested = observations.first?.requestedSlug {
             // The redirect happened but nothing in the answer could name the
             // canonical repo — no release to read `html_url` from, which is every
             // non-2xx response and any empty release list. Say the weaker thing

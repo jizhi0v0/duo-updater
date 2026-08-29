@@ -41,7 +41,7 @@ struct GitHubEndpointAuditTests {
         }
     }
 
-    @Test func arealGitHubSubdomainIsStillGitHub() {
+    @Test func aRealGitHubSubdomainIsStillGitHub() {
         #expect(GitHubEndpointAudit.slug(fromHTMLURL:
             URL(string: "https://api.github.com/aaif-goose/goose")) == "aaif-goose/goose")
     }
@@ -160,7 +160,12 @@ struct GitHubEndpointAuditTests {
         let outcome = await GitHubEndpointAudit.$ledger.withValue(ledger) {
             await source.resolveDiagnostic(rule)
         }
-        #expect(outcome.failure?.kind == "httpStatus404", "expected the 404 path")
+        // Any non-2xx exercises the path; deliberately NOT pinned to 404. On a
+        // machine whose anonymous GitHub budget is spent this comes back 403
+        // instead, and a test that insisted on 404 would fail for a reason that
+        // has nothing to do with what it is checking.
+        let kind = try #require(outcome.failure?.kind)
+        #expect(kind.hasPrefix("httpStatus"), "expected a status failure, got \(kind)")
         let observed = try #require(
             ledger.observations.first,
             "a non-2xx must still be recorded — this is the whole finding")

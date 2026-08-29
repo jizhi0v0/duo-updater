@@ -5776,13 +5776,30 @@ public enum VendorProbeRegistry {
         // Homebrew's cask carries `auto_updates: true`, so `HomebrewCaskSource`
         // correctly refuses it too — there is no standard source left to answer.
         //
-        // The endpoint that DOES work is the one the cask's own `livecheck` block
-        // already relies on: `download_ccc.php?v=latest` 302s (through a second
-        // hop at `api.bombich.com/download/ccc?v=latest`) to a versioned filename
-        // on the CDN — `ccc-7.1.6.8368.zip` — confirmed with a plain HEAD request
-        // via `URLSession` (the exact request `.redirectFilename` issues), which
-        // follows both hops and lands on the CDN URL without downloading the 27 MB
-        // body. `7.1.6` matches the installed app's `CFBundleShortVersionString`
+        // The endpoint that DOES work is the `download_ccc.php` one the cask's own
+        // `livecheck` block relies on — but this recipe probes `?v=ccc7`, NOT the
+        // `?v=latest` the cask uses. Both 302 (through a second hop at
+        // `api.bombich.com/download/ccc?v=…`) to the same versioned filename on the
+        // CDN today — `ccc-7.1.6.8368.zip`, both confirmed 2026-08-30 with plain
+        // HEAD requests (the exact request `.redirectFilename` issues), which
+        // follow both hops and land on the CDN URL without downloading the 27 MB
+        // body. They stop being the same file the day CCC 8 ships: `?v=latest` is
+        // a permanent alias for whichever generation is NEWEST, so it would then
+        // answer this CCC-7-scoped recipe with a CCC 8 artifact and hand every CCC
+        // 7 install a phantom paid major-version "update" — the exact bug
+        // `installedVersionPattern` exists to prevent, arriving through the URL
+        // instead of through the version comparison. `?v=ccc7` is a
+        // per-generation alias like the `?v=ccc5`/`?v=ccc6` the two recipes below
+        // use, and those are the evidence it will keep pointing at CCC 7: both are
+        // still live and still serving their own generation's last build years
+        // after they stopped being "latest".
+        //
+        // `versionPattern` is anchored to major 7 for the same reason, as a second
+        // independent guard: if Bombich ever repoints `?v=ccc7` (or drops it), an
+        // `ccc-8.…` filename fails to match and the probe reports nothing rather
+        // than a cross-generation version. Failing closed here is right — a recipe
+        // that goes quiet shows up in the nightly `duo verify` sweep, a recipe
+        // that reports a paid upgrade as a point release does not. `7.1.6` matches the installed app's `CFBundleShortVersionString`
         // exactly (`8368` matches `CFBundleVersion`), and CCC bumps its marketing
         // version on every release (7.0 → 7.0.4 → 7.1 → … → 7.1.6, roughly
         // quarterly per `https://bombich.com/software/updates/ccc7_rn.html`) — not
@@ -5815,10 +5832,10 @@ public enum VendorProbeRegistry {
         // release to release, and is read fresh from each item for that reason).
         VendorProbeRecipe(
             bundleID: "com.bombich.ccc",
-            url: URL(string: "https://bombich.com/software/download_ccc.php?v=latest")!,
+            url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc7")!,
             mode: .redirectFilename,
-            versionPattern: #"^ccc-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
-            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latest"),
+            versionPattern: #"^ccc-(7\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
+            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc7"),
             changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn.html"),
             variant: "ccc7",
             hostRequirement: VendorHostRequirement(minimumSystemVersion: "13.1"),
@@ -5851,6 +5868,16 @@ public enum VendorProbeRegistry {
         // (lists "CCC 7.1.7-b7 (pre-release)") is reused here directly rather
         // than re-verified as a separate discovery.
         //
+        // `?v=latestbeta` is itself a "latest" alias, and unlike stable there is
+        // no per-generation twin to switch to: probed 2026-08-30, `?v=ccc7beta`
+        // and `?v=ccc7-beta` both answer with the STABLE ccc7 zip (the endpoint
+        // prefix-matches `ccc7` and ignores the rest) and `?v=beta7` falls back to
+        // the plain download page. So the anchor on `versionPattern` — major 7,
+        // same as stable's — is the only guard available here, and it fails closed:
+        // the first CCC 8 beta produces an `ccc-8.…-b<N>.…zip` filename this
+        // pattern does not match, so the probe reports nothing (and surfaces in the
+        // nightly sweep) instead of offering a CCC 7 install a CCC 8 beta.
+        //
         // No `install`, same reasoning as stable — the privileged-helper
         // footprint applies equally to both channels. `installedVersionPattern`
         // scopes this to CCC 7 for the same reason stable's does — there is no
@@ -5861,7 +5888,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.bombich.ccc",
             url: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta")!,
             mode: .redirectFilename,
-            versionPattern: #"^ccc-([0-9]+(?:\.[0-9]+)+-b[0-9]+)\.[0-9]{3,}\.zip$"#,
+            versionPattern: #"^ccc-(7(?:\.[0-9]+)+-b[0-9]+)\.[0-9]{3,}\.zip$"#,
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta"),
             changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn_beta.html"),
             channel: .beta,
@@ -5883,7 +5910,10 @@ public enum VendorProbeRegistry {
         // HEAD request: two-hop redirect to `ccc-6.1.13.7699.zip`, matching the
         // mounted bundle's `CFBundleShortVersionString`/`CFBundleVersion`
         // exactly. Same filename shape as CCC 7 (`ccc-<marketing>.<build>.zip`),
-        // so the same pattern applies unchanged.
+        // so the same pattern applies, anchored to major 6 the way CCC 7's is to
+        // major 7 — a per-generation endpoint that ever answered with another
+        // generation's file would be a vendor-side change, and this recipe should
+        // go quiet and get triaged rather than quietly report it.
         //
         // `installedVersionPattern` pins this to CCC 6 — without it this recipe
         // and CCC 7's would both match a CCC 6 install (nothing else
@@ -5918,7 +5948,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.bombich.ccc",
             url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc6")!,
             mode: .redirectFilename,
-            versionPattern: #"^ccc-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
+            versionPattern: #"^ccc-(6\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc6"),
             changelogURL: URL(string: "https://bombich.com/en/kb/ccc/6/release-notes"),
             variant: "ccc6",
@@ -5929,7 +5959,8 @@ public enum VendorProbeRegistry {
         // `v=ccc5` confirmed 2026-08-29: two-hop redirect to
         // `ccc-5.1.28.6213.zip`, matching the mounted bundle's
         // `CFBundleShortVersionString`/`CFBundleVersion` exactly (Team
-        // `L4F2DED5Q7`, same as 6 and 7). Same filename shape, same pattern.
+        // `L4F2DED5Q7`, same as 6 and 7). Same filename shape, same pattern,
+        // anchored to major 5 for the same reason CCC 6's is to major 6.
         // `installedVersionPattern` pins this to CCC 5 for the identical reason
         // CCC 6's does. changelogURL is CCC 5's own release-notes page, verified
         // 200 2026-08-29. No `install`, same reasoning as the other two.
@@ -5944,7 +5975,7 @@ public enum VendorProbeRegistry {
             bundleID: "com.bombich.ccc",
             url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc5")!,
             mode: .redirectFilename,
-            versionPattern: #"^ccc-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
+            versionPattern: #"^ccc-(5\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc5"),
             changelogURL: URL(string: "https://bombich.com/en/kb/ccc/5/release-notes"),
             variant: "ccc5",

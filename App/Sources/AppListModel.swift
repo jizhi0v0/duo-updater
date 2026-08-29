@@ -826,10 +826,8 @@ final class AppListModel {
     /// is genuinely warranted (vs. nagging users who don't use that route).
     var needsAccessibilitySetup: Bool {
         guard prefs.appStoreUpdateStrategy == .incremental, !accessibilityTrusted else { return false }
-        // iOS-on-Mac apps redirect to the App Store (no AX), so they don't justify
-        // an Accessibility nudge on their own.
         return results.contains {
-            isActionableUpdate($0) && $0.remote?.appStore?.trackID != nil && !$0.app.isiOSAppOnMac
+            isActionableUpdate($0) && $0.remote?.appStore?.trackID != nil
         }
     }
 
@@ -1570,6 +1568,12 @@ final class AppListModel {
             vendorInstallPolicy: prefs.vendorInstallPolicy,
             declinedElevationKeys: prefs.declinedElevationKeys)
     }
+    /// Whether App Store updates take the mas route. Read by the row views: a
+    /// wrapped iPhone/iPad app is a store redirect there and a one-click on the
+    /// incremental route, and "`canAutoInstall` is false" alone does not say which
+    /// (a declined elevation reaches the same branch).
+    var appStoreStrategyIsFullDownload: Bool { prefs.appStoreUpdateStrategy == .full }
+
     private var policyEnvironment: InstallEnvironment {
         InstallEnvironment(
             isHelperEnabled: helperEnabled,
@@ -2383,12 +2387,23 @@ final class AppListModel {
                     return true
                 }
             case .appStore:
-                // iOS-on-Mac apps can only be updated by the App Store app itself
-                // (mas has no Mac-store entry; the AX route is unreliable for them).
-                // `canAutoInstall` already keeps them out of the one-click button and
-                // Install-All, but guard here too so any other caller redirects to the
-                // store instead of firing a doomed `mas` install.
-                if result.app.isiOSAppOnMac {
+                // On the mas route a wrapped iPhone/iPad app can only be updated by
+                // the App Store app itself: mas has no Mac-store entry for it and
+                // errors "No apps found for ADAM ID". `canAutoInstall` already keeps
+                // these out of the one-click and Install-All there, but guard here
+                // too so any other caller redirects rather than firing a doomed
+                // install. The AX route handles them and is not redirected.
+                //
+                // Region-locked apps are excluded from the redirect on BOTH routes:
+                // their product page reads "App Not Available", so sending anyone
+                // there is a dead end. They belong to the `isRegionMismatch` branch
+                // below, which drives App Store's Updates list instead — the one
+                // place an installed region-locked app can still update. (Before this
+                // ordering, a wrapped region-locked app on the mas route got the dead
+                // deep link; the branch below was unreachable for it.)
+                if result.app.isiOSAppOnMac,
+                   prefs.appStoreUpdateStrategy == .full,
+                   result.remote?.appStore?.isRegionMismatch != true {
                     installing[id] = nil
                     if let url = result.remote?.appStore?.deepLink { NSWorkspace.shared.open(url) }
                     return false
@@ -2526,7 +2541,11 @@ final class AppListModel {
                         } confirmQuit: { [weak self] appName in
                             await self?.requestQuitConfirmation(id: id, appName: appName) ?? false
                         }
-                    case .incremental where MASInstaller.isAvailable:
+                    // Not for a wrapped iPhone/iPad app: mas cannot install one at
+                    // all, so falling back to it would trade a fixable permission
+                    // prompt for a guaranteed "No apps found for ADAM ID". Those fall
+                    // to the case below, which asks for the grant the AX route needs.
+                    case .incremental where MASInstaller.isAvailable && !result.app.isiOSAppOnMac:
                         // Incremental is selected but Accessibility isn't granted (the
                         // user declined the opt-in prompt, or revoked it later). There's
                         // no "denied" callback from the TCC flow, so we resolve it here,
@@ -4198,8 +4217,12 @@ final class AppListModel {
     /// pre-flight is not mirrored here — it costs a subprocess, which is the
     /// thing this is trying to avoid spending.
     private func appStoreRouteWillNotInstall(_ result: UpdateResult) -> Bool {
-        // Store-managed by the App Store app itself; we only open the deep link.
-        if result.app.isiOSAppOnMac { return true }
+        // On the mas route these are store-managed by the App Store app itself and
+        // we only open a deep link, so there is nothing to roll back from. The AX
+        // route installs them like any other store app — and does take a backup,
+        // which is why this cannot stay an unconditional true: `BackupStore` would
+        // otherwise never have been asked to read a wrapped bundle.
+        if result.app.isiOSAppOnMac, prefs.appStoreUpdateStrategy == .full { return true }
         // Nothing to install against.
         if result.remote?.appStore?.trackID == nil { return true }
         // Region-locked apps are AX-only, and the AX route needs the grant first.

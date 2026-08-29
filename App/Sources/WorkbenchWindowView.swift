@@ -633,16 +633,19 @@ private struct WorkbenchActionView: View {
                     .help("Downloads the official installer and opens it (asks for admin)")
             }
         } else if let info = result.remote?.appStore, !info.isRegionMismatch, !info.isLatestMacIncompatible {
-            // iOS-on-Mac apps: only the App Store app can update them (mas can't,
-            // AX is unreliable), so this is a redirect to the store rather than a
-            // one-click. A Mac App Store app lands here when the privileged helper
-            // isn't approved yet — still an installed app with a pending update, so
-            // it says **Update** (what the store calls it), never "Get".
-            Button(result.app.isiOSAppOnMac ? String(localized: "App Store") : String(localized: "Update")) {
+            // A wrapped iPhone/iPad app on the mas route: mas has no Mac-store entry
+            // for it, so this is a redirect rather than a one-click. Conditioned on
+            // the route, not inferred from it — this branch is reached whenever
+            // `canAutoInstall` is false, which has other causes (a declined
+            // elevation), and on the incremental route these do install from here.
+            // A Mac App Store app lands here when the privileged helper isn't
+            // approved yet — still an installed app with a pending update, so it
+            // says **Update** (what the store calls it), never "Get".
+            Button(storeManagedHere ? String(localized: "App Store") : String(localized: "Update")) {
                 if let url = info.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
             }
             .buttonStyle(.bordered)
-            .help(result.app.isiOSAppOnMac
+            .help(storeManagedHere
                   ? String(localized: "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
                   : appStoreRedirectHelp)
         } else if let url = result.remote?.pageURL {
@@ -655,6 +658,13 @@ private struct WorkbenchActionView: View {
     /// Why this row hands off to the App Store instead of installing in place —
     /// same reasoning as the popover's: approving the helper is the one lever the
     /// user has, so say so when that's what's missing.
+    /// This row hands off to the App Store because the store app is the only
+    /// thing that can update it — as opposed to handing off because a permission
+    /// is missing, which is what every other path through this branch means.
+    private var storeManagedHere: Bool {
+        result.app.isiOSAppOnMac && model.appStoreStrategyIsFullDownload
+    }
+
     private var appStoreRedirectHelp: String {
         if !model.helperEnabled {
             return String(localized: "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click.")

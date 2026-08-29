@@ -152,19 +152,28 @@ public enum UpdatePolicy {
             //   • incremental → AX-driven; needs no mas. Accessibility is requested
             //     on demand at install time (mirroring App Management), so we don't
             //     gate the offer on it here.
-            // iOS-on-Mac apps (wrapped iPhone/iPad bundles) are never a one-click:
-            // `mas` has no Mac-store entry to install (it errors "No apps found for
-            // ADAM ID"), and the AX route is too unreliable for them. Only the App
-            // Store app itself updates these, so the row offers an "Open in App
-            // Store" redirect instead (see the App Store branch in both row views).
             guard let info = result.remote?.appStore,
-                  !info.isRegionMismatch, !info.isLatestMacIncompatible,
-                  !result.app.isiOSAppOnMac else { return false }
+                  !info.isRegionMismatch, !info.isLatestMacIncompatible else { return false }
             switch settings.appStoreUpdateStrategy {
-            // `.full` now routes mas through the privileged helper — offered only
-            // once the helper is approved (else the row falls back to App Store "Get").
-            // Reads the observable mirror so rows re-render the moment it's approved.
-            case .full:        return environment.isHelperEnabled
+            // `.full` routes mas through the privileged helper — offered only once
+            // the helper is approved (else the row falls back to an App Store
+            // redirect). Reads the observable mirror so rows re-render the moment
+            // it's approved.
+            //
+            // iOS-on-Mac apps (wrapped iPhone/iPad bundles) are excluded from *this*
+            // route only: `mas` has no Mac-store entry for them and errors "No apps
+            // found for ADAM ID".
+            case .full:        return environment.isHelperEnabled && !result.app.isiOSAppOnMac
+            // The AX route presses the product page's own Update button, and that
+            // page is structurally what a native Mac app gets: one
+            // `AppStore.productPage`, one `AppStore.shelfItem.ProductLockup…` hero
+            // naming the app, one `AppStore.offerButton` titled "Update" inside it.
+            // Probed live on macOS 26 (Nowdex, 2026-08-29): `heroOwnsPage` true and
+            // `ownButtonCount` 1 — the pair `AppStoreAXInstaller.shouldPress`
+            // requires — and driving it installed the update. "Designed for iPad.
+            // Not verified for macOS." is a subtitle in that hero, not a barrier;
+            // the developer-opted-out case is `isLatestMacIncompatible`, guarded
+            // above for both routes.
             case .incremental: return true
             }
         default:

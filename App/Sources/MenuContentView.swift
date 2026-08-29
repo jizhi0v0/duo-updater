@@ -1695,11 +1695,17 @@ private struct AppRow: View {
             .popover(isPresented: $showRegionHint, arrowEdge: .bottom) {
                 regionHintPopover(info)
             }
-        } else if result.app.isiOSAppOnMac {
-            // Wrapped iPhone/iPad app: mas can't update it and the AX route is
-            // unreliable for these, so the dependable path is the App Store app
-            // itself. Send the user to its product page, where an available update
-            // shows an "Update" button — rather than offering a one-click that fails.
+        } else if result.app.isiOSAppOnMac, model.appStoreStrategyIsFullDownload {
+            // Wrapped iPhone/iPad app on the mas route: mas has no Mac-store entry
+            // for it, so a one-click here would always fail. Send the user to its
+            // product page, where an available update shows an "Update" button.
+            //
+            // Conditioned on the route rather than inferred from it: this branch is
+            // reached whenever `canAutoInstall` is false, which has causes other than
+            // the strategy — a declined elevation most of all, and every wrapped app
+            // qualifies for one (they sit in a root-owned `/Applications`). Without
+            // the check, the button and its "can’t be updated from here" help text
+            // would say that on a route where they can.
             Button("App Store") { openInAppStore(info) }
                 .controlSize(.small)
                 .buttonStyle(.bordered)

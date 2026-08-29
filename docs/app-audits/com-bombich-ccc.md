@@ -63,6 +63,18 @@ Big Sur 上的 CCC 5 用户根本装不了 CCC 7（需要 Ventura），而且这
 `channelProofsCoverEveryChannelRecipe` 那条既有守卫要求每条都带独立 `variant`
 （`"ccc5"`/`"ccc6"`/`"ccc7"`），否则会共用一个 `recipeID`，验证基线和 issue 历史会串。
 
+**2026-08-29 补记 3：四条 recipe 都补上了 `hostRequirement.minimumSystemVersion`。**
+一开始没加,理由是"静态值追不上会变的端点"——但去查证后发现这个顾虑不成立:
+Wayback Machine 里 CCC 6 系统需求页 2022-05（发布约一年后）的快照已经写着
+"macOS 10.15 Catalina"，跟现在（页面最后更新 2023-11）完全一样，两年多没挪过；
+CCC 5 的系统需求页（最后更新 2021-02，CCC 6 发布后 CCC 5 停止开发）写的
+"OS X 10.10 Yosemite" 跟挂载真包读到的 `LSMinimumSystemVersion` 逐字节一致。
+Bombich 是按大版本号发一份独立的系统需求文档,不是按点版本——这跟 `hostRequirement`
+已有的用法（Raycast v2 的 macOS 26 门槛,对这条产品线是永久的）是同一种"固定门槛"
+形状,不是 Sparkle `sparkle:minimumSystemVersion` 那种"每次发布都可能变,必须逐条动态读"
+的形状。三个值都是从真机挂载的 `LSMinimumSystemVersion` 读出来的（CCC5=10.10、
+CCC6=10.15、CCC7=13.1，beta 与 stable 共用 13.1），CCC5/CCC6 各有厂商自己文档独立佐证。
+
 ## 更新检测
 
 ### stable

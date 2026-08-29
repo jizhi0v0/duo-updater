@@ -5799,6 +5799,20 @@ public enum VendorProbeRegistry {
         // the `.app`, so an in-place bundle swap is a materially bigger claim than
         // the zip-swap one-clicks already in this registry; adding it is a
         // separate decision.
+        //
+        // `hostRequirement.minimumSystemVersion`: read from the real 7.1.6 binary's
+        // `LSMinimumSystemVersion` (13.1), which agrees with Bombich's own
+        // published requirement for this generation ("macOS 13 Ventura (13.1+)").
+        // This is safe to pin as a STATIC floor — unlike a per-release value that
+        // could drift, Bombich documents system requirements per MAJOR VERSION as
+        // its own standing KB article and a Wayback snapshot of CCC 6's equivalent
+        // page from 2022-05 (a year after its 2021 launch) already stated the same
+        // floor CCC 6 still states today, 2023-11 — i.e. the floor is a fixed
+        // per-generation commitment for that generation's whole lifetime, the same
+        // shape `hostRequirement` already models for Raycast v2 (macOS 26+,
+        // permanent for that track), not the shape Sparkle's per-item
+        // `minimumSystemVersion` exists for (a value that legitimately varies
+        // release to release, and is read fresh from each item for that reason).
         VendorProbeRecipe(
             bundleID: "com.bombich.ccc",
             url: URL(string: "https://bombich.com/software/download_ccc.php?v=latest")!,
@@ -5807,6 +5821,7 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latest"),
             changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn.html"),
             variant: "ccc7",
+            hostRequirement: VendorHostRequirement(minimumSystemVersion: "13.1"),
             installedVersionPattern: #"^7\."#),
 
         // beta (CCC 7) — same bundle id, opted into from
@@ -5850,6 +5865,7 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta"),
             changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn_beta.html"),
             channel: .beta,
+            hostRequirement: VendorHostRequirement(minimumSystemVersion: "13.1"),
             installedVersionPattern: #"^7\."#),
 
         // stable (CCC 6) — DOES carry a Sparkle `SUFeedURL`
@@ -5889,6 +5905,15 @@ public enum VendorProbeRegistry {
         // No `install`: same privileged-helper footprint as CCC 7 (confirmed by
         // the same category of components in the mounted 6.1.13 app), so
         // detection-only for the same reason.
+        //
+        // `hostRequirement.minimumSystemVersion`: 10.15, read from the real 6.1.13
+        // binary's `LSMinimumSystemVersion` and independently confirmed against a
+        // Wayback Machine snapshot of Bombich's own CCC 6 system-requirements page
+        // from 2022-05-18 (a year after CCC 6's 2021 launch) — it already stated
+        // "macOS 10.15 Catalina" as the floor back then, and the current page
+        // (last updated 2023-11-06) still does. Two-plus years with no floor
+        // movement is why this is safe as a static value — see the longer
+        // reasoning on the CCC 7 stable recipe above.
         VendorProbeRecipe(
             bundleID: "com.bombich.ccc",
             url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc6")!,
@@ -5897,6 +5922,7 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc6"),
             changelogURL: URL(string: "https://bombich.com/en/kb/ccc/6/release-notes"),
             variant: "ccc6",
+            hostRequirement: VendorHostRequirement(minimumSystemVersion: "10.15"),
             installedVersionPattern: #"^6\."#),
 
         // stable (CCC 5) — same reasoning as CCC 6 above, one generation older.
@@ -5907,6 +5933,13 @@ public enum VendorProbeRegistry {
         // `installedVersionPattern` pins this to CCC 5 for the identical reason
         // CCC 6's does. changelogURL is CCC 5's own release-notes page, verified
         // 200 2026-08-29. No `install`, same reasoning as the other two.
+        //
+        // `hostRequirement.minimumSystemVersion`: 10.10, read from the real
+        // 5.1.28 binary's `LSMinimumSystemVersion` — and this one has a second,
+        // independent witness: Bombich's own CCC 5 system-requirements KB page
+        // (last updated 2021-02-16, effectively frozen since — CCC 5's
+        // development ceased when CCC 6 shipped in May 2021) states "OS X 10.10
+        // Yosemite" as the floor verbatim. Two sources, same number.
         VendorProbeRecipe(
             bundleID: "com.bombich.ccc",
             url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc5")!,
@@ -5915,6 +5948,7 @@ public enum VendorProbeRegistry {
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc5"),
             changelogURL: URL(string: "https://bombich.com/en/kb/ccc/5/release-notes"),
             variant: "ccc5",
+            hostRequirement: VendorHostRequirement(minimumSystemVersion: "10.10"),
             installedVersionPattern: #"^5\."#),
     ]
 

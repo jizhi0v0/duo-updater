@@ -170,6 +170,41 @@ private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
             from: cccRedirectFixture, pattern: recipe.versionPattern) == nil)
     }
 
+    /// Each generation's `hostRequirement.minimumSystemVersion` is pinned as a
+    /// STATIC floor, which is only safe because Bombich treats it as a fixed
+    /// per-generation commitment rather than something that drifts release to
+    /// release — the reasoning (and the Wayback Machine evidence for CCC 6, and
+    /// the independent KB-page witness for CCC 5) lives on the CCC 6/CCC 5
+    /// recipe comments in the registry. Values read from the real mounted
+    /// binaries' `LSMinimumSystemVersion`: 5→10.10, 6→10.15, 7→13.1 (both
+    /// channels).
+    @Test func hostRequirementMatchesEachGenerationsRealMinimumSystemVersion() throws {
+        #expect(try #require(self.stableRecipe()).hostRequirement?.minimumSystemVersion == "13.1")
+        #expect(try #require(self.betaRecipe()).hostRequirement?.minimumSystemVersion == "13.1")
+        #expect(try #require(self.ccc6Recipe()).hostRequirement?.minimumSystemVersion == "10.15")
+        #expect(try #require(self.ccc5Recipe()).hostRequirement?.minimumSystemVersion == "10.10")
+    }
+
+    /// The host gate itself, exercised directly (no network): a Mac running an
+    /// OS below a generation's floor must not be offered that generation's
+    /// build, and a Mac at-or-above the floor must be. Pure function, so this
+    /// doesn't need a live install — `runs(onOS:arch:)` is the same check
+    /// `VendorProbeSource.probeDiagnostic` applies before ever fetching.
+    @Test func hostGateDeclinesAnOSBelowTheFloorAndAcceptsAtOrAboveIt() throws {
+        let ccc7 = try #require(self.stableRecipe())
+        #expect(!ccc7.runs(onOS: "12.6", arch: .arm64))  // Monterey: below CCC 7's Ventura floor
+        #expect(ccc7.runs(onOS: "13.1", arch: .arm64))
+        #expect(ccc7.runs(onOS: "15.0", arch: .arm64))
+
+        let ccc6 = try #require(self.ccc6Recipe())
+        #expect(!ccc6.runs(onOS: "10.14", arch: .arm64))  // Mojave: below CCC 6's Catalina floor
+        #expect(ccc6.runs(onOS: "10.15", arch: .arm64))
+
+        let ccc5 = try #require(self.ccc5Recipe())
+        #expect(!ccc5.runs(onOS: "10.9", arch: .arm64))  // Mavericks: below CCC 5's Yosemite floor
+        #expect(ccc5.runs(onOS: "10.10", arch: .arm64))
+    }
+
     @Test func betaRecipeChangelogPointsAtTheVendorsPrereleaseNotesPage() throws {
         let recipe = try #require(self.betaRecipe())
         #expect(recipe.changelogURL?.absoluteString == "https://bombich.com/software/updates/ccc7_rn_beta.html")

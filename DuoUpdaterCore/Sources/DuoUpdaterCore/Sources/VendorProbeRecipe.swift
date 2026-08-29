@@ -3778,15 +3778,43 @@ public enum VendorProbeRegistry {
         // downgrade. The official stable download GET redirects to a signed R2 URL
         // whose versioned directory exactly matches the mounted bundle's marketing
         // version. HEAD is a vendor trap (redirects to example.com), hence GET with
-        // redirects disabled. Detection-only: the signed URL expires and the fixed
-        // gateway is architecture-specific. ai.perplexity.comet, Team 7S8W4W365S,
-        // notarized; Keystone updater, no Sparkle feed.
+        // redirects disabled. ai.perplexity.comet, Team 7S8W4W365S, notarized;
+        // Keystone updater, no Sparkle feed.
+        //
+        // ONE-CLICK via `.fixed` ON THE GATEWAY ITSELF — deliberately not on the
+        // signed URL the probe just resolved, and deliberately not `.redirect`.
+        //
+        // `.redirect` is out because it HEADs, and this vendor's HEAD answers
+        // `Location: https://www.example.com?status=ok` (measured 2026-08-29; GET
+        // on the same URL returns the artifact).
+        //
+        // Templating the resolved signed URL would "work" and then rot: every
+        // install URL is resolved at CHECK time and stored on the row until the
+        // user clicks, while this signature carries `X-Amz-Expires=3600`. A row
+        // checked more than an hour before the click — the default on any
+        // frequency slower than hourly — would 403. Handing the download the
+        // gateway instead moves the redirect to download time, where `Downloader`
+        // GETs and follows it like a browser, so the signature is always minutes
+        // old. That is also why the ephemeral URL never has to be re-resolved:
+        // nothing durable ever holds one.
+        //
+        // No checksum: the gateway publishes none. Verified 2026-08-29 by fetching
+        // the gateway with redirects followed — 313,170,645 B, and the dmg mounts
+        // as "Comet Installer" carrying a real 710 MB `Comet.app` (not a
+        // downloader stub like 1Password's): `ai.perplexity.comet` 151.0.7922.247,
+        // `Developer ID Application: Perplexity AI Inc. (7S8W4W365S)`, spctl
+        // "accepted / Notarized Developer ID", universal (x86_64 + arm64).
         VendorProbeRecipe(
             bundleID: "ai.perplexity.comet",
             url: URL(string: "https://www.perplexity.ai/rest/browser/download?channel=stable&platform=mac_arm64")!,
             mode: .redirectFilename,
             versionPattern: #"/([0-9]+(?:\.[0-9]+)+)/comet_latest\.dmg"#,
             downloadURL: URL(string: "https://www.perplexity.ai/comet"),
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://www.perplexity.ai/rest/browser/download"
+                        + "?channel=stable&platform=mac_arm64")!),
+                kind: .dmg),
             followRedirects: false),
 
         // Devin Desktop (formerly Windsurf) — official stable update JSON. The
@@ -3868,9 +3896,36 @@ public enum VendorProbeRegistry {
                 checksumPattern: #"(?m)^sha512:\s*(\S+)\s*$"#)),
 
         // Msty Studio — official electron-builder manifest lists both x64 and
-        // arm64 assets and reports the same version as Info.plist. Detection-only:
-        // selecting the correct one-click asset needs host-architecture-aware
-        // VendorInstallSpec support. MstyStudio, Team S6CF5A8MX9, notarized.
+        // arm64 assets and reports the same version as Info.plist. MstyStudio,
+        // Team S6CF5A8MX9, notarized.
+        //
+        // ONE-CLICK via `.fixed`: this vendor's filenames carry no version
+        // (`MstyStudio_arm64.zip`), so the artifact URL is a constant and there is
+        // nothing to template. The manifest that names the version sits in the
+        // same directory, so the two always describe one release.
+        //
+        // THE CHECKSUM PATTERN IS ANCHORED ON THE arm64 FILENAME, and that anchor
+        // is the whole reason this recipe was blocked. `checksumPattern` is a
+        // separate first-match over the body, and this manifest lists four
+        // artifacts — `MstyStudio_x64.zip` FIRST, then arm64, then both dmgs — so
+        // the obvious `^\s+sha512:` would hand the x64 digest to an arm64
+        // download and fail every install. Requiring `url: MstyStudio_arm64.zip`
+        // immediately before the digest makes the pairing structural rather than
+        // positional: measured 2026-08-29, the naive pattern yields `2Ix1WRcS…`
+        // (x64) and this one `aNSie9nH…` (arm64), and the downloaded
+        // `MstyStudio_arm64.zip` hashes to exactly the latter.
+        //
+        // The checksum earns its place twice over here. Because the URL is a
+        // "latest" path while the digest belongs to the version the probe
+        // compared, a release published between the check and the click fails the
+        // checksum instead of silently installing a version nobody compared —
+        // loud, and cleared by re-checking. Without it this recipe could report
+        // one version and install another.
+        //
+        // Verified 2026-08-29 on the artifact this spec selects: 248,234,928 B,
+        // extracts to `MstyStudio.app` 2.9.8, `Developer ID Application: Ashok
+        // Gelal (S6CF5A8MX9)`, spctl "accepted / Notarized Developer ID",
+        // `lipo -archs` = arm64.
         VendorProbeRecipe(
             bundleID: "MstyStudio",
             url: URL(string: "https://next-assets.msty.studio/app/latest/mac/latest-mac.yml")!,
@@ -3878,7 +3933,13 @@ public enum VendorProbeRegistry {
             versionPattern: #"(?m)^version:\s*v?([0-9]+(?:\.[0-9]+)+)\s*$"#,
             downloadURL: URL(string: "https://msty.ai/"),
             changelogURL: URL(string: "https://msty.ai/resources/changelog/studio/"),
-            publishedAtPattern: #"(?m)^releaseDate:\s*'([^']+)'\s*$"#),
+            publishedAtPattern: #"(?m)^releaseDate:\s*'([^']+)'\s*$"#,
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://next-assets.msty.studio/app/latest/mac/"
+                        + "MstyStudio_arm64.zip")!),
+                kind: .zip,
+                checksumPattern: #"url:\s*MstyStudio_arm64\.zip\s*\n\s*sha512:\s*(\S+)"#)),
 
         // TRAE is deliberately absent here. Its official manifest exposes only
         // the packaging line `2.3.61406`, while the exact dmg at that manifest URL

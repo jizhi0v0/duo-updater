@@ -45,13 +45,46 @@ private let cccBrokenSparkleFeedFixture = ""
 /// group exactly.
 private let cccBetaRedirectFixture = "ccc-7.1.7-b7.8389.zip"
 
+/// CCC 5 and CCC 6, confirmed 2026-08-29 to be independently, currently
+/// maintained generations sharing `com.bombich.ccc` — see the registry
+/// comment above the three stable recipes for the full evidence chain
+/// (real downloaded/expanded zips for all three generations, same Team
+/// `L4F2DED5Q7`, Bombich's own download page listing `?v=ccc5`/`?v=ccc6`/
+/// `?v=ccc7` as live links alongside `?v=latest`).
+private let cccSixRedirectFixture = "ccc-6.1.13.7699.zip"
+private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
+
 @Suite struct CarbonCopyClonerProbeRecipeTests {
-    private func stableRecipe() -> VendorProbeRecipe? {
-        VendorProbeRegistry.recipes.first { $0.bundleID == "com.bombich.ccc" && $0.channel == .stable }
+    /// The three STABLE recipes are distinguished only by
+    /// `installedVersionPattern` (all share bundle id and channel), so look
+    /// each one up by that rather than by registration order, which would
+    /// silently pick up whichever the registry happens to list first.
+    private func stableRecipe(installedVersionPattern: String) -> VendorProbeRecipe? {
+        VendorProbeRegistry.recipes.first {
+            $0.bundleID == "com.bombich.ccc" && $0.channel == .stable
+                && $0.installedVersionPattern == installedVersionPattern
+        }
     }
+
+    private func stableRecipe() -> VendorProbeRecipe? { stableRecipe(installedVersionPattern: #"^7\."#) }
+    private func ccc6Recipe() -> VendorProbeRecipe? { stableRecipe(installedVersionPattern: #"^6\."#) }
+    private func ccc5Recipe() -> VendorProbeRecipe? { stableRecipe(installedVersionPattern: #"^5\."#) }
 
     private func betaRecipe() -> VendorProbeRecipe? {
         VendorProbeRegistry.recipes.first { $0.bundleID == "com.bombich.ccc" && $0.channel == .beta }
+    }
+
+    /// Exactly four recipes for this bundle id: three stable generations (5/6/7)
+    /// plus one beta (7 only — no evidence CCC 5/6 currently ship one). Catches
+    /// a future recipe added for this bundle id without updating THIS test to
+    /// account for it, the same shape of tripwire
+    /// `littleSnitchStableAndNightlyRecipesResolveFromTheRealFeedWithoutCrossingChannels`
+    /// uses for Little Snitch.
+    @Test func exactlyFourRecipesRegisteredForThisBundleID() {
+        let all = VendorProbeRegistry.recipes.filter { $0.bundleID == "com.bombich.ccc" }
+        #expect(all.count == 4)
+        #expect(all.filter { $0.channel == .stable }.count == 3)
+        #expect(all.filter { $0.channel == .beta }.count == 1)
     }
 
     @Test func recipeExistsAndUsesRedirectFilenameMode() throws {
@@ -161,5 +194,103 @@ private let cccBetaRedirectFixture = "ccc-7.1.7-b7.8389.zip"
         #expect(ReleaseChannel.detect(
             name: "Some App", bundleID: "com.example.other",
             keystoneChannel: nil, version: "7.1.7-b7") == .stable)
+    }
+
+    // MARK: - CCC 6 / CCC 5 generations
+
+    @Test func ccc6RecipeUsesItsOwnEndpointAndReadsItsFixture() throws {
+        let recipe = try #require(self.ccc6Recipe())
+        #expect(recipe.url.absoluteString == "https://bombich.com/software/download_ccc.php?v=ccc6")
+        #expect(VendorProbeRecipe.extractVersion(
+            from: cccSixRedirectFixture, pattern: recipe.versionPattern) == "6.1.13")
+        #expect(recipe.changelogURL?.absoluteString == "https://bombich.com/en/kb/ccc/6/release-notes")
+        #expect(recipe.install == nil)
+    }
+
+    @Test func ccc5RecipeUsesItsOwnEndpointAndReadsItsFixture() throws {
+        let recipe = try #require(self.ccc5Recipe())
+        #expect(recipe.url.absoluteString == "https://bombich.com/software/download_ccc.php?v=ccc5")
+        #expect(VendorProbeRecipe.extractVersion(
+            from: cccFiveRedirectFixture, pattern: recipe.versionPattern) == "5.1.28")
+        #expect(recipe.changelogURL?.absoluteString == "https://bombich.com/en/kb/ccc/5/release-notes")
+        #expect(recipe.install == nil)
+    }
+
+    /// The bug the whole three-recipe split exists to fix, pinned as a
+    /// deterministic matrix: each generation's `installedVersionPattern` must
+    /// match ONLY its own installed marketing string, never another
+    /// generation's — a CCC 5 or CCC 6 install must never become a candidate
+    /// for CCC 7's endpoint (or vice versa) just because "7.1.6" sorts higher
+    /// than "5.1.28"/"6.1.13" numerically. Real installed-version strings from
+    /// the mounted 2026-08-29 bundles, not synthetic ones.
+    @Test func eachGenerationsPatternMatchesOnlyItsOwnInstalledVersion() throws {
+        let ccc7 = try #require(self.stableRecipe())
+        let ccc6 = try #require(self.ccc6Recipe())
+        let ccc5 = try #require(self.ccc5Recipe())
+
+        #expect(ccc7.matchesInstalled(version: "7.1.6"))
+        #expect(!ccc7.matchesInstalled(version: "6.1.13"))
+        #expect(!ccc7.matchesInstalled(version: "5.1.28"))
+
+        #expect(!ccc6.matchesInstalled(version: "7.1.6"))
+        #expect(ccc6.matchesInstalled(version: "6.1.13"))
+        #expect(!ccc6.matchesInstalled(version: "5.1.28"))
+
+        #expect(!ccc5.matchesInstalled(version: "7.1.6"))
+        #expect(!ccc5.matchesInstalled(version: "6.1.13"))
+        #expect(ccc5.matchesInstalled(version: "5.1.28"))
+    }
+
+    /// End-to-end through `VendorProbeSource` (not just the pure pattern above):
+    /// a hypothetical future CCC generation this registry has no recipe for yet
+    /// (e.g. "8.0.0") must resolve to nil — never silently fall back to ANY of
+    /// the three existing generation recipes just because one happens to be
+    /// registered. Skipped before any fetch, the same zero-candidates shape
+    /// `dbBrowserStableRecipeDoesNotReachTheNightly` relies on, so this needs no
+    /// network and stays fast.
+    @Test func anUnrecognizedFutureGenerationResolvesToNilRatherThanFallingBackToAny() async throws {
+        let recipes = VendorProbeRegistry.recipes.filter { $0.bundleID == "com.bombich.ccc" }
+        let source = VendorProbeSource(recipes: recipes)
+        let futureApp = InstalledApp(
+            name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
+            shortVersion: "8.0.0", buildVersion: "9000",
+            path: URL(fileURLWithPath: "/Applications/Carbon Copy Cloner.app"),
+            isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: ReleaseChannel.detect(
+                name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
+                keystoneChannel: nil, version: "8.0.0"))
+        #expect(try await source.latestVersion(for: futureApp) == nil)
+    }
+
+    /// The live counterpart to the matrix above, against the real vendor
+    /// endpoints (2026-08-29) rather than a fixture — the repo's own rule that
+    /// a recipe/pattern change needs a real-endpoint check, not just a unit
+    /// test. Registers all three stable generations together (as the real
+    /// registry does) and confirms a CCC 6 install resolves through the CCC 6
+    /// endpoint specifically: the reported build is `7699` (CCC 6's), never
+    /// `8368` (CCC 7's) — the exact cross-generation phantom this fix exists
+    /// to prevent, caught here even if the pure-pattern matrix above were
+    /// somehow satisfied by a registry that still wired the wrong URL to the
+    /// wrong `installedVersionPattern`.
+    @Test func ccc6InstallResolvesThroughTheCcc6EndpointLiveNotCcc7() async throws {
+        let recipes = VendorProbeRegistry.recipes.filter {
+            $0.bundleID == "com.bombich.ccc" && $0.channel == .stable
+        }
+        let source = VendorProbeSource(recipes: recipes)
+        let installed = InstalledApp(
+            name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
+            shortVersion: "6.1.13", buildVersion: "7699",
+            path: URL(fileURLWithPath: "/Applications/Carbon Copy Cloner.app"),
+            isMASApp: false, sparkleFeedURL: nil,
+            releaseChannel: ReleaseChannel.detect(
+                name: "Carbon Copy Cloner", bundleID: "com.bombich.ccc",
+                keystoneChannel: nil, version: "6.1.13"))
+        let remote = try await source.latestVersion(for: installed)
+        // CCC is a marketing-only recipe (`versionIsBuild: false`), so the
+        // comparable value rides in `shortVersion`, not `version` (which is
+        // reserved for a build-number comparison basis and stays nil here —
+        // see `VendorProbeSource.makeRemoteVersion`).
+        #expect(remote?.shortVersion == "6.1.13")
+        #expect(remote?.shortVersion != "7.1.6")
     }
 }

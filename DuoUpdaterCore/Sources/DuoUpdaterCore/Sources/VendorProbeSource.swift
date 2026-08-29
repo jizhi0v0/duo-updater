@@ -228,6 +228,24 @@ public struct VendorProbeSource: UpdateSource {
                 "vendor probe skip \(bundleID, privacy: .public): no recipe for app channel \(app.releaseChannel.rawValue, privacy: .public)")
             return nil
         }
+        // Installed-version gate: a vendor can keep several MAJOR-VERSION
+        // generations under one shared bundle id, each independently maintained
+        // and each a separate product (Carbon Copy Cloner 5/6/7 all report
+        // `com.bombich.ccc` — see `VendorProbeRecipe.installedVersionPattern`).
+        // Drop the recipes that don't match the generation actually installed
+        // BEFORE the multi-endpoint merge below, for the same reason the host
+        // gate does: `best(of:)` takes the highest version among what's left, and
+        // a newer generation's marketing string genuinely sorts higher than an
+        // older one's, which would out-rank it every time otherwise — offering a
+        // paid major-version upgrade as if it were the next point release.
+        // Recipes with no `installedVersionPattern` — all but a handful — pass
+        // unchanged.
+        let installedMatched = channelMatched.filter { $0.matchesInstalled(version: app.shortVersion) }
+        guard !installedMatched.isEmpty else {
+            Log.source.info(
+                "vendor probe skip \(bundleID, privacy: .public): no recipe for installed version \(app.shortVersion ?? "nil", privacy: .public)")
+            return nil
+        }
         // Host gate: a vendor can keep two trains open because the newer one
         // dropped hardware or OS versions the older one still serves (Raycast v2
         // is arm64 + macOS 26 only; v1 stays universal). Drop the recipes this Mac
@@ -238,7 +256,7 @@ public struct VendorProbeSource: UpdateSource {
         // use the older one, and the app is stuck reporting an update it can never
         // apply. Recipes with no `hostRequirement` — all but a handful — pass
         // unchanged.
-        let matching = channelMatched.filter {
+        let matching = installedMatched.filter {
             $0.runs(onOS: SparkleAppcastSource.numericSystemVersion(), arch: HostArch.current)
         }
         guard !matching.isEmpty else {

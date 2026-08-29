@@ -1,10 +1,17 @@
 # Carbon Copy Cloner
 
 ## 基本信息
-- Bundle ID: `com.bombich.ccc`
-- Team ID: `L4F2DED5Q7`
-- 已安装版本: 未在本机安装；核对了厂商官方下载 `ccc-7.1.6.8368.zip`（`CFBundleShortVersionString` 7.1.6 / `CFBundleVersion` 8368）
-- 自更新机制: Sparkle（`SUFeedURL` = `https://api.bombich.com/updates/ccc`），但该端点当前对任何请求都返回空 body（见下）
+- Bundle ID: `com.bombich.ccc`——**三个独立、各自仍在维护的大版本代际（5/6/7）共用同一个
+  bundle id**，2026-08-29 下载并展开三份真实 zip 核实：
+  - CCC 7: `ccc-7.1.6.8368.zip`，`CFBundleShortVersionString` 7.1.6 / `CFBundleVersion` 8368
+  - CCC 6: `ccc-6.1.13.7699.zip`，6.1.13 / 7699
+  - CCC 5: `ccc-5.1.28.6213.zip`，5.1.28 / 6213
+- Team ID: `L4F2DED5Q7`（三个代际相同）
+- 已安装版本: 未在本机安装
+- 自更新机制: Sparkle，但两条 `SUFeedURL` 都失效（见下）——CCC 7 是
+  `https://api.bombich.com/updates/ccc`；CCC 5/6 是**不同的字面 URL**
+  `https://update.bombich.com/software/updates/ccc.php`，但会 301→302 转到前者，回同一个
+  空 body
 
 ## 覆盖矩阵
 
@@ -12,23 +19,49 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | ✗（见下）| ✗（auto_updates）| —   | —      | ✓           |
-| **beta**     | ✗（见下）| —        | —   | —      | ✓（2026-08-29 补齐）|
+| **CCC 7 stable** | ✗（见下）| ✗（auto_updates）| —   | —      | ✓           |
+| **CCC 7 beta**   | ✗（见下）| —        | —   | —      | ✓（2026-08-29 补齐）|
+| **CCC 6 stable** | ✗（同一套失效基建）| ✗（auto_updates 只覆盖 latest 那份 cask）| — | — | ✓（2026-08-29 补齐） |
+| **CCC 5 stable** | ✗（同上）| ✗（同上）| — | — | ✓（2026-08-29 补齐） |
 
-当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**（两个 channel）
+当前生效源（`UpdateChecker` 优先链中第一个应答的）: **VendorProbe**（四条 recipe）
 
 ## Channel 详情
 
-| Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
+| Channel/代际 | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
-| stable  | `com.bombich.ccc` | — | `download_ccc.php?v=latest` 重定向文件名 | `ReleaseChannel.detect()` 默认 `.stable` | ✓ |
-| beta    | `com.bombich.ccc` | 共享 | `download_ccc.php?v=latestbeta` 重定向文件名 + `CFBundleShortVersionString` 的 `-b<N>` 后缀（`detect()` 新增 step 0.8）| `channel: .beta` | ✓（2026-08-29 补齐，见下）|
+| CCC 7 stable | `com.bombich.ccc` | — | `download_ccc.php?v=latest` 重定向文件名 | `channel: .stable` + `installedVersionPattern: ^7\.` | ✓ |
+| CCC 7 beta   | `com.bombich.ccc` | 共享 | `download_ccc.php?v=latestbeta` 重定向文件名 + `CFBundleShortVersionString` 的 `-b<N>` 后缀（`detect()` 新增 step 0.8）| `channel: .beta` + `installedVersionPattern: ^7\.` | ✓ |
+| CCC 6 stable | `com.bombich.ccc` | 共享 | `download_ccc.php?v=ccc6` 重定向文件名 | `installedVersionPattern: ^6\.` | ✓（2026-08-29 新增） |
+| CCC 5 stable | `com.bombich.ccc` | 共享 | `download_ccc.php?v=ccc5` 重定向文件名 | `installedVersionPattern: ^5\.` | ✓（2026-08-29 新增） |
 
-**2026-08-29 补记：此前记为"阻塞，需人工抓包"的判断是错的，不是查不到，是没试对参数。**
+**2026-08-29 补记 1：beta 阻塞是没试对参数，不是真的需要抓包。**
 用户提供了 `download_ccc.php?v=latestbeta`（**无连字符**，区别于之前试过的
 `?v=beta`/`?v=latest-beta`）——这个变体当时没试过。实测这条路径直接跟 stable 一样两跳
 302 到一个真实的 beta 构件（`ccc-7.1.7-b7.8389.zip`），完全不需要抓包或猜 `SUFeedURL`
 的请求形状。
+
+**2026-08-29 补记 2（关键正确性问题，用户指出）：CCC 有多个仍在维护的大版本，
+`?v=latest` 只会给最新的那个（CCC 7），跨代际比较是错的。**
+Bombich 的下载页（`bombich.com/download`）标着 macOS 兼容矩阵：CCC 7 需要 Ventura+，
+CCC 6 覆盖 Catalina–Sonoma，CCC 5 覆盖 High Sierra–Big Sur——三条线现在都还在发布点版本
+（下载页同时列着 `?v=ccc5`/`?v=ccc6`/`?v=ccc7` 三个可用链接，不只是 `?v=latest` 那个别名）。
+升代际是**付费升级**，不是免费更新："We do not sell CCC 4 or CCC 5 licenses. To use CCC 4
+or 5, please purchase a CCC 6 license"（bombich.com/en/kb/ccc/6）。
+
+在这条修复之前，`download_ccc.php?v=latest` 那一条 recipe 会让**任何**装着 CCC 5/6 的机器
+被告知"有新版本 7.1.6"——版本号数字上确实更大（"7.1.6" > "6.1.13"），但产品意义上是错的：
+Big Sur 上的 CCC 5 用户根本装不了 CCC 7（需要 Ventura），而且这是一次要掏钱的大版本升级，
+不是免费的点更新。这正是 `VersionComparator`"绝不跨命名空间比较"规则想防的那类陷阱的
+另一种形状。
+
+修复方式：给 `VendorProbeRecipe` 加了一个新字段 `installedVersionPattern`（`hostRequirement`
+的对偶——`hostRequirement` 管"这台 Mac 能不能跑这个 recipe 的构建"，`installedVersionPattern`
+管"装机的这个 app 是不是这个 recipe 想覆盖的那个代际"），`VendorProbeSource.probeDiagnostic`
+在 channel gate 之后、host gate 之前新增一道过滤，三条 stable recipe 各自锁定
+`^5\.`/`^6\.`/`^7\.`，互不覆盖。同时因为三条 recipe 现在共享 `(bundleID, channel)`，
+`channelProofsCoverEveryChannelRecipe` 那条既有守卫要求每条都带独立 `variant`
+（`"ccc5"`/`"ccc6"`/`"ccc7"`），否则会共用一个 `recipeID`，验证基线和 issue 历史会串。
 
 ## 更新检测
 
@@ -46,7 +79,29 @@
   的发布历史），不是冻结 marketing 的 app，默认 marketing-only 比较（`versionIsBuild:
   false`）成立。
 
-### beta
+### CCC 6 stable
+
+- 源: VendorProbe，`.redirectFilename` 模式，同一台端点换个 query 值
+- 端点: `https://bombich.com/software/download_ccc.php?v=ccc6`，两跳 302 到 CDN：
+  `bombich.scdn1.secure.raxcdn.com/software/files/ccc-6.1.13.7699.zip`（2026-08-29 实测）
+- 真机验证（下载并展开真实 zip）: `CFBundleShortVersionString="6.1.13"
+  CFBundleVersion="7699" CFBundleIdentifier="com.bombich.ccc"`，Team `L4F2DED5Q7`
+- 版本方案: 与 CCC 7 stable 同一套正则（`ccc-<marketing>.<build>.zip`）
+- `installedVersionPattern: ^6\.`——锁定这条只对装机是 6.x 的 CCC 生效，见上面"补记 2"
+- changelog: `https://bombich.com/en/kb/ccc/6/release-notes`（独立于 CCC 7 的页面，
+  2026-08-29 核对 200 且有真实内容，标题 "CCC 6 Release Notes"）
+
+### CCC 5 stable
+
+- 源: VendorProbe，`.redirectFilename` 模式，同一台端点再换一个 query 值
+- 端点: `https://bombich.com/software/download_ccc.php?v=ccc5`，两跳 302 到 CDN：
+  `bombich.scdn1.secure.raxcdn.com/software/files/ccc-5.1.28.6213.zip`（2026-08-29 实测）
+- 真机验证（下载并展开真实 zip）: `CFBundleShortVersionString="5.1.28"
+  CFBundleVersion="6213" CFBundleIdentifier="com.bombich.ccc"`，Team `L4F2DED5Q7`
+- 版本方案: 同上，`installedVersionPattern: ^5\.`
+- changelog: `https://bombich.com/en/kb/ccc/5/release-notes`（2026-08-29 核对 200）
+
+### beta（CCC 7 专属）
 
 - 源: VendorProbe，`.redirectFilename` 模式，同一台端点换个 query 值
 - 端点: `https://bombich.com/software/download_ccc.php?v=latestbeta`（**无连字符**——
@@ -91,44 +146,57 @@
 
 ## Changelog
 
-- 来源: VendorProbe 的 `changelogURL` 指向厂商自己的发布记录页
-  `https://bombich.com/software/updates/ccc7_rn.html`（三段式版本号，按发布倒序列出
-  7.0 → 7.1.6，2026-08-29 核对）
-- 跟随 channel: 是——stable 的 `changelogURL` 指向 `ccc7_rn.html`，beta 的
-  `changelogURL` 指向独立页面 `ccc7_rn_beta.html`
-- Recipe 状态: 不需要独立 `ChangelogRecipe`——`changelogURL` 已经是一个可读的人工
-  发布记录页，在详情窗口以 WebView 呈现即可，不需要结构化解析
+- 来源: 每条 recipe 的 `changelogURL` 指向该代际自己的发布记录页——CCC 7 stable
+  `ccc7_rn.html`、CCC 7 beta `ccc7_rn_beta.html`、CCC 6
+  `en/kb/ccc/6/release-notes`、CCC 5 `en/kb/ccc/5/release-notes`，全部 2026-08-29
+  核对过 200 且有真实按版本排列的内容
+- 跟随 channel/代际: 是，四条各自独立
+- Recipe 状态: 不需要独立 `ChangelogRecipe`——都是可读的人工发布记录页，详情窗口
+  WebView 呈现即可
 
 ## 一键安装
 
-- 状态: **仅检测**，未接一键
-- 格式: zip（`.app` 直出，无嵌套 pkg）
-- **读的是**: 人人可手动下载的 GA（`download_ccc.php?v=latest` 就是厂商官网"下载"
-  按钮背后的同一个链接，不存在轨道/灰度问题）
+- 状态: **仅检测**，四条都未接一键
+- 格式: zip（`.app` 直出，无嵌套 pkg），三个代际一致
+- **读的是**: 人人可手动下载的 GA（`download_ccc.php?v=<latest|latestbeta|ccc6|ccc5>`
+  就是厂商下载页对应按钮背后的同一个链接，不存在轨道/灰度问题）
 - 阻塞: 不是技术阻塞，是范围决策——CCC 装机时带一个特权 helper
-  （`com.bombich.ccchelper`）、一个 LaunchDaemon 和一个 XPC service，原地替换
-  `.app` 相比本 registry 里现有的 zip-swap 一键（不带特权组件的应用）是一个更大的
-  改动面，留给单独决定，本次审计不默认加
+  （`com.bombich.ccchelper`）、一个 LaunchDaemon 和一个 XPC service（CCC 6 的挂载
+  验证过同一类组件），原地替换 `.app` 相比本 registry 里现有的 zip-swap 一键（不带
+  特权组件的应用）是一个更大的改动面，留给单独决定，本次审计不默认加
 
 ## 已知问题
 
-- Sparkle `SUFeedURL` 本身处于失效状态（见"更新检测"），如果 Bombich 之后修好这个
-  端点，`SparkleAppcastSource` 会自动开始生效并可能与本次新增的 VendorProbe
-  同时应答——`UpdateChecker` 的优先链会让 Sparkle 赢（先于 VendorProbe），行为仍然
-  正确，不需要预先处理。
-- 一键安装仍未接（stable、beta 都是），见下"建议下一步"。
+- Sparkle 两条 `SUFeedURL`（CCC 7 自己那条 + CCC 5/6 共用那条）都处于失效状态（见
+  "更新检测"），如果 Bombich 之后修好，`SparkleAppcastSource` 会自动开始生效并可能与
+  本次新增的 VendorProbe 同时应答——`UpdateChecker` 的优先链会让 Sparkle 赢（先于
+  VendorProbe），行为仍然正确，不需要预先处理。
+- 一键安装仍未接（四条都是），见下"建议下一步"。
+- CCC 5/6 是否也有 beta 轨道未确认——`?v=beta`/`?v=latestbeta` 在这台机器上只观察到
+  返回 CCC 7 的构件，没有证据说 5/6 完全没有，只是没找到证据说它们有；不是"查过了
+  没有"，是"没查到证据"，别当成已排除。
 
 ## 建议下一步
 
-1. **stable 检测已完成**：`DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift`
-   新增 `com.bombich.ccc` 的 `VendorProbeRecipe`（`.redirectFilename`，
-   `download_ccc.php?v=latest`）；回归测试
-   `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CarbonCopyClonerProbeRecipeTests.swift`。
-2. **beta 检测已完成（2026-08-29）**：同一文件新增第二条 `com.bombich.ccc` recipe
-   （`channel: .beta`，`download_ccc.php?v=latestbeta`），`ReleaseChannel.swift`
-   新增 step 0.8 识别 `-b<N>` 短后缀，测试同一份文件里补齐（stable/beta 各自的
-   pattern 互不误伤 + `detect()` 单测 + 负控制）。此前记为"需要用户抓包"的阻塞
-   已解除——是没试对 query 参数拼写，不是真的需要抓包。
-3. **一键安装**：技术上可行（zip 直出 `.app`，Team `L4F2DED5Q7`，两个 channel 同一个
-   Team，签名闸能一致通过），但因为装机带特权 helper/LaunchDaemon/XPC，是否要做需要
-   单独决定，未在本次默认加入。
+1. **CCC 7 stable/beta 检测已完成**：
+   `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift` 两条
+   `com.bombich.ccc` recipe（`.redirectFilename`，`download_ccc.php?v=latest` /
+   `?v=latestbeta`）；`ReleaseChannel.swift` 新增 step 0.8 识别 `-b<N>` 短后缀。
+2. **多代际正确性已修复（2026-08-29，用户发现的问题）**：新增
+   `VendorProbeRecipe.installedVersionPattern` 字段（`hostRequirement` 的对偶）+
+   `VendorProbeSource.probeDiagnostic` 里新的一道过滤，CCC 6/CCC 5 各自注册一条
+   recipe 并锁定 `^6\.`/`^5\.`，避免被 `?v=latest`（CCC 7 的答案）跨代际覆盖。三条
+   stable recipe 因为共享 `(bundleID, channel)` 各补了 `variant`
+   （`"ccc7"`/`"ccc6"`/`"ccc5"`），满足 `channelProofsCoverEveryChannelRecipe` 的
+   唯一性要求。回归测试全部在
+   `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/CarbonCopyClonerProbeRecipeTests.swift`：
+   四条 recipe 数量断言、每代际 `installedVersionPattern` 的 3×3 矩阵（只有对角线为
+   真）、一条不依赖网络的"未来第 8 代际找不到 recipe 时必须答 nil 而不是随便退化到
+   某一条"、以及一条打真实端点的活测试（CCC 6 装机必须解析到 build `7699`，不能是
+   CCC 7 的 `8368`）。`duo verify --only bombich`：四条全绿。
+3. **一键安装**：技术上可行（zip 直出 `.app`，四条 recipe 的 Team 都是
+   `L4F2DED5Q7`，签名闸能一致通过），但因为装机带特权 helper/LaunchDaemon/XPC，是否
+   要做需要单独决定，未在本次默认加入。
+4. **CCC 5/6 beta 轨道**：未确认是否存在，不是本次范围；如果以后要查，起点是
+   `?v=<ccc5|ccc6>beta` 这类同构猜测,或者装一份 5/6 真机在偏好里勾选 beta 开关看
+   `SUFeedURL` 请求变化。

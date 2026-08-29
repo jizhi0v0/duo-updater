@@ -247,6 +247,31 @@ public struct VendorProbeRecipe: Sendable {
     /// already runs on" and changes nothing. See `VendorHostRequirement`.
     public let hostRequirement: VendorHostRequirement?
 
+    /// Restricts this recipe to an installed app whose `CFBundleShortVersionString`
+    /// matches this pattern (searched, not required to anchor the whole string —
+    /// callers write their own `^`/`$` where that matters). nil (the overwhelming
+    /// common case) means "any installed version of this bundle id" and changes
+    /// nothing.
+    ///
+    /// Exists for a vendor that keeps more than one MAJOR-VERSION generation
+    /// under one shared bundle id, each independently and currently maintained,
+    /// where crossing from one to another is a separate (often separately
+    /// priced) product decision, not "the next version of what you have" —
+    /// Carbon Copy Cloner is the case in hand: CCC 5/6/7 all report
+    /// `com.bombich.ccc`, Bombich keeps shipping point releases to all three
+    /// (`ccc-5.1.28.6213.zip`, `ccc-6.1.13.7699.zip`, `ccc-7.1.6.8368.zip`, all
+    /// live 2026-08-29), and upgrading between majors needs a new license
+    /// ("We do not sell CCC 4 or CCC 5 licenses. To use CCC 4 or 5, please
+    /// purchase a CCC 6 license" — bombich.com/en/kb/ccc/6). Without this gate a
+    /// CCC 5 install on Big Sur — which cannot even run CCC 7 (Ventura+) — would
+    /// be told a "7.1.6" update exists, because the marketing string genuinely
+    /// does sort higher; that comparison is real by numeral and wrong by
+    /// product, the same shape of trap `VersionComparator`'s "never compare
+    /// across namespaces" rule exists for. This is `hostRequirement`'s twin,
+    /// gating on the INSTALLED APP's own version rather than on the Mac running
+    /// it — see `matchesInstalled(version:)`.
+    public let installedVersionPattern: String?
+
     /// The endpoint to probe (a stable "latest" redirect, or a version API).
     ///
     /// When `identity` is set this carries its placeholder token and is NOT a
@@ -297,12 +322,15 @@ public struct VendorProbeRecipe: Sendable {
     /// whatever happened to the endpoint. `bundleID`/`variant` are the same
     /// shape of tautology; `downloadURL`/`changelogURL` are where the user is
     /// SENT, not where the version is read; `hostRequirement` is about the
-    /// machine, not the channel.
+    /// machine, not the channel; `installedVersionPattern` is `hostRequirement`'s
+    /// twin — about which already-installed generation this recipe applies to,
+    /// not about the channel or where THIS recipe reads its own answer from.
     ///
     /// Everything else is in, including fields added after this list was
     /// written — see `channelAnchorSurface`.
     static let nonAnchorFields: Set<String> = [
         "bundleID", "channel", "variant", "downloadURL", "changelogURL", "hostRequirement",
+        "installedVersionPattern",
     ]
 
     /// Everything this recipe says about WHERE it reads and WHAT it looks for —
@@ -595,7 +623,8 @@ public struct VendorProbeRecipe: Sendable {
         identities: [ProbeIdentity] = [],
         track: RolloutTrack? = nil,
         variant: String? = nil,
-        hostRequirement: VendorHostRequirement? = nil
+        hostRequirement: VendorHostRequirement? = nil,
+        installedVersionPattern: String? = nil
     ) {
         self.bundleID = bundleID
         self.channel = channel
@@ -604,6 +633,7 @@ public struct VendorProbeRecipe: Sendable {
         self.track = track
         self.variant = variant
         self.hostRequirement = hostRequirement
+        self.installedVersionPattern = installedVersionPattern
         self.mode = mode
         self.versionPattern = versionPattern
         self.downloadURL = downloadURL
@@ -848,7 +878,8 @@ public struct VendorProbeRecipe: Sendable {
             entryStartPattern: entryStartPattern ?? self.entryStartPattern,
             install: install, requestBody: requestBody, requestHeaders: requestHeaders,
             followRedirects: followRedirects, channel: channel, identities: identities,
-            track: track, variant: variant, hostRequirement: hostRequirement)
+            track: track, variant: variant, hostRequirement: hostRequirement,
+            installedVersionPattern: installedVersionPattern)
     }
 
     /// Whether this recipe's build can run on the described machine. A recipe with
@@ -856,6 +887,21 @@ public struct VendorProbeRecipe: Sendable {
     /// recipe's behaviour identical.
     public func runs(onOS osVersion: String, arch: HostArch) -> Bool {
         hostRequirement?.isSatisfied(byOS: osVersion, arch: arch) ?? true
+    }
+
+    /// Whether this recipe applies to an already-installed copy reporting
+    /// `installed` as its `CFBundleShortVersionString`. A recipe with no
+    /// `installedVersionPattern` applies to any installed version — the default
+    /// that keeps every existing recipe's behaviour identical. A recipe THAT SETS
+    /// one fails closed on a missing/unreadable installed version or an invalid
+    /// pattern (a recipe author's bug caught by its own tests, not something to
+    /// paper over at call time) — better this recipe silently declines than
+    /// silently applies to every generation it was written to exclude.
+    public func matchesInstalled(version installed: String?) -> Bool {
+        guard let pattern = installedVersionPattern else { return true }
+        guard let installed, let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        let range = NSRange(installed.startIndex..., in: installed)
+        return regex.firstMatch(in: installed, options: [], range: range) != nil
     }
 }
 
@@ -5691,7 +5737,33 @@ public enum VendorProbeRegistry {
             entryStartPattern: #"<key>ReleaseLifecycle</key>\s*<string>"#,
             channel: .nightly),
 
-        // Carbon Copy Cloner (Bombich Software) — the app DOES ship a Sparkle
+        // Carbon Copy Cloner — THREE independently maintained major-version
+        // generations (5, 6, 7) all report the SAME bundle id `com.bombich.ccc`,
+        // confirmed 2026-08-29 by downloading and expanding all three real zips:
+        // `com.bombich.ccc` 5.1.28/6213, `com.bombich.ccc` 6.1.13/7699,
+        // `com.bombich.ccc` 7.1.6/8368 — same Team `L4F2DED5Q7`. Bombich still
+        // ships point releases to all three (bombich.com/download lists
+        // `?v=ccc5`/`?v=ccc6`/`?v=ccc7` as live download links alongside
+        // `?v=latest`, which is a permanent alias for whichever is newest —
+        // currently ccc7) and crossing generations is a PAID upgrade, not a free
+        // update: "We do not sell CCC 4 or CCC 5 licenses. To use CCC 4 or 5,
+        // please purchase a CCC 6 license" (bombich.com/en/kb/ccc/6). CCC 7 also
+        // requires Ventura+ (bombich.com/download's own compatibility table),
+        // which a CCC 5 install on High Sierra–Big Sur or a CCC 6 install on
+        // Catalina–Monterey cannot run at all.
+        //
+        // Each generation therefore gets its own recipe, gated with
+        // `installedVersionPattern` so `VendorProbeSource` only offers a
+        // same-generation point release — never routes a CCC 5/6 install through
+        // `?v=latest`'s CCC 7 answer just because "7.1.6" sorts numerically
+        // above "5.1.28"/"6.1.13". Without this gate every CCC 5/6 install in
+        // this registry would have been a phantom cross-generation "update"
+        // forever, silently, the same shape of bug `VersionComparator`'s
+        // "never compare across namespaces" rule exists to prevent — just one
+        // this registry had not modeled before because no other vendor here
+        // keeps multiple ACTIVELY maintained generations under one bundle id.
+        //
+        // stable (CCC 7) — the app DOES ship a Sparkle
         // `SUFeedURL` (`https://api.bombich.com/updates/ccc`, confirmed reading
         // the real Info.plist inside the vendor's own download), so it is not the
         // "no Sparkle at all" case it first looks like. But that feed answers
@@ -5733,9 +5805,11 @@ public enum VendorProbeRegistry {
             mode: .redirectFilename,
             versionPattern: #"^ccc-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latest"),
-            changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn.html")),
+            changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn.html"),
+            variant: "ccc7",
+            installedVersionPattern: #"^7\."#),
 
-        // Carbon Copy Cloner, BETA channel — same bundle id, opted into from
+        // beta (CCC 7) — same bundle id, opted into from
         // CCC's own Settings → Software Update → "Inform me of beta releases".
         // The blocker recorded on 2026-08-29 (needs the user's own packet
         // capture — `?v=beta` redirects to the plain download page, and
@@ -5763,7 +5837,11 @@ public enum VendorProbeRegistry {
         // than re-verified as a separate discovery.
         //
         // No `install`, same reasoning as stable — the privileged-helper
-        // footprint applies equally to both channels.
+        // footprint applies equally to both channels. `installedVersionPattern`
+        // scopes this to CCC 7 for the same reason stable's does — there is no
+        // evidence CCC 5/6 currently ship a beta at all (`?v=beta`/`?v=latestbeta`
+        // only ever answered with a CCC 7 artifact, 2026-08-29), so this is
+        // scoped to what was actually observed, not assumed to generalize.
         VendorProbeRecipe(
             bundleID: "com.bombich.ccc",
             url: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta")!,
@@ -5771,7 +5849,73 @@ public enum VendorProbeRegistry {
             versionPattern: #"^ccc-([0-9]+(?:\.[0-9]+)+-b[0-9]+)\.[0-9]{3,}\.zip$"#,
             downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=latestbeta"),
             changelogURL: URL(string: "https://bombich.com/software/updates/ccc7_rn_beta.html"),
-            channel: .beta),
+            channel: .beta,
+            installedVersionPattern: #"^7\."#),
+
+        // stable (CCC 6) — DOES carry a Sparkle `SUFeedURL`
+        // (`https://update.bombich.com/software/updates/ccc.php`, read from the
+        // mounted 6.1.13 bundle) — a DIFFERENT literal URL than CCC 7's
+        // (`api.bombich.com/updates/ccc`), so this is not simply "same feed,
+        // different app". But it 301s → 302s straight into that exact CCC 7
+        // feed URL and returns the identical HTTP 200 + zero-byte body (verified
+        // 2026-08-29 following the full redirect chain) — so Bombich's whole
+        // Sparkle update backend is dead across all three generations, not a
+        // CCC-7-specific outage, and `SparkleAppcastSource` is a dead end here
+        // too. No MAS listing, no GitHub repo. Same `download_ccc.php` endpoint
+        // as detection, `v=ccc6`
+        // instead of `latest`/`latestbeta` — confirmed 2026-08-29 with a plain
+        // HEAD request: two-hop redirect to `ccc-6.1.13.7699.zip`, matching the
+        // mounted bundle's `CFBundleShortVersionString`/`CFBundleVersion`
+        // exactly. Same filename shape as CCC 7 (`ccc-<marketing>.<build>.zip`),
+        // so the same pattern applies unchanged.
+        //
+        // `installedVersionPattern` pins this to CCC 6 — without it this recipe
+        // and CCC 7's would both match a CCC 6 install (nothing else
+        // distinguishes them structurally) and `VendorProbeSource.best(of:)`
+        // would report whichever answered a higher version, which is CCC 7's,
+        // recreating the exact bug this whole three-recipe split exists to fix.
+        //
+        // `variant` is required here too, separately from that: three recipes
+        // share (bundleID, channel) = (`com.bombich.ccc`, `.stable`), and
+        // `channelProofsCoverEveryChannelRecipe` requires every recipe in such a
+        // group to carry a distinct `variant` — otherwise they'd collide onto
+        // one `recipeID` and share a verify baseline / issue history despite
+        // being three different endpoints.
+        //
+        // changelogURL: CCC 6's own release-notes page (distinct from CCC 7's
+        // `ccc7_rn.html`) — verified 200 with real per-version content
+        // 2026-08-29, titled "CCC 6 Release Notes".
+        //
+        // No `install`: same privileged-helper footprint as CCC 7 (confirmed by
+        // the same category of components in the mounted 6.1.13 app), so
+        // detection-only for the same reason.
+        VendorProbeRecipe(
+            bundleID: "com.bombich.ccc",
+            url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc6")!,
+            mode: .redirectFilename,
+            versionPattern: #"^ccc-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
+            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc6"),
+            changelogURL: URL(string: "https://bombich.com/en/kb/ccc/6/release-notes"),
+            variant: "ccc6",
+            installedVersionPattern: #"^6\."#),
+
+        // stable (CCC 5) — same reasoning as CCC 6 above, one generation older.
+        // `v=ccc5` confirmed 2026-08-29: two-hop redirect to
+        // `ccc-5.1.28.6213.zip`, matching the mounted bundle's
+        // `CFBundleShortVersionString`/`CFBundleVersion` exactly (Team
+        // `L4F2DED5Q7`, same as 6 and 7). Same filename shape, same pattern.
+        // `installedVersionPattern` pins this to CCC 5 for the identical reason
+        // CCC 6's does. changelogURL is CCC 5's own release-notes page, verified
+        // 200 2026-08-29. No `install`, same reasoning as the other two.
+        VendorProbeRecipe(
+            bundleID: "com.bombich.ccc",
+            url: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc5")!,
+            mode: .redirectFilename,
+            versionPattern: #"^ccc-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.[0-9]{3,}\.zip$"#,
+            downloadURL: URL(string: "https://bombich.com/software/download_ccc.php?v=ccc5"),
+            changelogURL: URL(string: "https://bombich.com/en/kb/ccc/5/release-notes"),
+            variant: "ccc5",
+            installedVersionPattern: #"^5\."#),
     ]
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus

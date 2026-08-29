@@ -22,6 +22,19 @@ struct SelfChangelogView: View {
     /// published seconds ago may take a moment to appear here.)
     private static let source = URL(
         string: "https://raw.githubusercontent.com/jizhi0v0/duo-updater/main/CHANGELOG.md")!
+    /// The same notes in the language the app is running in, when we have them.
+    ///
+    /// A separate file rather than one multilingual `CHANGELOG.md`, because that
+    /// file is also what `publish-release.sh` lifts a release's section out of and
+    /// what the update prompt shows — the release path reads it as English and must
+    /// keep doing so. Fetched only when the app is not running in English, and only
+    /// ever as an addition: see `SelfChangelogLocalization` for what happens when
+    /// it 404s, is behind, or has drifted (in every case, English stands).
+    private static func translatedSource(_ basename: String) -> URL? {
+        URL(string: "https://raw.githubusercontent.com/jizhi0v0/duo-updater/main/changelog/"
+            + basename + ".md")
+    }
+
     /// CHANGELOG.md deliberately contains only prose. GitHub Releases is the
     /// authoritative clock for when each of those versions became available.
     ///
@@ -139,10 +152,35 @@ struct SelfChangelogView: View {
                 state = .failed(String(localized: "The file loaded but carried no release sections."))
                 return
             }
-            state = .loaded(await addingReleaseDates(to: changelog))
+            let localized = SelfChangelogLocalization.merge(
+                english: changelog, translated: await translatedNotes(force: force))
+            state = .loaded(await addingReleaseDates(to: localized))
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    /// The translated notes, or nil to stay in English.
+    ///
+    /// Every failure returns nil and none of them is surfaced. A missing or
+    /// unreachable translation is not a broken window — it is a window in English,
+    /// which is what this file was until translations existed. The one thing that
+    /// would be worse than untranslated notes is no notes, so nothing in here can
+    /// reach the failure state.
+    private func translatedNotes(force: Bool) async -> Changelog? {
+        guard let basename = SelfChangelogLocalization.translatedNotesBasename(
+                preferredLocalizations: Bundle.main.preferredLocalizations),
+              let url = Self.translatedSource(basename)
+        else { return nil }
+
+        var request = URLRequest(url: url)
+        request.cachePolicy = force ? .reloadIgnoringLocalCacheData : URLRequest.versionFeedCachePolicy
+        request.timeoutInterval = 15
+        guard let (data, response) = try? await URLSession.updates.data(for: request),
+              let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode)
+        else { return nil }
+        return SelfChangelogParser.parse(String(decoding: data, as: UTF8.self))
     }
 
     /// Date lookup is enrichment, not a second requirement for opening the

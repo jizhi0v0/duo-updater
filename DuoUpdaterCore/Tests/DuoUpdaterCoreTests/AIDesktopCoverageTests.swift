@@ -95,3 +95,105 @@ private func aiGitHubRule(_ bundleID: String) throws -> GitHubReleaseRule {
             == "\(prefix)x64.dmg")
     }
 }
+
+// MARK: - One-click, wired 2026-08-29
+
+private struct InstallURLSourceMismatch: Error { let bundleID: String }
+
+/// Resolve a recipe's install URL the way `VendorProbeSource.resolveInstall` does,
+/// for the two url sources these three use. Deliberately re-derived from the
+/// registry rather than hand-written: a recipe that switches to a different
+/// `URLSource` fails here instead of silently losing its verified URL.
+private func aiInstallURL(_ bundleID: String, body: String, version: String) throws -> String {
+    let recipe = try aiVendorRecipe(bundleID)
+    let spec = try #require(recipe.install, "\(bundleID) lost its install spec")
+    switch spec.urlSource {
+    case .versionTemplate(let template):
+        return template.replacingOccurrences(of: "{version}", with: version)
+    case .bodyPattern(let pattern):
+        return try #require(
+            VendorProbeRecipe.extractVersion(from: body, pattern: pattern),
+            "\(bundleID) install pattern matched nothing")
+    default:
+        throw InstallURLSourceMismatch(bundleID: bundleID)
+    }
+}
+
+/// The exact URLs these recipes build from the vendors' real responses, each
+/// downloaded on 2026-08-29 and verified: right bundle id, `Developer ID
+/// Application` for the Team the recipe's comment names, spctl "Notarized
+/// Developer ID", stapled.
+@Test func aiDesktopOneClickBuildsTheVerifiedArtifactURLs() throws {
+    #expect(try aiInstallURL(
+        "com.electron.wispr-flow",
+        body: #"{"currentRelease":"1.6.721","releases":[]}"#,
+        version: "1.6.721")
+        == "https://dl.wisprflow.com/wispr-flow/darwin/arm64/"
+        + "Wispr%20Flow-darwin-arm64-1.6.721.zip")
+
+    #expect(try aiInstallURL(
+        "com.aionui.app",
+        body: "version: 2.1.61\n",
+        version: "2.1.61")
+        == "https://static.aionui.com/releases/2.1.61/AionUi-2.1.61-mac-arm64.zip")
+
+    // Devin's url comes out of the response itself, so the fixture is the shape
+    // the endpoint really returns — VS Code base version included, to pin that the
+    // install pattern reads the url and not `productVersion`'s neighbourhood.
+    #expect(try aiInstallURL(
+        "com.exafunction.windsurf",
+        body: #"{"url":"https://windsurf-stable.codeiumdata.com/darwin-arm64-dmg/stable/"#
+            + #"2d9020110aa91587b3c3b0fcf7d1faaf601fc7b8/Devin-darwin-arm64-3.8.20.dmg","#
+            + #""productVersion":"1.126.0","windsurfVersion":"3.8.20"}"#,
+        version: "3.8.20")
+        == "https://windsurf-stable.codeiumdata.com/darwin-arm64-dmg/stable/"
+        + "2d9020110aa91587b3c3b0fcf7d1faaf601fc7b8/Devin-darwin-arm64-3.8.20.dmg")
+}
+
+/// AionUi's manifest lists a digest for every artifact it publishes, indented
+/// under `files:`, and one more at column 0 for `path:` — the zip the template
+/// builds. The install spec's pattern must read the top-level one; the indented
+/// list happens to start with the zip's digest today, so a pattern that dropped
+/// the anchor would pass on this manifest and quietly verify the dmg's digest
+/// against the zip's bytes the day the vendor reorders `files:`.
+@Test func aionUIChecksumIgnoresThePerFileDigests() throws {
+    let recipe = try aiVendorRecipe("com.aionui.app")
+    let spec = try #require(recipe.install)
+    let pattern = try #require(spec.checksumPattern)
+
+    let manifest = """
+        version: 2.1.61
+        files:
+          - url: AionUi-2.1.61-mac-arm64.dmg
+            sha512: DMG_DIGEST_MUST_NOT_WIN==
+            size: 289718367
+          - url: AionUi-2.1.61-mac-arm64.zip
+            sha512: ZIP_DIGEST==
+            size: 293814907
+        path: AionUi-2.1.61-mac-arm64.zip
+        sha512: ZIP_DIGEST==
+        releaseDate: '2026-08-25T03:50:12.514Z'
+        """
+    #expect(VendorProbeRecipe.extractVersion(from: manifest, pattern: pattern) == "ZIP_DIGEST==")
+}
+
+/// The other two apps from the same 2026-08-17 batch stay detection-only, each
+/// for a blocker that is NOT the architecture story the comments used to tell:
+///
+///   * Comet resolves through a 307 whose `Location` is a signed, expiring R2 URL.
+///     `.redirect` HEAD-follows, and this vendor traps HEAD — measured 2026-08-29,
+///     HEAD answers `Location: https://www.example.com?status=ok` while GET on the
+///     same URL returns the real artifact. One-click needs GET-based resolution.
+///   * Msty publishes x64 and arm64 in ONE manifest whose `path:` names the x64
+///     zip. A pattern can pick the arm64 entry, but `checksumPattern` is a separate
+///     first-match over the whole body and would pair it with x64's digest.
+///
+/// Wiring either without closing its blocker is the failure a signature gate
+/// cannot catch, so this test is the reminder rather than a prohibition.
+@Test func cometAndMstyRemainDetectionOnlyUntilTheirBlockersAreClosed() throws {
+    for bundleID in ["ai.perplexity.comet", "MstyStudio"] {
+        let recipe = try aiVendorRecipe(bundleID)
+        #expect(recipe.install == nil,
+                "\(bundleID) gained a one-click — close the blocker in the comment first")
+    }
+}

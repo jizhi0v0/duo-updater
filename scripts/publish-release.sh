@@ -659,6 +659,64 @@ $(printf '\033[1;32m✓ Published successfully.\033[0m')
    sha256   : $checksum
 EOF
 
+# The "What's New" window reads CHANGELOG.md in English and, for anyone running
+# Duo Updater in another language, substitutes `changelog/<lang>.md` version by
+# version (see SelfChangelogLocalization). A version those files don't cover falls
+# back to English — deliberately, so a translation being behind can never truncate
+# the history or hold up a release. The cost of that choice is that nothing fails
+# when a release ships untranslated: the guard test in DuoUpdaterCore only requires
+# the languages to move TOGETHER over a hole-free run, never that they have caught
+# up to the newest version — requiring that would turn it red on every release day,
+# and a test that is red on release day is a test people disable.
+#
+# So this print is the only thing standing between "translations lag by a release"
+# and "translations stopped a year ago". It lives here rather than in the test
+# suite for the same reason the site-sync note below does: a reminder is worth
+# something only at the moment it is actionable, and that moment is now — the
+# version exists and its English notes are written and published.
+#
+# Mind the apostrophes below: bash 3.2 (what macOS ships) still balances quotes
+# while scanning for the closing paren of a command substitution, even inside a
+# quoted heredoc it will not otherwise expand. A lone `'` in a Python comment in
+# here is a parse error in this whole file, reported at a line hundreds down.
+untranslated="$(
+    ROOT="$REPO_ROOT" VERSION="$version" python3 - <<'I18N_PY'
+import os, pathlib, re
+root = pathlib.Path(os.environ["ROOT"])
+version = os.environ["VERSION"]
+# Derived from what is on disk, never from a list written here — a hand-kept list
+# stops being true the day a language is added. The other half of the question,
+# "does a shipped language have a file at all", belongs to the guard test.
+pat = re.compile(r'^##[ \t]+' + re.escape(version) + r'[ \t]*$', re.MULTILINE)
+missing = []
+for f in sorted((root / "changelog").glob("*.md")):
+    try:
+        if not pat.search(f.read_text(encoding="utf-8")):
+            missing.append(f.stem)
+    except OSError:
+        missing.append(f.stem)
+print(" ".join(missing))
+I18N_PY
+)"
+if [ -n "$untranslated" ]; then
+    cat <<EOF
+
+$(printf '\033[1;33m! %s has no translated release notes yet.\033[0m' "$version") Missing: $untranslated
+
+  Readers in those languages get this one version in English; everything below it
+  stays translated, so it reads as one English entry at the top rather than as
+  breakage. Nothing is broken — it just is not done.
+
+  To finish it, add a "## $version" section to each of:
+$(for l in $untranslated; do printf '    changelog/%s.md\n' "$l"; done)
+
+  One paragraph per English paragraph — one paragraph is one row in the window,
+  and 'make test' checks the counts match.
+EOF
+elif [ -d "$REPO_ROOT/changelog" ]; then
+    printf '\033[1;32m   i18n     : all translations already cover %s\033[0m\n' "$version"
+fi
+
 # duoupdater.app is a separate repo that keeps a COMMITTED COPY of CHANGELOG.md,
 # refreshed by its own `npm run sync` — nothing about publishing here touches it.
 # So the site silently stops at whatever version was last synced, and "remember to

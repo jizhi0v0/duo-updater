@@ -9,10 +9,14 @@ import Foundation
 /// standard sources have all missed — vendor probes are slow, fragile, and
 /// should never pre-empt a reliable source.
 ///
-/// Best-effort by design: any failure (network, redirect, parse) degrades
-/// silently to "unknown". It never throws to the engine and never reports a
-/// version it isn't confident about, so it can't produce a false "update
-/// available" or a spurious error.
+/// Never reports a version it isn't confident about, so it can't produce a
+/// false "update available". What it does NOT do is stay quiet about failing:
+/// a recipe that applied and could not answer throws ``ProbeFailed``, which
+/// `UpdateChecker` turns into an `.error` row (a retryable "Failed" badge)
+/// rather than the dead "—" that means *no source covers this app at all*.
+/// Only `.notApplicable` — no recipe, wrong channel, wrong host, no device
+/// identity on this Mac — still degrades to nil, because there is nothing there
+/// to retry.
 public struct VendorProbeSource: UpdateSource {
     static let sourceName = "Vendor"
     public let name = VendorProbeSource.sourceName
@@ -115,23 +119,78 @@ public struct VendorProbeSource: UpdateSource {
             }
             return nil
         }
-        // Swallow every failure: a probe that can't answer must look like "this
-        // source doesn't apply", not like an error or a confident result.
+        // nil here is the ONE thing the row's "—" is allowed to mean: no recipe for
+        // this bundle id, none for its channel, none this host can use, or the app
+        // is Toolbox-managed. `probeDiagnostic` decides that before any request.
         guard let bundleID = app.bundleID,
               let outcome = await probeDiagnostic(for: app) else { return nil }
-        // Record recipe health so a vendor changing their page surfaces in
-        // diagnostics rather than silently degrading the app to "unknown". A
-        // transient miss is cleared by the next successful check (success/miss are
-        // compared by recency), so this only flags consistently-broken recipes.
-        if outcome.remote != nil {
-            await RecipeHealth.shared.recordSuccess(id: bundleID, source: name)
-        } else {
-            await RecipeHealth.shared.recordMiss(
-                id: bundleID, source: name,
-                detail: outcome.failure.map { "\($0.kind): \($0.detail)" }
-                    ?? "probe resolved no version")
+        guard let remote = outcome.remote else {
+            let detail = outcome.failure.map { "\($0.kind): \($0.detail)" }
+                ?? "probe resolved no version"
+            // Record recipe health so a vendor changing their page is attributable
+            // in diagnostics and not just a row that went quiet. A transient miss is
+            // cleared by the next successful check (success/miss are compared by
+            // recency), so this only flags consistently-broken recipes. Recorded for
+            // the `.notApplicable` case below too: "this Mac has no such identity"
+            // is exactly the kind of standing miss the sweep wants to see.
+            await RecipeHealth.shared.recordMiss(id: bundleID, source: name, detail: detail)
+
+            // A recipe that cannot apply on THIS machine is not a failure and has
+            // nothing to retry: the device-identity and rollout-track selectors
+            // answer `.notApplicable` when this Mac has no such identity, which is
+            // the same "this source doesn't cover you" the gates above return nil
+            // for. Everything else — a timeout, a 404, a pattern that stopped
+            // matching — is a check that FAILED, and a failed check is not an
+            // unsupported app.
+            guard outcome.failure?.classification != .notApplicable else {
+                Log.source.info(
+                    "vendor probe not applicable \(bundleID, privacy: .public): \(detail, privacy: .public)")
+                return nil
+            }
+            // `.notice`, not `.info`: `.info` from a third-party subsystem is never
+            // written to disk, so the one line explaining why a row stopped
+            // answering would not survive to be read afterwards.
+            Log.source.notice(
+                "vendor probe failed \(outcome.recipeID, privacy: .public): \(detail, privacy: .public)")
+            throw ProbeFailed(bundleID: bundleID, failure: outcome.failure)
         }
-        return outcome.remote
+        // The recipe answered — clears any standing miss on the next comparison.
+        await RecipeHealth.shared.recordSuccess(id: bundleID, source: name)
+        return remote
+    }
+
+    /// A recipe applied to this app and could not produce a version.
+    ///
+    /// Exists so `UpdateChecker` can tell a *failed check* from an *unsupported
+    /// app*. Both used to arrive as nil, and the row rendered the same dead "—"
+    /// for "nothing here covers this app" and "the vendor's endpoint timed out" —
+    /// the second reads as the first, so a fixable outage looked like a permanent
+    /// verdict with no retry offered. Thrown, it becomes `.error(_)`: a retryable
+    /// badge, a row in the failed-check banner, and a `duo check` status that says
+    /// what went wrong.
+    ///
+    /// Throwing does not change which source answers. `UpdateChecker` continues to
+    /// the next source on a throw exactly as it does on a nil, and this source is
+    /// last in the stack — the error only surfaces when nothing else answered.
+    public struct ProbeFailed: LocalizedError {
+        public let bundleID: String
+        public let failure: ProbeFailure?
+
+        /// The cause, never the app. `AppListModel.failedCheckSummary` groups
+        /// failed rows by identical text to name one reason for a whole cluster
+        /// ("The request timed out." across every row behind one dead network),
+        /// and a message carrying the bundle id can never group with anything.
+        /// The row already says which app it is.
+        ///
+        /// `.transport` unwraps to the bare `URLError` message so it groups with
+        /// the other sources, which throw the `URLError` itself.
+        public var errorDescription: String? {
+            switch failure {
+            case .transport(_, let message): return message
+            case .some(let failure): return failure.detail
+            case nil: return "the vendor probe resolved no version"
+            }
+        }
     }
 
     /// Everything that happened probing `app`, or nil when this source does not

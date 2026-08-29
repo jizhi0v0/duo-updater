@@ -3705,17 +3705,55 @@ public enum VendorProbeRegistry {
 
         // Wispr Flow — official RELEASES.json, the same endpoint Homebrew uses.
         // `currentRelease` is authoritative and matches both version fields in the
-        // mounted app (1.6.531). The feed is architecture-specific and the vendor
-        // publishes separate Intel/arm64 installers; VendorInstallSpec has no
-        // host-architecture substitution, so this stays detection-only rather
-        // than risking a cross-architecture swap. com.electron.wispr-flow, Team
-        // C9VQZ78H85, notarized; no SUFeedURL.
+        // mounted app. com.electron.wispr-flow, Team C9VQZ78H85, notarized; no
+        // SUFeedURL.
+        //
+        // ONE-CLICK via `.versionTemplate`, and the choice is forced rather than
+        // preferred. The feed's 26 entries each carry their own `url`, but the
+        // version is printed BEFORE the url inside every entry, and
+        // `.bodyPatternHighestVersioned` requires capture group 1 to be the url and
+        // group 2 the version — an order a single left-to-right regex cannot
+        // produce here. The remaining body options are both ordering bets on an
+        // ascending feed. `.versionTemplate` sidesteps the question: the string
+        // that was compared is the string that gets downloaded.
+        //
+        // An earlier note here said the feed was architecture-specific and that a
+        // one-click risked a cross-architecture swap. The endpoint is arm64's
+        // (`/darwin/arm64/`) — it is the *probe* URL that already pins the
+        // architecture, so there was never a choice to make. This app is arm64-only
+        // (`App/project.yml`), so no host can ask for the Intel train.
+        //
+        // THE TEMPLATE DELIBERATELY DOES NOT USE THE FEED'S OWN `url`. Every entry
+        // in this stable feed — all 26 — points at a `wispr-flow-beta/…` path.
+        // Following it works (the artifact there is a normal notarized stable
+        // build; 1.6.721 downloaded and extracted 2026-08-29:
+        // `com.electron.wispr-flow`, CFBundleShortVersionString 1.6.721,
+        // `Developer ID Application: Wispr AI INC (C9VQZ78H85)`, spctl "accepted /
+        // Notarized Developer ID", stapled), but it makes every nightly `duo
+        // verify` raise "stable recipe resolved what looks like a PRE-RELEASE
+        // artifact" — a standing false positive on the one sweep whose job is to
+        // be believed, and one `duo reconcile` would file as an issue.
+        //
+        // The same object is served from the stable path this recipe already
+        // probes, `wispr-flow/darwin/arm64/`: verified 2026-08-29 by fetching both
+        // and comparing — identical size (331,807,594 B) and identical SHA-256
+        // (0217292d…d6a31), so the `-beta` bucket is an alias, not another build.
+        // Templating the stable path is therefore the honest URL rather than a
+        // suppressed warning.
+        //
+        // No checksum: the feed publishes none for any entry — the signature and
+        // Team gates are the integrity check.
         VendorProbeRecipe(
             bundleID: "com.electron.wispr-flow",
             url: URL(string: "https://dl.wisprflow.com/wispr-flow/darwin/arm64/RELEASES.json")!,
             mode: .responseBody,
             versionPattern: #"\"currentRelease\"\s*:\s*\"([0-9]+(?:\.[0-9]+)+)\""#,
-            downloadURL: URL(string: "https://wisprflow.ai/downloads")),
+            downloadURL: URL(string: "https://wisprflow.ai/downloads"),
+            install: VendorInstallSpec(
+                urlSource: .versionTemplate(
+                    "https://dl.wisprflow.com/wispr-flow/darwin/arm64/"
+                    + "Wispr%20Flow-darwin-arm64-{version}.zip"),
+                kind: .zip)),
 
         // Granola — its public latest-mac.yml redirects to a versioned CloudFront
         // manifest. `version` equals both Info.plist version fields. The dmg path is
@@ -3752,23 +3790,68 @@ public enum VendorProbeRegistry {
             followRedirects: false),
 
         // Devin Desktop (formerly Windsurf) — official stable update JSON. The
-        // `windsurfVersion` field is the app's own 3.7.25 marketing/build version;
+        // `windsurfVersion` field is the app's own marketing/build version;
         // `productVersion` is the upstream VS Code base and must never be parsed.
-        // The response carries an arm64-only installer URL, so detection remains
-        // architecture-neutral but one-click is omitted. com.exafunction.windsurf,
-        // Team 83Z2LHX6XW, notarized.
+        // com.exafunction.windsurf, Team 83Z2LHX6XW, notarized.
+        //
+        // ONE-CLICK via `.bodyPattern`: the same response carries the finished
+        // installer link (`"url": "…/Devin-darwin-arm64-<version>.dmg"`), so the
+        // url and the version come out of one document — nothing to template and
+        // nothing to order. The pattern requires the `.dmg` suffix so it cannot
+        // drift onto some other absolute URL if the vendor adds a field.
+        //
+        // An earlier note here called detection "architecture-neutral" and omitted
+        // one-click on that basis. It is not: the probe URL is
+        // `/api/update/darwin-arm64-dmg/…` and the response's own `displayName` is
+        // "macOS for Apple Silicon (.dmg)". The endpoint already picks the
+        // architecture; there is no second choice for an install spec to make, and
+        // this app is arm64-only anyway (`App/project.yml`).
+        //
+        // No checksum: the response's `sha256hash` is SHA-256 hex, and
+        // `checksumPattern` verifies base64 SHA-512. Wiring the wrong digest would
+        // fail every install; the signature and Team gates carry the integrity.
+        //
+        // Verified 2026-08-29 on the real artifact this pattern selects (3.8.20):
+        // mounted, `com.exafunction.windsurf`, `Developer ID Application:
+        // EXAFUNCTION, INC. (83Z2LHX6XW)`, spctl "accepted / Notarized Developer
+        // ID", stapled, `lipo -archs` = arm64.
         VendorProbeRecipe(
             bundleID: "com.exafunction.windsurf",
             url: URL(string: "https://windsurf-stable.codeium.com/api/update/darwin-arm64-dmg/stable/latest")!,
             mode: .responseBody,
             versionPattern: #"\"windsurfVersion\"\s*:\s*\"([0-9]+(?:\.[0-9]+)+)\""#,
             downloadURL: URL(string: "https://devin.ai/desktop"),
-            changelogURL: URL(string: "https://windsurf.com/editor/releases/")),
+            changelogURL: URL(string: "https://windsurf.com/editor/releases/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#"\"url\"\s*:\s*\"(https://[^\"]+\.dmg)\""#),
+                kind: .dmg)),
 
         // AionUi — official electron-builder arm64 manifest. `version` matches the
-        // mounted app exactly. Intel has a separate manifest and artifact, so keep
-        // this detection-only until VendorInstallSpec can select by host arch.
-        // com.aionui.app, Team 52JQX2HUSC, notarized.
+        // mounted app exactly. com.aionui.app, Team 52JQX2HUSC, notarized.
+        //
+        // ONE-CLICK via `.versionTemplate`, and NOT via `.bodyPatternRelative`,
+        // which is what an electron-builder manifest normally invites. The
+        // manifest's `path`/`url` entries are bare filenames, but they do NOT
+        // resolve against the manifest's own directory: measured 2026-08-29,
+        // `…/releases/AionUi-2.1.61-mac-arm64.zip` answers 403 AccessDenied while
+        // `…/releases/2.1.61/AionUi-2.1.61-mac-arm64.zip` answers 200. The real
+        // layout inserts the version as a directory, so the relative case would
+        // have produced a link that never downloads.
+        //
+        // The manifest this probe reads is the arm64 one; Intel has a separate
+        // manifest and artifact that no host of ours can ask for (arm64-only, see
+        // `App/project.yml`), so the template pins arm64 the way the rest of the
+        // registry does rather than waiting for host-architecture selection.
+        //
+        // The checksum comes from the manifest's TOP-LEVEL `sha512`, anchored at
+        // column 0 so it cannot match the indented per-file digests under `files:`
+        // — those list the dmg as well, and the first of them is only the zip's by
+        // accident of ordering. The top-level digest is by definition the one for
+        // `path:`, which is the zip this template builds. Verified 2026-08-29:
+        // `openssl dgst -sha512 -binary` of the downloaded zip reproduces the
+        // manifest value exactly. Extracted: `com.aionui.app`, 2.1.61, `Developer
+        // ID Application: AionUi Inc. (52JQX2HUSC)`, spctl "accepted / Notarized
+        // Developer ID", stapled, `lipo -archs` = arm64.
         VendorProbeRecipe(
             bundleID: "com.aionui.app",
             url: URL(string: "https://static.aionui.com/releases/latest-arm64-mac.yml")!,
@@ -3776,7 +3859,13 @@ public enum VendorProbeRegistry {
             versionPattern: #"(?m)^version:\s*v?([0-9]+(?:\.[0-9]+)+)\s*$"#,
             downloadURL: URL(string: "https://www.aionui.com/"),
             changelogURL: URL(string: "https://github.com/iOfficeAI/AionUi/releases"),
-            publishedAtPattern: #"(?m)^releaseDate:\s*'([^']+)'\s*$"#),
+            publishedAtPattern: #"(?m)^releaseDate:\s*'([^']+)'\s*$"#,
+            install: VendorInstallSpec(
+                urlSource: .versionTemplate(
+                    "https://static.aionui.com/releases/{version}/"
+                    + "AionUi-{version}-mac-arm64.zip"),
+                kind: .zip,
+                checksumPattern: #"(?m)^sha512:\s*(\S+)\s*$"#)),
 
         // Msty Studio — official electron-builder manifest lists both x64 and
         // arm64 assets and reports the same version as Info.plist. Detection-only:

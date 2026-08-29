@@ -190,8 +190,8 @@ final class AppListModel {
     /// App ids for which an incremental (AX) App Store update has downloaded but the
     /// app is still running, so App Store is asking to quit it to finish installing.
     /// id → the app's display name (for the prompt). Drives a "Relaunch to finish
-    /// update" affordance; tapping it resumes the matching `quitContinuations` entry,
-    /// which presses the App Store sheet's Continue button.
+    /// update" affordance; tapping it records an answer in `quitAnswers`, which the
+    /// installer reads on its next poll.
     private(set) var awaitingQuitConfirm: [String: String] = [:]
     /// App ids that just finished updating and whose new build is already fully in
     /// effect (in-place swap, or an incremental App Store update that already quit +
@@ -214,9 +214,16 @@ final class AppListModel {
     /// moment the helper is approved — the live property isn't part of the @Observable
     /// model, so reading it directly wouldn't trigger a re-render.
     private(set) var helperEnabled = false
-    /// Suspended `confirmQuit` calls from the AX installer, keyed by app id, resumed
-    /// by `confirmQuit(_:proceed:)` when the user accepts or dismisses the prompt.
-    @ObservationIgnored private var quitContinuations: [String: CheckedContinuation<Bool, Never>] = [:]
+    /// The user's answer to a pending quit-to-install prompt, keyed by app id, read
+    /// by the AX installer on each poll and cleared when it withdraws the question.
+    ///
+    /// Deliberately state and not a continuation. Awaiting one made the installer
+    /// stop watching while it waited, and the answer often arrives somewhere it
+    /// cannot be resumed from — App Store's own Continue button, in App Store's own
+    /// window. The install then sat parked while the update landed behind it, and the
+    /// button we had left on screen still meant "quit this app", so pressing it later
+    /// terminated an app that had finished updating (measured 2026-08-29).
+    @ObservationIgnored private var quitAnswers: [String: QuitPromptAnswer] = [:]
     /// App ids the user agreed to quit (via the confirm affordance) for an
     /// incremental App Store update — App Store's Continue quits but doesn't reopen,
     /// so we relaunch them ourselves once the new build is in place.
@@ -2487,8 +2494,12 @@ final class AppListModel {
                         viaUpdatesList: true
                     ) { stage in
                         Task { @MainActor in self.setStage(id, stage) }
-                    } confirmQuit: { [weak self] appName in
-                        await self?.requestQuitConfirmation(id: id, appName: appName) ?? false
+                    } requestQuit: { [weak self] appName in
+                        Task { @MainActor in self?.requestQuit(id: id, appName: appName) }
+                    } quitAnswer: { [weak self] in
+                        await MainActor.run { self?.quitAnswer(id: id) ?? .pending }
+                    } withdrawQuit: { [weak self] in
+                        Task { @MainActor in self?.withdrawQuit(id: id) }
                     }
                 } else {
                     // Pre-flight before we drive the store: the row may have gone current
@@ -2538,8 +2549,12 @@ final class AppListModel {
                             currentShortVersion: result.app.shortVersion
                         ) { stage in
                             Task { @MainActor in self.setStage(id, stage) }
-                        } confirmQuit: { [weak self] appName in
-                            await self?.requestQuitConfirmation(id: id, appName: appName) ?? false
+                        } requestQuit: { [weak self] appName in
+                            Task { @MainActor in self?.requestQuit(id: id, appName: appName) }
+                        } quitAnswer: { [weak self] in
+                            await MainActor.run { self?.quitAnswer(id: id) ?? .pending }
+                        } withdrawQuit: { [weak self] in
+                            Task { @MainActor in self?.withdrawQuit(id: id) }
                         }
                     // Not for a wrapped iPhone/iPad app: mas cannot install one at
                     // all, so falling back to it would trade a fixable permission
@@ -4087,14 +4102,27 @@ final class AppListModel {
     /// `installing`, the whole background check cadence. So it must never be a purely
     /// in-menu prompt: post a banner too, with a Relaunch action that answers it
     /// without the user having to open the popover and find the row.
-    private func requestQuitConfirmation(id: String, appName: String) async -> Bool {
+    /// Put the quit-to-install question on screen. Returns immediately: the answer
+    /// is read back through `quitAnswer(id:)`, so the installer keeps polling — and
+    /// keeps seeing the world — while the user decides.
+    private func requestQuit(id: String, appName: String) {
         UpdateNotifier.needsQuitConfirmation(app: appName, rowID: id)
-        return await withCheckedContinuation { cont in
-            // A second sheet for the same app shouldn't strand the first continuation.
-            quitContinuations.removeValue(forKey: id)?.resume(returning: false)
-            awaitingQuitConfirm[id] = appName
-            quitContinuations[id] = cont
-        }
+        awaitingQuitConfirm[id] = appName
+        quitAnswers[id] = .pending
+    }
+
+    /// What the user has said so far about quitting this app.
+    private func quitAnswer(id: String) -> QuitPromptAnswer {
+        quitAnswers[id] ?? .pending
+    }
+
+    /// Take the question back down — the install no longer needs an answer, because
+    /// it got one elsewhere or the swap already happened. Leaving it up would strand
+    /// a button whose action has become wrong rather than merely useless.
+    private func withdrawQuit(id: String) {
+        awaitingQuitConfirm[id] = nil
+        quitAnswers[id] = nil
+        UpdateNotifier.clearQuitConfirmation(rowID: id)
     }
 
     /// Resolve a pending quit-to-install prompt: `proceed` true presses the App Store
@@ -4105,22 +4133,24 @@ final class AppListModel {
         // Nothing is waiting on an answer — a stale banner tapped after the install
         // already settled. Bail before touching `reopenAfterQuit`/`relaunching`,
         // which nothing would then clear.
-        guard quitContinuations[id] != nil else {
+        guard quitAnswers[id] != nil else {
             UpdateNotifier.clearQuitConfirmation(rowID: id)
             return
         }
         awaitingQuitConfirm[id] = nil
         UpdateNotifier.clearQuitConfirmation(rowID: id)
-        // App Store's Continue quits the app without reopening it; remember to
-        // relaunch it ourselves once the install lands. Show the "Relaunching…"
-        // indicator meanwhile (cleared when the install settles in `installApp`).
+        // Quitting the app is what lets App Store swap it, and it does not reopen it
+        // afterwards; remember to do that ourselves once the install lands. Show the
+        // "Relaunching…" indicator meanwhile (cleared when the install settles in
+        // `installApp`). Armed on the answer, not on the quit — the installer may find
+        // the update already landed and skip the quit entirely, and reopening an app
+        // that was never closed is a no-op.
         if proceed {
             reopenAfterQuit[id] = .userAskedToQuit
             relaunching.insert(id)
         }
-        let cont = quitContinuations.removeValue(forKey: id)
-        Log.install.info("confirmQuit: \(id, privacy: .public) proceed=\(proceed) resumedInstaller=\(cont != nil)")
-        cont?.resume(returning: proceed)
+        quitAnswers[id] = proceed ? .proceed : .declined
+        Log.install.info("confirmQuit: \(id, privacy: .public) proceed=\(proceed)")
     }
 
     /// Reopen an app we quit for an incremental App Store update (App Store's

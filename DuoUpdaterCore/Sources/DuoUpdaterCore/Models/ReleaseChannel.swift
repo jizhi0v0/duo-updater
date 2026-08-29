@@ -65,6 +65,14 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///      channel signal is the installed BUNDLE FILENAME (not the display
     ///      name or version string). See the block comment on each check, below,
     ///      for why.
+    ///   0.7. A fourth bundle-id-scoped rule — Little Snitch, whose Nightly
+    ///      channel bakes the word "nightly" straight into
+    ///      `CFBundleShortVersionString` in a shape ("6.5 nightly (7301)") none
+    ///      of steps 3/4 below recognize. See the block comment on the check.
+    ///   0.8. A fifth bundle-id-scoped rule — Carbon Copy Cloner, whose Beta
+    ///      channel abbreviates to a `-b<N>` suffix ("7.1.7-b7") distinct from
+    ///      both pre-release shapes step 4 already recognizes. See the block
+    ///      comment on the check.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
@@ -148,6 +156,47 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         if bundleID == "net.sourceforge.sqlitebrowser",
            bundleFileName?.lowercased().contains("nightly") == true {
             return .nightly
+        }
+
+        // 0.7 Little Snitch — Stable and Nightly share bundle id
+        //     `at.obdev.littlesnitch` and `CFBundleName` ("Little Snitch" — no
+        //     channel word for step 3 to find), and Nightly ships no bundle-id
+        //     suffix. Unlike every app above, Object Development bakes the
+        //     channel word straight into `CFBundleShortVersionString` itself:
+        //     verified against a real mounted nightly build (2026-08-29), it
+        //     reports "6.5 nightly (7301)" while the same-day Stable reports a
+        //     plain "6.4.1". That shape — space before the word, a parenthesized
+        //     build number after — is neither the Mozilla `a<N>`/`b<N>`/`esr`
+        //     shape nor the dash-tail shape (`versionTailPattern`) step 4 already
+        //     recognizes, so neither would catch it; the version would silently
+        //     read as `.stable` without this rule. Object Development's own
+        //     version feed (`sw-update.obdev.at/update-feeds/littlesnitch6.plist`)
+        //     strips this suffix back down to a bare "6.5" — the trap this
+        //     function's notes warn about throughout: never trust a feed's shape
+        //     over a real installed bundle.
+        if bundleID == "at.obdev.littlesnitch",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !version.isEmpty,
+           hasStandaloneWord("nightly", in: version) {
+            return .nightly
+        }
+
+        // 0.8 Carbon Copy Cloner — Stable and Beta share bundle id
+        //     `com.bombich.ccc` and `CFBundleName` ("Carbon Copy Cloner" — no
+        //     channel word for step 3), and Beta ships no bundle-id suffix. The
+        //     channel signal is a short `-b<N>` suffix on
+        //     `CFBundleShortVersionString` ("7.1.7-b7", confirmed against a real
+        //     downloaded beta build, 2026-08-29) — a THIRD shape distinct from
+        //     both patterns step 4 already recognizes: it isn't the Mozilla
+        //     `<maj>.<min>b<n>` shape (that requires exactly one dot before the
+        //     bare `b`, no dash — "155.0b5"), and it isn't the full-word
+        //     `-beta<N>` shape GitHub Desktop uses ("3.5.12-beta2") — Bombich
+        //     abbreviates to `-b7`, not `-beta7`. Without this rule the version
+        //     would silently read as `.stable`.
+        if bundleID == "com.bombich.ccc",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+(\.[0-9]+)+-b[0-9]+"#, version) {
+            return .beta
         }
 
         // 1. Keystone's own channel id — authoritative when present.

@@ -131,6 +131,20 @@ private let raycastChangelogFixture = #"""
             // architecture check can only refuse.
             "vendor:com.lemon.lvoverseas:stable",
             "vendor:com.lemon.lvoverseas:beta",
+            // Carbon Copy Cloner: three independently maintained major-version
+            // generations (5/6/7) share one bundle id, each with its own fixed,
+            // vendor-documented minimum OS floor (10.10/10.15/13.1) that has held
+            // for that generation's whole lifetime (Wayback Machine evidence for
+            // CCC 6's page: unchanged 2022-05 to 2023-11). Restricting these
+            // means a Mac below a generation's floor is correctly left at
+            // "unknown" for that generation rather than offered a build it can't
+            // run — CCC 7 beta shares CCC 7 stable's floor but has no `variant`
+            // of its own (only the three STABLE recipes collide on
+            // (bundleID, channel) and need one).
+            "vendor:com.bombich.ccc:stable:ccc7",
+            "vendor:com.bombich.ccc:beta",
+            "vendor:com.bombich.ccc:stable:ccc6",
+            "vendor:com.bombich.ccc:stable:ccc5",
         ])
         let unrestricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement == nil }
         #expect(unrestricted.count == VendorProbeRegistry.recipes.count - restricted.count)

@@ -182,7 +182,7 @@ import CryptoKit
 @Test func channelAnchorSurfaceCoversEveryRecipeField() {
     let recipe = VendorProbeRegistry.recipes[0]
     let labels = Mirror(reflecting: recipe).children.compactMap(\.label)
-    #expect(labels.count == 20,
+    #expect(labels.count == 21,
             "VendorProbeRecipe gained or lost a field (now \(labels.count): \(labels.sorted())) — decide whether it belongs in the .recipeAnchor surface or in nonAnchorFields, then update this count")
     // A renamed field would turn its exclusion into a silent no-op, quietly
     // widening the surface instead of narrowing it. Same class of bug, other

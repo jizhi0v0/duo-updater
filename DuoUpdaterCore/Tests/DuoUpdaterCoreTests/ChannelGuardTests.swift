@@ -256,6 +256,165 @@ import Foundation
     #expect(try await source.latestVersion(for: nightly) == nil)
 }
 
+// MARK: - Little Snitch nightly: the channel word lives INSIDE CFBundleShortVersionString
+
+/// Little Snitch Stable and Nightly share bundle id `at.obdev.littlesnitch` and
+/// `CFBundleName` ("Little Snitch" — no word for step 3), and Nightly ships no
+/// bundle-id suffix. Real values read off mounted DMGs 2026-08-29: Stable
+/// reports `CFBundleShortVersionString` "6.4.1"; Nightly reports "6.5 nightly
+/// (7301)" verbatim. That shape — a space before the word and a parenthesized
+/// build after — is neither the Mozilla `aN`/`bN`/`esr` shape nor the dash-tail
+/// shape `versionTailPattern` matches (step 4), so both are asserted here to
+/// make sure this rule, not one of those, is what's carrying it.
+@Test func littleSnitchNightlyVersionSuffixSignalsNightly() {
+    #expect(ReleaseChannel.detect(
+        name: "Little Snitch", bundleID: "at.obdev.littlesnitch",
+        keystoneChannel: nil, version: "6.5 nightly (7301)") == .nightly)
+    #expect(ReleaseChannel.detect(
+        name: "Little Snitch", bundleID: "at.obdev.littlesnitch",
+        keystoneChannel: nil, version: "6.4.1") == .stable)
+    // Scoped to this bundle id: another app's version string containing the
+    // word "nightly" in some unrelated shape is not swept up by this rule.
+    #expect(ReleaseChannel.detect(
+        name: "Some App", bundleID: "com.example.other",
+        keystoneChannel: nil, version: "6.5 nightly (7301)") == .stable)
+}
+
+/// End-to-end regression, derived from the REAL registry (not a hand-copied
+/// fixture) and replayed against the REAL `littlesnitch6.plist` response body
+/// (obdev's own vendor feed, captured 2026-08-29 — the same URL Homebrew's
+/// `little-snitch` cask uses for its own `livecheck`). Covers BOTH recipes this
+/// bundle id has, so adding a third channel later without a matching test would
+/// fail the count assertion below rather than silently going unchecked.
+///
+/// Exercises the whole pipeline at once: `entryStartPattern` slicing the
+/// two-lifecycle array, `versionIsBuild` comparing `BundleVersion` (not the
+/// marketing string, which the nightly entry doesn't even carry in the shape
+/// the installed bundle uses — see the feed-vs-bundle trap noted on the
+/// recipe), `displayVersionPattern`, AND `VendorProbeSource`'s channel gate in
+/// both directions — a stable install must never resolve through the nightly
+/// recipe or vice versa, the same hazard `dbBrowserStableRecipeDoesNotReachTheNightly`
+/// guards for DB Browser.
+@Test func littleSnitchStableAndNightlyRecipesResolveFromTheRealFeedWithoutCrossingChannels() async throws {
+    let recipes = VendorProbeRegistry.recipes.filter { $0.bundleID == "at.obdev.littlesnitch" }
+    #expect(recipes.count == 2, "expected exactly one stable + one nightly recipe")
+    let stableRecipe = try #require(recipes.first { $0.channel == .stable })
+    let nightlyRecipe = try #require(recipes.first { $0.channel == .nightly })
+    #expect(stableRecipe.versionIsBuild)
+    #expect(nightlyRecipe.versionIsBuild)
+    #expect(stableRecipe.entryStartPattern != nil)
+    #expect(stableRecipe.entryStartPattern == nightlyRecipe.entryStartPattern)
+
+    // Real response body, verbatim (sw-update.obdev.at/update-feeds/littlesnitch6.plist,
+    // 2026-08-29). Nightly entry listed FIRST here — the recipes must not rely on
+    // document order, which `entryStartPattern` is what guarantees.
+    let body = #"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <array>
+        <dict>
+            <key>ReleaseLifecycle</key>
+            <string>nightly</string>
+            <key>BundleVersion</key>
+            <string>7301</string>
+            <key>BundleShortVersionString</key>
+            <string>6.5</string>
+            <key>MinimumSystemVersion</key>
+            <string>14.0</string>
+            <key>MaximumSystemVersion</key>
+            <string>27.99</string>
+            <key>ReleaseNotesURL</key>
+            <string>https://sw-update.obdev.at/update-feeds/releasenotes-legacy-swu.php?product=3&amp;version=7301&amp;installed=</string>
+            <key>DownloadPageURL</key>
+            <dict>
+                <key>en</key>
+                <string>https://obdev.at/littlesnitch/download-nightly.html</string>
+                <key>de</key>
+                <string>https://obdev.at/de/littlesnitch/download-nightly.html</string>
+            </dict>
+            <key>DownloadURL</key>
+            <string>https://sw-update.obdev.at/ftp/pub/Products/LittleSnitch/nightly/LittleSnitch-6.5-nightly-(7301).dmg</string>
+            <key>InstallationObject</key>
+            <string>Little Snitch.app</string>
+            <key>InstallationMechanism</key>
+            <string>ReplaceBundle</string>
+        </dict>
+        <dict>
+            <key>ReleaseLifecycle</key>
+            <string>final</string>
+            <key>BundleVersion</key>
+            <string>7212</string>
+            <key>BundleShortVersionString</key>
+            <string>6.4.1</string>
+            <key>MinimumSystemVersion</key>
+            <string>14.0</string>
+            <key>MaximumSystemVersion</key>
+            <string>26.99</string>
+            <key>ReleaseNotesURL</key>
+            <string>https://sw-update.obdev.at/update-feeds/releasenotes-legacy-swu.php?product=3&amp;version=7212&amp;installed=</string>
+            <key>DownloadPageURL</key>
+            <dict>
+                <key>en</key>
+                <string>https://obdev.at/littlesnitch/download.html</string>
+                <key>de</key>
+                <string>https://obdev.at/de/littlesnitch/download.html</string>
+            </dict>
+            <key>DownloadURL</key>
+            <string>https://sw-update.obdev.at/ftp/pub/Products/LittleSnitch/LittleSnitch-6.4.1.dmg</string>
+            <key>InstallationObject</key>
+            <string>Little Snitch.app</string>
+            <key>InstallationMechanism</key>
+            <string>ReplaceBundle</string>
+        </dict>
+    </array>
+    </plist>
+    """#
+
+    let server = try RecipeVerificationTests.StubServer(body: body, contentType: "application/xml")
+    defer { server.stop() }
+
+    let stableStub = stableRecipe.with(url: server.url)
+    let nightlyStub = nightlyRecipe.with(url: server.url)
+
+    // Direct probe (bypasses the channel gate): each recipe reads ITS OWN entry,
+    // never the other's, regardless of the feed's document order above.
+    let stableOutcome = await VendorProbeSource().probeDiagnostic(stableStub)
+    #expect(stableOutcome.remote?.version == "7212")
+    #expect(stableOutcome.remote?.shortVersion == "6.4.1")
+    let nightlyOutcome = await VendorProbeSource().probeDiagnostic(nightlyStub)
+    #expect(nightlyOutcome.remote?.version == "7301")
+    #expect(nightlyOutcome.remote?.shortVersion == "6.5")
+
+    // Through the channel gate (`latestVersion(for:)`), each install only ever
+    // resolves through the matching recipe.
+    let source = VendorProbeSource(recipes: [stableStub, nightlyStub])
+
+    let stableApp = InstalledApp(
+        name: "Little Snitch", bundleID: "at.obdev.littlesnitch",
+        shortVersion: "6.4.1", buildVersion: "7212",
+        path: URL(fileURLWithPath: "/Applications/Little Snitch.app"),
+        isMASApp: false, sparkleFeedURL: nil,
+        releaseChannel: ReleaseChannel.detect(
+            name: "Little Snitch", bundleID: "at.obdev.littlesnitch",
+            keystoneChannel: nil, version: "6.4.1"))
+    #expect(stableApp.releaseChannel == .stable)
+    let stableRemote = try await source.latestVersion(for: stableApp)
+    #expect(stableRemote?.version == "7212")
+
+    let nightlyApp = InstalledApp(
+        name: "Little Snitch", bundleID: "at.obdev.littlesnitch",
+        shortVersion: "6.5 nightly (7301)", buildVersion: "7301",
+        path: URL(fileURLWithPath: "/Applications/Little Snitch.app"),
+        isMASApp: false, sparkleFeedURL: nil,
+        releaseChannel: ReleaseChannel.detect(
+            name: "Little Snitch", bundleID: "at.obdev.littlesnitch",
+            keystoneChannel: nil, version: "6.5 nightly (7301)"))
+    #expect(nightlyApp.releaseChannel == .nightly)
+    let nightlyRemote = try await source.latestVersion(for: nightlyApp)
+    #expect(nightlyRemote?.version == "7301")
+}
+
 @Test func plainStableAppsStayStable() {
     #expect(ReleaseChannel.detect(
         name: "Google Chrome", bundleID: "com.google.Chrome",

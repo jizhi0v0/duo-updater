@@ -316,3 +316,54 @@ private func batchVersion(_ bundleID: String, in body: String) -> String? {
         #expect(spec?.kind == kind, "\(bundleID) installer kind drifted")
     }
 }
+
+// MARK: - 2026-08-29 TimeMachineEditor
+
+/// Verbatim excerpt of `https://tclementdev.com/timemachineeditor/`, fetched
+/// 2026-08-29. There's only ever one channel for this app (no beta/nightly), so
+/// "derived from the registry" here means "look the recipe up by bundle id" —
+/// the same helper the rest of this file uses — rather than hardcoding the
+/// pattern a second time in the test.
+private let timeMachineEditorHomepageFixture = #"""
+<h2>Download</h2>
+
+<p><a href="https://tclementdev.com/timemachineeditor/TimeMachineEditor.pkg">TimeMachineEditor 5.2.2</a> (2023, February 16) - macOS 10.13 or newer</p>
+
+<p>If you are a Homebrew user: <code>brew install --cask timemachineeditor</code></p>
+"""#
+
+/// The Homebrew cask for this bundle is `auto_updates: true`
+/// (`HomebrewCaskSource` skips it), so this vendor probe is the only source
+/// able to answer for `com.tclementdev.timemachineeditor.application` at all —
+/// pin the version pattern against the real homepage markup.
+@Test func timeMachineEditorReadsTheVersionFromTheDownloadLinkText() {
+    #expect(
+        batchVersion(
+            "com.tclementdev.timemachineeditor.application",
+            in: timeMachineEditorHomepageFixture) == "5.2.2")
+}
+
+/// The nearby "macOS 10.13" floor sits right after the link, in the same
+/// sentence — the pattern must stop at `</a>` and not wander onto it.
+@Test func timeMachineEditorPatternDoesNotDriftOntoTheOSFloor() {
+    let recipe = try! #require(batchRecipe("com.tclementdev.timemachineeditor.application"))
+    #expect(
+        VendorProbeRecipe.extractVersion(
+            from: #"(2023, February 16) - macOS 10.13 or newer"#,
+            pattern: recipe.versionPattern) == nil)
+}
+
+/// The pkg installs a `/Library/LaunchDaemons` scheduler daemon alongside the
+/// `.app` (confirmed by expanding the real pkg 2026-08-29), so a bundle-only
+/// unpack (`.dmg`/`.zip`) would leave a stale daemon next to the updated app.
+/// The install must go through the system installer, and the URL is a static
+/// filename that always serves the current release (no pattern to resolve).
+@Test func timeMachineEditorInstallsViaThePkgFromAFixedURL() throws {
+    let spec = try #require(
+        batchRecipe("com.tclementdev.timemachineeditor.application")?.install)
+    #expect(spec.kind == .pkg)
+    guard case .fixed(let url) = spec.urlSource else {
+        Issue.record("expected a fixed installer URL"); return
+    }
+    #expect(url.absoluteString == "https://tclementdev.com/timemachineeditor/TimeMachineEditor.pkg")
+}

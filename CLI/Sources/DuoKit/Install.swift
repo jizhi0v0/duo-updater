@@ -82,7 +82,8 @@ public enum Install {
             runningAppPaths: Check.runningBundlePaths(),
             stagedSelfUpdates: staged,
             elevationRequiredPaths: InPlaceSwap.elevationRequiredPaths(
-                for: results.map(\.app.path)))
+                for: results.map(\.app.path)),
+            runningBundleIDs: Check.runningBundleIDs())
 
         var plan: [Planned] = []
         var refusals: [(UpdateResult, String)] = []
@@ -129,7 +130,8 @@ public enum Install {
                 isHelperEnabled: false,
                 runningAppPaths: Check.runningBundlePaths(),
                 stagedSelfUpdates: stagedSelfUpdates(for: plan.map(\.result)),
-                elevationRequiredPaths: environment.elevationRequiredPaths)
+                elevationRequiredPaths: environment.elevationRequiredPaths,
+                runningBundleIDs: Check.runningBundleIDs())
             let started = plan.filter {
                 UpdatePolicy.defersToSelfUpdater(
                     $0.result, settings: settings.updateSettings, environment: live)

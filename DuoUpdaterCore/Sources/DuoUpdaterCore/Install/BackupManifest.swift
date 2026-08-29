@@ -49,6 +49,11 @@ public struct BackupManifest: Codable, Equatable, Sendable {
         // nil means there was no seal to consult; then every unreadable file
         // counts as payload, because we cannot tell payload from droppings.
         let sealedPaths = sealedEntries(of: bundle)
+        // Where this bundle keeps its interior — `Contents/` normally, but a
+        // wrapped iPhone/iPad app has no `Contents/` at all and holds both its
+        // plist and its seal under `Wrapper/<Inner>.app/`. Read from the bundle
+        // rather than assumed, so the seal keys below line up with the walk.
+        let interior = BundleLayout.interiorPrefix(for: bundle, fileManager: fm)
         let base = bundle.standardizedFileURL.path
         var sealed: [String] = []
         var unsealed: [String] = []
@@ -60,10 +65,10 @@ public struct BackupManifest: Codable, Equatable, Sendable {
             guard values?.isRegularFile == true,
                   !fm.isReadableFile(atPath: item.path) else { continue }
             let relative = String(item.standardizedFileURL.path.dropFirst(base.count + 1))
-            // `CodeResources` keys are relative to `Contents/`, the tree we walk
-            // is relative to the bundle root.
-            let sealKey = relative.hasPrefix("Contents/")
-                ? String(relative.dropFirst("Contents/".count)) : relative
+            // `CodeResources` keys are relative to the bundle's interior, the
+            // tree we walk is relative to the bundle root.
+            let sealKey = relative.hasPrefix(interior)
+                ? String(relative.dropFirst(interior.count)) : relative
             guard let sealedPaths else { sealed.append(relative); continue }
             if sealedPaths.contains(sealKey) { sealed.append(relative) } else { unsealed.append(relative) }
         }
@@ -76,7 +81,7 @@ public struct BackupManifest: Codable, Equatable, Sendable {
     /// and quietly store a partial copy of an unsigned app, which is the
     /// opposite of the cautious reading.
     private static func sealedEntries(of bundle: URL) -> Set<String>? {
-        let url = bundle.appendingPathComponent("Contents/_CodeSignature/CodeResources")
+        let url = BundleLayout.codeResourcesURL(for: bundle)
         guard let data = try? Data(contentsOf: url),
               let plist = try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil) as? [String: Any]

@@ -90,7 +90,8 @@ public enum Check {
             runningAppPaths: runningBundlePaths(),
             stagedSelfUpdates: [:],
             elevationRequiredPaths: InPlaceSwap.elevationRequiredPaths(
-                for: results.map(\.app.path)))
+                for: results.map(\.app.path)),
+            runningBundleIDs: runningBundleIDs())
 
         var rows: [Row] = []
         for result in results.sorted(by: { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }) {
@@ -161,6 +162,8 @@ public enum Check {
     static func runningBundlePaths() -> Set<String> {
         Set(RunningApps.bundleURLs().map(UpdatePolicy.runtimeBundlePath))
     }
+
+    static func runningBundleIDs() -> Set<String> { RunningApps.bundleIDs() }
 
     static func describe(_ status: UpdateStatus) -> String {
         switch status {

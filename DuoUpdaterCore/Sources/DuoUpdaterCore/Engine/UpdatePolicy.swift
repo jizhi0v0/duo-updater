@@ -25,17 +25,31 @@ public struct InstallEnvironment: Sendable {
     /// by the host — via `InPlaceSwap.needsElevatedReplace`, the same predicate
     /// the swap itself branches on — and handed in, keeping the policy pure.
     public var elevationRequiredPaths: Set<String>
+    /// Bundle identifiers with at least one live process — the running side for
+    /// bundles whose running copy cannot be recognised by path.
+    ///
+    /// A wrapped iPhone/iPad app is the case that needs this. Its process reports
+    /// a per-launch shadow container as its `bundleURL`, not the bundle the user
+    /// installed: measured on macOS 26 (2026-08-29) for Aqara Home, `bundleURL`
+    /// was `/private/var/folders/…/X/<uuid>/d/Wrapper/AqaraHome.app` while the
+    /// install lives at `/Applications/Aqara Home.app`. No amount of symlink
+    /// resolution turns one into the other, so `runningAppPaths` cannot contain
+    /// a running wrapped app and every path-keyed "is it running?" answers no.
+    /// The identifier is unaffected (`com.lumiunited.pre.homekit` either way).
+    public var runningBundleIDs: Set<String>
 
     public init(
         isHelperEnabled: Bool,
         runningAppPaths: Set<String>,
         stagedSelfUpdates: [String: StagedSelfUpdate],
-        elevationRequiredPaths: Set<String> = []
+        elevationRequiredPaths: Set<String> = [],
+        runningBundleIDs: Set<String> = []
     ) {
         self.isHelperEnabled = isHelperEnabled
         self.runningAppPaths = runningAppPaths
         self.stagedSelfUpdates = stagedSelfUpdates
         self.elevationRequiredPaths = elevationRequiredPaths
+        self.runningBundleIDs = runningBundleIDs
     }
 }
 
@@ -138,19 +152,28 @@ public enum UpdatePolicy {
             //   • incremental → AX-driven; needs no mas. Accessibility is requested
             //     on demand at install time (mirroring App Management), so we don't
             //     gate the offer on it here.
-            // iOS-on-Mac apps (wrapped iPhone/iPad bundles) are never a one-click:
-            // `mas` has no Mac-store entry to install (it errors "No apps found for
-            // ADAM ID"), and the AX route is too unreliable for them. Only the App
-            // Store app itself updates these, so the row offers an "Open in App
-            // Store" redirect instead (see the App Store branch in both row views).
             guard let info = result.remote?.appStore,
-                  !info.isRegionMismatch, !info.isLatestMacIncompatible,
-                  !result.app.isiOSAppOnMac else { return false }
+                  !info.isRegionMismatch, !info.isLatestMacIncompatible else { return false }
             switch settings.appStoreUpdateStrategy {
-            // `.full` now routes mas through the privileged helper — offered only
-            // once the helper is approved (else the row falls back to App Store "Get").
-            // Reads the observable mirror so rows re-render the moment it's approved.
-            case .full:        return environment.isHelperEnabled
+            // `.full` routes mas through the privileged helper — offered only once
+            // the helper is approved (else the row falls back to an App Store
+            // redirect). Reads the observable mirror so rows re-render the moment
+            // it's approved.
+            //
+            // iOS-on-Mac apps (wrapped iPhone/iPad bundles) are excluded from *this*
+            // route only: `mas` has no Mac-store entry for them and errors "No apps
+            // found for ADAM ID".
+            case .full:        return environment.isHelperEnabled && !result.app.isiOSAppOnMac
+            // The AX route presses the product page's own Update button, and that
+            // page is structurally what a native Mac app gets: one
+            // `AppStore.productPage`, one `AppStore.shelfItem.ProductLockup…` hero
+            // naming the app, one `AppStore.offerButton` titled "Update" inside it.
+            // Probed live on macOS 26 (Nowdex, 2026-08-29): `heroOwnsPage` true and
+            // `ownButtonCount` 1 — the pair `AppStoreAXInstaller.shouldPress`
+            // requires — and driving it installed the update. "Designed for iPad.
+            // Not verified for macOS." is a subtitle in that hero, not a barrier;
+            // the developer-opted-out case is `isLatestMacIncompatible`, guarded
+            // above for both routes.
             case .incremental: return true
             }
         default:
@@ -315,7 +338,19 @@ public enum UpdatePolicy {
     /// (same bundle id, different path) doesn't falsely light up when only the
     /// other copy is open.
     public static func isRunning(_ result: UpdateResult, environment: InstallEnvironment) -> Bool {
-        environment.runningAppPaths.contains(runtimeBundlePath(result.app.path))
+        // Path is the discriminator everywhere it can be: two copies of the same
+        // app in different places are different installs, and only the one being
+        // replaced should read as running.
+        //
+        // A wrapped iPhone/iPad app is the exception, and not by preference — its
+        // running process reports a shadow container path that can never equal the
+        // installed bundle (see `InstallEnvironment.runningBundleIDs`). Falling
+        // back to the identifier costs nothing here: these are store-installed and
+        // singular, so "another copy elsewhere" is not a state that arises.
+        if result.app.isiOSAppOnMac, let bundleID = result.app.bundleID {
+            return environment.runningBundleIDs.contains(bundleID)
+        }
+        return environment.runningAppPaths.contains(runtimeBundlePath(result.app.path))
     }
 
     /// The vendor's advertised version when it is strictly *older* than what is

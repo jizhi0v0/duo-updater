@@ -181,7 +181,7 @@ public actor AppStoreAXInstaller {
         // update usually bumps the short version, but a build-only re-release bumps
         // only CFBundleVersion — keying completion on the short version alone would
         // miss that and falsely "time out" on a successful install.
-        let baseline = installedVersions(appPath, fallbackShort: currentShortVersion)
+        let baseline = Self.installedVersions(at: appPath, fallbackShort: currentShortVersion)
 
         // Press Update *with the app still running*. App Store downloads the delta in
         // the background while the user keeps working — it only raises the "Close this
@@ -340,8 +340,14 @@ public actor AppStoreAXInstaller {
     /// used to detect when storedownloadd has finished swapping the new build in.
     /// `fallbackShort` (the caller's known current version) is used only if the
     /// Info.plist can't be read at that instant.
-    private func installedVersions(_ appPath: URL, fallbackShort: String? = nil) -> (short: String?, build: String?) {
-        let plist = appPath.appendingPathComponent("Contents/Info.plist")
+    ///
+    /// Static and internal so the completion rule can be asserted against a real
+    /// bundle on disk without a live App Store. It was private, and the tests that
+    /// stood in for it re-implemented the read — which is how a hardcoded
+    /// `Contents/Info.plist` here survived a green suite while making
+    /// `versionChanged` permanently false for a wrapped iPhone/iPad bundle.
+    static func installedVersions(at appPath: URL, fallbackShort: String? = nil) -> (short: String?, build: String?) {
+        let plist = BundleLayout.infoPlistURL(for: appPath)
         let dict = NSDictionary(contentsOf: plist)
         let short = (dict?["CFBundleShortVersionString"] as? String) ?? fallbackShort
         let build = dict?["CFBundleVersion"] as? String
@@ -352,8 +358,8 @@ public actor AppStoreAXInstaller {
     /// EITHER the short or build key. A `nil` baseline value can't trigger
     /// completion, so a transiently unreadable Info.plist at baseline time can't be
     /// misread as "updated" the instant it becomes readable again.
-    private func versionChanged(from baseline: (short: String?, build: String?), appPath: URL) -> Bool {
-        let now = installedVersions(appPath)
+    static func versionChanged(from baseline: (short: String?, build: String?), appPath: URL) -> Bool {
+        let now = installedVersions(at: appPath)
         if let b = baseline.short, let n = now.short, n != b { return true }
         if let b = baseline.build, let n = now.build, n != b { return true }
         return false
@@ -482,7 +488,7 @@ public actor AppStoreAXInstaller {
             // 1. Completion: the bundle on disk has been swapped for the new build.
             // Covers both the app-not-running case (installs directly, no sheet) and
             // the post-Continue swap. Keyed on short OR build version changing.
-            if versionChanged(from: baseline, appPath: appPath) {
+            if Self.versionChanged(from: baseline, appPath: appPath) {
                 Log.install.info("appstore-ax: \(appName, privacy: .public) install complete — bundle version changed on disk")
                 onStage(.done)
                 return

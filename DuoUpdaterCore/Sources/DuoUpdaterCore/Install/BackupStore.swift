@@ -540,7 +540,7 @@ public enum BackupStore {
     /// `CFBundleShortVersionString` of the app currently at `path`, or nil if it
     /// isn't there or has no readable plist.
     private static func installedShortVersion(atPath path: String) -> String? {
-        let plist = URL(fileURLWithPath: path).appendingPathComponent("Contents/Info.plist")
+        let plist = BundleLayout.infoPlistURL(for: URL(fileURLWithPath: path))
         guard let data = try? Data(contentsOf: plist),
               let info = try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil) as? [String: Any]

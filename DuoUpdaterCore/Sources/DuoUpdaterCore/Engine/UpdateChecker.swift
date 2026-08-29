@@ -158,11 +158,20 @@ public struct UpdateChecker: Sendable {
         // (Before vendor probes threw, this arrived as a nil and landed on
         // `.toolboxManaged` below — this keeps that.)
         //
-        // Deliberately NOT extended to `.appStoreManaged`/`.testFlightManaged`: a
-        // MAS row reaches `.error` when `MacAppStoreSource` itself threw — the
-        // lookup for the app the store *does* own failed — and that is worth
-        // surfacing as a failed check, not papering over with "managed by the App
-        // Store". TestFlight returns before the loop and never gets here.
+        // Deliberately NOT extended to `.appStoreManaged`/`.testFlightManaged`.
+        //
+        // A MAS row that reaches `.error` was answered by nobody and failed
+        // somewhere real: three sources can run for a store copy — the store lookup
+        // itself, `XcodeReleasesSource` (bundle-id gate only, and Xcode ships on the
+        // store), and `SparkleAppcastSource` (feed-url gate only; Keka is a store
+        // copy carrying a `SUFeedURL`). Only Homebrew, GitHub and the vendor probe
+        // carry `guard !app.isMASApp`. None of those three is a *borrowed* read the
+        // way Toolbox's is — each one IS this row's update check — so a failure
+        // there has to read as a failed check. Painting it "Managed by the App
+        // Store" would show the user the same row they get when the store is
+        // quietly keeping the app current.
+        //
+        // TestFlight returns before the loop and never gets here at all.
         if let lastError, !app.isToolboxManaged {
             Log.check.error("\(label, privacy: .public): all sources exhausted, last error → .error(\(lastError, privacy: .public))")
             return UpdateResult(app: app, remote: nil, status: .error(lastError))

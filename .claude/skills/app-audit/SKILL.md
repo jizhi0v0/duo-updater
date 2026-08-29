@@ -370,6 +370,44 @@ both from inferring rather than opening the framework sitting in the bundle. The
 same draft said a field was "absent from `update_reminder`" when that key could
 never have lived there.
 
+**按 OS 分轨 — how to actually check, and what to write down:**
+
+The row above is the one most often answered from memory ("probably not") and
+almost never from the response body. Two real cases, both found only after the
+recipe had already shipped:
+
+- **Little Snitch** (`sw-update.obdev.at/update-feeds/littlesnitch6.plist`): every
+  entry carries `MinimumSystemVersion` **and** `MaximumSystemVersion` — the stable
+  entry reads 14.0/**26.99** while the nightly reads 14.0/**27.99**, i.e. obdev
+  routes a macOS 27 Mac away from stable. Those two keys sat verbatim in the
+  audit's own captured fixture and the audit doc never mentioned them.
+- **WeChat** (`dldir1.qq.com/weixin/mac/mac-release.xml`): 7 items, 3 of them
+  capped (`min12.0/max14.3`, `min14.3/max15.0`, `max10.10.6`). The SAME version is
+  bucketed by OS into different artifacts, and one bucket carries no enclosure at
+  all. The recipe reads it with a bare regex — those buckets are invisible to the
+  code, and "本机匹配 item 1，安全" is a human conclusion written in prose, not a
+  judgement anything re-evaluates when the vendor reorders the feed.
+
+```bash
+# Look for BOTH bounds. Do not grep only for the one you expect to find.
+curl -sS "<feed>" | grep -iE "minimumSystemVersion|maximumSystemVersion|LSMinimum|depends_on|macos"
+# And read the floor off the real artifact, which never lies:
+/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "<downloaded>.app/Contents/Info.plist"
+```
+
+**Write the numbers into the audit doc, not just a yes/no.** A floor the app has
+committed to for a whole generation belongs in `hostRequirement`; per-release
+bounds must be read fresh from the feed every time and never frozen into the
+recipe. If the feed buckets by OS, say explicitly WHICH bucket the recipe's
+pattern lands on and WHY it cannot drift onto another one — an ordering argument
+is not enough on its own, that is what `entryStartPattern` is for.
+
+**Where the answer already gets honoured, and where it does not:** apps read by
+`SparkleAppcastSource` get both bounds filtered in `usableItems` for free. Apps
+read by `VendorProbeSource` do **not** — even when the endpoint is a Sparkle
+appcast, the recipe reads it with regexes and no bound is consulted. WeChat is
+exactly that case. Do not assume "it's an appcast" means "the bounds are handled".
+
 **Delta / binary patch — how to actually check:**
 
 ```bash
@@ -459,7 +497,7 @@ An audit that does not know a field exists will report the situation it covers a
 | `entryStartPattern` | multi-entry feed: slice it so version/URL/date all come from ONE entry |
 | `channel` | this endpoint serves a non-stable track (source refuses cross-channel) |
 | `variant` | one channel legitimately has more than one endpoint worth asking |
-| `hostRequirement` | the build only runs on some Macs (arch / OS floor) — **detection half** |
+| `hostRequirement` | the build only runs on some Macs (arch / OS floor) — **detection half**. A STATIC per-generation floor only; a bound that moves release to release must be read from the feed instead, never frozen here |
 | `identities` (`ProbeIdentity`) | the endpoint only answers for a machine id the app already wrote to disk |
 | `track` (`RolloutTrack`) | one URL, several vendor-assigned tracks, picked by a request-borne value |
 | `requestBody` | the service answers nothing to a GET (Omaha-style) |

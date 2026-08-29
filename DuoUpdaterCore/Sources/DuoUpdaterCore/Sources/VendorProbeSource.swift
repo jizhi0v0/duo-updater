@@ -618,9 +618,16 @@ public struct VendorProbeSource: UpdateSource {
                     // fragment would not parse as XML at all. It is safe on its own
                     // terms regardless of scoping — it re-matches `version` against
                     // the parsed items itself and returns `[]` on anything but
-                    // exactly one match — and today's `entryStartPattern` recipes
-                    // (Android Studio's JSON feed) have no `sparkle:deltas` to find,
-                    // so this never fires for them either way.
+                    // exactly one match.
+                    //
+                    // Do not read the `entryStartPattern` population as "JSON
+                    // feeds that could never parse as an appcast anyway": WeChat's
+                    // is a real Sparkle appcast, sliced at `<item>`, so this line
+                    // now hands a parseable document to a parser that will parse
+                    // it. That is still correct — whole-body is exactly what this
+                    // call wants, and the feed carries no `sparkle:deltas` at all
+                    // (measured 2026-08-30) — but it holds for the reason stated
+                    // above, not because nothing here could parse.
                     deltas: VendorAppcastDeltas.patches(
                         inBody: body.text, forVersion: version))
                 // A recipe that names a checksum pattern but no longer matches one

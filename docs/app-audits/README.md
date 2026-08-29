@@ -96,6 +96,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**WorkBuddy (Tencent)**](com-workbuddy-workbuddy.md) · `com.workbuddy.workbuddy-ai` + `com.workbuddy.workbuddy` — P (one-click, both sites) · 两站两个独立 app，非 channel · 每站按架构分两条 recipe · 两站真实 DMG channel-verify ✓ · 2026-08-27
 - [x] [**Canva**](com-canva-CanvaDesktop.md) · `com.canva.CanvaDesktop` — P (one-click, dmg + feed sha512) · Electron 套壳，端点取自 app 自带 `app-update.yml` · cask 是 `auto_updates` 且滞后一版 · beta 轨道 2024-11 起废弃，pattern 以数字点结尾拒读 · 真实 DMG + live probe + `duo check` 全链 ✓ · 2026-08-27
+- [x] [**Carbon Copy Cloner**](com-bombich-ccc.md) · `com.bombich.ccc` — P (detection-only) · 有 `SUFeedURL` 但该端点对任何请求都回空 body（原生 `URLSession` 复现），Sparkle 源静默失效；改读 cask 自带 livecheck 同款的 `download_ccc.php?v=latest` 重定向文件名 · cask 是 `auto_updates` · beta 同 bundle id、偏好开关启用，阻塞于需要人工抓包 · 2026-08-29
 
 ## Single-channel — GitHub Releases
 

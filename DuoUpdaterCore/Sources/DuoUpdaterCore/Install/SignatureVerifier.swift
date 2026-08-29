@@ -6,9 +6,10 @@ import Security
 /// failure aborts the install.
 ///
 /// Gates 1–4 are about trust (EdDSA signature, code signature, Team ID, bundle
-/// ID); gate 5 is about liveness — whether the bundle can launch on this Mac at
-/// all. Callers pick the gates that apply to their route: the Sparkle installer
-/// runs all five, the vendor installer runs 2–5 (no feed signature to check).
+/// ID); gates 5 and 6 are about liveness — whether the bundle can launch on this
+/// Mac at all, by architecture and by the OS version it declares it needs.
+/// Callers pick the gates that apply to their route: the Sparkle installer runs
+/// all of them, the vendor installer runs 2–6 (no feed signature to check).
 public enum SignatureVerifier {
 
     public enum VerifyError: LocalizedError {
@@ -20,6 +21,7 @@ public enum SignatureVerifier {
         case noBundleIdentifier(which: String)
         case bundleIdentifierMismatch(installed: String, downloaded: String)
         case unrunnableArchitecture(built: String, host: String)
+        case unsupportedSystemVersion(required: String, host: String)
 
         public var errorDescription: String? {
             switch self {
@@ -39,6 +41,8 @@ public enum SignatureVerifier {
                 return "Bundle identifier mismatch: installed “\(installed)” vs downloaded “\(downloaded)”. Refusing to install."
             case .unrunnableArchitecture(let built, let host):
                 return "The download is built for \(built) and this Mac runs \(host). Refusing to install a build it cannot launch."
+            case .unsupportedSystemVersion(let required, let host):
+                return "The download requires macOS \(required) and this Mac runs macOS \(host). Refusing to install a build it cannot launch."
             }
         }
     }
@@ -288,6 +292,116 @@ public enum SignatureVerifier {
         // above, so this line is only reached with slices we could read.
         throw VerifyError.unrunnableArchitecture(
             built: names, host: host == .arm64 ? "arm64" : "x86_64")
+    }
+
+    // MARK: Gate 6 — the download declares an OS floor this Mac is below
+
+    /// The `LSMinimumSystemVersion` a downloaded bundle declares, or nil when it
+    /// declares none (or the value is unreadable).
+    ///
+    /// This is the only OS-compatibility source that exists for most of what we
+    /// install. Measured 2026-08-30 across the 143 apps on one real machine: the
+    /// 16 answered by Sparkle publish a floor in the feed (12 of 14 reachable
+    /// feeds declare `sparkle:minimumSystemVersion`, already honoured in
+    /// `SparkleAppcastSource.usableItems`), but the 42 answered by
+    /// `GitHubReleasesSource` publish NOTHING — a GitHub release carries no OS
+    /// field at all — and only 5 of the ~140 `VendorProbeRegistry` recipes pin a
+    /// floor by hand. For those routes the artifact's own plist is the whole
+    /// truth, and it only arrives after the download: this gate cannot save the
+    /// bandwidth, it can only keep us from swapping in a bundle that will not
+    /// launch and reporting success.
+    ///
+    /// Read through `BundleLayout.infoPlistURL` rather than a hardcoded
+    /// `Contents/`: a wrapped iPhone/iPad app keeps its plist under
+    /// `Wrapper/<Inner>.app/`, and reading the wrong path would not fail — it
+    /// would read nothing and wave the bundle through.
+    ///
+    /// **This gate does not apply to iOS apps running on Apple silicon, and says
+    /// so explicitly rather than by accident.** Measured on the two wrapped
+    /// bundles on one machine 2026-08-30 (`Amp 2.app`, `Aqara Home.app`): both
+    /// declare `CFBundleSupportedPlatforms = [iPhoneOS]` and carry
+    /// `MinimumOSVersion` (26.0 and 18.0) with **no `LSMinimumSystemVersion` at
+    /// all**. So reaching the right plist buys this gate nothing for them — and
+    /// reading `MinimumOSVersion` instead would be worse, not better: it is an
+    /// **iOS** version, and comparing it against a macOS version is precisely the
+    /// cross-namespace comparison this repo forbids. It looks harmless only while
+    /// the two numbering schemes happen to be aligned (iOS 26 / macOS 26); on a
+    /// macOS 15 host an iOS-18 floor would read as satisfied for the wrong
+    /// reason. Declining by platform is the honest answer, and it keeps a future
+    /// reader from "fixing" this by wiring the iOS key in.
+    static func declaredMinimumSystemVersion(
+        ofAppAt appURL: URL, fileManager: FileManager = .default
+    ) -> String? {
+        let plistURL = BundleLayout.infoPlistURL(for: appURL, fileManager: fileManager)
+        guard
+            let data = try? Data(contentsOf: plistURL),
+            let plist = try? PropertyListSerialization
+                .propertyList(from: data, format: nil) as? [String: Any]
+        else { return nil }
+        // An iOS bundle's floor is stated in iOS terms. Never compare it to macOS.
+        if let platforms = plist["CFBundleSupportedPlatforms"] as? [String],
+           platforms.contains("iPhoneOS") {
+            return nil
+        }
+        guard
+            let declared = (plist["LSMinimumSystemVersion"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !declared.isEmpty
+        else { return nil }
+        return declared
+    }
+
+    /// Whether a bundle declaring `minimumSystemVersion` can launch on a Mac
+    /// running `osVersion`.
+    ///
+    /// Fails OPEN on anything it cannot read as a version. That covers more than
+    /// a digit-free string: because `VersionComparator` ranks a text token below
+    /// a numeric one, any value whose FIRST token is non-numeric ("macOS 13.0",
+    /// "13.0 (Ventura)") also compares as satisfied regardless of the number that
+    /// follows it. Stated because it is easy to read the guard below as narrower
+    /// than it is. Same rule gate 5 states for an unreadable Mach-O header, and
+    /// for the same reason: this gate exists to catch a build we can PROVE is
+    /// wrong for the machine, so an unparseable value must not start refusing
+    /// updates that install fine today.
+    ///
+    /// How much of a real population this covers, measured over the 143 app
+    /// bundles on one machine 2026-08-30: 140 declare `LSMinimumSystemVersion`,
+    /// 3 declare none, and every declared value parsed (two- and three-component
+    /// numeric strings — "27.0", "10.15.7"). So the fail-open branch is the rare
+    /// path here, not the common one — but it is still the right default, since
+    /// the cost of a false refusal (an app that can never update) is worse than
+    /// the cost of a miss (which lands back on the behaviour we ship today).
+    ///
+    /// Comparison is `VersionComparator`'s, matching what `usableItems` does with
+    /// a feed's declared floor, so the two gates cannot disagree about the same
+    /// pair of numbers.
+    static func canRun(minimumSystemVersion declared: String?, on osVersion: String) -> Bool {
+        guard let declared, !declared.isEmpty,
+              declared.rangeOfCharacter(from: .decimalDigits) != nil
+        else { return true }
+        return VersionComparator.compare(osVersion, declared) != .orderedAscending
+    }
+
+    /// Gate 6, run beside gate 5 on the downloaded bundle.
+    public static func verifyRunnableSystemVersion(
+        appAt url: URL,
+        osVersion: String = HostOS.numericVersion(),
+        fileManager: FileManager = .default
+    ) throws {
+        let declared = declaredMinimumSystemVersion(ofAppAt: url, fileManager: fileManager)
+        guard !canRun(minimumSystemVersion: declared, on: osVersion) else {
+            // Log the fail-open too. A gate that silently declines to fire is
+            // exactly the thing nobody notices, and `declared == nil` is the
+            // shape every miss enumerated above collapses to.
+            if declared == nil {
+                Log.install.info(
+                    "gate 6 no floor declared \(url.lastPathComponent, privacy: .public) — allowing")
+            }
+            return
+        }
+        // `declared` is non-nil here: a nil floor is runnable by definition above.
+        throw VerifyError.unsupportedSystemVersion(
+            required: declared ?? "?", host: osVersion)
     }
 
 }

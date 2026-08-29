@@ -199,6 +199,10 @@ private func aiInstallURL(_ bundleID: String, body: String, version: String) thr
     // The signed artifact URL must never become the thing we store.
     #expect(!url.absoluteString.contains("X-Amz-"))
     #expect(!url.absoluteString.contains("r2.cloudflarestorage.com"))
+    // And it must be the SAME endpoint the probe reads, not a second copy of the
+    // string. Retargeting one and not the other offers a version from one channel
+    // and installs the other — both correctly signed, so no gate would object.
+    #expect(url == recipe.url)
 }
 
 /// Msty's manifest lists four artifacts and the x64 zip is FIRST, so the digest a
@@ -333,4 +337,21 @@ private func aiInstallURL(_ bundleID: String, body: String, version: String) thr
 @Test func anArtifactMatchStopsAtTheEndOfItsOwnJSONString() {
     let body = #"{"a":"https://example.com/App.dmg","b":"https://example.com/other.zip"}"#
     #expect(RecipeSanity.firstArtifactURL(in: body) == "https://example.com/App.dmg")
+}
+
+/// A detached signature sits beside every build in most feeds, and the match is
+/// lazy, so without a boundary after the extension `App-1.0.dmg.sig` yields
+/// `App-1.0.dmg` — a URL invented by truncation rather than read from the body.
+@Test func aDetachedSignatureDoesNotBecomeAnInventedArtifactURL() {
+    #expect(RecipeSanity.firstArtifactURL(
+        in: "https://dl.example.com/App-1.0.dmg.sig") == nil)
+    #expect(RecipeSanity.firstArtifactURL(
+        in: "https://dl.example.com/App-1.0.dmg.sha256sum") == nil)
+    // The real artifact still reads, with or without a query.
+    #expect(RecipeSanity.firstArtifactURL(in: "https://dl.example.com/App-1.0.dmg")
+        == "https://dl.example.com/App-1.0.dmg")
+    #expect(RecipeSanity.firstArtifactURL(in: "https://dl.example.com/App.zip?token=1 x")
+        == "https://dl.example.com/App.zip?token=1")
+    #expect(RecipeSanity.firstArtifactURL(in: "https://dl.example.com/App-1.0.tar.gz")
+        == "https://dl.example.com/App-1.0.tar.gz")
 }

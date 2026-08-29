@@ -37,9 +37,14 @@
   把正则锚在 `url: MstyStudio_arm64.zip` 后面，配对就从"靠位置"变成"靠结构"。
   2026-08-29 实测：朴素写法得 `2Ix1WRcS…`(x64)，锚定写法得 `aNSie9nH…`(arm64)，
   而下载到的 `MstyStudio_arm64.zip` 的 sha512 正是后者。
-- **校验和在这里有第二重作用**: URL 是 "latest" 而摘要属于探针比较过的那个版本，所以
-  检查与点击之间厂商如果发了新版，会**校验和失败**而不是悄悄装上一个没人比较过的版本——
-  失败是响的，重新检查即可恢复。
+- **校验和在这里有第二重作用（但是 best-effort）**: URL 是 "latest" 而摘要属于探针比较过的
+  那个版本，所以检查与点击之间厂商如果发了新版，会**校验和失败**而不是悄悄装上一个没人
+  比较过的版本——失败是响的，重新检查即可恢复。
+  **限制**: 安装时校验和是可选的（`VendorInstaller` 用 `if let expected` 包着），所以这条
+  正则一旦失配（厂商调换条目内的键序、或改资产名），安装会**不带校验**继续，"latest" 又变回
+  可能装上没人比较过的版本；只有当晚的 sweep 通过 `checksumPatternNoMatch` 事后发现。
+  考虑过把它改成硬失败，否决了：厂商一次改版会把「装了个更新一点的版本」变成「一键彻底不可用」，
+  后者更糟。
 - 包实测 2026-08-29: 248,234,928 B，解出 `MstyStudio.app` 2.9.8,
   `Developer ID Application: Ashok Gelal (S6CF5A8MX9)`, spctl accepted / Notarized, arm64。
 - 生产路径实测: 签名闸 harness 报 `sha512 expected: aNSie9nHz5ybfhfC… actual: aNSie9nHz5ybfhfC…`

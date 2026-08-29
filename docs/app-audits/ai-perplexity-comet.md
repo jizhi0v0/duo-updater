@@ -37,7 +37,11 @@
   从来不需要"重新解析"——没有任何地方会长期持有它。
 - **为什么不用 `.redirect`**: 它发 HEAD，而这家 HEAD 答
   `Location: https://www.example.com?status=ok`（2026-08-29 实测；同一 URL 的 GET 正常）。
-- 无 checksum：网关不发布摘要。
+- 无 checksum：网关不发布摘要——所以与 Msty 不同，这里**没有任何东西**能发现"下到的构建
+  不是比较过的那个"。网关恒发最新版：某一行在 151.0.7922.247 时检查、等 152.x 发布后才点，
+  装的是 152.x 而记录的是 151.0.7922.247，直到下次检查才纠正。这是记账漂移不是坏 app，
+  而且每条 `.redirect` recipe 本来就有同样的性质；写下来是因为版本与资产在**探测时**同出一份
+  文档、在**安装时**却出自两个时刻。
 - 包实测 2026-08-29（跟随重定向下载，313,170,645 B）: dmg 卷名 "Comet Installer"，里面是真正的
   710 MB `Comet.app`（不是 1Password 那种安装器壳）: `ai.perplexity.comet` 151.0.7922.247,
   `Developer ID Application: Perplexity AI Inc. (7S8W4W365S)`, spctl accepted / Notarized,

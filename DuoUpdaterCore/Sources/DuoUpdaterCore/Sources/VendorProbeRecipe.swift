@@ -888,6 +888,14 @@ public struct VendorProbeRecipe: Sendable {
 ///
 /// GitHub-released apps are handled by `GitHubReleasesSource`, not here.
 public enum VendorProbeRegistry {
+
+    /// Comet's stable download gateway — the endpoint the probe reads AND the one
+    /// the installer fetches. Declared once because those two must never diverge:
+    /// see the recipe's comment.
+    static let cometStableGateway = URL(
+        string: "https://www.perplexity.ai/rest/browser/download"
+            + "?channel=stable&platform=mac_arm64")!
+
     public static let recipes: [VendorProbeRecipe] = [
         // WhatsApp — the downloads page's link 302s to a versioned dmg on fbcdn:
         // `…/WhatsApp-2.26.31.27.dmg`. Read the Location header rather than
@@ -3798,7 +3806,24 @@ public enum VendorProbeRegistry {
         // old. That is also why the ephemeral URL never has to be re-resolved:
         // nothing durable ever holds one.
         //
-        // No checksum: the gateway publishes none. Verified 2026-08-29 by fetching
+        // ONE CONSTANT for both halves, not two copies of the same string. The
+        // probe and the download MUST be the same endpoint — that is the entire
+        // design — and two literals drift silently in the one direction every gate
+        // would wave through: retarget the probe to `channel=beta` and the install
+        // still fetches stable, both Perplexity-signed builds of the same bundle
+        // id, so the user is offered a beta and handed a stable.
+        //
+        // No checksum, because the gateway publishes none — so unlike Msty there
+        // is nothing here that notices when the build fetched is not the build
+        // compared. The gateway always serves current: a row checked at
+        // 151.0.7922.247 and clicked after 152.x ships installs 152.x and records
+        // 151.0.7922.247 until the next check corrects it. That is bookkeeping
+        // drift, not a broken app, and it is the same property every `.redirect`
+        // recipe already has; it is written down because the version and the
+        // artifact come from one document at PROBE time and from two moments at
+        // install time.
+        //
+        // Verified 2026-08-29 by fetching
         // the gateway with redirects followed — 313,170,645 B, and the dmg mounts
         // as "Comet Installer" carrying a real 710 MB `Comet.app` (not a
         // downloader stub like 1Password's): `ai.perplexity.comet` 151.0.7922.247,
@@ -3806,15 +3831,11 @@ public enum VendorProbeRegistry {
         // "accepted / Notarized Developer ID", universal (x86_64 + arm64).
         VendorProbeRecipe(
             bundleID: "ai.perplexity.comet",
-            url: URL(string: "https://www.perplexity.ai/rest/browser/download?channel=stable&platform=mac_arm64")!,
+            url: Self.cometStableGateway,
             mode: .redirectFilename,
             versionPattern: #"/([0-9]+(?:\.[0-9]+)+)/comet_latest\.dmg"#,
             downloadURL: URL(string: "https://www.perplexity.ai/comet"),
-            install: VendorInstallSpec(
-                urlSource: .fixed(
-                    URL(string: "https://www.perplexity.ai/rest/browser/download"
-                        + "?channel=stable&platform=mac_arm64")!),
-                kind: .dmg),
+            install: VendorInstallSpec(urlSource: .fixed(Self.cometStableGateway), kind: .dmg),
             followRedirects: false),
 
         // Devin Desktop (formerly Windsurf) — official stable update JSON. The
@@ -3921,6 +3942,17 @@ public enum VendorProbeRegistry {
         // checksum instead of silently installing a version nobody compared —
         // loud, and cleared by re-checking. Without it this recipe could report
         // one version and install another.
+        //
+        // That second job is BEST-EFFORT, and the limit belongs here rather than
+        // in a reader's assumption: a checksum is optional at install time
+        // (`VendorInstaller` gates it behind `if let expected`), so if this
+        // pattern ever stops matching — the vendor reorders the keys inside an
+        // entry, or renames the asset — the install proceeds unverified and the
+        // "latest" URL is once again free to be a version nobody compared. Only
+        // the nightly sweep notices, through `checksumPatternNoMatch`, after the
+        // fact. Making it fatal instead was considered and refused: a vendor
+        // reformat would turn "installed a slightly newer build" into "one-click
+        // is dead", which is the worse of the two failures.
         //
         // Verified 2026-08-29 on the artifact this spec selects: 248,234,928 B,
         // extracts to `MstyStudio.app` 2.9.8, `Developer ID Application: Ashok

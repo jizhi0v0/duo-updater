@@ -151,6 +151,13 @@ public enum RecipeSanity {
     ///  - **Stop at quotes and brackets.** The character class excludes `"` and
     ///    `'` so a match cannot run out of one JSON string and across the next
     ///    keys — the failure that makes a "URL" hundreds of characters long.
+    ///  - **The extension must END its path component.** The match is lazy, so
+    ///    without the boundary `…/App-1.0.dmg.sig` yields `…/App-1.0.dmg` — a URL
+    ///    this function never saw, invented by truncating a detached signature.
+    ///    Feeds publish `.dmg.sig` and `.dmg.sha256sum` beside every build, and
+    ///    the sample window can hold the sibling while missing the artifact. With
+    ///    the boundary such a body reports nothing, which is the direction this
+    ///    function is supposed to fail in.
     ///
     /// Two kinds of candidate stay invisible, both deliberately. A vendor that
     /// publishes only asset NAMES (Alcove lists `Alcove.dmg` with no URL) has
@@ -163,7 +170,7 @@ public enum RecipeSanity {
     /// Silence costs a note nobody reads; a wrong URL costs somebody an
     /// investigation.
     static func firstArtifactURL(in text: String) -> String? {
-        let pattern = #"https?://[^\s"'<>)\]}]+?\.(?:dmg|pkg|zip|tar\.gz)(?:\?[^\s"'<>)\]}]*)?"#
+        let pattern = #"https?://[^\s"'<>)\]}]+?\.(?:dmg|pkg|zip|tar\.gz)(?![A-Za-z0-9.])(?:\?[^\s"'<>)\]}]*)?"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         let full = NSRange(text.startIndex..., in: text)
         for match in regex.matches(in: text, range: full) {

@@ -3,16 +3,21 @@ import Foundation
 @testable import DuoUpdaterCore
 
 /// Carbon Copy Cloner's probe reads the redirect target of
-/// `download_ccc.php?v=latest`, which HEAD-follows two hops
+/// `download_ccc.php?v=ccc7`, which HEAD-follows two hops
 /// (`bombich.com` → `api.bombich.com` → the CDN) to a versioned zip filename.
 ///
-/// Captured 2026-08-29 with a plain `URLSession` HEAD request (the same request
-/// `.redirectFilename` issues) against the live endpoint:
-///   `https://bombich.com/software/download_ccc.php?v=latest`
-///   → 302 → `https://api.bombich.com/download/ccc?v=latest`
+/// Captured 2026-08-30 with a plain `URLSession`/`curl` HEAD request (the same
+/// request `.redirectFilename` issues) against the live endpoint:
+///   `https://bombich.com/software/download_ccc.php?v=ccc7`
+///   → 302 → `https://api.bombich.com/download/ccc?v=ccc7`
 ///   → 302 → `https://bombich.scdn1.secure.raxcdn.com/software/files/ccc-7.1.6.8368.zip`
 /// `7.1.6` matched the mounted app's `CFBundleShortVersionString` exactly, and
 /// `8368` matched `CFBundleVersion`.
+///
+/// The generation-scoped `?v=ccc7` is deliberate: `?v=latest` resolves to the
+/// byte-identical file TODAY (also confirmed 2026-08-30) but is a permanent
+/// alias for whichever generation is newest, so it would start answering with
+/// CCC 8 the day that ships. See `stableRecipeUsesTheGenerationScopedEndpoint`.
 private let cccRedirectFixture = "ccc-7.1.6.8368.zip"
 
 /// Older releases carry a two-segment marketing version before the build
@@ -52,6 +57,16 @@ private let cccBetaRedirectFixture = "ccc-7.1.7-b7.8389.zip"
 /// `L4F2DED5Q7`, Bombich's own download page listing `?v=ccc5`/`?v=ccc6`/
 /// `?v=ccc7` as live links alongside `?v=latest`).
 private let cccSixRedirectFixture = "ccc-6.1.13.7699.zip"
+
+/// The artifact that does not exist yet. Shaped exactly like every real CCC
+/// filename above — same `ccc-<marketing>.<build>.zip` scheme, same segment
+/// counts — differing ONLY in the major version, so nothing but the anchor can
+/// reject it. This is the fixture the endpoint/pattern fix is written against:
+/// before it, both strings parsed cleanly through the CCC 7 recipes and a CCC 7
+/// install would have been offered a paid major-version upgrade as if it were
+/// the next point release.
+private let cccEightRedirectFixture = "ccc-8.0.1.9000.zip"
+private let cccEightBetaRedirectFixture = "ccc-8.0.2-b1.9012.zip"
 private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
 
 @Suite struct CarbonCopyClonerProbeRecipeTests {
@@ -327,5 +342,122 @@ private let cccFiveRedirectFixture = "ccc-5.1.28.6213.zip"
         // see `VendorProbeSource.makeRemoteVersion`).
         #expect(remote?.shortVersion == "6.1.13")
         #expect(remote?.shortVersion != "7.1.6")
+    }
+
+    // MARK: - The day CCC 8 ships
+
+    /// The CCC 7 recipes must probe a GENERATION-SCOPED endpoint, never the
+    /// `?v=latest` alias. Both resolve to the same file today (verified live
+    /// 2026-08-30, byte-identical `ccc-7.1.6.8368.zip`), which is exactly why
+    /// this needs a test rather than a live check: nothing observable today
+    /// distinguishes the right URL from the wrong one. `?v=latest` is a
+    /// permanent alias for whichever generation is NEWEST, so on CCC 8's release
+    /// day it would hand this CCC-7-scoped recipe a CCC 8 artifact — the phantom
+    /// cross-generation upgrade the three-recipe split exists to prevent,
+    /// arriving through the URL instead of through the version comparison.
+    ///
+    /// The beta recipe is asserted separately and differently on purpose: there
+    /// is no per-generation beta endpoint to switch to (probed 2026-08-30,
+    /// `?v=ccc7beta`/`?v=ccc7-beta` answer with the STABLE ccc7 zip and
+    /// `?v=beta7` falls back to the download page), so `?v=latestbeta` stays and
+    /// the anchored pattern below is its only guard.
+    @Test func stableRecipeUsesTheGenerationScopedEndpoint() throws {
+        let recipe = try #require(self.stableRecipe())
+        #expect(recipe.url.absoluteString == "https://bombich.com/software/download_ccc.php?v=ccc7")
+        #expect(!recipe.url.absoluteString.contains("v=latest"))
+        // Where the user is SENT must be pinned to the same generation as where
+        // the version is READ — a `?v=latest` download link would eventually
+        // hand a CCC 7 user a CCC 8 zip even with detection scoped correctly.
+        #expect(recipe.downloadURL?.absoluteString
+            == "https://bombich.com/software/download_ccc.php?v=ccc7")
+        #expect(try #require(self.betaRecipe()).url.absoluteString
+            == "https://bombich.com/software/download_ccc.php?v=latestbeta")
+    }
+
+    /// Every CCC recipe's `versionPattern` is anchored to its OWN major version,
+    /// so a filename from another generation fails to match rather than parsing
+    /// into a cross-generation version. Derived from the registry (the four
+    /// recipes are looked up, not hand-listed) and run as a full matrix: each
+    /// pattern against every generation's real filename plus the CCC 8 shapes
+    /// that do not exist yet.
+    ///
+    /// This is the second, independent guard behind
+    /// `stableRecipeUsesTheGenerationScopedEndpoint`: the endpoint fix depends
+    /// on Bombich keeping `?v=ccc7` pointed at CCC 7 (as they have for
+    /// `?v=ccc5`/`?v=ccc6` for years), and this one holds even if they do not.
+    @Test func eachRecipesPatternReadsOnlyItsOwnGenerationsFilename() throws {
+        let ccc7 = try #require(self.stableRecipe())
+        let ccc6 = try #require(self.ccc6Recipe())
+        let ccc5 = try #require(self.ccc5Recipe())
+        let beta = try #require(self.betaRecipe())
+
+        let everyFilename = [
+            cccFiveRedirectFixture, cccSixRedirectFixture, cccRedirectFixture,
+            cccTwoSegmentMarketingFixture, cccBetaRedirectFixture,
+            cccEightRedirectFixture, cccEightBetaRedirectFixture,
+        ]
+        /// What each recipe is allowed to read, keyed by filename. Anything not
+        /// listed for a recipe must come back nil.
+        let expected: [(VendorProbeRecipe, [String: String])] = [
+            (ccc7, [cccRedirectFixture: "7.1.6", cccTwoSegmentMarketingFixture: "7.1"]),
+            (ccc6, [cccSixRedirectFixture: "6.1.13"]),
+            (ccc5, [cccFiveRedirectFixture: "5.1.28"]),
+            (beta, [cccBetaRedirectFixture: "7.1.7-b7"]),
+        ]
+        for (recipe, allowed) in expected {
+            for filename in everyFilename {
+                let read = VendorProbeRecipe.extractVersion(
+                    from: filename, pattern: recipe.versionPattern)
+                #expect(
+                    read == allowed[filename],
+                    """
+                    recipe \(recipe.variant ?? recipe.channel.rawValue) read \(read ?? "nil")                     from \(filename), expected \(allowed[filename] ?? "nil")
+                    """)
+            }
+        }
+    }
+
+    /// The same guard end-to-end through `VendorProbeSource.probeDiagnostic` —
+    /// the production `.redirectFilename` path, not just the extractor. A stub
+    /// HTTP server standing in for the CDN serves the CCC 8 filename the vendor
+    /// will one day redirect to; the CCC 7 recipes must report NOTHING rather
+    /// than a "8.0.1" that would out-rank every installed CCC 7 build.
+    ///
+    /// Each half carries its own positive control served from the same stub, so
+    /// a version that silently stopped being read at all (which would also make
+    /// the CCC 8 half pass) fails the test instead of hiding in it.
+    @Test func aFutureCCC8ArtifactResolvesToNothingThroughTheCCC7Recipes() async throws {
+        let server = try RecipeVerificationTests.StubServer(body: "", contentType: "application/zip")
+        defer { server.stop() }
+        /// `.redirectFilename` + `followRedirects` reads the FINAL URL's last
+        /// path component; the stub answers any path, so the path IS the
+        /// fixture. No redirect is needed to exercise the filename read.
+        func url(_ filename: String) -> URL {
+            URL(string: "http://127.0.0.1:\(server.port)/software/files/\(filename)")!
+        }
+
+        let ccc7 = try #require(self.stableRecipe())
+        let beta = try #require(self.betaRecipe())
+
+        let stableControl = await VendorProbeSource()
+            .probeDiagnostic(ccc7.with(url: url(cccRedirectFixture)))
+        #expect(stableControl.remote?.shortVersion == "7.1.6")
+
+        let stableFuture = await VendorProbeSource()
+            .probeDiagnostic(ccc7.with(url: url(cccEightRedirectFixture)))
+        #expect(stableFuture.remote == nil, "a CCC 8 zip must not resolve through the CCC 7 recipe")
+        // Silent is not good enough: the miss has to reach `duo verify`, which
+        // is what turns "this recipe went quiet" into a triaged recipe change
+        // instead of an app that stops updating unnoticed.
+        #expect(stableFuture.failure != nil)
+
+        let betaControl = await VendorProbeSource()
+            .probeDiagnostic(beta.with(url: url(cccBetaRedirectFixture)))
+        #expect(betaControl.remote?.shortVersion == "7.1.7-b7")
+
+        let betaFuture = await VendorProbeSource()
+            .probeDiagnostic(beta.with(url: url(cccEightBetaRedirectFixture)))
+        #expect(betaFuture.remote == nil, "a CCC 8 beta zip must not resolve through the CCC 7 beta recipe")
+        #expect(betaFuture.failure != nil)
     }
 }

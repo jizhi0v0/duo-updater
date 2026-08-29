@@ -93,10 +93,21 @@ enum UpdateNotifier {
     /// has relaunched, so a stale "Relaunch to apply it" banner doesn't linger in
     /// Notification Center after it's been applied.
     static func clearSelfDownloaded(appID: String) {
-        let id = "selfupdate:\(appID)"
+        clearSelfDownloaded(appIDs: [appID])
+    }
+
+    /// The bulk form. `computeSelfUpdateStaging` withdraws the banner for every row
+    /// that is not currently offering a Relaunch — on a normal machine that is very
+    /// nearly the whole list, on every rescan — so it goes out as one withdrawal
+    /// rather than a per-app round trip to the notification server. Withdrawing an
+    /// identifier that was never posted is a no-op, which is what makes asking the
+    /// standing question affordable.
+    static func clearSelfDownloaded(appIDs: [String]) {
+        guard !appIDs.isEmpty else { return }
+        let ids = appIDs.map { "selfupdate:\($0)" }
         let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: [id])
-        center.removeDeliveredNotifications(withIdentifiers: [id])
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        center.removeDeliveredNotifications(withIdentifiers: ids)
     }
 
     /// The user restarted and the new version is now live. Reuses the same stable

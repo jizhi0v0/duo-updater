@@ -53,8 +53,18 @@ verify/report.json
 verify/report.md
 verify/triage.json
 
-# Nightly recipe sweep. Kept local: it targets a self-hosted runner that runs as
-# the desktop user, which is not a safe thing to expose from a public repo.
+# The recipe sweep does NOT run on GitHub Actions. It was moved to a launchd
+# agent on the machine that owns the checkout (2026-08-14, 4ff9a90) because the
+# workflow targeted a self-hosted runner running as the desktop user, which is
+# not a safe thing to expose from a public repo — a public repo is where someone
+# eventually adds a `pull_request` trigger, and the blast radius is a login
+# session rather than a sandbox.
+#
+# The stale workflow file outlived the move and kept being read as evidence that
+# Actions still ran the sweep — it does not, and has not since 2026-08-13. The
+# file is deleted; this line stays so a `gh workflow`-shaped habit cannot quietly
+# reintroduce it. Where the agent lives and how it is scheduled is machine
+# topology and stays off this repo, same rule as the rest of /docs/.
 /.github/workflows/recipe-verify.yml
 
 # Python bytecode from the release scripts

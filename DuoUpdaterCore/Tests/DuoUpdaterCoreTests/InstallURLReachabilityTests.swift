@@ -27,7 +27,10 @@ struct InstallURLReachabilityTests {
         /// - Parameters:
         ///   - headStatus: what `/install` answers a HEAD.
         ///   - rangedGetStatus: what `/install` answers a GET carrying `Range`.
-        init(headStatus: Int, rangedGetStatus: Int, version: String = "2.0.0") throws {
+        init(
+            headStatus: Int, rangedGetStatus: Int, version: String = "2.0.0",
+            dropGET: Bool = false
+        ) throws {
             let listener = try NWListener(using: .tcp, on: .any)
             self.listener = listener
             let queue = self.queue
@@ -43,7 +46,14 @@ struct InstallURLReachabilityTests {
                     let parts = line.split(separator: " ").map(String.init)
                     let method = parts.first ?? ""
                     let path = parts.count > 1 ? parts[1] : ""
-                    queue.async { box.seen.append("\(method) \(path)") }
+                    queue.async {
+                        box.seen.append("\(method) \(path)")
+                        box.heads.append(request)
+                    }
+
+                    // Answer nothing and hang up: models a host that accepts the
+                    // connection and then times out or resets mid-request.
+                    if dropGET, method == "GET" { conn.cancel(); return }
 
                     let status: Int
                     var body = ""
@@ -76,7 +86,10 @@ struct InstallURLReachabilityTests {
             self.port = bound
         }
 
-        final class Box: @unchecked Sendable { var seen: [String] = [] }
+        final class Box: @unchecked Sendable {
+            var seen: [String] = []
+            var heads: [String] = []
+        }
         private let box: Box
 
         var feedURL: URL { URL(string: "http://127.0.0.1:\(port)/feed")! }
@@ -86,6 +99,8 @@ struct InstallURLReachabilityTests {
         /// binary, which is why `connectionCount()` exists alongside it.
         func requests() -> [String] { queue.sync { box.seen } }
         func connectionCount() -> Int { queue.sync { box.seen.count } }
+        /// Full request heads, for asserting on headers.
+        func heads() -> [String] { queue.sync { box.heads } }
         func stop() { listener.cancel() }
     }
 
@@ -177,6 +192,113 @@ struct InstallURLReachabilityTests {
             .probeDiagnostic(Self.recipe(swept), checkingInstallURL: true)
         #expect(swept.connectionCount() > 1,
                 "the sweep must contact the install URL, saw \(swept.connectionCount())")
+    }
+
+    /// A transport failure on the ranged GET must NOT be read as "the vendor
+    /// deleted this".
+    ///
+    /// This branch shipped wrong once. The `guard ... else` returned `.gone`,
+    /// which is the verdict that files a public issue accusing a vendor — off a
+    /// timeout, with no retry, on the very hosts most likely to need the GET
+    /// fallback in the first place (the ones that refuse HEAD). The identical
+    /// condition on the HEAD path was already treated as transient; the two must
+    /// agree, because "we never got an answer" is not evidence of deletion.
+    @Test func noAnswerToTheRangedGETIsNotEvidenceOfDeletion() async throws {
+        let server = try MethodAwareServer(
+            headStatus: 404, rangedGetStatus: 404, dropGET: true)
+        defer { server.stop() }
+        let result = await VendorProbeSource().installURLReachability(
+            server.installURL,
+            spec: VendorInstallSpec(urlSource: .fixed(server.installURL), kind: .zip))
+        #expect(result == .transient(status: 404),
+                "a dropped GET must age as transient, never accuse the vendor")
+    }
+
+    /// A `Range` refusal is not a missing artifact — the URL plainly exists to
+    /// have rejected a range against it.
+    @Test func aRangeRefusalIsNotAMissingArtifact() async throws {
+        for status in [416, 501] {
+            let server = try MethodAwareServer(headStatus: 405, rangedGetStatus: status)
+            defer { server.stop() }
+            let result = await VendorProbeSource().installURLReachability(
+                server.installURL,
+                spec: VendorInstallSpec(urlSource: .fixed(server.installURL), kind: .zip))
+            #expect(result == .transient(status: status),
+                    "HTTP \(status) says the range was refused, not that the file is gone")
+        }
+    }
+
+    /// The one mistake this change actually made, pinned.
+    ///
+    /// The probe first shipped sending this type's browser-like version-endpoint
+    /// agent. SourceForge answers **403 to that and 200 to `DuoUpdater/0.1`**, so
+    /// the sweep accused TigerVNC and GrandPerspective of losing installers that
+    /// were being served the whole time. A curl spot check cannot see this — only
+    /// the production request can — so the agent has to be asserted here or
+    /// nothing holds it.
+    @Test func theProbeSendsExactlyTheAgentTheDownloaderSends() async throws {
+        let server = try MethodAwareServer(headStatus: 405, rangedGetStatus: 206)
+        defer { server.stop() }
+        _ = await VendorProbeSource().installURLReachability(
+            server.installURL,
+            spec: VendorInstallSpec(urlSource: .fixed(server.installURL), kind: .zip))
+
+        let heads = server.heads()
+        #expect(heads.count >= 2, "expected a HEAD and the ranged GET, saw \(heads.count)")
+        for head in heads {
+            #expect(head.contains("User-Agent: \(Downloader.userAgent)"),
+                    "every probe request must carry the downloader's agent")
+            #expect(!head.lowercased().contains("mozilla"),
+                    "the browser-like version-endpoint agent must never be used here")
+        }
+        #expect(heads.contains { $0.contains("Range: bytes=0-0") })
+    }
+
+    /// `spec.requestHeaders` is what the real download layers on top, so it must
+    /// win here too — that is the only way a per-vendor WAF workaround (Oray's
+    /// `Referer`) reaches the probe.
+    @Test func specHeadersReachTheProbeAndOverrideTheDefault() async throws {
+        let server = try MethodAwareServer(headStatus: 405, rangedGetStatus: 206)
+        defer { server.stop() }
+        _ = await VendorProbeSource().installURLReachability(
+            server.installURL,
+            spec: VendorInstallSpec(
+                urlSource: .fixed(server.installURL), kind: .zip,
+                requestHeaders: ["Referer": "https://example.invalid/dl",
+                                 "User-Agent": "Override/9"]))
+        for head in server.heads() {
+            #expect(head.contains("Referer: https://example.invalid/dl"))
+            #expect(head.contains("User-Agent: Override/9"),
+                    "a spec-level agent must override the downloader default")
+        }
+    }
+
+    /// The wiring, not the mapping: deleting `warnings.append(...)` in
+    /// `probeOutcome` must break something.
+    ///
+    /// Uses an unreachable HTTPS install URL rather than the stub, because
+    /// `resolveInstall` rewrites every `http://` through `preferHTTPS` — so a
+    /// plaintext stub can never answer the probe (see `onlyTheSweepTouchesTheInstallURL`).
+    /// A refused connection reaches the same append by the transient path.
+    @Test func theWarningActuallyReachesTheOutcome() async throws {
+        let server = try MethodAwareServer(headStatus: 200, rangedGetStatus: 206)
+        defer { server.stop() }
+        let recipe = VendorProbeRecipe(
+            bundleID: "com.example.subject",
+            url: server.feedURL,
+            mode: .responseBody,
+            versionPattern: #""version":"([0-9.]+)""#,
+            install: VendorInstallSpec(
+                urlSource: .fixed(URL(string: "https://127.0.0.1:1/nothing-listens-here")!),
+                kind: .zip))
+
+        let swept = await VendorProbeSource().probeDiagnostic(recipe, checkingInstallURL: true)
+        #expect(swept.warnings.map(\.kind).contains("installURLTransient"),
+                "the probe's verdict must reach ProbeOutcome.warnings, saw \(swept.warnings.map(\.kind))")
+
+        let checked = await VendorProbeSource().probeDiagnostic(recipe)
+        #expect(checked.warnings.isEmpty,
+                "and must not appear on the ordinary update path")
     }
 
     // MARK: - the registry-derived coverage check

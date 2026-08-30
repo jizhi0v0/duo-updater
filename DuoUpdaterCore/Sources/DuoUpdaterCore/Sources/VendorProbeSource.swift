@@ -897,8 +897,8 @@ public struct VendorProbeSource: UpdateSource {
     /// sweep.
     ///
     /// A server that ignores `Range` and starts streaming the whole file is
-    /// handled by the caller cancelling as soon as the response head arrives; we
-    /// never read the body.
+    /// handled by taking the response head from `bytes(for:)` and cancelling the
+    /// task before the stream is ever iterated, so the body is never read.
     ///
     /// The request must be byte-for-byte the request `Downloader` would make, or
     /// it is not answering the question. That is not a nicety — it is the one
@@ -916,8 +916,11 @@ public struct VendorProbeSource: UpdateSource {
     ///
     /// Hence: mirror `Downloader.swift` — its UA, its `Accept-Encoding: identity`
     /// — and then `spec.requestHeaders`, which is what it layers on top and what
-    /// carries the per-vendor WAF workarounds (Oray's `Referer`, Alcove's
-    /// `Authorization`). Deliberately NOT `recipe.requestHeaders`: those belong to
+    /// carries the per-vendor WAF workarounds — in the registry today that is
+    /// Oray's `Referer`, and nothing else. (Not Alcove's `Authorization`: that
+    /// lives on `RemoteVersion.downloadHeaders` in a source that is in no
+    /// registry and never swept, so it does not reach here and does not need to.)
+    /// Deliberately NOT `recipe.requestHeaders`: those belong to
     /// the version endpoint and the downloader never sends them, so honouring
     /// them here would make the probe pass URLs the real install cannot fetch.
     func installURLReachability(
@@ -951,11 +954,38 @@ public struct VendorProbeSource: UpdateSource {
             if Self.isTransientStatus(http.statusCode) { continue }
 
             // 4xx. Could be a real 404, could be a host that simply refuses HEAD.
-            guard let (_, ranged) = try? await session.data(for: request("GET", range: true)),
+            //
+            // `bytes(for:)`, not `data(for:)`: this returns once the response HEAD
+            // is in, leaving the body unread, and we cancel before touching the
+            // stream. `data(for:)` buffers the whole response first — so a host
+            // that answers 4xx to HEAD and then IGNORES `Range` would have pulled
+            // an entire installer into memory, which is both a hundreds-of-MB
+            // stall and a straight violation of this sweep's "never downloads an
+            // installer" contract (`Verify.swift`'s header).
+            guard let (stream, ranged) = try? await session.bytes(for: request("GET", range: true)),
                   let rangedHTTP = ranged as? HTTPURLResponse
-            else { return .gone(status: http.statusCode) }
+            else {
+                // No answer at all. NOT `.gone`: the asymmetry matters, because
+                // `.gone` files a public issue accusing a vendor of deleting an
+                // artifact. A timeout, a reset or a TLS failure here is the same
+                // event the HEAD path above treats as transient, and the honest
+                // verdict for "we never got an answer" is that we do not know.
+                // `lastStatus` still holds the HEAD's status for the report.
+                continue
+            }
+            stream.task.cancel()
             if (200..<400).contains(rangedHTTP.statusCode) { return .ok }
             if Self.isTransientStatus(rangedHTTP.statusCode) {
+                lastStatus = rangedHTTP.statusCode
+                continue
+            }
+            // 416 means the range was refused, not that the artifact is missing —
+            // the URL plainly exists to have rejected a range against it. 501 is
+            // the same answer from a server that will not implement `Range` at
+            // all. Either way this probe has run out of ways to ask, and guessing
+            // "deleted" from a Range complaint is exactly the false accusation the
+            // GET fallback exists to prevent.
+            if rangedHTTP.statusCode == 416 || rangedHTTP.statusCode == 501 {
                 lastStatus = rangedHTTP.statusCode
                 continue
             }

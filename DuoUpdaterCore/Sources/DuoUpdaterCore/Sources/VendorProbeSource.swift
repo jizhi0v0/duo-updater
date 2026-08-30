@@ -664,9 +664,20 @@ public struct VendorProbeSource: UpdateSource {
                 // Note the URL probed is `plan.url`, i.e. AFTER `preferHTTPS` — the
                 // same string the installer would download. Probing the pre-rewrite
                 // URL would be testing something nobody fetches.
-                if checkInstallURL, !spec.urlSource.provesReachabilityWhenResolved,
+                //
+                // No source is exempt, `.redirect` included. Resolving a redirect
+                // DOES prove its final URL answered — but it proves it with THIS
+                // type's browser-like agent and without `spec.requestHeaders`
+                // (see the resolve above), and the installer sends
+                // `Downloader.userAgent` plus those headers. SourceForge answers
+                // 403 to one and 200 to the other, so "already proven" was a proof
+                // about a request nobody makes: precisely the bug this probe was
+                // written to catch, one boolean away from being blessed. 26 extra
+                // HEADs a night is the cheaper side of that trade.
+                if checkInstallURL,
                    let warning = Self.warning(
-                       for: await installURLReachability(plan.url, spec: spec)) {
+                       for: await installURLReachability(plan.url, spec: spec),
+                       host: plan.url.host) {
                     warnings.append(warning)
                 }
             } else {
@@ -877,10 +888,12 @@ public struct VendorProbeSource: UpdateSource {
     /// Pulled out as a pure function on purpose: the probe itself can only be
     /// exercised over a live socket, and a mapping that decides whether an issue
     /// gets filed should be checkable without one.
-    static func warning(for result: InstallURLReachability) -> ProbeWarning? {
+    static func warning(
+        for result: InstallURLReachability, host: String? = nil
+    ) -> ProbeWarning? {
         switch result {
         case .ok: return nil
-        case .gone(let status): return .installURLNotFound(status: status)
+        case .gone(let status): return .installURLNotFound(status: status, host: host)
         case .transient(let status): return .installURLTransient(status: status)
         }
     }

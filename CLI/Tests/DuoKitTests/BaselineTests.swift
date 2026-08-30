@@ -448,4 +448,48 @@ import DuoUpdaterCore
         for id in live { b.entries[id] = Baseline.Entry() }
         #expect(b.prune(keeping: live).removed.isEmpty)
     }
+    // MARK: - what the signature must NOT move on
+
+    /// `installURLTransient` is kept out of the signature for the same reason
+    /// `Verify` keeps it out of `actionable`: it accuses nobody.
+    ///
+    /// It is also inherently flappy — any CDN 5xx, any timeout — and the sweep
+    /// now probes all ~129 install URLs rather than only the 26 redirect ones, so
+    /// it flaps on five times as many recipes. Left in the signature, a recipe
+    /// that already has an open issue for some OTHER warning flips its signature
+    /// in and out every sweep, and `Reconcile` returns `.comment` on a changed
+    /// signature BEFORE it reaches the weekly `mayComment` rate limit. The
+    /// user-visible result is a "the failure changed shape" comment every night,
+    /// forever, on an issue nothing new has happened to.
+    @Test func aFlappingInstallTransientDoesNotMoveTheSignature() {
+        let steady = Finding(
+            recipeID: "vendor:com.example.app:stable", registry: .vendor,
+            bundleID: "com.example.app", channel: "stable", status: .warn,
+            warnings: ["displayPatternNoMatch"], endpointHost: "example.invalid")
+        let flapping = Finding(
+            recipeID: "vendor:com.example.app:stable", registry: .vendor,
+            bundleID: "com.example.app", channel: "stable", status: .warn,
+            warnings: ["displayPatternNoMatch", "installURLTransient: HTTP 503"],
+            endpointHost: "example.invalid")
+
+        #expect(steady.signature == flapping.signature,
+                "a vendor's bad minute must not read as the failure changing shape")
+
+        // But a genuinely dead install URL IS new information and must move it.
+        let dead = Finding(
+            recipeID: "vendor:com.example.app:stable", registry: .vendor,
+            bundleID: "com.example.app", channel: "stable", status: .warn,
+            warnings: ["displayPatternNoMatch",
+                       "installURLNotFound: HTTP 404 from dl.example.invalid"],
+            endpointHost: "example.invalid")
+        #expect(dead.signature != steady.signature)
+
+        // And a transient on its own must not masquerade as a known failure.
+        let onlyTransient = Finding(
+            recipeID: "vendor:com.example.app:stable", registry: .vendor,
+            bundleID: "com.example.app", channel: "stable", status: .warn,
+            warnings: ["installURLTransient: HTTP 503"], endpointHost: "example.invalid")
+        #expect(onlyTransient.signature == "unknown")
+    }
+
 }

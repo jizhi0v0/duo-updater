@@ -160,11 +160,24 @@ struct InstallURLReachabilityTests {
     /// actionable immediately, and swapping them either buries a dead URL or
     /// files an issue every time a CDN has a bad minute.
     @Test func reachabilityMapsOntoTheRightWarning() {
-        #expect(VendorProbeSource.warning(for: .ok) == nil)
-        #expect(VendorProbeSource.warning(for: .gone(status: 404))
-                == .installURLNotFound(status: 404))
-        #expect(VendorProbeSource.warning(for: .transient(status: 503))
+        #expect(VendorProbeSource.warning(for: .ok, host: "dl.example.com") == nil)
+        #expect(VendorProbeSource.warning(for: .gone(status: 404), host: "dl.example.com")
+                == .installURLNotFound(status: 404, host: "dl.example.com"))
+        #expect(VendorProbeSource.warning(for: .transient(status: 503), host: "dl.example.com")
                 == .installURLTransient(status: 503))
+
+        // The published string has to carry the status and the failing host. The
+        // finding's own `endpointHost` names the VERSION endpoint, which for this
+        // warning answered perfectly — so without this the issue points at a host
+        // that is fine and never mentions the one that is not, and cannot tell a
+        // 404 (the artifact moved) from a 403 (a WAF; the recipe is fine).
+        #expect(ProbeWarning.installURLNotFound(status: 404, host: "dl.example.com").display
+                == "installURLNotFound: HTTP 404 from dl.example.com")
+        #expect(ProbeWarning.installURLNotFound(status: nil, host: nil).display
+                == "installURLNotFound: no answer")
+        // `kind` stays bare, because that is what the reconcile step keys on.
+        #expect(ProbeWarning.installURLNotFound(status: 404, host: "a").kind
+                == ProbeWarning.installURLNotFound(status: 403, host: "b").kind)
     }
 
     /// The cost guard, and the only end-to-end assertion that survives contact
@@ -303,37 +316,66 @@ struct InstallURLReachabilityTests {
 
     // MARK: - the registry-derived coverage check
 
-    /// Derived from the registry rather than a hand-written list, so adding a
-    /// recipe or a `URLSource` cannot quietly fall out of coverage.
+    /// Every recipe carrying an install spec is now probed — `.redirect`
+    /// included, since its resolve-time HEAD proves the URL with the browser-like
+    /// version agent and no `spec.requestHeaders`, which is not the request the
+    /// installer makes.
     ///
-    /// `provesReachabilityWhenResolved` is the switch that decides whether a
-    /// recipe gets probed at all, so getting it wrong in the "true" direction is
-    /// silent: the recipe simply never gets checked. This re-derives the same
-    /// fact a second, independent way (pattern-matching `.redirect` directly) and
-    /// requires both groups to be non-empty, which is what stops the whole thing
-    /// degenerating into a constant.
-    @Test func onlyRedirectSourcesAreConsideredAlreadyProven() {
-        var proven: [String] = []
-        var probed: [String] = []
-        for recipe in VendorProbeRegistry.recipes {
+    /// Derived from the registry rather than a written-down list, with
+    /// non-vacuity guards, so it fails if the population it describes collapses.
+    @Test func everyInstallSpecInTheRegistryIsInScope() {
+        let withInstall = VendorProbeRegistry.recipes.filter { $0.install != nil }
+        var redirects = 0
+        var modes = Set<String>()
+        for recipe in withInstall {
             guard let spec = recipe.install else { continue }
-            let isRedirect: Bool
-            if case .redirect = spec.urlSource { isRedirect = true } else { isRedirect = false }
-            #expect(
-                spec.urlSource.provesReachabilityWhenResolved == isRedirect,
-                "\(recipe.recipeID): provesReachabilityWhenResolved disagrees with .redirect")
-            if isRedirect { proven.append(recipe.recipeID) } else { probed.append(recipe.recipeID) }
+            switch spec.urlSource {
+            case .redirect: redirects += 1; modes.insert("redirect")
+            case .fixed: modes.insert("fixed")
+            case .versionTemplate: modes.insert("versionTemplate")
+            case .bodyTemplate: modes.insert("bodyTemplate")
+            case .bodyPattern: modes.insert("bodyPattern")
+            case .bodyPatternLast: modes.insert("bodyPatternLast")
+            case .bodyPatternHighestVersioned: modes.insert("bodyPatternHighestVersioned")
+            case .bodyPatternRelative: modes.insert("bodyPatternRelative")
+            }
         }
-        #expect(!proven.isEmpty, "no .redirect recipe left — this check has gone vacuous")
-        #expect(!probed.isEmpty, "nothing would be probed — this check has gone vacuous")
-        // The gap #159 was filed about: the probed group is the large one.
-        #expect(probed.count > proven.count)
+        #expect(withInstall.count > 100, "the probed population collapsed: \(withInstall.count)")
+        #expect(redirects > 0, "no .redirect recipe left — the exemption this test replaced")
+        #expect(modes.count >= 5, "URLSource coverage thinned out to \(modes.sorted())")
+    }
+
+    /// The behavioural half of the same claim: a `.redirect` recipe really does
+    /// get probed, rather than being waved through on the strength of its
+    /// resolve-time HEAD.
+    @Test func aRedirectRecipeIsProbedLikeEveryOtherSource() async throws {
+        let server = try MethodAwareServer(headStatus: 200, rangedGetStatus: 206)
+        defer { server.stop() }
+        let recipe = VendorProbeRecipe(
+            bundleID: "com.example.subject",
+            url: server.feedURL,
+            mode: .responseBody,
+            versionPattern: #""version":"([0-9.]+)""#,
+            install: VendorInstallSpec(urlSource: .redirect(server.installURL), kind: .zip))
+
+        _ = await VendorProbeSource().probeDiagnostic(recipe, checkingInstallURL: true)
+        let resolveOnly = try MethodAwareServer(headStatus: 200, rangedGetStatus: 206)
+        defer { resolveOnly.stop() }
+        let plain = VendorProbeRecipe(
+            bundleID: "com.example.subject", url: resolveOnly.feedURL, mode: .responseBody,
+            versionPattern: #""version":"([0-9.]+)""#,
+            install: VendorInstallSpec(urlSource: .redirect(resolveOnly.installURL), kind: .zip))
+        _ = await VendorProbeSource().probeDiagnostic(plain)
+
+        #expect(server.connectionCount() > resolveOnly.connectionCount(),
+                Comment(rawValue: "the sweep must probe a redirect on top of resolving it: "
+                + "\(server.connectionCount()) vs \(resolveOnly.connectionCount())"))
     }
 
     @Test func theNewWarningIsDistinctFromAPatternMiss() {
-        #expect(ProbeWarning.installURLNotFound(status: 404).kind == "installURLNotFound")
-        #expect(ProbeWarning.installURLNotFound(status: 404) != ProbeWarning.installURLUnresolved)
-        #expect(ProbeWarning.installURLNotFound(status: 404)
+        #expect(ProbeWarning.installURLNotFound(status: 404, host: "h").kind == "installURLNotFound")
+        #expect(ProbeWarning.installURLNotFound(status: 404, host: "h") != ProbeWarning.installURLUnresolved)
+        #expect(ProbeWarning.installURLNotFound(status: 404, host: "h")
                 != ProbeWarning.installURLTransient(status: 404))
     }
 }

@@ -393,9 +393,21 @@ public extension Finding {
     /// recipe that is still broken the same way from one that broke differently.
     var signature: String {
         if let failureKind { return failureKind }
-        guard !publicWarnings.isEmpty else { return "unknown" }
+        // `installURLTransient` is excluded for the same reason `Verify` excludes
+        // it from `actionable`: it accuses nobody. It is also inherently flappy —
+        // any CDN 5xx, any timeout — and since the sweep began probing all 129
+        // install URLs rather than only the 26 redirect ones, it flaps on 5x as
+        // many recipes. Left in, a recipe that already has an open issue for some
+        // OTHER warning would flip its signature in and out every sweep, and
+        // `Reconcile` returns `.comment` on a changed signature BEFORE it reaches
+        // the `mayComment` weekly rate limit — so it would post a "the failure
+        // changed shape" comment nightly, forever.
+        let stable = publicWarnings.filter {
+            !$0.hasPrefix(ProbeWarning.installURLTransient(status: nil).kind)
+        }
+        guard !stable.isEmpty else { return "unknown" }
         // Warning text embeds versions that change between sweeps; key on the
         // leading phrase so "still the same problem" stays stable.
-        return publicWarnings.map { String($0.prefix(40)) }.sorted().joined(separator: "|")
+        return stable.map { String($0.prefix(40)) }.sorted().joined(separator: "|")
     }
 }

@@ -36,7 +36,10 @@
 - 无 ChangelogRecipe
 
 ## 一键安装
-- 仅检测
+- 状态: **已接入**。此前记为「仅检测」，是旧策略的残留。
+  「绝不碰自更新器」那条绝对规则已由用户设置 `vendorInstallPolicy` 取代：默认 `.deferWhenRunning` —— app 正在运行就交回它自己的更新器，没在运行才就地替换；选 `.alwaysOverwrite` 才总是由我们装。见 `UpdatePolicy.defersToSelfUpdater`。
+- 若该 bundle 带 `Contents/Frameworks/Squirrel.framework`（扫描时判定），还会额外受
+  `SelfUpdaterStaging` 保护：app 自己已staged 的更新会让一键让位给 Relaunch。
 
 ## channel-verify 状态
 - ✓ **已验证 2026-06-04**（两 channel 官方 zip，解压后对真实 `.app` 跑 `channel-verify`，未安装）

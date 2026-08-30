@@ -61,9 +61,12 @@
 - Recipe 状态: 不需要（WebView 兜底足够；如要内联结构化条目可后补）
 
 ## 一键安装
-- 状态: **仅检测**。Thunderbird 自带 Mozilla 更新器，按本仓"Sparkle/自更新永不强杀"
-  原则，不做一键替换。三条 recipe 均无 `downloadURL` 安装链（`downloadURL` 仅作为
-  "打开官网"的展示链接）。
+- 状态: **已接入**，best-effort 就地 dmg 替换，叠在 Thunderbird 自己的更新器之上
+  （Team `43AQ936H96`）。此前本节记为「仅检测」、并称「三条 recipe 均无安装链」——
+  两句都已不成立，recipe 带 `install: VendorInstallSpec`。
+  「绝不碰自更新器」那条绝对规则已由用户设置 `vendorInstallPolicy` 取代：默认 `.deferWhenRunning` —— app 正在运行就交回它自己的更新器，没在运行才就地替换；选 `.alwaysOverwrite` 才总是由我们装。见 `UpdatePolicy.defersToSelfUpdater`。
+- ⚠️ 与 Firefox 同理：Mozilla 更新器不是 Squirrel/Sparkle，`SelfUpdaterStaging` 不覆盖它，
+  唯一的闸是 `vendorInstallPolicy`。
 - 格式: dmg（官网直发）
 - 阻塞: 无需求——自更新器接管。
 

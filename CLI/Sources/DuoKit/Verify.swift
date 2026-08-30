@@ -272,14 +272,14 @@ public enum Verify {
             let tally = GatewayRetry.Tally()
             var attempt = 0
             var outcome = await GatewayRetry.$tally.withValue(tally) {
-                await source.probeDiagnostic(recipe)
+                await source.probeDiagnostic(recipe, checkingInstallURL: true)
             }
             while attempt < options.infraRetries,
                   outcome.failure?.classification == .infra {
                 attempt += 1
                 try? await Task.sleep(for: .seconds(attempt))
                 outcome = await GatewayRetry.$tally.withValue(tally) {
-                    await source.probeDiagnostic(recipe)
+                    await source.probeDiagnostic(recipe, checkingInstallURL: true)
                 }
             }
             var finding = classify(

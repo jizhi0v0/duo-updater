@@ -321,6 +321,49 @@ public struct Baseline: Codable, Sendable {
 
     /// Whether this recipe has been actionable often enough to be worth
     /// reporting.
+    /// Drop rows whose recipe no longer exists in any registry.
+    ///
+    /// The file only ever grew: `reconcile` writes `entries[finding.recipeID]`
+    /// and nothing removes. A recipe that is deleted, renamed, or re-keyed
+    /// therefore leaves its last state behind forever, and that state reads as a
+    /// live signal — `changelog:com.TablePro:-` sat at `consecutiveActionable: 1`
+    /// for nine days after its recipe was deliberately removed, looking exactly
+    /// like an unattended finding. Re-keying is the common case, not deletion:
+    /// Claude Desktop's recipe split into `:ga` + `:rollout`, Zed's changelog
+    /// recipes gained a `channel:`, and three GitHub slugs were repointed at
+    /// renamed repos — seven stale rows on 2026-08-30, none of them a real
+    /// problem and all of them looking like one.
+    ///
+    /// Two guards, both load-bearing:
+    ///
+    /// - **An empty `live` prunes nothing.** The caller builds that set from the
+    ///   registries; if it ever hands over an empty one, the bug must not be a
+    ///   wiped baseline.
+    /// - **A row with an OPEN issue stays**, even when orphaned. The issue number
+    ///   is the only handle reconciliation has, and issues close on a clean
+    ///   verify — which a removed recipe never produces again. Dropping the row
+    ///   would strand an issue nothing can close. Kept rows are returned to the
+    ///   caller separately so a human can see them.
+    ///
+    /// Returns the ids removed, and the orphaned ids kept for an open issue.
+    @discardableResult
+    public mutating func prune(
+        keeping live: Set<String>
+    ) -> (removed: [String], keptWithOpenIssue: [String]) {
+        guard !live.isEmpty else { return ([], []) }
+        var removed: [String] = []
+        var kept: [String] = []
+        for (id, entry) in entries where !live.contains(id) {
+            if entry.issueNumber != nil, entry.closedAt == nil {
+                kept.append(id)
+            } else {
+                entries.removeValue(forKey: id)
+                removed.append(id)
+            }
+        }
+        return (removed.sorted(), kept.sorted())
+    }
+
     public func isReportable(_ recipeID: String) -> Bool {
         (entries[recipeID]?.consecutiveActionable ?? 0) >= Self.actionableThreshold
     }

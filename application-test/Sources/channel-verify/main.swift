@@ -242,9 +242,15 @@ let buildVersion: String? = {
 let ksChannel = info["KSChannelID"] as? String
 // The display name AppScanner sees is the bundle's on-disk file name.
 let displayName = appPath.deletingPathExtension().lastPathComponent
-// Mozilla's authoritative per-channel marker, read the same way AppScanner does.
-let remotingName = (bundleID?.hasPrefix("org.mozilla") == true)
-    ? AppScanner.mozillaRemotingName(in: appPath) : nil
+// Mozilla's authoritative per-channel marker AND its `BuildID`, read the same way
+// AppScanner does — one file, both fields. `BuildID` is what the pre-release
+// recipes compare against (`InstalledApp.vendorBuildVersion`); omitting it here
+// would make this harness report "up to date" for every beta and nightly, which is
+// the exact blind spot it exists to expose.
+let mozillaINI: (remotingName: String?, buildID: String?) =
+    (bundleID?.hasPrefix("org.mozilla") == true)
+    ? AppScanner.mozillaApplicationINI(in: appPath) : (nil, nil)
+let remotingName = mozillaINI.remotingName
 
 // WeChat DevTools keeps its real version and channel in its own `package.json`;
 // since 2.02 the Info.plist read above is Electron's stock one (`com.github.Electron`
@@ -287,6 +293,7 @@ print("""
   build version   \(buildVersion ?? "<none>")
   KSChannelID     \(ksChannel ?? "<none>")
   RemotingName    \(remotingName ?? "<none>")
+  BuildID         \(mozillaINI.buildID ?? "<none>")
   package.json    \(weChatDevTools.map { "\($0.version) · versionType → \($0.channel.rawValue)" } ?? "<none>")
   inferred        \(inferred.rawValue)\(bound == nil ? "" : "  (overridden below)")
   ChannelBinding  \(bound.map { "\($0.channel.rawValue) — read from this app's own preference" } ?? "<none for this app>")
@@ -309,6 +316,7 @@ let app = InstalledApp(
     bundleID: bundleID,
     shortVersion: shortVersion,
     buildVersion: buildVersion,
+    vendorBuildVersion: mozillaINI.buildID,
     path: appPath,
     isMASApp: false,
     sparkleFeedURL: nil,
@@ -340,9 +348,14 @@ if let remote {
     // the thing it was built to catch; call the gate.
     switch UpdateChecker.evaluate(installed: app, remote: remote) {
     case .updateAvailable(let latest):
-        let from = remote.version != nil && buildVersion != nil
-            ? "\(shortVersion ?? "?") (\(buildVersion!))" : (shortVersion ?? "?")
-        let to = remote.version != nil && buildVersion != nil
+        // Name the build the engine actually compared. A `.vendor`-namespace
+        // remote is measured against `application.ini`'s `BuildID`, so printing
+        // `CFBundleVersion` beside it would show two unrelated numbers and read
+        // like a bug in the comparison.
+        let installedBuild = app.buildVersion(in: remote.buildNamespace)
+        let from = remote.version != nil && installedBuild != nil
+            ? "\(shortVersion ?? "?") (\(installedBuild!))" : (shortVersion ?? "?")
+        let to = remote.version != nil && installedBuild != nil
             ? "\(latest) (\(remote.version!))" : latest
         print("    verdict       UPDATE \(from) → \(to)")
     case .upToDate:

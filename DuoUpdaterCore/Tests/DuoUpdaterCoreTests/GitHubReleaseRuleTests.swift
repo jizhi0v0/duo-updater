@@ -111,6 +111,23 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     return name.range(of: p, options: .regularExpression) != nil
 }
 
+@Test func fluidVoiceRuleRejectsBetaAndWindowsTags() {
+    #expect(extract("v1.6.9", "com.FluidApp.app") == "1.6.9")
+    // Real tags on the same repo (observed 2026-08-30). An unanchored
+    // `v?([0-9.]+)` would read `1.5.11` out of the beta and `0.0.9` out of the
+    // Windows prerelease — both of which `/releases/latest` hides today, but
+    // the list fallback would surface the moment a stable release shipped
+    // without its dmg.
+    #expect(extract("v1.5.11-beta.3", "com.FluidApp.app") == nil)
+    #expect(extract("windows-v0.0.9", "com.FluidApp.app") == nil)
+    #expect(matches("Fluid-oss-1.6.9.dmg", "com.FluidApp.app"))
+    #expect(!matches("Fluid-oss-1.6.9.zip", "com.FluidApp.app"))
+    #expect(!matches("Fluid-oss-1.5.11-beta.3.dmg", "com.FluidApp.app"))
+    #expect(!matches("FluidVoice_0.0.9_x64-setup.exe", "com.FluidApp.app"))
+    #expect(rule("com.FluidApp.app").slug == "altic-dev/FluidVoice")
+    #expect(rule("com.FluidApp.app").installerKind == .dmg)
+}
+
 @Test func ccSwitchRulePicksTheMacDmg() {
     #expect(extract("v3.19.2", "com.ccswitch.desktop") == "3.19.2")
     #expect(matches("CC-Switch-v3.19.2-macOS.dmg", "com.ccswitch.desktop"))

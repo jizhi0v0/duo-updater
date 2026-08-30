@@ -801,6 +801,18 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^Pearcleaner\.dmg$"#,
             installerKind: .dmg),
 
+        // Claude Status Bar — menu-bar quota indicator for Claude Code. v-tags,
+        // and the dmg asset name is versionless (ClaudeStatusBar.dmg on every
+        // release), so the asset pattern is the literal filename. Mounted
+        // v0.4.4: com.local.claudestatusbar, short == build == tag, Team
+        // W9JZ4932LA, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.local.claudestatusbar",
+            owner: "m1ckc3s", repo: "claude-status-bar",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^ClaudeStatusBar\.dmg$"#,
+            installerKind: .dmg),
+
         // RustDesk — tags have no `v` prefix. One-click installs the arm64 dmg
         // asset (`rustdesk-<ver>-aarch64.dmg`): the official GitHub build is a
         // notarized Developer ID app, Team ID HZF9JMC8YN (zhou huabing), matching

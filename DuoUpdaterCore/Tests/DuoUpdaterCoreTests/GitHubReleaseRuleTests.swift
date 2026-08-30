@@ -39,6 +39,16 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func claudeStatusBarRuleReadsVPrefixedTagsAndTheVersionlessDmg() {
+    #expect(extract("v0.4.4", "com.local.claudestatusbar") == "0.4.4")
+    #expect(extract("v0.4.4-beta.1", "com.local.claudestatusbar") == nil)
+    let pattern = try! #require(rule("com.local.claudestatusbar").installAssetPattern)
+    #expect("ClaudeStatusBar.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("ClaudeStatusBar.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("com.local.claudestatusbar").slug == "m1ckc3s/claude-status-bar")
+    #expect(rule("com.local.claudestatusbar").installerKind == .dmg)
+}
+
 @Test func insomniaRuleMatchesCoreTagOnly() {
     // Captures the desktop version from a stable core@ tag…
     #expect(extract("core@12.6.0", "com.insomnia.app") == "12.6.0")

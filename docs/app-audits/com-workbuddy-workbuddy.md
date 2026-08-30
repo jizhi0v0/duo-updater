@@ -146,7 +146,7 @@ app 的两个 channel。
 - 只动 build 计数器的重新出包检测不到（见陷阱二）——已知代价，不是缺陷。
 - 国际站 changelog 页滞后于其发布轨道，vendor 侧问题，我们这边无解。
 - x64 那两条 recipe 的产物没有下载挂载验证过，只验证了「存在 + 分架构命名」；
-  跨架构不误取由单测守着（证据见下文「如何复验」。）。
+  跨架构不误取由单测守着（复验方法见下文「如何复验」）。
 
 ## 验证
 
@@ -155,7 +155,7 @@ swift run --package-path application-test channel-verify <WorkBuddy DMG>   # 两
 duo verify --only workbuddy                                                # 4 vendor probes ✓ 4 ⚠ 0 ✗ 0
 ```
 
-实证记录证据见下文「如何复验」。；
+实证记录见下文「如何复验」；
 回归测试见 `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/WorkBuddyProbeRecipeTests.swift`
 （从 registry 推导，12 条）。
 

@@ -51,14 +51,37 @@ def audit_files():
     )
 
 
+# A markdown link target. `/` is allowed so that `./name.md` — which GitHub
+# renders identically to `name.md` — is read as the link it is rather than
+# reported as a missing one.
+LINK = re.compile(r"\]\(([A-Za-z0-9._/-]+\.md)\)")
+
+
+def links_in(path):
+    """(line number, target) for every markdown link to a .md file."""
+    for n, line in enumerate(open(path, encoding="utf-8"), 1):
+        for target in LINK.findall(line):
+            yield n, target
+
+
 def check_index(problems):
-    text = open(INDEX, encoding="utf-8").read()
-    linked = set(re.findall(r"\]\(([A-Za-z0-9._-]+\.md)\)", text))
-    files = set(audit_files())
-    for f in sorted(files - linked):
+    linked = {t.lstrip("./") for _, t in links_in(INDEX)}
+    for f in sorted(set(audit_files()) - linked):
         problems.append(f"{AUD}/{f}: not linked from README.md")
-    for f in sorted(linked - files):
-        problems.append(f"{INDEX}: links {f}, which does not exist")
+
+
+def check_links_resolve(problems):
+    """Every link in every audit, not just the index.
+
+    The index check above only proves a file is REACHED. Audits also link to
+    each other — org-mozilla-firefox.md and org-mozilla-thunderbird.md point at
+    each other today — and renaming one used to break the other silently.
+    """
+    for f in audit_files() + ["README.md"]:
+        path = os.path.join(AUD, f)
+        for n, target in links_in(path):
+            if not os.path.exists(os.path.join(AUD, target)):
+                problems.append(f"{path}:{n}: links {target}, which does not exist")
 
 
 def check_no_machine_state(problems):
@@ -84,30 +107,55 @@ def check_no_local_evidence_pointers(problems):
                 )
 
 
-def check_filename_matches_bundle_id(problems):
+def registry_bundle_ids():
+    """Every bundle id the recipe registries name.
+
+    Derived rather than listed, because a hand-kept list is the thing this
+    script exists to stop. It is what lets the filename check accept Msty's
+    dotless `MstyStudio` without also accepting every backticked word: a
+    reverse-DNS shape is a good heuristic, registry membership is a fact.
+    """
+    ids = set()
+    src = "DuoUpdaterCore/Sources/DuoUpdaterCore/Sources"
+    for name in os.listdir(src):
+        if not name.endswith(".swift"):
+            continue
+        text = open(os.path.join(src, name), encoding="utf-8").read()
+        ids.update(re.findall(r'bundleID:\s*"([^"]+)"', text))
+    return {i.replace(".", "-").lower() for i in ids}
+
+
+def check_filename_matches_bundle_id(problems, registry):
     for f in audit_files():
         if f in NON_APP:
             continue
+        stem = f[:-3].lower()
         text = open(os.path.join(AUD, f), encoding="utf-8").read()
-        # Any backticked identifier in the doc. Bundle ids are usually
-        # reverse-DNS, but not always — Msty ships a dotless `MstyStudio`, and
-        # that audit exists partly to say so.
         quoted = {
             m.replace(".", "-").lower()
             for m in re.findall(r"`([A-Za-z][A-Za-z0-9\-]*(?:\.[A-Za-z0-9\-_]+)*)`", text)
         }
-        if f[:-3].lower() not in quoted:
+        if stem not in quoted:
             problems.append(
                 f"{AUD}/{f}: filename names no bundle id the document mentions"
+            )
+        elif "-" not in stem and stem not in registry:
+            # Dotless stem that no registry entry backs. `MstyStudio` is real;
+            # `changelog.md` mentioning `changelog` is a stray doc sneaking in
+            # through a check meant to keep it out.
+            problems.append(
+                f"{AUD}/{f}: dotless filename matches no registry bundle id — "
+                "if this is not an app audit, add it to NON_APP"
             )
 
 
 def main():
     problems = []
     check_index(problems)
+    check_links_resolve(problems)
     check_no_machine_state(problems)
     check_no_local_evidence_pointers(problems)
-    check_filename_matches_bundle_id(problems)
+    check_filename_matches_bundle_id(problems, registry_bundle_ids())
 
     if problems:
         print("✗ app audits disagree with the rules that keep them publishable:")

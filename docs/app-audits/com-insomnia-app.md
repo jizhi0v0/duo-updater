@@ -78,7 +78,7 @@ tag。回归测试 `insomniaRuleMatchesCoreTagOnly` 已 pin 该 feed。
 - 格式: dmg
 
 ## 真机验证（Phase 3¾）
-证据已折入本文档。
+结论见上文「Key findings」；原始 channel-verify 输出未保留。
 
 ## 建议下一步
 1. ✅ stable ChangelogRecipe 已接（见上）。

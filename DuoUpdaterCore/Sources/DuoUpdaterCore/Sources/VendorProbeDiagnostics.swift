@@ -130,6 +130,21 @@ public enum ProbeWarning: Sendable, Equatable {
     /// a healthy recipe file issues against itself. The same 5xx/429-is-not-our-
     /// fault rule already governs version probes (see `ProbeFailure.category`).
     case installURLTransient(status: Int?)
+    /// The installer URL resolved to a well-formed URL that the vendor no longer
+    /// serves — a 4xx that survived a `Range: bytes=0-0` GET retry.
+    ///
+    /// Deliberately NOT `installURLUnresolved`. That one means the recipe could
+    /// not even BUILD a URL (a pattern stopped matching), and the fix is to go
+    /// re-derive the pattern. This one means the pattern still works and the
+    /// vendor moved or deleted the artifact, and the fix is to find where it
+    /// went. Collapsing them would hand whoever picks up the issue the wrong
+    /// starting point.
+    ///
+    /// Only the sweep raises this: resolving an install URL is on the same code
+    /// path as an ordinary update check, and a check must not pay an extra
+    /// request per app for a question only the nightly asks. See
+    /// `VendorProbeSource.probeDiagnostic(_:checkingInstallURL:)`.
+    case installURLNotFound(status: Int?, host: String?)
     /// `checksumPattern` is set but matched nothing, so the download would be
     /// installed without SHA-512 verification.
     case checksumPatternNoMatch
@@ -171,10 +186,42 @@ public enum ProbeWarning: Sendable, Equatable {
     /// history check there is looks for a version moving BACKWARDS.
     case displayPatternNoMatch
 
+    /// The part of a warning that varies, kept OUT of `kind` on purpose.
+    ///
+    /// `kind` is what the reconcile step keys a filed issue on, so anything that
+    /// moves between sweeps must not live there. But a bare `installURLNotFound`
+    /// is close to useless to whoever picks the issue up: it cannot tell a 404
+    /// (the artifact moved — go find it) from a 403 (a WAF or a geo-block — the
+    /// recipe is fine), which is exactly the distinction the SourceForge
+    /// false-accusation turned on. And the finding's `endpointHost` names the
+    /// VERSION endpoint, which for this warning answered perfectly — so the host
+    /// that actually failed appeared nowhere at all.
+    ///
+    /// Status and host, not the full URL: both are stable for a given recipe,
+    /// where a `versionTemplate` URL changes with every release and would churn
+    /// the signature for no new information.
+    public var detail: String? {
+        switch self {
+        case .installURLNotFound(let status, let host):
+            let code = status.map { "HTTP \($0)" } ?? "no answer"
+            return host.map { "\(code) from \($0)" } ?? code
+        case .installURLTransient(let status):
+            return status.map { "HTTP \($0)" }
+        default:
+            return nil
+        }
+    }
+
+    /// `kind`, plus `detail` when there is one. What the sweep publishes.
+    public var display: String {
+        detail.map { "\(kind): \($0)" } ?? kind
+    }
+
     public var kind: String {
         switch self {
         case .installURLUnresolved: return "installURLUnresolved"
         case .installURLTransient: return "installURLTransient"
+        case .installURLNotFound: return "installURLNotFound"
         case .checksumPatternNoMatch: return "checksumPatternNoMatch"
         case .entryPatternNoMatch: return "entryPatternNoMatch"
         case .displayPatternNoMatch: return "displayPatternNoMatch"

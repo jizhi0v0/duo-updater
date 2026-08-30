@@ -272,14 +272,14 @@ public enum Verify {
             let tally = GatewayRetry.Tally()
             var attempt = 0
             var outcome = await GatewayRetry.$tally.withValue(tally) {
-                await source.probeDiagnostic(recipe)
+                await source.probeDiagnostic(recipe, checkingInstallURL: true)
             }
             while attempt < options.infraRetries,
                   outcome.failure?.classification == .infra {
                 attempt += 1
                 try? await Task.sleep(for: .seconds(attempt))
                 outcome = await GatewayRetry.$tally.withValue(tally) {
-                    await source.probeDiagnostic(recipe)
+                    await source.probeDiagnostic(recipe, checkingInstallURL: true)
                 }
             }
             var finding = classify(
@@ -837,7 +837,7 @@ public enum Verify {
 
         // The judgment rules live in `RecipeSanity`, in the core next to the
         // registry they guard — a second copy here would drift from it.
-        var warnings = outcome.warnings.map(\.kind)
+        var warnings = outcome.warnings.map(\.display)
         warnings.append(contentsOf: sanity(version, remote))
         if let installed, let complaint = RecipeSanity.remoteBehindInstalled(
             remote: remote, installedMarketing: installed.marketing,
@@ -849,7 +849,13 @@ public enum Verify {
         // against a recipe that is working. `td.telegram.org` 502s that HEAD in
         // bursts, which is what this exists for. Everything else keeps flipping
         // the finding to `.warn`, including a genuinely dead install URL.
-        let actionable = warnings.filter { $0 != ProbeWarning.installURLTransient(status: nil).kind }
+        // `hasPrefix`, not `==`: a warning is published as `kind: detail`, and the
+        // detail is what tells a 404 from a 403. Matching the whole string here
+        // would silently stop exempting transients the moment one carried a
+        // status — i.e. always — and start filing issues against vendors having
+        // a bad minute.
+        let transientKind = ProbeWarning.installURLTransient(status: nil).kind
+        let actionable = warnings.filter { !$0.hasPrefix(transientKind) }
         return make(actionable.isEmpty ? .ok : .warn, version: version, warnings: warnings)
     }
 

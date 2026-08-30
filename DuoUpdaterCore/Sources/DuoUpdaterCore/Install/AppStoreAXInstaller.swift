@@ -127,7 +127,9 @@ public actor AppStoreAXInstaller {
         currentShortVersion: String?,
         viaUpdatesList: Bool = false,
         onStage: @Sendable @escaping (InstallStage) -> Void,
-        confirmQuit: @Sendable @escaping (String) async -> Bool
+        requestQuit: @Sendable @escaping (String) -> Void,
+        quitAnswer: @Sendable @escaping () async -> QuitPromptAnswer,
+        withdrawQuit: @Sendable @escaping () -> Void
     ) async throws {
         guard Self.isTrusted else { throw AXError.notTrusted }
 
@@ -219,7 +221,9 @@ public actor AppStoreAXInstaller {
             viaUpdatesList: viaUpdatesList,
             sheetBeforePress: sheetBeforePress,
             onStage: onStage,
-            confirmQuit: confirmQuit
+            requestQuit: requestQuit,
+            quitAnswer: quitAnswer,
+            withdrawQuit: withdrawQuit
         )
 
         // A product-page install leaves App Store's cached "N updates available" count
@@ -452,7 +456,9 @@ public actor AppStoreAXInstaller {
         viaUpdatesList: Bool,
         sheetBeforePress: Bool,
         onStage: @Sendable @escaping (InstallStage) -> Void,
-        confirmQuit: @Sendable @escaping (String) async -> Bool
+        requestQuit: @Sendable @escaping (String) -> Void,
+        quitAnswer: @Sendable @escaping () async -> QuitPromptAnswer,
+        withdrawQuit: @Sendable @escaping () -> Void
     ) async throws {
         // Every press here — the quit sheet's Continue/Cancel and the idle re-press —
         // honors a backgrounded App Store, so nothing activates (see `update`). App Store
@@ -482,9 +488,20 @@ public actor AppStoreAXInstaller {
             Log.install.info("appstore-ax: \(appName, privacy: .public) a sheet was already up before we pressed — ignoring it until it clears")
         }
 
-        // ~6 min hard cap of *polling* — the suspension on `confirmQuit` below doesn't
-        // burn iterations, so waiting on the user's Relaunch tap never times us out.
-        for _ in 0..<900 {
+        // Is our quit prompt on screen and unanswered? While it is we keep polling —
+        // that is the whole fix, since the answer can arrive in App Store's own window
+        // and only a poll can see that — but spend no budget, so a user who takes a
+        // minute to decide never times the install out. That freedom used to come from
+        // *awaiting* the answer, which is exactly what stopped us watching.
+        var askedToQuit = false
+        /// Polls our prompt has been up with no sheet behind it — the window in which
+        /// a dismissal elsewhere is told apart from a redraw.
+        var sheetlessPromptTicks = 0
+
+        // ~6 min hard cap of *polling*, not of elapsed time — see `askedToQuit`.
+        var polls = 0
+        while polls < 900 {
+            if !askedToQuit { polls += 1 }
             // 1. Completion: the bundle on disk has been swapped for the new build.
             // Covers both the app-not-running case (installs directly, no sheet) and
             // the post-Continue swap. Keyed on short OR build version changing.
@@ -571,17 +588,46 @@ public actor AppStoreAXInstaller {
                     // swapped — 2026-06-08). This is the only point we steal focus — the whole
                     // download ran in the background; the user just tapped Relaunch and expects
                     // the app to cycle.
-                    Log.install.info("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — awaiting user Relaunch/Cancel")
-                    guard await confirmQuit(appName) else {
+                    if !askedToQuit {
+                        Log.install.info("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — asking for Relaunch/Cancel")
+                        requestQuit(appName)
+                        askedToQuit = true
+                    }
+                    sheetlessPromptTicks = 0
+                    // The sheet has two affirmative buttons within the user's reach:
+                    // ours and App Store's own Continue. `QuitPrompt` weighs both, plus
+                    // the disk — so an answer given in the store's window settles this
+                    // too, and a late tap on ours can never quit an app whose update
+                    // has already landed. See there for what going without cost.
+                    switch QuitPrompt.decide(
+                        answer: await quitAnswer(),
+                        sheetPresent: true,
+                        versionChanged: Self.versionChanged(from: baseline, appPath: appPath),
+                        appRunning: isRunning(bundleID)
+                    ) {
+                    case .keepWaiting:
+                        break
+                    case .cancelled:
                         Log.install.info("appstore-ax: \(appName, privacy: .public) user declined — pressing Cancel")
+                        withdrawQuit()
                         pressCancel(in: axApp, appName: appName)
                         throw AXError.cancelled
+                    case .settledElsewhere:
+                        Log.install.info("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
+                        withdrawQuit()
+                        askedToQuit = false
+                        onStage(.installing)
+                        continued = true
+                        sheetTicks = 0
+                    case .quitTheApp:
+                        withdrawQuit()
+                        askedToQuit = false
+                        onStage(.installing)  // "Relaunching" — quit the app, App Store swaps
+                        activateAppStore()
+                        await terminateAndWait(bundleID: bundleID, appName: appName)
+                        continued = true
+                        sheetTicks = 0
                     }
-                    onStage(.installing)  // "Relaunching" — quit the app, App Store swaps
-                    activateAppStore()
-                    await terminateAndWait(bundleID: bundleID, appName: appName)
-                    continued = true
-                    sheetTicks = 0
                 } else {
                     // A sheet with no download behind it (or the app already gone) is a
                     // subscription / purchase / terms confirmation. But a *fast* delta can
@@ -602,6 +648,63 @@ public actor AppStoreAXInstaller {
                 }
             } else {
                 sheetTicks = 0
+                if askedToQuit {
+                    // Our prompt is up but the sheet behind it is gone. Two ways that
+                    // happens, and they need opposite answers, so ask the same rule with
+                    // what we can see rather than guessing:
+                    //
+                    //   • the user pressed Continue in App Store — the app is down and
+                    //     the swap is running, so stop asking and go watch for it.
+                    //   • the user pressed Cancel there — the app is still up and
+                    //     nothing is coming. Leaving the prompt on screen would strand
+                    //     a button that no longer means anything, and holding the
+                    //     budget open would mean the install never ends at all.
+                    //
+                    // A momentary redraw looks like the second one for a poll or two, so
+                    // it has to persist before we call it a cancel — same shape as the
+                    // `sheetTicks >= 8` grace above, and the same reason. Counted in
+                    // polls, which here run at the slower prompt cadence: four of them
+                    // is ~6s, three orders of magnitude past a redraw and still short
+                    // enough that a cancel doesn't leave the row looking stuck.
+                    switch QuitPrompt.decide(
+                        answer: await quitAnswer(),
+                        sheetPresent: false,
+                        versionChanged: Self.versionChanged(from: baseline, appPath: appPath),
+                        appRunning: bundleID.map { isRunning($0) } ?? false
+                    ) {
+                    case .settledElsewhere:
+                        Log.install.info("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
+                        withdrawQuit()
+                        askedToQuit = false
+                        onStage(.installing)
+                        continued = true
+                        sheetlessPromptTicks = 0
+                    case .quitTheApp:
+                        // The user tapped our Relaunch after the sheet went away. Honour
+                        // it — quitting is still what lets the store swap — but only if
+                        // we know what to quit; with no bundle id there is nothing to
+                        // address, and the swap is watched for either way.
+                        withdrawQuit()
+                        askedToQuit = false
+                        onStage(.installing)
+                        activateAppStore()
+                        if let bundleID {
+                            await terminateAndWait(bundleID: bundleID, appName: appName)
+                        }
+                        continued = true
+                        sheetlessPromptTicks = 0
+                    case .cancelled:
+                        withdrawQuit()
+                        throw AXError.cancelled
+                    case .keepWaiting:
+                        sheetlessPromptTicks += 1
+                        if sheetlessPromptTicks >= 4 {  // ~6s at the 1.5s prompt cadence
+                            Log.install.info("appstore-ax: \(appName, privacy: .public) close-to-update sheet dismissed elsewhere with the app still running — treating as cancelled")
+                            withdrawQuit()
+                            throw AXError.cancelled
+                        }
+                    }
+                }
             }
 
             // 3. Surface download progress from the offer button title (display only).
@@ -638,7 +741,13 @@ public actor AppStoreAXInstaller {
                 }
             }
 
-            try await Task.sleep(for: .milliseconds(400))
+            // Slower while the question is on screen. Awaiting the answer used to
+            // cost nothing at all — the task was simply suspended — so polling for it
+            // at the install cadence would be a regression paid by anyone who leaves
+            // the prompt sitting: an AX tree walk every 400 ms for as long as they
+            // take. A person deciding is not a swap in flight, and 1.5 s is still far
+            // inside human reaction time for noticing an answer given in App Store.
+            try await Task.sleep(for: .milliseconds(askedToQuit ? 1_500 : 400))
         }
         Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — 6-min poll cap reached (continued=\(continued) sawProgress=\(sawProgress))")
         throw AXError.timedOut

@@ -6139,6 +6139,46 @@ public enum VendorProbeRegistry {
             variant: "ccc5",
             hostRequirement: VendorHostRequirement(minimumSystemVersion: "10.10"),
             installedVersionPattern: #"^5\."#),
+
+        // MARK: - 2026-08-30 ChatGPT Classic
+
+        // ChatGPT Classic (`com.openai.chat`) — OpenAI's PREVIOUS desktop app,
+        // kept alive in maintenance mode (its release notes literally push the
+        // new ChatGPT app: "Or, try the new ChatGPT app"). Still updating as of
+        // 2026-08-30 (1.2026.184 / build 1784145287, published 2026-07-15), and
+        // the installed base is real — but its bundle carries NO `SUFeedURL`
+        // (verified against the mounted dmg), so the generic Sparkle source
+        // can't see it even though the vendor publishes a Sparkle feed. The
+        // feed at `sidekick/public/sparkle_public_appcast.xml` is EXACTLY the
+        // endpoint Homebrew's own `chatgpt-classic` cask names in its
+        // `livecheck` block (`strategy :sparkle`) — a third-party witness that
+        // this is the vendor's intended version surface.
+        //
+        // Feed shape: one `<item>` whose `sparkle:shortVersionString` is the
+        // marketing version (matches CFBundleShortVersionString; the build
+        // `sparkle:version` == CFBundleVersion 1784145287, same namespace, so
+        // no versionIsBuild). The enclosure is an UNVERSIONED moving pointer
+        // (`ChatGPT_Classic.pkg`), but version and enclosure come from the SAME
+        // feed entry — freshness is guaranteed by construction, better than a
+        // separate version.txt + /latest/ dmg pairing.
+        //
+        // One-click: `kind: .pkg`, resolved straight from the enclosure — the
+        // pkg was downloaded and verified 2026-08-30: "Developer ID Installer:
+        // OpenAI OpCo, LLC (2DC432GLL2)", notarized, trusted timestamp
+        // 2026-07-15, standard flat pkg (Payload/Scripts), so the system
+        // installer places anything the app needs outside the bundle. Same
+        // Team as the installed bundle (2DC432GLL2) → the VendorInstaller gate
+        // passes. Feed also declares `hardwareRequirements=arm64` and
+        // minimumSystemVersion 14.0.
+        VendorProbeRecipe(
+            bundleID: "com.openai.chat",
+            url: URL(string: "https://persistent.oaistatic.com/sidekick/public/sparkle_public_appcast.xml")!,
+            mode: .responseBody,
+            versionPattern: #"<sparkle:shortVersionString>([0-9][^<]*)</sparkle:shortVersionString>"#,
+            downloadURL: URL(string: "https://chatgpt.com/download/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#"url="(https://[^"]+\.pkg)""#),
+                kind: .pkg)),
     ]
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus

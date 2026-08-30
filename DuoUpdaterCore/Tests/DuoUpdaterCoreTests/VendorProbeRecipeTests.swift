@@ -367,3 +367,58 @@ private let timeMachineEditorHomepageFixture = #"""
     }
     #expect(url.absoluteString == "https://tclementdev.com/timemachineeditor/TimeMachineEditor.pkg")
 }
+
+// MARK: - 2026-08-30 ChatGPT Classic
+
+/// Verbatim body of
+/// `https://persistent.oaistatic.com/sidekick/public/sparkle_public_appcast.xml`,
+/// fetched 2026-08-30 (description elided; the version fields and enclosure are
+/// verbatim).
+private let chatGPTClassicAppcastFixture = #"""
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>ChatGPT Classic</title>
+        <item>
+            <title>1.2026.184</title>
+            <pubDate>Wed, 15 Jul 2026 13:50:00 +0000</pubDate>
+            <sparkle:version>1784145287</sparkle:version>
+            <sparkle:shortVersionString>1.2026.184</sparkle:shortVersionString>
+            <sparkle:minimumAutoupdateVersion>1784145287</sparkle:minimumAutoupdateVersion>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://persistent.oaistatic.com/sidekick/public/ChatGPT_Classic.pkg" length="78412259" type="application/octet-stream" sparkle:installationType="package" sparkle:edSignature="fRwKbzOkVRrTkvIJd12bw8Lx2SGXX9JJKeId9rcrimBd3KoUZ6VoL5far+MpMffVMNtjoacSuQMHzS3xg44FAg=="/>
+        </item>
+    </channel>
+</rss>
+"""#
+
+/// The bundle has no SUFeedURL (verified against the mounted dmg), so this
+/// probe is the only source able to answer for `com.openai.chat` — the appcast
+/// Homebrew's own `chatgpt-classic` livecheck reads. The version must come
+/// from the item's shortVersionString (marketing field), not the build.
+@Test func chatGPTClassicReadsTheVersionFromTheAppcast() {
+    #expect(batchVersion("com.openai.chat", in: chatGPTClassicAppcastFixture) == "1.2026.184")
+}
+
+/// The enclosure is an unversioned moving pkg pointer — version and enclosure
+/// come from the same feed entry, so freshness is by construction — and the
+/// install must be `kind: .pkg` (verified Developer ID Installer pkg, not a
+/// self-extracted dmg).
+@Test func chatGPTClassicInstallsTheFeedPkgFromTheEnclosure() throws {
+    let recipe = try #require(batchRecipe("com.openai.chat"))
+    let install = try #require(recipe.install)
+    #expect(install.kind == .pkg)
+    guard case .bodyPattern(let pattern) = install.urlSource else {
+        Issue.record("expected a body-pattern install URL"); return
+    }
+    let regex = try NSRegularExpression(pattern: pattern)
+    let match = try #require(
+        regex.firstMatch(
+            in: chatGPTClassicAppcastFixture, options: [],
+            range: NSRange(chatGPTClassicAppcastFixture.startIndex..., in: chatGPTClassicAppcastFixture)))
+    let group = try #require(Range(match.range(at: 1), in: chatGPTClassicAppcastFixture))
+    #expect(
+        String(chatGPTClassicAppcastFixture[group])
+            == "https://persistent.oaistatic.com/sidekick/public/ChatGPT_Classic.pkg")
+}

@@ -39,6 +39,19 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func agentsViewRulePinsTheAarch64Dmg() {
+    #expect(extract("v0.41.1", "io.agentsview.desktop") == "0.41.1")
+    let pattern = try! #require(rule("io.agentsview.desktop").installAssetPattern)
+    #expect("AgentsView_0.41.1_aarch64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("AgentsView_0.41.1_x64.dmg".range(of: pattern, options: .regularExpression) == nil)
+    // The tar.gz-only releases (v0.41.0, v0.33.1) must not match: the release
+    // walk should skip them, not extract a version from a Linux-ish asset.
+    #expect("agentsview_0.41.0_darwin_arm64.tar.gz".range(of: pattern, options: .regularExpression) == nil)
+    #expect("AgentsView-0.41.1-windows-arm64.msi".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("io.agentsview.desktop").slug == "kenn-io/agentsview")
+    #expect(rule("io.agentsview.desktop").installerKind == .dmg)
+}
+
 @Test func insomniaRuleMatchesCoreTagOnly() {
     // Captures the desktop version from a stable core@ tag…
     #expect(extract("core@12.6.0", "com.insomnia.app") == "12.6.0")

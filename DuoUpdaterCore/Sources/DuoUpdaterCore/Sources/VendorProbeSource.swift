@@ -867,11 +867,17 @@ public struct VendorProbeSource: UpdateSource {
         // does — so a display marketing string here never drives the comparison.
         let shortVersion = recipe.versionIsBuild ? display : version
         let buildVersion = recipe.versionIsBuild ? version : nil
+        // Only meaningful alongside a build. A detection-only marketing answer is
+        // in no build namespace at all, and stamping one on it would let a future
+        // reader think the comparison was namespaced when it wasn't.
+        let namespace: InstalledApp.BuildNamespace =
+            recipe.versionIsBuild ? recipe.buildNamespace : .bundle
 
         if let spec, let plan {
             return RemoteVersion(
                 shortVersion: shortVersion,
                 version: buildVersion,
+                buildNamespace: namespace,
                 downloadURL: plan.url,
                 // The install plan's URL is the artifact we fetch — handing it to
                 // a browser downloads a pkg instead of opening a page. The recipe's
@@ -898,6 +904,7 @@ public struct VendorProbeSource: UpdateSource {
         return RemoteVersion(
             shortVersion: shortVersion,
             version: buildVersion,
+            buildNamespace: namespace,
             downloadURL: recipe.downloadURL ?? resolvedDownload,
             // Only the curated `downloadURL` is a page. `resolvedDownload` falls
             // back to the probe endpoint, which is an API/redirect that serves a

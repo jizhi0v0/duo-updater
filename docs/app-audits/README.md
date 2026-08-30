@@ -147,6 +147,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Superwhisper**](com-superduper-superwhisper.md) · `com.superduper.superwhisper` — S · real zip/feed verified ✓ · 2026-08-17
 - [x] [**Perplexity Mac**](ai-perplexity-macv3.md) · `ai.perplexity.macv3` — S detection; current dmg unnotarized, no one-click · 2026-08-17
 - [x] [**Dia Browser**](company-thebrowser-dia.md) · `company.thebrowser.dia` — S · real DMG/feed verified ✓ · 2026-08-17
+- [x] [**Supacode**](app-supabit-supacode.md) · `app.supabit.supacode` — S · default+tip 两轨真包验证 ✓（tip 经 build 反查推断，零 recipe）· 2026-08-30
 
 ## Investigated — blocked safely
 

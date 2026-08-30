@@ -83,6 +83,30 @@ public struct VendorInstallSpec: Sendable {
         case redirect(URL)
         /// A fixed, already-final installer URL.
         case fixed(URL)
+
+        /// Whether resolving this source already proved the URL is served.
+        ///
+        /// Only `.redirect` does: it HEAD-follows the stable link and returns the
+        /// URL it landed on, so a 4xx there has already failed resolution. Every
+        /// other case BUILDS a URL — from a template, or by lifting it out of the
+        /// response body — and returns it without ever asking the vendor whether
+        /// it still exists. That is the gap the sweep's reachability probe fills:
+        /// a vendor that renames or deletes an artifact leaves the pattern
+        /// matching and the version reading, so the recipe grades healthy while
+        /// one-click is dead.
+        ///
+        /// Written as an exhaustive switch, not `if case .redirect`, so adding a
+        /// URL source forces a decision here instead of silently defaulting into
+        /// "already proven" and skipping the probe.
+        public var provesReachabilityWhenResolved: Bool {
+            switch self {
+            case .redirect: return true
+            case .fixed, .versionTemplate, .bodyTemplate,
+                 .bodyPattern, .bodyPatternLast, .bodyPatternHighestVersioned,
+                 .bodyPatternRelative:
+                return false
+            }
+        }
     }
 
     public let urlSource: URLSource

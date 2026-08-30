@@ -365,8 +365,19 @@ public struct VendorProbeSource: UpdateSource {
     /// reimplementation elsewhere would drift and start reporting failures the
     /// app never sees — and, worse, passes for recipes the app can't actually
     /// resolve.
-    public func probeDiagnostic(_ recipe: VendorProbeRecipe) async -> ProbeOutcome {
-        await probeOutcome(recipe, allowInstall: true)
+    /// Run one recipe for the sweep, which unlike an update check wants every
+    /// half-broken thing named rather than worked around.
+    ///
+    /// `checkingInstallURL` defaults to FALSE, and the default is the whole
+    /// point: this method is the entry point for the recipe unit tests as well
+    /// as the nightly, and it shares `probeOutcome` with the ordinary update
+    /// path. Defaulting it on would put an extra request per app on every user's
+    /// every check, and would send dozens of existing tests at live download
+    /// hosts. Only `duo verify` passes true.
+    public func probeDiagnostic(
+        _ recipe: VendorProbeRecipe, checkingInstallURL: Bool = false
+    ) async -> ProbeOutcome {
+        await probeOutcome(recipe, allowInstall: true, checkInstallURL: checkingInstallURL)
     }
 
     /// Where this machine's track value came from — read off disk, or the
@@ -492,7 +503,11 @@ public struct VendorProbeSource: UpdateSource {
     /// not the old best-effort nil: only `.notApplicable` still degrades to nil
     /// (the silent "—"), and every other classification is thrown and rendered as
     /// a retryable `.error` row. See ``ProbeFailure``.
-    func probeOutcome(_ recipe: VendorProbeRecipe, allowInstall: Bool = true) async -> ProbeOutcome {
+    func probeOutcome(
+        _ recipe: VendorProbeRecipe,
+        allowInstall: Bool = true,
+        checkInstallURL: Bool = false
+    ) async -> ProbeOutcome {
         let started = DispatchTime.now()
         func elapsed() -> Int {
             Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
@@ -639,6 +654,20 @@ public struct VendorProbeSource: UpdateSource {
                 // still installs — unverified. Silent today; flag it.
                 if spec.checksumPattern != nil, plan.checksum == nil {
                     warnings.append(.checksumPatternNoMatch)
+                }
+                // Resolving proved the URL is well-formed, not that the vendor
+                // still serves it. For every source but `.redirect` those are
+                // different claims, and the difference is invisible until a user
+                // presses Update — the install-time signature gates never even
+                // run, because a 404 delivers no bytes for them to judge.
+                //
+                // Note the URL probed is `plan.url`, i.e. AFTER `preferHTTPS` — the
+                // same string the installer would download. Probing the pre-rewrite
+                // URL would be testing something nobody fetches.
+                if checkInstallURL, !spec.urlSource.provesReachabilityWhenResolved,
+                   let warning = Self.warning(
+                       for: await installURLReachability(plan.url, spec: spec)) {
+                    warnings.append(warning)
                 }
             } else {
                 // Version still reads, one-click is dead. The app shows this app
@@ -832,6 +861,109 @@ public struct VendorProbeSource: UpdateSource {
     /// Layer a recipe's own headers over the defaults set just above, so a recipe
     /// can override even `User-Agent` (SourceForge 403s the browser-like default
     /// — see `VendorProbeRecipe.requestHeaders`).
+    /// What one reachability probe of a resolved installer URL concluded.
+    enum InstallURLReachability: Sendable, Equatable {
+        case ok
+        /// The vendor answered 4xx to both a HEAD and a ranged GET.
+        case gone(status: Int?)
+        /// 5xx/429, or the request never completed. The vendor's problem, not
+        /// the recipe's — aged by the same machinery as `installURLTransient`.
+        case transient(status: Int?)
+    }
+
+    /// The verdict a reachability result carries into the sweep, or nil when the
+    /// URL is fine.
+    ///
+    /// Pulled out as a pure function on purpose: the probe itself can only be
+    /// exercised over a live socket, and a mapping that decides whether an issue
+    /// gets filed should be checkable without one.
+    static func warning(for result: InstallURLReachability) -> ProbeWarning? {
+        switch result {
+        case .ok: return nil
+        case .gone(let status): return .installURLNotFound(status: status)
+        case .transient(let status): return .installURLTransient(status: status)
+        }
+    }
+
+    /// Ask whether a resolved installer URL is still served, without downloading
+    /// it. Sweep-only: see `probeDiagnostic(_:checkingInstallURL:)`.
+    ///
+    /// Two requests deep on purpose. A bare HEAD is not enough evidence to accuse
+    /// a vendor of moving an artifact: some download hosts answer HEAD with 403 or
+    /// 405 and serve the same URL perfectly to a GET, so a HEAD-only rule would
+    /// file issues against recipes that work. So a 4xx HEAD is downgraded to a
+    /// question, and a ranged GET answers it — `bytes=0-0` because these URLs are
+    /// installers and a plain GET would pull hundreds of megabytes per recipe per
+    /// sweep.
+    ///
+    /// A server that ignores `Range` and starts streaming the whole file is
+    /// handled by the caller cancelling as soon as the response head arrives; we
+    /// never read the body.
+    ///
+    /// The request must be byte-for-byte the request `Downloader` would make, or
+    /// it is not answering the question. That is not a nicety — it is the one
+    /// thing this method got wrong first, and the mistake was invisible in a
+    /// curl spot check:
+    ///
+    /// Probing with this type's browser-like `userAgent` (right for VERSION
+    /// endpoints, several of which reject unfamiliar agents) accused TigerVNC
+    /// and GrandPerspective of losing their installers. Both were fine.
+    /// SourceForge's edge answers **403 to a browser-like UA and 200 to
+    /// `DuoUpdater/0.1`** — the reverse of the usual WAF, measured 2026-08-30 on
+    /// the same URL in the same second with the UA as the only variable — and
+    /// `Downloader` sends `DuoUpdater/0.1`. So the download works and the probe
+    /// said it was gone.
+    ///
+    /// Hence: mirror `Downloader.swift` — its UA, its `Accept-Encoding: identity`
+    /// — and then `spec.requestHeaders`, which is what it layers on top and what
+    /// carries the per-vendor WAF workarounds (Oray's `Referer`, Alcove's
+    /// `Authorization`). Deliberately NOT `recipe.requestHeaders`: those belong to
+    /// the version endpoint and the downloader never sends them, so honouring
+    /// them here would make the probe pass URLs the real install cannot fetch.
+    func installURLReachability(
+        _ url: URL, spec: VendorInstallSpec
+    ) async -> InstallURLReachability {
+        func request(_ method: String, range: Bool) -> URLRequest {
+            var request = URLRequest(url: url)
+            request.httpMethod = method
+            request.timeoutInterval = 20
+            request.cachePolicy = URLRequest.versionFeedCachePolicy
+            request.setValue(Downloader.userAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+            if range { request.setValue("bytes=0-0", forHTTPHeaderField: "Range") }
+            Self.apply(spec.requestHeaders, to: &request)
+            return request
+        }
+
+        var lastStatus: Int?
+        // Same shape as the `.redirect` resolve above: retry the transient kinds a
+        // few times before believing them, so one 502 in a burst does not cost a
+        // recipe its green.
+        for attempt in 0..<3 {
+            if attempt > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(attempt) * 700_000_000)
+            }
+            guard let (_, response) = try? await session.data(for: request("HEAD", range: false)),
+                  let http = response as? HTTPURLResponse
+            else { lastStatus = nil; continue }
+            lastStatus = http.statusCode
+            if (200..<400).contains(http.statusCode) { return .ok }
+            if Self.isTransientStatus(http.statusCode) { continue }
+
+            // 4xx. Could be a real 404, could be a host that simply refuses HEAD.
+            guard let (_, ranged) = try? await session.data(for: request("GET", range: true)),
+                  let rangedHTTP = ranged as? HTTPURLResponse
+            else { return .gone(status: http.statusCode) }
+            if (200..<400).contains(rangedHTTP.statusCode) { return .ok }
+            if Self.isTransientStatus(rangedHTTP.statusCode) {
+                lastStatus = rangedHTTP.statusCode
+                continue
+            }
+            return .gone(status: rangedHTTP.statusCode)
+        }
+        return .transient(status: lastStatus)
+    }
+
     private static func apply(_ headers: [String: String], to request: inout URLRequest) {
         for (field, value) in headers {
             request.setValue(value, forHTTPHeaderField: field)

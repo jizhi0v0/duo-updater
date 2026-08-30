@@ -130,6 +130,21 @@ public enum ProbeWarning: Sendable, Equatable {
     /// a healthy recipe file issues against itself. The same 5xx/429-is-not-our-
     /// fault rule already governs version probes (see `ProbeFailure.category`).
     case installURLTransient(status: Int?)
+    /// The installer URL resolved to a well-formed URL that the vendor no longer
+    /// serves — a 4xx that survived a `Range: bytes=0-0` GET retry.
+    ///
+    /// Deliberately NOT `installURLUnresolved`. That one means the recipe could
+    /// not even BUILD a URL (a pattern stopped matching), and the fix is to go
+    /// re-derive the pattern. This one means the pattern still works and the
+    /// vendor moved or deleted the artifact, and the fix is to find where it
+    /// went. Collapsing them would hand whoever picks up the issue the wrong
+    /// starting point.
+    ///
+    /// Only the sweep raises this: resolving an install URL is on the same code
+    /// path as an ordinary update check, and a check must not pay an extra
+    /// request per app for a question only the nightly asks. See
+    /// `VendorProbeSource.probeDiagnostic(_:checkingInstallURL:)`.
+    case installURLNotFound(status: Int?)
     /// `checksumPattern` is set but matched nothing, so the download would be
     /// installed without SHA-512 verification.
     case checksumPatternNoMatch
@@ -175,6 +190,7 @@ public enum ProbeWarning: Sendable, Equatable {
         switch self {
         case .installURLUnresolved: return "installURLUnresolved"
         case .installURLTransient: return "installURLTransient"
+        case .installURLNotFound: return "installURLNotFound"
         case .checksumPatternNoMatch: return "checksumPatternNoMatch"
         case .entryPatternNoMatch: return "entryPatternNoMatch"
         case .displayPatternNoMatch: return "displayPatternNoMatch"

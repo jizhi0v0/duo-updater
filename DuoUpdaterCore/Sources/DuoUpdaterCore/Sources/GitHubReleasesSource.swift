@@ -1061,6 +1061,23 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^bruno_[0-9.]+_arm64_mac\.dmg$"#,
             installerKind: .dmg),
 
+        // Vorssaint — Homebrew marks the cask `auto_updates true`, so the generic
+        // Homebrew source intentionally skips it. Stable and Beta share both the
+        // bundle id and app name; the installed beta's real short version carries
+        // `-beta.<N>`, which ReleaseChannel uses to select this pair safely.
+        // Detection-only: the downloaded stable dmg's app failed strict code-sign
+        // verification on macOS 27 beta, so no install asset is exposed.
+        GitHubReleaseRule(
+            bundleID: "com.vorssaint.utils",
+            owner: "vorssaintapp", repo: "vorssaint-utils",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
+        GitHubReleaseRule(
+            bundleID: "com.vorssaint.utils",
+            owner: "vorssaintapp", repo: "vorssaint-utils",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
+            channel: .beta),
+
         // LocalSend — the reason `installAssetPattern` doubles as the macOS-release
         // gate. Upstream builds Windows/Linux/Android on CI but the dmg by hand
         // (`support/scripts/compile_mac_dmg.sh`, one maintainer, Developer ID +

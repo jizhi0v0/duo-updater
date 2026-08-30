@@ -46,8 +46,18 @@ struct AppAuditCoverageTests {
     /// which is a shape this test has nothing to say about rather than a failure.
     private static func parseMatrix(_ text: String, file: String) -> Claim? {
         let lines = text.components(separatedBy: .newlines)
-        guard let headerIndex = lines.firstIndex(where: {
-            $0.hasPrefix("|") && $0.contains("VendorProbe")
+        // A table HEADER, not merely a row mentioning VendorProbe: the line after
+        // a header is always the `|---|---|` separator. Without that test,
+        // `issue-111-…md` — which is prose, not an audit — matched on a data row
+        // reading "**VendorProbeRegistry** (`orbStackRecipe(…)`)" and got parsed
+        // as if it were a coverage matrix.
+        func isSeparator(_ line: String) -> Bool {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            return t.hasPrefix("|") && t.allSatisfy { "|-: \t".contains($0) }
+        }
+        guard let headerIndex = lines.indices.first(where: { i in
+            lines[i].hasPrefix("|") && lines[i].contains("VendorProbe")
+                && i + 1 < lines.count && isSeparator(lines[i + 1])
         }) else { return nil }
 
         // Split the raw line, not a trimmed one: the header's first cell is empty
@@ -120,17 +130,20 @@ struct AppAuditCoverageTests {
                 wrong.append("\(claim.file): matrix says 一键, recipe carries no install spec")
             }
             // The mirror of the line above — a recipe that HAS an install spec
-            // whose matrix does not mark 一键 — is deliberately not asserted yet.
-            // 22 audits are in that state (measured 2026-08-30) and most are only
-            // notation: they record the one-click in a `## 一键安装` section
-            // instead of in the table cell. But five are a real contradiction —
-            // Chrome, Discord, Element, Firefox and Thunderbird each say
-            // "仅检测（设计如此）" while carrying an install spec, which reads as
-            // the pre-`oneclick-besteffort` policy ("never touch a self-updater")
-            // left behind in the docs after the code moved to best-effort.
-            // Turning this direction on before those five are reconciled would
-            // just make `make test` red for everyone; it belongs in the same
-            // change that settles them.
+            // whose matrix does not mark 一键 — is deliberately not asserted, and
+            // the reason is granularity, not backlog. One-click is a PER-CHANNEL
+            // fact: Warp wires it for stable and leaves preview/dev detection-only,
+            // and several multi-channel apps are the same. This check reads the
+            // registry at file granularity ("does any recipe for this bundle id
+            // carry an install spec"), so turning the mirror on would force a 一键
+            // mark onto rows that do not have one — making the table less true in
+            // order to make a test pass.
+            //
+            // The five audits that genuinely contradicted the code here — Chrome,
+            // Discord, Element, Firefox, Thunderbird each claiming "仅检测（设计
+            // 如此）" while carrying an install spec — were stale text from before
+            // `vendorInstallPolicy` replaced the old "never touch a self-updater"
+            // rule, and were corrected on 2026-08-30.
         }
         #expect(
             wrong.isEmpty,

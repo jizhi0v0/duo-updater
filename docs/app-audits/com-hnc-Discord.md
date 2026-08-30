@@ -39,7 +39,12 @@ PTB 无 `<sparkle:channel>`/版本后缀，靠名称中独立词 `"PTB"` 触发 
 - 无 ChangelogRecipe
 
 ## 一键安装
-- 仅检测（Discord 自更新，不覆盖安装）
+- 状态: **已接入**（三 channel）。此前记为「仅检测」，是旧策略的残留。
+  「绝不碰自更新器」那条绝对规则已由用户设置 `vendorInstallPolicy` 取代：默认 `.deferWhenRunning` —— app 正在运行就交回它自己的更新器，没在运行才就地替换；选 `.alwaysOverwrite` 才总是由我们装。见 `UpdatePolicy.defersToSelfUpdater`。
+- Squirrel/Electron 应用另有一层保护：`SelfUpdaterStaging` 读
+  `~/Library/Caches/<bundleID>.ShipIt/`，若 app 自己已把新版下载解包、只等重启交换，
+  `UpdatePolicy.canAutoInstall` 返回 false 让位给 Relaunch —— 既不重复下载，也不会撞上
+  待执行的 ShipIt 交换。这一层由扫描时是否存在 `Contents/Frameworks/Squirrel.framework` 决定。
 
 ## channel-verify 状态
 - ✓ **三 channel 全部已验证 2026-06-04**（官方 dmg 只读挂载、未安装）。stable `com.hnc.Discord` 0.0.393 / ptb `com.hnc.DiscordPTB` 0.0.237 / canary `com.hnc.DiscordCanary` 0.0.1136 各自 VendorProbe 应答=dmg 版本，无幽灵更新；channel 由 bundle id 后缀直读。证据见下文「如何复验」。

@@ -46,8 +46,12 @@
 - **实测**（2026-06-04）: stable 端点 fraction=1 最高版 = `149.0.7827.54`，与本机安装版**完全一致** → 检测口径正确。
 
 ## 一键安装
-- 状态: **仅检测**（设计如此，不做一键）
-- 原因: 四 channel 全部通过 Keystone 后台自更新，我们绝不覆盖安装。
+- 状态: **已接入**，四 channel 均为 `.fixed` dmg（`dl.google.com/chrome/mac/universal/<channel>/`，
+  Team `EQHXZ8M8AV`）。此前本节记为「仅检测（设计如此）」，是旧策略的残留。
+  「绝不碰自更新器」那条绝对规则已由用户设置 `vendorInstallPolicy` 取代：默认 `.deferWhenRunning` —— app 正在运行就交回它自己的更新器，没在运行才就地替换；选 `.alwaysOverwrite` 才总是由我们装。见 `UpdatePolicy.defersToSelfUpdater`。
+- Keystone 不构成拒绝一键的理由：它管的是磁盘上那个 bundle，换成更新的构建不会让它困惑。
+- **不会跑到 Keystone 前面**：版本只取 `fraction=1`（完全放量）的构建。裸 `versions` 端点
+  会返回仅 0.5% 放量的版本，那会显示一个 Chrome 自己都说「已是最新」的幽灵更新。
 - `downloadURL` = `chrome://settings/help`（app-scheme URL，UI 交给 Chrome 本体而非浏览器）：访问该页会让 Chrome 立即触发一次 Keystone 检查 + 下载，即它本channel 的真实更新路径。
 
 ## Changelog

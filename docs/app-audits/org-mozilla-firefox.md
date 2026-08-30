@@ -85,9 +85,14 @@ Dev Edition 的 `RemotingName=firefox-dev` 归 `.dev`（旧"版本是 bN → 归
   官网 notes 页直接 WebView 展示即可。
 
 ## 一键安装
-- 状态: **仅检测**（设计如此）。
-- 理由: Firefox 自带强力更新器，按仓库 install-safety 原则不强插一键，交给 app 自更新。
-- `downloadURL` 仅作"去官网下载"的跳转兜底，非自动安装。
+- 状态: **已接入**，stable / beta / esr 三条 recipe 都带 `install: VendorInstallSpec`
+  （`download.mozilla.org/?product=firefox{,-beta,-esr}-latest` 302 → dmg，Team `43AQ936H96`）。
+  此前本节记为「仅检测（设计如此）」，是旧策略的残留。
+  「绝不碰自更新器」那条绝对规则已由用户设置 `vendorInstallPolicy` 取代：默认 `.deferWhenRunning` —— app 正在运行就交回它自己的更新器，没在运行才就地替换；选 `.alwaysOverwrite` 才总是由我们装。见 `UpdatePolicy.defersToSelfUpdater`。
+- ⚠️ **Mozilla 的更新器既不是 Squirrel 也不是 Sparkle**，所以 `SelfUpdaterStaging` 那层
+  「它已经下好了就让位」的保护**不覆盖 Firefox**（判据是 `Squirrel.framework` 是否存在）。
+  这里唯一的闸就是 `vendorInstallPolicy`。
+- `downloadURL` 是"去官网下载"的展示链接，不是安装产物；产物由 `install` 的重定向解析。
 
 ## 已修（2026-06-04）
 - detect() 加 `RemotingName` 信号（修 beta 漏检 + esr 跨 channel 误推 stable）。

@@ -111,6 +111,20 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     return name.range(of: p, options: .regularExpression) != nil
 }
 
+@Test func githubCopilotRulePinsTheArm64Dmg() {
+    #expect(extract("v1.1.14", "com.github.githubapp") == "1.1.14")
+    // The same release ships darwin-x64.dmg, both .zip/.tar.gz siblings and
+    // Windows/Linux artifacts; only the arm64 dmg may be selected.
+    #expect(matches("GitHub-Copilot-darwin-arm64.dmg", "com.github.githubapp"))
+    #expect(!matches("GitHub-Copilot-darwin-x64.dmg", "com.github.githubapp"))
+    #expect(!matches("GitHub-Copilot-darwin-arm64.zip", "com.github.githubapp"))
+    #expect(!matches("GitHub-Copilot-darwin-arm64.tar.gz", "com.github.githubapp"))
+    #expect(!matches("GitHub-Copilot-darwin-arm64.tar.gz.sig", "com.github.githubapp"))
+    #expect(!matches("GitHub-Copilot-windows-x64-setup.exe", "com.github.githubapp"))
+    #expect(rule("com.github.githubapp").slug == "github/app")
+    #expect(rule("com.github.githubapp").installerKind == .dmg)
+}
+
 @Test func ccSwitchRulePicksTheMacDmg() {
     #expect(extract("v3.19.2", "com.ccswitch.desktop") == "3.19.2")
     #expect(matches("CC-Switch-v3.19.2-macOS.dmg", "com.ccswitch.desktop"))
@@ -665,6 +679,7 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         "org.RedisLabs.RedisInsight-V2": "redis/RedisInsight",
         "org.upscayl.Upscayl": "upscayl/upscayl",
         "io.github.wickenico.wailbrew": "wickenico/WailBrew",
+        "com.github.githubapp": "github/app",
     ]
     for (bundleID, slug) in expected {
         #expect(rule(bundleID).slug == slug, "slug drifted for \(bundleID)")

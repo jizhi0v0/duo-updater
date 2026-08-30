@@ -56,7 +56,7 @@
   与 beta `FigmaBeta-126.6.2.zip`）均为 notarized Developer ID，bundle id 与各自安装一致。
 
 ## 真机验证（Phase 3¾）
-见 `application-test/records/com-figma-Desktop.md`。两个 channel 都跑过
+证据已折入本文档。两个 channel 都跑过
 `channel-verify` 绿灯：stable → UPDATE 126.4.11→126.4.13；beta → up to date 126.6.2。
 
 ## 已知问题

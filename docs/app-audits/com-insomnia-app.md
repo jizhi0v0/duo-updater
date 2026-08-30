@@ -78,7 +78,7 @@ tag。回归测试 `insomniaRuleMatchesCoreTagOnly` 已 pin 该 feed。
 - 格式: dmg
 
 ## 真机验证（Phase 3¾）
-见 `application-test/records/com-insomnia-app.md`。
+证据已折入本文档。
 
 ## 建议下一步
 1. ✅ stable ChangelogRecipe 已接（见上）。

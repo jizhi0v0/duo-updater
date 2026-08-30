@@ -61,3 +61,12 @@ Firefox/Thunderbird 之外的单轨判定）。
 1. 已修复检测，无需额外动作。
 2. ~~一键安装~~ — **已否决**（见上：dmg 未公证/无 Team ID，过不了签名门）。除非 LibreWolf
    上游开始公证 mac 构建，否则不再尝试。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --check net.librewolf.librewolf --expect stable
+swift run --package-path application-test channel-verify "/Applications/LibreWolf.app" --expect stable
+```

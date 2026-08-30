@@ -50,3 +50,20 @@ bundle id, real version, RemotingName/channel marker, detected channel, probe
 result, verdict). This is the proof behind a ✓ in the audit docs.
 
 > Build artifacts (`.build/`) are git-ignored.
+
+## 判据必须借用引擎，不能重实现
+
+`channel-verify` 曾经两处自己推导，两处都错，而且错得会让一个 ✓ 变得毫无意义
+（2026-08-21 由豆包输入法的验证逼出来）：
+
+1. 直接读 `CFBundleVersion`，于是对一个生产按 `90602` 比较的 app 打印 `build version 1`。
+2. 把引擎判据重实现成「有 shortVersion 就比它，否则比 build」。每条 `versionIsBuild`
+   recipe 两者都带——build 用来比，marketing 串用来显示——而 `UpdateChecker.evaluate()`
+   优先比 build，那份重实现优先比 marketing。结果 90601 那份被读成"已是最新"。
+
+两处都已改成镜像 `AppScanner.buildVersionIsOverridden` + 直接调 `UpdateChecker.evaluate`。
+
+**规矩**：这个 harness 里任何"是否有更新"的判断都必须调用 `UpdateChecker.evaluate`，
+不得另写一份。同一形状的错误在 2026-08-30 又犯过一次——当时用 `VersionComparator.hasReached`
+（那是**重启落地**检测的入口，只服务于自带更新器的 app）去判"有没有更新"，于是把两条
+本来正常的 recipe 误报成 bug。入口选错和重实现是同一类错。

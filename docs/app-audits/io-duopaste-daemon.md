@@ -34,4 +34,16 @@
 - Sparkle 自更新
 
 ## channel-verify 状态
-- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`，对真实 `~/Applications/DuoPaste.app` bundle）。`sparkleIncludePrereleases=1` 且 bundle 是 `…-beta` 构建时判定为 **beta**；appcast 当前仅 `<sparkle:channel>beta` 项，head=0.1.1251-beta=installed。VendorProbe 故意无应答（机制是 channel-tag Sparkle）。**stable 也已本机验证**（`sparkleIncludePrereleases=false` 时 `--scan` 结果=stable；该偏好默认值为 1）。证据：`application-test/records/io-duopaste-daemon.md`
+- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`，对真实 DuoPaste bundle）。`sparkleIncludePrereleases=1` 且 bundle 是 `…-beta` 构建时判定为 **beta**；appcast 当前仅 `<sparkle:channel>beta` 项，head=0.1.1251-beta=installed。VendorProbe 故意无应答（机制是 channel-tag Sparkle）。**stable 也已本机验证**（`sparkleIncludePrereleases=false` 时 `--scan` 结果=stable；该偏好默认值为 1）。证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan io.duopaste.daemon --expect beta
+```
+
+## 端点
+
+- appcast 托管在 `raw.githubusercontent.com/jizhi0v0/duo-paste-releases`。

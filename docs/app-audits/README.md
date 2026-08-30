@@ -46,7 +46,9 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Single-channel — VendorProbe + optional Changelog
 
 > ✓ marks = on-machine verified 2026-06-04 via `channel-verify` against a real
-> installed bundle (full production chain). Evidence: `application-test/records/_single-channel-sweep.md`.
+> installed bundle (full production chain). The sweep's raw output is an
+> installed-app inventory, so it stays local (`application-test/records/`,
+> gitignored) — per-app conclusions live in each app's audit instead.
 
 - [x] **VS Code** · `com.microsoft.VSCode` — P C (one-click) · ✓ src=Vendor
 - [x] **Claude Desktop** · `com.anthropic.claudefordesktop` — P (one-click) · ✓ src=Vendor
@@ -149,3 +151,18 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Investigated — blocked safely
 
 - [x] [**TRAE**](com-trae-app.md) · `com.trae.app` — official API `2.3.61406` != real app `3.5.81`; no comparable remote version, deliberately left unknown · 2026-08-17
+
+## 未编入分类（补录 2026-08-30）
+
+这些审计文档早已存在但没有出现在本索引里，`scripts/check_app_audits.py` 上线时发现。
+
+- [x] [**Amp**](com-ampcode-amp-macos.md) · `com.ampcode.amp.macos` — marketing 长期恒 `1.0`，只有 build 走动
+- [x] [**百度网盘**](com-baidu-BaiduNetdisk-mac.md) · `com.baidu.BaiduNetdisk-mac`
+- [x] [**Raycast**](com-raycast-macos.md) · `com.raycast.macos` — `CFBundleVersion = 0`，不可用作比较
+- [x] [**QQ音乐**](com-tencent-QQMusicMac.md) · `com.tencent.QQMusicMac`
+- [x] [**VSCodium Insiders**](com-vscodium-VSCodiumInsiders.md) · `com.vscodium.VSCodiumInsiders`
+
+## 非 app 文档
+
+- [Issue #111 — Sparkle appcast channel population](issue-111-appcast-channel-population.md) ·
+  一次性测量任务的产出，不是 app 审计。留在此目录是历史原因。

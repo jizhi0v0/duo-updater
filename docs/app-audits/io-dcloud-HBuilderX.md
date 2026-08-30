@@ -51,5 +51,14 @@
 - Alpha 真正的版本字符串带 `-alpha` 后缀（`5.11.2026052520-alpha`），`VersionComparator` 将 `-alpha` 作为尾文本，纯数字版本高于它——比较正确
 
 ## channel-verify 状态
-- ✓ **两 channel 已验证 2026-06-04**（`--scan`，本机同时装了 stable 与 alpha）。stable `io.dcloud.HBuilderX` 5.07… 与 alpha `io.dcloud.HBuilderXAlpha` 5.11…-alpha 是独立 bundle id；两条 VendorProbe 均应答=installed。证据：`application-test/records/io-dcloud-HBuilderX.md`
+- ✓ **两 channel 已验证 2026-06-04**（`--scan`，两条轨各有一份真实 bundle）。stable `io.dcloud.HBuilderX` 5.07… 与 alpha `io.dcloud.HBuilderXAlpha` 5.11…-alpha 是独立 bundle id；两条 VendorProbe 均应答=installed。证据见下文「如何复验」。
 - ✓ **stable 复验 2026-07-03**（版本源改 `release.json` + 加一键后）：`channel-verify /Applications/HBuilderX.app --expect stable` → detected stable，VendorProbe 应答 `UPDATE 5.07.2026041006 → 5.14.2026070214`，download 抠出 `HBuilderX.5.14.2026070214.arm64.dmg`
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan io.dcloud.HBuilderX --expect stable
+swift run --package-path application-test channel-verify --scan io.dcloud.HBuilderXAlpha --expect alpha
+```

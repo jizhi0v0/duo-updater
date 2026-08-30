@@ -42,4 +42,14 @@ PTB 无 `<sparkle:channel>`/版本后缀，靠名称中独立词 `"PTB"` 触发 
 - 仅检测（Discord 自更新，不覆盖安装）
 
 ## channel-verify 状态
-- ✓ **三 channel 全部已验证 2026-06-04**（官方 dmg 只读挂载、未安装）。stable `com.hnc.Discord` 0.0.393 / ptb `com.hnc.DiscordPTB` 0.0.237 / canary `com.hnc.DiscordCanary` 0.0.1136 各自 VendorProbe 应答=dmg 版本，无幽灵更新；channel 由 bundle id 后缀直读。证据：`application-test/records/com-hnc-Discord.md`
+- ✓ **三 channel 全部已验证 2026-06-04**（官方 dmg 只读挂载、未安装）。stable `com.hnc.Discord` 0.0.393 / ptb `com.hnc.DiscordPTB` 0.0.237 / canary `com.hnc.DiscordCanary` 0.0.1136 各自 VendorProbe 应答=dmg 版本，无幽灵更新；channel 由 bundle id 后缀直读。证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify /tmp/discord-stable.dmg --expect stable
+swift run --package-path application-test channel-verify /tmp/discord-ptb.dmg    --expect ptb
+swift run --package-path application-test channel-verify /tmp/discord-canary.dmg --expect canary
+```

@@ -37,4 +37,12 @@
 - Surge 运行时用内部 `surge-data-pipe://` scheme 绕过公开 feed URL，duo-updater 改读公开 appcast 而非拦截内部请求——两者版本应一致，但若 Surge 的内部参数与公开 feed 产生分歧时可能不同步
 
 ## channel-verify 状态
-- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`）。KDDefaults.plist `IncludeBetaBuilds=true` 时判定为 **beta**；beta feed head=6.6.0/11270=installed。VendorProbe 故意无应答（机制是 Sparkle feed-swap）。**stable 也已在真实 bundle 上验证**（该 flag 是 Surge 直读的文件、对运行进程不可见，所以无需退出进程即可验证：逐字节备份后改 `NO`，`--scan` 结果=stable，再还原原始字节，前后一致）。证据：`application-test/records/com-nssurge-surge-mac.md`
+- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`）。KDDefaults.plist `IncludeBetaBuilds=true` 时判定为 **beta**；beta feed head=6.6.0/11270=installed。VendorProbe 故意无应答（机制是 Sparkle feed-swap）。**stable 也已在真实 bundle 上验证**（该 flag 是 Surge 直读的文件、对运行进程不可见，所以无需退出进程即可验证：逐字节备份后改 `NO`，`--scan` 结果=stable，再还原原始字节，前后一致）。证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan com.nssurge.surge-mac --expect beta
+```

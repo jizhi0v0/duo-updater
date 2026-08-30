@@ -1,7 +1,7 @@
 # 微信开发者工具 (WeChat DevTools)
 
 > 审计 2026-08-18 · 状态：**已接入**（三渠道检测 + 一键 pkg + changelog）
-> 真实包验证记录见 [`application-test/records/com-tencent-wechatdevtools.md`](../../application-test/records/com-tencent-wechatdevtools.md)
+> 真实 bundle 验证证据见下文「如何复验」。
 >
 > duo-updater 内部按 **`com.tencent.wechatdevtools`**（pkg 声明的 id）登记这个 app，
 > 不是 Info.plist 里那个 `com.github.Electron`——见下面「2.02 换成 Electron」。
@@ -137,3 +137,14 @@ https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/
 - changelog 目前一次只渲染目标版本那一篇（厂商的 `history_<channel>.json` 只有指针没有
   正文，多版本要两跳，现有结构不支持）。
 - x64 未覆盖：三条 recipe 都锚 `_darwin_arm64.pkg`（与仓库其余 recipe 的口径一致）。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-08-18。
+
+```
+swift run --package-path application-test channel-verify ~/Downloads/wechat_devtools_2.02.2608040_darwin_arm64.pkg --expect stable
+swift run --package-path application-test channel-verify ~/Downloads/wechat_devtools_2.02.2608031_darwin_arm64.pkg --expect rc
+swift run --package-path application-test channel-verify ~/Downloads/wechat_devtools_2.02.2608182_darwin_arm64.pkg --expect nightly
+swift run --package-path application-test channel-verify /Applications/wechatwebdevtools.app --expect stable
+```

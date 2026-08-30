@@ -146,7 +146,7 @@ app 的两个 channel。
 - 只动 build 计数器的重新出包检测不到（见陷阱二）——已知代价，不是缺陷。
 - 国际站 changelog 页滞后于其发布轨道，vendor 侧问题，我们这边无解。
 - x64 那两条 recipe 的产物没有下载挂载验证过，只验证了「存在 + 分架构命名」；
-  跨架构不误取由单测守着（见 `application-test/records/com-workbuddy-workbuddy.md`）。
+  跨架构不误取由单测守着（证据见下文「如何复验」。）。
 
 ## 验证
 
@@ -155,7 +155,7 @@ swift run --package-path application-test channel-verify <WorkBuddy DMG>   # 两
 duo verify --only workbuddy                                                # 4 vendor probes ✓ 4 ⚠ 0 ✗ 0
 ```
 
-实证记录见 `application-test/records/com-workbuddy-workbuddy.md`；
+实证记录证据见下文「如何复验」。；
 回归测试见 `DuoUpdaterCore/Tests/DuoUpdaterCoreTests/WorkBuddyProbeRecipeTests.swift`
 （从 registry 推导，12 条）。
 
@@ -163,3 +163,12 @@ duo verify --only workbuddy                                                # 4 v
 
 无。两站的检测与一键都已接入并验证。若将来 vendor 的 changelog 页值得原生条目化，
 再走 `/fragile-recipe WorkBuddy`（Changelog 路径）。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-08-27。
+
+```sh
+swift run --package-path application-test channel-verify <WorkBuddy DMG>
+duo verify --only workbuddy      # 4 vendor probes ✓ 4  ⚠ 0  ✗ 0
+```

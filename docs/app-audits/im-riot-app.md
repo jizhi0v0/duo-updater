@@ -43,4 +43,13 @@
 - ⚠️ **此次验证抓到已发布 bug**：nightly recipe 原 key 为 `io.element.nightly`（不存在的 bundle id），
   真实 nightly 是 `im.riot.nightly`，probe 永远 miss；单测因用了同一错 id 而假性通过。
   已修 `VendorProbeRecipe.swift` + `ChannelGuardTests.swift` 并复验 green。
-- 证据见 `application-test/records/im-riot-app.md`
+- 证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify "/tmp/Element.app"         --expect stable
+swift run --package-path application-test channel-verify "/tmp/Element Nightly.app" --expect nightly
+```

@@ -3,7 +3,7 @@
 > 审计 2026-06-04 · **本机严格验证后修复**（5 个真实 bundle 跑 `channel-verify`）。
 > 早先"靠版本后缀区分 channel"的结论被实测推翻：beta/esr 安装把后缀剥掉了,曾被误判
 > stable（esr 还会被跨 channel 推 stable）。已改用 `application.ini` 的 `RemotingName`。
-> 证据：[`application-test/records/org-mozilla-firefox.md`](../../application-test/records/org-mozilla-firefox.md)
+> 真实 bundle 验证证据见下文「如何复验」。
 
 ## 基本信息
 - Bundle ID: `org.mozilla.firefox`（Release/Beta/ESR 共享）；Developer Edition =
@@ -97,4 +97,39 @@ Dev Edition 的 `RemotingName=firefox-dev` 归 `.dev`（旧"版本是 bN → 归
 ## 已知限制 / 下一步
 - beta→beta 周期内不可检测（安装版恒 `152.0`），只跟跨大版本。已接受。
 - `FIREFOX_ESR_NEXT` 当前为空；ESR 重叠期双轨低优先级，暂不加。
+- **nightly/daily 周期内同样不可检测，而且比 beta 严重**（测于 2026-08-30）。
+   Mozilla 的 nightly **每天**出构建，整个周期全叫 `157.0a1`；product-details 报的
+   marketing 串与安装版逐字相同，recipe 又不发 build，于是 `UpdateChecker.evaluate()`
+   走 marketing 分支、`isNewer("157.0a1","157.0a1")` 恒假 → **整整一个 ~4 周周期一次
+   更新都不报**。beta 至少每两天才漏一次，nightly 是天天漏。适用 `org.mozilla.nightly`
+   与 `org.mozilla.thunderbird-daily`。
+   2026-06-04 那次记录把「远程 == 安装版」记成了 ✓（确实没有幽灵更新），没有往下推出
+   「因此新构建永远看不见」这一步。
+- **远程侧的 BuildID 来源已找到：Mozilla 自己的 AUS**（`aus5.mozilla.org`，即
+   `application.ini` 里 `[AppUpdate] URL` 指的那个）。它直接返回
+   `buildID="20260826090609"`，与安装版 `application.ini` 的 `BuildID` **逐字节相同**，
+   同时给 `displayVersion="155.0 Beta 5"`。2026-08-30 实测 5 条通道全部作答
+   （FF beta / FF aurora=DevEdition / FF nightly / TB beta / TB daily），
+   且与 `…-latest` 下载链接给的包一致。
+   URL 形状：`/update/6/<Product>/<Version>/<BuildID>/Darwin_aarch64-gcc3/en-US/<channel>/Darwin%2025.0.0/default/default/default/update.xml`
+   —— 注意必须凑满 10 段（漏掉 `%SYSTEM_CAPABILITIES%` 会返回空）。
+   **未解决的一点**：AUS 的应答取决于**传入的版本号**，传 `100.0` 会返回 watershed 的
+   `125.0 Beta 9` 而不是最新；所以锚点不能写死（约两年后静默退化，且 verify 抓不到，
+   因为 watershed 的 build id 是往上走的、不构成版本回退）。正确做法是代入**已装版本**，
+   而 `resolveEndpoint` 目前拿不到 `InstalledApp` —— 那是共享请求路径的改动，
+   另案处理，不在本次范围。
+   （已排除的两条路：buildhub 的「频道最新」是已构建未推送的 `156.0b1`，与
+   `beta-latest` 实际服务的 `155.0b5` 不一致，用它会造成永久幻影；`firefox.json`
+   的 key 是按字符串排序的全量历史，`entryStartPattern` 切片会吞掉文件尾部。）
 - **部署**：改的是 core 检测逻辑，菜单栏 App 需 `xcodebuild` 重建才生效。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+# DMG redirector: https://download.mozilla.org/?product=firefox{,-beta,-devedition,-esr,-nightly}-latest-ssl&os=osx&lang=en-US
+swift run --package-path application-test channel-verify "/tmp/ff-esr.dmg"  --expect esr
+swift run --package-path application-test channel-verify "/tmp/ff-beta.dmg" --expect beta
+swift run --package-path application-test channel-verify "/tmp/ff-dev.dmg"  --expect dev
+```

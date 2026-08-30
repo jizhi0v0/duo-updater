@@ -369,6 +369,41 @@ struct MozillaPreReleaseTests {
                 Comment(rawValue: "\(c.bundleID): the fallback stopped being the marketing one"))
     }
 
+    /// The display string is load-bearing here, so losing it has to be reported.
+    ///
+    /// Found while reviewing this change: a `displayVersionPattern` that matches
+    /// nothing had no warning of its own, and `duo verify` could not see it either
+    /// — it records `shortVersion ?? version`, so a lost display string makes the
+    /// recorded value jump from `155.0b5` to `20260826090609`, an INCREASE, while
+    /// the only history check it has looks for a version moving backwards.
+    /// Meanwhile the beta changelog URL is templated off that same string and 404s.
+    @Test func aLostDisplayStringIsWarnedAbout() async throws {
+        let c = try #require(Self.cases.first { $0.bundleID == "org.mozilla.firefox" })
+        let recipe = try Self.recipe(for: c)
+
+        let healthy = try RecipeVerificationTests.StubServer(body: c.body)
+        defer { healthy.stop() }
+        let good = await VendorProbeSource().probeDiagnostic(recipe.with(url: healthy.url))
+        #expect(good.remote?.shortVersion == c.display)
+        #expect(!good.warnings.contains(.displayPatternNoMatch))
+
+        // The one edit a vendor rename would make. The version still resolves —
+        // which is the whole problem: nothing else notices.
+        let renamed = c.body.replacingOccurrences(
+            of: "product=firefox-", with: "product=firefox-desktop-")
+        let broken = try RecipeVerificationTests.StubServer(body: renamed)
+        defer { broken.stop() }
+        let outcome = await VendorProbeSource().probeDiagnostic(recipe.with(url: broken.url))
+        #expect(outcome.failure == nil, "the build still resolves — that is the point")
+        #expect(outcome.remote?.version == c.installedBuildID)
+        #expect(outcome.remote?.shortVersion == nil)
+        #expect(outcome.remote?.displayVersion == c.installedBuildID,
+                "the row would show a bare 14-digit build id")
+        #expect(ChangelogRecipe.urlVersionToken(for: c.installedBuildID, channel: .beta)
+            != "155.0beta", "…and the beta release notes would 404")
+        #expect(outcome.warnings.contains(.displayPatternNoMatch))
+    }
+
     // MARK: - the disk side
 
     /// `AppScanner` reads both fields out of one `application.ini`. The values are

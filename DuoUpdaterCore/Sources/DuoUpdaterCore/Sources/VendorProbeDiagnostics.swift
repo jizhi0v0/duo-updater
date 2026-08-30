@@ -155,6 +155,21 @@ public enum ProbeWarning: Sendable, Equatable {
     ///  - no entry matches `versionPattern`, or the winning entry matches it more
     ///    than once and the self-containment guard declines it.
     case entryPatternNoMatch
+    /// `displayVersionPattern` is set but matched nothing, so the row falls back
+    /// to showing the raw build id.
+    ///
+    /// The same shape as `checksumPatternNoMatch`: a pattern the recipe author
+    /// wrote down, found nothing, and nothing failed. It is worth a warning of
+    /// its own because the display string is not always cosmetic — a
+    /// version-templated `ChangelogRecipe` builds its URL out of it
+    /// (`ChangelogRecipe.urlVersionToken`), so losing it turns the release notes
+    /// into a 404 while the version itself keeps resolving.
+    ///
+    /// `duo verify` cannot see this on its own. It records
+    /// `shortVersion ?? version`, so a lost display string makes the recorded
+    /// value jump from `155.0b5` to `20260826090609` — an increase, and the only
+    /// history check there is looks for a version moving BACKWARDS.
+    case displayPatternNoMatch
 
     public var kind: String {
         switch self {
@@ -162,6 +177,7 @@ public enum ProbeWarning: Sendable, Equatable {
         case .installURLTransient: return "installURLTransient"
         case .checksumPatternNoMatch: return "checksumPatternNoMatch"
         case .entryPatternNoMatch: return "entryPatternNoMatch"
+        case .displayPatternNoMatch: return "displayPatternNoMatch"
         }
     }
 }

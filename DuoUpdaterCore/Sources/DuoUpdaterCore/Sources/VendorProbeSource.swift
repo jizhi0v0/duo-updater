@@ -578,7 +578,6 @@ public struct VendorProbeSource: UpdateSource {
         let display = recipe.displayVersionPattern.flatMap {
             VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
         }
-
         // Optional authoritative publish time, from the same scope (first match,
         // so it belongs to the entry `versionPattern` matched). An unparseable or
         // missing date is not a failure — it just means the Release Log falls back
@@ -590,6 +589,12 @@ public struct VendorProbeSource: UpdateSource {
 
         var warnings: [ProbeWarning] = []
         if scoped.fellBack { warnings.append(.entryPatternNoMatch) }
+        // A display pattern that found nothing leaves the row showing the raw
+        // build id — and, for a recipe whose changelog URL is templated off that
+        // string, a 404 where the release notes were. See `.displayPatternNoMatch`.
+        if recipe.displayVersionPattern != nil, display == nil {
+            warnings.append(.displayPatternNoMatch)
+        }
         var remote: RemoteVersion
 
         // If this recipe knows how to install in place, resolve the installer URL

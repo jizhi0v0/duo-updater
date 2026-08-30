@@ -96,6 +96,13 @@ public struct RemoteVersion: Sendable, Hashable {
     /// Build version, e.g. "1.96.0" or "45830" (`sparkle:version`). This is
     /// Sparkle's canonical comparison key.
     public let version: String?
+    /// Which of the installed bundle's build identifiers ``version`` is expressed
+    /// in. `.bundle` — `CFBundleVersion` — for every source but the Mozilla
+    /// pre-release probes, which report the `BuildID` Mozilla's update service and
+    /// `application.ini` share. Stated rather than inferred because the two
+    /// namespaces are both bare numbers: compared against each other they do not
+    /// error, they answer the same thing forever.
+    public let buildNamespace: InstalledApp.BuildNamespace
     /// Where to download the new build (Sparkle `enclosure url`). This is the
     /// ARTIFACT — a .dmg/.pkg/.zip the installer fetches. Never surface it as a
     /// link for the user to click: opening it in a browser starts a download
@@ -203,6 +210,7 @@ public struct RemoteVersion: Sendable, Hashable {
     public init(
         shortVersion: String?,
         version: String?,
+        buildNamespace: InstalledApp.BuildNamespace = .bundle,
         downloadURL: URL?,
         pageURL: URL? = nil,
         installedDisplayVersion: String? = nil,
@@ -227,6 +235,7 @@ public struct RemoteVersion: Sendable, Hashable {
     ) {
         self.shortVersion = shortVersion
         self.version = version
+        self.buildNamespace = buildNamespace
         self.downloadURL = downloadURL
         self.pageURL = pageURL
         self.installedDisplayVersion = installedDisplayVersion
@@ -296,9 +305,16 @@ extension UpdateResult {
     /// latest) build pair so the UI can surface what actually changed. nil when the
     /// marketing version itself moved (the normal case) or there's no build to show.
     public func buildBump(latest: String) -> (installed: String, remote: String)? {
+        // The installed build has to be the one the source is speaking in. A
+        // Firefox nightly is the case that makes this visible: `latest` and
+        // `app.shortVersion` are both "157.0a1" so this line always renders, and
+        // its remote half is `application.ini`'s BuildID — beside a
+        // `CFBundleVersion` it would read "15726.8.29 → 20260829211045", two
+        // numbers with nothing to do with each other.
         guard latest == app.shortVersion,
-              let installedBuild = app.buildVersion,
-              let remoteBuild = remote?.version else { return nil }
+              let remote, let remoteBuild = remote.version,
+              let installedBuild = app.buildVersion(in: remote.buildNamespace)
+        else { return nil }
         let installed = UpdateResult.strippingBuildPrefix(installedBuild)
         let remoteClean = UpdateResult.strippingBuildPrefix(remoteBuild)
         guard installed != remoteClean else { return nil }

@@ -42,6 +42,46 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// `CFBundleVersion` — the build number (e.g. "1.95.3" or "45821").
     public let buildVersion: String?
 
+    /// A build identifier the app's OWN updater versions by, kept somewhere in the
+    /// bundle other than `CFBundleVersion`. Nil for almost every app.
+    ///
+    /// This is deliberately a SECOND field rather than a replacement for
+    /// `buildVersion` (the shape `AppScanner.buildVersionIsOverridden` describes).
+    /// Overriding would have cost a working feature: the restart badge compares the
+    /// disk build against the *running* one, and `lsappinfo` can only ever report
+    /// `CFBundleVersion` — so every app whose stored build is something else is
+    /// skipped there, and Firefox, which self-updates in the background and then
+    /// needs a restart, is precisely an app that badge is for. Keeping both means
+    /// the badge keeps reading `CFBundleVersion` on both sides while a source that
+    /// speaks the vendor's namespace can ask for that one instead.
+    ///
+    /// Mozilla is the case in hand: `Contents/Resources/application.ini` carries
+    /// `BuildID=20260826090609`, which is the string Mozilla's own update service
+    /// answers with, byte for byte. See ``BuildNamespace``.
+    public let vendorBuildVersion: String?
+
+    /// Which of an installed bundle's two build identifiers a remote version is
+    /// expressed in. A source that reports a build states this so the comparison
+    /// can never be made across namespaces — the failure mode being a silent
+    /// constant answer rather than a visible error.
+    public enum BuildNamespace: String, Sendable, Hashable, Codable {
+        /// `CFBundleVersion`. Every source but the Mozilla probes.
+        case bundle
+        /// The vendor's own build identifier, ``InstalledApp/vendorBuildVersion``.
+        case vendor
+    }
+
+    /// The installed build to compare a remote build against, in the namespace the
+    /// remote declared. Nil when this bundle carries no value in that namespace,
+    /// which the engine must treat as "cannot tell" rather than falling back to the
+    /// other one.
+    public func buildVersion(in namespace: BuildNamespace) -> String? {
+        switch namespace {
+        case .bundle: return buildVersion
+        case .vendor: return vendorBuildVersion
+        }
+    }
+
     /// Both version strings this bundle carries, for anything deciding "is this
     /// newer" or "has it changed". Nine sites used to open-code
     /// `buildVersion ?? shortVersion` and five more used the marketing-first
@@ -191,6 +231,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         bundleID: String?,
         shortVersion: String?,
         buildVersion: String?,
+        vendorBuildVersion: String? = nil,
         path: URL,
         isMASApp: Bool,
         isiOSAppOnMac: Bool = false,
@@ -211,6 +252,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.bundleID = bundleID
         self.shortVersion = shortVersion
         self.buildVersion = buildVersion
+        self.vendorBuildVersion = vendorBuildVersion
         self.path = path
         self.isMASApp = isMASApp
         self.isiOSAppOnMac = isiOSAppOnMac

@@ -7,7 +7,7 @@
 ## 基本信息
 - Bundle ID: `com.bytedance.inputmethod.doubaoime`
 - Team ID: `96L78H6LMH`（Developer ID Application: Beijing Chuntian Zhiyun Technology Co., Ltd.）
-- 已安装版本: `0.9.6`（`CFBundleShortVersionString`）
+- 观测版本: `0.9.6`（`CFBundleShortVersionString`）
 - 已安装 build: `90602`（自定义键 `Wave Build Version Number`；`CFBundleVersion` 是废号 `1`）
 - 安装路径: `/Library/Input Methods/DoubaoIme.app`
 - Info.plist 关键位: `CHANNEL_NAME = release`、无 `SUFeedURL`、无 `KSChannelID`、无 `_MASReceipt`

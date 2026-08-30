@@ -3,7 +3,7 @@
 ## 基本信息
 - Bundle ID: `com.electron.ollama`
 - Team ID: 未复核（local bundle signature not checked）
-- 已安装版本: 0.24.0（本机 `/Applications/Ollama.app`；Homebrew cask 当前为 0.30.4）
+- 观测版本: 0.24.0（审计当天 Homebrew cask 为 0.30.4）
 - 自更新机制: Electron / Homebrew cask `auto_updates`
 
 ## 覆盖矩阵

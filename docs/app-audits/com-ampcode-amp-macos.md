@@ -5,7 +5,7 @@ Sourcegraph 的 AI coding agent macOS 客户端（ampcode.com）。
 ## 基本信息
 - Bundle ID: `com.ampcode.amp.macos`
 - Team ID: `PZT9BJUAA5`
-- 已安装版本: 1.0 (build 128) — 审计时 feed 最新已到 build 129
+- 观测版本: 1.0 (build 128) — 审计时 feed 最新已到 build 129
 - 自更新机制: 标准 Sparkle（`Sparkle.framework` 内嵌 + `SUFeedURL` + `SUPublicEDKey`，无自研 updater）
 - 架构: **universal**（x86_64 + arm64 fat binary），不是 arm64-only；DMG 文件名也不带架构 token
 

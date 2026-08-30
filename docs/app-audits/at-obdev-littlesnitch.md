@@ -4,7 +4,7 @@
 - Bundle ID: `at.obdev.littlesnitch`
 - Team ID: `MLZF7K7B5R`
 - 已验证版本: Stable short/build `6.4.1` / `7212`；Nightly short/build `6.5 nightly (7301)` / `7301`
-  （两者均从 obdev 官方 dmg 挂载后直接读 `Info.plist` 得到，2026-08-29；本机未安装该 app，未装机验证）
+  （两者均从 obdev 官方 dmg 挂载后直接读 `Info.plist` 得到，2026-08-29；未对安装副本取证，未装机验证）
 - 自更新机制: 厂商自研（`Little Snitch Software Update.app`，非 Sparkle）
 
 ## 覆盖矩阵

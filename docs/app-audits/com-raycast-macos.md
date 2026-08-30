@@ -6,7 +6,7 @@
 
 - Bundle ID: `com.raycast.macos`
 - Team ID: `SY64MV22J9`
-- 已安装版本: `CFBundleShortVersionString = 2.0.6.0`（`CFBundleVersion = 0`，不可用作比较）
+- 观测版本: `CFBundleShortVersionString = 2.0.6.0`（`CFBundleVersion = 0`，不可用作比较）
 - 自更新机制: 自研（无 `SUFeedURL`，非 Sparkle / 非 Electron Squirrel）
 
 ## 两条 train（本次审计的核心发现）

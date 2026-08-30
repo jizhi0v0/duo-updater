@@ -15,6 +15,13 @@ wrong at least once.
    the *machine*. `issue-111-…md` had named seven installed apps in a public
    file for two days before this check existed.
 
+   The same rule decides the wording: an audit says 「观测版本」, not
+   「已安装版本」. The distinction is not cosmetic — "installed" invites the
+   path, the channel and the "not installed here", which is exactly the
+   inventory this check exists to keep out. Unified across the 14 audits that
+   still said 「已安装版本」 on 2026-08-30, three of which had in fact carried
+   a path or an installed/not-installed disclosure along with it.
+
 3. **Evidence pointers go stale.** Audits used to end with
    "证据：`application-test/records/X.md`" — a path that stopped being tracked
    on 2026-08-14 and so resolved for exactly one person. The evidence now lives
@@ -42,6 +49,14 @@ MACHINE_STATE = [
     (r"~/Applications/[A-Za-z]", "an install path on someone's machine"),
     (r"installed on this machine", "an installed-app inventory"),
     (r"本机(?:仅装|同时装|已装)", "an installed-app inventory"),
+    (r"本机\s*`?/Applications/", "an install path on someone's machine"),
+    # "not installed here" is machine state too — it says what someone's Mac
+    # does NOT have, and the audit means "we took no evidence from an installed
+    # copy", which is a fact about the audit.
+    (r"(?:未在本机|本机未|本机没)(?:安装|装)", "whether an app is installed on someone's machine"),
+    # The wording decision behind 观测版本 (see below) — an audit records what
+    # was OBSERVED, and where the copy came from is beside the point.
+    (r"已安装版本", "「已安装版本」 — audits say 「观测版本」; see check_version_wording"),
 ]
 
 

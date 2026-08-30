@@ -3,7 +3,7 @@
 ## 基本信息
 - Bundle ID: `com.figma.Desktop` (stable) · `com.figma.DesktopBeta` (beta)
 - Team ID: `T8RA8NE3B7` (Figma, Inc.) — stable 与 beta 同签名
-- 已安装版本: stable 126.4.11（最新 126.4.13）
+- 观测版本: stable 126.4.11（最新 126.4.13）
 - 自更新机制: Electron / Squirrel（应用自带）。无 Sparkle（无 `SUFeedURL`）。
 
 ## 覆盖矩阵

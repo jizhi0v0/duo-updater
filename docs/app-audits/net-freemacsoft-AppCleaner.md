@@ -38,7 +38,7 @@
 - 阻塞: 无。
 
 ## 已知问题
-- 本机未安装，但 downloaded cask bundle 已完成 Info.plist proof。
+- 未对安装副本取证，但 downloaded cask bundle 已完成 Info.plist proof。
 
 ## 建议下一步
 1. No code change.

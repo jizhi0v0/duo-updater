@@ -1,15 +1,31 @@
 # Firefox
 
-> 审计 2026-06-04 · **本机严格验证后修复**（5 个真实 bundle 跑 `channel-verify`）。
+> 审计 2026-06-04 · **严格验证后修复**（5 个真实 bundle 跑 `channel-verify`）。
 > 早先"靠版本后缀区分 channel"的结论被实测推翻：beta/esr 安装把后缀剥掉了,曾被误判
 > stable（esr 还会被跨 channel 推 stable）。已改用 `application.ini` 的 `RemotingName`。
+>
+> **2026-08-30 复审 · beta/dev-edition/nightly 的更新检测已修**。同一个"后缀被剥掉"
+> 的事实还有第二个后果：`product-details` 只发 marketing 串，于是整个预发布周期
+> 一次更新都报不出来（beta 恒 `155.0`，nightly 每天出构建却全叫 `157.0a1`）。
+> 三条 channel 改读 Mozilla 自己的更新服务 `aus5.mozilla.org`，比较 `application.ini`
+> 的 `BuildID`。stable / esr 不受影响，仍走 `product-details`。
 > 真实 bundle 验证证据见下文「如何复验」。
 
 ## 基本信息
 - Bundle ID: `org.mozilla.firefox`（Release/Beta/ESR 共享）；Developer Edition =
   `org.mozilla.firefoxdeveloperedition`；Nightly = `org.mozilla.nightly`
 - Team ID: `43AQ936H96`
-- 已安装版本: `151.0.3`（`CFBundleShortVersionString`）/ build `15126.6.1`（`CFBundleVersion`）
+- 观测版本（2026-08-30，各 channel 官方 dmg 挂载后直读）:
+  | Channel | `CFBundleShortVersionString` | `CFBundleVersion` | `application.ini` `BuildID` |
+  |---|---|---|---|
+  | stable      | `154.0.1` | `15426.8.24` | `20260824154132` |
+  | beta        | `155.0`   | `15526.8.26` | `20260826090609` |
+  | dev-edition | `155.0`   | `15526.8.26` | `20260826090609` |
+  | nightly     | `157.0a1` | `15726.8.29` | `20260829211045` |
+
+  两点值得记住：`CFBundleVersion` **是**逐 build 变的（`<major><yy>.<month>.<day>`），
+  但**没有任何 Mozilla 端点发布它**，所以它不能当比较键；`BuildID` 两边都有。
+  Developer Edition 与 Beta 同一次构建，`BuildID` 相同。
 - 自更新机制: **Firefox 自带更新器**（无 Sparkle feed，`SUFeedURL` 不存在）。
   我们 **只检测、不一键** —— 升级交给 app 自身。
 
@@ -57,24 +73,81 @@ Dev Edition 的 `RemotingName=firefox-dev` 归 `.dev`（旧"版本是 bN → 归
 （live）断言三者解析出不同版本、且 b/esr 后缀正确。
 
 ## 更新检测
-- 源: `https://product-details.mozilla.org/1.0/firefox_versions.json`（一份 JSON 含全 channel）
-- 字段映射（2026-06-04 实测）:
+
+**两个源，按 channel 分工。** stable / esr 的 marketing 串每次发布都动，`product-details`
+够用；beta / dev-edition / nightly 的 marketing 串在周期内是冻住的，只能读 build。
+
+### stable / esr — `product-details`
+
+- 源: `https://product-details.mozilla.org/1.0/firefox_versions.json`
+- 字段映射（2026-08-30 复测）:
   | Channel | JSON key | 实测值 | 正则 |
   |---------|----------|-------|------|
-  | stable      | `LATEST_FIREFOX_VERSION`                | `151.0.3` | `"LATEST_FIREFOX_VERSION"\s*:\s*"([0-9]+(?:\.[0-9]+)+)"` |
-  | beta        | `LATEST_FIREFOX_RELEASED_DEVEL_VERSION` | `152.0b7` | `…"([0-9]+\.[0-9]+b[0-9]+)"` |
-  | esr         | `FIREFOX_ESR`                           | `140.11.0esr` | `…"([0-9]+(?:\.[0-9]+)+esr)"` |
-  | dev-edition | `FIREFOX_DEVEDITION`                    | `152.0b7` | `…"([0-9]+\.[0-9]+b[0-9]+)"`（recipe channel `.dev`）|
-  | nightly     | `FIREFOX_NIGHTLY`                       | `153.0a1` | `…"([0-9]+\.[0-9]+a[0-9]+)"` |
-- 注意事项:
-  - **stable 版本方案 ✓ 安全**：endpoint `151.0.3` == 安装 app 短版本，普通 recipe。
-  - **feed 带后缀,安装版剥后缀,但仍安全**：probe 抽出的 `152.0b7`/`140.11.0esr` 比
-    安装版的 `152.0`/`140.11.0` 多一截 `b`/`esr`,而比较器把预发布串排在正式版**之下**
-    （`VersionComparator`：`152.0b7 < 152.0`），所以当前版判"已是最新"、**不会误报**；
-    真正升版（`140.11.0esr`→`140.12.0esr`）仍比得出更新。已用 `channel-verify` 实测确认。
-  - **beta→beta 周期内不可检测**：安装版整周期恒 `152.0`，只能检测跨大版本。
-  - `FIREFOX_ESR_NEXT` 当前为空 —— ESR 切版重叠期会同时存在两条 ESR 轨，目前只跟
-    `FIREFOX_ESR`，不影响主流程（次要边角）。
+  | stable | `LATEST_FIREFOX_VERSION` | `154.0.1` | `"LATEST_FIREFOX_VERSION"\s*:\s*"([0-9]+(?:\.[0-9]+)+)"` |
+  | esr    | `FIREFOX_ESR`            | `140.14.0esr` | `…"([0-9]+(?:\.[0-9]+)+esr)"` |
+- **stable 版本方案 ✓ 安全**：endpoint 值 == 安装 app 短版本，普通 marketing 比较。
+- **esr 带后缀、安装版剥后缀，但仍安全**：`140.14.0esr` 比 `140.14.0` 多一截，比较器把
+  预发布串排在正式版**之下**，所以当前版判"已是最新"、不会误报；真正升版
+  （`140.14.0esr`→`140.15.0esr`）仍比得出更新。
+- `FIREFOX_ESR_NEXT`（当前 `153.1.0esr`）没跟 —— ESR 切版重叠期的双轨，低优先级。
+
+### beta / dev-edition / nightly — AUS（`aus5.mozilla.org`）
+
+`product-details` 在这三条 channel 上**结构性不可用**：它只发 marketing 串，而安装版的
+`CFBundleShortVersionString` 已经把 `bN`/`aN` 之外的信息丢光了。
+
+| Channel | 远程 `155.0b5` 之类 | 安装版短版本 | `isNewer` |
+|---|---|---|---|
+| beta / dev | `155.0b5` | `155.0` | **恒假**（预发布排在正式版之下） |
+| nightly | `157.0a1` | `157.0a1` | **恒假**（逐字相同，一天一个 build） |
+
+改读 app 自己的更新服务 —— `application.ini` 的 `[AppUpdate] URL` 指的就是它：
+
+```
+https://aus5.mozilla.org/update/6/Firefox/<Version>/<BuildID>/Darwin_aarch64-gcc3/en-US/<channel>/Darwin%2025.0.0/default/default/default/update.xml
+```
+
+应答（2026-08-30 实测，beta）：
+
+```xml
+<update appVersion="155.0" buildID="20260826090609" displayVersion="155.0 Beta 5" type="minor">
+  <patch type="complete" URL="https://download.mozilla.org/?product=firefox-155.0b5-complete&os=osx&lang=en-US" …/>
+```
+
+- **比较键** = `buildID`，与安装版 `application.ini` 的 `BuildID` **逐字节相同**（五条
+  channel 全部实测）。recipe 是 `versionIsBuild: true` + `buildNamespace: .vendor`，
+  比的是 `InstalledApp.vendorBuildVersion`，**不是** `CFBundleVersion`。
+- **显示串**取自 `<patch>` 的下载 URL（`product=firefox-155.0b5-complete`），不是
+  Mozilla 自己的 `displayVersion="155.0 Beta 5"`。这不是审美：beta 的 changelog recipe
+  用这个串套 URL（`urlVersionToken` 把 `155.0b5` 变成 `155.0beta`），喂进散文体会 404。
+  nightly 的 `displayVersion` 本来就是 `157.0a1`，直接用属性。
+- **channel token**：Firefox beta = `beta`，Developer Edition = **`aurora`**，nightly =
+  `nightly`。product 一律是 `Firefox`。
+
+#### 锚点是写死的，以及为什么这样是安全的
+
+AUS 是**条件式端点**：它回答的是"比你报的这个 build 新的是什么"，你已经最新就返回空的
+`<updates></updates>`。如果代入本机自己的 build，同一个空应答在用户机上是"已最新"、在
+无 app 的扫描机上是"坏了" —— 一种形状两种含义，是检查静默死掉的标准路径。所以锚点写死：
+每个用户和夜间扫描发的是**同一个请求**，永远期待有应答，空就是失败。
+
+实测出的锚点约束（2026-08-30）：
+
+| 约束 | 实测 |
+|---|---|
+| 版本必须 ≥ 最新的 watershed | `ver=124.0` → 回 125.0 Beta 9 的老 build；`125.0` 及以上 → 当前 build。nightly 无 watershed（`90.0a1` 仍给今天的 build） |
+| build id 必须新于约 2023-01-15 | `20230115` → 空，`20230201` → 有应答；三条 channel 一致，与版本无关 |
+| OS 版本不影响 | `Darwin 20` … `Darwin 27` 应答相同 |
+| 无限流 | 连打 10 次，10 次相同 |
+
+两个锚点最终都会退化 —— watershed 涨到 155.0 以上，或 build id 门槛涨过 2025。**两种
+退化都会被抓到**，这正是写死锚点安全的原因：watershed 回的是**更老**的 build id，门槛
+涨了则回空，两种情况下 `duo verify` 记的值都**往下走**，baseline 直接报版本回退。这一点
+对被它取代的 marketing 锚点**不成立**，那才是这个方案以前被判死的原因。
+
+nightly 的锚点特意用 `120.0a1` 而不是当前的 `157.0a1`：`RecipeSanity` 会在"抽出的版本
+原样出现在请求 URL 里"时告警 —— 那正是"正则匹配到 URL 而不是响应体"的形状，不该让它
+长期亮着。
 
 ## Changelog
 - 来源: **WebView 内嵌官网 release notes**，每条 recipe 自带 `changelogURL`：
@@ -99,42 +172,55 @@ Dev Edition 的 `RemotingName=firefox-dev` 归 `.dev`（旧"版本是 bN → 归
 - dev-edition recipe channel `.beta` → `.dev`（实测 `RemotingName=firefox-dev`、版本 `152.0`）。
 - 与 Thunderbird 同一根因、同一次修复，见 [`org-mozilla-thunderbird.md`](org-mozilla-thunderbird.md)。
 
+## 已修（2026-08-30）
+- beta / dev-edition / nightly 的版本源 `product-details` → `aus5.mozilla.org`，比较键
+  从 marketing 串换成 `application.ini` 的 `BuildID`。**这是这三条 channel 从来没报出过
+  一次更新的根因**，不是精度问题。
+- 引擎侧新增 `InstalledApp.vendorBuildVersion` 与 `RemoteVersion.buildNamespace`：厂商
+  自己的 build id 是**另一个命名空间**，跟 `CFBundleVersion` 比不会报错，只会永远给同一个
+  答案。**没有**改写 `buildVersion`（即没有走 `AppScanner.buildVersionIsOverridden` 那条
+  路）—— 那会让"磁盘 build vs 运行中 build"的重启角标对 Firefox 失效，而 Firefox 正是
+  会后台自更新、然后需要重启的那类 app，那个角标就是为它准备的。
+- 回归测试 `MozillaPreReleaseTests`（14 条，五条 channel 的真实响应体 + 真实 `BuildID`），
+  其中 `theOldMarketingComparisonIsWhyThisExists` 把旧写法为什么恒假直接钉住。
+
 ## 已知限制 / 下一步
-- beta→beta 周期内不可检测（安装版恒 `152.0`），只跟跨大版本。已接受。
-- `FIREFOX_ESR_NEXT` 当前为空；ESR 重叠期双轨低优先级，暂不加。
-- **nightly/daily 周期内同样不可检测，而且比 beta 严重**（测于 2026-08-30）。
-   Mozilla 的 nightly **每天**出构建，整个周期全叫 `157.0a1`；product-details 报的
-   marketing 串与安装版逐字相同，recipe 又不发 build，于是 `UpdateChecker.evaluate()`
-   走 marketing 分支、`isNewer("157.0a1","157.0a1")` 恒假 → **整整一个 ~4 周周期一次
-   更新都不报**。beta 至少每两天才漏一次，nightly 是天天漏。适用 `org.mozilla.nightly`
-   与 `org.mozilla.thunderbird-daily`。
-   2026-06-04 那次记录把「远程 == 安装版」记成了 ✓（确实没有幽灵更新），没有往下推出
-   「因此新构建永远看不见」这一步。
-- **远程侧的 BuildID 来源已找到：Mozilla 自己的 AUS**（`aus5.mozilla.org`，即
-   `application.ini` 里 `[AppUpdate] URL` 指的那个）。它直接返回
-   `buildID="20260826090609"`，与安装版 `application.ini` 的 `BuildID` **逐字节相同**，
-   同时给 `displayVersion="155.0 Beta 5"`。2026-08-30 实测 5 条通道全部作答
-   （FF beta / FF aurora=DevEdition / FF nightly / TB beta / TB daily），
-   且与 `…-latest` 下载链接给的包一致。
-   URL 形状：`/update/6/<Product>/<Version>/<BuildID>/Darwin_aarch64-gcc3/en-US/<channel>/Darwin%2025.0.0/default/default/default/update.xml`
-   —— 注意必须凑满 10 段（漏掉 `%SYSTEM_CAPABILITIES%` 会返回空）。
-   **未解决的一点**：AUS 的应答取决于**传入的版本号**，传 `100.0` 会返回 watershed 的
-   `125.0 Beta 9` 而不是最新；所以锚点不能写死（约两年后静默退化，且 verify 抓不到，
-   因为 watershed 的 build id 是往上走的、不构成版本回退）。正确做法是代入**已装版本**，
-   而 `resolveEndpoint` 目前拿不到 `InstalledApp` —— 那是共享请求路径的改动，
-   另案处理，不在本次范围。
-   （已排除的两条路：buildhub 的「频道最新」是已构建未推送的 `156.0b1`，与
-   `beta-latest` 实际服务的 `155.0b5` 不一致，用它会造成永久幻影；`firefox.json`
-   的 key 是按字符串排序的全量历史，`entryStartPattern` 切片会吞掉文件尾部。）
+- **锚点会退化，但会被抓到**：watershed 涨过 `155.0`、或 AUS 的 build id 门槛涨过
+  `20250101000000`，都会让 `duo verify` 记的值往下走 → baseline 报版本回退 → 换锚点。
+  详见上面「锚点是写死的」。
+- **AUS 不发布发布时间**：没有 `pubDate` 之类的字段，所以这三条 channel 的 Release Log
+  仍然只有"我们何时看见"，没有"厂商何时发布"。
+- `FIREFOX_ESR_NEXT` 当前为 `153.1.0esr`；ESR 重叠期双轨低优先级，暂不加。
+- **一键安装仍然装 `-latest`**，不是 AUS `<patch>` 里那个 `.mar`。`.mar` 是 Mozilla 自己
+  更新器用的增量/完整补丁格式，我们不解析它；`-latest` 的重定向产物就是 AUS 报的那个
+  build（2026-08-30 五条 channel 逐一对过 `BuildID`）。
 - **部署**：改的是 core 检测逻辑，菜单栏 App 需 `xcodebuild` 重建才生效。
 
 ## 如何复验
 
-`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `AppScanner` 的
+`application.ini` 读取 + `VendorProbeSource` + `UpdateChecker.evaluate()`（全部是生产代码，
+不是重实现）。原始 channel 验证 2026-06-04；检测修复的红→绿 2026-08-30。
 
 ```
-# DMG redirector: https://download.mozilla.org/?product=firefox{,-beta,-devedition,-esr,-nightly}-latest-ssl&os=osx&lang=en-US
-swift run --package-path application-test channel-verify "/tmp/ff-esr.dmg"  --expect esr
-swift run --package-path application-test channel-verify "/tmp/ff-beta.dmg" --expect beta
-swift run --package-path application-test channel-verify "/tmp/ff-dev.dmg"  --expect dev
+# 各 channel 的官方 dmg：
+#   https://download.mozilla.org/?product=firefox{,-beta,-devedition,-esr,-nightly}-latest&os=osx&lang=en-US
+# 想要「落后一个 build」的样本，从 archive 取上一个：
+#   https://archive.mozilla.org/pub/firefox/releases/155.0b4/mac/en-US/Firefox%20155.0b4.dmg
+#   https://archive.mozilla.org/pub/firefox/nightly/2026/08/<stamp>-mozilla-central/firefox-157.0a1.en-US.mac.dmg
+
+swift run --package-path application-test channel-verify /tmp/ff-155.0b4.dmg --expect beta
+#   → BuildID 20260824090350 ／ verdict UPDATE 155.0 (20260824090350) → 155.0b5 (20260826090609)
+swift run --package-path application-test channel-verify /tmp/ff-beta.dmg   --expect beta
+#   → BuildID 20260826090609 ／ verdict up to date
+swift run --package-path application-test channel-verify /tmp/ff-nightly-prev.dmg --expect nightly
+#   → 同一天的两个 build，verdict UPDATE 157.0a1 (20260829093200) → 157.0a1 (20260829211045)
+swift run --package-path application-test channel-verify /tmp/ff-esr.dmg    --expect esr
+swift run --package-path application-test channel-verify /tmp/ff-dev.dmg    --expect dev
+```
+
+端点侧：
+
+```
+duo verify --only mozilla          # 9 条 vendor probe + 3 条 changelog
 ```

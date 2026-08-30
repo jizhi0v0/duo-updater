@@ -3,7 +3,7 @@
 ## 基本信息
 - Bundle ID: `com.insomnia.app`（stable / beta / alpha **共享同一 id**）
 - Team ID: `FX44YY62GV` (Kong Inc.)
-- 已安装版本: 12.6.0（stable）
+- 观测版本: 12.6.0（stable）
 - 自更新机制: Electron（应用自带）。无 Sparkle。
 
 ## 覆盖矩阵

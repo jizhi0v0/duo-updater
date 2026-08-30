@@ -5,7 +5,7 @@ macOS menu-bar system monitor (exelban/stats).
 ## 基本信息
 - Bundle ID: `eu.exelban.Stats`
 - Team ID: `RP2S87B72W` (Serhiy Mytrovtsiy)
-- 已安装版本: 3.0.4 (build 804) — 审计时最新为 3.0.10
+- 观测版本: 3.0.4 (build 804) — 审计时最新为 3.0.10
 - 自更新机制: 自研 in-app updater（读 GitHub API）；**无 `SUFeedURL`**、无 Squirrel
 
 ## 覆盖矩阵

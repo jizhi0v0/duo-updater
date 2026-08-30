@@ -197,6 +197,7 @@ public struct AppScanner: Sendable {
                 bundleID: app.bundleID,
                 shortVersion: app.shortVersion,
                 buildVersion: app.buildVersion,
+                vendorBuildVersion: app.vendorBuildVersion,
                 path: app.path,
                 isMASApp: false,
                 isiOSAppOnMac: app.isiOSAppOnMac,
@@ -439,9 +440,12 @@ public struct AppScanner: Sendable {
         // their installed `CFBundleShortVersionString` drops the `b`/`esr` suffix
         // and Beta/ESR can share `org.mozilla.firefox` with Stable. Read it only for
         // Mozilla bundle ids to avoid an extra file probe on every other app.
-        let mozillaRemotingName: String? =
+        // `BuildID` rides along from the same read — it is what the Mozilla
+        // pre-release recipes compare against (see `InstalledApp.vendorBuildVersion`).
+        let mozillaINI: (remotingName: String?, buildID: String?) =
             (bundleID?.hasPrefix("org.mozilla") == true)
-            ? Self.mozillaRemotingName(in: bundleURL) : nil
+            ? Self.mozillaApplicationINI(in: bundleURL) : (nil, nil)
+        let mozillaRemotingName = mozillaINI.remotingName
 
         // Release channel (Stable/Beta/Canary/…). Chrome & other Keystone apps
         // declare it explicitly via `KSChannelID`; otherwise we infer it from the
@@ -490,6 +494,7 @@ public struct AppScanner: Sendable {
             bundleID: bundleID,
             shortVersion: displayShortVersion,
             buildVersion: effectiveBuildVersion,
+            vendorBuildVersion: mozillaINI.buildID,
             path: bundleURL,
             isMASApp: isMAS,
             isiOSAppOnMac: isiOSAppOnMac,
@@ -674,16 +679,47 @@ public struct AppScanner: Sendable {
     }
 
     public static func mozillaRemotingName(in bundleURL: URL) -> String? {
+        mozillaApplicationINI(in: bundleURL).remotingName
+    }
+
+    /// The two fields we need out of a Mozilla app's
+    /// `Contents/Resources/application.ini`, read in one pass.
+    ///
+    ///  - `RemotingName` (`firefox-esr`, `thunderbird-beta`, …) is the
+    ///    authoritative channel marker — the installed
+    ///    `CFBundleShortVersionString` drops the `b`/`esr` suffix and Beta/ESR
+    ///    share a bundle id with Stable, so nothing else on disk separates them.
+    ///  - `BuildID` (`20260826090609`) is the only per-build identifier a Mozilla
+    ///    bundle carries that a Mozilla *endpoint* also publishes. `CFBundleVersion`
+    ///    does move per build — it is `<major><yy>.<month>.<day>`, e.g. `15526.8.26`
+    ///    for 155.0b5 — but no Mozilla service reports it, so it cannot be the
+    ///    comparison key. `aus5.mozilla.org` answers with this `BuildID` byte for
+    ///    byte (measured across all five pre-release channels, 2026-08-30). See
+    ///    `InstalledApp.vendorBuildVersion`.
+    ///
+    /// `application.ini` is a small INI file; we scan it for the two keys rather
+    /// than pulling in a parser. Either field is nil when absent.
+    public static func mozillaApplicationINI(
+        in bundleURL: URL
+    ) -> (remotingName: String?, buildID: String?) {
         let iniURL = bundleURL.appendingPathComponent("Contents/Resources/application.ini")
-        guard let text = try? String(contentsOf: iniURL, encoding: .utf8) else { return nil }
+        guard let text = try? String(contentsOf: iniURL, encoding: .utf8) else { return (nil, nil) }
+        var remotingName: String?
+        var buildID: String?
         for line in text.split(whereSeparator: \.isNewline) {
             guard let eq = line.firstIndex(of: "=") else { continue }
-            if line[..<eq].trimmingCharacters(in: .whitespaces).caseInsensitiveCompare("RemotingName")
-                == .orderedSame {
-                let value = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
-                return value.isEmpty ? nil : value
+            let key = line[..<eq].trimmingCharacters(in: .whitespaces)
+            let value = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+            guard !value.isEmpty else { continue }
+            // First occurrence wins: `application.ini` has one `[App]` section, but
+            // a later `[Gecko]`/`[Crash Reporter]` key of the same name must not
+            // overwrite the app's own.
+            if remotingName == nil, key.caseInsensitiveCompare("RemotingName") == .orderedSame {
+                remotingName = value
+            } else if buildID == nil, key.caseInsensitiveCompare("BuildID") == .orderedSame {
+                buildID = value
             }
         }
-        return nil
+        return (remotingName, buildID)
     }
 }

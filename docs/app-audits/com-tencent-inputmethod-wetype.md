@@ -11,7 +11,7 @@
 ## 基本信息
 - Bundle ID: `com.tencent.inputmethod.wetype`
 - Team ID: `88L2Q4487U`
-- 已安装版本: `2.2.3`（`CFBundleShortVersionString`），build `657`（`CFBundleVersion`）
+- 观测版本: `2.2.3`（`CFBundleShortVersionString`），build `657`（`CFBundleVersion`）
 - 安装路径: `/Library/Input Methods/WeType.app`（`root:staff`，**每一级都是 775**）
 - Info.plist 关键位: **无 `SUFeedURL`**（bundle 里有 Sparkle.framework，feed 在运行时才设）
 - 自更新机制: 自带 `Contents/Helpers/WeTypeUpdater.app`

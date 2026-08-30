@@ -229,9 +229,20 @@ public struct UpdateChecker: Sendable {
     /// against an already-fetched remote (no network) — e.g. to notice an app
     /// updated itself in the background.
     public static func evaluate(installed: InstalledApp, remote: RemoteVersion) -> UpdateStatus {
+        // A remote build stated in the VENDOR's namespace can only be compared
+        // against the vendor's own value. Falling back to the marketing branch
+        // here would be the failure this namespace exists to prevent: for a
+        // Firefox beta the marketing string is frozen at "155.0" for the whole
+        // cycle, so the fallback answers "up to date" every time and looks like a
+        // working check. Say we cannot tell instead.
+        if remote.buildNamespace == .vendor, remote.version != nil,
+           installed.vendorBuildVersion == nil {
+            return .unknown
+        }
+
         // Prefer comparing build versions (Sparkle's canonical key) when both
         // sides have one.
-        if let rv = remote.version, let iv = installed.buildVersion {
+        if let rv = remote.version, let iv = installed.buildVersion(in: remote.buildNamespace) {
             // JetBrains stamps CFBundleVersion with a product-code prefix
             // ("IU-262.6653.22") while a vendor build id is bare ("262.7132.23").
             // Strip a leading "<LETTERS>-" run from both so they compare in one

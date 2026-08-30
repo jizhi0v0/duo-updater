@@ -578,7 +578,6 @@ public struct VendorProbeSource: UpdateSource {
         let display = recipe.displayVersionPattern.flatMap {
             VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
         }
-
         // Optional authoritative publish time, from the same scope (first match,
         // so it belongs to the entry `versionPattern` matched). An unparseable or
         // missing date is not a failure — it just means the Release Log falls back
@@ -590,6 +589,12 @@ public struct VendorProbeSource: UpdateSource {
 
         var warnings: [ProbeWarning] = []
         if scoped.fellBack { warnings.append(.entryPatternNoMatch) }
+        // A display pattern that found nothing leaves the row showing the raw
+        // build id — and, for a recipe whose changelog URL is templated off that
+        // string, a 404 where the release notes were. See `.displayPatternNoMatch`.
+        if recipe.displayVersionPattern != nil, display == nil {
+            warnings.append(.displayPatternNoMatch)
+        }
         var remote: RemoteVersion
 
         // If this recipe knows how to install in place, resolve the installer URL
@@ -867,11 +872,17 @@ public struct VendorProbeSource: UpdateSource {
         // does — so a display marketing string here never drives the comparison.
         let shortVersion = recipe.versionIsBuild ? display : version
         let buildVersion = recipe.versionIsBuild ? version : nil
+        // Only meaningful alongside a build. A detection-only marketing answer is
+        // in no build namespace at all, and stamping one on it would let a future
+        // reader think the comparison was namespaced when it wasn't.
+        let namespace: InstalledApp.BuildNamespace =
+            recipe.versionIsBuild ? recipe.buildNamespace : .bundle
 
         if let spec, let plan {
             return RemoteVersion(
                 shortVersion: shortVersion,
                 version: buildVersion,
+                buildNamespace: namespace,
                 downloadURL: plan.url,
                 // The install plan's URL is the artifact we fetch — handing it to
                 // a browser downloads a pkg instead of opening a page. The recipe's
@@ -898,6 +909,7 @@ public struct VendorProbeSource: UpdateSource {
         return RemoteVersion(
             shortVersion: shortVersion,
             version: buildVersion,
+            buildNamespace: namespace,
             downloadURL: recipe.downloadURL ?? resolvedDownload,
             // Only the curated `downloadURL` is a page. `resolvedDownload` falls
             // back to the probe endpoint, which is an API/redirect that serves a

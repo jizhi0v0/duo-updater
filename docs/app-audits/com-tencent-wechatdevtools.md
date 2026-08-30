@@ -8,7 +8,7 @@
 
 ## 基本信息
 
-- 已安装：`/Applications/wechatwebdevtools.app` — **2.01.2510290**（nw.js 版）
+- 观测版本：**2.01.2510290**（nw.js 版）
   - Bundle ID: `com.tencent.webplusdevtools`
   - Team ID: `FN2V63AD2J`（Developer ID Application: Tencent Technology (Shanghai)）
 - 自更新机制：应用内提示 + 官网下载安装包（无 Sparkle，无 `SUFeedURL`）
@@ -129,7 +129,7 @@ https://devtools.wxqcloud.qq.com.cn/WechatWebDev/nightly/versions/
    `appname == wechatwebdevtools`，别的 Electron app 落不进来（有回归测试钉住）。
 3. **未知 `versionType` 一律不认**：不猜 stable，宁可显示 unknown——猜错就是跨渠道覆盖。
 4. **nightly 一天一版**（history 里 507 条），开着会比较吵。
-5. 2.02 仍未在本机安装，一键安装的**下载→签名闸→装机**全链路没跑过真机；检测/渠道/下载
+5. 2.02 尚无取到的安装副本，一键安装的**下载→签名闸→装机**全链路没跑过真机；检测/渠道/下载
    URL 已按真实包验证。
 
 ## 后续可做（未做）

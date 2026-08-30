@@ -7,7 +7,7 @@
   - CCC 6: `ccc-6.1.13.7699.zip`，6.1.13 / 7699
   - CCC 5: `ccc-5.1.28.6213.zip`，5.1.28 / 6213
 - Team ID: `L4F2DED5Q7`（三个代际相同）
-- 已安装版本: 未在本机安装
+- 观测版本: 无 —— 结论全部来自厂商端点与官方产物，未对任何安装副本取证
 - 自更新机制: Sparkle，但两条 `SUFeedURL` 都失效（见下）——CCC 7 是
   `https://api.bombich.com/updates/ccc`；CCC 5/6 是**不同的字面 URL**
   `https://update.bombich.com/software/updates/ccc.php`，但会 301→302 转到前者，回同一个

@@ -3,7 +3,7 @@
 ## 基本信息
 - Bundle ID: `com.mitchellh.ghostty`
 - Team ID: 未复核（local bundle signature not checked）
-- 已安装版本: 1.3.1（本机 `/Applications/Ghostty.app`）
+- 观测版本: 1.3.1
 - 自更新机制: 自研 / Homebrew cask `auto_updates`
 
 ## 覆盖矩阵

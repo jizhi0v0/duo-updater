@@ -2,7 +2,7 @@
 
 ## 基本信息
 - Bundle ID: `net.librewolf.librewolf`  (⚠️ NOT `org.mozilla.librewolf`)
-- 已安装版本: `151.0.3-1` (build `15126.6.2`)
+- 观测版本: `151.0.3-1` (build `15126.6.2`)
 - 自更新机制: 无（LibreWolf 不带自更新；靠 brew 或手动下载）
 - RemotingName: `librewolf` — 单 channel，无需用于检测
 

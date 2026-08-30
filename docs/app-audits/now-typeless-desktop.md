@@ -3,7 +3,7 @@
 ## 基本信息
 - Bundle ID: `now.typeless.desktop`
 - Team ID: `947QKAND4W`
-- 已安装版本: 1.8.0 (build 1.8.0.109)
+- 观测版本: 1.8.0 (build 1.8.0.109)
 - 自更新机制: Electron + electron-updater (Squirrel.Mac framework bundled)
 
 ## 覆盖矩阵

@@ -111,6 +111,52 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     return name.range(of: p, options: .regularExpression) != nil
 }
 
+@Test func t3CodeAlphaRuleRejectsNightlyTagsAndAssets() {
+    #expect(extract("v0.0.36", "com.t3tools.t3code") == "0.0.36")
+    // The nightly train lives in the SAME repo — the `$` anchor is what keeps
+    // it from reading as alpha when the list fallback walks past a dmg-less
+    // alpha release.
+    #expect(extract("v0.0.37-nightly.20260830.1227", "com.t3tools.t3code") == nil)
+    #expect(rule("com.t3tools.t3code").channel == .alpha)
+    // `[0-9.]+` refuses the `-nightly.` dash — the discriminator the alpha
+    // channel proof anchors on.
+    #expect(matches("T3-Code-0.0.36-arm64.dmg", "com.t3tools.t3code"))
+    #expect(!matches("T3-Code-0.0.37-nightly.20260830.1227-arm64.dmg", "com.t3tools.t3code"))
+    #expect(!matches("T3-Code-0.0.36-x64.dmg", "com.t3tools.t3code"))
+    #expect(!matches("T3-Code-0.0.36-arm64.zip", "com.t3tools.t3code"))
+}
+
+@Test func t3CodeNightlyRuleKeepsTheWholeVersionAndPicksTheNightlyDmg() {
+    let nightly = GitHubReleaseRegistry.rules.first {
+        $0.bundleID == "com.t3tools.t3code" && $0.channel == .nightly
+    }
+    #expect(nightly != nil)
+    guard let nightly else { return }
+    // The app reports the FULL nightly string as both marketing and build, so
+    // truncating to `0.0.37` would make every newer nightly read as already
+    // installed.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: "v0.0.37-nightly.20260830.1227", pattern: nightly.versionPattern)
+        == "0.0.37-nightly.20260830.1227")
+    // Ordering on the date/seq runs: a same-day older seq is a genuine update.
+    #expect(VersionComparator.isNewer("0.0.37-nightly.20260830.1227",
+                                      than: "0.0.37-nightly.20260830.1226"))
+    // The alpha tag must not read as nightly.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: "v0.0.36", pattern: nightly.versionPattern) == nil)
+    guard let pattern = nightly.installAssetPattern else { return }
+    #expect("T3-Code-0.0.37-nightly.20260830.1227-arm64.dmg".range(
+        of: pattern, options: .regularExpression) != nil)
+    for sibling in ["T3-Code-0.0.37-nightly.20260830.1227-arm64.dmg.blockmap",
+                    "T3-Code-0.0.37-nightly.20260830.1227-arm64.zip",
+                    "T3-Code-0.0.37-nightly.20260830.1227-x64.dmg",
+                    "T3-Code-0.0.37-nightly.20260830.1227-x64.exe",
+                    "T3-Code-0.0.37-nightly.20260830.1227-x86_64.AppImage"] {
+        #expect(sibling.range(of: pattern, options: .regularExpression) == nil,
+                "\(sibling) is not the nightly Mac dmg")
+    }
+}
+
 @Test func ccSwitchRulePicksTheMacDmg() {
     #expect(extract("v3.19.2", "com.ccswitch.desktop") == "3.19.2")
     #expect(matches("CC-Switch-v3.19.2-macOS.dmg", "com.ccswitch.desktop"))
@@ -665,6 +711,7 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
         "org.RedisLabs.RedisInsight-V2": "redis/RedisInsight",
         "org.upscayl.Upscayl": "upscayl/upscayl",
         "io.github.wickenico.wailbrew": "wickenico/WailBrew",
+        "com.t3tools.t3code": "pingdotgg/t3code",
     ]
     for (bundleID, slug) in expected {
         #expect(rule(bundleID).slug == slug, "slug drifted for \(bundleID)")

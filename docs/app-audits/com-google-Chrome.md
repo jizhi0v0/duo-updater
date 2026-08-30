@@ -4,7 +4,7 @@
 
 ## 基本信息
 - Bundle ID: `com.google.Chrome`（beta/dev/canary 各自独立：`com.google.Chrome.beta` / `.dev` / `.canary`）
-- 已安装版本: `149.0.7827.54`（stable，本机仅装 stable）
+- 观测版本: `149.0.7827.54`（stable 轨）
 - `CFBundleShortVersionString` = `149.0.7827.54`（完整 4 段）/ `CFBundleVersion` = `7827.54`（截断）
 - `KSChannelID` = `universal`（stable 装机即此值，**非** 空/`stable`）
 - 自更新机制: **Keystone**（Google 自家更新器，后台静默升级）

@@ -38,4 +38,16 @@ CFPreferences 强制 sync（`CFPreferencesAppSynchronize`）避免长时间运�
 - Bundle id 大小写：CFBundleIdentifier 为 `com.tinyapp.TablePlus`（大写 P），但 CFPreferences 域用小写 `com.tinyapp.tableplus`；`ChannelBinding.resolve` 做小写化比对避免大小写漏匹配
 
 ## channel-verify 状态
-- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`，bundle id 大小写 `com.tinyapp.TablePlus`，匹配大小写不敏感）。`ViewSetting.IsReceiveBetaBuild=1` 时判定为 **beta**；带 header `X-Tiny-Beta-Update: true` 取到 7.1.1/711，无 header 取到 7.1.0/710（机制成立）。VendorProbe 故意无应答（机制是 header-keyed Sparkle）。**stable 也已在真实 bundle 上验证**（嵌套键 `IsReceiveBetaBuild=false` 时 `--scan` 结果=stable；改动前后整域快照比对一致，无需退出 TablePlus）。证据：`application-test/records/com-tinyapp-tableplus.md`
+- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`，bundle id 大小写 `com.tinyapp.TablePlus`，匹配大小写不敏感）。`ViewSetting.IsReceiveBetaBuild=1` 时判定为 **beta**；带 header `X-Tiny-Beta-Update: true` 取到 7.1.1/711，无 header 取到 7.1.0/710（机制成立）。VendorProbe 故意无应答（机制是 header-keyed Sparkle）。**stable 也已在真实 bundle 上验证**（嵌套键 `IsReceiveBetaBuild=false` 时 `--scan` 结果=stable；改动前后整域快照比对一致，无需退出 TablePlus）。证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan com.tinyapp.TablePlus --expect beta
+```
+
+## 端点
+
+- 版本端点：`https://tableplus.com/osx/version.xml`（同一 URL 按请求头返回 stable 或 beta 构建）。

@@ -46,4 +46,14 @@ Beta/Canary 轨道仍在 `channel_versions.json` 中有键，但版本停更已�
 - preview/dev: 仅检测
 
 ## channel-verify 状态
-- ✓ **三 channel 全部已验证 2026-06-04**。stable `dev.warp.Warp-Stable`（本机 `--scan`）/ preview `dev.warp.Warp-Preview` / dev `dev.warp.Warp-Dev`（官方 dmg 只读挂载）各自 VendorProbe 应答=对应版本，无幽灵更新；channel 由连字符后缀直读。beta/canary 死轨已弃、不给 recipe。证据：`application-test/records/dev-warp-Warp-Stable.md`
+- ✓ **三 channel 全部已验证 2026-06-04**。stable `dev.warp.Warp-Stable`（本机 `--scan`）/ preview `dev.warp.Warp-Preview` / dev `dev.warp.Warp-Dev`（官方 dmg 只读挂载）各自 VendorProbe 应答=对应版本，无幽灵更新；channel 由连字符后缀直读。beta/canary 死轨已弃、不给 recipe。证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan dev.warp.Warp-Stable --expect stable
+swift run --package-path application-test channel-verify /tmp/WarpPreview.dmg --expect preview
+swift run --package-path application-test channel-verify /tmp/WarpDev.dmg     --expect dev
+```

@@ -35,4 +35,12 @@ CleanShot 不是真正的多 channel 应用——"channel"是订阅授权校验�
 - 订阅到期后个性化 feed 可能拒绝返回版本（服务商侧校验），但 duo-updater 不处理订阅授权状态——降级为"无版本信息"而非误报更新
 
 ## channel-verify 状态
-- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`）。`activationKey` 存在 → 解析出个性化 legit feed，head=4.8.8=installed（消除 4.8.8↓3.7.1 幽灵降级）。key 是凭据、全程不打印。VendorProbe 故意无应答（机制是 license Sparkle feed）。证据：`application-test/records/pl-maketheweb-cleanshotx.md`
+- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`）。`activationKey` 存在 → 解析出个性化 legit feed，head=4.8.8=installed（消除 4.8.8↓3.7.1 幽灵降级）。key 是凭据、全程不打印。VendorProbe 故意无应答（机制是 license Sparkle feed）。证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan pl.maketheweb.cleanshotx --expect stable
+```

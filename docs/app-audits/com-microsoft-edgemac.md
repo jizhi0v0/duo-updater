@@ -72,4 +72,15 @@ Dev 因此留空：把按钮指到 Beta 或 Stable 的页面，等于给 Dev 用
 
 ## channel-verify 状态
 - ✓ **stable/beta/dev 全部已验证 2026-06-04**（官方 `.pkg` 经 `pkgutil --expand-full` 取出 payload `.app` 后跑 channel-verify、未安装）。三者 bundle id `com.microsoft.edgemac[.Beta/.Dev]` detect ✓，VendorProbe 各自应答；**版本方案核对通过**——recipe 版本与 `CFBundleShortVersionString` 同为 4 段营销号，无幽灵 build 风险。verdict 显示 UPDATE 是因为企业版 pkg 落后于 recipe 读的消费版渠道，属正常。
-- Canary 无 recipe（范围外、企业 API 也不列），未验证。证据：`application-test/records/com-microsoft-edgemac.md`
+- Canary 无 recipe（范围外、企业 API 也不列），未验证——下文「如何复验」只覆盖 stable/beta/dev。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+# pkg → app, then:
+swift run --package-path application-test channel-verify "…/Microsoft Edge.app"      --expect stable
+swift run --package-path application-test channel-verify "…/Microsoft Edge Beta.app" --expect beta
+swift run --package-path application-test channel-verify "…/Microsoft Edge Dev.app"  --expect dev
+```

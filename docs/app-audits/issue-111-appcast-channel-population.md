@@ -248,9 +248,10 @@ isn't "known-same" — per CLAUDE.md, an unverified match is not a verified
 one). Building from source sidesteps the question entirely: every result
 below ran the code actually in this checkout.
 
-Six of the eight apps in the population are installed on this machine
-(Fork, Surge, TablePlus, CleanShot X, Ghostty, BetterDisplay), plus DuoPaste
-in `~/Applications`. IINA is not installed, so it was probed by curl only.
+Seven of the eight apps in the population were probed through the full
+production chain against a real bundle; IINA had none available to the run and
+was probed by curl only. (Which apps a given machine has is deliberately not
+recorded here — see `.gitignore`'s note on inventories.)
 
 ### 2.1 Production chain, per installed app (`channel-verify --check`)
 

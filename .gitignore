@@ -35,6 +35,8 @@ scripts/icon/out/
 /STATUS.md
 /plans/
 /docs/*
+# `application-test` 的输出是草稿，不跟踪。结论要写进 docs/app-audits/<bundle-id>.md —
+# 那里是唯一维护的参考。records/ 曾经长成了第二份参考并开始漂移，2026-08-30 合并删除。
 /application-test/records/
 
 # …except the per-app audit docs. Those are the reasoning behind the recipe

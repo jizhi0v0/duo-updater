@@ -2,7 +2,7 @@
 
 > 审计 2026-06-04 · 本机严格验证 + **修复完成**（4 个真实 bundle 跑 `channel-verify` 全绿）
 > stable/beta/esr/nightly 全部正确路由；曾发现 beta/esr recipe 已坏，已用 RemotingName 修。
-> 证据：[`application-test/records/org-mozilla-thunderbird.md`](../../application-test/records/org-mozilla-thunderbird.md)
+> 真实 bundle 验证证据见下文「如何复验」。
 
 ## 基本信息
 - Bundle ID: `org.mozilla.thunderbird`
@@ -82,7 +82,42 @@
    只能检测跨大版本（153.0bN）。已接受。若要周期内检测需用 `application.ini` 的 `BuildID`
    （`20260522225032`，单调递增）——新机制，暂不做。
 - **alpha (`54.0a2`)**：陈旧冻结值，`detect()` 把 `a` 后缀统一归 `.nightly`，不单独覆盖。
+- **nightly/daily 周期内同样不可检测，而且比 beta 严重**（测于 2026-08-30）。
+   Mozilla 的 nightly **每天**出构建，整个周期全叫 `157.0a1`；product-details 报的
+   marketing 串与安装版逐字相同，recipe 又不发 build，于是 `UpdateChecker.evaluate()`
+   走 marketing 分支、`isNewer("157.0a1","157.0a1")` 恒假 → **整整一个 ~4 周周期一次
+   更新都不报**。beta 至少每两天才漏一次，nightly 是天天漏。适用 `org.mozilla.nightly`
+   与 `org.mozilla.thunderbird-daily`。
+   2026-06-04 那次记录把「远程 == 安装版」记成了 ✓（确实没有幽灵更新），没有往下推出
+   「因此新构建永远看不见」这一步。
+- **远程侧的 BuildID 来源已找到：Mozilla 自己的 AUS**（`aus5.mozilla.org`，即
+   `application.ini` 里 `[AppUpdate] URL` 指的那个）。它直接返回
+   `buildID="20260826090609"`，与安装版 `application.ini` 的 `BuildID` **逐字节相同**，
+   同时给 `displayVersion="155.0 Beta 5"`。2026-08-30 实测 5 条通道全部作答
+   （FF beta / FF aurora=DevEdition / FF nightly / TB beta / TB daily），
+   且与 `…-latest` 下载链接给的包一致。
+   URL 形状：`/update/6/<Product>/<Version>/<BuildID>/Darwin_aarch64-gcc3/en-US/<channel>/Darwin%2025.0.0/default/default/default/update.xml`
+   —— 注意必须凑满 10 段（漏掉 `%SYSTEM_CAPABILITIES%` 会返回空）。
+   **未解决的一点**：AUS 的应答取决于**传入的版本号**，传 `100.0` 会返回 watershed 的
+   `125.0 Beta 9` 而不是最新；所以锚点不能写死（约两年后静默退化，且 verify 抓不到，
+   因为 watershed 的 build id 是往上走的、不构成版本回退）。正确做法是代入**已装版本**，
+   而 `resolveEndpoint` 目前拿不到 `InstalledApp` —— 那是共享请求路径的改动，
+   另案处理，不在本次范围。
+   （已排除的两条路：buildhub 的「频道最新」是已构建未推送的 `156.0b1`，与
+   `beta-latest` 实际服务的 `155.0b5` 不一致，用它会造成永久幻影；`firefox.json`
+   的 key 是按字符串排序的全量历史，`entryStartPattern` 切片会吞掉文件尾部。）
 
 ## 部署提醒
 - 改的是 core 的扫描/检测逻辑。菜单栏 App 要 `xcodebuild` 重建才会生效（`swift test`
   只编 core 包，不更新 app 二进制）。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify "/Applications/Thunderbird.app" --expect stable
+swift run --package-path application-test channel-verify "/tmp/tb-daily.dmg" --expect nightly
+swift run --package-path application-test channel-verify "/tmp/tb-esr.dmg"   --expect esr
+swift run --package-path application-test channel-verify "/tmp/tb-beta.dmg"  --expect beta
+```

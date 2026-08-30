@@ -58,3 +58,14 @@
   而 Codex 新加的 channel gate 要求 `rule.channel == app.releaseChannel`，导致 `.preview` 安装
   被 gate 拒、源不应答（status=unknown）。早先审计用的是 `--scan`（仅检测）+ 手动 live API，
   没跑全链所以漏掉。已给 rule 补 `channel: .preview`，并加断言 `…== .preview` 锁住。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan dev.zed.Zed-Preview --expect preview
+# full production chain (catches channel-gate issues --scan misses):
+swift run --package-path application-test channel-verify --check dev.zed.Zed-Preview --expect preview
+swift run --package-path application-test channel-verify /tmp/zed-stable.dmg --expect stable
+```

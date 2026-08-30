@@ -43,4 +43,12 @@
 - Team HUAQ24HBR6 门控
 
 ## channel-verify 状态
-- ✓ **stable 已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`）。`updates_optinChannel` 未设时判定为 **stable**；VendorProbe 应答 2.1.3=installed。**beta/canary 也已在真实 bundle 上验证**（`updates_optinChannel`=beta/canary 时 `--scan` 结果相应为 beta/canary；验证用的临时改动已还原）→ 三 channel 全部验证 ✓。证据：`application-test/records/dev-kdrag0n-MacVirt.md`
+- ✓ **stable 已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`）。`updates_optinChannel` 未设时判定为 **stable**；VendorProbe 应答 2.1.3=installed。**beta/canary 也已在真实 bundle 上验证**（`updates_optinChannel`=beta/canary 时 `--scan` 结果相应为 beta/canary；验证用的临时改动已还原）→ 三 channel 全部验证 ✓。证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan dev.kdrag0n.MacVirt --expect stable
+```

@@ -39,4 +39,12 @@ Fork 命名反直觉：UI 称"Developer"为 beta 轨道（shipped default），"
 - Sparkle 自更新（stable/beta 各自 feed 带 `<enclosure>`），duo-updater 不额外覆盖安装
 
 ## channel-verify 状态
-- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`）。`applicationUpdateChannel` 未设时 Fork 默认走 **Developer/beta**（非 stable），developer feed head=2.67.0=installed。VendorProbe 故意无应答（机制是 Sparkle feed-swap）。**stable 也已在真实 bundle 上验证**（`applicationUpdateChannel=2` 时 `--scan` 结果=stable；验证用的临时改动已还原，无需退出 Fork）。证据：`application-test/records/com-DanPristupov-Fork.md`
+- ✓ **已验证 2026-06-04**（`--scan` 跑生产 `AppScanner`→`ChannelBinding`）。`applicationUpdateChannel` 未设时 Fork 默认走 **Developer/beta**（非 stable），developer feed head=2.67.0=installed。VendorProbe 故意无应答（机制是 Sparkle feed-swap）。**stable 也已在真实 bundle 上验证**（`applicationUpdateChannel=2` 时 `--scan` 结果=stable；验证用的临时改动已还原，无需退出 Fork）。证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan com.DanPristupov.Fork --expect beta
+```

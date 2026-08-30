@@ -41,4 +41,12 @@
 2. 若 unstable 共享同一 bundle id，需有偏好/版本信号可区分（暂无确认信息）
 
 ## channel-verify 状态
-- ✓ **stable 已验证 2026-06-04**（`--scan`，对真实 `io.tailscale.ipn.macsys` bundle 1.98.5/101.98.5）。VendorProbe 应答 1.98.5=installed，无幽灵更新。`unstable` 轨无 recipe、不在范围。证据：`application-test/records/io-tailscale-ipn-macsys.md`
+- ✓ **stable 已验证 2026-06-04**（`--scan`，对真实 `io.tailscale.ipn.macsys` bundle 1.98.5/101.98.5）。VendorProbe 应答 1.98.5=installed，无幽灵更新。`unstable` 轨无 recipe、不在范围。证据见下文「如何复验」。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify --scan io.tailscale.ipn.macsys --expect stable
+```

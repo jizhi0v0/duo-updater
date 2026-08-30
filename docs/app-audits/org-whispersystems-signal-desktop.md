@@ -47,7 +47,16 @@
   Signal 自己的流水线问题，别照抄 Typeless 加回来。
 
 ## channel-verify 状态
-- ✓ **两 channel 已验证 2026-06-04**（官方 zip 解压后对真实 `.app` 跑 channel-verify、未安装）。stable `org.whispersystems.signal-desktop` 8.13.0 / beta `…-beta` 8.14.0-beta.1 各自 VendorProbe（latest-mac.yml / beta-mac.yml）应答=installed，无幽灵更新。证据：`application-test/records/org-whispersystems-signal-desktop.md`
+- ✓ **两 channel 已验证 2026-06-04**（官方 zip 解压后对真实 `.app` 跑 channel-verify、未安装）。stable `org.whispersystems.signal-desktop` 8.13.0 / beta `…-beta` 8.14.0-beta.1 各自 VendorProbe（latest-mac.yml / beta-mac.yml）应答=installed，无幽灵更新。证据见下文「如何复验」。
 - ✓ **2026-08-09 复验**（官方 universal dmg 挂载取 `.app`、未安装）：stable 8.22.0 / beta 8.23.0-beta.1
   检测=期望 channel、probe 应答=installed、各自解析到本 channel 的 dmg，签名/公证/Team 已核。
   同一份证据文件。
+
+## 如何复验
+
+`channel-verify` 对**真实 bundle** 跑生产 `ReleaseChannel.detect()` + `VendorProbeSource`（不是重实现）。原始验证 2026-06-04。
+
+```
+swift run --package-path application-test channel-verify "/tmp/Signal.app"      --expect stable
+swift run --package-path application-test channel-verify "/tmp/Signal Beta.app" --expect beta
+```

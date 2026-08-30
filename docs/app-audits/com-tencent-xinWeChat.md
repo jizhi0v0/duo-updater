@@ -5,8 +5,8 @@
 ## 基本信息
 - Bundle ID: `com.tencent.xinWeChat`
 - Team ID: `5A4RE8SF68`（Developer ID Application: Tencent Mobile International Limited）
-- 已安装版本: `4.1.10`（marketing）/ build `268851`
-- 安装路径: `~/Applications/WeChat.app`（非 `/Applications`，无 `_MASReceipt` → 官网下载版）
+- 观测版本: `4.1.10`（marketing）/ build `268851`
+- 分发形态: 官网下载版无 `_MASReceipt`（MAS 版有），是区分两种分发的判据；官网版不要求装在 `/Applications`
 - 自更新机制: 自研 in-app 更新器；**Info.plist 无 `SUFeedURL`、无 `KSChannelID`、无 `SUPublicEDKey`**
   （它内部用 Sparkle，但 feed URL 在运行时设置，公钥也不暴露在 bundle 里）
 

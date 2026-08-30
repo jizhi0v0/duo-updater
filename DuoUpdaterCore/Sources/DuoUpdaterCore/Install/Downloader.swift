@@ -20,6 +20,16 @@ import Foundation
 ///     error page, an insecure redirect, a disk error) are not retried.
 final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
 
+    /// The UA every installer fetch carries.
+    ///
+    /// Shared rather than inlined because the sweep's install-URL reachability
+    /// probe (`VendorProbeSource.installURLReachability`) has to send the SAME
+    /// one to be asking about the same thing. SourceForge answers 403 to a
+    /// browser-like agent and 200 to this, so a probe that drifted off this
+    /// constant would report healthy recipes as broken.
+    static let userAgent = "DuoUpdater/0.1"
+
+
     enum DownloadError: LocalizedError {
         case httpStatus(Int)
         case unsafeFilename(String)
@@ -208,7 +218,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
             .attributesOfItem(atPath: partial.path)[.size] as? NSNumber)?.int64Value ?? 0
 
         var request = URLRequest(url: url)
-        request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
         // Force identity encoding. URLSession otherwise advertises
         // `Accept-Encoding: gzip` and some CDNs (Google's edgedl.me.gvt1.com,
         // serving the Android Studio dmg) honour it even for already-compressed

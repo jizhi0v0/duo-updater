@@ -20,6 +20,7 @@ test:
 	swift test --package-path CLI
 	python3 scripts/check_localizable_keys.py
 	python3 scripts/check_staged_version_use.py
+	python3 scripts/check_app_audits.py
 
 # The notarytool keychain profile both targets below need. Not a secret — the
 # credentials it names live in the keychain; this is only which of them to use.

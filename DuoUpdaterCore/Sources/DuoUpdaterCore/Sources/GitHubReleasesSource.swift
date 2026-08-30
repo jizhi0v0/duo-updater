@@ -1061,6 +1061,20 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^bruno_[0-9.]+_arm64_mac\.dmg$"#,
             installerKind: .dmg),
 
+        // OpenLogi — fast-moving native Logitech utility. The real 0.8.1 bundle
+        // is `org.openlogi.openlogi` and carries neither Sparkle nor another
+        // standard update feed in Info.plist; its Homebrew cask is
+        // `auto_updates: true`, so Homebrew correctly defers to the app updater.
+        // That updater's compiled-in stable manifest and release workflow both
+        // point at AprilNEA/OpenLogi, where stable tags are exactly `vX.Y.Z` and
+        // publishing is gated on both macOS DMGs existing. The anchored pattern
+        // rejects prerelease suffixes rather than truncating one onto stable.
+        // Detection-only until one-click is approved and separately verified.
+        GitHubReleaseRule(
+            bundleID: "org.openlogi.openlogi",
+            owner: "AprilNEA", repo: "OpenLogi",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
+
         // LocalSend — the reason `installAssetPattern` doubles as the macOS-release
         // gate. Upstream builds Windows/Linux/Android on CI but the dmg by hand
         // (`support/scripts/compile_mac_dmg.sh`, one maintainer, Developer ID +

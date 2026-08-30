@@ -662,7 +662,10 @@ public actor AppStoreAXInstaller {
                     //
                     // A momentary redraw looks like the second one for a poll or two, so
                     // it has to persist before we call it a cancel — same shape as the
-                    // `sheetTicks >= 8` grace above, and the same reason.
+                    // `sheetTicks >= 8` grace above, and the same reason. Counted in
+                    // polls, which here run at the slower prompt cadence: four of them
+                    // is ~6s, three orders of magnitude past a redraw and still short
+                    // enough that a cancel doesn't leave the row looking stuck.
                     switch QuitPrompt.decide(
                         answer: await quitAnswer(),
                         sheetPresent: false,
@@ -695,7 +698,7 @@ public actor AppStoreAXInstaller {
                         throw AXError.cancelled
                     case .keepWaiting:
                         sheetlessPromptTicks += 1
-                        if sheetlessPromptTicks >= 8 {  // ~3.2s, as above
+                        if sheetlessPromptTicks >= 4 {  // ~6s at the 1.5s prompt cadence
                             Log.install.info("appstore-ax: \(appName, privacy: .public) close-to-update sheet dismissed elsewhere with the app still running — treating as cancelled")
                             withdrawQuit()
                             throw AXError.cancelled
@@ -738,7 +741,13 @@ public actor AppStoreAXInstaller {
                 }
             }
 
-            try await Task.sleep(for: .milliseconds(400))
+            // Slower while the question is on screen. Awaiting the answer used to
+            // cost nothing at all — the task was simply suspended — so polling for it
+            // at the install cadence would be a regression paid by anyone who leaves
+            // the prompt sitting: an AX tree walk every 400 ms for as long as they
+            // take. A person deciding is not a swap in flight, and 1.5 s is still far
+            // inside human reaction time for noticing an answer given in App Store.
+            try await Task.sleep(for: .milliseconds(askedToQuit ? 1_500 : 400))
         }
         Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — 6-min poll cap reached (continued=\(continued) sawProgress=\(sawProgress))")
         throw AXError.timedOut

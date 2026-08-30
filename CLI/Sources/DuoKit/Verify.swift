@@ -136,6 +136,22 @@ public enum Verify {
         }
         baseline.updatedAt = Date()
 
+        // Drop rows for recipes that no longer exist. Deliberately keyed on the
+        // REGISTRIES rather than on what this run swept: `--only` and
+        // `--changelog` narrow the sweep, and pruning against a narrowed run
+        // would delete every row the filter excluded.
+        let live = Set(
+            VendorProbeRegistry.recipes.map(\.recipeID)
+                + ChangelogRecipeRegistry.recipes.map(\.recipeID)
+                + GitHubReleaseRegistry.rules.map(\.recipeID))
+        let pruned = baseline.prune(keeping: live)
+        for id in pruned.removed {
+            print("  baseline: dropped \(id) — no recipe produces this id any more")
+        }
+        for id in pruned.keptWithOpenIssue {
+            print("  baseline: \(id) has no recipe but its issue is still open — kept")
+        }
+
         Report.text(findings, elapsed: Int(Date().timeIntervalSince(started)),
                     baseline: baseline, showSamples: options.showSamples)
         writeArtifacts(findings, baseline: baseline, options: options)

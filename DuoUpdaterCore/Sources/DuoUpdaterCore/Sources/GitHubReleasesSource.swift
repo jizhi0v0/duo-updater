@@ -257,6 +257,17 @@ public struct GitHubReleaseRule: Sendable {
     var slug: String { "\(owner)/\(repo)" }
 }
 
+public extension GitHubReleaseRule {
+    /// Stable sweep key for this rule — the id the baseline files it under.
+    ///
+    /// Public and defined once because two callers need to agree on it: the
+    /// sweep, which writes rows under this key, and `Baseline.prune`, which
+    /// decides a row is orphaned when no rule produces its key. A second,
+    /// separately-maintained spelling of this string would make the prune delete
+    /// live rows the first time the two drifted.
+    var recipeID: String { "github:\(slug):\(channel.rawValue)" }
+}
+
 /// Resolves updates for apps distributed through GitHub Releases. Kept separate
 /// from `VendorProbeSource` because GitHub is one uniform mechanism (one API,
 /// shared rate limit, tag-name parsing) rather than a pile of bespoke endpoints.
@@ -375,7 +386,7 @@ public struct GitHubReleasesSource: UpdateSource {
             remote: RemoteVersion?, failure: ProbeFailure?, tags: [String] = [], status: Int? = nil
         ) -> ProbeOutcome {
             ProbeOutcome(
-                recipeID: "github:\(rule.slug):\(rule.channel.rawValue)",
+                recipeID: rule.recipeID,
                 bundleID: rule.bundleID, channel: rule.channel,
                 remote: remote, failure: failure, httpStatus: status,
                 bodySample: tags.isEmpty ? nil : tags.joined(separator: "\n"),

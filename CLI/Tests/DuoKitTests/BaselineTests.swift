@@ -371,3 +371,81 @@ import DuoUpdaterCore
         #expect(Verify.buildDate("3.6.4") == nil)
     }
 }
+
+/// Pruning is the only operation that DELETES from the baseline, and it runs
+/// unattended on every sweep, so each guard on it is pinned rather than trusted.
+@Suite struct BaselinePruneTests {
+
+    private func baseline(_ ids: [String]) -> Baseline {
+        var b = Baseline()
+        for id in ids { b.entries[id] = Baseline.Entry() }
+        return b
+    }
+
+    @Test func dropsRowsNoRecipeProducesAnyMore() {
+        var b = baseline(["vendor:a:stable", "changelog:gone:-", "github:o/r:stable"])
+        let out = b.prune(keeping: ["vendor:a:stable", "github:o/r:stable"])
+        #expect(out.removed == ["changelog:gone:-"])
+        #expect(b.entries.keys.sorted() == ["github:o/r:stable", "vendor:a:stable"])
+    }
+
+    /// The real shape this exists for: a recipe that was re-keyed rather than
+    /// deleted. Claude Desktop's split into `:ga` + `:rollout` left the bare
+    /// `:stable` row behind reading as nine-days-stale.
+    @Test func dropsTheOldKeyWhenARecipeIsReKeyed() {
+        var b = baseline([
+            "vendor:com.anthropic.claudefordesktop:stable",
+            "vendor:com.anthropic.claudefordesktop:stable:ga",
+            "vendor:com.anthropic.claudefordesktop:stable:rollout",
+        ])
+        let out = b.prune(keeping: [
+            "vendor:com.anthropic.claudefordesktop:stable:ga",
+            "vendor:com.anthropic.claudefordesktop:stable:rollout",
+        ])
+        #expect(out.removed == ["vendor:com.anthropic.claudefordesktop:stable"])
+        #expect(b.entries.count == 2)
+    }
+
+    /// Issues close when a recipe verifies clean. A removed recipe never
+    /// verifies again, so dropping its row would strand the issue with nothing
+    /// left that could ever close it.
+    @Test func keepsAnOrphanWhoseIssueIsStillOpen() {
+        var b = baseline(["changelog:gone:-"])
+        b.entries["changelog:gone:-"]?.issueNumber = 42
+        let out = b.prune(keeping: ["vendor:other:stable"])
+        #expect(out.removed.isEmpty)
+        #expect(out.keptWithOpenIssue == ["changelog:gone:-"])
+        #expect(b.entries["changelog:gone:-"] != nil)
+    }
+
+    @Test func dropsAnOrphanWhoseIssueWasAlreadyClosed() {
+        var b = baseline(["changelog:gone:-"])
+        b.entries["changelog:gone:-"]?.issueNumber = 42
+        b.entries["changelog:gone:-"]?.closedAt = Date()
+        #expect(b.prune(keeping: ["vendor:other:stable"]).removed == ["changelog:gone:-"])
+        #expect(b.entries.isEmpty)
+    }
+
+    /// A caller that fails to build the live set must not wipe the file. This is
+    /// the difference between a bug and a data loss.
+    @Test func anEmptyLiveSetPrunesNothing() {
+        var b = baseline(["vendor:a:stable", "changelog:b:-"])
+        let out = b.prune(keeping: [])
+        #expect(out.removed.isEmpty)
+        #expect(b.entries.count == 2)
+    }
+
+    /// The set the sweep actually passes has to cover every row the sweep writes,
+    /// or the next run deletes what this one recorded. Derived from the
+    /// registries, never a literal list.
+    @Test func everyRegistryRecipeIDIsInTheLiveSet() {
+        let live = Set(
+            VendorProbeRegistry.recipes.map(\.recipeID)
+                + ChangelogRecipeRegistry.recipes.map(\.recipeID)
+                + GitHubReleaseRegistry.rules.map(\.recipeID))
+        #expect(live.count > 250, "only \(live.count) ids — a registry stopped contributing?")
+        var b = Baseline()
+        for id in live { b.entries[id] = Baseline.Entry() }
+        #expect(b.prune(keeping: live).removed.isEmpty)
+    }
+}

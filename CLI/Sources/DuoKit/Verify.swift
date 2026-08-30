@@ -38,6 +38,9 @@ public struct VerifyOptions: Sendable {
 struct InstalledVersion: Sendable {
     let marketing: String?
     let build: String?
+    /// The vendor's own build id, for the sources that report one
+    /// (`RemoteVersion.buildNamespace == .vendor`). Nil for every other app.
+    let vendorBuild: String?
 }
 
 public enum Verify {
@@ -838,7 +841,7 @@ public enum Verify {
         warnings.append(contentsOf: sanity(version, remote))
         if let installed, let complaint = RecipeSanity.remoteBehindInstalled(
             remote: remote, installedMarketing: installed.marketing,
-            installedBuild: installed.build) {
+            installedBuild: installed.build, installedVendorBuild: installed.vendorBuild) {
             warnings.append(complaint)
         }
         // A vendor 5xx while resolving the installer URL is reported but is not
@@ -889,7 +892,9 @@ public enum Verify {
             for app in AppScanner().scan() {
                 guard let bundleID = app.bundleID else { continue }
                 out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] =
-                    InstalledVersion(marketing: app.shortVersion, build: app.buildVersion)
+                    InstalledVersion(
+                        marketing: app.shortVersion, build: app.buildVersion,
+                        vendorBuild: app.vendorBuildVersion)
             }
             box.set(out)
             done.signal()

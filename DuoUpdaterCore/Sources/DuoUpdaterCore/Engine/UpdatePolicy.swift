@@ -374,8 +374,15 @@ public enum UpdatePolicy {
         guard !result.app.isMASApp, !result.app.isTestFlightApp, !result.app.isToolboxManaged
         else { return nil }
         // Same build on both sides is the same release, whatever the labels read.
-        if let installedBuild = result.app.buildVersion, !installedBuild.isEmpty,
-           let remoteBuild = result.remote?.version, !remoteBuild.isEmpty,
+        // Read in the namespace the source declared: a build compared across
+        // namespaces is never equal, so this early-out would simply stop firing.
+        // Unreachable for the vendor namespace today — the only recipes in it are
+        // pre-release and this is stable-only — and stated rather than left for
+        // the first stable one to discover.
+        if let remote = result.remote,
+           let installedBuild = result.app.buildVersion(in: remote.buildNamespace),
+           !installedBuild.isEmpty,
+           let remoteBuild = remote.version, !remoteBuild.isEmpty,
            installedBuild == remoteBuild {
             return nil
         }

@@ -953,10 +953,18 @@ final class AppListModel {
         // mirror), and this is measured rather than claimed. It is also the only
         // build number available at all for GitHub, Homebrew and the App Store,
         // which publish none.
+        // `declared` only stands in when the bundle cannot be read, so it has to be
+        // in the same namespace `InstalledBuild.read` answers in — `CFBundleVersion`.
+        // A source reporting the vendor's own build id (Mozilla's `BuildID`) has
+        // nothing to offer here, and its number beside a `CFBundleVersion` in the
+        // traffic log would be worse than the blank this leaves instead.
+        let declaredBuild = result.remote.flatMap {
+            $0.buildNamespace == .bundle ? $0.version : nil
+        }
         let toBuild = InstalledBuild.recorded(
             applied: applied,
             onDisk: { InstalledBuild.read(at: result.app.path) },
-            declared: result.remote?.version)
+            declared: declaredBuild)
 
         await trafficStore.record(
             appID: result.app.id,

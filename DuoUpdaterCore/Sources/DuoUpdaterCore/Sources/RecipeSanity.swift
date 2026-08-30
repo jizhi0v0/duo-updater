@@ -73,12 +73,23 @@ public enum RecipeSanity {
     /// either direction is fatal to the check's usefulness: comparing the fixed
     /// Brave recipe's *display* string against the bundle's marketing version
     /// re-flags the very recipe the fix repaired.
+    /// - Parameter installedBuild: the bundle's `CFBundleVersion`.
+    /// - Parameter installedVendorBuild: the vendor's own build id, where the
+    ///   bundle keeps one (`InstalledApp.vendorBuildVersion`). Which of the two is
+    ///   used is decided by `remote.buildNamespace`, never by which is non-nil:
+    ///   handing this check a `CFBundleVersion` against a Mozilla `BuildID` does
+    ///   not make it complain, it makes it answer "not behind" forever — the
+    ///   silent-guard shape it was written to catch, arriving through its own
+    ///   parameter list.
     public static func remoteBehindInstalled(
-        remote: RemoteVersion, installedMarketing: String?, installedBuild: String?
+        remote: RemoteVersion, installedMarketing: String?, installedBuild: String?,
+        installedVendorBuild: String? = nil
     ) -> String? {
         let remoteValue: String
         let installedValue: String
-        if let rv = remote.version, let iv = installedBuild {
+        let comparableBuild = remote.buildNamespace == .vendor
+            ? installedVendorBuild : installedBuild
+        if let rv = remote.version, let iv = comparableBuild {
             remoteValue = UpdateChecker.normalizedBuild(rv)
             installedValue = UpdateChecker.normalizedBuild(iv)
         } else if let rs = remote.shortVersion, let isv = installedMarketing {

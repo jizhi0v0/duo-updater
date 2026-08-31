@@ -1275,6 +1275,11 @@ public enum VendorProbeRegistry {
         // `.tar.xz` holding `Vivaldi Snapshot.app`, bundle id
         // com.vivaldi.Vivaldi.snapshot, Team 4XF3XNRN6Y, spctl "Notarized Developer
         // ID". `.tarGz` covers xz — see the ImageOptim note.
+        //
+        // DEAD FOR DETECTION, kept as a sweep anchor — same as Bartender and
+        // ImageOptim. Measured on the real 8.2.4133.31 bundle (2026-08-31): it
+        // declares `SUFeedURL = https://update.vivaldi.com/update/1.0/snapshot/mac/
+        // appcast.xml`, this exact address, so Sparkle answers first.
         VendorProbeRecipe(
             bundleID: "com.vivaldi.Vivaldi.snapshot",
             url: URL(string: "https://update.vivaldi.com/update/1.0/snapshot/mac/appcast.xml")!,
@@ -1557,9 +1562,17 @@ public enum VendorProbeRegistry {
                 kind: .pkg)),
 
         // Bartender — Sparkle appcast (ascending, oldest-first). Version lives in
-        // sparkle:shortVersionString on each <item>. Detection-only; if the
-        // installed app has SUFeedURL in Info.plist SparkleAppcastSource takes
-        // priority. selectHighest because the feed lists items oldest-first.
+        // sparkle:shortVersionString on each <item>. selectHighest because the feed
+        // lists items oldest-first.
+        //
+        // DEAD FOR DETECTION, kept as a sweep anchor. The hedge this comment used
+        // to carry ("if the installed app has SUFeedURL … Sparkle takes priority")
+        // was settled on 2026-08-31 by reading the real 6.6.2 bundle: it declares
+        // `SUFeedURL = https://www.macbartender.com/B2/updates/AppcastB6.xml`, the
+        // same address as below, so `SparkleAppcastSource` answers first and this
+        // recipe never runs in production. It stays because `duo verify` sweeps the
+        // recipe registries and nothing sweeps Sparkle feeds — deleting the row
+        // would leave the endpoint unwatched. Do not "fix" this by re-pointing it.
         VendorProbeRecipe(
             bundleID: "com.surteesstudios.Bartender",
             url: URL(string: "https://www.macbartender.com/B2/updates/AppcastB6.xml")!,
@@ -1584,7 +1597,11 @@ public enum VendorProbeRegistry {
 
         // ImageOptim — Sparkle appcast carrying only the latest release
         // (descending, single item). Version in sparkle:shortVersionString.
-        // Detection-only; SparkleAppcastSource takes priority if SUFeedURL present.
+        //
+        // DEAD FOR DETECTION, kept as a sweep anchor — same as Bartender above.
+        // Measured on the real 1.9.3 bundle (2026-08-31): it declares
+        // `SUFeedURL = https://imageoptim.com/appcast.xml`, this exact address, so
+        // Sparkle answers first and this row only keeps the endpoint in the sweep.
         VendorProbeRecipe(
             bundleID: "net.pornel.ImageOptim",
             url: URL(string: "https://imageoptim.com/appcast.xml")!,

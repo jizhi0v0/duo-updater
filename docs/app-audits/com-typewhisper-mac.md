@@ -56,9 +56,9 @@ Sparkle feed 才是。
 
 ## 一键安装
 - 状态: **支持**（Sparkle 原生路径，各轨 feed enclosure）
-- 格式: `TypeWhisper-v{ver}.dmg`
+- 格式: `TypeWhisper-v{ver}.zip`
 - **读的是**: 人人可手动下载的 GA（feed 公开条目）
-- 包验（2026-08-30，v1.6.0 挂载）: `com.typewhisper.mac` / `1.6.0` / build
+- 包验（2026-08-30，v1.6.0 解包）: `com.typewhisper.mac` / `1.6.0` / build
   `1091`，Team `2D8ALY3LCL`，notarized
 
 ## 已知问题
@@ -68,7 +68,7 @@ Sparkle feed 才是。
 ```
 # GET https://typewhisper.github.io/typewhisper-mac/appcast.xml
 #   → 3 条：default=1.6.0，rc=1.6.0-rc2，daily=1.7.0-daily.20260830
-# 挂载 TypeWhisper-v1.6.0.dmg → com.typewhisper.mac / 1.6.0 / 1091
+# 解包 TypeWhisper-v1.6.0.zip → com.typewhisper.mac / 1.6.0 / 1091
 # channel-verify --check com.typewhisper.mac → winning=Sparkle, up to date
 ```
 

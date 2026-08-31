@@ -39,14 +39,15 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
-@Test func claudeStatusBarRuleReadsVPrefixedTagsAndTheVersionlessDmg() {
-    #expect(extract("v0.4.4", "com.local.claudestatusbar") == "0.4.4")
-    #expect(extract("v0.4.4-beta.1", "com.local.claudestatusbar") == nil)
-    let pattern = try! #require(rule("com.local.claudestatusbar").installAssetPattern)
-    #expect("ClaudeStatusBar.dmg".range(of: pattern, options: .regularExpression) != nil)
-    #expect("ClaudeStatusBar.zip".range(of: pattern, options: .regularExpression) == nil)
-    #expect(rule("com.local.claudestatusbar").slug == "m1ckc3s/claude-status-bar")
-    #expect(rule("com.local.claudestatusbar").installerKind == .dmg)
+@Test func heliumRuleReadsBareTagsAndPinsTheArm64Dmg() {
+    #expect(extract("0.16.2.1", "net.imput.helium") == "0.16.2.1")
+    #expect(extract("v0.16.2.1", "net.imput.helium") == nil)
+    let pattern = try! #require(rule("net.imput.helium").installAssetPattern)
+    #expect("helium_0.16.2.1_arm64-macos.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("helium_0.16.2.1_x86_64-macos.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("0.15.4.1-arm64.delta".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("net.imput.helium").slug == "imputnet/helium-macos")
+    #expect(rule("net.imput.helium").installerKind == .dmg)
 }
 
 @Test func insomniaRuleMatchesCoreTagOnly() {

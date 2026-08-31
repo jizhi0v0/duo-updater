@@ -152,6 +152,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30
 - [x] [**GitHub Copilot for Xcode**](com-github-CopilotForXcode.md) · `com.github.CopilotForXcode` — S(stable+prerelease) · 两轨 tag 过、共享 bundle id · 真包 0.51.0 挂载验证 ✓ · 2026-08-30
 - [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S · 真包 14.8 解包验证 ✓ · 2026-08-30
+- [x] [**ChatGPT Atlas**](com-openai-atlas.md) · `com.openai.atlas` — S · 真包 1.2026.189.1 挂载验证 ✓ · 2026-08-30
 
 ## Investigated — blocked safely
 

@@ -66,7 +66,14 @@ public struct ElectronUpdateConfig: Sendable, Hashable {
     /// `/latest-mac.yml` — a thing `URL(string:)` accepts and no one can fetch.
     public static func parse(_ text: String) -> ElectronUpdateConfig? {
         var fields: [String: String] = [:]
-        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+        // `isNewline`, not a "\n" separator: electron-builder normally writes LF,
+        // but a manifest generated on a Windows CI is CRLF, and splitting on "\n"
+        // alone left the whole document as one "line" — `provider` then swallowed
+        // the file and `url` came back nil. `\r\n` is a SINGLE Swift Character
+        // whose `isNewline` is true, so this handles both without a normalisation
+        // pass. See `ElectronManifest.parse` for the same fix and the worse bug it
+        // prevents there.
+        for line in text.split(whereSeparator: \.isNewline) {
             guard !line.hasPrefix(" "), !line.hasPrefix("#"),
                   let colon = line.firstIndex(of: ":") else { continue }
             let key = String(line[line.startIndex..<colon]).trimmingCharacters(in: .whitespaces)
@@ -105,10 +112,15 @@ public struct ElectronManifest: Sendable, Hashable {
         /// enclosure against its appcast.
         public let url: String
         public let sha512: String?
+        /// Declared bytes. Carried so "Update All" can order the batch
+        /// smallest-first — `InstallBatchOrdering` reads `RemoteVersion.downloadSize`,
+        /// and a source that reports nil silently falls back to alphabetical.
+        public let size: Int64?
 
-        public init(url: String, sha512: String?) {
+        public init(url: String, sha512: String?, size: Int64? = nil) {
             self.url = url
             self.sha512 = sha512
+            self.size = size
         }
     }
 
@@ -147,7 +159,8 @@ public struct ElectronManifest: Sendable, Hashable {
             return universal
         }
         guard let path, !path.isEmpty, !Self.namesForeignArch(path, host: arch) else { return nil }
-        return File(url: path, sha512: sha512)
+        // The top-level scalars carry no size, so a `path` fallback reports none.
+        return File(url: path, sha512: sha512, size: files.first { $0.url == path }?.size)
     }
 
     /// Whether a filename advertises an architecture that is not this host's. Only
@@ -171,14 +184,23 @@ public struct ElectronManifest: Sendable, Hashable {
         var files: [File] = []
         var pendingURL: String?
         var pendingSHA: String?
+        var pendingSize: Int64?
 
         func flush() {
-            if let url = pendingURL { files.append(File(url: url, sha512: pendingSHA)) }
+            if let url = pendingURL {
+                files.append(File(url: url, sha512: pendingSHA, size: pendingSize))
+            }
             pendingURL = nil
             pendingSHA = nil
+            pendingSize = nil
         }
 
-        for raw in text.split(separator: "\n") {
+        // `isNewline` — see `ElectronUpdateConfig.parse`. It matters more here:
+        // splitting a CRLF body on "\n" alone yielded ONE line, so `version` came
+        // back holding the entire document. That string then went into a version
+        // comparison against the installed build, which is the shape that invents
+        // a phantom update rather than failing closed.
+        for raw in text.split(whereSeparator: \.isNewline) {
             let line = String(raw)
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             let indented = line.hasPrefix(" ") || line.hasPrefix("-")
@@ -191,6 +213,8 @@ public struct ElectronManifest: Sendable, Hashable {
                     pendingURL = value(of: trimmed)
                 } else if trimmed.hasPrefix("sha512:") {
                     pendingSHA = value(of: trimmed)
+                } else if trimmed.hasPrefix("size:") {
+                    pendingSize = Int64(value(of: trimmed))
                 }
                 continue
             }

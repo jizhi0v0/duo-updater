@@ -516,6 +516,15 @@ public enum FeedDiscovery {
     /// deliberately narrow — a binary is full of https literals (telemetry, docs,
     /// support pages), and a loose filter would turn every app into an
     /// "ambiguous candidates" review that nobody can act on.
+    ///
+    /// KNOWN GAP, and the reason this filter can only ever be a heuristic: the
+    /// exclusions below match hosts by name, and Helium rewrites Google's hosts
+    /// during de-Googling — its Chromium cert URLs come through as
+    /// `https://www.95tat1c.qjz9zk/cryptauthvault/v0/cert.xml`, survive the
+    /// filter, and make the app read as `ambiguousCandidates` when the truthful
+    /// verdict is `noCandidate`. A wrong verdict *kind* sends the reader looking
+    /// for a channel decision that does not exist, so treat every candidate list
+    /// as a lead. This is exactly why discovery stays an authoring tool.
     static func looksLikeAppcast(_ text: String) -> Bool {
         let lower = text.lowercased()
         guard !lower.contains("gstatic.com"), !lower.contains("googleapis.com") else { return false }

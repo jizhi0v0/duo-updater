@@ -149,3 +149,24 @@ import Foundation
         isMASApp: false, sparkleFeedURL: nil)
     #expect(try await ElectronManifestSource().latestVersion(for: app) == nil)
 }
+
+@Test func aCRLFManifestIsReadLineWiseLikeAnyOther() {
+    // electron-builder normally writes LF, but a build on a Windows CI does not.
+    // Splitting on "\n" alone left the WHOLE document as one line, and the damage
+    // was asymmetric: the config merely came back with a nil url and failed closed,
+    // while the manifest came back with `version` holding the entire file — a
+    // string that then goes into a version comparison against the installed build,
+    // which is how a phantom update gets invented instead of nothing happening.
+    let cfg = ElectronUpdateConfig.parse(
+        "provider: generic\r\nurl: https://example.invalid\r\nchannel: latest\r\n")
+    #expect(cfg?.url == "https://example.invalid")
+    #expect(cfg?.manifestURL == URL(string: "https://example.invalid/latest-mac.yml"))
+
+    let manifest = ElectronManifest.parse(
+        "version: 1.2.3\r\nfiles:\r\n  - url: A-1.2.3-arm64.zip\r\n"
+        + "    sha512: S==\r\npath: A-1.2.3-arm64.zip\r\n")
+    #expect(manifest?.version == "1.2.3")
+    #expect(manifest?.files.count == 1)
+    #expect(manifest?.artifact()?.url == "A-1.2.3-arm64.zip")
+    #expect(manifest?.artifact()?.sha512 == "S==")
+}

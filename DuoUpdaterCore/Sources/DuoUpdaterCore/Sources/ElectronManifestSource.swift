@@ -109,7 +109,7 @@ public struct ElectronManifestSource: UpdateSource {
                 URL(string: $0.url, relativeTo: resolvedURL.deletingLastPathComponent())?
                     .absoluteURL
             },
-            downloadSize: nil,
+            downloadSize: file?.size,
             sourceName: name,
             vendorInstallerKind: Self.kind(of: file?.url),
             expectedSHA512: file?.sha512,

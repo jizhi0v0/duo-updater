@@ -45,9 +45,9 @@
 
 ## 一键安装
 - 状态: **支持**（Sparkle 原生路径）
-- 格式: feed enclosure 是 `ClaudeBar-{v}.dmg`（universal，真包核实）
+- 格式: feed enclosure 是 `ClaudeBar-{v}.zip`（universal，真包核实）
 - **读的是**: 人人可手动下载的 GA（feed 条目与 GitHub release 资产同源）
-- 包验（2026-08-30，v0.4.85 挂载）: `com.tddworks.claudebar` / short `0.4.85` /
+- 包验（2026-08-30，v0.4.85 解包）: `com.tddworks.claudebar` / short `0.4.85` /
   build `203`，`Developer ID Application: renwei han (Y5856NSDZU)`，
   `spctl accepted / Notarized Developer ID`，universal（x86_64+arm64）
 
@@ -57,7 +57,7 @@
 ## 如何复验
 ```
 # GET https://tddworks.github.io/ClaudeBar/appcast.xml → 1 条，head=0.4.85/203
-# 挂载 ClaudeBar-0.4.85.dmg → com.tddworks.claudebar / 0.4.85 / 203
+# 解包 ClaudeBar-0.4.85.zip → com.tddworks.claudebar / 0.4.85 / 203
 # channel-verify --check com.tddworks.claudebar → winning=Sparkle, up to date
 ```
 

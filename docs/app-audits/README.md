@@ -118,7 +118,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**OpenCode Desktop**](ai-opencode-desktop.md) · `ai.opencode.desktop` — G C (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**OpenChamber**](dev-openchamber-desktop.md) · `dev.openchamber.desktop` — G (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**Jan**](jan-ai-app.md) · `jan.ai.app` — G (one-click universal zip) · real app verified ✓ · 2026-08-17
-- [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S · 真包 14.8 解包验证 ✓ · 2026-08-30
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 
@@ -152,6 +151,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**ClaudeBar**](com-tddworks-claudebar.md) · `com.tddworks.claudebar` — S · 真包 v0.4.85 解包验证 ✓ · 2026-08-30
 - [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30
 - [x] [**GitHub Copilot for Xcode**](com-github-CopilotForXcode.md) · `com.github.CopilotForXcode` — S(stable+prerelease) · 两轨 tag 过、共享 bundle id · 真包 0.51.0 挂载验证 ✓ · 2026-08-30
+- [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S · 真包 14.8 解包验证 ✓ · 2026-08-30
 
 ## Investigated — blocked safely
 

@@ -948,6 +948,23 @@ public struct VendorProbeRecipe: Sendable {
 /// releases-list JSON (compared on the `build` field via `versionIsBuild`).
 ///
 /// GitHub-released apps are handled by `GitHubReleasesSource`, not here.
+///
+/// Two more unfeasibles, observed 2026-08-30 and recorded to stop rediscovery:
+/// - **Trae / Trae CN** (`com.trae.app`): the update manifest
+///   (`api.trae.ai/icube/api/v1/native/version/trae/latest`) carries NO version
+///   field — only CDN release-train numbers (`…/releases/stable/2.3.73738/…`)
+///   baked into download URLs, while the installed bundle reports a different
+///   namespace (`CFBundleShortVersionString 3.5.91` for train 2.3.73738).
+///   Homebrew's cask livecheck grabs the train number too, but Homebrew never
+///   compares it to the bundle. No public endpoint yields the app version, so
+///   a probe would compare across namespaces — same class as Brave/Feishu.
+/// - **Hermes (Nous Research desktop)**: the distributed artifact
+///   (`Hermes-Setup.dmg`) is a 0.0.1 bootstrap stub
+///   (`com.nousresearch.hermes.setup`) that downloads the real app elsewhere;
+///   the real bundle id/version cannot be observed without running the
+///   installer. The homepage carries the version (0.20.6, Homebrew's livecheck
+///   scrapes it) but there is no registry key to hang it on until a real
+///   install is observed.
 public enum VendorProbeRegistry {
 
     /// Comet's stable download gateway — the endpoint the probe reads AND the one

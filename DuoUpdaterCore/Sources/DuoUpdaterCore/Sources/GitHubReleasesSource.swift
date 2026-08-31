@@ -744,6 +744,19 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^jan-mac-universal-[0-9.]+\.zip$"#,
             installerKind: .zip),
 
+        // Helium — Chromium-based AI browser (imputnet/helium-macos). Bare tags
+        // (`0.16.2.1`, no v), and the repo DOES cut prerelease releases with
+        // the same all-digit tag shape (`0.16.1.1`) — /releases/latest excludes
+        // prereleases, so the stable rule never sees them. One-click pins the
+        // arm64 dmg; the x86_64 dmg ships beside it. Mounted 0.16.2.1:
+        // net.imput.helium, short == build == tag, Team S4Q33XPHB4, notarized.
+        GitHubReleaseRule(
+            bundleID: "net.imput.helium",
+            owner: "imputnet", repo: "helium-macos",
+            versionPattern: #"^([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^helium_[0-9.]+_arm64-macos\.dmg$"#,
+            installerKind: .dmg),
+
         // Zed Stable — same repo, but stable ships as non-prerelease tags
         // (`vX.Y.Z`, no `-pre`). `usePrereleases: false` (default) reads
         // `/releases/latest`, which GitHub computes excluding prereleases, so it

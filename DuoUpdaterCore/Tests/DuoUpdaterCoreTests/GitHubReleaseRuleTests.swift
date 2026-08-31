@@ -39,6 +39,17 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func heliumRuleReadsBareTagsAndPinsTheArm64Dmg() {
+    #expect(extract("0.16.2.1", "net.imput.helium") == "0.16.2.1")
+    #expect(extract("v0.16.2.1", "net.imput.helium") == nil)
+    let pattern = try! #require(rule("net.imput.helium").installAssetPattern)
+    #expect("helium_0.16.2.1_arm64-macos.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("helium_0.16.2.1_x86_64-macos.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("0.15.4.1-arm64.delta".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("net.imput.helium").slug == "imputnet/helium-macos")
+    #expect(rule("net.imput.helium").installerKind == .dmg)
+}
+
 @Test func insomniaRuleMatchesCoreTagOnly() {
     // Captures the desktop version from a stable core@ tag…
     #expect(extract("core@12.6.0", "com.insomnia.app") == "12.6.0")

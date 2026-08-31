@@ -801,6 +801,17 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^Pearcleaner\.dmg$"#,
             installerKind: .dmg),
 
+        // DSH Desktop — the DeepSeek Harness desktop client (anywhere-labs).
+        // No SUFeedURL; v-tags, one universal dmg per release beside a Windows
+        // setup.exe. Mounted v2.0.4: ai.deepseek.dsh.desktop, short == build
+        // == tag, Team UM3Z9G5DNH, notarized.
+        GitHubReleaseRule(
+            bundleID: "ai.deepseek.dsh.desktop",
+            owner: "anywhere-labs", repo: "dsh-desktop",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^DSH\.Desktop-[0-9.]+-universal\.dmg$"#,
+            installerKind: .dmg),
+
         // RustDesk — tags have no `v` prefix. One-click installs the arm64 dmg
         // asset (`rustdesk-<ver>-aarch64.dmg`): the official GitHub build is a
         // notarized Developer ID app, Team ID HZF9JMC8YN (zhou huabing), matching

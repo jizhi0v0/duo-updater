@@ -39,6 +39,15 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func dshDesktopRulePinsTheUniversalDmg() {
+    #expect(extract("v2.0.4", "ai.deepseek.dsh.desktop") == "2.0.4")
+    let pattern = try! #require(rule("ai.deepseek.dsh.desktop").installAssetPattern)
+    #expect("DSH.Desktop-2.0.4-universal.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("DSH-Desktop-2.0.4-x64-Setup.exe".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("ai.deepseek.dsh.desktop").slug == "anywhere-labs/dsh-desktop")
+    #expect(rule("ai.deepseek.dsh.desktop").installerKind == .dmg)
+}
+
 @Test func insomniaRuleMatchesCoreTagOnly() {
     // Captures the desktop version from a stable core@ tag…
     #expect(extract("core@12.6.0", "com.insomnia.app") == "12.6.0")

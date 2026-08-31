@@ -285,7 +285,34 @@ extension UpdateResult {
     /// beta that is exists nowhere in it. Lives here rather than in the app so the
     /// CLI and the menu bar cannot describe the same install differently.
     public var installedDisplay: String? {
-        remote?.installedDisplayVersion ?? app.shortVersion
+        if let named = remote?.installedDisplayVersion { return named }
+        // When the source's own label IS a build, the installed side has to be
+        // named out of the SAME namespace, or the row draws its arrow between two
+        // different version systems and the left half matches nothing the user can
+        // see anywhere else.
+        //
+        // CapCut's beta track is the case that exposed it. That bundle carries
+        // `CFBundleShortVersionString` 9.3.4545 and `CFBundleVersion`
+        // 9.4.0-beta5 — the vendor versions the beta line in the BUILD field, which
+        // is why its recipe is `versionIsBuild` — so the row read
+        // "9.3.4545 → 9.4.0-beta6" while the app itself, Finder, and every other
+        // updater called the installed copy 9.4.0-beta5. Nothing was miscompared
+        // (`evaluate` was on builds throughout, 9.4.0-beta5 → 9.4.0-beta6); only
+        // the label was, which is the kind of wrong that gets reported as "it says
+        // I have a version I don't have".
+        //
+        // Keyed on the REMOTE's own shape rather than on `recipe.versionIsBuild`,
+        // so it cannot drift from what the other half of the row prints:
+        // `RemoteVersion.displayVersion` is `shortVersion ?? version`, so
+        // `shortVersion == nil` is exactly "the string beside the arrow is a
+        // build". A `versionIsBuild` recipe that supplies a `displayVersionPattern`
+        // puts a marketing string in `shortVersion` on purpose (Android Studio's
+        // "2025.2.3 → 2026.1.2 RC 1") and is deliberately untouched here.
+        if let remote, remote.shortVersion == nil, remote.version != nil,
+           let build = app.buildVersion(in: remote.buildNamespace) {
+            return build
+        }
+        return app.shortVersion
     }
 
     /// Drop a leading product-code run like "IU-"/"AI-" from a build number; plain

@@ -39,6 +39,38 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func heliumRuleReadsBareTagsAndPinsTheArm64Dmg() {
+    #expect(extract("0.16.2.1", "net.imput.helium") == "0.16.2.1")
+    #expect(extract("v0.16.2.1", "net.imput.helium") == nil)
+    let pattern = try! #require(rule("net.imput.helium").installAssetPattern)
+    #expect("helium_0.16.2.1_arm64-macos.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("helium_0.16.2.1_x86_64-macos.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("0.15.4.1-arm64.delta".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("net.imput.helium").slug == "imputnet/helium-macos")
+    #expect(rule("net.imput.helium").installerKind == .dmg)
+}
+
+@Test func claudeStatusBarRuleReadsVPrefixedTagsAndTheVersionlessDmg() {
+    #expect(extract("v0.4.4", "com.local.claudestatusbar") == "0.4.4")
+    #expect(extract("v0.4.4-beta.1", "com.local.claudestatusbar") == nil)
+    let pattern = try! #require(rule("com.local.claudestatusbar").installAssetPattern)
+    #expect("ClaudeStatusBar.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("ClaudeStatusBar.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("com.local.claudestatusbar").slug == "m1ckc3s/claude-status-bar")
+    #expect(rule("com.local.claudestatusbar").installerKind == .dmg)
+}
+
+@Test func claudeDevtoolsRulePinsTheArm64Dmg() {
+    #expect(extract("v0.5.0", "com.claudecode.context") == "0.5.0")
+    #expect(extract("v0.5.0-rc.1", "com.claudecode.context") == nil)
+    let pattern = try! #require(rule("com.claudecode.context").installAssetPattern)
+    #expect("claude-devtools-0.5.0-arm64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("claude-devtools-0.5.0-x64.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("claude-devtools-0.5.0-arm64.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("com.claudecode.context").slug == "matt1398/claude-devtools")
+    #expect(rule("com.claudecode.context").installerKind == .dmg)
+}
+
 @Test func insomniaRuleMatchesCoreTagOnly() {
     // Captures the desktop version from a stable core@ tag…
     #expect(extract("core@12.6.0", "com.insomnia.app") == "12.6.0")

@@ -149,6 +149,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Dia Browser**](company-thebrowser-dia.md) · `company.thebrowser.dia` — S · real DMG/feed verified ✓ · 2026-08-17
 - [x] [**CodexBar**](com-steipete-codexbar.md) · `com.steipete.codexbar` — S · 真包 v0.56.1 验证 ✓（SUFeedURL 指向 repo 内 appcast.xml；ChangelogCatalog 已有 GitHub 兜底条目）· 2026-08-30
 - [x] [**ClaudeBar**](com-tddworks-claudebar.md) · `com.tddworks.claudebar` — S · 真包 v0.4.85 解包验证 ✓ · 2026-08-30
+- [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30
 
 ## Investigated — blocked safely
 

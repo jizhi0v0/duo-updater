@@ -1,5 +1,12 @@
 # ChatGPT Atlas
 
+> ⚠️ **这个 app 已经停产**：OpenAI 于 2026-07-09 宣布下线，2026-08-09 正式停止运行，
+> 后续能力并入 ChatGPT 桌面端与 Chrome 扩展。feed 仍然在线，但最后一条就是
+> `1.2026.189.1`（2026-07-24），不会再有新版本。既有安装照旧被读作 up-to-date，
+> 这是对的；**不要再为它投入 changelog / 一键的工作**。
+> 来源：[9to5Mac 2026-07-09](https://9to5mac.com/2026/07/09/openai-is-discontinuing-chatgpt-atlas-its-standalone-desktop-browser/)、
+> [MacRumors 2026-07-10](https://www.macrumors.com/2026/07/10/openais-chatgpt-atlas-browser-shutting-down/)。
+
 ## 基本信息
 - Bundle ID: `com.openai.atlas`
 - Team ID: `2DC432GLL2` (OpenAI)
@@ -38,12 +45,21 @@ head = `1.2026.189.1`。
 
 | | 客户端能力 | 服务端实际下发 | 我们能否消费 |
 |---|---|---|---|
-| 结论 | 没查 | 无 | 不能 |
-| 证据 | — | feed 条目无 `<sparkle:deltas>`（观测 2026-08-30） | — |
+| 结论 | 有（内嵌 Sparkle） | **有** | **能** |
+| 证据 | `Sparkle.framework` 在包里 | head 条目带 `<sparkle:deltas>`，5 个 `.delta` enclosure；从 `20260717210119000` 升上来的那个是 7.9 MB，对比全量 dmg 270 MB（复核 2026-08-31） | `RemoteVersion.deltas == 5`，`DeltaApplier` 按 `sparkle:deltaFrom == 装机 build` 选补丁 |
+
+> ⚠️ 2026-08-31 更正：本节原先写「服务端实际下发：无 / 我们能否消费：不能」，
+> 依据是「feed 条目无 `<sparkle:deltas>`」。实测 feed head 条目里就有，而且还带
+> `<sparkle:criticalUpdate/>` 和 `<sparkle:hardwareRequirements>arm64`。
+> 结论虽然因为停产而不再有实际收益，但**这条断言当时就是错的**——写「无」之前没有
+> 去数一遍。
 
 ## Changelog
-- 来源: Sparkle inline（feed `<description>`）
-- Recipe 状态: 不需要
+- 来源: **没有**，且**不会再有**（app 已停产）
+- Recipe 状态: 无，不打算加
+- ⚠️ 2026-08-31 更正：原先写「Sparkle inline（feed `<description>`）」，是错的。
+  feed 3 条**一条都没有** `<description>`；真包跑生产链 `releaseNotesHTML` 0 字符、
+  `changelogURL` nil。
 
 ## 一键安装
 - 状态: **支持**（Sparkle 原生路径）
@@ -54,15 +70,20 @@ head = `1.2026.189.1`。
   `1.2026.189.1`，Team `2DC432GLL2`，notarized
 
 ## 已知问题
-- 无。
+- **已停产**（见文首）。仍装着 Atlas 的用户会永远停在 `1.2026.189.1`，
+  DuoUpdater 报 up-to-date 是正确的，但它是一个不再收安全更新的浏览器。
+  要不要在 UI 上给停产 app 一个提示，是一个独立的产品问题，本审计不处理。
 
 ## 如何复验
 ```
 # GET https://persistent.oaistatic.com/atlas/public/sparkle_public_appcast.xml
 #   → 3 条，head=1.2026.189.1
 # 挂载 ChatGPT_Atlas_Desktop_public_1.2026.189.1_….dmg → com.openai.atlas
-# channel-verify --check com.openai.atlas → winning=Sparkle, up to date
+# 本审计未从已安装副本取证，所以 channel-verify --check 这条不适用（它要 AppScanner
+# 先找到一个已装的 app）。2026-08-31 的复验是对下载下来的真包跑同一条生产源链：
+# winning=Sparkle、up to date、deltas=5。
 ```
 
 ## 建议下一步
-无。检测 + 一键 + changelog 均由泛化 Sparkle 源覆盖，零代码，审计文档即交付物。
+**不要再往这个 app 上投入。**它已停产，feed 不会再更新。既有覆盖（泛化 Sparkle，零 recipe）
+留着即可——它对仍装着 Atlas 的用户报 up-to-date，是正确答案。

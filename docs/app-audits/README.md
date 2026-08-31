@@ -118,9 +118,9 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**OpenCode Desktop**](ai-opencode-desktop.md) · `ai.opencode.desktop` — G C (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**OpenChamber**](dev-openchamber-desktop.md) · `dev.openchamber.desktop` — G (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**Jan**](jan-ai-app.md) · `jan.ai.app` — G (one-click universal zip) · real app verified ✓ · 2026-08-17
-- [x] [**Helium**](net-imput-helium.md) · `net.imput.helium` — G (one-click arm64 dmg) · 真包 0.16.2.1 挂载验证 ✓ · 2026-08-30
-- [x] [**Claude Status Bar**](com-local-claudestatusbar.md) · `com.local.claudestatusbar` — G (one-click dmg) · 真包 v0.4.4 挂载验证 ✓ · 2026-08-30
-- [x] [**claude-devtools**](com-claudecode-context.md) · `com.claudecode.context` — G (one-click arm64 dmg) · 真包 v0.5.0 挂载验证 ✓ · 2026-08-30
+- [x] [**Helium**](net-imput-helium.md) · `net.imput.helium` — G (one-click arm64 dmg) · 真包 0.16.2.1 挂载验证 ✓ · **已改走 vendor 自己的 appcast**（`SparkleFeedCatalog` 补 feed 地址——包里没有 `SUFeedURL`，Sparkle 嵌在 Chromium framework 里）：stable+beta 两轨 + delta（40MB vs 124MB 全量），渠道由装机 build 在 feed 里反查得出、不读厂商偏好；GitHub rule 留作兜底。changelog 因此改走 catalog 兜底页 · 2026-08-31
+- [x] [**Claude Status Bar**](com-local-claudestatusbar.md) · `com.local.claudestatusbar` — G (one-click dmg) · 真包 v0.4.4 挂载验证 ✓ · 有一个孤立 prerelease tag `v0.4.0-beta.1`，**决定不接** · 2026-08-31
+- [x] [**claude-devtools**](com-claudecode-context.md) · `com.claudecode.context` — G (one-click arm64 dmg) · 真包 v0.5.0 挂载验证 ✓（GitHub 胜、up to date、release 正文即 changelog；`v0.4.13` 其实是 prerelease，原文说「全部非 prerelease」有误）· 2026-08-31
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 
@@ -152,13 +152,13 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**CodexBar**](com-steipete-codexbar.md) · `com.steipete.codexbar` — S · 真包 v0.56.1 验证 ✓（SUFeedURL 指向 repo 内 appcast.xml；ChangelogCatalog 已有 GitHub 兜底条目）· 2026-08-30
 - [x] [**ClaudeBar**](com-tddworks-claudebar.md) · `com.tddworks.claudebar` — S · 真包 v0.4.85 解包验证 ✓ · 2026-08-30
 - [x] [**VoiceInk**](com-prakashjoshipax-VoiceInk.md) · `com.prakashjoshipax.VoiceInk` — S · 真包 v2.13 挂载验证 ✓ · 2026-08-30
-- [x] [**GitHub Copilot for Xcode**](com-github-CopilotForXcode.md) · `com.github.CopilotForXcode` — S(stable+prerelease) · 两轨 tag 过、共享 bundle id · 真包 0.51.0 挂载验证 ✓ · 2026-08-30
-- [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S · 真包 14.8 解包验证 ✓ · 2026-08-30
-- [x] [**ChatGPT Atlas**](com-openai-atlas.md) · `com.openai.atlas` — S · 真包 1.2026.189.1 挂载验证 ✓ · 2026-08-30
-- [x] [**Perplexity**](ai-perplexity-macv3.md) · `ai.perplexity.macv3` — S · 真包 26.34.0 挂载验证 ✓（公证已恢复，一键可用）· 2026-08-30
-- [x] [**TypeWhisper**](com-typewhisper-mac.md) · `com.typewhisper.mac` — S(stable+rc+daily) · 三轨 tag 过、共享 bundle id · 真包 1.6.0 解包验证 ✓ · 2026-08-30
-- [x] [**OpenUsage**](com-robinebers-openusage.md) · `com.robinebers.openusage` — S(stable+beta) · 真包 v0.7.10 挂载验证 ✓（beta 显式 channel tag）· 2026-08-31
-- [x] [**Supacode**](app-supabit-supacode.md) · `app.supabit.supacode` — S · default+tip 两轨真包验证 ✓（tip 经 build 反查推断，零 recipe）· 2026-08-30
+- [x] [**GitHub Copilot for Xcode**](com-github-CopilotForXcode.md) · `com.github.CopilotForXcode` — S(stable+prerelease) C · 两轨 tag 过、共享 bundle id · **两轨真包验证 ✓**（stable 0.51.0 未被推 prerelease；prerelease 0.51.182 留在本轨）· feed 与 release 正文都无实质说明，已加 recipe 解 repo 的 `CHANGELOG.md`（21 条）· 2026-08-31
+- [x] [**MacWhisper**](com-goodsnooze-MacWhisper.md) · `com.goodsnooze.MacWhisper` — S C · 真包 14.8 解包验证 ✓ · feed 210 条全无 inline，只有一个**不分版本**的 `releaseNotesLink`；已加 recipe 解那张页（121 条）· ⚠️ `api.whispertranscribe.com` 是另一个 app · 2026-08-31
+- [x] [**ChatGPT Atlas**](com-openai-atlas.md) · `com.openai.atlas` — S · ⚠️ **已停产**（OpenAI 2026-08-09 停止运行，feed 停在 1.2026.189.1）· 真包挂载验证 ✓ · 原审计误称「无 delta」，实测 head 条目 5 个 `<sparkle:deltas>`；无 changelog · 2026-08-31
+- [x] [**Perplexity**](ai-perplexity-macv3.md) · `ai.perplexity.macv3` — S · 真包 26.34.0 挂载验证 ✓（公证已恢复，一键可用）· ⚠️ **无 changelog**（feed 无 inline；docs.perplexity.ai 那份是 API 的，不是桌面端）· 2026-08-31
+- [x] [**TypeWhisper**](com-typewhisper-mac.md) · `com.typewhisper.mac` — S(stable+rc+daily) C · 三轨 tag 过、共享 bundle id · 真包 1.6.0/rc2/daily 三轨验证 ✓ · **rc 轨当时被判成 stable**（rc 包 short 也是 `1.6.0`），引擎已修 + 装 rc2 上机复验 · changelog 走官网 recipe（feed 无 inline；页面 mac/Windows 混排，须锚平台徽章）· 2026-08-31
+- [x] [**OpenUsage**](com-robinebers-openusage.md) · `com.robinebers.openusage` — S(stable+beta) C · 真包 v0.7.10 挂载验证 ✓（beta 显式 channel tag，beta 包实测正确升 stable）· **feed 51 条全无 `<description>`**，changelog 走 `ChangelogCatalog` 兜底到 GitHub releases（2026-08-31 补）· 2026-08-31
+- [x] [**Supacode**](app-supabit-supacode.md) · `app.supabit.supacode` — S · default+tip 两轨真包验证 ✓（tip 经 build 反查推断，零 recipe）· **2026-08-31 复验发现 tip 轨当时被判成 default**（tip 包 short 与 default 条目同为 `0.10.8`，渠道推断按文档序先撞上 short），引擎已修为两趟匹配；tip 条目本身无 changelog · 2026-08-31
 
 ## Investigated — blocked safely
 

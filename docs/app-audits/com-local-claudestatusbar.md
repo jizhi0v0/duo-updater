@@ -51,6 +51,11 @@
   `W9JZ4932LA`，`spctl accepted / Notarized Developer ID`
 
 ## 已知问题
+- repo 里有**一个** prerelease tag `v0.4.0-beta.1`（2026-06-28），资产名和正式版一样都是
+  `ClaudeStatusBar.dmg`。15 个 release 就这一个，看着是一次性的而不是常设 beta 轨，
+  **决定不接**（2026-08-31）。两道保险各自独立：`versionPattern`
+  `^v([0-9]+(?:\.[0-9]+)+)$` 本身就不匹配 `v0.4.0-beta.1`，而 `/releases/latest` 也不
+  返回 prerelease。真装了那个 beta 的用户会被正常提供 0.4.4，这是对的。
 - 无。
 
 ## 如何复验

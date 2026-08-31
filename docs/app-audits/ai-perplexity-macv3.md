@@ -41,8 +41,15 @@
 | 证据 | — | feed 条目无 `<sparkle:deltas>`（观测 2026-08-30） | — |
 
 ## Changelog
-- 来源: Sparkle inline（feed `<description>`）
-- Recipe 状态: 不需要
+- 来源: **没有**（已查，未找到可用来源）
+- Recipe 状态: 无
+- ⚠️ 2026-08-31 更正：原先写「Sparkle inline（feed `<description>`）」，是错的。
+  feed 只有 1 条且**不带** `<description>`、不带 `sparkle:releaseNotesLink`；真包跑
+  生产链 `releaseNotesHTML` 0 字符、`changelogURL` nil。这个 app 现在没有任何更新说明。
+- 查过并排除的：`docs.perplexity.ai/docs/resources/changelog` 是 **API 的** changelog，
+  和桌面端不是一回事，接上去会给用户看无关内容。
+- 同厂的 Comet（`ai.perplexity.comet`，独立 bundle、既有 VendorProbe + 一键）**也没有**
+  changelog，同一个缺口。要补得先找到 Perplexity 桌面端的公开发布说明面。
 
 ## 一键安装
 - 状态: **支持**（Sparkle 原生路径）

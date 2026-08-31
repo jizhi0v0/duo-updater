@@ -30,7 +30,19 @@
 
 共享 bundle id。appcast 3 条（观测 2026-08-30）：default = `1.6.0/1091`（stable），
 `release-candidate` = `1.6.0-rc2/1083`，`daily` = `1.7.0-daily.20260830/1161`。
-三轨互不串：`usableItems` 只允许装机 build 命中的那条 channel。
+三轨互不串：`usableItems` 只允许装机 build 命中的那条 channel + 始终开放的 default 轨。
+
+> ⚠️ 2026-08-31：rc 轨当时**没有真的分出来**。rc2 包的
+> `CFBundleShortVersionString` 是 `1.6.0`——跟 default 条目一模一样（版本号在 feed 里
+> 才带 `-rc2`，包里不带），而 `channel(ofInstalled:)` 当时按文档序取第一个「build 命中
+> **或** short 命中」的条目，于是排在前面的 default 条目先靠 short 命中，rc 条目那个精确的
+> build `1083` 没机会比。rc 安装被判成 stable。daily 轨没事，因为它的包 short 是
+> `1.7.0`，不撞。
+>
+> 表现不是推错版本（当天 default head 1091 本来就比 rc 1083 新，两边都会提供它），而是
+> **rc 用户自己那条轨消失**：rc 条目被 `usableItems` 滤掉，rc 轨再往前走也收不到。
+> 已修为两趟匹配（先全表比 build，再全表比 short）。**装 rc2 真包上机复验过**：
+> 修前 `releaseHistory` 1 条，修后 2 条（default + rc）。
 
 配套的一个 GitHub 陷阱（写进 audit 免得下一个人踩）：该 repo 的**非 prerelease
 release 全是 plugin 包**（`plugin-whisperkit-v1.2.0` 等，资产只有插件 zip），app
@@ -50,9 +62,18 @@ Sparkle feed 才是。
 | 证据 | — | feed 条目无 `<sparkle:deltas>`（观测 2026-08-30） | — |
 
 ## Changelog
-- 来源: Sparkle inline（feed `<description>`）
-- 跟随 channel: 是（按装机轨道）
-- Recipe 状态: 不需要
+- 来源: **`ChangelogRecipe`**，解官网 https://www.typewhisper.com/en/changelog/
+- 跟随 channel: **否**——官网把三轨排在同一张列表里，装 stable 也会看到 daily 条目在上面。
+  每条都带自己的版本号标签，接受这个折中。
+- Recipe 状态: 2026-08-31 新增
+- ⚠️ 2026-08-31 更正：原先写「Sparkle inline（feed `<description>`）」，是错的。
+  feed 3 条**一条都没有** `<description>`，真包跑生产链拿到 0 字符 —— 此前没有任何说明。
+- 这张页面**同时列 macOS 和 Windows 两个产品**（实测 203 个 mac 卡片 / 167 个 Windows
+  卡片），所以 `entryPattern` 锚在版本标题前面那枚平台徽章上；锚错了就会把 Windows 的
+  说明挂到 Mac 版本下面。
+- 卡片之间用了 tempered 惰性扫描而不是 `.*?`：有少数老卡片没有正文块，裸 `.*?` 会越过它
+  跑进下一张卡片，把后者的说明记到前者的版本上（0.6.1、0.5.1 实测就是这样）。
+- daily 的说明是**累积**的（连着几天的 daily 重复同一批条目），所以 `maxEntries` 收到 20。
 
 ## 一键安装
 - 状态: **支持**（Sparkle 原生路径，各轨 feed enclosure）

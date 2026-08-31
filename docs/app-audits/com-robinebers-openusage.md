@@ -46,9 +46,14 @@ appcast 同样把 beta 条目标成 `<sparkle:channel>beta</sparkle:channel>`，
 | 证据 | — | feed 条目无 `<sparkle:deltas>`（观测 2026-08-30） | — |
 
 ## Changelog
-- 来源: Sparkle inline（feed 条目的 `<description>`）
-- 跟随 channel: 是
-- Recipe 状态: 不需要
+- 来源: **`ChangelogCatalog` 兜底页**（github.com/robinebers/openusage/releases）
+- 跟随 channel: 否——是一张不分版本的 releases 页
+- Recipe 状态: 不需要 recipe，但**必须有兜底**
+- ⚠️ 2026-08-31 更正：本文档原先写「Sparkle inline（feed 条目的 `<description>`）」，
+  是错的。实测 feed 51 条**没有一条**带 `<description>`，也没有
+  `sparkle:releaseNotesLink`；生产链跑真包拿到的 `releaseNotesHTML` 是 0 字符、
+  `changelogURL` 是 nil——即这个 app 此前在 DuoUpdater 里**完全没有更新说明**。
+  厂商把说明写在 GitHub release 正文里（v0.7.10 约 10 KB），故加 catalog 条目指过去。
 
 ## 一键安装
 - 状态: **支持**（Sparkle 原生路径；`SUPublicEDKey` 在包里 → EdDSA 校验 + 签名

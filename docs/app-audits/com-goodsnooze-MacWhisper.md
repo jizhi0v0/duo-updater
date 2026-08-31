@@ -40,8 +40,18 @@ head = `14.8/1480`。
 | 证据 | — | feed 条目无 `<sparkle:deltas>`（观测 2026-08-30） | — |
 
 ## Changelog
-- 来源: Sparkle inline（feed `<description>`）
-- Recipe 状态: 不需要
+- 来源: **`ChangelogRecipe`**，解 feed 自己指的那张
+  https://macwhisper-site.vercel.app/release_notes.html
+- Recipe 状态: 2026-08-31 新增
+- ⚠️ 2026-08-31 更正：原先写「Sparkle inline（feed `<description>`）」，是错的。
+  feed 210 条**没有一条**带 `<description>`；它们 210 条**全部**带同一个
+  `sparkle:releaseNotesLink`，指向上面那张**不分版本**的总页。所以在加 recipe 之前，
+  不管你装的是哪一版，点开都是一整部历史塞进 web view。
+- 页面结构：`<h2>14.8</h2>` + `<h3>New:</h3>` + 一串**裸 `<li>`**（厂商没有包 `<ul>`，
+  所以条目正文只能一直吃到下一个 `<h2>`）。实测解出 121 条，head 14.8。
+- ⚠️ 别接 `api.whispertranscribe.com/changelog`：那是**另一个 app**
+  （WhisperTranscribe，同一个开发者 Jordi Bruin）的 changelog，版本号是 1.3.3→3.0.6
+  这一支，跟 MacWhisper 的 14.x 完全不同源。
 
 ## 一键安装
 - 状态: **支持**（Sparkle 原生路径）

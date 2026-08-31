@@ -30,8 +30,22 @@ Pattern C：一个 bundle id、一条 feed、`<sparkle:channel>` 标记区分条
 app 或 bundle，装 tip 构建后 `ReleaseChannel.detect()` 依旧读作 stable——正确，因为它本来
 就没有稳定渠道之外的命名。真正的门控在 `SparkleAppcastSource.allowedChannels`：默认
 （无 tag）渠道对所有人开放，tip 只对"装机 build 与 tip 条目 `sparkle:version` 吻合"的
-安装开放。这条路径由 `SparkleChannelTests.channelOfInstalledMatchesOnBuildThenShortVersion`
-等既有用例背书，不需要 `ChannelBinding`。
+安装开放。不需要 `ChannelBinding`。
+
+> ⚠️ 2026-08-31：这条门控**当时是坏的**，本文档原先声称它由
+> `SparkleChannelTests.channelOfInstalledMatchesOnBuildThenShortVersion` 背书——
+> 那条用例的两个键（`"x"`/`"1.5"`）永远不会指向不同条目，所以它从来没跑到出问题的那条路径上。
+>
+> 真实形状：`channel(ofInstalled:)` 当时是 `items.first { build 命中 || short 命中 }`，
+> **按文档序**取第一个。tip 构建（build `1787740786`）是 feed 第 10 条，而第 0 条 default
+> 的 short 也是 `0.10.8`——tip 包的 short 跟它一模一样，于是 default 条目先靠 short 命中，
+> 精确的 build 命中根本没机会比。结果 tip 安装被判成 default 轨。
+>
+> 这个错**不会表现为推错版本**（default 轨对所有人开放，而当天 default head 恰好不比 tip
+> 新），它表现为**用户自己那条轨看不见**：`usableItems` 把 11 条 tip 全滤掉，下一个 tip
+> 构建永远不会被提供，说明和历史也来自 stable 那条线。已修为两趟匹配（先全表比 build，
+> 再全表比 short），回归用例 `aTipBuildIsNotStolenByTheDefaultItemAheadOfIt` 用的就是这份
+> 真实 feed 的形状。真包实测：修前 `releaseHistory` 10 条（只有 default），修后 21 条。
 
 ## 更新检测
 - 源: 泛化 Sparkle。feed 共 21 条：10 条 default + 11 条 tip（`supacode-history-*` 历史构建）。
@@ -55,9 +69,16 @@ app 或 bundle，装 tip 构建后 `ReleaseChannel.detect()` 依旧读作 stable
 
 ## Changelog
 - 来源: Sparkle inline（`<description sparkle:format="markdown">`，每版一段）
-  + `sparkle:fullReleaseNotesLink` → github.com/supabitapp/supacode/releases
-- 跟随 channel: 是——`structuredChangelog` 只读 `usableItems`，tip 用户看 tip 条目
+- 跟随 channel: 是——`structuredChangelog` 只读 `usableItems`
 - Recipe 状态: 不需要
+- ⚠️ 2026-08-31 两点更正：
+  1. `sparkle:fullReleaseNotesLink` **我们不消费**。`RemoteVersion.changelogURL` 取的是
+     `sparkle:releaseNotesLink`，这份 feed 没有那个字段，所以真包跑下来 `changelogURL`
+     是 nil。inline 那段是有的（default head 1022 字符）。
+  2. **tip 轨没有任何说明**：11 条 tip 条目 `<description>` 全是空的，只有 10 条 default
+     带正文。渠道推断修好之后，tip 安装看到的是自己那条轨的 head，于是 inline 说明从
+     1022 字符变成 0——这不是回归，是修好之后才看清的事实：在此之前 tip 用户看到的是
+     **stable 条目的**说明。要给 tip 补说明只能另找来源。
 
 ## 一键安装
 - 状态: **支持**（Sparkle 原生路径，无 SUPublicEDKey 时走签名 + Team + bundle id 闸）

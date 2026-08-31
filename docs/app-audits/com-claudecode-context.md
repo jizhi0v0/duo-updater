@@ -24,7 +24,11 @@
 |---------|-----------|----------|---------|---------|------|
 | stable  | `com.claudecode.context` | 单一渠道 | — | tag 锚 `^vX.Y.Z$` | ✓ |
 
-单渠道。全部 release 非 prerelease。
+单渠道。
+
+> ⚠️ 2026-08-31 更正：原文写「全部 release 非 prerelease」。实测最近 15 个 release 里
+> `v0.4.13` 就是 prerelease。结论不受影响（`usePrereleases: false` 走
+> `/releases/latest`，GitHub 定义上不返回 prerelease），但这句断言本身是没数过就写的。
 
 ## 更新检测
 - 源: `matt1398/claude-devtools` GitHub Releases，`/releases/latest`

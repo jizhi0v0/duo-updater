@@ -366,6 +366,13 @@ public struct AppScanner: Sendable {
         if let feed = plist["SUFeedURL"] as? String {
             feedURL = URL(string: feed.trimmingCharacters(in: .whitespacesAndNewlines))
         }
+        // An app can ship Sparkle and set its feed up in code, which this read
+        // cannot see. `SparkleFeedCatalog` supplies the address for those, and
+        // ONLY when the bundle named none itself — it is a missing-address
+        // fill-in, not a redirect. Crucially it does NOT make the channel
+        // authoritative the way `ChannelBinding` below does, so the channel is
+        // still inferred from the feed's own items. See the type's doc comment.
+        if feedURL == nil { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
 
         // Electron apps that ship Squirrel manage their own updates; flag them
         // so we defer to that channel instead of a (often staler) Homebrew cask.

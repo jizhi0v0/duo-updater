@@ -2587,3 +2587,148 @@ p)] left-[-1px] inline-flex items-center"><a class="hover:text-theme-text inline
 </ul>
 <p>Browse the new plugins in the <a href="https://cursor.com/marketplace" rel="noopener noreferrer" target="_blank">Cursor Marketplace</a> or install them from the Customize page in Cursor. Learn more in our <a href="https://cursor.com/docs/plugins" rel="noopener noreferrer" target="_blank">docs</a>.</p></div></div></div></div></article><article><div class="grid-cursor gap-y-0 pb-v5 mb-v5 border-theme-border-02 border-b"><div class="mb-v2/12 col-span-full max-xl:mx-auto max-xl:w-full max-xl:max-w-[48rem] xl:col-end-7"><p class="text-theme-text-sec sticky top-[var(--site-sticky-to<footer class="site-footer"><p>Cursor is a registered trademark.</p><li>nav item that is not a change</li></footer>
 """#
+
+// MARK: - MacWhisper (shared release-notes page, bare <li> under <h2>)
+
+/// Trimmed from the live page the appcast's `sparkle:releaseNotesLink` points
+/// every one of its 210 items at. Note the `<li>`s are NOT inside a `<ul>` —
+/// that is the vendor's markup, and it is why the entry body has to run to the
+/// next `<h2>` rather than to a list close tag.
+private let macWhisperFixture = #"""
+<html>
+	<style>
+		body { margin: 20px; }
+	</style>
+
+	<h2>14.8</h2>
+	<h3>New:</h3>
+	<li>Dictation: You can now export the audio recording of a dictation from its right-click menu in History.</li>
+
+	<h3>Improvements:</h3>
+	<li>Model downloads: Models are now prepared right after downloading, so your first transcription with a new model is no longer held up by a one-off preparation step.</li>
+
+	<h3>Bugfixes:</h3>
+	<li>Fixed: MacWhisper now tells you when macOS refuses access to the login keychain.</li>
+
+	<h2>14.7.1</h2>
+	<h3>New:</h3>
+	<li>Cloud transcription: Added Cohere Transcribe and Speechmatics, including model, language, and region options.</li>
+</html>
+"""#
+
+@Test func extractsMacWhisperNotesFromTheSharedReleaseNotesPage() throws {
+    let recipe = try #require(
+        ChangelogRecipeRegistry.recipe(forBundleID: "com.goodsnooze.MacWhisper"))
+    let log = try #require(ChangelogExtractor.extract(from: macWhisperFixture, using: recipe))
+
+    #expect(log.entries.count == 2)
+    #expect(log.entries[0].version == "14.8")
+    #expect(log.entries[1].version == "14.7.1")
+    // The <h3> group headings ("New:", "Improvements:") are not items.
+    #expect(log.entries[0].items.count == 3)
+    #expect(log.entries[0].items[0].hasPrefix("Dictation: You can now export"))
+    #expect(!log.entries[0].items.contains { $0 == "New:" })
+    // The body stops at the next <h2>: 14.8 must not absorb 14.7.1's line.
+    #expect(!log.entries[0].items.contains { $0.contains("Cohere Transcribe") })
+}
+
+// MARK: - GitHub Copilot for Xcode (Keep a Changelog markdown)
+
+/// Verbatim slice of the repo's `CHANGELOG.md`.
+private let copilotForXcodeFixture = #"""
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## 0.51.0 - August 12, 2026
+### Added
+- Support for Kimi K3 through the updated Copilot language server.
+
+### Changed
+- Updated the Copilot language server from 1.488.0 to 1.523.3.
+
+## 0.49.0 - May 15, 2026
+### Added
+- Native Anthropic Messages API (`/v1/messages`) endpoint support.
+- See the [release notes](https://example.com/notes) for details.
+"""#
+
+@Test func extractsCopilotForXcodeNotesFromTheRepoChangelog() throws {
+    let recipe = try #require(
+        ChangelogRecipeRegistry.recipe(forBundleID: "com.github.CopilotForXcode"))
+    let log = try #require(ChangelogExtractor.extract(from: copilotForXcodeFixture, using: recipe))
+
+    #expect(log.entries.count == 2)
+    #expect(log.entries[0].version == "0.51.0")
+    #expect(log.entries[0].date == "August 12, 2026")
+    #expect(log.entries[0].items == [
+        "Support for Kimi K3 through the updated Copilot language server.",
+        "Updated the Copilot language server from 1.488.0 to 1.523.3.",
+    ])
+    // `markdownSource` unwraps inline code and flattens [text](url) — otherwise
+    // the backticks and the bracket/paren syntax reach the user as punctuation.
+    #expect(log.entries[1].items[0] == "Native Anthropic Messages API (/v1/messages) endpoint support.")
+    #expect(log.entries[1].items[1] == "See the release notes for details.")
+}
+
+// MARK: - TypeWhisper (one list, two platforms)
+
+/// Four cards in the vendor's own order: a macOS release, a Windows release, a
+/// macOS card that carries NO prose block (old cards on the live page look like
+/// this), and another macOS release. Trimmed of svg/class noise except where the
+/// pattern anchors on it.
+private let typeWhisperFixture = #"""
+<div><span class="badge">macOS</span><h3 class="font-display text-base font-semibold">v1.7.0-daily.20260826</h3></div><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v1.7.0-daily.20260826">gh</a><p class="mt-1 text-xs text-muted-foreground">August 26, 2026</p><div class="prose prose-neutral prose-sm mt-3 max-w-none"><h2>Bug Fixes</h2>
+<ul>
+<li>expand iCloud container entitlements for release signing (<a href="https://github.com/TypeWhisper/typewhisper-mac/issues/1141">#1141</a>)</li>
+<li>propagate provider cancellations</li>
+</ul></div>
+<div><span class="badge">Windows</span><h3 class="font-display text-base font-semibold">v1.0.9-daily.20260826</h3></div><a href="https://github.com/TypeWhisper/typewhisper-win/releases/tag/v1.0.9-daily.20260826">gh</a><p class="mt-1 text-xs text-muted-foreground">August 26, 2026</p><div class="prose prose-neutral prose-sm mt-3 max-w-none"><p>Maintenance release v1.0.9-daily.20260826</p></div>
+<div><span class="badge">macOS</span><h3 class="font-display text-base font-semibold">v0.6.1</h3></div><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v0.6.1">gh</a>
+<div><span class="badge">macOS</span><h3 class="font-display text-base font-semibold">v1.6.0</h3></div><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v1.6.0">gh</a><p class="mt-1 text-xs text-muted-foreground">August 20, 2026</p><div class="prose prose-neutral prose-sm mt-3 max-w-none"><ul>
+<li>Add Web Link transcription plugin</li>
+</ul></div>
+"""#
+
+@Test func typeWhisperReadsOnlyTheMacCardsAndNeverCrossesOne() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.typewhisper.mac"))
+    let log = try #require(ChangelogExtractor.extract(from: typeWhisperFixture, using: recipe))
+
+    // The Windows release is not a version of this app.
+    #expect(log.entries.map(\.version) == ["1.7.0-daily.20260826", "1.6.0"])
+    #expect(!log.entries.contains { $0.version.hasPrefix("1.0.9") })
+
+    // v0.6.1 has no prose block. The tempered scan must abandon it, NOT run on
+    // into v1.6.0's card — doing that both mislabels 1.6.0's notes as 0.6.1's
+    // and consumes 1.6.0's own heading, so the real entry disappears. Two live
+    // entries did exactly this before the pattern was tempered.
+    #expect(!log.entries.contains { $0.version == "0.6.1" })
+    #expect(log.entries[1].items == ["Add Web Link transcription plugin"])
+
+    #expect(log.entries[0].date == "August 26, 2026")
+    #expect(log.entries[0].items == [
+        "expand iCloud container entitlements for release signing (#1141)",
+        "propagate provider cancellations",
+    ])
+}
+
+/// The Copilot file with its `# Changelog` preamble gone, so the first heading
+/// sits at offset 0. `ChangelogExtractor` does not compile with
+/// `.anchorsMatchLines`, so a `\n##`-only pattern cannot see that heading: it
+/// would drop the NEWEST release and still render every older one — a partial,
+/// silent loss, and the newest entry is the one the row is about.
+@Test func copilotForXcodeReadsAHeadingAtTheStartOfTheFile() throws {
+    let recipe = try #require(
+        ChangelogRecipeRegistry.recipe(forBundleID: "com.github.CopilotForXcode"))
+    let trimmed = #"""
+    ## 0.51.0 - August 12, 2026
+    ### Added
+    - Support for Kimi K3 through the updated Copilot language server.
+
+    ## 0.50.0 - May 20, 2026
+    ### Added
+    - Reasoning effort control for supported models.
+    """#
+    let log = try #require(ChangelogExtractor.extract(from: trimmed, using: recipe))
+    #expect(log.entries.map(\.version) == ["0.51.0", "0.50.0"])
+}

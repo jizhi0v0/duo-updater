@@ -814,6 +814,19 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^Pearcleaner\.dmg$"#,
             installerKind: .dmg),
 
+        // claude-devtools — visualiser/analyser for Claude Code sessions.
+        // v-tags, and each release ships both an arm64 dmg and an x64 dmg plus
+        // zip/blockmap siblings (the cask itself is x86_64-gated, but the repo
+        // has shipped arm64 dmgs all along). Mounted v0.5.0:
+        // com.claudecode.context, short == build == tag, Team 55PSHY2MW6,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "com.claudecode.context",
+            owner: "matt1398", repo: "claude-devtools",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^claude-devtools-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg),
+
         // Claude Status Bar — menu-bar quota indicator for Claude Code. v-tags,
         // and the dmg asset name is versionless (ClaudeStatusBar.dmg on every
         // release), so the asset pattern is the literal filename. Mounted

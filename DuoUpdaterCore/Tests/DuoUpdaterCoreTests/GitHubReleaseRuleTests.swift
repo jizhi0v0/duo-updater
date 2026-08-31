@@ -60,6 +60,17 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(rule("com.local.claudestatusbar").installerKind == .dmg)
 }
 
+@Test func claudeDevtoolsRulePinsTheArm64Dmg() {
+    #expect(extract("v0.5.0", "com.claudecode.context") == "0.5.0")
+    #expect(extract("v0.5.0-rc.1", "com.claudecode.context") == nil)
+    let pattern = try! #require(rule("com.claudecode.context").installAssetPattern)
+    #expect("claude-devtools-0.5.0-arm64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("claude-devtools-0.5.0-x64.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("claude-devtools-0.5.0-arm64.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("com.claudecode.context").slug == "matt1398/claude-devtools")
+    #expect(rule("com.claudecode.context").installerKind == .dmg)
+}
+
 @Test func insomniaRuleMatchesCoreTagOnly() {
     // Captures the desktop version from a stable core@ tag…
     #expect(extract("core@12.6.0", "com.insomnia.app") == "12.6.0")

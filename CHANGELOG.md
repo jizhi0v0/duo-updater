@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.75
+
+**Apps built on Electron are now recognised without anyone writing them down first.** A great many Mac apps ship a small file inside themselves saying where their updates live. Until now Duo Updater only knew the ones someone had hand-written a rule for — every other one sat in your list with no version next to it and no way to tell you a new build had shipped. It now reads that file directly, the same way it has always read Sparkle's, so an app like that is covered the day you install it rather than the day someone gets around to it.
+
+Apps that already had a hand-written rule are untouched. The new reader sits behind them, so it can only fill a gap — never take over something that was already working.
+
+Two details decide whether the download it offers is the right one, and both were settled by checking real apps rather than assuming. Some vendors mark an Intel build as their "primary" download even while publishing an Apple-silicon one beside it; others give the Apple-silicon build a filename that looks no different from the Intel one, so nothing about the name gives it away. Duo Updater picks by architecture, and where it cannot be sure a download will run on your Mac it tells you the version and declines to offer the install — rather than handing you something that installs cleanly and then won't open.
+
 ## 0.3.74
 
 **If you run an app's beta, release-candidate or nightly build, Duo Updater was quietly watching the wrong track.** It works out which track you are on by finding your build in the vendor's own release list — but when a prerelease keeps the same public version number as the stable release it came from, which is the normal thing for a prerelease to do, it was matching the stable entry instead. The effect was silent: nothing wrong ever appeared on screen, you simply never heard about the next build on your own track, and the release notes you were shown belonged to the stable line. Found by installing the actual prerelease builds of Supacode and TypeWhisper and watching what happened; both now follow the track they are really on.

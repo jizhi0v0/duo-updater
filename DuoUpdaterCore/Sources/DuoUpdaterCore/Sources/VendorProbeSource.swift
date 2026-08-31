@@ -649,7 +649,7 @@ public struct VendorProbeSource: UpdateSource {
                     // (measured 2026-08-30) — but it holds for the reason stated
                     // above, not because nothing here could parse.
                     deltas: VendorAppcastDeltas.patches(
-                        inBody: body.text, forVersion: version))
+                        inBody: body.text, forVersion: version, feedURL: recipe.url))
                 // A recipe that names a checksum pattern but no longer matches one
                 // still installs — unverified. Silent today; flag it.
                 if spec.checksumPattern != nil, plan.checksum == nil {

@@ -42,7 +42,7 @@ public struct SparkleAppcastSource: UpdateSource {
             throw SparkleError.badStatus(http.statusCode)
         }
 
-        let items = SparkleAppcastParser.parse(data)
+        let items = SparkleAppcastParser.parse(data, relativeTo: feedURL)
         let usable = Self.usableItems(for: app, from: items, osVersion: Self.numericSystemVersion())
         guard let best = usable.first else {
             // Distinguish "the vendor capped every item for an OS this new" from
@@ -342,17 +342,40 @@ public struct SparkleAppcastSource: UpdateSource {
     /// canonical key), then the marketing string. nil = the default (stable)
     /// channel, either because the matched item carried no `<sparkle:channel>`
     /// or because the installed build isn't in the feed at all.
+    ///
+    /// TWO passes, and the order between them is the whole point: the build is
+    /// scanned across EVERY item before the marketing string is tried on any of
+    /// them. One pass that took the first item matching on *either* key read the
+    /// weaker key off an earlier item and never reached the exact build match
+    /// later in the feed — and prerelease trains are exactly where marketing
+    /// strings collide, because a prerelease usually keeps the release's
+    /// `CFBundleShortVersionString`. Both multi-channel feeds audited on
+    /// 2026-08-31 misfired that way, verified against the real bundles:
+    ///
+    /// - Supacode `tip` (build `1787740786`) is item #10, tagged `tip`; item #0
+    ///   is the default `0.10.8` — the same short string the tip build carries.
+    /// - TypeWhisper `release-candidate` (build `1083`) is item #2; item #1 is
+    ///   the default `1.6.0`, and the rc bundle's short string is also `1.6.0`.
+    ///
+    /// Both read as the default channel, which makes the user's OWN train
+    /// invisible: `usableItems` drops every `tip`/`rc` entry, so the next build
+    /// on that train is never offered and the notes and history come from the
+    /// stable line instead. It does not show up as a wrong version being pushed
+    /// — the default channel is allowed to everyone, so whenever stable is the
+    /// newer of the two (it was, in both feeds on the day) the offered version
+    /// is identical either way. That is what makes it quiet. Feeds whose
+    /// prerelease short strings differ (OpenUsage's `0.7.10-beta.3`) never
+    /// showed it at all.
     static func channel(ofInstalled app: InstalledApp, in items: [SparkleAppcastItem]) -> String? {
-        let match = items.first { item in
-            if let b = app.buildVersion, let v = item.version, !b.isEmpty, b == v {
-                return true
-            }
-            if let s = app.shortVersion, let sv = item.shortVersionString, !s.isEmpty, s == sv {
-                return true
-            }
-            return false
+        if let b = app.buildVersion, !b.isEmpty,
+           let match = items.first(where: { $0.version == b }) {
+            return normalizeChannel(match.channel)
         }
-        return normalizeChannel(match?.channel)
+        if let s = app.shortVersion, !s.isEmpty,
+           let match = items.first(where: { $0.shortVersionString == s }) {
+            return normalizeChannel(match.channel)
+        }
+        return nil
     }
 
     /// Collapse an absent or whitespace-only channel to nil so the default
@@ -454,12 +477,47 @@ struct SparkleAppcastItem {
 /// `<item>`; we collect both.
 final class SparkleAppcastParser: NSObject, XMLParserDelegate {
 
-    static func parse(_ data: Data) -> [SparkleAppcastItem] {
+    /// `relativeTo` is the URL the appcast itself was fetched from, and every URL
+    /// in the document is resolved against it — which is what Sparkle does:
+    /// `SUAppcastItem` builds each one as
+    /// `[NSURL URLWithString:string relativeToURL:appcastURL]` (enclosure, delta
+    /// enclosure, release-notes link, full-release-notes link alike) whenever it
+    /// knows the appcast URL, which in the real update flow it always does.
+    ///
+    /// So a RELATIVE enclosure is a supported Sparkle appcast, not a malformed
+    /// one — even though RSS 2.0 says of `<enclosure>` that "the url must be an
+    /// http url". Helium's feed is the one that made this matter: its enclosures
+    /// read `assets/helium_0.16.2.1_arm64-macos.dmg`, and every one of them came
+    /// out of here as a schemeless URL nothing could fetch. Passing nil keeps the
+    /// old behaviour and is only for callers with no URL to give (tests, and a
+    /// body already in hand).
+    ///
+    /// One difference from Sparkle left deliberately: it also rewrites a literal
+    /// space to `%20` in the enclosure string before parsing. Nothing we read
+    /// needs that yet, and doing it here would quietly start accepting items this
+    /// has always dropped.
+    static func parse(_ data: Data, relativeTo base: URL? = nil) -> [SparkleAppcastItem] {
         let parser = XMLParser(data: data)
-        let delegate = SparkleAppcastParser()
+        let delegate = SparkleAppcastParser(base: base)
         parser.delegate = delegate
         parser.parse()
         return delegate.items
+    }
+
+    /// The appcast's own URL, for resolving the relative URLs inside it.
+    private let base: URL?
+
+    init(base: URL? = nil) {
+        self.base = base
+        super.init()
+    }
+
+    /// Resolve one URL string out of the document the way Sparkle would.
+    /// `.absoluteURL` so what comes out carries no lingering base — every
+    /// consumer downstream reads `absoluteString` or hands it to `URLSession`,
+    /// and a relative `URL` would print as `assets/…` in a log or a report.
+    private func resolve(_ string: String) -> URL? {
+        URL(string: string, relativeTo: base)?.absoluteURL
     }
 
     private var items: [SparkleAppcastItem] = []
@@ -497,7 +555,7 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             // prevent (`deltaEnclosuresDontHijackTheItemsDownload`).
             guard deltasDepth == 0 else {
                 if let urlString = attributeDict["url"],
-                   let url = URL(string: urlString),
+                   let url = resolve(urlString),
                    let from = attributeDict["sparkle:deltaFrom"] {
                     current?.deltas.append(DeltaPatch(
                         fromBuild: from,
@@ -507,7 +565,7 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
                 }
                 break
             }
-            current?.enclosureURL = attributeDict["url"].flatMap { URL(string: $0) }
+            current?.enclosureURL = attributeDict["url"].flatMap { resolve($0) }
             if let length = attributeDict["length"], let n = Int64(length) {
                 current?.enclosureLength = n
             }
@@ -584,7 +642,7 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
             if current?.pubDate == nil, !text.isEmpty { current?.pubDate = text }
         case "sparkle:releaseNotesLink":
             if current?.releaseNotesLink == nil, !text.isEmpty {
-                current?.releaseNotesLink = URL(string: text)
+                current?.releaseNotesLink = resolve(text)
             }
         case "item":
             if let item = current { items.append(item) }

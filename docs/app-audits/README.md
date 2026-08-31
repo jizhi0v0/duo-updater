@@ -52,7 +52,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] **VS Code** · `com.microsoft.VSCode` — P C (one-click) · ✓ src=Vendor
 - [x] **Claude Desktop** · `com.anthropic.claudefordesktop` — P (one-click) · ✓ src=Vendor
-- [x] **Codex** · `com.openai.codex` — P C (one-click) · ✓ src=Vendor
+- [x] **Codex → ChatGPT** · `com.openai.codex` — P C (one-click) · ✓ src=Vendor · 独立 Codex 桌面端 2026-07 并入 ChatGPT app（cask `codex-app` 已 `deprecate! … replacement_cask: "chatgpt"`），**bundle id 未变**——真包核实 ChatGPT.app 仍登记 `com.openai.codex` / `26.825.51511`，既有 recipe 全链 ✓（2026-08-30 复验）
 - [x] **Cursor** · `com.todesktop.230313mzl4w4u92` — P · ✓ src=Vendor
 - [x] **Notion** · `notion.id` — P C · ✓ src=Vendor
 - [x] **Obsidian** · `md.obsidian` — P C · ✓ src=Vendor
@@ -118,7 +118,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**OpenCode Desktop**](ai-opencode-desktop.md) · `ai.opencode.desktop` — G C (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**OpenChamber**](dev-openchamber-desktop.md) · `dev.openchamber.desktop` — G (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**Jan**](jan-ai-app.md) · `jan.ai.app` — G (one-click universal zip) · real app verified ✓ · 2026-08-17
-- [x] [**ClaudeBar**](com-tddworks-claudebar.md) · `com.tddworks.claudebar` — S · 真包 v0.4.85 挂载验证 ✓ · 2026-08-30
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 
@@ -148,6 +147,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Superwhisper**](com-superduper-superwhisper.md) · `com.superduper.superwhisper` — S · real zip/feed verified ✓ · 2026-08-17
 - [x] [**Perplexity Mac**](ai-perplexity-macv3.md) · `ai.perplexity.macv3` — S detection; current dmg unnotarized, no one-click · 2026-08-17
 - [x] [**Dia Browser**](company-thebrowser-dia.md) · `company.thebrowser.dia` — S · real DMG/feed verified ✓ · 2026-08-17
+- [x] [**CodexBar**](com-steipete-codexbar.md) · `com.steipete.codexbar` — S · 真包 v0.56.1 验证 ✓（SUFeedURL 指向 repo 内 appcast.xml；ChangelogCatalog 已有 GitHub 兜底条目）· 2026-08-30
+- [x] [**ClaudeBar**](com-tddworks-claudebar.md) · `com.tddworks.claudebar` — S · 真包 v0.4.85 解包验证 ✓ · 2026-08-30
 
 ## Investigated — blocked safely
 

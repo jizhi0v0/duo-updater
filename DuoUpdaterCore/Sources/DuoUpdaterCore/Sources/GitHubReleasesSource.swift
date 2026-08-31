@@ -801,6 +801,20 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^Pearcleaner\.dmg$"#,
             installerKind: .dmg),
 
+        // Meetily — local-first AI meeting transcription (Tauri). No SUFeedURL
+        // (the release's `latest.json` is Tauri-updater state, not a feed we
+        // read). v-tags with one legacy bare tag (`0.1.1`) deep in history —
+        // /releases/latest returns the newest stable v-tag regardless. One
+        // -click pins the aarch64 dmg (arm64-only; the x64 setup.exe/msi
+        // siblings are Windows). Mounted v0.4.0: com.meetily.ai, short ==
+        // build == tag, Team 554AZZ38TB, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.meetily.ai",
+            owner: "Zackriya-Solutions", repo: "meetily",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^meetily_[0-9.]+_aarch64\.dmg$"#,
+            installerKind: .dmg),
+
         // RustDesk — tags have no `v` prefix. One-click installs the arm64 dmg
         // asset (`rustdesk-<ver>-aarch64.dmg`): the official GitHub build is a
         // notarized Developer ID app, Team ID HZF9JMC8YN (zhou huabing), matching

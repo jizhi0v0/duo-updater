@@ -154,6 +154,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**ChatGPT Atlas**](com-openai-atlas.md) · `com.openai.atlas` — S · 真包 1.2026.189.1 挂载验证 ✓ · 2026-08-30
 - [x] [**Perplexity**](ai-perplexity-macv3.md) · `ai.perplexity.macv3` — S · 真包 26.34.0 挂载验证 ✓（公证已恢复，一键可用）· 2026-08-30
 - [x] [**TypeWhisper**](com-typewhisper-mac.md) · `com.typewhisper.mac` — S(stable+rc+daily) · 三轨 tag 过、共享 bundle id · 真包 1.6.0 解包验证 ✓ · 2026-08-30
+- [x] [**OpenUsage**](com-robinebers-openusage.md) · `com.robinebers.openusage` — S(stable+beta) · 真包 v0.7.10 挂载验证 ✓（beta 显式 channel tag）· 2026-08-31
 
 ## Investigated — blocked safely
 

@@ -204,6 +204,7 @@ public struct AppScanner: Sendable {
                 isToolboxManaged: app.isToolboxManaged,
                 isTestFlightApp: true,
                 sparkleFeedURL: app.sparkleFeedURL,
+                electronUpdate: app.electronUpdate,
                 sparkleFeedHeaders: app.sparkleFeedHeaders,
                 sparkleChannelNames: app.sparkleChannelNames,
                 sparkleEdPublicKey: app.sparkleEdPublicKey,
@@ -374,6 +375,10 @@ public struct AppScanner: Sendable {
         // still inferred from the feed's own items. See the type's doc comment.
         if feedURL == nil { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
 
+        // The electron-builder equivalent, read the same way and for the same
+        // reason: it is a file the packager wrote, not something inferred.
+        let electronUpdate = ElectronUpdateConfig.read(fromBundleAt: bundleURL)
+
         // Electron apps that ship Squirrel manage their own updates; flag them
         // so we defer to that channel instead of a (often staler) Homebrew cask.
         // Wrapped iOS apps have no `Contents/` and never ship Squirrel.
@@ -508,6 +513,7 @@ public struct AppScanner: Sendable {
             isToolboxManaged: toolbox.isManaged(appPath: bundleURL),
             isTestFlightApp: isTestFlight,
             sparkleFeedURL: feedURL,
+            electronUpdate: electronUpdate,
             sparkleFeedHeaders: feedHeaders,
             sparkleChannelNames: feedChannelNames,
             sparkleEdPublicKey: (plist["SUPublicEDKey"] as? String)?

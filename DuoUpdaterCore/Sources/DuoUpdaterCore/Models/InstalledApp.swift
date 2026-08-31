@@ -122,6 +122,13 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// auto-update framework. This is our highest-signal update source.
     public let sparkleFeedURL: URL?
 
+    /// The electron-builder update configuration from
+    /// `Contents/Resources/app-update.yml`, when the bundle carries one. The
+    /// electron counterpart of ``sparkleFeedURL``: read from a file the build
+    /// system generates, so it is a fact about the bundle rather than a guess
+    /// about it. See `ElectronUpdateConfig`.
+    public let electronUpdate: ElectronUpdateConfig?
+
     /// Extra HTTP headers to send when fetching `sparkleFeedURL`. Non-empty only
     /// for "header-keyed" apps (TablePlus) where the appcast URL is shared across
     /// channels and a request header selects which builds the server returns. Set
@@ -238,6 +245,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         isToolboxManaged: Bool = false,
         isTestFlightApp: Bool = false,
         sparkleFeedURL: URL?,
+        electronUpdate: ElectronUpdateConfig? = nil,
         sparkleFeedHeaders: [String: String] = [:],
         sparkleChannelNames: Set<String> = [],
         sparkleEdPublicKey: String? = nil,
@@ -259,6 +267,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.isToolboxManaged = isToolboxManaged
         self.isTestFlightApp = isTestFlightApp
         self.sparkleFeedURL = sparkleFeedURL
+        self.electronUpdate = electronUpdate
         self.sparkleFeedHeaders = sparkleFeedHeaders
         self.sparkleChannelNames = sparkleChannelNames
         self.sparkleEdPublicKey = sparkleEdPublicKey

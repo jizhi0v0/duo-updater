@@ -81,11 +81,15 @@ public actor VendorInstaller {
     ) async throws -> DownloadedUpdate {
         // Accept any source whose RemoteVersion carries a resolved installer
         // archive we vet ourselves: the vendor-probe registry ("Vendor") and
-        // GitHub release rules with an asset pattern ("GitHub"). Both download a
-        // notarized build and gate on a Team-ID match below, so the swap stays
-        // same-channel. Sparkle/Homebrew install through their own pipelines.
+        // GitHub release rules with an asset pattern ("GitHub"), and
+        // electron-builder manifests ("Electron"). All three download a notarized
+        // build and gate on a Team-ID match below, so the swap stays
+        // same-channel — adding a source name here widens what may flow through
+        // the gates, never which gates run. Sparkle/Homebrew install through their
+        // own pipelines.
         guard let remote = result.remote,
-              remote.sourceName == "Vendor" || remote.sourceName == "GitHub" else {
+              remote.sourceName == "Vendor" || remote.sourceName == "GitHub"
+                || remote.sourceName == "Electron" else {
             throw InstallError.notVendorUpdate
         }
         guard let downloadURL = remote.downloadURL else {

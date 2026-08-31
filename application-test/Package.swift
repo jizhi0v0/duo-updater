@@ -1,10 +1,13 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// A standalone harness package for STRICT, ON-MACHINE channel verification.
-// It links the real `DuoUpdaterCore` (by relative path) so it exercises the
-// production `ReleaseChannel.detect()` and `VendorProbeSource` — never a
-// re-implementation. Kept out of the main package so it never ships in the app.
+// Standalone harnesses that run STRICT, ON-MACHINE checks against real bundles:
+// `channel-verify` (is this build classified onto the channel its recipe expects)
+// and `feed-discover` (what appcast does this bundle read, and is that address
+// safe to adopt). Both link the real `DuoUpdaterCore` by relative path so they
+// exercise production code — `ReleaseChannel.detect()`, `VendorProbeSource`,
+// `FeedDiscovery` — never a re-implementation. Kept out of the main package so
+// neither ships in the app.
 let package = Package(
     name: "application-test",
     platforms: [.macOS(.v14)],
@@ -14,6 +17,12 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "channel-verify",
+            dependencies: [
+                .product(name: "DuoUpdaterCore", package: "DuoUpdaterCore")
+            ]
+        ),
+        .executableTarget(
+            name: "feed-discover",
             dependencies: [
                 .product(name: "DuoUpdaterCore", package: "DuoUpdaterCore")
             ]

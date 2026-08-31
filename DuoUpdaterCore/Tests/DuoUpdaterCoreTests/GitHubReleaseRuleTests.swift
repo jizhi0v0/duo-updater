@@ -39,6 +39,17 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func kunRulePinsTheMacArm64Dmg() {
+    #expect(extract("v0.3.7", "com.xingyuzhong.deepseekgui") == "0.3.7")
+    let pattern = try! #require(rule("com.xingyuzhong.deepseekgui").installAssetPattern)
+    #expect("Kun-0.3.7-mac-arm64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("Kun-0.3.7-mac-x64.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("Kun-0.3.7-mac-arm64.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect("Kun-0.3.7-linux-arm64.AppImage".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("com.xingyuzhong.deepseekgui").slug == "KunAgent/Kun")
+    #expect(rule("com.xingyuzhong.deepseekgui").installerKind == .dmg)
+}
+
 @Test func insomniaRuleMatchesCoreTagOnly() {
     // Captures the desktop version from a stable core@ tag…
     #expect(extract("core@12.6.0", "com.insomnia.app") == "12.6.0")

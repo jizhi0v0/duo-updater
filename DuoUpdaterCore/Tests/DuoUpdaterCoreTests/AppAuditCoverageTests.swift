@@ -151,4 +151,27 @@ struct AppAuditCoverageTests {
                 + wrong.joined(separator: "\n")))
     }
 
+    /// Keep generic Sparkle audits in their own index section. Several docs-only
+    /// additions were accidentally appended to the preceding GitHub section;
+    /// their `— S` marker was correct, but the grouping made the maintained index
+    /// claim the opposite source at a glance.
+    @Test func genericSparkleIndexRowsStayInTheSparkleSection() throws {
+        let readme = Self.repoRoot.appendingPathComponent("docs/app-audits/README.md")
+        let lines = try String(contentsOf: readme, encoding: .utf8)
+            .components(separatedBy: .newlines)
+        var section = ""
+        var misplaced: [String] = []
+        for (offset, line) in lines.enumerated() {
+            if line.hasPrefix("## ") { section = String(line.dropFirst(3)) }
+            if line.hasPrefix("- ["), line.contains("` — S"),
+               section != "Sparkle-covered (auto-detected, no custom recipe)" {
+                misplaced.append("line \(offset + 1) in section '\(section)': \(line)")
+            }
+        }
+        #expect(
+            misplaced.isEmpty,
+            Comment(rawValue: "generic Sparkle audits are outside the Sparkle section:\n"
+                + misplaced.joined(separator: "\n")))
+    }
+
 }

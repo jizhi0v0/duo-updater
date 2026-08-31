@@ -2,6 +2,14 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.75
+
+**Les applications conçues avec Electron sont désormais reconnues sans que quiconque ait à les inscrire au préalable.** Bon nombre d'applications Mac embarquent un petit fichier indiquant où se trouvent leurs mises à jour. Jusqu'ici, Duo Updater ne connaissait que celles pour lesquelles une règle avait été écrite à la main : toutes les autres figuraient dans votre liste sans numéro de version, sans aucun moyen de vous signaler qu'une nouvelle version était parue. Il lit maintenant ce fichier directement, exactement comme il lit celui de Sparkle depuis toujours. Une application de ce type est donc prise en charge le jour où vous l'installez, et non le jour où quelqu'un s'en occupe.
+
+**Les applications qui disposaient déjà d'une règle écrite à la main ne changent pas.** Le nouveau mode de lecture se place derrière elles : il ne peut que combler un vide, jamais reprendre la main sur ce qui fonctionnait déjà.
+
+**Deux détails déterminent si le téléchargement proposé est le bon, et tous deux ont été tranchés en examinant de vraies applications plutôt qu'en supposant.** Certains éditeurs désignent une version Intel comme téléchargement « principal » alors même qu'ils publient une version Apple Silicon à côté ; d'autres donnent à la version Apple Silicon un nom de fichier impossible à distinguer de celui de la version Intel, si bien que le nom ne révèle rien. Duo Updater choisit selon l'architecture, et lorsqu'il ne peut pas garantir qu'un téléchargement fonctionnera sur votre Mac, il vous indique la version sans proposer l'installation — plutôt que de vous remettre quelque chose qui s'installe parfaitement puis refuse de s'ouvrir.
+
 ## 0.3.74
 
 **Si vous utilisez la version bêta, la release candidate ou une version nightly d'une application, Duo Updater surveillait discrètement la mauvaise branche.** Il détermine votre branche en retrouvant votre build dans la liste des versions publiée par l'éditeur — mais une préversion conserve le plus souvent le même numéro de version publique que la version stable dont elle est issue, ce qui est le comportement normal d'une préversion. La correspondance tombait donc sur l'entrée stable. L'erreur était silencieuse : rien d'anormal n'apparaissait à l'écran, vous n'entendiez simplement plus parler du build suivant de votre propre branche, et les notes de version affichées appartenaient à la ligne stable. C'est en installant les vraies préversions de Supacode et de TypeWhisper et en observant le résultat que le problème est apparu ; toutes deux suivent désormais la branche sur laquelle elles se trouvent réellement.

@@ -2,6 +2,14 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.75
+
+**Mit Electron gebaute Apps werden jetzt erkannt, ohne dass sie vorher jemand eintragen muss.** Sehr viele Mac-Apps führen im Inneren eine kleine Datei mit sich, die angibt, wo ihre Updates liegen. Bisher kannte Duo Updater nur diejenigen, für die jemand von Hand eine Regel geschrieben hatte — alle übrigen standen ohne Versionsnummer in Ihrer Liste, und es gab keine Möglichkeit, Ihnen einen neuen Build zu melden. Jetzt liest es diese Datei direkt, genauso wie es die von Sparkle schon immer gelesen hat. Eine solche App ist damit an dem Tag abgedeckt, an dem Sie sie installieren, und nicht erst an dem Tag, an dem jemand dazu kommt.
+
+**Apps mit einer bereits vorhandenen handgeschriebenen Regel bleiben unberührt.** Der neue Leseweg sitzt hinter ihnen und kann deshalb nur eine Lücke füllen — niemals etwas übernehmen, das bereits funktioniert hat.
+
+**Zwei Details entscheiden darüber, ob der angebotene Download der richtige ist, und beide wurden an echten Apps geklärt statt angenommen.** Manche Anbieter kennzeichnen einen Intel-Build als ihren „primären" Download, obwohl sie daneben auch einen für Apple Silicon veröffentlichen; andere geben dem Apple-Silicon-Build einen Dateinamen, der sich von dem für Intel nicht unterscheidet, sodass der Name nichts verrät. Duo Updater wählt nach Architektur aus, und wo es nicht sicher sein kann, dass ein Download auf Ihrem Mac läuft, nennt es Ihnen die Version und bietet die Installation nicht an — statt Ihnen etwas zu geben, das sauber installiert und sich dann nicht öffnen lässt.
+
 ## 0.3.74
 
 **Wer die Beta-, Release-Candidate- oder Nightly-Version einer App nutzt, wurde von Duo Updater stillschweigend auf dem falschen Zweig beobachtet.** Welchen Zweig Sie nutzen, ermittelt es, indem es Ihren Build in der Veröffentlichungsliste des Herstellers wiederfindet — doch eine Vorabversion behält meist dieselbe öffentliche Versionsnummer wie die Stable-Version, aus der sie stammt, und genau das ist bei Vorabversionen das Normale. Also traf die Zuordnung den Stable-Eintrag. Der Fehler blieb unsichtbar: Auf dem Bildschirm wirkte nichts falsch, Sie erfuhren lediglich nie vom nächsten Build Ihres eigenen Zweigs, und die angezeigten Versionshinweise gehörten zur Stable-Linie. Gefunden wurde das, indem die echten Vorabversionen von Supacode und TypeWhisper installiert und beobachtet wurden; beide folgen nun dem Zweig, auf dem sie tatsächlich sind.

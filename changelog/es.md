@@ -2,6 +2,14 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.75
+
+**Las aplicaciones creadas con Electron ahora se reconocen sin que nadie tenga que anotarlas antes.** Muchísimas aplicaciones de Mac llevan dentro un pequeño archivo que indica dónde están sus actualizaciones. Hasta ahora Duo Updater solo conocía aquellas para las que alguien había escrito una regla a mano: todas las demás aparecían en tu lista sin número de versión y sin forma alguna de avisarte de que había salido una nueva compilación. Ahora lee ese archivo directamente, igual que siempre ha leído el de Sparkle, de modo que una aplicación así queda cubierta el día que la instalas y no el día que alguien encuentra un rato.
+
+**Las aplicaciones que ya tenían una regla escrita a mano no cambian.** El nuevo lector se sitúa detrás de ellas, así que solo puede rellenar un hueco; nunca sustituir algo que ya funcionaba.
+
+**Dos detalles deciden si la descarga que ofrece es la correcta, y ambos se resolvieron comprobando aplicaciones reales en lugar de darlos por supuestos.** Algunos fabricantes marcan una compilación Intel como su descarga «principal» aunque publiquen otra para Apple Silicon junto a ella; otros dan a la compilación de Apple Silicon un nombre de archivo idéntico en apariencia al de Intel, de modo que el nombre no delata nada. Duo Updater elige según la arquitectura y, cuando no puede asegurar que una descarga vaya a funcionar en tu Mac, te dice la versión y no ofrece la instalación, en lugar de entregarte algo que se instala sin problemas y luego no abre.
+
 ## 0.3.74
 
 **Si usas la versión beta, la candidata a publicación o una compilación nightly de alguna aplicación, Duo Updater llevaba tiempo vigilando la rama equivocada.** Determina en qué rama estás encontrando tu compilación en la propia lista de versiones del proveedor, pero una preversión suele conservar el mismo número de versión pública que la estable de la que procede, que es justo lo normal en una preversión. Así que la coincidencia caía en la entrada estable. El fallo era silencioso: en pantalla no aparecía nada raro, sencillamente dejabas de enterarte de la siguiente compilación de tu propia rama, y las notas de la versión que se te mostraban pertenecían a la línea estable. Se descubrió instalando las preversiones reales de Supacode y TypeWhisper y observando qué ocurría; ambas siguen ahora la rama en la que realmente están.

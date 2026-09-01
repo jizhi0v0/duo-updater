@@ -255,7 +255,8 @@ private func cargoBundlePlist() -> [String: Any] {
         linkedLibraries: reader(appKit, webKit)) == .tauri)
 }
 
-@Test func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
+@Test(.enabled(if: geteuid() != 0, "chmod 000 does not stop root, and these turn on a read failing"))
+func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
     // What makes the walk affordable on a scheduled, library-wide scan is that the
     // second scan does not repeat it. Nothing about the *verdicts* would change if
     // the memoization were lost — every scan would simply start reading hundreds of

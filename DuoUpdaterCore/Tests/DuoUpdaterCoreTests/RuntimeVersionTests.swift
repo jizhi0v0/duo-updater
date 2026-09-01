@@ -12,6 +12,12 @@ private struct VersionBundle {
         bundle = root.appendingPathComponent("\(name).app")
         try FileManager.default.createDirectory(
             at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        // Every bundle gets an executable and an Info.plist naming it, even the
+        // ones whose rule never looks at either. The cache keys on that file, so a
+        // fixture without one is a fixture with the cache silently switched off —
+        // which is how seven of these tests came to assert their values against an
+        // uncached reader without anything noticing.
+        try executable(name, containing: "")
     }
 
     func cleanUp() { try? FileManager.default.removeItem(at: root) }
@@ -34,6 +40,13 @@ private struct VersionBundle {
 
     /// Writes the executable *and* the Info.plist that names it, the way a bundle
     /// the reader has to find its way around actually looks.
+    /// The same, for a payload measured in megabytes rather than characters.
+    func executable(_ name: String, containingBytes bytes: Data) throws {
+        try executable(name, containing: "")
+        try bytes.write(to: bundle.appendingPathComponent("Contents/MacOS/\(name)"))
+    }
+
+    /// - Parameters:
     ///   - stampedAt: a fixed modification date, for the one test that needs two
     ///     different payloads to look identical to the cache key.
     func executable(_ name: String, containing text: String, stampedAt stamp: Date? = nil) throws {
@@ -146,7 +159,10 @@ private struct VersionBundle {
 }
 
 @Test func theTauriScanIsSkippedWhenScanningIsNotAllowed() throws {
-    // The scan walks the whole executable, so a full library scan must never do it.
+    // Not a statement that a library-wide scan never walks a binary — since #206 it
+    // does, for the handful of bundles `AppRuntimeDetector` has narrowed to. This
+    // pins the flag itself: a caller that passes false gets no walk and, because
+    // nothing was proved, nothing is remembered either.
     let b = try VersionBundle("Shell"); defer { b.cleanUp() }
     try b.executable("Shell", containing: "tauri-2.11.5/src/lib.rs")
     #expect(b.version(.tauri, scanning: false) == nil)
@@ -181,7 +197,8 @@ private struct VersionBundle {
     #expect(b.version(.chromium, scanning: false) == nil)
 }
 
-@Test func anAnswerIsRememberedAgainstTheBinaryItWasReadFrom() throws {
+@Test(.enabled(if: geteuid() != 0, "chmod 000 does not stop root, and these turn on a read failing"))
+func anAnswerIsRememberedAgainstTheBinaryItWasReadFrom() throws {
     // The expensive readers walk a whole binary; asking twice for a binary that has
     // not changed must not pay twice. Taking away read permission between the two
     // is how the test tells a remembered answer from a fresh one: `stat` still
@@ -207,6 +224,47 @@ private struct VersionBundle {
 
     try b.executable("Shell", containing: "registry/src/index/tauri-2.12.0/src/lib.rs and padding")
     #expect(b.version(.tauri) == "2.12.0", "different bytes — read again, do not remember 2.11.5")
+}
+
+/// `RuntimeVersion` walks a binary in 4 MiB chunks. Both tests below place their
+/// payload against that boundary, which is the only place the two window-edge rules
+/// can be observed at all.
+private let chunkSize = 4 * 1024 * 1024
+
+/// A bundle whose executable is larger than one chunk, with `payload` written at
+/// `offset` so it straddles — or sits just before — the first boundary.
+private func bundleWithPayload(
+    _ name: String, _ payload: String, at offset: Int
+) throws -> VersionBundle {
+    let b = try VersionBundle(name)
+    var bytes = [UInt8](repeating: UInt8(ascii: "."), count: chunkSize + 4096)
+    bytes.replaceSubrange(offset..<(offset + payload.utf8.count), with: Array(payload.utf8))
+    try b.executable(name, containingBytes: Data(bytes))
+    return b
+}
+
+@Test func aCandidateAtAChunkBoundaryIsStillHeldToTheIdentifierRule() throws {
+    // `xtauri-2.11.5` is not a Tauri crate path anywhere — the character before the
+    // needle makes it part of a longer identifier. It was accepted at exactly one
+    // offset per chunk: the first byte of a continuation window, whose real
+    // predecessor lives in the previous chunk and so could not be checked.
+    //
+    // For a displayed version that was cosmetic. For a verdict it is the false
+    // positive this whole change exists to prevent, so it is pinned here.
+    let overlap = 128
+    let b = try bundleWithPayload("Shell", "xtauri-2.11.5 ", at: chunkSize - overlap - 1)
+    defer { b.cleanUp() }
+    #expect(b.version(.tauri) == nil)
+}
+
+@Test func aVersionCutByAChunkBoundaryIsReadWhole() throws {
+    // `tauri-2.11.50` positioned so the boundary falls between the `5` and the `0`.
+    // Three components with a digit last looks like a finished version, so the
+    // truncated `2.11.5` was returned — a real version, for a real app, off by a
+    // factor of ten.
+    let b = try bundleWithPayload("Shell", " tauri-2.11.50 ", at: chunkSize - " tauri-2.11.5".utf8.count)
+    defer { b.cleanUp() }
+    #expect(b.version(.tauri) == "2.11.50")
 }
 
 private let stamp = Date(timeIntervalSince1970: 1_700_000_000)
@@ -238,7 +296,8 @@ private let stamp = Date(timeIntervalSince1970: 1_700_000_000)
     #expect(b.version(.tauri) == nil, "the proven absence is remembered, not walked again")
 }
 
-@Test func aBinaryThatCannotBeReadThroughIsNotRememberedAsProofOfAbsence() throws {
+@Test(.enabled(if: geteuid() != 0, "chmod 000 does not stop root, and these turn on a read failing"))
+func aBinaryThatCannotBeReadThroughIsNotRememberedAsProofOfAbsence() throws {
     // The distinction `Probe` exists for. A nil from the Tauri reader is a verdict —
     // `carriesTauriCrate` turns it into "not Tauri" — so a read that never reached
     // the end must leave nothing behind, or one unlucky moment during an install

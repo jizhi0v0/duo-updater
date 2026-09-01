@@ -176,4 +176,51 @@ import Testing
         #expect(VersionComparator.hasReached(target, disk: s("1.0", "130")))
         #expect(VersionComparator.hasReached(target, disk: s("1.0", "131")))
     }
+
+    /// Two spellings `compare` calls equal must be equal to `isSame` too, and
+    /// therefore to `hasReached`. `isSame` used raw string `==`, so a feed that
+    /// said `v1.2.3` against a plist that said `1.2.3` (or `1.0` against `1.0.0`,
+    /// `1.02` against `1.2`) was "not newer" AND "not the same": a staged package
+    /// read as not the offered version, and a swap landing test that could never
+    /// conclude.
+    @Test(arguments: [
+        ("1.0.0", "1.0"),
+        ("1.0", "1.0.0"),
+        ("v2.0", "2.0"),
+        ("V1.4.3", "1.4.3"),
+        ("1.02", "1.2"),
+        ("1.007", "1.7"),
+        ("007", "7"),
+    ])
+    func isSameAgreesWithCompareOnEquivalentSpellings(a: String, b: String) {
+        #expect(VersionComparator.compare(a, b) == .orderedSame,
+                "precondition: the tokenizer must call these equal")
+        // Marketing respelled, build identical — the shape that bit.
+        #expect(VersionComparator.isSame(s(a, "130"), as: s(b, "130")))
+        #expect(VersionComparator.hasReached(s(a, "130"), disk: s(b, "130")))
+        // Marketing only (a side with no build).
+        #expect(VersionComparator.isSame(s(a, nil), as: s(b, nil)))
+        #expect(VersionComparator.hasReached(s(a, nil), disk: s(b, nil)))
+        // The build half goes through the same tokenizer.
+        #expect(VersionComparator.isSame(s("1.0", a), as: s("1.0", b)))
+    }
+
+    /// The tokenizer must not make `isSame` looser than "same build": a real
+    /// difference on any comparable field is still a difference, and an
+    /// incomparable pair is still not sameness.
+    @Test func tokenizedIsSameStillRejectsRealDifferences() {
+        #expect(!VersionComparator.isSame(s("1.0.1", "130"), as: s("1.0", "130")),
+                "different marketing")
+        #expect(!VersionComparator.isSame(s("v2.0", "130"), as: s("2.0", "131")),
+                "same marketing, spelled differently, but the builds differ")
+        #expect(!VersionComparator.isSame(s("2.0", nil), as: s("2.0-beta1", nil)),
+                "a release is not its own pre-release")
+        #expect(!VersionComparator.isSame(VersionSide(), as: s("v1.0", "1")),
+                "one side empty")
+        #expect(!VersionComparator.isSame(s("1.0", nil), as: s(nil, "1")),
+                "nothing comparable across the two sides")
+        // hasReached keeps its other half: disk past the target still counts.
+        #expect(VersionComparator.hasReached(s("v2.0", "130"), disk: s("2.0", "131")))
+        #expect(!VersionComparator.hasReached(s("v2.0", "131"), disk: s("2.0", "130")))
+    }
 }

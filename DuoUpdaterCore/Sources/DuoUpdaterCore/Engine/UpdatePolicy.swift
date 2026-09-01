@@ -134,12 +134,26 @@ public enum UpdatePolicy {
         case "Homebrew":
             return result.remote?.sourceIdentifier != nil
                 && result.remote?.requiresManualInstaller == false
-        case "Vendor", "GitHub":
+        case "Vendor", "GitHub", "Electron":
             // A vendor-website or GitHub-release app with a resolved installer
-            // archive (zip/dmg/tar.gz). We download it, verify the code signature
-            // matches the installed app's Team ID, then swap in place — same
-            // channel, no mix. GitHub rules without an asset pattern stay
-            // detection-only (vendorInstallerKind nil), so they fall through here.
+            // archive (zip/dmg/tar.gz), or an electron-builder manifest resolved
+            // the same way — `VendorInstaller.download()` already vets all three
+            // identically (see its own comment: Team-ID + bundle-id gates, same
+            // pipeline). We download it, verify the code signature matches the
+            // installed app's Team ID, then swap in place — same channel, no mix.
+            // GitHub rules without an asset pattern, and Electron manifests whose
+            // chosen artifact has no recognised extension (`ElectronManifestSource
+            // .kind(of:)` returns nil), stay detection-only (vendorInstallerKind
+            // nil), so they fall through here.
+            //
+            // Electron is deliberately NOT added to `UpdateResult
+            // .licenseNeutralSources` (Models/UpdateResult.swift): unlike Vendor
+            // (our own hand-curated, vetted registry) and GitHub (open-source
+            // feeds), an electron-builder manifest can belong to a commercial app
+            // we've done no license review of, so a major-version jump arriving
+            // through this source still raises the "may need a new license"
+            // warning. Same conservative treatment as Homebrew — a decision, not
+            // an oversight (see #192).
             return result.remote?.vendorInstallerKind != nil
                 && result.remote?.requiresManualInstaller == false
         case "App Store":
@@ -226,6 +240,16 @@ public enum UpdatePolicy {
             let ext = result.remote?.downloadURL?.pathExtension.lowercased() ?? ""
             return Self.sparkleArchiveExtensions.contains(ext)
         default:
+            // "Electron" deliberately falls here rather than getting its own
+            // case. An electron-builder input method is a real shape (Squirrel.Mac
+            // apps are ordinary `.app` bundles like any other), but we have no
+            // vetted registry over that source the way Vendor is, and getting the
+            // rotation wrong on a registered input source is the WeType incident
+            // (see `canAutoInstall`'s comment above) — expensive to get wrong and
+            // untested for this source. Closed by default is the safe direction;
+            // `canAutoInstall` reads this as false, so an Electron-packaged input
+            // method simply never offers the one-click. Revisit only with a
+            // specific app on record (see #192).
             return false
         }
     }
@@ -270,7 +294,11 @@ public enum UpdatePolicy {
         switch result.remote?.sourceName {
         case "Homebrew":
             return result.remote?.requiresManualInstaller == true
-        case "Vendor", "GitHub":
+        case "Vendor", "GitHub", "Electron":
+            // electron-builder can publish a `.pkg` alongside (or instead of) the
+            // Squirrel `.zip` — `ElectronManifestSource.kind(of:)` recognises it —
+            // so this needs the same route as Vendor/GitHub: system installer, not
+            // an in-place swap.
             return result.remote?.vendorInstallerKind == .pkg
         case "Sparkle":
             // Sparkle permits signed package enclosures. They must retain Gate 1
@@ -281,6 +309,33 @@ public enum UpdatePolicy {
                   Self.sparklePackageExtensions.contains(ext),
                   result.app.sparkleEdPublicKey?.isEmpty == false,
                   result.remote?.edSignature?.isEmpty == false else { return false }
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Whether this source appears as its own case (not the `default:` branch)
+    /// in `canAutoInstall` / `requiresInstaller` — i.e. whether the policy has an
+    /// opinion about it at all.
+    ///
+    /// Exists only to let a caller tell apart two situations that otherwise both
+    /// read as `!canAutoInstall && !requiresInstaller`:
+    ///   - a recognised source that resolved to no artifact THIS time (a GitHub
+    ///     rule with no asset pattern, an Electron manifest whose file has no
+    ///     known extension, a Homebrew cask needing a manual installer) — the
+    ///     update is real, we just have nothing to hand an installer;
+    ///   - a source the policy has never heard of (Xcode Releases, Toolbox) —
+    ///     there is no install path here even in principle.
+    /// `duo install`'s refusal text (`CLI/Sources/DuoKit/Install.swift`) uses
+    /// this to stop conflating the two (#193): the former said "no installable
+    /// artefact we vet", which was actively wrong for the latter — before #192
+    /// wired Electron into the switches above, that message is exactly what an
+    /// Electron app got, and it sent whoever read it looking at the manifest
+    /// instead of at this file.
+    public static func isRecognizedInstallSource(_ sourceName: String?) -> Bool {
+        switch sourceName {
+        case "Sparkle", "Homebrew", "Vendor", "GitHub", "Electron", "App Store":
             return true
         default:
             return false
@@ -323,6 +378,15 @@ public enum UpdatePolicy {
             // they fell to `default: false` and had their bundles swapped under
             // them while running even when the user had explicitly asked us not
             // to — the one thing this setting exists to promise.
+            return true
+        case "Electron":
+            // electron-builder apps are self-updating by construction: the
+            // framework embeds electron-updater, which drives Squirrel.Mac on
+            // macOS to fetch and stage its own releases. Same reasoning as the
+            // GitHub case just above — and the same failure mode if this case is
+            // ever removed: the bundle gets swapped out from under a running app
+            // while the user explicitly asked us not to touch self-updating apps
+            // that are open (see #192).
             return true
         default:
             // Homebrew (auto_updates casks are excluded upstream), App Store and
@@ -520,7 +584,13 @@ public enum UpdatePolicy {
         // stale staging directory belonging to a different mechanism must not block
         // them.
         switch result.remote?.sourceName {
-        case "Vendor", "GitHub", "Sparkle": return staged
+        case "Vendor", "GitHub", "Sparkle", "Electron": return staged
+        // Electron belongs on the protected side, not the excluded one: an
+        // electron-builder app's own self-updater (electron-updater / Squirrel
+        // .Mac, see `defersToSelfUpdater`) parks its staged build the same way
+        // Sparkle's ShipIt does, so a stale staging directory here is exactly
+        // the collision this function exists to catch, not a leftover from a
+        // mechanism we don't swap ourselves.
         default:                            return nil
         }
     }

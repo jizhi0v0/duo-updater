@@ -37,9 +37,42 @@ public enum RuntimeVersion {
     ///   fifty. See `carriesTauriCrate(bundleAt:)`.
     public static func read(
         _ runtime: AppRuntime,
-        bundleAt bundleURL: URL,
+        bundleAt inputBundleURL: URL,
         scanningBinaries: Bool
     ) -> String? {
+        // Read from wherever the runtime actually is. For a wrapper whose interface
+        // is a nested bundle — Docker's `Contents/MacOS/Docker Desktop.app` — every
+        // reader below would look in a `Contents/Frameworks` that does not exist and
+        // report no version for a bundle that carries one. For the ordinary bundle it
+        // returns the bundle it was given and nothing changes. See #208.
+        //
+        // The cache key follows, because it is derived from `bundleURL` below: the
+        // entry is keyed on the nested executable, which is the one whose bytes the
+        // answer was read from and the one an update rewrites.
+        //
+        // `.tauri` is deliberately exempt, for two reasons that happen to want the
+        // same thing. It is the one runtime that is *compiled into the executable*
+        // rather than shipped beside it, so a crate path found in a nested binary
+        // is a fact about that binary and about nothing else — following the
+        // redirect would let a nested bundle lend its identity to its wrapper,
+        // which is the error this whole rule exists to prevent.
+        //
+        // And it is the edge that would close a cycle. `carriesTauriCrate` is this
+        // function; `AppRuntimeDetector` calls it, `interfaceBundle` calls the
+        // detector, so a redirect here would run detector → proof → detector. The
+        // detector's own `followingNestedBundle` guard does not cover that, because
+        // the path leaves the detector and comes back in. On a bundle whose
+        // `Contents/MacOS` holds a symlink to itself the descent then terminates
+        // only when the path outgrows PATH_MAX, having walked the executable once
+        // per level: 0.38s of CPU against 0.02s for the same bundle without the
+        // symlink, ~26 walks of a 60 MB binary where one was intended. (Measured
+        // after #216 made `probe` use `Data.range(of:)`; against the byte loop it
+        // replaced the same pair read 1.48s against 0.05s.) Nothing ships that
+        // layout; the guard is here so the invariant is stated in code rather than
+        // left to the shape of what happens to be installed.
+        let bundleURL = runtime == .tauri
+            ? inputBundleURL
+            : AppRuntimeDetector.interfaceBundle(at: inputBundleURL)
         // Some of these readers walk a whole binary, so the answer is remembered —
         // against the *executable's own identity*, its size and modification date,
         // rather than against a version string.

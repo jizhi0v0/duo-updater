@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.79
+
+**Docker's mark now describes Docker's interface instead of its daemon.** The row said "native"; Docker Desktop is an Electron app. The mark is read from the app's bundle, and Docker's bundle is a wrapper: the program it names is a background service written in Go, it carries no framework of its own, and the actual window-drawing app sits one level inside it. Everything was being read correctly out of the wrong file. Duo Updater now looks in the nested app when — and only when — the outer one brings nothing itself and contains exactly one such app that proves what it is built with, so a helper process shipped alongside a real interface still cannot lend its identity to its host. Docker reads as Electron 42.5.0. Of the two hundred and ten apps on the machine this was written on, it is the only row that changes.
+
 ## 0.3.78
 
 **An app that leaves its own name blank now gets one anyway.** Eudic (欧路词典) sat in the list with an icon, a version, and nothing at all where the name goes. Its bundle does declare a display name — and leaves it empty, because the real names live in the app's translations — and Duo Updater treated that empty answer as the answer instead of asking the next question. It now falls through to the app's other name, and to the name of the app file after that, so a row is never nameless. One app in a hundred and fifty here was affected; the point is that the information was already there and was being skipped.

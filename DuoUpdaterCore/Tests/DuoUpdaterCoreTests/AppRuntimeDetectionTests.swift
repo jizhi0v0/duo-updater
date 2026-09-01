@@ -79,7 +79,7 @@ private func detect(
     isiOSAppOnMac: Bool = false,
     plist: [String: Any] = ["CFBundleExecutable": "Stub"],
     libraries: @escaping AppRuntimeDetector.LibraryReader = { _ in [] },
-    tauriProof: @escaping AppRuntimeDetector.TauriProof = { _, _ in false }
+    tauriProof: @escaping AppRuntimeDetector.TauriProof = { _ in false }
 ) -> AppRuntime? {
     AppRuntimeDetector.detect(
         bundleAt: bundle, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist,
@@ -184,7 +184,7 @@ private func cargoBundlePlist() -> [String: Any] {
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try builder.app("Shell")
     #expect(detect(bundle, plist: cargoBundlePlist(), libraries: reader(appKit, webKit),
-                   tauriProof: { _, _ in true }) == .tauri)
+                   tauriProof: { _ in true }) == .tauri)
 }
 
 @Test func cargoBundledAppsWithoutAWebViewAreNativeNotTauri() throws {
@@ -193,7 +193,7 @@ private func cargoBundlePlist() -> [String: Any] {
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try builder.app("Terminal")
     #expect(detect(bundle, plist: cargoBundlePlist(), libraries: reader(appKit),
-                   tauriProof: { _, _ in true }) == .native)
+                   tauriProof: { _ in true }) == .native)
 }
 
 @Test func aWebKitLinkAloneIsNotTauri() throws {
@@ -202,7 +202,7 @@ private func cargoBundlePlist() -> [String: Any] {
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try builder.app("Native")
     #expect(detect(bundle, libraries: reader(appKit, swiftUI, webKit),
-                   tauriProof: { _, _ in true }) == .native)
+                   tauriProof: { _ in true }) == .native)
 }
 
 @Test func aCargoBundledWebViewAppWithoutTheTauriCrateIsNative() throws {
@@ -212,7 +212,7 @@ private func cargoBundlePlist() -> [String: Any] {
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try builder.app("Broker")
     #expect(detect(bundle, plist: cargoBundlePlist(), libraries: reader(appKit, webKit),
-                   tauriProof: { _, _ in false }) == .native)
+                   tauriProof: { _ in false }) == .native)
 }
 
 @Test func theTauriProofIsAskedOnlyAboutCargoBundledWebViewApps() throws {
@@ -223,7 +223,7 @@ private func cargoBundlePlist() -> [String: Any] {
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     final class Counter: @unchecked Sendable { var asked = 0 }
     let counter = Counter()
-    let proof: AppRuntimeDetector.TauriProof = { _, _ in counter.asked += 1; return true }
+    let proof: AppRuntimeDetector.TauriProof = { _ in counter.asked += 1; return true }
 
     // An Electron app, a Qt app, a plain native one, and a cargo-bundled app that
     // links no WebView: four shapes, none of them a candidate.
@@ -253,6 +253,29 @@ private func cargoBundlePlist() -> [String: Any] {
     #expect(AppRuntimeDetector.detect(
         bundleAt: bundle, isiOSAppOnMac: false, infoPlist: cargoBundlePlist(),
         linkedLibraries: reader(appKit, webKit)) == .tauri)
+}
+
+@Test func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
+    // What makes the walk affordable on a scheduled, library-wide scan is that the
+    // second scan does not repeat it. Nothing about the *verdicts* would change if
+    // the memoization were lost — every scan would simply start reading hundreds of
+    // megabytes again — so this is the only thing that would notice.
+    //
+    // Making the binary unreadable between the two calls is how the test tells a
+    // remembered answer from a fresh one: `stat` still succeeds, so the key is
+    // unchanged, while a re-read would fail and the app would come back native.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app(
+        "Shell", executableContents: "registry/src/index/tauri-2.11.1/src/lib.rs")
+    let verdict = { AppRuntimeDetector.detect(
+        bundleAt: bundle, isiOSAppOnMac: false, infoPlist: cargoBundlePlist(),
+        linkedLibraries: reader(appKit, webKit)) }
+    #expect(verdict() == .tauri)
+
+    let executable = bundle.appendingPathComponent("Contents/MacOS/Stub")
+    try FileManager.default.setAttributes([.posixPermissions: 0o000],
+                                          ofItemAtPath: executable.path)
+    #expect(verdict() == .tauri, "the walk is not repeated for a binary that has not changed")
 }
 
 @Test func theRealProofRejectsAWryOnlyBinary() throws {

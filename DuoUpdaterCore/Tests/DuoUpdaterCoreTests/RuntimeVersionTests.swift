@@ -34,10 +34,17 @@ private struct VersionBundle {
 
     /// Writes the executable *and* the Info.plist that names it, the way a bundle
     /// the reader has to find its way around actually looks.
-    func executable(_ name: String, containing text: String) throws {
+    ///   - stampedAt: a fixed modification date, for the one test that needs two
+    ///     different payloads to look identical to the cache key.
+    func executable(_ name: String, containing text: String, stampedAt stamp: Date? = nil) throws {
         let macos = bundle.appendingPathComponent("Contents/MacOS")
         try FileManager.default.createDirectory(at: macos, withIntermediateDirectories: true)
-        try Data(text.utf8).write(to: macos.appendingPathComponent(name))
+        let executable = macos.appendingPathComponent(name)
+        try Data(text.utf8).write(to: executable)
+        if let stamp {
+            try FileManager.default.setAttributes([.modificationDate: stamp],
+                                                  ofItemAtPath: executable.path)
+        }
         let plist = try PropertyListSerialization.data(
             fromPropertyList: ["CFBundleExecutable": name], format: .xml, options: 0)
         try plist.write(to: bundle.appendingPathComponent("Contents/Info.plist"))
@@ -46,7 +53,7 @@ private struct VersionBundle {
     func version(_ runtime: AppRuntime, scanning: Bool = true) -> String? {
         // A fresh key per bundle — each test builds its own temp directory, so the
         // path already makes the cache entry unique.
-        RuntimeVersion.read(runtime, bundleAt: bundle, appVersion: "1.0", scanningBinaries: scanning)
+        RuntimeVersion.read(runtime, bundleAt: bundle, scanningBinaries: scanning)
     }
 }
 
@@ -174,17 +181,76 @@ private struct VersionBundle {
     #expect(b.version(.chromium, scanning: false) == nil)
 }
 
-@Test func anAnswerIsRememberedAgainstTheAppVersion() throws {
-    // The expensive readers walk a whole binary; asking twice for an app that has
-    // not changed must not pay twice. Deleting the evidence between the two reads
-    // is how the test can tell a cached answer from a fresh one.
+@Test func anAnswerIsRememberedAgainstTheBinaryItWasReadFrom() throws {
+    // The expensive readers walk a whole binary; asking twice for a binary that has
+    // not changed must not pay twice. Taking away read permission between the two
+    // is how the test tells a remembered answer from a fresh one: `stat` still
+    // succeeds so the key is unchanged, while a re-read would fail and return nil.
+    // Deleting the file would not do — that changes the key rather than the answer.
     let b = try VersionBundle("Shell"); defer { b.cleanUp() }
     try b.executable("Shell", containing: "registry/src/index/tauri-2.11.5/src/lib.rs")
-    #expect(RuntimeVersion.read(.tauri, bundleAt: b.bundle, appVersion: "1.0", scanningBinaries: true) == "2.11.5")
+    #expect(b.version(.tauri) == "2.11.5")
 
-    try FileManager.default.removeItem(at: b.bundle.appendingPathComponent("Contents/MacOS/Shell"))
-    #expect(RuntimeVersion.read(.tauri, bundleAt: b.bundle, appVersion: "1.0", scanningBinaries: true) == "2.11.5",
-            "same version — the remembered answer stands")
-    #expect(RuntimeVersion.read(.tauri, bundleAt: b.bundle, appVersion: "1.1", scanningBinaries: true) == nil,
-            "a new app version is a new question, and the binary is gone")
+    let executable = b.bundle.appendingPathComponent("Contents/MacOS/Shell")
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: executable.path)
+    #expect(b.version(.tauri) == "2.11.5", "same binary — the remembered answer stands")
+}
+
+@Test func aRewrittenBinaryIsANewQuestionEvenUnderTheSameAppVersion() throws {
+    // What the old version-string key could not see. An app that ships a new build
+    // under an unchanged marketing version is ordinary — Amp shipped ten in a day,
+    // all called 1.0 — and so is a bundle rewritten under a running scan by an
+    // install. Either one has to invalidate the answer, and only the bytes can say.
+    let b = try VersionBundle("Shell"); defer { b.cleanUp() }
+    try b.executable("Shell", containing: "registry/src/index/tauri-2.11.5/src/lib.rs")
+    #expect(b.version(.tauri) == "2.11.5")
+
+    try b.executable("Shell", containing: "registry/src/index/tauri-2.12.0/src/lib.rs and padding")
+    #expect(b.version(.tauri) == "2.12.0", "different bytes — read again, do not remember 2.11.5")
+}
+
+private let stamp = Date(timeIntervalSince1970: 1_700_000_000)
+
+@Test func aProvenAbsenceIsRememberedToo() throws {
+    // The expensive answer, and the one a scan pays for on every cargo-bundled
+    // WebView app that turns out not to be Tauri: proving the crate is absent means
+    // reading the binary end to end. Longbridge's is 262 MB.
+    //
+    // Nil is indistinguishable from a failed read at the call site, so this cannot
+    // be tested by breaking the file — it swaps the contents for a version that
+    // *would* match while restoring the size and modification date, so the key is
+    // unchanged. A second reader that answers 2.9.9 did not use the cache. (This
+    // caught a real bug: `read(upToCount:)` returns nil at EOF, so an earlier draft
+    // reported every completed walk as unreadable and cached nothing at all.)
+    let b = try VersionBundle("Shell"); defer { b.cleanUp() }
+    try b.executable("Shell", containing: "registry/src/index/wry-0.53.3/src/lib.rs", stampedAt: stamp)
+    #expect(b.version(.tauri) == nil)
+
+    let executable = b.bundle.appendingPathComponent("Contents/MacOS/Shell")
+    let before = try FileManager.default.attributesOfItem(atPath: executable.path)
+    try b.executable("Shell", containing: "registry/src/index/tauri-2.9.9/src/lib.r", stampedAt: stamp)
+    let after = try FileManager.default.attributesOfItem(atPath: executable.path)
+    try #require(after[.size] as? NSNumber == before[.size] as? NSNumber,
+                 "the two payloads must be the same length or the key changes for the wrong reason")
+    try #require(after[.modificationDate] as? Date == stamp,
+                 "and the same modification date — restoring one is lossy, so both are stamped")
+
+    #expect(b.version(.tauri) == nil, "the proven absence is remembered, not walked again")
+}
+
+@Test func aBinaryThatCannotBeReadThroughIsNotRememberedAsProofOfAbsence() throws {
+    // The distinction `Probe` exists for. A nil from the Tauri reader is a verdict —
+    // `carriesTauriCrate` turns it into "not Tauri" — so a read that never reached
+    // the end must leave nothing behind, or one unlucky moment during an install
+    // would mislabel the app for the life of the process.
+    let b = try VersionBundle("Shell"); defer { b.cleanUp() }
+    try b.executable("Shell", containing: "registry/src/index/tauri-2.11.5/src/lib.rs")
+    let executable = b.bundle.appendingPathComponent("Contents/MacOS/Shell")
+
+    // Unreadable at the moment of asking: no answer, and nothing cached.
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: executable.path)
+    #expect(b.version(.tauri) == nil)
+
+    try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: executable.path)
+    #expect(b.version(.tauri) == "2.11.5", "the earlier failure was not remembered as an answer")
 }

@@ -355,6 +355,45 @@ private func probe(_ steps: [ScriptedReads.Step],
     #expect(probe([]) == .absent, "a zero-byte binary contains no crate path")
 }
 
+/// The one test in this file whose input is the size of a real executable, and the
+/// only kind that can see the defect it exists for.
+///
+/// Every other fixture here is a few hundred bytes, where an implementation 200×
+/// slower than it needs to be is invisible. #206 put this walk on the library scan
+/// while the search was a hand-rolled byte loop — which `-Onone` does not optimise
+/// at all — so a debug build paid what a release build did not: `scanFindsRealApps`
+/// went from 0.24 s to 107 s and the whole suite from seconds to minutes (#214).
+/// The suite stayed green throughout.
+///
+/// 60 MiB is enough to separate the two by far more than machine noise. Measured in
+/// a debug build over Longbridge's 261 MiB binary, chunked as `probe` chunks it:
+/// **75 s for the byte loop, 0.15 s for `Data.range(of:)`**. The threshold below is
+/// two orders of magnitude above the fix and several times under the regression, so
+/// this is not a stopwatch on the machine — it answers one question, which is
+/// whether the search has gone back into unoptimised Swift.
+///
+/// The crate path is in the **last** chunk and the version is asserted, which is
+/// the point rather than a detail: a version that came back from the final chunk is
+/// proof all 60 MiB were walked. Move the payload earlier — or let it stop matching
+/// — and the test becomes fast, green, and empty.
+@Test func theSearchDoesNotDegradeIntoAByteLoop() {
+    let filler = Data(repeating: UInt8(ascii: "."), count: RuntimeVersion.scanChunkSize)
+    let tail = Data("registry/src/index/tauri-2.11.5/src/lib.rs".utf8)
+    var remaining = 16
+    let started = Date()
+    let outcome = RuntimeVersion.probe(
+        reading: {
+            guard remaining > 0 else { return nil }
+            remaining -= 1
+            return remaining == 0 ? tail : filler
+        },
+        for: "tauri-", components: 3)
+    let elapsed = -started.timeIntervalSinceNow
+
+    #expect(outcome == .found("2.11.5"), "the payload is in the last chunk — this is what says it was reached")
+    #expect(elapsed < 5, "60 MiB took \(String(format: "%.2f", elapsed))s; the search is walking bytes in Swift again")
+}
+
 private let stamp = Date(timeIntervalSince1970: 1_700_000_000)
 
 @Test func aProvenAbsenceIsRememberedToo() throws {

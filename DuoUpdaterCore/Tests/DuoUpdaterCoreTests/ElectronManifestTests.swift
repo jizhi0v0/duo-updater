@@ -246,13 +246,15 @@ struct ElectronArchSiblingClosureTests {
         return URLSession(configuration: configuration)
     }
 
-    private func electronApp(bundleID: String, domain: String) -> InstalledApp {
+    private func electronApp(
+        bundleID: String, domain: String, channel: String = "latest"
+    ) -> InstalledApp {
         InstalledApp(
             name: bundleID, bundleID: bundleID, shortVersion: "0.0.0", buildVersion: "1",
             path: URL(fileURLWithPath: "/Applications/\(bundleID).app"),
             isMASApp: false, sparkleFeedURL: nil,
             electronUpdate: ElectronUpdateConfig(
-                provider: "generic", url: domain, owner: nil, repo: nil, channel: "latest"))
+                provider: "generic", url: domain, owner: nil, repo: nil, channel: channel))
     }
 
     @Test func confirmedAbsentSiblingTrustsThePathFallback() async throws {
@@ -288,9 +290,21 @@ struct ElectronArchSiblingClosureTests {
     }
 
     @Test func forbiddenSiblingWithholdsTheArtifact() async throws {
-        // Canva's shape (2026-09-01): the sibling exists but answers 403, not
-        // 404. That must NOT be read as "no split" — the version is still
-        // reported, but the install fields all withhold together.
+        // A CONSTRUCTED fixture, not Canva's — flagged in PR #201 review because
+        // an earlier version of this comment claimed it was. Canva's sibling
+        // really does answer 403 (2026-09-01, both #194 and #203 observed it
+        // directly), but Canva's DEFAULT manifest names a `universal` artifact
+        // (`fallsBackToTheUniversalArtifactWhenNoArchIsNamed` above, real body),
+        // which wins in `artifact(forArch:)`'s universal branch — BEFORE the
+        // top-level `path` fallback branch this withholding logic guards. So
+        // Canva's real 403 never reaches the code path this test exercises; see
+        // `aRealCanvaShapedManifestIsUnaffectedByItsForbiddenSibling` below for
+        // Canva's actual (unaffected) behavior, verified against its real body.
+        // This fixture exists because the combination this test DOES need to
+        // cover — an unmarked top-level-`path` artifact plus a non-404 sibling —
+        // has no known live example as of 2026-09-01; it is exercised here as a
+        // synthetic case, the same way `anX64OnlyManifestOffersNoArtifactAtAll`
+        // synthesizes a manifest shape rather than pointing at a real vendor.
         let domain = "https://cdn-403.example.test"
         FixtureProtocol.routes = [
             "\(domain)/latest-mac.yml": .init(status: 200, body: """
@@ -317,6 +331,41 @@ struct ElectronArchSiblingClosureTests {
         // The version itself was still real, so this is a success, not a miss.
         let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
         #expect(entry?.isHealthy == true)
+    }
+
+    @Test func aRealCanvaShapedManifestIsUnaffectedByItsForbiddenSibling() async throws {
+        // Canva's ACTUAL shape, end to end (2026-09-01, real bodies): its default
+        // manifest names a `universal` artifact, which `artifact(forArch:)` picks
+        // before ever considering the top-level `path` fallback branch — so the
+        // sibling probe's outcome (a real 403 here) is irrelevant to whether an
+        // artifact is offered. This is the test the comment on
+        // `forbiddenSiblingWithholdsTheArtifact` used to (wrongly) claim that one
+        // covered.
+        let domain = "https://desktop-release.canva.com"
+        FixtureProtocol.routes = [
+            "\(domain)/latest-mac.yml": .init(status: 200, body: """
+                version: 1.124.1
+                files:
+                  - url: Canva-1.124.1-universal-mac.zip
+                    sha512: ZIPSHA==
+                    size: 220714081
+                  - url: Canva-1.124.1-universal.dmg
+                    sha512: DMGSHA==
+                    size: 229488791
+                path: Canva-1.124.1-universal-mac.zip
+                sha512: ZIPSHA==
+                """, transportFailure: false),
+            "\(domain)/arm64-mac.yml": .init(status: 403, body: nil, transportFailure: false),
+        ]
+        let bundleID = "com.duoupdater.test.electron.canvaReal"
+        let app = electronApp(bundleID: bundleID, domain: domain)
+        let source = ElectronManifestSource(session: fixtureSession())
+
+        let remote = try #require(await source.latestVersion(for: app))
+        #expect(remote.shortVersion == "1.124.1")
+        #expect(remote.downloadURL == URL(string: "\(domain)/Canva-1.124.1-universal-mac.zip"))
+        #expect(remote.vendorInstallerKind == .zip)
+        #expect(remote.expectedSHA512 == "ZIPSHA==")
     }
 
     @Test func timedOutSiblingWithholdsTheArtifact() async throws {
@@ -539,5 +588,69 @@ struct ElectronArchSiblingClosureTests {
         let entry = try #require(await RecipeHealth.shared.snapshot().first { $0.id == bundleID })
         #expect(entry.isHealthy == false)
         #expect(entry.lastMissDetail == "manifest fetched but did not parse")
+    }
+
+    @Test func aTransportFailureOnTheManifestFetchDegradesInsteadOfThrowing() async throws {
+        // PR #201 review, #4: only the non-200 branch used to degrade to nil —
+        // a plain transport failure (timeout, DNS, connection refused, …)
+        // reaching `manifestURL` itself propagated straight out of
+        // `latestVersion` as a thrown error. Since this source sits LAST in
+        // `SourceStack`, that put an error row on an app whose real state might
+        // just be "no coverage yet" — exactly what the non-200 branch's own
+        // "degrade rather than throw" reasoning says to avoid, just not applied
+        // to this failure shape. Must not throw, and must record a miss like
+        // every other way this source fails to read a manifest.
+        let domain = "https://cdn-transport-failure.example.test"
+        FixtureProtocol.routes = [
+            "\(domain)/latest-mac.yml": .init(status: 0, body: nil, transportFailure: true),
+        ]
+        let bundleID = "com.duoupdater.test.electron.manifestTransportFailure"
+        let app = electronApp(bundleID: bundleID, domain: domain)
+        let source = ElectronManifestSource(session: fixtureSession())
+
+        let remote = try await source.latestVersion(for: app)
+        #expect(remote == nil)
+
+        let entry = try #require(await RecipeHealth.shared.snapshot().first { $0.id == bundleID })
+        #expect(entry.isHealthy == false)
+        #expect(entry.lastMissDetail?.hasPrefix("manifest fetch failed:") == true)
+    }
+
+    // MARK: - PR #201 review, #3: the three install fields actually move together
+
+    @Test func aFilesEntryMissingItsChecksumWithholdsAllThreeFields() async throws {
+        // The reachable half of the "three fields drift apart" bug flagged in
+        // review: a `files:` entry can name a `url:` with no `sha512:` line
+        // under it. Deriving `expectedSHA512` as `file?.sha512` independently of
+        // `downloadURL`/`vendorInstallerKind` used to let this through as a
+        // download offer with no checksum to verify it against — silently
+        // skipping the integrity check `VendorInstaller` would otherwise run.
+        //
+        // Named channel (not `latest-mac.yml`) so no sibling probe is in play at
+        // all — this withholding reason is orthogonal to #194/#203's.
+        let domain = "https://cdn-missing-checksum.example.test"
+        FixtureProtocol.routes = [
+            "\(domain)/arm64-mac.yml": .init(status: 200, body: """
+                version: 6.0.0
+                files:
+                  - url: App-6.0.0-arm64.zip
+                path: App-6.0.0-arm64.zip
+                sha512: TOPSHA==
+                """, transportFailure: false),
+        ]
+        let bundleID = "com.duoupdater.test.electron.missingChecksum"
+        let app = electronApp(bundleID: bundleID, domain: domain, channel: "arm64")
+        let source = ElectronManifestSource(session: fixtureSession())
+
+        let remote = try #require(await source.latestVersion(for: app))
+        #expect(remote.shortVersion == "6.0.0")
+        #expect(remote.downloadURL == nil)
+        #expect(remote.vendorInstallerKind == nil)
+        #expect(remote.expectedSHA512 == nil)
+
+        // The version was still real and cleanly parsed — this is a success,
+        // not a miss, same as the sibling-withholding cases above.
+        let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
+        #expect(entry?.isHealthy == true)
     }
 }

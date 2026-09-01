@@ -22,6 +22,20 @@ public actor RecipeHealth {
 
     public struct Entry: Sendable, Equatable, Identifiable {
         /// Stable per-recipe key, e.g. a bundle id or an `owner/repo` slug.
+        ///
+        /// **Not unique on its own.** The same bundle id can be tracked under
+        /// more than one `source` at once — e.g. Notion carries both a
+        /// hand-written `VendorProbeSource` recipe and (once `ElectronManifestSource`
+        /// resolves it too) a generic Electron manifest read, and the two are
+        /// independent recipes that can be healthy or broken independently. Use
+        /// `key` where a value that is actually unique across every tracked entry
+        /// is required (e.g. `ForEach`'s `id:` in the diagnostics view) — `id` by
+        /// itself is a display key, not a storage key. See `RecipeHealth`'s own
+        /// storage below, which keys on `(id, source)` for exactly this reason:
+        /// keying on `id` alone let a later Electron success silently clear a
+        /// standing Vendor miss for "the same id", masking a genuinely broken
+        /// vendor recipe from the diagnostics panel entirely (caught in review of
+        /// #201).
         public let id: String
         /// Human-readable source name for the diagnostics row ("Vendor", "GitHub").
         public let source: String
@@ -37,32 +51,54 @@ public actor RecipeHealth {
             guard let lastSuccess else { return false }
             return lastSuccess >= lastMiss
         }
+
+        /// A value that IS unique across every tracked entry, unlike `id` (see
+        /// above). Uses a control character as the separator rather than
+        /// something printable like `/` or `:` — both appear inside `id` itself
+        /// (bundle ids, `owner/repo` slugs), so a printable separator could
+        /// theoretically let two distinct `(id, source)` pairs collide on the
+        /// same rendered string. Not `Codable`/persisted anywhere, so the exact
+        /// encoding has no compatibility surface to preserve.
+        public var key: String { "\(source)\u{0}\(id)" }
     }
 
-    private var entries: [String: Entry] = [:]
+    /// Recipes are keyed by `(id, source)` together, not by `id` alone — see the
+    /// note on `Entry.id`.
+    private struct StorageKey: Hashable {
+        let id: String
+        let source: String
+    }
+
+    private var entries: [StorageKey: Entry] = [:]
 
     /// Record that `id` resolved a version. Clears any prior miss from the
     /// health verdict by advancing `lastSuccess` past it.
     public func recordSuccess(id: String, source: String) {
-        var entry = entries[id] ?? Entry(id: id, source: source)
+        let key = StorageKey(id: id, source: source)
+        var entry = entries[key] ?? Entry(id: id, source: source)
         entry.lastSuccess = Date()
-        entries[id] = entry
+        entries[key] = entry
     }
 
     /// Record that `id` fetched successfully but matched no version — the shape of
     /// a recipe whose target page changed out from under it.
     public func recordMiss(id: String, source: String, detail: String?) {
-        var entry = entries[id] ?? Entry(id: id, source: source)
+        let key = StorageKey(id: id, source: source)
+        var entry = entries[key] ?? Entry(id: id, source: source)
         entry.lastMiss = Date()
         entry.lastMissDetail = detail
-        entries[id] = entry
+        entries[key] = entry
     }
 
-    /// Every tracked recipe, unhealthy ones first, then by id.
+    /// Every tracked recipe, unhealthy ones first, then by id — with `source` as
+    /// a tie-breaker so two entries sharing an `id` (see `Entry.id`) still sort
+    /// deterministically against each other rather than by dictionary order.
     public func snapshot() -> [Entry] {
         entries.values.sorted { a, b in
             if a.isHealthy != b.isHealthy { return !a.isHealthy }
-            return a.id.localizedCaseInsensitiveCompare(b.id) == .orderedAscending
+            let byID = a.id.localizedCaseInsensitiveCompare(b.id)
+            if byID != .orderedSame { return byID == .orderedAscending }
+            return a.source.localizedCaseInsensitiveCompare(b.source) == .orderedAscending
         }
     }
 

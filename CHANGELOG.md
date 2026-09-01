@@ -5,6 +5,18 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.76
+
+**The Electron-manifest apps added last release can actually be updated now.** 0.3.75 taught Duo Updater to read the file those apps carry inside themselves, and it did read it — it worked out the new version, the right download for your Mac, and the checksum to verify it against, and then had nowhere to send any of that. The install button never appeared, and `duo install` explained the refusal with a reason that was not the real one. The install path is connected this release. In practice you may see no difference at all: this reader sits behind every hand-written rule, so it only speaks for an app nothing else covers — which today, on the machine this was built on, is none of them. It matters for the app you install tomorrow that nobody has written a rule for.
+
+**A download that would take you off a native build is now refused.** Apple silicon can still run Intel apps through translation, which meant an Intel-only download passed the "will this run on your Mac?" check and installed cleanly — leaving you on a translated copy of an app that had been running natively, quietly, and with every future update doing the same thing again. Every in-place install now compares what you have against what arrived and refuses that swap. Going the other way, or from a universal build down to an Apple-silicon one, is normal and still allowed.
+
+**When it cannot prove which architecture a download is, it now declines rather than guesses.** Some vendors publish an Apple-silicon build alongside their default one, and the only way to tell the default is the Intel build is to notice the other exists. If that second check does not come back cleanly — the vendor's server refuses it, the connection drops, or the two disagree about which version they are — Duo Updater no longer treats that silence as an answer. It tells you the version and offers no install, which is the honest outcome.
+
+**A broken rule can no longer disappear from Diagnostics.** For apps covered both by a hand-written rule and by the new manifest reader — which is most of them, deliberately — a failure of the rule was being cancelled out by the reader succeeding straight afterwards, so an app whose rule had actually broken went on reading as healthy. The two are recorded separately now. The manifest reader also reports its own failures for the first time; three apps on the development machine turned out to be pointing at addresses that have been returning "not found" for some time, which nothing would previously have said out loud.
+
+**Rows that can see an update but cannot install one now offer the same thing in both places.** The menu bar showed a button labelled "Open" that opened the Finder, and the window showed nothing at all for the identical row.
+
 ## 0.3.75
 
 **Apps built on Electron are now recognised without anyone writing them down first.** A great many Mac apps ship a small file inside themselves saying where their updates live. Until now Duo Updater only knew the ones someone had hand-written a rule for — every other one sat in your list with no version next to it and no way to tell you a new build had shipped. It now reads that file directly, the same way it has always read Sparkle's, so an app like that is covered the day you install it rather than the day someone gets around to it.

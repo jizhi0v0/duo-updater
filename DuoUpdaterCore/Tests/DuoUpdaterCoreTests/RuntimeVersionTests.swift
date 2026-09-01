@@ -278,6 +278,83 @@ private func bundleWithPayload(
     #expect(b.version(.tauri) == "2.11.50")
 }
 
+// MARK: - The walk, driven through its own seam
+//
+// Everything below drives `probe` with a scripted chunk source instead of a file,
+// which is the only way to say "this read was short" or "this read threw". Each of
+// these pins a fix that three rounds of review made and that the suite could not
+// see: putting the pre-fix body back left every other test green.
+
+/// A chunk source that hands back the pieces it was given, and throws when it
+/// reaches a scripted failure.
+private struct ScriptedReads {
+    enum Step { case chunk(String); case fail }
+    private var steps: [Step]
+    private var index = 0
+
+    init(_ steps: [Step]) { self.steps = steps }
+
+    struct Failure: Error {}
+
+    mutating func next() throws -> Data? {
+        guard index < steps.count else { return nil }
+        defer { index += 1 }
+        switch steps[index] {
+        case .chunk(let text): return Data(text.utf8)
+        case .fail: throw Failure()
+        }
+    }
+}
+
+private func probe(_ steps: [ScriptedReads.Step],
+                   for prefix: String = "tauri-",
+                   components: Int = 3) -> RuntimeVersion.Probe {
+    var reads = ScriptedReads(steps)
+    return RuntimeVersion.probe(reading: { try reads.next() },
+                                for: prefix, components: components)
+}
+
+@Test func aMatchSurvivesAReadThatFailsAfterIt() throws {
+    // The lookahead is read before the current window is scanned, so the order of
+    // those two steps decides what happens when chunk N holds the crate path and
+    // read N+1 throws. Checking `failed` first threw the proof away and reported a
+    // proven Tauri app as native. A match is complete in itself; bytes after it
+    // failing to read say nothing about it.
+    #expect(probe([.chunk("registry/tauri-2.11.5/src"), .fail]) == .found("2.11.5"))
+}
+
+@Test func aReadThatFailsBeforeAnyMatchIsNotProofOfAbsence() throws {
+    // The other half, and the one that must not become `.absent`: absence is a
+    // claim about the whole file, so it may only be made after reading all of it.
+    #expect(probe([.chunk("nothing to see here"), .fail]) == .unreadable)
+}
+
+@Test func aShortReadInTheMiddleIsNotTheEndOfTheFile() throws {
+    // `read(upToCount:)` may legally return fewer bytes than asked for. Ending the
+    // walk there would report a truncated read as proof of absence — and would miss
+    // everything after it.
+    #expect(probe([.chunk("no crate here"), .chunk("x"), .chunk("registry/tauri-2.9.9/src")])
+            == .found("2.9.9"))
+}
+
+@Test func aWindowNoLongerThanTheCarryDoesNotBlindTheStartOfTheFile() throws {
+    // Continuation windows skip index 0, because its real predecessor is in the
+    // previous chunk. But if a window is no longer than the carry, the carry IS the
+    // whole window — so the next window still begins at file offset 0, and so does
+    // every window after it, and a match at the start of the file is never examined
+    // again. Asking `carry.isEmpty` cannot see that; asking for the window's file
+    // offset can.
+    //
+    // Reproduced at 18 bytes with a short first read, which is why it needs the
+    // scripted source: no real 4 MiB read behaves this way.
+    #expect(probe([.chunk("tauri-9.16.2"), .chunk("a9  ")]) == .found("9.16.2"))
+}
+
+@Test func absenceIsOnlyClaimedAfterReadingToTheEnd() throws {
+    #expect(probe([.chunk("registry/wry-0.53.3/src"), .chunk(" and nothing else")]) == .absent)
+    #expect(probe([]) == .absent, "a zero-byte binary contains no crate path")
+}
+
 private let stamp = Date(timeIntervalSince1970: 1_700_000_000)
 
 @Test func aProvenAbsenceIsRememberedToo() throws {

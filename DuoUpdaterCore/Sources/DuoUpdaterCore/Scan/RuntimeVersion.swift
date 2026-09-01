@@ -58,7 +58,14 @@ public enum RuntimeVersion {
         // the executable — but that is microseconds against a walk of the file.
         //
         // Nil is cached too: "no Tauri crate in here" is an answer, and the
-        // expensive one to reach. An *unreadable* binary is not — see `.tauri`.
+        // expensive one to reach. An *unreadable* binary is not — but only `.tauri`
+        // gets that distinction, because only there is the nil a verdict. The
+        // Electron and Chromium readers go through `scan`, which flattens
+        // `.unreadable` into the same nil as a real absence, so a framework binary
+        // that is briefly unreadable pins "no version" for the process. The key is
+        // the *main* executable's stat, which can still succeed while the framework
+        // binary does not, so this is reachable — and it costs a missing version
+        // label, not a wrong runtime.
         let executable = executableURL(bundleAt: bundleURL)
         let key = executable.flatMap { executableIdentity(of: $0) }
             .map { "\(bundleURL.path)|\(runtime.rawValue)|\($0)" }
@@ -334,7 +341,7 @@ public enum RuntimeVersion {
     /// was read to the end and does not contain the needle is *evidence*; a binary
     /// that could not be opened or could not be read through is the absence of
     /// evidence, and only the first may be remembered as an answer.
-    private enum Probe {
+    enum Probe: Equatable {
         case found(String)
         case absent
         case unreadable
@@ -349,7 +356,8 @@ public enum RuntimeVersion {
     /// `Chrome/` plus four components is under 30 bytes. A differential fuzz of
     /// 20,000 random layouts against a whole-file reference found no disagreement,
     /// and the only way to manufacture one was a "version" of over a hundred digits,
-    /// which fails toward *missing* the match rather than inventing one.
+    /// which fails toward *missing* the match — or toward returning a later, real
+    /// one — rather than toward inventing a version that is not there.
     ///
     /// Internal rather than a local, because the test that pins the boundary rules
     /// has to place its payload on the seam this number defines. Written as a
@@ -366,7 +374,29 @@ public enum RuntimeVersion {
     private static func probe(_ binary: URL, for prefix: String, components: Int) -> Probe {
         guard let handle = try? FileHandle(forReadingFrom: binary) else { return .unreadable }
         defer { try? handle.close() }
+        return probe(reading: { try handle.read(upToCount: scanChunkSize) },
+                     for: prefix, components: components)
+    }
 
+    /// The walk itself, over a source of chunks rather than over a file.
+    ///
+    /// The seam exists because of what it is like not to have it. Three rounds of
+    /// review found three real defects in this loop — a match discarded when the
+    /// read *after* it failed, a short read read as end-of-file, and the first bytes
+    /// of a file going unexamined for the rest of the walk — and not one of them was
+    /// expressible as a test, because `probe` opened its own `FileHandle` and no
+    /// test can make a real file throw halfway through or hand back a short read.
+    /// Every fix was verified by hand and pinned by nothing: putting the old body
+    /// back left the entire suite green.
+    ///
+    /// A closure that hands back one chunk at a time is enough to say all of it, and
+    /// it is the shape this file's neighbours already use (`LibraryReader`,
+    /// `TauriProof`).
+    static func probe(
+        reading next: () throws -> Data?,
+        for prefix: String,
+        components: Int
+    ) -> Probe {
         let needle = Array(prefix.utf8)
 
 
@@ -377,7 +407,7 @@ public enum RuntimeVersion {
         // to end. `do`/`catch` keeps them apart.
         var failed = false
         func read() -> Data? {
-            do { return try handle.read(upToCount: scanChunkSize) }
+            do { return try next() }
             catch { failed = true; return nil }
         }
 

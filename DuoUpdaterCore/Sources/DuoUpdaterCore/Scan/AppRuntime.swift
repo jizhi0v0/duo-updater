@@ -97,7 +97,7 @@ public struct LinkedFrameworks: OptionSet, Sendable, Hashable, Codable {
 ///    expensive to do for every app, so it runs only for the bundles the first
 ///    two sources have already narrowed to a handful. See the `tauri` rule below.
 ///
-/// Returns nil when neither source recognizes anything, which is the honest answer
+/// Returns nil when none of the three recognizes anything, which is the honest answer
 /// for a launcher shell script, a Python app, or a C++ app that links neither
 /// AppKit nor a bundled toolkit — the UI shows no badge rather than a wrong one.
 public enum AppRuntimeDetector {

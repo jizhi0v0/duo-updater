@@ -38,14 +38,16 @@ private struct VersionBundle {
         try contents.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// Writes the executable *and* the Info.plist that names it, the way a bundle
-    /// the reader has to find its way around actually looks.
-    /// The same, for a payload measured in megabytes rather than characters.
+    /// The same as below, for a payload measured in megabytes rather than
+    /// characters.
     func executable(_ name: String, containingBytes bytes: Data) throws {
         try executable(name, containing: "")
         try bytes.write(to: bundle.appendingPathComponent("Contents/MacOS/\(name)"))
     }
 
+    /// Writes the executable *and* the Info.plist that names it, the way a bundle
+    /// the reader has to find its way around actually looks.
+    ///
     /// - Parameters:
     ///   - stampedAt: a fixed modification date, for the one test that needs two
     ///     different payloads to look identical to the cache key.
@@ -251,8 +253,15 @@ private func bundleWithPayload(
     //
     // For a displayed version that was cosmetic. For a verdict it is the false
     // positive this whole change exists to prevent, so it is pinned here.
-    let overlap = 128
-    let b = try bundleWithPayload("Shell", "xtauri-2.11.5 ", at: chunkSize - overlap - 1)
+    //
+    // The offset is taken from `RuntimeVersion.scanOverlap` rather than written as
+    // a number, and that is the point of the test rather than a detail of it: with
+    // 128 hardcoded, this passed against the unfixed reader — whose overlap was 64,
+    // which put the payload in the middle of a window where the guard works fine.
+    // Any future change to the overlap has to keep dragging the payload onto the
+    // seam, or the test quietly stops testing anything.
+    let b = try bundleWithPayload(
+        "Shell", "xtauri-2.11.5 ", at: chunkSize - RuntimeVersion.scanOverlap - 1)
     defer { b.cleanUp() }
     #expect(b.version(.tauri) == nil)
 }

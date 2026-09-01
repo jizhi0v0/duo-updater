@@ -648,10 +648,33 @@ private struct WorkbenchActionView: View {
             .help(storeManagedHere
                   ? String(localized: "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
                   : appStoreRedirectHelp)
-        } else if let url = result.remote?.pageURL {
-            Button("Open page") { NSWorkspace.shared.open(url) }
-                .buttonStyle(.bordered)
-                .help("Open the official download page")
+        } else {
+            // Detection-only tail: no artifact, no vendorInstallerKind, no App
+            // Store route above. Mirror the popover's fallback instead of
+            // rendering nothing when there's no page either — see
+            // `DetectionOnlyAffordance` (#197). The title for `.openPage` is
+            // this host's own call (kept out of the shared type on purpose):
+            // "Open page" here, distinct from the popover's single-word "Open".
+            let affordance = DetectionOnlyAffordance.resolve(pageURL: result.remote?.pageURL)
+            let title = affordance == .revealInFinder
+                ? DetectionOnlyAffordance.revealInFinderTitle
+                : String(localized: "Open page")
+            Button(title) {
+                switch affordance {
+                case .openPage(let url):
+                    // Unlike the popover's openAction(), this always does a
+                    // plain open — it does not check for a non-http(s) scheme
+                    // and hand it to the app itself via `withApplicationAt:`.
+                    // Pre-existing gap, out of scope for #197.
+                    NSWorkspace.shared.open(url)
+                case .revealInFinder:
+                    NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
+                }
+            }
+            .buttonStyle(.bordered)
+            .help(affordance == .revealInFinder
+                  ? DetectionOnlyAffordance.revealInFinderTitle
+                  : String(localized: "Open the official download page"))
         }
     }
 

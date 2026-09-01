@@ -65,6 +65,14 @@ public enum VersionComparator {
     ///
     /// This is `RestartStandoff.decide`'s rule, which was the one place in the
     /// codebase that had it right, lifted so everything else can share it.
+    ///
+    /// "Agree" means `compare` calls them equal, not that the strings match. The
+    /// two sides of a comparison are read from different places — a feed and an
+    /// `Info.plist`, a download's plist and the offer it came from — and those
+    /// spell one version differently (`v1.2.3` / `1.2.3`, `1.0` / `1.0.0`,
+    /// `1.02` / `1.2`). Under raw `==` such a pair was "not newer" and "not the
+    /// same" at once, and `hasReached` — which is the disjunction of the two —
+    /// could stay false for a swap that had plainly landed.
     public static func isSame(_ lhs: VersionSide, as rhs: VersionSide) -> Bool {
         let comparable: [(String, String)] = [
             (lhs.marketing, rhs.marketing),
@@ -74,7 +82,7 @@ public enum VersionComparator {
             return (mine, theirs)
         }
         guard !comparable.isEmpty else { return false }
-        return comparable.allSatisfy { $0.0 == $0.1 }
+        return comparable.allSatisfy { compare($0.0, $0.1) == .orderedSame }
     }
 
     /// True when `disk` has reached `target` — the landing test for a swap we are

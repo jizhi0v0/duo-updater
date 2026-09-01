@@ -36,6 +36,22 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     case chromium
     /// A native Mac app — AppKit and/or SwiftUI, whatever language it is written in.
     case native
+
+    /// Whether this case was decided by something the packager had to *ship* — a
+    /// framework, a runtime directory, a payload archive, a crate compiled in —
+    /// rather than by which of Apple's frameworks a binary links.
+    ///
+    /// The distinction matters in exactly one place: attributing a nested bundle's
+    /// runtime to the app that wraps it. A bundled runtime is evidence about that
+    /// bundle and nothing else, so it travels; "links AppKit" is true of a helper
+    /// process and of the interface alike, so it does not. `.iOSApp` is decided by
+    /// a wrapper layout that cannot occur one level down inside `Contents/MacOS`.
+    var isBundled: Bool {
+        switch self {
+        case .electron, .tauri, .flutter, .qt, .java, .chromium: true
+        case .native, .catalyst, .iOSApp: false
+        }
+    }
 }
 
 /// Which of Apple's UI frameworks a bundle's executable actually links.
@@ -134,12 +150,18 @@ public enum AppRuntimeDetector {
     /// Both facts from a single pass. The executable's load commands are read at
     /// most once here — the scan calls this for every app on the machine, and the
     /// runtime and the framework set are two questions about the same list.
+    ///
+    /// - Parameter followingNestedBundle: whether a wrapper that ships no runtime
+    ///   of its own may be answered from the single `.app` nested inside it. False
+    ///   only in that recursive call, so the descent is one level deep by
+    ///   construction and cannot loop on a bundle that nests itself.
     public static func read(
         bundleAt bundleURL: URL,
         isiOSAppOnMac: Bool,
         infoPlist: [String: Any],
         linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
-        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:)
+        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:),
+        followingNestedBundle: Bool = true
     ) -> Reading {
         // A wrapped iOS app has no `Contents/` at all, so every rule below would
         // look in the wrong place, and its own executable sits inside the wrapper
@@ -201,6 +223,44 @@ public enum AppRuntimeDetector {
         // same convention, which is why it is matched by name above first.
         if frameworkNames.contains(where: { $0.hasSuffix(" Framework.framework") }) {
             return reading(.chromium)
+        }
+
+        // A wrapper whose interface lives in a nested bundle. Docker's shape: the
+        // outer `Docker.app` declares `com.docker.backend` — a 218 MB Go daemon
+        // that links AppKit — ships no `Contents/Frameworks` at all, and keeps the
+        // actual GUI at `Contents/MacOS/Docker Desktop.app`, where the Electron
+        // framework and the `app.asar` are. Every rule above is correct about the
+        // file it was pointed at and none of them is looking at the app. See #208.
+        //
+        // `Contents/MacOS/*.app` is also where *subprocesses* live, so recursing
+        // into any nested bundle would start attributing a helper's runtime to its
+        // host. Three conditions keep the two apart, measured over the 214 bundles
+        // in `/Applications`, `~/Applications`, `/System/Applications` and their
+        // Utilities folders — six have a nested `.app` and only Docker passes:
+        //
+        // 1. **The outer bundle ships no framework of its own.** An app with a GUI
+        //    of its own has something in `Contents/Frameworks`; the other five here
+        //    have 3 to 29 entries, Docker has no such directory. A wrapper that
+        //    brings nothing is not the thing drawing the windows.
+        // 2. **Exactly one nested `.app`.** Helpers come in sets — Parallels ships
+        //    three, QQ four, WeChat two. A lone nested bundle is not proof, but a
+        //    crowd of them is proof of the opposite.
+        // 3. **The nested bundle names a runtime it *bundled*.** OrbStack's sole
+        //    nested `scli.app` is a CLI helper and would pass 1 and 2 if OrbStack
+        //    shipped no frameworks; it reads as nothing, so nothing is claimed.
+        //    Only the cases decided by positive, bundled evidence are adopted —
+        //    `.native` and `.catalyst` are read off a binary's load commands, which
+        //    a helper links exactly like an interface, and adopting those would be
+        //    guessing. The outer bundle's own answer stands instead.
+        //
+        // The whole rule therefore fails toward silence: a nested bundle that
+        // cannot prove what it is leaves the label where it was.
+        if followingNestedBundle,
+           frameworkNames.isEmpty,
+           let nested = nestedInterface(
+            in: contents, linkedLibraries: linkedLibraries,
+            carriesTauriCrate: carriesTauriCrate, fm: fm) {
+            return nested.reading
         }
 
         // Everything left is decided by what the binary links, so an unreadable one
@@ -271,6 +331,56 @@ public enum AppRuntimeDetector {
         }
 
         return reading(nil)
+    }
+
+    /// The bundle whose contents describe the app's interface: the bundle itself
+    /// for everything ordinary, and the single nested `.app` for a wrapper that
+    /// ships no runtime of its own — see the rule in `read`.
+    ///
+    /// Exists so that the runtime's *version* is read from the same place as the
+    /// runtime's *name*. `RuntimeVersion` looks for an Electron framework under
+    /// `Contents/Frameworks`, which for Docker is a directory that does not exist;
+    /// without this the row would say Electron and the popover would have no
+    /// version to show, from a bundle that plainly carries one.
+    public static func interfaceBundle(at bundleURL: URL) -> URL {
+        let contents = bundleURL.appendingPathComponent("Contents")
+        let fm = FileManager.default
+        let frameworksDirectory = contents.appendingPathComponent("Frameworks")
+        guard ((try? fm.contentsOfDirectory(atPath: frameworksDirectory.path)) ?? []).isEmpty,
+              let nested = nestedInterface(
+                in: contents,
+                linkedLibraries: { MachOImports.linkedLibraries(at: $0) },
+                carriesTauriCrate: RuntimeVersion.carriesTauriCrate(bundleAt:),
+                fm: fm)
+        else { return bundleURL }
+        return nested.bundle
+    }
+
+    /// The sole nested `.app` under `Contents/MacOS`, read one level deep, when it
+    /// names a runtime it had to bundle. Nil for every other shape — no nested
+    /// bundle, more than one, or one that proves nothing about itself.
+    ///
+    /// The caller has already established that the outer bundle ships no frameworks;
+    /// this is the part both callers must agree on, so it lives in one place.
+    private static func nestedInterface(
+        in contents: URL,
+        linkedLibraries: LibraryReader,
+        carriesTauriCrate: TauriProof,
+        fm: FileManager
+    ) -> (bundle: URL, reading: Reading)? {
+        let macOS = contents.appendingPathComponent("MacOS")
+        let nestedNames = ((try? fm.contentsOfDirectory(atPath: macOS.path)) ?? [])
+            .filter { $0.hasSuffix(".app") }
+        guard nestedNames.count == 1 else { return nil }
+        let nested = macOS.appendingPathComponent(nestedNames[0])
+        let plist = NSDictionary(
+            contentsOf: nested.appendingPathComponent("Contents/Info.plist")) as? [String: Any]
+        let reading = read(
+            bundleAt: nested, isiOSAppOnMac: false, infoPlist: plist ?? [:],
+            linkedLibraries: linkedLibraries, carriesTauriCrate: carriesTauriCrate,
+            followingNestedBundle: false)
+        guard let runtime = reading.runtime, runtime.isBundled else { return nil }
+        return (nested, reading)
     }
 
     /// Which of Apple's UI frameworks appear in a load-command list.

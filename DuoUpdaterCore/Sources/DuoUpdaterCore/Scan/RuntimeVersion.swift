@@ -37,9 +37,20 @@ public enum RuntimeVersion {
     ///   fifty. See `carriesTauriCrate(bundleAt:)`.
     public static func read(
         _ runtime: AppRuntime,
-        bundleAt bundleURL: URL,
+        bundleAt inputBundleURL: URL,
         scanningBinaries: Bool
     ) -> String? {
+        // Read from wherever the runtime actually is. For a wrapper whose interface
+        // is a nested bundle — Docker's `Contents/MacOS/Docker Desktop.app` — every
+        // reader below would look in a `Contents/Frameworks` that does not exist and
+        // report no version for a bundle that carries one. The same function decides
+        // this as decided the runtime's name, so the two cannot disagree; for the
+        // ordinary bundle it returns the bundle and nothing changes. See #208.
+        //
+        // The cache key follows, because it is derived from `bundleURL` below: the
+        // entry is keyed on the nested executable, which is the one whose bytes the
+        // answer was read from and the one an update rewrites.
+        let bundleURL = AppRuntimeDetector.interfaceBundle(at: inputBundleURL)
         // Some of these readers walk a whole binary, so the answer is remembered —
         // against the *executable's own identity*, its size and modification date,
         // rather than against a version string.

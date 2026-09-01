@@ -29,9 +29,6 @@ struct RuntimeTag: View {
     /// runtime's own version lives inside it. Nil where there is no real app behind
     /// the mark.
     var bundle: URL?
-    /// The app's own version, used only as the cache key for the runtime-version
-    /// read: an app that has not been updated cannot have changed its runtime.
-    var appVersion: String?
     /// What the app's binary actually links, shown in the click-through detail for
     /// the cases where the runtime label alone is not the whole answer. Empty is
     /// normal — nothing is claimed when nothing was read.
@@ -147,8 +144,7 @@ struct RuntimeTag: View {
             // the same cached entry back out.
             guard !versionLoaded, let bundle else { return }
             version = await Task.detached(priority: .utility) {
-                RuntimeVersion.read(runtime, bundleAt: bundle,
-                                    appVersion: appVersion, scanningBinaries: true)
+                RuntimeVersion.read(runtime, bundleAt: bundle, scanningBinaries: true)
             }.value
             versionLoaded = true
         }

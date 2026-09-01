@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.78
+
+**The mark that says what an app is built with now needs proof for Tauri, not a resemblance.** Tauri leaves nothing in a bundle to find — no framework, no folder of its own — so that one mark was worked out from how the app was packaged plus the fact that it links Apple's web view. Longbridge matches all of that and is not Tauri: it draws its own windows with the same renderer Zed uses, and embeds a web view for one corner of its interface. Duo Updater now reads Tauri's own fingerprint out of the binary before claiming it, so an app is called Tauri when it is one — and Longbridge reads as the native Mac app it is.
+
 ## 0.3.77
 
 **Every app in the list now says what it is built with.** A row for an App Store app has always carried the store's badge, and every other row looked alike — a Sparkle app, an Electron app and a native one were indistinguishable. Each name now carries the technology's own mark — click it for a word and a sentence, or hover for the tooltip: Electron, Tauri, Flutter, Qt, Java, Chromium, Mac Catalyst, an iPhone app on Apple silicon, or a native Mac app — with the runtime's version where that can be read as a fact (Electron 42.4.1, Qt 6.2, the Chromium an app embeds, the Tauri it was built with). It is read from the bundle itself — the framework a packager had to ship, the runtime a launcher needs, the libraries the binary links — so it is a fact about what is installed rather than a guess from the app's name. Where a long name leaves no room, the symbol steps aside rather than pushing the name onto a second line: the name is the row. Turn the whole thing off in Settings → General.

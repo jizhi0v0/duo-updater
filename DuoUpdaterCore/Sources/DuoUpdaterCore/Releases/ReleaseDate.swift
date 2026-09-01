@@ -12,7 +12,9 @@ import Foundation
 ///   - RFC822, e.g. "Wed, 24 Jun 2026 17:07:24 +0000" (RSS standard)
 ///   - ISO8601, e.g. "2026-06-24T17:07:24Z" (GitHub, Alcove), with or without
 ///     fractional seconds
-///   - a bare Unix epoch, e.g. "1750785600" (Surge's appcast does this)
+///   - a bare digit run: a Unix epoch in seconds, e.g. "1750785600" (Surge's
+///     appcast does this), in milliseconds, or a `yyyyMMdd` calendar date — told
+///     apart by `date(fromDigits:)`, whose rules are documented there
 public enum ReleaseDate {
 
     /// Convert a raw feed date string to a `Date`, or nil when it's empty or in a
@@ -22,11 +24,12 @@ public enum ReleaseDate {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }
 
-        // A bare number is a Unix epoch (seconds). Check this first: "1750785600"
-        // would otherwise fall through every textual formatter and return nil.
-        if let epoch = TimeInterval(trimmed) {
-            return Date(timeIntervalSince1970: epoch)
-        }
+        // A bare digit run is decided here and never handed on: none of the
+        // textual formatters below accepts one, and digits that are not a date
+        // must come back nil rather than as a guess. This used to be
+        // `TimeInterval(trimmed)`, which also accepts "nan", "infinity", "1e9",
+        // "0x1p60" and a sign, and read every one of them as epoch seconds.
+        if isDigitRun(trimmed) { return date(fromDigits: trimmed) }
 
         // ISO8601 with fractional seconds (e.g. "...:24.123Z"), then without.
         if let date = isoWithFraction.date(from: trimmed) { return date }
@@ -51,6 +54,64 @@ public enum ReleaseDate {
 
         return nil
     }
+
+    // MARK: - Bare digit runs
+
+    /// True when `s` is one or more ASCII digits and nothing else. This — not
+    /// "does `Double` accept it" — is what makes a feed value numeric.
+    public static func isDigitRun(_ s: String) -> Bool {
+        !s.isEmpty && s.utf8.allSatisfy { $0 >= UInt8(ascii: "0") && $0 <= UInt8(ascii: "9") }
+    }
+
+    /// The one reading of a bare digit run, shared by `parse` and by
+    /// `AppcastMarkdownParser.displayDate` so the release timeline and the
+    /// changelog rail cannot disagree about what a number means. The policy:
+    ///
+    ///   - Only an all-ASCII-digit string is numeric. No sign, no decimal point,
+    ///     no exponent, no hex, no "nan"/"inf": those return nil here and, from
+    ///     `parse`, fall through to the textual formatters, which reject them.
+    ///   - Exactly 8 digits is a bare calendar date, `yyyyMMdd` (UTC, en_US_POSIX,
+    ///     non-lenient) — never an epoch. "20260614" is 2026-06-14, and eight
+    ///     digits that are not a date ("99999999") are nil.
+    ///   - A value inside [1990-01-01, 2100-01-01) read as **seconds** is seconds.
+    ///   - A value inside the same window read as **milliseconds** (×1000, i.e.
+    ///     12–13 digits) is milliseconds.
+    ///   - Anything else numeric is nil. Never 1970, never the year 57450, and
+    ///     never a non-finite `Date`: the value goes through `UInt64` (so more
+    ///     than 20 digits is already nil) and the window caps the magnitude.
+    ///
+    /// The two windows do not overlap and neither overlaps 8 digits, so no digit
+    /// run has two readings.
+    public static func date(fromDigits digits: String) -> Date? {
+        guard isDigitRun(digits) else { return nil }
+        if digits.utf8.count == 8 { return yyyyMMdd.date(from: digits) }
+        guard let value = UInt64(digits) else { return nil }
+        if secondsWindow.contains(value) {
+            return Date(timeIntervalSince1970: TimeInterval(value))
+        }
+        if millisecondsWindow.contains(value) {
+            return Date(timeIntervalSince1970: TimeInterval(value) / 1000)
+        }
+        return nil
+    }
+
+    /// 1990-01-01T00:00:00Z ..< 2100-01-01T00:00:00Z, in seconds. Wide enough for
+    /// any release a feed could truthfully describe, narrow enough that no
+    /// `yyyyMMdd` (≤ 99 999 999) or millisecond value (≥ 631 152 000 000) lands in it.
+    private static let secondsWindow: Range<UInt64> = 631_152_000 ..< 4_102_444_800
+    /// The same window in milliseconds.
+    private static let millisecondsWindow: Range<UInt64> =
+        631_152_000_000 ..< 4_102_444_800_000
+
+    private static let yyyyMMdd: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.isLenient = false
+        f.dateFormat = "yyyyMMdd"
+        return f
+    }()
 
     // MARK: - Formatters
 

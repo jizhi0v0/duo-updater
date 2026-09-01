@@ -31,21 +31,31 @@ public enum RuntimeVersion {
     public static func read(
         _ runtime: AppRuntime,
         bundleAt bundleURL: URL,
-        appVersion: String?,
         scanningBinaries: Bool
     ) -> String? {
-        // Three of these readers can walk a whole binary — a second on a large one
-        // — so the answer is remembered against the app's own version.
+        // Some of these readers walk a whole binary, so the answer is remembered —
+        // against the *executable's own identity*, its size and modification date,
+        // rather than against a version string.
+        //
+        // A version string was the first key and it was the wrong one twice over.
+        // Plenty of apps ship a new build under an unchanged marketing version
+        // (Amp: ten builds in a day, all `1.0`), so that key cannot see an update
+        // it is supposed to invalidate on; and it cannot see a bundle rewritten
+        // underneath it either, which is exactly what an install does while a scan
+        // may be running. Size-and-mtime changes whenever the bytes this answer was
+        // read from change, which is the only thing that can make it stale.
         //
         // The lookup deliberately sits *above* the `scanningBinaries` guard: a
         // remembered answer costs nothing, so a caller that forbade scanning still
-        // gets it. That is what lets a version paid for once, by opening one app's
-        // detail, be available to everything afterwards. An app that has
-        // not been updated cannot have changed its runtime, and one that has gets a
-        // new key rather than a stale answer. Nil is cached too: "no Tauri crate in
-        // here" is an answer, and it is the expensive one to reach.
-        let key = "\(bundleURL.path)|\(appVersion ?? "?")|\(runtime.rawValue)"
-        if let remembered = cached(key) { return remembered }
+        // gets it. That is what lets a version paid for once be available to
+        // everything afterwards.
+        //
+        // Nil is cached too: "no Tauri crate in here" is an answer, and the
+        // expensive one to reach. An *unreadable* binary is not — see `.tauri`.
+        let executable = executableURL(bundleAt: bundleURL)
+        let key = executable.flatMap { executableIdentity(of: $0) }
+            .map { "\(bundleURL.path)|\(runtime.rawValue)|\($0)" }
+        if let key, let remembered = cached(key) { return remembered }
 
         let version: String?
         switch runtime {
@@ -53,24 +63,57 @@ public enum RuntimeVersion {
             // The re-signed case needs a scan; the ordinary one does not, and
             // `electronVersion` takes the cheap path first either way.
             version = electronVersion(bundleAt: bundleURL, scanning: scanningBinaries)
-        case .qt:       version = qtVersion(bundleAt: bundleURL)
+        case .qt:       version = qtVersion(bundleAt: bundleURL, executable: executable)
         case .java:     version = javaVersion(bundleAt: bundleURL)
         case .tauri:
-            guard scanningBinaries else { return nil }
-            version = tauriVersion(bundleAt: bundleURL)
+            guard scanningBinaries, let executable else { return nil }
+            // The one place the difference between "proved absent" and "could not
+            // read" matters, because a nil here is a *verdict* — `carriesTauriCrate`
+            // turns it into "this app is not Tauri" and the cache would keep that
+            // for the life of the process. A half-read binary must therefore leave
+            // no trace: no answer, nothing remembered, asked again next time.
+            switch probe(executable, for: "tauri-", components: 3) {
+            case .found(let found): version = found
+            case .absent:           version = nil
+            case .unreadable:       return nil
+            }
         case .chromium:
             guard scanningBinaries else { return nil }
             version = chromiumVersion(bundleAt: bundleURL)
         case .flutter, .native, .catalyst, .iOSApp:
             version = nil
         }
-        remember(version, for: key)
+        if let key { remember(version, for: key) }
         return version
     }
 
-    /// Remembered answers, keyed by bundle path, app version and runtime. Only ever
-    /// grows by one entry per app per update, and only for apps whose detail has
-    /// actually been opened.
+    /// What the answer was read from, as far as staleness is concerned: the main
+    /// executable's size and modification date. Nil when it cannot be stat-ed, and
+    /// a nil identity means the answer is simply not cached — better to re-read
+    /// than to remember something under a key that cannot expire.
+    ///
+    /// The main executable stands in for the whole bundle, including for Electron,
+    /// where the bytes actually read live in a framework. An update that changes a
+    /// bundled framework and leaves the app's own binary byte-identical would go
+    /// unnoticed; no packager produces that, since the executable is re-signed
+    /// either way.
+    private static func executableIdentity(of executable: URL) -> String? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: executable.path),
+              let size = attributes[.size] as? NSNumber,
+              let modified = attributes[.modificationDate] as? Date
+        else { return nil }
+        return "\(size.int64Value)-\(modified.timeIntervalSince1970)"
+    }
+
+    /// Remembered answers, keyed by bundle path, runtime, and what the executable
+    /// looked like when the answer was read.
+    ///
+    /// Grows by one entry per app per update, for every app whose detail has been
+    /// opened *and* for every cargo-bundled WebView app on the machine, since the
+    /// scan proves those to classify them — six bundles here. Two scans that
+    /// overlap can both miss and both walk the same binary; they write the same
+    /// value, so the cost is a duplicated read rather than a wrong answer, and
+    /// de-duplicating in flight is not worth a second lock.
     ///
     /// `Synchronization.Mutex` would be the modern way to hold this and needs
     /// macOS 15; the package targets 14. A lock around a dictionary is what the
@@ -176,8 +219,8 @@ public enum RuntimeVersion {
     ///
     /// The plist stays as a fallback for an app that reaches Qt indirectly — if
     /// nothing in the main executable names QtCore, there is no load command to read.
-    private static func qtVersion(bundleAt bundleURL: URL) -> String? {
-        if let executable = executableURL(bundleAt: bundleURL),
+    private static func qtVersion(bundleAt bundleURL: URL, executable: URL?) -> String? {
+        if let executable,
            let dylibs = MachOImports.loadedDylibs(at: executable),
            let entry = dylibs.first(where: { isQtCore($0.key) }),
            entry.value != "0.0.0" {
@@ -224,45 +267,51 @@ public enum RuntimeVersion {
 
     // MARK: - Tauri
 
-    /// Tauri compiles into the executable, so the only record of its version is the
-    /// Cargo dependency path Rust bakes into panic metadata:
-    /// `…/registry/src/…/tauri-2.11.5/src/lib.rs`.
+    /// Whether this bundle is Tauri at all — `AppRuntimeDetector`'s proof, and the
+    /// version it displays, from one read.
+    ///
+    /// Tauri compiles into the executable, so its only trace is the Cargo
+    /// dependency path Rust bakes into panic metadata:
+    /// `…/registry/src/…/tauri-2.11.5/src/lib.rs`. Either that path is there or it
+    /// is not, and if it is, the version is right beside it — so the detector
+    /// asking "is this Tauri" during a scan and the detail view asking "which
+    /// Tauri" later share one cache entry, and the walk happens once per binary
+    /// rather than once per asker.
     ///
     /// `tauri-runtime-wry-2.11.4` deliberately does not match: the character after
     /// the prefix has to be a digit, so only the framework crate itself is read.
-    private static func tauriVersion(bundleAt bundleURL: URL) -> String? {
-        guard let executable = executableURL(bundleAt: bundleURL) else { return nil }
-        return scan(executable, for: "tauri-", components: 3)
-    }
-
-    /// Whether this bundle is Tauri at all — `AppRuntimeDetector`'s proof, not a
-    /// display value.
     ///
-    /// One read answers both questions, so they share one cache entry: either a
-    /// crate path is there or it is not, and if it is, its version is right beside
-    /// it. The detector asks this during a scan and the app's detail view asks
-    /// `read(_:bundleAt:appVersion:scanningBinaries:)` later; both land on the same
-    /// key, so the walk happens once per app version rather than once per asker.
+    /// Two shapes this cannot see, both of which read as *not Tauri*:
     ///
-    /// The key's version comes from the same `CFBundleShortVersionString` the scan
-    /// stores as `InstalledApp.shortVersion` and the detail view passes back. The
-    /// two agree for everything that can reach here — the scan rewrites that string
-    /// only for Xcode and JetBrains bundles, and neither is cargo-bundled — and if
-    /// they ever disagreed the cost would be a second walk, not a wrong answer.
-    ///
-    /// A nil is a real answer and is remembered as one: proving that a 262 MB
-    /// binary contains no `tauri-` crate means reading all of it, which is the
-    /// expensive case and so the one most worth paying for exactly once.
-    public static func carriesTauriCrate(bundleAt bundleURL: URL, infoPlist: [String: Any]) -> Bool {
-        read(.tauri, bundleAt: bundleURL,
-             appVersion: infoPlist["CFBundleShortVersionString"] as? String,
-             scanningBinaries: true) != nil
+    /// - **A `tauri` taken as a git or path dependency.** Cargo lays those out as
+    ///   `git/checkouts/tauri-<hash>/<rev>/…`, with no version to find. Rare for a
+    ///   shipped app, which takes the crates.io release, but not hypothetical — the
+    ///   Longbridge audit in `docs/app-audits/` shows exactly that layout for two
+    ///   of its own dependencies.
+    /// - **A universal binary's other slice.** The gate that admits a bundle here
+    ///   parses the arm64 slice (`MachOImports`); this walks the file end to end,
+    ///   so on a fat binary it also passes over the Intel one. Both slices come out
+    ///   of the same `cargo build` and carry the same crate paths, so the answer
+    ///   agrees — it is the bytes read, not the verdict, that are larger than they
+    ///   need to be. One of the six candidates here (CC Switch) is fat.
+    public static func carriesTauriCrate(bundleAt bundleURL: URL) -> Bool {
+        read(.tauri, bundleAt: bundleURL, scanningBinaries: true) != nil
     }
 
     /// Walks a binary looking for `<needle><version>`, in chunks so a 261 MB
     /// executable never lands in memory at once.
-    private static func scan(_ binary: URL, for prefix: String, components: Int) -> String? {
-        guard let handle = try? FileHandle(forReadingFrom: binary) else { return nil }
+    /// Three outcomes, because two of them are not the same thing. A binary that
+    /// was read to the end and does not contain the needle is *evidence*; a binary
+    /// that could not be opened or could not be read through is the absence of
+    /// evidence, and only the first may be remembered as an answer.
+    private enum Probe {
+        case found(String)
+        case absent
+        case unreadable
+    }
+
+    private static func probe(_ binary: URL, for prefix: String, components: Int) -> Probe {
+        guard let handle = try? FileHandle(forReadingFrom: binary) else { return .unreadable }
         defer { try? handle.close() }
 
         let needle = Array(prefix.utf8)
@@ -271,14 +320,34 @@ public enum RuntimeVersion {
         let chunkSize = 4 * 1024 * 1024
         let overlap = 64
         var carry = Data()
-        while let chunk = try? handle.read(upToCount: chunkSize), !chunk.isEmpty {
+        while true {
+            // `try?` is not available here, and the reason is the whole point of
+            // this type: `read(upToCount:)` returns nil *at end of file*, and
+            // `try?` flattens a thrown error into that same nil — so a completed
+            // walk and a failed one would be indistinguishable, which is exactly
+            // the confusion `Probe` exists to end. `do`/`catch` keeps them apart.
+            //
+            // The loop also ends on an empty read rather than on a short one: a
+            // short read is legal mid-file, and treating it as the end would report
+            // a truncated binary as proof of absence.
+            let chunk: Data?
+            do { chunk = try handle.read(upToCount: chunkSize) } catch { return .unreadable }
+            guard let chunk, !chunk.isEmpty else { break }
             var window = carry
             window.append(chunk)
             if let version = firstVersion(in: Array(window), after: needle, components: components) {
-                return version
+                return .found(version)
             }
             carry = window.suffix(overlap)
-            if chunk.count < chunkSize { break }
+        }
+        return .absent
+    }
+
+    /// The version alone, for the readers where a failure to read and a genuine
+    /// absence lead to the same place — nothing is shown either way.
+    private static func scan(_ binary: URL, for prefix: String, components: Int) -> String? {
+        if case .found(let version) = probe(binary, for: prefix, components: components) {
+            return version
         }
         return nil
     }

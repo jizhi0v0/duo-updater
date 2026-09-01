@@ -109,8 +109,8 @@ public enum AppRuntimeDetector {
     /// Whether a bundle's executable actually carries the Tauri framework crate —
     /// the one rule here that needs the *contents* of a binary rather than its
     /// header. Injected for the same reason as `LibraryReader`; production passes
-    /// `RuntimeVersion.carriesTauriCrate(bundleAt:infoPlist:)`.
-    public typealias TauriProof = (URL, [String: Any]) -> Bool
+    /// `RuntimeVersion.carriesTauriCrate(bundleAt:)`.
+    public typealias TauriProof = (URL) -> Bool
 
     /// Everything one read of a bundle can say about how it was built.
     public struct Reading: Sendable, Equatable {
@@ -124,7 +124,7 @@ public enum AppRuntimeDetector {
         isiOSAppOnMac: Bool,
         infoPlist: [String: Any],
         linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
-        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:infoPlist:)
+        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:)
     ) -> AppRuntime? {
         read(bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac,
              infoPlist: infoPlist, linkedLibraries: linkedLibraries,
@@ -139,7 +139,7 @@ public enum AppRuntimeDetector {
         isiOSAppOnMac: Bool,
         infoPlist: [String: Any],
         linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
-        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:infoPlist:)
+        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:)
     ) -> Reading {
         // A wrapped iOS app has no `Contents/` at all, so every rule below would
         // look in the wrong place, and its own executable sits inside the wrapper
@@ -229,23 +229,29 @@ public enum AppRuntimeDetector {
         // stood. See issue #206.
         //
         // So the plist pair plus WebKit is kept as a *filter*, not a verdict: it
-        // costs two dictionary lookups, and on a 193-app library it admits three
-        // bundles. Those three pay for the proof — the `tauri-<semver>` Cargo path
-        // Rust bakes into the binary, which is positive evidence and yields the
-        // version besides. Measured warm: 0.006s and 0.039s for the two real Tauri
-        // apps (the needle is found and the walk stops), 0.25s for Longbridge's
-        // 262 MB binary, where the whole file is walked to prove absence. Paid once
-        // per app version — `RuntimeVersion` remembers the answer, nil included,
-        // and the app's detail view reads the version back out of the same entry.
+        // costs two dictionary lookups, and across the ~145 bundles in
+        // `/Applications` and `~/Applications` here it admits six. Those six pay
+        // for the proof — the `tauri-<semver>` Cargo path Rust bakes into the
+        // binary, which is positive evidence and yields the version besides.
+        //
+        // Six candidates is 471 MB of executable, and five of them stop early
+        // because the needle is found (6 ms for a 9 MB binary, 39 ms for a 64 MB
+        // one); only Longbridge's 262 MB is walked end to end, to prove absence.
+        // Whole-library sweep in a release build: 0.50s, against 0.05s for a second
+        // sweep once everything is remembered. I/O is not the cost — the same
+        // machine reads a cold 795 MB binary in 0.169s — the byte search is, which
+        // is also why a debug build takes 104s for that sweep and a release build
+        // half a second.
         //
         // The residual risk moved rather than vanished, and it moved to the safer
         // side: a Tauri app whose binary keeps no `tauri-` crate path now reads as
         // native instead of an unrelated app reading as Tauri. Both are labels —
-        // nothing routes on this value.
+        // nothing routes on this value. `RuntimeVersion.carriesTauriCrate` lists
+        // the two binary shapes that can hide the path.
         if infoPlist["LSRequiresCarbon"] as? Bool == true,
            infoPlist["CSResourcesFileMapped"] as? Bool == true,
            MachOImports.links(libraries, framework: "WebKit"),
-           carriesTauriCrate(bundleURL, infoPlist) {
+           carriesTauriCrate(bundleURL) {
             return reading(.tauri)
         }
 

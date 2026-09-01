@@ -1181,6 +1181,21 @@ final class AppListModel {
     /// instant instead of restarting from scratch.
     @ObservationIgnored private var changelogTasks: [ChangelogCacheKey: Task<Void, Never>] = [:]
 
+    /// Keys whose notes have been fetched over the network *this session*, as
+    /// opposed to painted from the cross-launch disk cache.
+    ///
+    /// The disk cache is keyed by the version the notes are being shown for, and
+    /// `prewarmChangelogs` treats a hit as final because a released version's notes
+    /// are immutable. They are — but the entry under that key need not be the
+    /// notes for that version at all. CleanShot's 5.0 was offered by the appcast
+    /// six minutes before the vendor published its notes, so the fetch stored the
+    /// 4.8.10-and-older page under the key `5.0`, and from then on: prewarm hit the
+    /// disk, marked the state `.loaded`, and `ensureChangelogLoading` returned at
+    /// its first line every time the user opened the app. The pane showed "5.0" over
+    /// 4.8.10's notes, permanently, with nothing to re-read it. This set is what
+    /// makes a disk hit provisional until the network has confirmed it once.
+    @ObservationIgnored private var changelogRevalidated: Set<ChangelogCacheKey> = []
+
     /// The current state of an app's changelog, if it's recipe-backed. `nil` means
     /// the app has no recipe (the workbench then renders inline/structured/web
     /// notes directly, with no fetch involved).
@@ -1229,11 +1244,19 @@ final class AppListModel {
         let targetVersion = changelogTargetVersion(for: result)
         let key = ChangelogCacheKey(
             bundleID: bundleID, channel: result.app.releaseChannel, version: targetVersion)
+        // A `.loaded` that was only ever painted from the disk cache is not done:
+        // it still owes one network read, because the entry filed under this
+        // version's key may have been fetched before the vendor published that
+        // version's notes (see `changelogRevalidated`). Confirmed once, it is done.
+        var alreadyPainted = false
         switch changelogState[key] {
-        case .loaded, .loading: return          // already done / in flight
-        case .failed, .none: break              // (re)start
+        case .loading: return                        // in flight
+        case .loaded:
+            if changelogRevalidated.contains(key) { return }
+            alreadyPainted = true                    // keep it on screen while re-reading
+        case .failed, .none: break                   // (re)start
         }
-        changelogState[key] = .loading
+        if !alreadyPainted { changelogState[key] = .loading }
         // The version whose notes to show: the offered update if any, else the
         // installed build. Templated recipes (Thunderbird) fetch exactly that
         // version's page so the rendered notes match what the user sees.
@@ -1256,6 +1279,7 @@ final class AppListModel {
             if Task.isCancelled { return }
             guard let self else { return }
             self.changelogTasks[key] = nil
+            self.changelogRevalidated.insert(key)
             if let fresh {
                 self.changelogState[key] = .loaded(fresh)
             } else if case .loaded = self.changelogState[key] {
@@ -1292,6 +1316,7 @@ final class AppListModel {
         for key in changelogState.keys.filter({ $0.bundleID == bundleID }) {
             changelogState[key] = nil
         }
+        changelogRevalidated = changelogRevalidated.filter { $0.bundleID != bundleID }
         // Clear the network cache for every channel variant (Stable & ESR share this
         // bundle id but have different sources; Warp's three channels share one
         // endpoint but get distinct channel-fragmented cache slots), since we don't
@@ -1329,6 +1354,7 @@ final class AppListModel {
             changelogState[key] = .loading
             changelogTasks[key] = Task { [weak self] in
                 var changelog = await ChangelogService.diskCached(recipe, version: targetVersion)
+                var fetched = false
                 if changelog == nil {
                     // Cap concurrent network prewarms: a cold cache would otherwise
                     // fan out one fetch per recipe-backed app at once. Disk hits above
@@ -1336,10 +1362,13 @@ final class AppListModel {
                     await Self.prewarmNetworkGate.wait()
                     changelog = await ChangelogService.load(recipe, version: targetVersion)
                     await Self.prewarmNetworkGate.signal()
+                    fetched = true
                 }
                 if Task.isCancelled { return }
                 guard let self else { return }
                 self.changelogTasks[key] = nil
+                // A disk hit is provisional; only a real fetch discharges the debt.
+                if fetched { self.changelogRevalidated.insert(key) }
                 if let changelog {
                     self.changelogState[key] = .loaded(changelog)
                     self.prewarmImages(in: changelog)

@@ -516,14 +516,22 @@ public enum RuntimeVersion {
     /// rest of this change exists to prevent.
     ///
     /// Finding the needle is `Data.range(of:)`'s job rather than a byte loop's, and
-    /// that is a measurement rather than a preference. The loop this replaced was
-    /// **200× slower in a debug build than in a release one** — `-Onone` optimises
-    /// none of it, and every one of those hundreds of millions of iterations pays
-    /// full bounds-checking and retain/release. Measured over Longbridge's 261 MiB
-    /// executable, chunked exactly as `probe` chunks it: **75.2 s for the loop,
-    /// 0.151 s for `Data.range(of:)`**, same match positions on every binary tried.
-    /// `range(of:)` lives in a Foundation that is already compiled with
-    /// optimisations, so it does not care how *this* module was built.
+    /// that is a measurement rather than a preference. Two separate comparisons, and
+    /// they are worth keeping apart because each answers a different question:
+    ///
+    /// - **The same loop, debug against release: ~200×** (#214 measured 104 s and
+    ///   0.50 s for one library-wide sweep). `-Onone` optimises none of it, and
+    ///   every one of those hundreds of millions of iterations pays full
+    ///   bounds-checking and retain/release. This is why a release build never
+    ///   showed the problem.
+    /// - **Loop against `Data.range(of:)`, both in a debug build: ~500×.** Measured
+    ///   over Longbridge's 261 MiB executable, chunked exactly as `probe` chunks it:
+    ///   **75.2 s and 0.151 s**, same match positions on every binary tried.
+    ///
+    /// The second is the one this code turns on: `range(of:)` lives in a Foundation
+    /// that is already compiled with optimisations, so it does not care how *this*
+    /// module was built. (That attribution is measured rather than looked up — the
+    /// numbers are solid, the explanation for them is not from Apple's documentation.)
     ///
     /// That gap was not academic: three scan tests walk the real `/Applications`,
     /// and #206 put this walk on that path — `scanFindsRealApps` went from 0.24 s to

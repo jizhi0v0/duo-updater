@@ -365,12 +365,21 @@ private func probe(_ steps: [ScriptedReads.Step],
 /// went from 0.24 s to 107 s and the whole suite from seconds to minutes (#214).
 /// The suite stayed green throughout.
 ///
-/// 60 MiB is enough to separate the two by far more than machine noise. Measured in
-/// a debug build over Longbridge's 261 MiB binary, chunked as `probe` chunks it:
-/// **75 s for the byte loop, 0.15 s for `Data.range(of:)`**. The threshold below is
-/// two orders of magnitude above the fix and several times under the regression, so
-/// this is not a stopwatch on the machine — it answers one question, which is
-/// whether the search has gone back into unoptimised Swift.
+/// 60 MiB is enough to separate the two by far more than machine noise, and the
+/// four numbers that matter were all measured on this input rather than reasoned
+/// about. **Alone: 0.011 s fixed, 16.7 s with the byte loop put back.** But this
+/// test does not run alone — inside the full suite, with the network tests and the
+/// three real-`/Applications` scans running beside it, the fixed version takes
+/// **0.536 s**, fifty times its solo number, purely from CPU contention.
+///
+/// That inflation is the reason the threshold is where it is. Ten seconds leaves
+/// roughly 18× over the contended green number — enough for a busier or smaller
+/// machine than this one — while still sitting well under a regression, which is
+/// 16.7 s *at its fastest* and would be minutes under the same contention (#214's
+/// scan tests went from 107 s alone to 410 s in the suite). It is not a stopwatch
+/// on the machine; it answers one question, which is whether the search has gone
+/// back into unoptimised Swift. Tighten it toward the green number and this becomes
+/// a test that fails on a loaded laptop, which is a test that gets deleted.
 ///
 /// The crate path is in the **last** chunk and the version is asserted, which is
 /// the point rather than a detail: a version that came back from the final chunk is
@@ -391,7 +400,7 @@ private func probe(_ steps: [ScriptedReads.Step],
     let elapsed = -started.timeIntervalSinceNow
 
     #expect(outcome == .found("2.11.5"), "the payload is in the last chunk — this is what says it was reached")
-    #expect(elapsed < 5, "60 MiB took \(String(format: "%.2f", elapsed))s; the search is walking bytes in Swift again")
+    #expect(elapsed < 10, "60 MiB took \(String(format: "%.2f", elapsed))s; the search is walking bytes in Swift again")
 }
 
 private let stamp = Date(timeIntervalSince1970: 1_700_000_000)

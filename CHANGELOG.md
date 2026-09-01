@@ -7,6 +7,12 @@ release and the Sparkle appcast, so this file is the single source of truth for
 
 ## 0.3.78
 
+**An app that leaves its own name blank now gets one anyway.** Eudic (欧路词典) sat in the list with an icon, a version, and nothing at all where the name goes. Its bundle does declare a display name — and leaves it empty, because the real names live in the app's translations — and Duo Updater treated that empty answer as the answer instead of asking the next question. It now falls through to the app's other name, and to the name of the app file after that, so a row is never nameless. One app in a hundred and fifty here was affected; the point is that the information was already there and was being skipped.
+
+**Relaunch now tells you when the app refused to quit, instead of looking like a click that did nothing.** If an app has a window waiting for you — a save prompt, a sign-in sheet, some dialog — macOS will not let it quit, and there is nothing this side can do about that: it is the app's window. Duo Updater used to spin for thirty seconds and then put the same button back with no explanation, which reads exactly like a button that is broken, so people press it again. The row now says what happened and points you at the app to deal with that window. Nothing was changed and the new version is already installed, so the relaunch really is all that is left — and if you simply quit the app yourself in the next ten minutes, Duo Updater notices and brings it back on the new version without you clicking anything.
+
+**欧路词典's release notes are one release again, not sixteen years of them.** The app publishes its entire history — every version back to 2.5.0 — inside the notes for whichever release is newest, so the detail pane showed all of it under the heading "26.9.0" and you had to scroll past a decade to find what had just changed. Each version now gets its own entry in the list, the way every other app's does.
+
 **The mark that says what an app is built with now needs proof for Tauri, not a resemblance.** Tauri leaves nothing in a bundle to find — no framework, no folder of its own — so that one mark was worked out from how the app was packaged plus the fact that it links Apple's web view. Longbridge matches all of that and is not Tauri: it draws its own windows with the same renderer Zed uses, and embeds a web view for one corner of its interface. Duo Updater now reads Tauri's own fingerprint out of the binary before claiming it, so an app is called Tauri when it is one — and Longbridge reads as the native Mac app it is.
 
 ## 0.3.77

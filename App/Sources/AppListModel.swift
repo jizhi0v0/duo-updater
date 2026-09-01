@@ -4514,7 +4514,26 @@ final class AppListModel {
         guard !requiresInstaller(result) else { return false }
         guard appManagementStatus == .granted else { return false }
         switch result.remote?.sourceName {
-        case "Sparkle", "Vendor", "GitHub":
+        // Electron (electron-builder manifests) belongs here, not in the
+        // default/serial case (#192's sixth decision point, found during that
+        // fix's review and deliberately handled in this follow-up). It goes
+        // through the exact same pipeline as Vendor/GitHub — `VendorInstaller`
+        // downloads the archive and `InPlaceSwap` swaps it in — with no shared
+        // system UI/tooling, which is this function's own stated criterion for
+        // "stays serial".
+        //
+        // The one real question was whether parallelizing could race an
+        // electron-builder app's own self-updater (electron-updater/Squirrel
+        // .Mac). It can't, and not because of anything in THIS function: every
+        // target here already passed `installAllTargets()`'s `defersToSelfUpdater`
+        // filter (so a currently-running self-updating app never reaches this
+        // switch at all), and the staged-build check
+        // (`UpdatePolicy.stagedBlocksInstall`) is enforced inside `runInstall`
+        // itself — the function both `installInParallel` and the serial loop
+        // call — so it applies identically to a parallel target and a serial
+        // one. This switch decides scheduling throughput only; it was never
+        // the layer guarding against a ShipIt-style collision.
+        case "Sparkle", "Vendor", "GitHub", "Electron":
             return true
         default:
             return false

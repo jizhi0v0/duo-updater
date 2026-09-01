@@ -1591,12 +1591,17 @@ private struct AppRow: View {
     /// Fallback for updates we can detect but not install in place (GitHub
     /// releases, self-updating apps like Chrome). Opens the official download /
     /// releases page in the browser so the user can grab it through the app's own
-    /// channel; only reveals in Finder if there's no URL to open.
+    /// channel; only reveals in Finder if there's no URL to open — in which case
+    /// the button title says so too (see `DetectionOnlyAffordance`, #197).
     private var openButton: some View {
-        Button("Open") { openAction() }
+        Button(detectionOnlyAffordance.buttonTitle) { openAction() }
             .controlSize(.small)
             .buttonStyle(.bordered)
             .help(openHelp)
+    }
+
+    private var detectionOnlyAffordance: DetectionOnlyAffordance {
+        DetectionOnlyAffordance.resolve(pageURL: result.remote?.pageURL)
     }
 
     /// Shown for a running self-updating app under the "defer while running"

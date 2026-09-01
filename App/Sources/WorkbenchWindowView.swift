@@ -648,10 +648,24 @@ private struct WorkbenchActionView: View {
             .help(storeManagedHere
                   ? String(localized: "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
                   : appStoreRedirectHelp)
-        } else if let url = result.remote?.pageURL {
-            Button("Open page") { NSWorkspace.shared.open(url) }
-                .buttonStyle(.bordered)
-                .help("Open the official download page")
+        } else {
+            // Detection-only tail: no artifact, no vendorInstallerKind, no App
+            // Store route above. Mirror the popover's fallback instead of
+            // rendering nothing when there's no page either — see
+            // `DetectionOnlyAffordance` (#197).
+            let affordance = DetectionOnlyAffordance.resolve(pageURL: result.remote?.pageURL)
+            Button(affordance.buttonTitle) {
+                switch affordance {
+                case .openPage(let url):
+                    NSWorkspace.shared.open(url)
+                case .revealInFinder:
+                    NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
+                }
+            }
+            .buttonStyle(.bordered)
+            .help(affordance == .revealInFinder
+                  ? String(localized: "Reveal in Finder")
+                  : String(localized: "Open the official download page"))
         }
     }
 

@@ -36,8 +36,7 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     case native
 }
 
-/// Which of Apple's UI frameworks a bundle's executable actually links, plus
-/// whether it carries the Swift runtime.
+/// Which of Apple's UI frameworks a bundle's executable actually links.
 ///
 /// A **set**, not a label, and that is the whole point. It is tempting to reduce
 /// this to "a SwiftUI app" or "an AppKit app" and the evidence does not support
@@ -50,9 +49,14 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
 /// apps look like, because a real one reaches for `NSApplication`,
 /// `NSWorkspace` or an `@NSApplicationDelegateAdaptor` sooner or later.)
 ///
-/// The Swift flag says only that Swift is *present*: an Objective-C app with one
-/// Swift file links the runtime too. It is not a claim about what the app is
-/// written in, and nothing here should render it as one.
+/// Frameworks only, deliberately, and the Swift runtime is the one that keeps
+/// asking to be let in. It carries no information where it matters: of 143
+/// readable binaries on the development machine, 44 link SwiftUI and **every one
+/// of them** links `libswiftCore` too — SwiftUI is a Swift-only framework, so it
+/// cannot be otherwise. Where SwiftUI is absent it says only that some Swift is
+/// present, which an Objective-C app with a single Swift file also manages. Beside
+/// AppKit and SwiftUI it would read as a third framework, and as a claim about
+/// what the app is written in that this cannot make.
 public struct LinkedFrameworks: OptionSet, Sendable, Hashable, Codable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
@@ -61,8 +65,6 @@ public struct LinkedFrameworks: OptionSet, Sendable, Hashable, Codable {
     public static let swiftUI = LinkedFrameworks(rawValue: 1 << 1)
     /// UIKit, whether through Catalyst's `/System/iOSSupport` or an iOS binary.
     public static let uiKit = LinkedFrameworks(rawValue: 1 << 2)
-    /// `libswiftCore` — some Swift is in there, not necessarily all of it.
-    public static let swift = LinkedFrameworks(rawValue: 1 << 3)
 
     /// In a fixed order, so a row does not reshuffle its own description between
     /// launches the way an unordered set would.
@@ -71,7 +73,6 @@ public struct LinkedFrameworks: OptionSet, Sendable, Hashable, Codable {
         if contains(.appKit) { names.append("AppKit") }
         if contains(.swiftUI) { names.append("SwiftUI") }
         if contains(.uiKit) { names.append("UIKit") }
-        if contains(.swift) { names.append("Swift") }
         return names
     }
 }
@@ -234,9 +235,6 @@ public enum AppRuntimeDetector {
         if MachOImports.links(libraries, framework: "AppKit") { found.insert(.appKit) }
         if MachOImports.links(libraries, framework: "SwiftUI") { found.insert(.swiftUI) }
         if MachOImports.links(libraries, framework: "UIKit") { found.insert(.uiKit) }
-        // The Swift runtime is a dylib, not a framework, and its install name is
-        // versioned in ways that make an exact match brittle.
-        if libraries.contains(where: { $0.contains("libswiftCore") }) { found.insert(.swift) }
         return found
     }
 

@@ -208,15 +208,17 @@ private func detect(
 @Test func namesTheFrameworksItFinds() {
     #expect(AppRuntimeDetector.frameworks(in: [appKit, swiftUI]).names == ["AppKit", "SwiftUI"])
     #expect(AppRuntimeDetector.frameworks(in: [catalystUIKit]).names == ["UIKit"])
-    #expect(AppRuntimeDetector.frameworks(in: ["/usr/lib/swift/libswiftCore.dylib"]).names == ["Swift"])
+    // The Swift runtime is linked by most of these apps and is not a framework;
+    // the set holds frameworks, so it is not in here.
+    #expect(AppRuntimeDetector.frameworks(in: ["/usr/lib/swift/libswiftCore.dylib"]).names == [])
     #expect(AppRuntimeDetector.frameworks(in: ["/usr/lib/libSystem.B.dylib"]).names == [])
 }
 
 @Test func theNameOrderIsFixed() {
     // A set has no order; a row that reshuffled its own description between
     // launches would look like it had changed its mind about the app.
-    let all = AppRuntimeDetector.frameworks(in: [swiftUI, "/usr/lib/swift/libswiftCore.dylib", appKit, catalystUIKit])
-    #expect(all.names == ["AppKit", "SwiftUI", "UIKit", "Swift"])
+    let all = AppRuntimeDetector.frameworks(in: [swiftUI, appKit, catalystUIKit])
+    #expect(all.names == ["AppKit", "SwiftUI", "UIKit"])
 }
 
 @Test func swiftUIWithoutAppKitIsStillNative() throws {
@@ -230,7 +232,7 @@ private func detect(
         infoPlist: ["CFBundleExecutable": "Stub"],
         linkedLibraries: reader(swiftUI, "/usr/lib/swift/libswiftCore.dylib"))
     #expect(reading.runtime == .native)
-    #expect(reading.frameworks.names == ["SwiftUI", "Swift"])
+    #expect(reading.frameworks.names == ["SwiftUI"])
 }
 
 @Test func aCatalystReadingCarriesUIKit() throws {

@@ -17,6 +17,33 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.76</title>
+            <pubDate>Tue, 01 Sep 2026 11:29:53 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.76</link>
+            <sparkle:version>85</sparkle:version>
+            <sparkle:shortVersionString>0.3.76</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**The Electron-manifest apps added last release can actually be updated now.** 0.3.75 taught Duo Updater to read the file those apps carry inside themselves, and it did read it — it worked out the new version, the right download for your Mac, and the checksum to verify it against, and then had nowhere to send any of that. The install button never appeared, and `duo install` explained the refusal with a reason that was not the real one. The install path is connected this release. In practice you may see no difference at all: this reader sits behind every hand-written rule, so it only speaks for an app nothing else covers — which today, on the machine this was built on, is none of them. It matters for the app you install tomorrow that nobody has written a rule for.
+
+**A download that would take you off a native build is now refused.** Apple silicon can still run Intel apps through translation, which meant an Intel-only download passed the "will this run on your Mac?" check and installed cleanly — leaving you on a translated copy of an app that had been running natively, quietly, and with every future update doing the same thing again. Every in-place install now compares what you have against what arrived and refuses that swap. Going the other way, or from a universal build down to an Apple-silicon one, is normal and still allowed.
+
+**When it cannot prove which architecture a download is, it now declines rather than guesses.** Some vendors publish an Apple-silicon build alongside their default one, and the only way to tell the default is the Intel build is to notice the other exists. If that second check does not come back cleanly — the vendor's server refuses it, the connection drops, or the two disagree about which version they are — Duo Updater no longer treats that silence as an answer. It tells you the version and offers no install, which is the honest outcome.
+
+**A broken rule can no longer disappear from Diagnostics.** For apps covered both by a hand-written rule and by the new manifest reader — which is most of them, deliberately — a failure of the rule was being cancelled out by the reader succeeding straight afterwards, so an app whose rule had actually broken went on reading as healthy. The two are recorded separately now. The manifest reader also reports its own failures for the first time; three apps on the development machine turned out to be pointing at addresses that have been returning "not found" for some time, which nothing would previously have said out loud.
+
+**Rows that can see an update but cannot install one now offer the same thing in both places.** The menu bar showed a button labelled "Open" that opened the Finder, and the window showed nothing at all for the identical row.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.76/DuoUpdater-0.3.76-macos.zip" length="11971130" type="application/octet-stream" sparkle:edSignature="jRbFtKleBrTLNigmS8KoYnc/H1yqsQWl89oadGZ2RE9RaxfcukmVaOMlhYBIDucbYKPOxzOcq8LMfPVpl5M0Bw=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.76/DuoUpdater85-84.delta" sparkle:deltaFrom="84" length="455206" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="klhm5GDH5nWYn/+z+kzTAhGQ8qAPSHKXbAYl5n7QNjjYhy65pnrl2o74Y9DkT25alSlp0E2UW3uLjmQjziFeBw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.76/DuoUpdater85-83.delta" sparkle:deltaFrom="83" length="561030" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="sNR5QZKs+Dyc24yH0ssYbZEhpQ6U8k9ZIwuGbjrlSsxB0R622ebHFE9PQUqw44bKznb87x1Q5m4ZOj6pradzBA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.76/DuoUpdater85-82.delta" sparkle:deltaFrom="82" length="600978" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="re5PZm6Xjb3+P3/kw7a5onxbTNOwHkpkBnA8+PDuazjr2iJURRHajrR5y3vOZ5vHJIUELAr6B/fg/fJ6C/wJCQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.76/DuoUpdater85-81.delta" sparkle:deltaFrom="81" length="705566" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Iqti6ZrZYXs00NXbZyTCufPeQF4s9zX5HDdI9wAp7Tts3jxEpjhrcXxN16W3xvTcvp79Vxb5ZRW0/orPvLgGAA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.76/DuoUpdater85-80.delta" sparkle:deltaFrom="80" length="770074" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="M9kkfLvGrZ7bqSL1g3DVyXfzSwGUiIIn9kIlF2m1dsMhqaZcZZhUYPeu68OOqsInWrTRHbfpu9L8gI/4Gp7jCw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.75</title>
             <pubDate>Tue, 01 Sep 2026 00:14:35 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.75</link>
@@ -24,12 +51,6 @@
             <sparkle:shortVersionString>0.3.75</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Apps built on Electron are now recognised without anyone writing them down first.** A great many Mac apps ship a small file inside themselves saying where their updates live. Until now Duo Updater only knew the ones someone had hand-written a rule for — every other one sat in your list with no version next to it and no way to tell you a new build had shipped. It now reads that file directly, the same way it has always read Sparkle's, so an app like that is covered the day you install it rather than the day someone gets around to it.
-
-Apps that already had a hand-written rule are untouched. The new reader sits behind them, so it can only fill a gap — never take over something that was already working.
-
-Two details decide whether the download it offers is the right one, and both were settled by checking real apps rather than assuming. Some vendors mark an Intel build as their "primary" download even while publishing an Apple-silicon one beside it; others give the Apple-silicon build a filename that looks no different from the Intel one, so nothing about the name gives it away. Duo Updater picks by architecture, and where it cannot be sure a download will run on your Mac it tells you the version and declines to offer the install — rather than handing you something that installs cleanly and then won't open.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.75/DuoUpdater-0.3.75-macos.zip" length="11960758" type="application/octet-stream" sparkle:edSignature="LIxVLwtAgoHyKzo/+6g/nAmcFj6cYIGVqq8ZJ5GB8OLCgQGZx3jn45Bb8pRtXMymqR1k+FkaxxZiQXtD0Y10DA=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.75/DuoUpdater84-83.delta" sparkle:deltaFrom="83" length="499634" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Sj4W8C+wzUMqajRs7Q1a3ZHWPLwUCjeLYGSa9MmafEEoaDVwqr6I4YREkK7iHuS4VwixmzU7dvWnpD0Jpld8Ag=="/>
@@ -88,23 +109,6 @@ Two details decide whether the download it offers is the right one, and both wer
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.72/DuoUpdater81-78.delta" sparkle:deltaFrom="78" length="677826" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="5pWei3vn62uS6kDxdrJQifTChDmcCaUrw75sX3CkKPnPODgviRUJxG3Yip/vUz3Ow11Y6IarDRd/W8MS4aACAg=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.72/DuoUpdater81-77.delta" sparkle:deltaFrom="77" length="826038" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="0/Utx3MUsJTwx69XVB2/TyDvkM0csFLzfLCibYLj7iitl1PuDbCsu4n74auMDX+5QBTZgZ3+tZY/eoAxWWzaDQ=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.72/DuoUpdater81-76.delta" sparkle:deltaFrom="76" length="895762" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="J7okqCrlWIHQB+csGx5KVXz1lCURhgXTCd3/9VV/w4LZXeJ7CkbQB/iwnNvoPH0TFzzcHKrqxr9S9s3rHkjMDA=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.71</title>
-            <pubDate>Sat, 29 Aug 2026 13:24:55 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.71</link>
-            <sparkle:version>80</sparkle:version>
-            <sparkle:shortVersionString>0.3.71</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.71/DuoUpdater-0.3.71-macos.zip" length="11871984" type="application/octet-stream" sparkle:edSignature="ULnwF2lmvABuFb7+FtJqwLCQiazNPxEEfVkzVMBayuV4zSQNaag2b1s7yjA6Axy4RqxRUBeYaIQfrCqEvbjXDQ=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.71/DuoUpdater80-79.delta" sparkle:deltaFrom="79" length="407922" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="YixdbR6SJ33U59OWME6fhKKIiaKy40CI/2Nd8baeRaUdh3muXNoNJ0ofx010ZRzRlEXuZey9jDxlnI4fwFCVCQ=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.71/DuoUpdater80-78.delta" sparkle:deltaFrom="78" length="538910" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="CMit3CYO8wHBuRWs0eVjiuyqoWLPkaDgO9r/LXOoCmAr5vpEro7AA1tvqhcT0rVrs4mkIvvyBCnpSNxVamhtCw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.71/DuoUpdater80-77.delta" sparkle:deltaFrom="77" length="742794" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Q4iJK7SrKBN8lXqpPXlFBfp1fzwSSbJTmTFAOZxqw1/8fS981d/YeB8dcjYtKP757pwEvRtLSVyD0jCk8QRXDA=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.71/DuoUpdater80-76.delta" sparkle:deltaFrom="76" length="824990" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="ZfrqHU5ry/0GGQaRFxkqyn7Oqk0Zy9WSPMeRB6fjbE8Upc09wwbMOQJclp9594Cox7vuq7bojcLqBA9HjYMGCQ=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.71/DuoUpdater80-75.delta" sparkle:deltaFrom="75" length="864406" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="b2WrmCPPUCQNibvto8RVEJr2r456Tp55NF0aw4UUhS4IMib4E6emJiARJYvlJzz9Z36AlJI7mVlXHJCWAVA0Bw=="/>
             </sparkle:deltas>
         </item>
     </channel>

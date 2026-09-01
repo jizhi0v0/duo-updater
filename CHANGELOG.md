@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.80
+
+**Release notes hosted at a bare numeric address are refused in every spelling now, not just the familiar one.** Duo Updater only shows an app's release notes from a page whose address is a real domain name — a bare IP address has no certificate name to check against, and no vendor publishes notes at one. That check recognised `192.168.1.10` but not `2130706433`, `0x7f000001` or `127.1`, which the web view resolves to exactly the same place. Nothing that ships today points at any of these — every address in Duo Updater's own list is checked as part of its tests — so this closes a gap before it matters rather than after. The decision is now made by the same address parser the system uses, so every spelling it accepts is one the notes pane refuses.
+
 ## 0.3.79
 
 **Docker's mark now describes Docker's interface instead of its daemon.** The row said "native"; Docker Desktop is an Electron app. The mark is read from the app's bundle, and Docker's bundle is a wrapper: the program it names is a background service written in Go, it carries no framework of its own, and the actual window-drawing app sits one level inside it. Everything was being read correctly out of the wrong file. Duo Updater now looks in the nested app when — and only when — the outer one brings nothing itself and contains exactly one such app that proves what it is built with, so a helper process shipped alongside a real interface still cannot lend its identity to its host. Docker reads as Electron 42.5.0, and of the hundred and forty-six apps in the list on the machine this was written on, it is the only row that changes.

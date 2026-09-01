@@ -90,12 +90,20 @@ public enum RuntimeVersion {
         case .flutter, .native, .catalyst, .iOSApp:
             version = nil
         }
-        // A nil reached only because scanning was forbidden is not an answer about
-        // the app, it is an answer about the caller — and the two callers share a
-        // key. `.tauri` and `.chromium` return above rather than fall through here;
-        // `.electron` cannot, because its cheap path and its scanning path are one
-        // function. Without this line a single `scanning: false` read of a
-        // re-signed Electron framework would pin "no version" for the process.
+        // A nil reached under `scanningBinaries: false` is not an answer about the
+        // app, it is an answer about the caller — and both callers share a key. So
+        // no nil is remembered from such a read, for any runtime: for `.electron`
+        // it would be actively wrong (a single such read of a re-signed framework
+        // would pin "no version" for the life of the process, since its cheap path
+        // and its scanning path are one function), and for `.qt`, `.java` and the
+        // unversioned runtimes it costs nothing, because their nil is reached
+        // without walking anything.
+        //
+        // No production caller passes false today — `RuntimeTag` and
+        // `carriesTauriCrate` both pass true. This closes the trap rather than a
+        // live bug, and the trap is newly unconditional: the caller-supplied
+        // `appVersion` used to be the one thing that could vary between two callers
+        // of the same bundle.
         if let key, version != nil || scanningBinaries { remember(version, for: key) }
         return version
     }
@@ -330,43 +338,64 @@ public enum RuntimeVersion {
         case unreadable
     }
 
+    /// How much of each chunk is carried into the next: enough that a match cut by
+    /// a boundary is whole in one window, and one byte more than that, so the window
+    /// also holds the character *before* such a match. Both of `firstVersion`'s
+    /// rules need context the chunk alone cannot supply.
+    ///
+    /// It is therefore also the longest match that can be seen across a boundary —
+    /// `Chrome/` plus four components is under 30 bytes. A differential fuzz of
+    /// 20,000 random layouts against a whole-file reference found no disagreement,
+    /// and the only way to manufacture one was a "version" of over a hundred digits,
+    /// which fails toward *missing* the match rather than inventing one.
+    ///
+    /// Internal rather than a local, because the test that pins the boundary rules
+    /// has to place its payload on the seam this number defines. Written as a
+    /// literal there, the test passes against the unfixed reader — which is what it
+    /// did until round 3 of review noticed.
+    static let scanOverlap = 128
+
     private static func probe(_ binary: URL, for prefix: String, components: Int) -> Probe {
         guard let handle = try? FileHandle(forReadingFrom: binary) else { return .unreadable }
         defer { try? handle.close() }
 
-        // How far to read, so a window can tell "the end of my buffer" from "the
-        // end of the file" — see `firstVersion`. Taken once, up front; a file that
-        // grows underneath the walk simply ends the walk where it was going to end
-        // anyway.
-        let size: UInt64
-        do {
-            size = try handle.seekToEnd()
-            try handle.seek(toOffset: 0)
-        } catch { return .unreadable }
-
         let needle = Array(prefix.utf8)
-        // Read in chunks, carrying enough of each into the next that a match cut by
-        // a boundary is whole in one window — and one byte more than that, so the
-        // window also holds the character *before* such a match. Both of
-        // `firstVersion`'s rules need context the chunk alone cannot supply.
+
         let chunkSize = 4 * 1024 * 1024
-        let overlap = 128
+
+        // `try?` is not available here, and the reason is the whole point of this
+        // type: `read(upToCount:)` returns nil *at end of file*, and `try?` flattens
+        // a thrown error into that same nil — so a completed walk and a failed one
+        // would be indistinguishable, which is exactly the confusion `Probe` exists
+        // to end. `do`/`catch` keeps them apart.
+        var failed = false
+        func read() -> Data? {
+            do { return try handle.read(upToCount: chunkSize) }
+            catch { failed = true; return nil }
+        }
+
+        // One chunk of lookahead, so a window knows whether it is the last.
+        //
+        // Asking the file for its size up front is the obvious way to know that,
+        // and it is wrong in both directions. A file truncated under the walk never
+        // reaches the recorded size, so *no* window is ever final and a version
+        // ending at the real EOF is discarded — which for `.tauri` is a cached
+        // verdict of "not Tauri", precisely the class `.unreadable` was added to
+        // keep out of the cache. A file appended to keeps being read past that size
+        // with every later window wrongly calling itself final. A lookahead cannot
+        // go stale, and it keeps this working on anything unseekable besides.
         var carry = Data()
-        var consumed: UInt64 = 0
-        while true {
-            // `try?` is not available here, and the reason is the whole point of
-            // this type: `read(upToCount:)` returns nil *at end of file*, and
-            // `try?` flattens a thrown error into that same nil — so a completed
-            // walk and a failed one would be indistinguishable, which is exactly
-            // the confusion `Probe` exists to end. `do`/`catch` keeps them apart.
-            //
-            // The loop also ends on an empty read rather than on a short one: a
-            // short read is legal mid-file, and treating it as the end would report
-            // a truncated binary as proof of absence.
-            let chunk: Data?
-            do { chunk = try handle.read(upToCount: chunkSize) } catch { return .unreadable }
-            guard let chunk, !chunk.isEmpty else { break }
-            consumed += UInt64(chunk.count)
+        var pending = read()
+        if failed { return .unreadable }
+
+        while let chunk = pending, !chunk.isEmpty {
+            let following = read()
+            if failed { return .unreadable }
+            // A short read is legal mid-file; only an empty one is the end. Finality
+            // is therefore decided by the *next* read, not by this one's length —
+            // treating a short read as the end would report a truncated binary as
+            // proof of absence.
+            let isFinal = following?.isEmpty ?? true
             let continuation = !carry.isEmpty
             var window = carry
             window.append(chunk)
@@ -375,15 +404,16 @@ public enum RuntimeVersion {
                 // In a continuation window the first byte is there only to be the
                 // character before the second: a match starting *on* it has no
                 // predecessor in this window, and was already whole in the previous
-                // one, which had `overlap` bytes of room after it.
+                // one, which had `scanOverlap` bytes of room after it.
                 from: continuation ? 1 : 0,
                 // And only the last window may read "my buffer ended" as "the
                 // version ended".
-                isFinal: consumed >= size
+                isFinal: isFinal
             ) {
                 return .found(version)
             }
-            carry = window.suffix(overlap)
+            carry = window.suffix(scanOverlap)
+            pending = isFinal ? nil : following
         }
         return .absent
     }

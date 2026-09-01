@@ -61,6 +61,20 @@ import DuoUpdaterCore
         #expect(route == .vendor)
     }
 
+    /// #192: `VendorInstaller.download()` already vetted "Electron" (electron-
+    /// builder manifests) — the policy switches and `route(for:)` just hadn't
+    /// caught up, so this one-clicked to nothing. Same shape as
+    /// `aVendorArchiveInstalls`, proving the wiring now agrees end to end.
+    @Test func anElectronArchiveInstalls() {
+        let decision = Install.classify(
+            result(source: "Electron"), settings: settings(), environment: environment())
+        guard case .install(let route) = decision else {
+            Issue.record("expected an install, got \(decision)")
+            return
+        }
+        #expect(route == .vendor)
+    }
+
     /// The store route is refused up front rather than attempted and failed
     /// halfway: it needs the privileged helper or the Accessibility API, and a
     /// standalone binary has neither.
@@ -90,6 +104,41 @@ import DuoUpdaterCore
         #expect(why.contains("detection only"))
     }
 
+    /// Same as `detectionOnlyIsRefused`, for Electron: it is a *recognized*
+    /// source (has its own case in `canAutoInstall`/`requiresInstaller`) that
+    /// simply resolved to no artifact this time, so it gets the same "no
+    /// installable artefact we vet" wording — not the "no route wired up"
+    /// wording reserved for sources the policy has never heard of (#193).
+    @Test func electronDetectionOnlyIsRefusedWithTheArtefactWording() {
+        let decision = Install.classify(
+            result(source: "Electron", vendorKind: nil),
+            settings: settings(), environment: environment())
+        guard case .refuse(let why) = decision else {
+            Issue.record("expected a refusal, got \(decision)")
+            return
+        }
+        #expect(why.contains("no installable artefact we vet"))
+    }
+
+    /// #193: the two ways `!canAuto && !needsInstaller` can happen must not
+    /// share a message. A source `UpdatePolicy` has never heard of (no case in
+    /// `canAutoInstall`/`requiresInstaller`, so always `default: false`) has no
+    /// install path even in principle — unlike Electron above, which has a case
+    /// and just didn't resolve an artifact this time. Before #192 this exact
+    /// wording ("no installable artefact we vet") is what Electron got too,
+    /// which is why the bug report is titled "the reason is fake".
+    @Test func aSourceThePolicyHasNoCaseForGetsTheNoRouteWording() {
+        let decision = Install.classify(
+            result(source: "Xcode Releases", vendorKind: nil),
+            settings: settings(), environment: environment())
+        guard case .refuse(let why) = decision else {
+            Issue.record("expected a refusal, got \(decision)")
+            return
+        }
+        #expect(why.contains("no install route is wired up"))
+        #expect(!why.contains("no installable artefact we vet"))
+    }
+
     /// The same rule the app applies: don't swap a bundle under a running app
     /// that updates itself, unless the user asked for exactly that.
     @Test func aRunningSelfUpdaterIsDeferredUnlessOverridden() {
@@ -102,6 +151,26 @@ import DuoUpdaterCore
         }
         guard case .install = Install.classify(
             result(source: "Vendor"),
+            settings: settings(vendorPolicy: .alwaysOverwrite), environment: running)
+        else {
+            Issue.record("alwaysOverwrite should install anyway")
+            return
+        }
+    }
+
+    /// Same rule for Electron (#192): electron-builder apps embed their own
+    /// updater (electron-updater / Squirrel.Mac), so a running one must defer
+    /// exactly like a running Vendor app does above.
+    @Test func aRunningElectronSelfUpdaterIsDeferredUnlessOverridden() {
+        let running = environment(running: true)
+        guard case .refuse = Install.classify(
+            result(source: "Electron"), settings: settings(), environment: running)
+        else {
+            Issue.record("a running electron app should defer under deferWhenRunning")
+            return
+        }
+        guard case .install = Install.classify(
+            result(source: "Electron"),
             settings: settings(vendorPolicy: .alwaysOverwrite), environment: running)
         else {
             Issue.record("alwaysOverwrite should install anyway")
@@ -126,6 +195,25 @@ import DuoUpdaterCore
                 sourceName: "Alcove", requiresManualInstaller: false),
             status: .updateAvailable(latest: "2.0"))
         #expect(InstallCoordinator.route(for: unknown, requiresInstaller: false) == .sparkle)
+    }
+
+    /// #192: Electron is no longer an unknown source — `route(for:)` must send
+    /// it to `.vendor`, same as Vendor/GitHub, not fall through to `.sparkle`
+    /// (which would hand an electron-builder zip to `SparkleInstaller`, which
+    /// throws `.notSparkleUpdate` for any non-Sparkle source).
+    @Test func anElectronSourceRoutesToVendor() {
+        let electron = UpdateResult(
+            app: InstalledApp(
+                name: "Fixture", bundleID: "com.example.fixture", shortVersion: "1.0",
+                buildVersion: "1", path: URL(fileURLWithPath: "/Applications/Fixture.app"),
+                isMASApp: false, sparkleFeedURL: nil),
+            remote: RemoteVersion(
+                shortVersion: "2.0", version: nil,
+                downloadURL: URL(string: "https://example.com/fixture.zip"),
+                sourceName: "Electron", requiresManualInstaller: false,
+                vendorInstallerKind: .zip),
+            status: .updateAvailable(latest: "2.0"))
+        #expect(InstallCoordinator.route(for: electron, requiresInstaller: false) == .vendor)
     }
 
     @Test func requiringAnInstallerBeatsTheSourceName() {

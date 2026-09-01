@@ -206,6 +206,27 @@ private func storeAvailability(
             settings: defaultSettings(), environment: environment(),
             expected: true
         ),
+        // Electron: an electron-builder manifest, gated exactly like Vendor/GitHub
+        // (see #192 — `VendorInstaller.download()` already vetted this source,
+        // the policy switches just hadn't caught up).
+        (
+            name: "electron manifest with a resolved installer archive is auto-installable",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .zip),
+            settings: defaultSettings(), environment: environment(),
+            expected: true
+        ),
+        (
+            name: "electron manifest with no resolved artifact (detection-only) is not auto-installable",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: nil),
+            settings: defaultSettings(), environment: environment(),
+            expected: false
+        ),
+        (
+            name: "electron manifest with requiresManualInstaller is not auto-installable",
+            result: fixtureResult(source: "Electron", requiresManualInstaller: true, vendorInstallerKind: .zip),
+            settings: defaultSettings(), environment: environment(),
+            expected: false
+        ),
         // App Store: needs availability info, and the route gate (full → helper).
         (
             name: "app store with full strategy and helper approved is auto-installable",
@@ -364,6 +385,21 @@ private func storeAvailability(
             expected: true
         ),
         (
+            // electron-builder can publish a `.pkg` alongside its Squirrel `.zip` —
+            // `ElectronManifestSource.kind(of:)` recognises the extension — so this
+            // needs the same system-installer route as Vendor/GitHub (see #192).
+            name: "electron pkg needs the system installer",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .pkg),
+            settings: defaultSettings(), environment: environment(),
+            expected: true
+        ),
+        (
+            name: "electron zip does not need the system installer",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .zip),
+            settings: defaultSettings(), environment: environment(),
+            expected: false
+        ),
+        (
             name: "sparkle archive does not route to the system installer",
             result: fixtureResult(
                 source: "Sparkle", downloadURL: URL(string: "https://example.com/fixture.dmg"),
@@ -439,6 +475,24 @@ private func storeAvailability(
         (
             name: "GitHub source still installs under alwaysOverwrite",
             result: fixtureResult(source: "GitHub", vendorInstallerKind: .dmg),
+            settings: defaultSettings(policy: .alwaysOverwrite),
+            environment: environment(running: [fixturePath]),
+            expected: false
+        ),
+        // Electron: apps built with electron-builder embed electron-updater
+        // (Squirrel.Mac on macOS), so they are self-updating the same way GitHub-
+        // sourced apps are treated above — see #192 for the incident that made
+        // omitting a source here a user-visible bug, not a cosmetic gap.
+        (
+            name: "electron source defers while running — electron-updater/Squirrel.Mac self-updates too",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .zip),
+            settings: defaultSettings(policy: .deferWhenRunning),
+            environment: environment(running: [fixturePath]),
+            expected: true
+        ),
+        (
+            name: "electron source still installs under alwaysOverwrite",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .zip),
             settings: defaultSettings(policy: .alwaysOverwrite),
             environment: environment(running: [fixturePath]),
             expected: false
@@ -523,6 +577,42 @@ private func storeAvailability(
     for c in cases {
         let actual = UpdatePolicy.defersToSelfUpdater(c.result, settings: c.settings, environment: c.environment)
         #expect(actual == c.expected, "\(c.name): expected \(c.expected), got \(actual)")
+    }
+}
+
+// MARK: - stagedBlocksInstall (Electron)
+
+/// `stagedBlocksInstall`'s own route list lives in `StagedBlocksInstallTests.swift`
+/// (out of scope for #192's lane); this pins the one row that changed there —
+/// Electron moving from the unlisted default (`nil`, unprotected) to the
+/// protected list alongside Vendor/GitHub/Sparkle. electron-updater/Squirrel.Mac
+/// parks its own staged build exactly like Sparkle's ShipIt does, so a stale
+/// staging directory here is the same collision this function exists to catch,
+/// not a leftover from a mechanism we don't swap ourselves.
+@Test func electronStagedBuildBlocksInstall() {
+    let result = fixtureResult(source: "Electron", vendorInstallerKind: .zip)
+    let blocking = UpdatePolicy.stagedBlocksInstall(
+        result, staged: staged("9.9.9"))
+    #expect(blocking != nil)
+}
+
+@Test func electronWithNoStagedBuildIsNotBlocked() {
+    let result = fixtureResult(source: "Electron", vendorInstallerKind: .zip)
+    #expect(UpdatePolicy.stagedBlocksInstall(result, staged: nil) == nil)
+}
+
+// MARK: - isRecognizedInstallSource
+
+/// Backs `duo install`'s refusal text (#193): a source the policy has a case
+/// for, versus one that always falls to `default: false` in
+/// `canAutoInstall`/`requiresInstaller` and so has no install path even in
+/// principle.
+@Test func isRecognizedInstallSourceMatchesThePolicySwitches() {
+    for name in ["Sparkle", "Homebrew", "Vendor", "GitHub", "Electron", "App Store"] {
+        #expect(UpdatePolicy.isRecognizedInstallSource(name), "\(name) should be recognized")
+    }
+    for name in ["Toolbox", "TestFlight", "Xcode Releases", "SomeFutureSource", nil] {
+        #expect(!UpdatePolicy.isRecognizedInstallSource(name), "\(name ?? "nil") should not be recognized")
     }
 }
 
@@ -1059,6 +1149,12 @@ struct LaggingRemoteVersionTests {
         // the input-method rule and not a missing field.
         ("a Homebrew cask", fixtureResult(source: "Homebrew", sourceIdentifier: "fixture", app: app)),
         ("a detection-only vendor recipe", fixtureResult(source: "Vendor", app: app)),
+        // Electron is deliberately NOT in `isContentsRotatable`'s switch (#192):
+        // unlike Vendor, we have no vetted registry over what an arbitrary
+        // electron-builder manifest ships, so an Electron-packaged input method
+        // stays closed even with a well-formed zip archive — the safe default,
+        // not an oversight.
+        ("an electron zip", fixtureResult(source: "Electron", vendorInstallerKind: .zip, app: app)),
     ]
     for (what, result) in refused {
         #expect(!UpdatePolicy.canAutoInstall(

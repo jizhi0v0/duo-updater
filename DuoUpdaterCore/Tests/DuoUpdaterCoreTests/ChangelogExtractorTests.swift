@@ -2732,3 +2732,92 @@ private let typeWhisperFixture = #"""
     let log = try #require(ChangelogExtractor.extract(from: trimmed, using: recipe))
     #expect(log.entries.map(\.version) == ["0.51.0", "0.50.0"])
 }
+
+/// A trimmed slice of Eudic's live Sparkle appcast (fetched 2026-09-01), keeping
+/// every shape the recipe has to survive: the `<h2>` current release separated
+/// from its own notes by an `<h3>更新内容</h3>` LABEL, a bare `<h3>` version, a
+/// suffixed one, a suffixed one with no space, a section whose lines are wrapped
+/// in `<b>`, the CDATA close, and one of the 2010-era stub `<item>`s that follows
+/// it in the real feed.
+private let eudicAppcastFixture = #"""
+        <item>
+            <title>《欧路词典》Mac 26.9.0</title>
+            <description><![CDATA[
+                <h2>《欧路词典》Mac 26.9.0 更新</h2>
+                <h3>更新内容</h3>
+                  <p>
+                    - 全新 界面大改版 符合现代MacOS设计规范<br>
+                    - 新增 可以隐藏Docker栏图标<br>
+                    - 改进 2026秋季词库更新
+                </p>
+                <h3>4.9.0</h3>
+                <p>
+                    - 新增 词库在线同步功能<br>
+                    - 新增 同声传译功能<br>
+                    - 词库更新
+                </p>
+                <h3>3.6.0 改进</h3>
+                <p>
+                新增 导出生词本时可以单独导出笔记了<br />
+                新增 浏览第三方词典库内单词<br />
+                </p>
+                <h3>3.5.0 改进</h3>
+                <p>
+                <b>支持TouchBar操作</b><br />
+                <b>支持macOS Sierra系统</b><br />
+                新增 支持Mdx格式词库全文检索<br />
+                </p>
+                <h3>2.5.2改进</h3>
+                <p>
+                - 新增 输入单词时即时提示（可在设置中心里开启）<br />
+                - 新增 双击单词自动跳转解释
+                </p>
+            ]]></description>
+            <pubDate>2026-08-31</pubDate>
+        </item>
+        <item>
+            <title>《欧路词典》Mac 1.7.0</title>
+            <description><![CDATA[<h2>新增功能</h2>
+            <p>新增学习菜单，提供：<br />在线学习记录同步。</p>
+            ]]></description>
+        </item>
+"""#
+
+@Test func eudicSplitsOneAppcastDescriptionIntoOneEntryPerVersion() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.eusoft.eudic"))
+    let log = try #require(ChangelogExtractor.extract(from: eudicAppcastFixture, using: recipe))
+
+    // The whole history lives in ONE item's description, so the win is that it
+    // becomes several entries rather than sixteen years under "26.9.0".
+    #expect(log.entries.map(\.version) == ["26.9.0", "4.9.0", "3.6.0", "3.5.0", "2.5.2"])
+
+    // "更新内容" is a label, not a release. Keying on the heading TAG would make it
+    // an entry and steal 26.9.0's notes; keying on a dotted number steps over it.
+    #expect(!log.entries.contains { $0.version.contains("更新") })
+    #expect(log.entries[0].items == [
+        "全新 界面大改版 符合现代MacOS设计规范",
+        "新增 可以隐藏Docker栏图标",
+        "改进 2026秋季词库更新",
+    ])
+
+    // The suffix forms the vendor uses, with and without a space before it.
+    #expect(log.entries[2].version == "3.6.0")
+    #expect(log.entries[4].version == "2.5.2")
+
+    // Pre-3.7 sections wrap whole lines in <b>. A no-tag item capture (`[^<]+`)
+    // silently dropped every one of them — the failure this pattern is shaped
+    // against, because a partial parse suppresses the fallback.
+    #expect(log.entries[3].items == [
+        "支持TouchBar操作",
+        "支持macOS Sierra系统",
+        "新增 支持Mdx格式词库全文检索",
+    ])
+
+    // The last section must stop at the CDATA close. Without that terminator it
+    // runs on into the 2010-era stub items that fill the rest of the feed.
+    #expect(log.entries[4].items == [
+        "新增 输入单词时即时提示（可在设置中心里开启）",
+        "新增 双击单词自动跳转解释",
+    ])
+    #expect(!log.entries.contains { $0.items.contains { $0.contains("在线学习记录同步") } })
+}

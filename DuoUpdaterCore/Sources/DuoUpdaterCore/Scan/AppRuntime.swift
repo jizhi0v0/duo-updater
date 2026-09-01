@@ -46,10 +46,16 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     /// bundle and nothing else, so it travels; "links AppKit" is true of a helper
     /// process and of the interface alike, so it does not. `.iOSApp` is decided by
     /// a wrapper layout that cannot occur one level down inside `Contents/MacOS`.
+    ///
+    /// `.tauri` is the case that looks like it belongs here and does not. It is not
+    /// shipped beside the binary, it is *compiled into* it, which is why
+    /// `RuntimeVersion` refuses to follow the redirect for it — see the note there.
+    /// A nested bundle that may not lend its version must not lend its name either,
+    /// or the row would be labelled from a binary the popover is forbidden to read.
     var isBundled: Bool {
         switch self {
-        case .electron, .tauri, .flutter, .qt, .java, .chromium: true
-        case .native, .catalyst, .iOSApp: false
+        case .electron, .flutter, .qt, .java, .chromium: true
+        case .tauri, .native, .catalyst, .iOSApp: false
         }
     }
 }
@@ -153,8 +159,10 @@ public enum AppRuntimeDetector {
     ///
     /// - Parameter followingNestedBundle: whether a wrapper that ships no runtime
     ///   of its own may be answered from the single `.app` nested inside it. False
-    ///   only in that recursive call, so the descent is one level deep by
-    ///   construction and cannot loop on a bundle that nests itself.
+    ///   only in that recursive call, so the descent this function makes is one
+    ///   level deep. It is not the whole story about termination — the proof this
+    ///   passes down re-enters through `RuntimeVersion`, which is why that side
+    ///   declines the redirect for `.tauri`.
     public static func read(
         bundleAt bundleURL: URL,
         isiOSAppOnMac: Bool,
@@ -234,16 +242,24 @@ public enum AppRuntimeDetector {
         //
         // `Contents/MacOS/*.app` is also where *subprocesses* live, so recursing
         // into any nested bundle would start attributing a helper's runtime to its
-        // host. Three conditions keep the two apart, measured over the 214 bundles
-        // in `/Applications`, `~/Applications`, `/System/Applications` and their
-        // Utilities folders — six have a nested `.app` and only Docker passes:
+        // host. Three conditions keep the two apart. Measured over the 146 bundles
+        // `AppScanner.defaultLocations` actually reads — /Applications, its
+        // Utilities, ~/Applications and the two Input Methods folders, minus
+        // anything resolving under /System — seven nest an `.app` and only Docker
+        // passes:
         //
-        // 1. **The outer bundle ships no framework of its own.** An app with a GUI
-        //    of its own has something in `Contents/Frameworks`; the other five here
-        //    have 3 to 29 entries, Docker has no such directory. A wrapper that
-        //    brings nothing is not the thing drawing the windows.
+        // 1. **The outer bundle ships no framework of its own.** The weakest of the
+        //    three and worth saying so: 35 of those 146 ship none, and they are
+        //    ordinary apps drawing their own windows — MarkEdit, Keka, Figma,
+        //    IntelliJ. This condition does not identify a wrapper. What it does is
+        //    hold the one near-miss on this machine: `/Applications/WeChat.app`
+        //    nests exactly one `.app`, and that one ships
+        //    `WeChatAppEx Framework.framework`, which satisfies the Chromium rule
+        //    above — so WeChat passes conditions 2 and 3, and its own 28 frameworks
+        //    are the only thing between it and a label read off its web-view
+        //    subprocess. Do not weaken this one.
         // 2. **Exactly one nested `.app`.** Helpers come in sets — Parallels ships
-        //    three, QQ four, WeChat two. A lone nested bundle is not proof, but a
+        //    three, QQ four, WeType two. A lone nested bundle is not proof, but a
         //    crowd of them is proof of the opposite.
         // 3. **The nested bundle names a runtime it *bundled*.** OrbStack's sole
         //    nested `scli.app` is a CLI helper and would pass 1 and 2 if OrbStack
@@ -251,12 +267,16 @@ public enum AppRuntimeDetector {
         //    Only the cases decided by positive, bundled evidence are adopted —
         //    `.native` and `.catalyst` are read off a binary's load commands, which
         //    a helper links exactly like an interface, and adopting those would be
-        //    guessing. The outer bundle's own answer stands instead.
+        //    guessing. See `AppRuntime.isBundled` for why `.tauri` is excluded too.
+        //    The outer bundle's own answer stands in all of those cases.
         //
-        // The whole rule therefore fails toward silence: a nested bundle that
-        // cannot prove what it is leaves the label where it was.
+        // Placed after the layout rules and before the ones that read a binary, so
+        // a nested runtime never overrides a runtime the outer bundle proved it
+        // ships — but it does take precedence over the outer's Tauri/Catalyst/native
+        // verdicts, which are read from a launcher's load commands. That is the
+        // intent: when the wrapper brings nothing and the bundle inside it brings a
+        // whole runtime, the load commands describe the launcher, not the app.
         if followingNestedBundle,
-           frameworkNames.isEmpty,
            let nested = nestedInterface(
             in: contents, linkedLibraries: linkedLibraries,
             carriesTauriCrate: carriesTauriCrate, fm: fm) {
@@ -343,15 +363,11 @@ public enum AppRuntimeDetector {
     /// without this the row would say Electron and the popover would have no
     /// version to show, from a bundle that plainly carries one.
     public static func interfaceBundle(at bundleURL: URL) -> URL {
-        let contents = bundleURL.appendingPathComponent("Contents")
-        let fm = FileManager.default
-        let frameworksDirectory = contents.appendingPathComponent("Frameworks")
-        guard ((try? fm.contentsOfDirectory(atPath: frameworksDirectory.path)) ?? []).isEmpty,
-              let nested = nestedInterface(
-                in: contents,
-                linkedLibraries: { MachOImports.linkedLibraries(at: $0) },
-                carriesTauriCrate: RuntimeVersion.carriesTauriCrate(bundleAt:),
-                fm: fm)
+        guard let nested = nestedInterface(
+            in: bundleURL.appendingPathComponent("Contents"),
+            linkedLibraries: { MachOImports.linkedLibraries(at: $0) },
+            carriesTauriCrate: RuntimeVersion.carriesTauriCrate(bundleAt:),
+            fm: FileManager.default)
         else { return bundleURL }
         return nested.bundle
     }
@@ -360,19 +376,42 @@ public enum AppRuntimeDetector {
     /// names a runtime it had to bundle. Nil for every other shape — no nested
     /// bundle, more than one, or one that proves nothing about itself.
     ///
-    /// The caller has already established that the outer bundle ships no frameworks;
-    /// this is the part both callers must agree on, so it lives in one place.
+    /// All three conditions live here, in one copy, because `read` and
+    /// `interfaceBundle` have to reach the same verdict for the runtime's name and
+    /// its version to describe the same bundle.
     private static func nestedInterface(
         in contents: URL,
         linkedLibraries: LibraryReader,
         carriesTauriCrate: TauriProof,
         fm: FileManager
     ) -> (bundle: URL, reading: Reading)? {
+        // Condition 1, and the one place in this file where "no frameworks" has to
+        // mean more than an empty list. Every rule above reads `Contents/Frameworks`
+        // as `(try? …) ?? []`, where a directory that cannot be *listed* is
+        // indistinguishable from one that is not there — harmless for those, since
+        // an unreadable directory simply fails to match a framework name. Here it
+        // would flip the answer the other way and hand the label to a subprocess, so
+        // the absence has to be established rather than assumed: an empty listing
+        // counts, a failed listing counts only if the directory really is gone.
+        let frameworks = contents.appendingPathComponent("Frameworks")
+        let listing = try? fm.contentsOfDirectory(atPath: frameworks.path)
+        guard listing?.isEmpty ?? !fm.fileExists(atPath: frameworks.path) else { return nil }
+
+        // A bundle is a directory, and the tally has to say so: `Contents/MacOS` is
+        // mostly executables, and a plain file named `uninstall.app` counting as a
+        // second bundle would take the count to two and turn the rule off with
+        // nothing anywhere saying why. `isDirectory` follows symlinks, so a nested
+        // bundle reached through one still counts and a broken link does not.
         let macOS = contents.appendingPathComponent("MacOS")
-        let nestedNames = ((try? fm.contentsOfDirectory(atPath: macOS.path)) ?? [])
-            .filter { $0.hasSuffix(".app") }
-        guard nestedNames.count == 1 else { return nil }
-        let nested = macOS.appendingPathComponent(nestedNames[0])
+        let nested = ((try? fm.contentsOfDirectory(atPath: macOS.path)) ?? [])
+            .filter { name in
+                guard name.hasSuffix(".app") else { return false }
+                var isDirectory: ObjCBool = false
+                return fm.fileExists(atPath: macOS.appendingPathComponent(name).path,
+                                     isDirectory: &isDirectory) && isDirectory.boolValue
+            }
+            .map(macOS.appendingPathComponent)
+        guard nested.count == 1, let nested = nested.first else { return nil }
         let plist = NSDictionary(
             contentsOf: nested.appendingPathComponent("Contents/Info.plist")) as? [String: Any]
         let reading = read(

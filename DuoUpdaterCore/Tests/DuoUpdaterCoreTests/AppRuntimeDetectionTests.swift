@@ -400,6 +400,10 @@ func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
     // rule is correct about the launcher and none of them is looking at the app.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let wrapper = try builder.app("Docker", executable: "com.docker.backend")
+    // Docker's outer bundle has no `Contents/Frameworks` at all, which is not the
+    // same thing as an empty one — the rule has to accept both, and only this test
+    // constructs the shape that actually ships.
+    try FileManager.default.removeItem(at: wrapper.appendingPathComponent("Contents/Frameworks"))
     let gui = try builder.app("Docker Desktop", frameworks: ["Electron Framework.framework"])
     try builder.nest(gui, in: wrapper)
     #expect(detect(wrapper, plist: ["CFBundleExecutable": "com.docker.backend"],
@@ -407,14 +411,22 @@ func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
 }
 
 @Test func aWrapperThatShipsFrameworksOfItsOwnIsNotReadFromANestedBundle() throws {
-    // OrbStack, WeChat and QQ all keep a nested `.app` under `Contents/MacOS` and
-    // all ship 3 to 29 frameworks of their own. An app carrying its own runtime is
-    // the app; recursing there would hand a helper's identity to its host.
+    // WeChat's shape, and the live near-miss: `/Applications/WeChat.app` nests
+    // exactly one `.app`, and that one ships `WeChatAppEx Framework.framework`,
+    // which satisfies the Chromium rule. Conditions 2 and 3 both pass. Its own 28
+    // frameworks are the only thing keeping the row from being labelled off a
+    // web-view subprocess.
+    //
+    // The host ships `Sparkle.framework` deliberately: it has to fall through every
+    // rule above the nested one, or `read` returns before reaching the condition
+    // under test and the test proves nothing. With `frameworkNames.isEmpty` deleted
+    // from the rule, this is what fails.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
-    let host = try builder.app("Suite", frameworks: ["QtCore.framework"])
-    let helper = try builder.app("Renderer", frameworks: ["Electron Framework.framework"])
-    try builder.nest(helper, in: host)
-    #expect(detect(host, libraries: reader(appKit)) == .qt)
+    let host = try builder.app("WeChatish", frameworks: ["Sparkle.framework"])
+    let subprocess = try builder.app("AppEx", frameworks: ["AppEx Framework.framework"])
+    try builder.nest(subprocess, in: host)
+    #expect(detect(host, libraries: reader(appKit)) == .native)
+    #expect(AppRuntimeDetector.interfaceBundle(at: host) == host)
 }
 
 @Test func severalNestedBundlesReadAsHelpersRatherThanAsAnInterface() throws {
@@ -434,10 +446,27 @@ func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
     // conditions and has nothing to say about itself. `.native` and `.catalyst` are
     // read off load commands, which a helper carries exactly like an interface, so
     // neither is adopted — only a runtime the nested bundle had to *ship*.
+    //
+    // The two bundles have to link *different* things or this cannot fail: with one
+    // reader answering the same list for both, adopting the nested reading and
+    // declining it produce the same verdict, and the guard could be deleted for
+    // free. Here the outer is Catalyst and the nested is plain native, so an
+    // adopted reading changes the answer and the assertion sees it.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let wrapper = try builder.app("Tool")
     try builder.nest(try builder.app("scli"), in: wrapper)
-    #expect(detect(wrapper, libraries: reader(appKit)) == .native)
+    #expect(detect(wrapper, libraries: reader(byPath: [
+        "scli.app": [appKit],
+        "Tool.app": [catalystUIKit, appKit],
+    ])) == .catalyst)
+
+    // And the other way round, so neither verdict is adopted in either direction.
+    let ported = try builder.app("Ported")
+    try builder.nest(try builder.app("agent"), in: ported)
+    #expect(detect(ported, libraries: reader(byPath: [
+        "agent.app": [catalystUIKit, appKit],
+        "Ported.app": [appKit],
+    ])) == .native)
 
     let silent = try builder.app("Mystery")
     try builder.nest(try builder.app("mystery-cli"), in: silent)
@@ -445,10 +474,13 @@ func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
 }
 
 @Test func theNestedReadingIsAdoptedWholeIncludingWhatItLinks() throws {
-    // Both halves of the reading have to come from the same bundle or the popover
-    // contradicts itself. Docker's launcher links AppKit and its Electron stub links
-    // only the framework, so the line under the label is empty — which is the fact
-    // about the interface, where "AppKit" was the fact about a background daemon.
+    // Both halves of the reading have to come from the same bundle, because
+    // `InstalledApp.linkedFrameworks` is documented as the link list of whichever
+    // executable `runtime` describes. Docker's are two different binaries: its
+    // launcher is a Go daemon linking AppKit, its Electron stub links only the
+    // framework. `RuntimeTag.linkedLine` draws this only for `.native` and
+    // `.catalyst`, so nothing renders it for Docker either way — the contract is
+    // what is being kept here, ahead of the first consumer that relies on it.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let wrapper = try builder.app("Docker", executable: "com.docker.backend")
     try builder.nest(try builder.app("Docker Desktop", frameworks: ["Electron Framework.framework"]),
@@ -510,6 +542,64 @@ func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
     try builder.nest(try builder.app("Helper", frameworks: ["Electron Framework.framework"]),
                      in: host)
     #expect(AppRuntimeDetector.interfaceBundle(at: host) == host)
+}
+
+@Test func aPlainFileNamedLikeABundleDoesNotCountAsOne() throws {
+    // `Contents/MacOS` is mostly executables. A file called `uninstall.app` beside
+    // the real interface would take the tally to two and turn the rule off, and
+    // nothing anywhere would say why — the app would simply keep the wrong label.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let wrapper = try builder.app("Docker", executable: "com.docker.backend")
+    try builder.nest(try builder.app("Docker Desktop", frameworks: ["Electron Framework.framework"]),
+                     in: wrapper)
+    try Data().write(to: wrapper.appendingPathComponent("Contents/MacOS/uninstall.app"))
+    #expect(detect(wrapper, plist: ["CFBundleExecutable": "com.docker.backend"],
+                   libraries: reader(appKit)) == .electron)
+}
+
+@Test func aTauriVersionIsNeverReadFromANestedBundle() throws {
+    // Tauri is compiled into the executable rather than shipped beside it, so a
+    // crate path found one level down is a fact about that binary and nothing else.
+    // Following the redirect would let a nested bundle lend its identity to its
+    // wrapper — the error the rest of this rule exists to prevent.
+    //
+    // It is also the edge that would close a cycle: `carriesTauriCrate` is
+    // `RuntimeVersion.read`, the detector calls it, and `interfaceBundle` calls the
+    // detector. That consequence is deliberately not tested by timing a bundle
+    // whose `Contents/MacOS` links to itself — the re-entrant call goes through the
+    // production proof, so a counter cannot see it, and the only signal left is a
+    // clock. The exemption below is the thing that has to hold; the loop follows
+    // from it. Measured while it did not hold: 1.83s against 0.071s, ~26 walks of a
+    // 60 MB binary, terminating only when the path outgrew PATH_MAX.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let wrapper = try builder.app("Wrapper")
+    let inner = try builder.app(
+        "Inner", executableContents: "registry/src/index/tauri-2.11.5/src/lib.rs",
+        frameworks: ["Electron Framework.framework"])
+    try builder.nest(inner, in: wrapper)
+    #expect(AppRuntimeDetector.interfaceBundle(at: wrapper).lastPathComponent == "Inner.app")
+    #expect(RuntimeVersion.read(.tauri, bundleAt: wrapper, scanningBinaries: true) == nil)
+}
+
+@Test(.enabled(if: geteuid() != 0, "chmod 000 does not stop root, and this turns on a read failing"))
+func aFrameworksDirectoryThatCannotBeListedIsNotReadAsAnAbsentOne() throws {
+    // Everywhere else in this file `Contents/Frameworks` is read as
+    // `(try? …) ?? []`, and a directory that cannot be listed simply fails to match
+    // a framework name — harmless. For this rule the same collapse would flip the
+    // answer the other way and hand the label to a subprocess, so the absence has
+    // to be established rather than assumed.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let host = try builder.app("Guarded")
+    try builder.nest(try builder.app("Inner", frameworks: ["Electron Framework.framework"]),
+                     in: host)
+    let frameworks = host.appendingPathComponent("Contents/Frameworks")
+    try FileManager.default.setAttributes([.posixPermissions: 0o000],
+                                          ofItemAtPath: frameworks.path)
+    defer {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755],
+                                               ofItemAtPath: frameworks.path)
+    }
+    #expect(detect(host, libraries: reader(appKit)) == .native)
 }
 
 // MARK: - Failing closed

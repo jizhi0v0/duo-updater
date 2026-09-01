@@ -2,24 +2,32 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
-// A trimmed fixture mirroring CleanShot's real markup (Nuxt `data-v-*` attrs,
-// `&quot;` entity, multiple entries, one with several items and one with a single
-// item). Kept inline so the parser is tested offline, no network.
+// A trimmed fixture mirroring CleanShot's real markup (Nuxt `data-v-*` attrs and
+// `<!--[-->` fragment markers, `&quot;` entity, multiple entries, one with several
+// items and one with a single item). Kept inline so the parser is tested offline,
+// no network.
+//
+// Re-cut 2026-09-01 against the page as it was rebuilt for the 5.0 release: the
+// date now precedes the number, and `content` > `topbar` wrap it. The items are the
+// ones this file's tests have always asserted on; only the structure around them
+// moved. See CleanShotChangelogRecipeTests for the two blocks kept verbatim.
 private let cleanshotFixture = """
-<div class="col-1224" data-v-62d3e76f><h1 class="heading">Changelog</h1>
-<section class="versions" data-v-62d3e76f>
-<div class="version" data-v-62d3e76f><div class="number" data-v-62d3e76f>4.8.8</div>\
-<div class="date" data-v-62d3e76f>23 March, 2026</div>\
-<ul class="changes" data-v-62d3e76f>\
-<li class="change" data-v-62d3e76f>Fixed issue with recording microphone</li>\
-<li class="change" data-v-62d3e76f>Fixed bug with the &quot;Ask for Name&quot; dialog not receiving focus</li>\
-<li class="change" data-v-62d3e76f>Minor fixes &amp; UX improvements</li>\
-</ul></div>\
-<div class="version" data-v-62d3e76f><div class="number" data-v-62d3e76f>4.8.7</div>\
-<div class="date" data-v-62d3e76f>22 December, 2025</div>\
-<ul class="changes" data-v-62d3e76f>\
-<li class="change" data-v-62d3e76f>Fixed an issue that caused CleanShot to crash</li>\
-</ul></div>\
+<div class="col-1224" data-v-0266dac0><h1 class="heading">Changelog</h1>
+<section class="versions" data-v-0266dac0>
+<div class="version" data-v-0266dac0 data-v-55b70507><div class="date" data-v-55b70507>23 March, 2026</div>\
+<div class="content" data-v-55b70507><div class="topbar" data-v-55b70507>\
+<div class="number" data-v-55b70507>4.8.8</div><!----></div><!--[--><!--]--><!--[-->\
+<ul class="changes" data-v-0266dac0 data-v-55b70507-s>\
+<li class="change" data-v-55b70507-s>Fixed issue with recording microphone</li>\
+<li class="change" data-v-55b70507-s>Fixed bug with the &quot;Ask for Name&quot; dialog not receiving focus</li>\
+<li class="change" data-v-55b70507-s>Minor fixes &amp; UX improvements</li>\
+</ul><!--]--></div></div>\
+<div class="version" data-v-0266dac0 data-v-55b70507><div class="date" data-v-55b70507>22 December, 2025</div>\
+<div class="content" data-v-55b70507><div class="topbar" data-v-55b70507>\
+<div class="number" data-v-55b70507>4.8.7</div><!----></div><!--[--><!--]--><!--[-->\
+<ul class="changes" data-v-0266dac0 data-v-55b70507-s>\
+<li class="change" data-v-55b70507-s>Fixed an issue that caused CleanShot to crash</li>\
+</ul><!--]--></div></div>\
 </section></div>
 """
 
@@ -632,8 +640,9 @@ private let bionicFixture = """
     // A version block with an empty list contributes nothing; with all blocks
     // empty the extractor returns nil so the UI falls back to the web view.
     let html = """
-    <div class="version"><div class="number">9.9.9</div>\
-    <div class="date">today</div><ul class="changes"></ul></div>
+    <div class="version"><div class="date">today</div><div class="content">\
+    <div class="topbar"><div class="number">9.9.9</div></div>\
+    <ul class="changes"></ul></div></div>
     """
     let recipe = ChangelogRecipeRegistry.recipe(forBundleID: "pl.maketheweb.cleanshotx")!
     #expect(ChangelogExtractor.extract(from: html, using: recipe) == nil)
@@ -648,15 +657,13 @@ private let bionicFixture = """
     #expect(ChangelogExtractor.extract(from: cleanshotFixture, using: recipe) == nil)
 }
 
-@Test func maxEntriesCapsOutput() {
-    let recipe = ChangelogRecipe(
-        bundleID: "pl.maketheweb.cleanshotx",
-        source: URL(string: "https://cleanshot.com/changelog")!,
-        entryPattern:
-            #"<div class="version"[^>]*>\s*<div class="number"[^>]*>(?<version>[^<]+)</div>\s*"#
-            + #"(?:<div class="date"[^>]*>(?<date>[^<]*)</div>\s*)?<ul[^>]*class="changes"[^>]*>(?<body>.*?)</ul>"#,
-        itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
-        maxEntries: 1)
+@Test func maxEntriesCapsOutput() throws {
+    // The cap is the only thing under test, so the recipe is the registry's own
+    // with that one field changed. Written out by hand, this test kept a private
+    // copy of CleanShot's entry pattern — which went stale the day the vendor
+    // rebuilt the page (2026-09-01) and had to be repaired twice for one change.
+    var recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "pl.maketheweb.cleanshotx"))
+    recipe.maxEntries = 1
     let changelog = ChangelogExtractor.extract(from: cleanshotFixture, using: recipe)
     #expect(changelog?.entries.count == 1)
     #expect(changelog?.entries.first?.version == "4.8.8")

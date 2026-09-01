@@ -10,10 +10,10 @@ import Foundation
 /// the bundle does not say.
 ///
 /// Every case is decided from something the packager *wrote*: a framework it had
-/// to bundle, a directory its launcher needs, or the dylibs its executable links.
-/// Nothing here guesses from an app's name or vendor. See `AppRuntimeDetector` for
-/// the evidence behind each case, and note that `tauri` is the one heuristic in
-/// the set.
+/// to bundle, a directory its launcher needs, the dylibs its executable links, or
+/// a Cargo path baked into it. Nothing here guesses from an app's name or vendor,
+/// and nothing is inferred from the absence of a marker. See `AppRuntimeDetector`
+/// for the evidence behind each case.
 public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     /// A wrapped iPhone/iPad app running on Apple Silicon.
     case iOSApp = "ios"
@@ -21,7 +21,9 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     case catalyst
     /// Chromium + Node, bundled by Electron.
     case electron
-    /// A Rust binary drawing into the system WebView (Tauri / wry).
+    /// A Rust app built on the Tauri framework, drawing into the system WebView.
+    /// Requires the `tauri` crate itself: wry — the WebView layer Tauri sits on —
+    /// is embedded by apps that are not Tauri at all.
     case tauri
     /// Flutter's macOS embedder.
     case flutter
@@ -79,7 +81,7 @@ public struct LinkedFrameworks: OptionSet, Sendable, Hashable, Codable {
 
 /// Reads an installed bundle and says which runtime it was built with.
 ///
-/// Two evidence sources, cheapest first:
+/// Three evidence sources, cheapest first:
 ///
 /// 1. **Bundle layout.** A packager cannot hide the runtime it bundles: Electron
 ///    ships `Electron Framework.framework` (or an `app.asar`), Flutter ships
@@ -90,8 +92,12 @@ public struct LinkedFrameworks: OptionSet, Sendable, Hashable, Codable {
 ///    all — nothing on disk says AppKit. The executable's linked dylibs do, and
 ///    they also separate a Catalyst app (links out of `/System/iOSSupport/`) from
 ///    an AppKit one. See `MachOImports`.
+/// 3. **Binary contents.** Tauri writes nothing to either — its only trace is a
+///    Cargo path inside the executable. Reading a whole binary is far too
+///    expensive to do for every app, so it runs only for the bundles the first
+///    two sources have already narrowed to a handful. See the `tauri` rule below.
 ///
-/// Returns nil when neither source recognizes anything, which is the honest answer
+/// Returns nil when none of the three recognizes anything, which is the honest answer
 /// for a launcher shell script, a Python app, or a C++ app that links neither
 /// AppKit nor a bundled toolkit — the UI shows no badge rather than a wrong one.
 public enum AppRuntimeDetector {
@@ -99,6 +105,12 @@ public enum AppRuntimeDetector {
     /// Injected so the rules can be tested without a real Mach-O binary on disk.
     /// Production always passes `MachOImports.linkedLibraries(at:)`.
     public typealias LibraryReader = (URL) -> Set<String>?
+
+    /// Whether a bundle's executable actually carries the Tauri framework crate —
+    /// the one rule here that needs the *contents* of a binary rather than its
+    /// header. Injected for the same reason as `LibraryReader`; production passes
+    /// `RuntimeVersion.carriesTauriCrate(bundleAt:)`.
+    public typealias TauriProof = (URL) -> Bool
 
     /// Everything one read of a bundle can say about how it was built.
     public struct Reading: Sendable, Equatable {
@@ -111,10 +123,12 @@ public enum AppRuntimeDetector {
         bundleAt bundleURL: URL,
         isiOSAppOnMac: Bool,
         infoPlist: [String: Any],
-        linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) }
+        linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
+        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:)
     ) -> AppRuntime? {
         read(bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac,
-             infoPlist: infoPlist, linkedLibraries: linkedLibraries).runtime
+             infoPlist: infoPlist, linkedLibraries: linkedLibraries,
+             carriesTauriCrate: carriesTauriCrate).runtime
     }
 
     /// Both facts from a single pass. The executable's load commands are read at
@@ -124,7 +138,8 @@ public enum AppRuntimeDetector {
         bundleAt bundleURL: URL,
         isiOSAppOnMac: Bool,
         infoPlist: [String: Any],
-        linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) }
+        linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
+        carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:)
     ) -> Reading {
         // A wrapped iOS app has no `Contents/` at all, so every rule below would
         // look in the wrong place, and its own executable sits inside the wrapper
@@ -192,7 +207,9 @@ public enum AppRuntimeDetector {
         // ends the enquiry.
         guard let libraries else { return reading(nil) }
 
-        // Tauri — the one inference here, and worth stating plainly:
+        // Tauri — the one case decided by reading a binary's *contents*, and the
+        // reason is worth stating because the cheaper rule was tried first and
+        // broke.
         //
         // Tauri bundles nothing distinctive. Its frontend is compiled into the
         // binary and it draws into the system WebView, so there is no framework to
@@ -200,17 +217,44 @@ public enum AppRuntimeDetector {
         // (via cargo-bundle) writes the legacy pair `LSRequiresCarbon` +
         // `CSResourcesFileMapped`, which essentially nothing else still emits.
         //
-        // That pair alone says "cargo-bundle", not "Tauri" — Warp and Zed are
-        // cargo-bundled Rust apps with their own renderers and carry it too. The
-        // WebKit link is what separates them: a Tauri app must link WebKit to have
-        // a window at all, and those two do not. Measured across 140 installed apps
-        // this split every cargo-bundled app correctly, but it remains a heuristic:
-        // a future cargo-bundled app that embeds a WebView for something incidental
-        // would read as Tauri. It fails toward a wrong *label*, never toward a
-        // wrong install decision — nothing routes on this value.
+        // That pair says "cargo-bundle", not "Tauri" — Warp and Zed are cargo-
+        // bundled Rust apps with their own renderers and carry it too. Adding "and
+        // links WebKit" separated those two and looked sufficient, on the reasoning
+        // that a Tauri app must link WebKit to have a window at all. It is not
+        // sufficient, and the counterexample was already installed: Longbridge
+        // draws with GPUI — the same renderer as Zed, pulled from the same repo —
+        // and embeds a renamed wry fork (`lb-wry-0.53.3`) for incidental web
+        // content. Cargo-bundled, links WebKit, contains not one occurrence of the
+        // string "tauri". It read as Tauri for exactly as long as the WebKit rule
+        // stood. See issue #206.
+        //
+        // So the plist pair plus WebKit is kept as a *filter*, not a verdict: it
+        // costs two dictionary lookups, and across the ~145 bundles in
+        // `/Applications` and `~/Applications` here it admits six. Those six pay
+        // for the proof — the `tauri-<semver>` Cargo path Rust bakes into the
+        // binary, which is positive evidence and yields the version besides.
+        //
+        // Six candidates is 471 MiB of executable. Five stop when the needle is
+        // found, which is later in each file than "early" suggests — measured
+        // first-match offsets are 34%, 52%, 63%, 66% and 86% of the way in — and
+        // only Longbridge's 261 MiB is walked end to end, to prove absence.
+        // Whole-library sweep in a release build: 0.50s, against 0.05s for a second
+        // sweep once everything is remembered. I/O is not the cost — the same
+        // machine reads a cold 795 MB binary in 0.169s — the byte search is, which
+        // is also why a debug build takes 104s for that sweep and a release build
+        // half a second.
+        //
+        // The residual risk moved rather than vanished, and it moved to the safer
+        // side: an app now reads as native when its binary keeps no `tauri-` crate
+        // path — or when that binary could not be read at this moment, since the
+        // proof cannot tell a caller "I don't know". Either beats an unrelated app
+        // reading as Tauri, and both are labels: nothing routes on this value.
+        // `RuntimeVersion.carriesTauriCrate` lists the two binary shapes that can
+        // hide the path even when the read succeeds.
         if infoPlist["LSRequiresCarbon"] as? Bool == true,
            infoPlist["CSResourcesFileMapped"] as? Bool == true,
-           MachOImports.links(libraries, framework: "WebKit") {
+           MachOImports.links(libraries, framework: "WebKit"),
+           carriesTauriCrate(bundleURL) {
             return reading(.tauri)
         }
 

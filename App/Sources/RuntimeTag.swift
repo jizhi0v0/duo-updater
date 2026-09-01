@@ -29,9 +29,6 @@ struct RuntimeTag: View {
     /// runtime's own version lives inside it. Nil where there is no real app behind
     /// the mark.
     var bundle: URL?
-    /// The app's own version, used only as the cache key for the runtime-version
-    /// read: an app that has not been updated cannot have changed its runtime.
-    var appVersion: String?
     /// What the app's binary actually links, shown in the click-through detail for
     /// the cases where the runtime label alone is not the whole answer. Empty is
     /// normal — nothing is claimed when nothing was read.
@@ -55,10 +52,13 @@ struct RuntimeTag: View {
 
     @State private var showingDetail = false
     @State private var version: String?
-    /// Separate from `version` being nil, which is a real answer: a runtime with no
-    /// trustworthy version, or a Tauri fingerprint with no Tauri crate behind it.
-    /// Without this the nil answer is never remembered and every re-open pays for
-    /// the search again — a quarter of a second, each time, on a large binary.
+    /// Separate from `version` being nil, which is a real answer: Flutter and the
+    /// Apple-platform runtimes have no version worth printing, and a rebranded
+    /// Electron framework can hide the one it has. A Tauri mark can reach it too,
+    /// though it is now rare rather than ordinary — the binary was unreadable at
+    /// this moment, or it changed between the scan that produced the verdict and
+    /// this read. Without this the nil answer is never remembered and every re-open
+    /// pays for the search again.
     @State private var versionLoaded = false
 
     var body: some View {
@@ -139,14 +139,15 @@ struct RuntimeTag: View {
         .padding(14)
         .frame(width: 300, alignment: .leading)
         .task {
-            // Off the main thread and only once the detail is actually open: for
-            // Tauri this walks the whole executable, which is a quarter of a second
-            // on a large one. That cost is fine for a single app someone asked
-            // about and would be indefensible during a scan of the whole library.
+            // Off the main thread and only once the detail is actually open: a
+            // rebranded Electron framework is found by walking a binary, which is
+            // fine for a single app someone asked about and would be indefensible
+            // during a scan of the whole library. Tauri's walk is already paid for
+            // — the scan had to do it to reach the verdict at all, and this reads
+            // the same cached entry back out.
             guard !versionLoaded, let bundle else { return }
             version = await Task.detached(priority: .utility) {
-                RuntimeVersion.read(runtime, bundleAt: bundle,
-                                    appVersion: appVersion, scanningBinaries: true)
+                RuntimeVersion.read(runtime, bundleAt: bundle, scanningBinaries: true)
             }.value
             versionLoaded = true
         }

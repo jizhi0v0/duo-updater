@@ -212,10 +212,16 @@ final class Preferences {
     /// Show a small chip beside each app's name naming what it is built with —
     /// Electron, Tauri, Qt, native, … See `AppRuntime`.
     ///
-    /// Default ON. The information is free (the scan already reads every bundle
-    /// this comes from) and it explains rows that otherwise look alike: an app the
+    /// Default ON, because it explains rows that otherwise look alike: an app the
     /// App Store manages already says so on the right-hand side, while everything
     /// else was indistinguishable.
+    ///
+    /// This gates the *display* only. The scan works the runtime out either way —
+    /// the workbench's own filters read it — so turning this off hides the mark
+    /// without saving the work behind it. Worth knowing because that work is no
+    /// longer nothing: since #206, proving an app is Tauri means reading its
+    /// executable through. It is confined to the bundles a cheap plist-and-link
+    /// filter admits, six of about a hundred and fifty here.
     var showRuntimeTags: Bool {
         didSet { defaults.set(showRuntimeTags, forKey: Key.showRuntimeTags) }
     }

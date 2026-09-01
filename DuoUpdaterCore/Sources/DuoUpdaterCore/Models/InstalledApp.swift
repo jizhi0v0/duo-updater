@@ -172,9 +172,13 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// binary, … Nil when the bundle carries no evidence either way, which the UI
     /// must render as "no badge" rather than as "native".
     ///
-    /// Purely descriptive: nothing in the update engine reads it. It is a fact
-    /// about the bundle, read at scan time from the same directory listing and
-    /// Info.plist the scan is already paying for. See `AppRuntimeDetector`.
+    /// Purely descriptive: nothing in the update engine reads it. Mostly it is a
+    /// fact read from the directory listing and Info.plist the scan is already
+    /// paying for — with one exception that stopped being free in #206: proving an
+    /// app is Tauri means reading its executable through, which the scan does for
+    /// the handful of bundles the cheap markers admit (six of about a hundred and
+    /// fifty here, half a second between them, remembered per binary afterwards).
+    /// See `AppRuntimeDetector`.
     public let runtime: AppRuntime?
 
     /// Which of Apple's UI frameworks the executable links, and whether Swift is

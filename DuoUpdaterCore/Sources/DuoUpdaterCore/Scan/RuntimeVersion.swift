@@ -2,45 +2,74 @@ import Foundation
 
 /// The version of the runtime an app was built with — "Electron 42.4.1", "Qt 6.2".
 ///
-/// Only for the four runtimes where a version can be read as a *fact*. The others
-/// are left blank on purpose, and the reasons are worth keeping because each looks
-/// like it would work:
+/// Only where a version can be read as a *fact*. The rest are left blank on
+/// purpose, and the reasons are worth keeping because each looks like it would
+/// work:
 ///
-/// - **Chromium** publishes three different things under one roof. Chrome's own
-///   framework reports the Chrome version (152.0.7977.65), Spotify's embedded CEF
-///   reports the CEF version (146.0.10.0), and Helium's fork reports *Helium's app
-///   version* (0.16.2.1). Printing any of them after the word "Chromium" would be
-///   wrong for two apps out of three.
 /// - **Flutter**'s embedder carries the *app's* version, not the framework's:
 ///   LocalSend's `FlutterMacOS.framework` says 1.18.2, which is LocalSend. Two
 ///   other Flutter apps say a placeholder 1.0.
 /// - **Native**, **Catalyst** and **iOS App** are not versioned things.
+///
+/// **Chromium used to be on that list and no longer is**, which is worth spelling
+/// out because the reason it was there is still true of the obvious source. Its
+/// framework *plist* reports three different things depending on the app — Chrome's
+/// own says the Chrome version (152.0.7977.65), Spotify's embedded CEF says the CEF
+/// version (146.0.10.0), and Helium's fork says *Helium's app version* (0.16.2.1),
+/// so printing that after the word "Chromium" would be wrong for two apps in three.
+/// `chromiumVersion` reads no plist: it takes the `Chrome/<version>` token out of
+/// the framework's user-agent string, which is the engine describing itself and
+/// agrees for all three.
 public enum RuntimeVersion {
 
     /// Reads the runtime version, or nil where there is nothing trustworthy to read.
     ///
-    /// - Parameter scanningBinaries: whether to allow the one reader that has to
-    ///   walk the executable (Tauri). Off during a scan — it costs about half a
-    ///   second on a large binary, times every app — and on when a single app's
-    ///   detail is being shown.
+    /// - Parameter scanningBinaries: whether to allow the readers that walk a whole
+    ///   binary — the two rebranded Electron shapes, and Chromium's user-agent. Off
+    ///   when the caller would pay it for every app on the machine, on when a single
+    ///   app's detail is being shown.
+    ///
+    ///   It is **not** a promise that a library-wide scan never walks a binary, and
+    ///   it stopped being one in this branch: `.tauri` arrives here with scanning on
+    ///   from inside the scan itself, because for that runtime the walk *is* the
+    ///   detection. What keeps that affordable is not this flag but the filter in
+    ///   `AppRuntimeDetector`, which admits six bundles out of about a hundred and
+    ///   fifty. See `carriesTauriCrate(bundleAt:)`.
     public static func read(
         _ runtime: AppRuntime,
         bundleAt bundleURL: URL,
-        appVersion: String?,
         scanningBinaries: Bool
     ) -> String? {
-        // Three of these readers can walk a whole binary — a second on a large one
-        // — so the answer is remembered against the app's own version.
+        // Some of these readers walk a whole binary, so the answer is remembered —
+        // against the *executable's own identity*, its size and modification date,
+        // rather than against a version string.
         //
-        // The lookup deliberately sits *above* the `scanningBinaries` guard: a
-        // remembered answer costs nothing, so a caller that forbade scanning still
-        // gets it. That is what lets a version paid for once, by opening one app's
-        // detail, be available to everything afterwards. An app that has
-        // not been updated cannot have changed its runtime, and one that has gets a
-        // new key rather than a stale answer. Nil is cached too: "no Tauri crate in
-        // here" is an answer, and it is the expensive one to reach.
-        let key = "\(bundleURL.path)|\(appVersion ?? "?")|\(runtime.rawValue)"
-        if let remembered = cached(key) { return remembered }
+        // A version string was the first key and it was the wrong one twice over.
+        // Plenty of apps ship a new build under an unchanged marketing version
+        // (Amp: ten builds in a day, all `1.0`), so that key cannot see an update
+        // it is supposed to invalidate on; and it cannot see a bundle rewritten
+        // underneath it either, which is exactly what an install does while a scan
+        // may be running. Size-and-mtime changes whenever the bytes this answer was
+        // read from change, which is the only thing that can make it stale.
+        //
+        // The lookup deliberately sits *above* the `scanningBinaries` guard, so a
+        // caller that forbade scanning still gets an answer someone else paid for.
+        // It is not free — building the key parses `Contents/Info.plist` and stats
+        // the executable — but that is microseconds against a walk of the file.
+        //
+        // Nil is cached too: "no Tauri crate in here" is an answer, and the
+        // expensive one to reach. An *unreadable* binary is not — but only `.tauri`
+        // gets that distinction, because only there is the nil a verdict. The
+        // Electron and Chromium readers go through `scan`, which flattens
+        // `.unreadable` into the same nil as a real absence, so a framework binary
+        // that is briefly unreadable pins "no version" for the process. The key is
+        // the *main* executable's stat, which can still succeed while the framework
+        // binary does not, so this is reachable — and it costs a missing version
+        // label, not a wrong runtime.
+        let executable = executableURL(bundleAt: bundleURL)
+        let key = executable.flatMap { executableIdentity(of: $0) }
+            .map { "\(bundleURL.path)|\(runtime.rawValue)|\($0)" }
+        if let key, let remembered = cached(key) { return remembered }
 
         let version: String?
         switch runtime {
@@ -48,24 +77,78 @@ public enum RuntimeVersion {
             // The re-signed case needs a scan; the ordinary one does not, and
             // `electronVersion` takes the cheap path first either way.
             version = electronVersion(bundleAt: bundleURL, scanning: scanningBinaries)
-        case .qt:       version = qtVersion(bundleAt: bundleURL)
+        case .qt:       version = qtVersion(bundleAt: bundleURL, executable: executable)
         case .java:     version = javaVersion(bundleAt: bundleURL)
         case .tauri:
-            guard scanningBinaries else { return nil }
-            version = tauriVersion(bundleAt: bundleURL)
+            guard scanningBinaries, let executable else { return nil }
+            // The one place the difference between "proved absent" and "could not
+            // read" matters, because a nil here is a *verdict* — `carriesTauriCrate`
+            // turns it into "this app is not Tauri" and the cache would keep that
+            // for the life of the process. A half-read binary must therefore leave
+            // no trace: no answer, nothing remembered, asked again next time.
+            switch probe(executable, for: "tauri-", components: 3) {
+            case .found(let found): version = found
+            case .absent:           version = nil
+            case .unreadable:       return nil
+            }
         case .chromium:
             guard scanningBinaries else { return nil }
             version = chromiumVersion(bundleAt: bundleURL)
         case .flutter, .native, .catalyst, .iOSApp:
             version = nil
         }
-        remember(version, for: key)
+        // A nil reached under `scanningBinaries: false` is not an answer about the
+        // app, it is an answer about the caller — and both callers share a key. So
+        // no nil is remembered from such a read, for any runtime: for `.electron`
+        // it would be actively wrong (a single such read of a re-signed framework
+        // would pin "no version" for the life of the process, since its cheap path
+        // and its scanning path are one function), and for `.qt`, `.java` and the
+        // unversioned runtimes it costs nothing, because their nil is reached
+        // without walking anything.
+        //
+        // No production caller passes false today — `RuntimeTag` and
+        // `carriesTauriCrate` both pass true. This closes the trap rather than a
+        // live bug, and the trap is newly unconditional: the caller-supplied
+        // `appVersion` used to be the one thing that could vary between two callers
+        // of the same bundle.
+        if let key, version != nil || scanningBinaries { remember(version, for: key) }
         return version
     }
 
-    /// Remembered answers, keyed by bundle path, app version and runtime. Only ever
-    /// grows by one entry per app per update, and only for apps whose detail has
-    /// actually been opened.
+    /// What the answer was read from, as far as staleness is concerned: the main
+    /// executable's size and modification date. Nil when it cannot be stat-ed, and
+    /// a nil identity means the answer is simply not cached — better to re-read
+    /// than to remember something under a key that cannot expire.
+    ///
+    /// The main executable stands in for the whole bundle, including for Electron,
+    /// where the bytes actually read live in a framework. An update that changes a
+    /// bundled framework and leaves the app's own binary byte-identical would go
+    /// unnoticed; no packager produces that, since the executable is re-signed
+    /// either way.
+    ///
+    /// Two places where it stands in rather than measures: `attributesOfItem` does
+    /// not follow symlinks while `FileHandle` does, so a bundle whose executable is
+    /// a symlink would be keyed on the link (whose size is the length of its path)
+    /// rather than on the bytes read; and a filesystem with coarse timestamps could
+    /// in principle hold two same-sized binaries under one key. Neither shape
+    /// appears in `/Applications`.
+    private static func executableIdentity(of executable: URL) -> String? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: executable.path),
+              let size = attributes[.size] as? NSNumber,
+              let modified = attributes[.modificationDate] as? Date
+        else { return nil }
+        return "\(size.int64Value)-\(modified.timeIntervalSince1970)"
+    }
+
+    /// Remembered answers, keyed by bundle path, runtime, and what the executable
+    /// looked like when the answer was read.
+    ///
+    /// Grows by one entry per app per update, for every app whose detail has been
+    /// opened *and* for every cargo-bundled WebView app on the machine, since the
+    /// scan proves those to classify them — six bundles here. Two scans that
+    /// overlap can both miss and both walk the same binary; they write the same
+    /// value, so the cost is a duplicated read rather than a wrong answer, and
+    /// de-duplicating in flight is not worth a second lock.
     ///
     /// `Synchronization.Mutex` would be the modern way to hold this and needs
     /// macOS 15; the package targets 14. A lock around a dictionary is what the
@@ -171,8 +254,8 @@ public enum RuntimeVersion {
     ///
     /// The plist stays as a fallback for an app that reaches Qt indirectly — if
     /// nothing in the main executable names QtCore, there is no load command to read.
-    private static func qtVersion(bundleAt bundleURL: URL) -> String? {
-        if let executable = executableURL(bundleAt: bundleURL),
+    private static func qtVersion(bundleAt bundleURL: URL, executable: URL?) -> String? {
+        if let executable,
            let dylibs = MachOImports.loadedDylibs(at: executable),
            let entry = dylibs.first(where: { isQtCore($0.key) }),
            entry.value != "0.0.0" {
@@ -219,56 +302,230 @@ public enum RuntimeVersion {
 
     // MARK: - Tauri
 
-    /// Tauri compiles into the executable, so the only record of its version is the
-    /// Cargo dependency path Rust bakes into panic metadata:
-    /// `…/registry/src/…/tauri-2.11.5/src/lib.rs`.
+    /// Whether this bundle is Tauri at all — `AppRuntimeDetector`'s proof, and the
+    /// version it displays, from one read.
     ///
-    /// This doubles as the only *proof* that an app is Tauri at all. The detector
-    /// reaches that verdict from a packaging fingerprint plus a WebKit link, which
-    /// is a heuristic — and a measurable one: of five apps it matched here, four
-    /// carry a `tauri-` crate and Longbridge carries `wry-0.53.3` and no Tauri at
-    /// all. So a nil from this reader is informative rather than a failure, and the
-    /// caller shows no version rather than a wrong one.
+    /// Tauri compiles into the executable, so its only trace is the Cargo
+    /// dependency path Rust bakes into panic metadata:
+    /// `…/registry/src/…/tauri-2.11.5/src/lib.rs`. Either that path is there or it
+    /// is not, and if it is, the version is right beside it — so the detector
+    /// asking "is this Tauri" during a scan and the detail view asking "which
+    /// Tauri" later share one cache entry, and the walk happens once per binary
+    /// rather than once per asker.
     ///
     /// `tauri-runtime-wry-2.11.4` deliberately does not match: the character after
     /// the prefix has to be a digit, so only the framework crate itself is read.
-    private static func tauriVersion(bundleAt bundleURL: URL) -> String? {
-        guard let executable = executableURL(bundleAt: bundleURL) else { return nil }
-        return scan(executable, for: "tauri-", components: 3)
+    ///
+    /// Two shapes this cannot see, both of which read as *not Tauri*:
+    ///
+    /// - **A `tauri` taken as a git or path dependency.** Cargo lays those out as
+    ///   `git/checkouts/tauri-<hash>/<rev>/…`, with no version to find. Rare for a
+    ///   shipped app, which takes the crates.io release, but not hypothetical — the
+    ///   Longbridge audit in `docs/app-audits/` shows exactly that layout for two
+    ///   of its own dependencies.
+    /// - **A universal binary's other slice.** The gate that admits a bundle here
+    ///   parses the arm64 slice (`MachOImports`); this walks the file end to end,
+    ///   so on a fat binary it also passes over the Intel one. Both slices come out
+    ///   of the same `cargo build` and carry the same crate paths, so the answer
+    ///   agrees — it is the bytes read, not the verdict, that are larger than they
+    ///   need to be. One of the six candidates here (CC Switch) is fat.
+    public static func carriesTauriCrate(bundleAt bundleURL: URL) -> Bool {
+        read(.tauri, bundleAt: bundleURL, scanningBinaries: true) != nil
     }
 
-    /// Walks a binary looking for `<needle><version>`, in chunks so a 261 MB
-    /// executable never lands in memory at once.
-    private static func scan(_ binary: URL, for prefix: String, components: Int) -> String? {
-        guard let handle = try? FileHandle(forReadingFrom: binary) else { return nil }
-        defer { try? handle.close() }
+    /// Walks a binary looking for `<needle><version>` in chunks, so that a 261 MiB
+    /// executable never lands in memory at once — see the pool in `probe`, without
+    /// which that sentence was false.
+    ///
+    /// Three outcomes, because two of them are not the same thing. A binary that
+    /// was read to the end and does not contain the needle is *evidence*; a binary
+    /// that could not be opened or could not be read through is the absence of
+    /// evidence, and only the first may be remembered as an answer.
+    enum Probe: Equatable {
+        case found(String)
+        case absent
+        case unreadable
+    }
 
+    /// How much of each chunk is carried into the next: enough that a match cut by
+    /// a boundary is whole in one window, and one byte more than that, so the window
+    /// also holds the character *before* such a match. Both of `firstVersion`'s
+    /// rules need context the chunk alone cannot supply.
+    ///
+    /// It is therefore also the longest match that can be seen across a boundary —
+    /// `Chrome/` plus four components is under 30 bytes. A differential fuzz of
+    /// 20,000 random layouts against a whole-file reference found no disagreement,
+    /// and the only way to manufacture one was a "version" of over a hundred digits,
+    /// which fails toward *missing* the match — or toward returning a later, real
+    /// one — rather than toward inventing a version that is not there.
+    ///
+    /// Internal rather than a local, because the test that pins the boundary rules
+    /// has to place its payload on the seam this number defines. Written as a
+    /// literal there, the test passes against the unfixed reader — which is what it
+    /// did until round 3 of review noticed.
+    static let scanOverlap = 128
+
+    /// How much is read at a time. Internal for the same reason as `scanOverlap`:
+    /// the boundary tests place their payload where these two numbers put the seam,
+    /// and a literal on the test side goes stale silently — the test keeps passing
+    /// while testing nothing.
+    static let scanChunkSize = 4 * 1024 * 1024
+
+    private static func probe(_ binary: URL, for prefix: String, components: Int) -> Probe {
+        guard let handle = try? FileHandle(forReadingFrom: binary) else { return .unreadable }
+        defer { try? handle.close() }
+        return probe(reading: { try handle.read(upToCount: scanChunkSize) },
+                     for: prefix, components: components)
+    }
+
+    /// The walk itself, over a source of chunks rather than over a file.
+    ///
+    /// The seam exists because of what it is like not to have it. Three rounds of
+    /// review found three real defects in this loop — a match discarded when the
+    /// read *after* it failed, a short read read as end-of-file, and the first bytes
+    /// of a file going unexamined for the rest of the walk — and not one of them was
+    /// expressible as a test, because `probe` opened its own `FileHandle` and no
+    /// test can make a real file throw halfway through or hand back a short read.
+    /// Every fix was verified by hand and pinned by nothing: putting the old body
+    /// back left the entire suite green.
+    ///
+    /// A closure that hands back one chunk at a time is enough to say all of it, and
+    /// it is the shape this file's neighbours already use (`LibraryReader`,
+    /// `TauriProof`).
+    static func probe(
+        reading next: () throws -> Data?,
+        for prefix: String,
+        components: Int
+    ) -> Probe {
         let needle = Array(prefix.utf8)
-        // Read in chunks, overlapping by enough that a version straddling a
-        // boundary is still whole in one of them.
-        let chunkSize = 4 * 1024 * 1024
-        let overlap = 64
+
+
+        // `try?` is not available here, and the reason is the whole point of this
+        // type: `read(upToCount:)` returns nil *at end of file*, and `try?` flattens
+        // a thrown error into that same nil — so a completed walk and a failed one
+        // would be indistinguishable, which is exactly the confusion `Probe` exists
+        // to end. `do`/`catch` keeps them apart.
+        var failed = false
+        func read() -> Data? {
+            do { return try next() }
+            catch { failed = true; return nil }
+        }
+
+        // One chunk of lookahead, so a window knows whether it is the last.
+        //
+        // Asking the file for its size up front is the obvious way to know that,
+        // and it is wrong in both directions. A file truncated under the walk never
+        // reaches the recorded size, so *no* window is ever final and a version
+        // ending at the real EOF is discarded — which for `.tauri` is a cached
+        // verdict of "not Tauri", precisely the class `.unreadable` was added to
+        // keep out of the cache. A file appended to keeps being read past that size
+        // with every later window wrongly calling itself final. A lookahead cannot
+        // go stale, and it keeps this working on anything unseekable besides.
         var carry = Data()
-        while let chunk = try? handle.read(upToCount: chunkSize), !chunk.isEmpty {
-            var window = carry
-            window.append(chunk)
-            if let version = firstVersion(in: Array(window), after: needle, components: components) {
-                return version
+        // Where `window[0]` sits in the file. `carry.isEmpty` looks like the same
+        // question and is not: if a window is no longer than `scanOverlap`, the
+        // carry is the whole of it and the next window still begins at offset 0.
+        // Asking about the offset directly is what keeps `from: 1` from blinding
+        // the first bytes of the file for the rest of the walk.
+        var windowStart = 0
+        var pending = read()
+        if failed { return .unreadable }
+        var outcome: Probe?
+
+        while let chunk = pending, !chunk.isEmpty {
+            // A pool per window, because `read(upToCount:)` hands back a bridged
+            // `NSData` that is autoreleased. Without one nothing drains until the
+            // walk returns, and the "never lands in memory at once" above is false
+            // in the most literal way — the whole file lands, one chunk at a time.
+            // Measured on Longbridge's 261 MiB binary, peak footprint for a single
+            // probe: **+278 MiB without the pool, +30 MiB with it**. That comment
+            // has been shipping since before this branch and was describing an
+            // intent rather than a measurement; the pool is what makes it true, and
+            // this branch is what made it matter, by moving the walk onto the scan.
+            autoreleasepool {
+                let following = read()
+                // A short read is legal mid-file; only an empty one is the end.
+                // Finality is decided by the *next* read rather than by this one's
+                // length — treating a short read as the end would report a
+                // truncated binary as proof of absence. A read that *threw* says
+                // nothing about the end either, so it must not claim finality.
+                let isFinal = failed ? false : (following?.isEmpty ?? true)
+
+                var window = carry
+                window.append(chunk)
+                let version = firstVersion(
+                    in: Array(window), after: needle, components: components,
+                    // In a continuation window the first byte is there only to be
+                    // the character before the second: a match starting *on* it has
+                    // no predecessor in this window, and was already whole in the
+                    // previous one, which had `scanOverlap` bytes of room after it.
+                    from: windowStart == 0 ? 0 : 1,
+                    // And only the last window may read "my buffer ended" as "the
+                    // version ended".
+                    isFinal: isFinal
+                )
+
+                // Deliberately before the `failed` check. A match is positive
+                // evidence and complete in itself; bytes *after* it failing to read
+                // says nothing about it, and discarding it would turn a proven
+                // Tauri app into a native one for that scan. Only the absence of a
+                // match depends on having read the whole file, and that is the case
+                // this hands to `.unreadable`.
+                if let version { outcome = .found(version); return }
+                if failed { outcome = .unreadable; return }
+
+                carry = window.suffix(scanOverlap)
+                windowStart += window.count - carry.count
+                pending = isFinal ? nil : following
             }
-            carry = window.suffix(overlap)
-            if chunk.count < chunkSize { break }
+            if let outcome { return outcome }
+        }
+        return .absent
+    }
+
+    /// The version alone, for the readers where a failure to read and a genuine
+    /// absence lead to the same place — nothing is shown either way.
+    private static func scan(_ binary: URL, for prefix: String, components: Int) -> String? {
+        if case .found(let version) = probe(binary, for: prefix, components: components) {
+            return version
         }
         return nil
     }
 
     /// The first `<needle><major>.<minor>.<patch>` in `bytes`, where the character
     /// before the needle is not part of a longer identifier.
-    private static func firstVersion(in bytes: [UInt8], after needle: [UInt8], components: Int) -> String? {
-        guard bytes.count > needle.count else { return nil }
+    ///
+    /// `bytes` is one window of a larger file, and both of those rules need to know
+    /// it. Reading the edge of the buffer as the edge of the file gets each rule
+    /// wrong in its own direction, and neither is theoretical — both were
+    /// reproduced against this code:
+    ///
+    /// - **The digit run.** `tauri-2.11.50` cut by a boundary returned `2.11.5`:
+    ///   three components, last one a digit, looks finished. `isFinal` says whether
+    ///   a run that reached the end of the buffer may be trusted; when it may not,
+    ///   the candidate is skipped and the carry presents it whole next time.
+    /// - **The identifier guard.** `index > 0` is a claim about the *file*, and in
+    ///   a continuation window index 0 is not the start of anything — its real
+    ///   predecessor is in the previous chunk. `xtauri-2.11.5` positioned there
+    ///   passed a guard that rejects it everywhere else. `start` is 1 for those
+    ///   windows, so every position examined has its predecessor in hand.
+    ///
+    /// This second one is why the fix belongs in this branch rather than after it:
+    /// it hands out a `tauri-` match that is not one, which for a *displayed
+    /// version* was cosmetic and for a *verdict* is the exact false positive the
+    /// rest of this change exists to prevent.
+    private static func firstVersion(
+        in bytes: [UInt8],
+        after needle: [UInt8],
+        components: Int,
+        from start: Int = 0,
+        isFinal: Bool = true
+    ) -> String? {
+        guard bytes.count > needle.count, start <= bytes.count - needle.count - 1 else { return nil }
         let digits = UInt8(ascii: "0")...UInt8(ascii: "9")
         let dot = UInt8(ascii: ".")
         let dash = UInt8(ascii: "-")
-        outer: for index in 0...(bytes.count - needle.count - 1) {
+        outer: for index in start...(bytes.count - needle.count - 1) {
             for offset in 0..<needle.count where bytes[index + offset] != needle[offset] { continue outer }
             if index > 0 {
                 let before = bytes[index - 1]
@@ -291,6 +548,10 @@ public enum RuntimeVersion {
                 }
                 cursor += 1
             }
+            // A run that stopped because the buffer did, in a window that is not the
+            // end of the file, is not a finished version — whatever digits follow
+            // are in the next chunk.
+            if !isFinal, cursor == bytes.count { continue }
             if dots == components - 1, let last = version.last, last.isNumber { return version }
         }
         return nil

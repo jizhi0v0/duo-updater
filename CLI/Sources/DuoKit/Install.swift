@@ -217,7 +217,22 @@ public enum Install {
                 return .refuse("App Store updates need the menu-bar app (the store's "
                     + "install path is not reachable from a CLI)")
             }
-            return .refuse("detection only — this app has no installable artefact we vet")
+            // #193 originally split this into two messages — "no artefact this
+            // time" for a recognised source vs. "no route wired up yet" for one
+            // `UpdatePolicy` has no case for — reasoning that the two situations
+            // shouldn't share text. Reverted (see #192's follow-up review):
+            // measured against what `UpdatePolicy.isRecognizedInstallSource`
+            // actually excludes in production — Xcode Releases, Toolbox,
+            // TestFlight — every one of them is PERMANENTLY, DELIBERATELY
+            // artefact-less by design (Xcode's download 302s to an Apple-ID
+            // login page; Toolbox/TestFlight hand the install to their own
+            // app), not a policy gap waiting to be closed. "No route wired up
+            // yet" was therefore never true for any source that could actually
+            // reach this branch — it just relocated #193's original complaint
+            // (a message asserting something false) to the other bucket. One
+            // message, worded to be accurate for both "never has one" and
+            // "doesn't have one this time" is available.
+            return .refuse("detection only — this source publishes no installable artefact")
         }
         if UpdatePolicy.defersToSelfUpdater(
             result, settings: settings.updateSettings, environment: environment) {

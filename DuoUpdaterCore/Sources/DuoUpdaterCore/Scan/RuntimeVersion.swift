@@ -20,9 +20,14 @@ public enum RuntimeVersion {
     /// Reads the runtime version, or nil where there is nothing trustworthy to read.
     ///
     /// - Parameter scanningBinaries: whether to allow the one reader that has to
-    ///   walk the executable (Tauri). Off during a scan — it costs about half a
-    ///   second on a large binary, times every app — and on when a single app's
-    ///   detail is being shown.
+    ///   walk the executable (Tauri, and the two rebranded Electron shapes). Off
+    ///   during a scan, where it would be paid for every app on the machine, and on
+    ///   when a single app's detail is being shown.
+    ///
+    ///   `.tauri` is the exception: it arrives here with scanning on even during a
+    ///   scan, because for that runtime the walk *is* the detection — but only for
+    ///   the two or three bundles `AppRuntimeDetector` has already narrowed to. See
+    ///   `carriesTauriCrate(bundleAt:infoPlist:)`.
     public static func read(
         _ runtime: AppRuntime,
         bundleAt bundleURL: URL,
@@ -223,18 +228,35 @@ public enum RuntimeVersion {
     /// Cargo dependency path Rust bakes into panic metadata:
     /// `…/registry/src/…/tauri-2.11.5/src/lib.rs`.
     ///
-    /// This doubles as the only *proof* that an app is Tauri at all. The detector
-    /// reaches that verdict from a packaging fingerprint plus a WebKit link, which
-    /// is a heuristic — and a measurable one: of five apps it matched here, four
-    /// carry a `tauri-` crate and Longbridge carries `wry-0.53.3` and no Tauri at
-    /// all. So a nil from this reader is informative rather than a failure, and the
-    /// caller shows no version rather than a wrong one.
-    ///
     /// `tauri-runtime-wry-2.11.4` deliberately does not match: the character after
     /// the prefix has to be a digit, so only the framework crate itself is read.
     private static func tauriVersion(bundleAt bundleURL: URL) -> String? {
         guard let executable = executableURL(bundleAt: bundleURL) else { return nil }
         return scan(executable, for: "tauri-", components: 3)
+    }
+
+    /// Whether this bundle is Tauri at all — `AppRuntimeDetector`'s proof, not a
+    /// display value.
+    ///
+    /// One read answers both questions, so they share one cache entry: either a
+    /// crate path is there or it is not, and if it is, its version is right beside
+    /// it. The detector asks this during a scan and the app's detail view asks
+    /// `read(_:bundleAt:appVersion:scanningBinaries:)` later; both land on the same
+    /// key, so the walk happens once per app version rather than once per asker.
+    ///
+    /// The key's version comes from the same `CFBundleShortVersionString` the scan
+    /// stores as `InstalledApp.shortVersion` and the detail view passes back. The
+    /// two agree for everything that can reach here — the scan rewrites that string
+    /// only for Xcode and JetBrains bundles, and neither is cargo-bundled — and if
+    /// they ever disagreed the cost would be a second walk, not a wrong answer.
+    ///
+    /// A nil is a real answer and is remembered as one: proving that a 262 MB
+    /// binary contains no `tauri-` crate means reading all of it, which is the
+    /// expensive case and so the one most worth paying for exactly once.
+    public static func carriesTauriCrate(bundleAt bundleURL: URL, infoPlist: [String: Any]) -> Bool {
+        read(.tauri, bundleAt: bundleURL,
+             appVersion: infoPlist["CFBundleShortVersionString"] as? String,
+             scanningBinaries: true) != nil
     }
 
     /// Walks a binary looking for `<needle><version>`, in chunks so a 261 MB

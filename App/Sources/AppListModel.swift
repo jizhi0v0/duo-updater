@@ -777,11 +777,6 @@ final class AppListModel {
     /// One loop at a time, across every scene: opening Settings and then the
     /// workbench within the same second used to leave two loops each insisting on a
     /// different window, trading places until both expired.
-    /// Which surfacing loop is the live one. Bumped by every `surfaceWindow` call
-    /// so an older loop — for this scene or a different one — stops on its next
-    /// tick instead of fighting the newer request for the front.
-    @ObservationIgnored private var surfaceGeneration = 0
-
     func surfaceWindow(sceneID: String) {
         // Reaching the front once is not the same as being there when the user
         // looks. Logged from the shipped app, five consecutive opens all reported
@@ -821,7 +816,8 @@ final class AppListModel {
                 }
                 return
             }
-            if Self.isFrontmostOnScreen(window) {
+            let front = Self.isFrontmostOnScreen(window)
+            if front {
                 if !everFront {
                     everFront = true
                     // It arrived. From here we are only guarding against being
@@ -832,8 +828,14 @@ final class AppListModel {
                 }
                 consecutiveFront += 1
                 if consecutiveFront >= settledChecks {
+                    // `isFrontmostOnScreen` answers true when it cannot read the
+                    // window list at all, which is the right way to stop spinning
+                    // and the wrong thing to call "settled": this log line is the
+                    // only evidence this code leaves, and it must not claim a window
+                    // is in front when nothing was able to look.
                     Log.app.notice("""
-                        surface: \(sceneID, privacy: .public) settled in front \
+                        surface: \(sceneID, privacy: .public) \
+                        \(Self.canReadWindowList() ? "settled in front" : "stopped — window list unreadable") \
                         after \(attempts, privacy: .public) checks
                         """)
                     return
@@ -873,6 +875,19 @@ final class AppListModel {
         }
         func retry() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: tick) }
         DispatchQueue.main.async(execute: tick)
+    }
+
+    /// Which surfacing loop is the live one. Bumped by every `surfaceWindow` call
+    /// so an older loop — for this scene or a different one — stops on its next
+    /// tick instead of fighting the newer request for the front.
+    @ObservationIgnored private var surfaceGeneration = 0
+
+    /// Whether the window server answered at all. Separates "this window is in
+    /// front" from "nothing could be read", which `isFrontmostOnScreen` deliberately
+    /// collapses so the caller stops retrying.
+    private static func canReadWindowList() -> Bool {
+        CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                   kCGNullWindowID) as? [[String: Any]] != nil
     }
 
     /// Whether the window server has this window in front of every other ordinary

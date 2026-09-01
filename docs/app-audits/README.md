@@ -131,6 +131,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Audacity**](org-audacityteam-audacity.md) · `org.audacityteam.audacity` — C + Homebrew
 - [x] [**Blender**](org-blenderfoundation-blender.md) · `org.blenderfoundation.blender` — C (version-pinned) + Homebrew
 - [x] [**JetBrains Air**](com-jetbrains-air.md) · `com.jetbrains.air` — C + Toolbox/Sparkle
+- [x] [**欧路词典 (Eudic)**](com-eusoft-eudic.md) · `com.eusoft.eudic` — C + Sparkle **1**.27.3 · recipe 的 `source` 就是 appcast 本身：整部历史（1 个 `<h2>` + 34 个 `<h3>`、0 个 `<li>`）塞在最新一条 item 的 `<description>` 里，原本十六年记录全挂在「26.9.0」标题下；34 个标题里 7 个是标签「更新内容」，故按"含点分数字的标题"切而非按标签 · live feed + fixture 双证 29 条 ✓ · 另记两个已修的坑：`CFBundleDisplayName` 是**空串**（行里没名字）、未登录时的登录 sheet 挡住退出（Relaunch 静默失败）· 2026-09-01
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 

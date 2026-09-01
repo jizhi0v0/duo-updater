@@ -903,6 +903,47 @@
         }
       }
     },
+    "%@ — click for details": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ – für Details klicken"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: haz clic para ver los detalles"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — cliquez pour les détails"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — クリックで詳細"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — нажмите для подробностей"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ —— 点击查看详情"
+          }
+        }
+      }
+    },
     "%@ — click to retry": {
       "extractionState": "manual",
       "localizations": {
@@ -3199,6 +3240,88 @@
         }
       }
     },
+    "A Java app, shipping the runtime it needs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Java-App, die ihre eigene Laufzeitumgebung mitbringt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app Java que incluye el entorno de ejecución que necesita."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une app Java, livrée avec l’environnement d’exécution dont elle a besoin."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Java アプリ — 必要なランタイムを同梱しています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Java-приложение со встроенной средой выполнения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Java 应用，自带所需的运行时。"
+          }
+        }
+      }
+    },
+    "A native Mac app — built straight on Apple's frameworks, not a cross-platform runtime.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine native Mac-App – direkt auf Apples Frameworks gebaut, nicht auf einer plattformübergreifenden Laufzeitumgebung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app nativa de Mac: hecha directamente sobre los frameworks de Apple, no sobre un entorno multiplataforma."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une app Mac native — conçue directement sur les frameworks d’Apple, pas sur un environnement multiplateforme."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ネイティブの Mac アプリ — クロスプラットフォームのランタイムではなく、Apple のフレームワーク上に直接作られています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нативное приложение для Mac — построено прямо на фреймворках Apple, а не на кроссплатформенной среде."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原生 Mac 应用 —— 直接构建在 Apple 的框架上，而不是跨平台运行时。"
+          }
+        }
+      }
+    },
     "A recipe is flagged when it fetched successfully but couldn’t read a version — often a sign the vendor changed their page. Cleared automatically on the next successful check.": {
       "extractionState": "manual",
       "localizations": {
@@ -4240,6 +4363,88 @@
         }
       }
     },
+    "An iPad app brought to the Mac with Mac Catalyst.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine iPad-App, die mit Mac Catalyst auf den Mac gebracht wurde."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app de iPad llevada al Mac con Mac Catalyst."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une app iPad portée sur le Mac avec Mac Catalyst."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac Catalyst で Mac に移植された iPad アプリです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение для iPad, перенесённое на Mac с помощью Mac Catalyst."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Mac Catalyst 移植到 Mac 的 iPad 应用。"
+          }
+        }
+      }
+    },
+    "An iPhone or iPad app running on Apple silicon.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine iPhone- oder iPad-App, die auf Apple Silicon läuft."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app de iPhone o iPad ejecutándose en Apple silicon."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une app iPhone ou iPad exécutée sur Apple silicon."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple シリコン上で動く iPhone / iPad アプリです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение для iPhone или iPad, работающее на Apple silicon."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Apple 芯片上运行的 iPhone / iPad 应用。"
+          }
+        }
+      }
+    },
     "Another update is being installed right now — by Duo Updater or by `duo` in a terminal. Try again once it finishes.": {
       "extractionState": "manual",
       "localizations": {
@@ -4933,6 +5138,211 @@
           "stringUnit": {
             "state": "translated",
             "value": "Brew"
+          }
+        }
+      }
+    },
+    "Built on Chromium.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf Chromium aufgebaut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basada en Chromium."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basée sur Chromium."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chromium ベースです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Основано на Chromium."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基于 Chromium。"
+          }
+        }
+      }
+    },
+    "Built with Electron — it bundles its own copy of Chromium.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Electron gebaut – bringt eine eigene Chromium-Kopie mit."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con Electron: incluye su propia copia de Chromium."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec Electron — elle embarque sa propre copie de Chromium."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Electron 製 — Chromium を丸ごと同梱しています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на Electron — приложение несёт собственную копию Chromium."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Electron 构建 —— 自带一份 Chromium。"
+          }
+        }
+      }
+    },
+    "Built with Flutter.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Flutter gebaut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con Flutter."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec Flutter."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flutter 製です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на Flutter."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Flutter 构建。"
+          }
+        }
+      }
+    },
+    "Built with Qt.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Qt gebaut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con Qt."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec Qt."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qt 製です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на Qt."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Qt 构建。"
+          }
+        }
+      }
+    },
+    "Built with Tauri — a Rust app drawing into the system WebView.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Tauri gebaut – eine Rust-App, die die System-WebView nutzt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con Tauri: una app en Rust que dibuja en el WebView del sistema."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec Tauri — une app Rust qui dessine dans la WebView du système."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tauri 製 — システムの WebView に描画する Rust アプリです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на Tauri — приложение на Rust, рисующее в системном WebView."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Tauri 构建 —— 把界面画在系统 WebView 里的 Rust 程序。"
           }
         }
       }
@@ -9300,6 +9710,47 @@
         }
       }
     },
+    "iOS App": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS-App"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App de iOS"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App iOS"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOSアプリ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS-приложение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS 应用"
+          }
+        }
+      }
+    },
     "Keep a backup so updates can be rolled back": {
       "extractionState": "manual",
       "localizations": {
@@ -9833,6 +10284,47 @@
         }
       }
     },
+    "Links %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwendet %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enlaza con %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utilise %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ をリンクしています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использует %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链接了 %@。"
+          }
+        }
+      }
+    },
     "Lower this on a slow connection; raise it to check a large library faster.": {
       "extractionState": "manual",
       "localizations": {
@@ -10280,6 +10772,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "较多"
+          }
+        }
+      }
+    },
+    "Native": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nativ"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nativa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Natif"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ネイティブ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нативное"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原生"
+          }
+        }
+      }
+    },
+    "New": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nuevo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新着"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новое"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增"
           }
         }
       }
@@ -14660,6 +15234,47 @@
         }
       }
     },
+    "Settings — something new in here": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen – hier gibt es Neues"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes: aquí hay algo nuevo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages — il y a du nouveau ici"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定 — 新しい項目があります"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки — здесь появилось новое"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置 —— 这里有新东西"
+          }
+        }
+      }
+    },
     "Settings…": {
       "extractionState": "manual",
       "localizations": {
@@ -14779,6 +15394,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "显示令牌"
+          }
+        }
+      }
+    },
+    "Show what each app is built with": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anzeigen, womit jede App gebaut ist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar con qué está hecha cada app"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher avec quoi chaque app est conçue"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "各アプリの実装技術を表示"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать, на чём написано приложение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示每个 App 用什么技术构建"
           }
         }
       }

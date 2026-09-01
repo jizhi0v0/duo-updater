@@ -1,0 +1,268 @@
+import Foundation
+
+/// What an installed app is built with — the runtime that draws its windows.
+///
+/// This is a *different axis* from how an app updates itself. A Sparkle app can be
+/// AppKit or Electron; an App Store app can be Catalyst or SwiftUI. `InstalledApp`
+/// already carries the update axis (`hasSparkleUpdater`, `isMASApp`,
+/// `electronUpdate`), and mixing the two into one label would answer neither
+/// question reliably — so this enum names only the runtime and stays silent when
+/// the bundle does not say.
+///
+/// Every case is decided from something the packager *wrote*: a framework it had
+/// to bundle, a directory its launcher needs, or the dylibs its executable links.
+/// Nothing here guesses from an app's name or vendor. See `AppRuntimeDetector` for
+/// the evidence behind each case, and note that `tauri` is the one heuristic in
+/// the set.
+public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
+    /// A wrapped iPhone/iPad app running on Apple Silicon.
+    case iOSApp = "ios"
+    /// A UIKit app built for the Mac with Mac Catalyst.
+    case catalyst
+    /// Chromium + Node, bundled by Electron.
+    case electron
+    /// A Rust binary drawing into the system WebView (Tauri / wry).
+    case tauri
+    /// Flutter's macOS embedder.
+    case flutter
+    /// Qt (5 or 6), deployed with its frameworks inside the bundle.
+    case qt
+    /// A JVM app shipping its own runtime — JetBrains IDEs, `jpackage` output.
+    case java
+    /// A Chromium shell that is not Electron: Chrome and its forks, or an app
+    /// embedding CEF.
+    case chromium
+    /// A native Mac app — AppKit and/or SwiftUI, whatever language it is written in.
+    case native
+}
+
+/// Which of Apple's UI frameworks a bundle's executable actually links, plus
+/// whether it carries the Swift runtime.
+///
+/// A **set**, not a label, and that is the whole point. It is tempting to reduce
+/// this to "a SwiftUI app" or "an AppKit app" and the evidence does not support
+/// it: of the 77 native apps installed on the machine this was written on, 47%
+/// link AppKit alone, 53% link AppKit *and* SwiftUI, and none link SwiftUI alone.
+/// A one-word answer would be a guess dressed as a fact for half of them.
+///
+/// (A SwiftUI-only binary is perfectly possible — a demo app built for exactly
+/// this question links SwiftUI and no AppKit at all. It just isn't what shipping
+/// apps look like, because a real one reaches for `NSApplication`,
+/// `NSWorkspace` or an `@NSApplicationDelegateAdaptor` sooner or later.)
+///
+/// The Swift flag says only that Swift is *present*: an Objective-C app with one
+/// Swift file links the runtime too. It is not a claim about what the app is
+/// written in, and nothing here should render it as one.
+public struct LinkedFrameworks: OptionSet, Sendable, Hashable, Codable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+
+    public static let appKit = LinkedFrameworks(rawValue: 1 << 0)
+    public static let swiftUI = LinkedFrameworks(rawValue: 1 << 1)
+    /// UIKit, whether through Catalyst's `/System/iOSSupport` or an iOS binary.
+    public static let uiKit = LinkedFrameworks(rawValue: 1 << 2)
+    /// `libswiftCore` — some Swift is in there, not necessarily all of it.
+    public static let swift = LinkedFrameworks(rawValue: 1 << 3)
+
+    /// In a fixed order, so a row does not reshuffle its own description between
+    /// launches the way an unordered set would.
+    public var names: [String] {
+        var names: [String] = []
+        if contains(.appKit) { names.append("AppKit") }
+        if contains(.swiftUI) { names.append("SwiftUI") }
+        if contains(.uiKit) { names.append("UIKit") }
+        if contains(.swift) { names.append("Swift") }
+        return names
+    }
+}
+
+/// Reads an installed bundle and says which runtime it was built with.
+///
+/// Two evidence sources, cheapest first:
+///
+/// 1. **Bundle layout.** A packager cannot hide the runtime it bundles: Electron
+///    ships `Electron Framework.framework` (or an `app.asar`), Flutter ships
+///    `FlutterMacOS.framework`, Qt ships its own frameworks, a JVM app ships a
+///    runtime directory. One `contentsOfDirectory` on `Contents/Frameworks`
+///    answers all of the framework rules at once.
+/// 2. **Load commands.** "This is a native app" is not visible in the layout at
+///    all — nothing on disk says AppKit. The executable's linked dylibs do, and
+///    they also separate a Catalyst app (links out of `/System/iOSSupport/`) from
+///    an AppKit one. See `MachOImports`.
+///
+/// Returns nil when neither source recognizes anything, which is the honest answer
+/// for a launcher shell script, a Python app, or a C++ app that links neither
+/// AppKit nor a bundled toolkit — the UI shows no badge rather than a wrong one.
+public enum AppRuntimeDetector {
+
+    /// Injected so the rules can be tested without a real Mach-O binary on disk.
+    /// Production always passes `MachOImports.linkedLibraries(at:)`.
+    public typealias LibraryReader = (URL) -> Set<String>?
+
+    /// Everything one read of a bundle can say about how it was built.
+    public struct Reading: Sendable, Equatable {
+        public let runtime: AppRuntime?
+        public let frameworks: LinkedFrameworks
+    }
+
+    /// The runtime alone, for callers that do not need the framework set.
+    public static func detect(
+        bundleAt bundleURL: URL,
+        isiOSAppOnMac: Bool,
+        infoPlist: [String: Any],
+        linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) }
+    ) -> AppRuntime? {
+        read(bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac,
+             infoPlist: infoPlist, linkedLibraries: linkedLibraries).runtime
+    }
+
+    /// Both facts from a single pass. The executable's load commands are read at
+    /// most once here — the scan calls this for every app on the machine, and the
+    /// runtime and the framework set are two questions about the same list.
+    public static func read(
+        bundleAt bundleURL: URL,
+        isiOSAppOnMac: Bool,
+        infoPlist: [String: Any],
+        linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) }
+    ) -> Reading {
+        // A wrapped iOS app has no `Contents/` at all, so every rule below would
+        // look in the wrong place, and its own executable sits inside the wrapper
+        // rather than where the others keep theirs. Its wrapper is the evidence.
+        if isiOSAppOnMac { return Reading(runtime: .iOSApp, frameworks: []) }
+
+        let fm = FileManager.default
+        let contents = bundleURL.appendingPathComponent("Contents")
+        let frameworksDirectory = contents.appendingPathComponent("Frameworks")
+        let frameworkNames = (try? fm.contentsOfDirectory(atPath: frameworksDirectory.path)) ?? []
+
+        // The executable is read once, here, and both answers come out of that one
+        // list. It is read even for the bundles the layout rules settle on their
+        // own — an Electron app's shell links AppKit like any other — because the
+        // read costs about 0.2ms and asking twice would cost more.
+        let executable = executableURL(bundleAt: bundleURL, infoPlist: infoPlist, fm: fm)
+        let libraries = executable.flatMap(linkedLibraries)
+        let frameworks = libraries.map(Self.frameworks(in:)) ?? []
+        func reading(_ runtime: AppRuntime?) -> Reading {
+            Reading(runtime: runtime, frameworks: frameworks)
+        }
+
+        // Electron. The framework name is the obvious marker and the wrong one to
+        // stop at: QQ ships it renamed to `QQNT.framework`, and the renamed case is
+        // not rare enough to ignore. What an Electron app cannot do without is its
+        // JavaScript payload, so the packaged (`app.asar`) and unpacked
+        // (`Resources/app/package.json`, which is what VS Code and QQ both ship)
+        // forms are checked too, along with electron-builder's own update
+        // descriptor — the same file `ElectronUpdateConfig` reads.
+        //
+        // Deliberately NOT the helper processes: `<name> Helper (Renderer).app` in
+        // `Contents/Frameworks` looks like the perfect Electron marker and is not
+        // one — CEF lays its helpers out identically (Spotify, CapCut), so keying
+        // on it would file every embedded-Chromium app under Electron.
+        let electronMarkers = [
+            "Resources/app.asar",
+            "Resources/app-update.yml",
+            "Resources/app/package.json",
+        ]
+        if frameworkNames.contains("Electron Framework.framework")
+            || electronMarkers.contains(where: {
+                fm.fileExists(atPath: contents.appendingPathComponent($0).path)
+            }) {
+            return reading(.electron)
+        }
+
+        if frameworkNames.contains("FlutterMacOS.framework") { return reading(.flutter) }
+
+        // Qt before the Chromium rule below, deliberately: CapCut ships BOTH the Qt
+        // frameworks and `Chromium Embedded Framework.framework`, and Qt is the one
+        // drawing its windows — CEF is embedded inside it.
+        if frameworkNames.contains(where: isQtComponent) { return reading(.qt) }
+
+        if isJavaBundle(contents: contents, infoPlist: infoPlist, fm: fm) { return reading(.java) }
+
+        // A Chromium shell that isn't Electron. Chrome, its forks and CEF all name
+        // the framework "<product> Framework.framework" — Google Chrome Framework,
+        // Helium Framework, Chromium Embedded Framework. Electron's follows the
+        // same convention, which is why it is matched by name above first.
+        if frameworkNames.contains(where: { $0.hasSuffix(" Framework.framework") }) {
+            return reading(.chromium)
+        }
+
+        // Everything left is decided by what the binary links, so an unreadable one
+        // ends the enquiry.
+        guard let libraries else { return reading(nil) }
+
+        // Tauri — the one inference here, and worth stating plainly:
+        //
+        // Tauri bundles nothing distinctive. Its frontend is compiled into the
+        // binary and it draws into the system WebView, so there is no framework to
+        // find. What its packager DOES leave is a plist fingerprint: tauri-bundler
+        // (via cargo-bundle) writes the legacy pair `LSRequiresCarbon` +
+        // `CSResourcesFileMapped`, which essentially nothing else still emits.
+        //
+        // That pair alone says "cargo-bundle", not "Tauri" — Warp and Zed are
+        // cargo-bundled Rust apps with their own renderers and carry it too. The
+        // WebKit link is what separates them: a Tauri app must link WebKit to have
+        // a window at all, and those two do not. Measured across 140 installed apps
+        // this split every cargo-bundled app correctly, but it remains a heuristic:
+        // a future cargo-bundled app that embeds a WebView for something incidental
+        // would read as Tauri. It fails toward a wrong *label*, never toward a
+        // wrong install decision — nothing routes on this value.
+        if infoPlist["LSRequiresCarbon"] as? Bool == true,
+           infoPlist["CSResourcesFileMapped"] as? Bool == true,
+           MachOImports.links(libraries, framework: "WebKit") {
+            return reading(.tauri)
+        }
+
+        // Mac Catalyst apps link the iOS frameworks shipped under /System/iOSSupport.
+        if libraries.contains(where: { $0.contains("/System/iOSSupport/") }) { return reading(.catalyst) }
+
+        // Native covers anything drawing through Apple's own frameworks, including
+        // an app that renders its whole interface itself on top of them — Zed's
+        // GPUI links AppKit and Metal and draws every pixel with the latter. The
+        // distinction this enum makes is against *cross-platform runtimes*, not
+        // against custom renderers, and `frameworks` carries the detail.
+        if frameworks.contains(.appKit) || frameworks.contains(.swiftUI) {
+            return reading(.native)
+        }
+
+        return reading(nil)
+    }
+
+    /// Which of Apple's UI frameworks appear in a load-command list.
+    static func frameworks(in libraries: Set<String>) -> LinkedFrameworks {
+        var found: LinkedFrameworks = []
+        if MachOImports.links(libraries, framework: "AppKit") { found.insert(.appKit) }
+        if MachOImports.links(libraries, framework: "SwiftUI") { found.insert(.swiftUI) }
+        if MachOImports.links(libraries, framework: "UIKit") { found.insert(.uiKit) }
+        // The Swift runtime is a dylib, not a framework, and its install name is
+        // versioned in ways that make an exact match brittle.
+        if libraries.contains(where: { $0.contains("libswiftCore") }) { found.insert(.swift) }
+        return found
+    }
+
+    /// `QtCore.framework`, `QtWidgets.framework`, `libQt6Core.dylib` — Qt is
+    /// deployed either as frameworks or as dylibs depending on how `macdeployqt`
+    /// was run, and both spellings live in `Contents/Frameworks`.
+    private static func isQtComponent(_ name: String) -> Bool {
+        (name.hasPrefix("Qt") && name.hasSuffix(".framework"))
+            || (name.hasPrefix("libQt") && name.hasSuffix(".dylib"))
+    }
+
+    /// A JVM app ships the runtime it needs. `Java`/`runtime` are the `jpackage`
+    /// and legacy `JavaAppLauncher` layouts; `jbr` is JetBrains' bundled runtime.
+    private static func isJavaBundle(contents: URL, infoPlist: [String: Any], fm: FileManager) -> Bool {
+        for directory in ["Java", "runtime", "jbr"] {
+            var isDirectory: ObjCBool = false
+            let path = contents.appendingPathComponent(directory).path
+            if fm.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue { return true }
+        }
+        let executable = infoPlist["CFBundleExecutable"] as? String
+        return executable == "JavaAppLauncher" || executable == "JavaApplicationStub"
+    }
+
+    private static func executableURL(bundleAt bundleURL: URL, infoPlist: [String: Any], fm: FileManager) -> URL? {
+        guard let name = infoPlist["CFBundleExecutable"] as? String, !name.isEmpty else { return nil }
+        let url = bundleURL.appendingPathComponent("Contents/MacOS").appendingPathComponent(name)
+        return fm.fileExists(atPath: url.path) ? url : nil
+    }
+}

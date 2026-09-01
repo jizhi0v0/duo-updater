@@ -168,6 +168,24 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// already sitting in the cache. See `SelfUpdaterStaging`.
     public let hasSparkleUpdater: Bool
 
+    /// What the app is built with — Electron, Tauri, Qt, a native AppKit/SwiftUI
+    /// binary, … Nil when the bundle carries no evidence either way, which the UI
+    /// must render as "no badge" rather than as "native".
+    ///
+    /// Purely descriptive: nothing in the update engine reads it. It is a fact
+    /// about the bundle, read at scan time from the same directory listing and
+    /// Info.plist the scan is already paying for. See `AppRuntimeDetector`.
+    public let runtime: AppRuntime?
+
+    /// Which of Apple's UI frameworks the executable links, and whether Swift is
+    /// in there. Empty when the binary could not be read.
+    ///
+    /// Separate from `runtime` because it answers a different question and cannot
+    /// be collapsed into one: an app that links both AppKit and SwiftUI — half of
+    /// the native apps on a normal machine — has no single true label. See
+    /// `LinkedFrameworks`.
+    public let linkedFrameworks: LinkedFrameworks
+
     /// The release channel this install is on (Stable, Beta, Canary, …),
     /// detected at scan time. A source is only allowed to update this app from a
     /// recipe that targets the SAME channel — so a stable-channel recipe can
@@ -254,7 +272,9 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         releaseChannel: ReleaseChannel = .stable,
         channelIsAuthoritative: Bool = false,
         toolboxInstalledBuild: String? = nil,
-        appStoreAdamID: Int? = nil
+        appStoreAdamID: Int? = nil,
+        runtime: AppRuntime? = nil,
+        linkedFrameworks: LinkedFrameworks = []
     ) {
         self.name = name
         self.bundleID = bundleID
@@ -277,5 +297,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.channelIsAuthoritative = channelIsAuthoritative
         self.toolboxInstalledBuild = toolboxInstalledBuild
         self.appStoreAdamID = appStoreAdamID
+        self.runtime = runtime
+        self.linkedFrameworks = linkedFrameworks
     }
 }

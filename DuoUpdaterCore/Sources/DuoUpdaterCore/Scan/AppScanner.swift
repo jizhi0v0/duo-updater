@@ -215,7 +215,9 @@ public struct AppScanner: Sendable {
                 toolboxInstalledBuild: app.toolboxInstalledBuild,
                 // A receipt-backed app already paid this Spotlight read in the first
                 // scan. The fallback covers a DB-matched bundle with no receipt.
-                appStoreAdamID: app.appStoreAdamID ?? appStoreAdamID(app.path)
+                appStoreAdamID: app.appStoreAdamID ?? appStoreAdamID(app.path),
+                runtime: app.runtime,
+                linkedFrameworks: app.linkedFrameworks
             )
         }
     }
@@ -501,6 +503,11 @@ public struct AppScanner: Sendable {
             feedChannelNames = bound.sparkleChannelNames
         }
 
+        // One pass over the executable answers both "what is this built with" and
+        // "which of Apple's frameworks does it link".
+        let runtimeReading = AppRuntimeDetector.read(
+            bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist)
+
         return InstalledApp(
             name: displayName,
             bundleID: bundleID,
@@ -527,7 +534,12 @@ public struct AppScanner: Sendable {
             },
             // Only store-installed bundles carry an adamID; skip the metadata
             // read for everything else.
-            appStoreAdamID: (isMAS || isTestFlight) ? Self.appStoreAdamID(bundleURL) : nil
+            appStoreAdamID: (isMAS || isTestFlight) ? Self.appStoreAdamID(bundleURL) : nil,
+            // Descriptive only — no source, policy or install path reads this. Read
+            // here for the same reason the Squirrel/Sparkle probes are: the scan is
+            // already stat-ing this bundle and holding its Info.plist.
+            runtime: runtimeReading.runtime,
+            linkedFrameworks: runtimeReading.frameworks
         )
     }
 

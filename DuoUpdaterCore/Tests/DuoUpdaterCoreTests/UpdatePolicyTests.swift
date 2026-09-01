@@ -922,6 +922,36 @@ struct LaggingRemoteVersionTests {
             remoteBuild: "27A5237l")) == nil)
     }
 
+    /// LibreOffice: its download index lists three-segment folders while the
+    /// installed bundle reports four, so padding the missing component with zero
+    /// read the installed copy as ahead and the row announced a downgrade to the
+    /// release it already had.
+    @Test func aSourcePublishingFewerComponentsIsNotBehind() {
+        #expect(VersionComparator.isNewer("26.8.0.3", than: "26.8.0"),
+                "precondition: padding is why the plain comparison says 'ahead'")
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "26.8.0.3",
+            installedBuild: nil,
+            remoteShort: "26.8.0",
+            remoteBuild: nil)) == nil)
+    }
+
+    /// The prefix rule is a prefix rule, not a "fewer components" rule: a real
+    /// rollback still reports, and a shorter string that is not a truncation of the
+    /// installed one is not treated as the same release.
+    @Test func aShorterRemoteThatIsNotATruncationStillReports() {
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "4.8.8",
+            installedBuild: nil,
+            remoteShort: "3.7.1",
+            remoteBuild: nil)) == "3.7.1")
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "26.80.1",
+            installedBuild: nil,
+            remoteShort: "26.8",
+            remoteBuild: nil)) == "26.8")
+    }
+
     /// A genuinely lagging feed still says so — the fix must not silence the note
     /// it exists for.
     @Test func anOlderRemoteBuildIsStillReported() {

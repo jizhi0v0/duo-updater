@@ -448,7 +448,29 @@ public enum UpdatePolicy {
         guard let installed = result.app.shortVersion,
               let remoteShort = result.remote?.shortVersion,
               VersionComparator.isNewer(installed, than: remoteShort) else { return nil }
+        // A source that publishes fewer components than the bundle reports is not
+        // behind — it is describing the same release less precisely.
+        //
+        // LibreOffice is the case in hand: its download index lists three-segment
+        // folders (`26.8.0/`) while the installed bundle reports four (`26.8.0.3`),
+        // and padding the missing component with zero makes the installed copy
+        // "newer". The recipe's own note predicted the mismatch and worked through
+        // the update direction, where padding is harmless; this is the other
+        // direction, where it produced a row reading "26.8.0.3 ↓ 26.8.0" — a
+        // downgrade notice for an app that is exactly current.
+        //
+        // Deliberately a *prefix* test rather than a component-count test: 4.8.8
+        // against 3.7.1 is a real rollback and still says so.
+        if isPrefix(remoteShort, of: installed) { return nil }
         return result.remote?.displayVersion ?? remoteShort
+    }
+
+    /// Whether `shorter` is `longer` truncated at a component boundary — "26.8.0"
+    /// against "26.8.0.3", but not "26.8" against "26.80.1".
+    private static func isPrefix(_ shorter: String, of longer: String) -> Bool {
+        let a = shorter.split(separator: "."), b = longer.split(separator: ".")
+        guard !a.isEmpty, a.count < b.count else { return false }
+        return Array(b.prefix(a.count)) == a
     }
 
     /// Which rows have *settled* — reached a state where anything we recorded

@@ -466,9 +466,20 @@ struct MenuContentView: View {
                     } label: {
                         Image(systemName: "gearshape")
                             .padding(.top, 5)
+                            // A setting added by an update the user has just taken.
+                            // The dot lives on the way IN to Settings, because a
+                            // dot only on the control itself would be behind a
+                            // window nobody has a reason to open.
+                            .overlay(alignment: .topTrailing) {
+                                if !model.prefs.pendingSpotlights.isEmpty {
+                                    SpotlightDot(size: 5).offset(x: 3, y: 3)
+                                }
+                            }
                     }
                     .buttonStyle(.borderless)
-                    .help("Settings")
+                    .help(model.prefs.pendingSpotlights.isEmpty
+                          ? String(localized: "Settings")
+                          : String(localized: "Settings — something new in here"))
                 }
                 .font(.system(size: 13))
                 .offset(y: -1)
@@ -835,6 +846,13 @@ private struct AppRow: View {
     /// left to `ViewThatFits`: the progress control is inflexible, so an HStack
     /// hands it its ideal width and it never feels the pressure a long name is
     /// under. Measuring is the only way to see the collision coming.
+    ///
+    /// The runtime symbol is deliberately **not** counted here. It is the one thing
+    /// on this line that yields rather than pushes: `ViewThatFits` drops it before
+    /// the name gives up a line. Budgeting for it would spend width on something
+    /// that may not be drawn — and spend it in the worst place, pushing rows from
+    /// the progress bar down to a bare ring during a download, which is exactly
+    /// when the row has the most to say.
     private var nameLineWidth: CGFloat {
         var width = NSAttributedString(
             string: result.app.name,
@@ -844,6 +862,48 @@ private struct AppRow: View {
         let tag = ChannelTag.measuredWidth(for: result.app.releaseChannel)
         if tag > 0 { width += tag + 6 }
         return width
+    }
+
+    /// The name, its running dot, its channel chip — and the runtime symbol, if the
+    /// row can afford it.
+    ///
+    /// The choice is handed to `ViewThatFits` rather than made by arithmetic here,
+    /// and that is a correction rather than a shortcut. Measuring it by hand needs
+    /// the width of the trailing control, and this row does not know it: the slot is
+    /// a 64pt *minimum* and the real control runs far past it ("Reveal in Finder" is
+    /// nearly twice that, and every label is localized). Budgeting against the
+    /// minimum said the symbol fit where it did not, and wrapped "Postman Collection
+    /// Runner" onto a second line — a name losing a line to a decorative glyph,
+    /// which is exactly what must not happen. `ViewThatFits` is asked at layout
+    /// time, when the true remaining width is known, and its second candidate is the
+    /// line as it looked before this feature.
+    @ViewBuilder
+    private var nameLine: some View {
+        if model.prefs.showRuntimeTags, let runtime = result.app.runtime {
+            ViewThatFits(in: .horizontal) {
+                nameLine(tagged: runtime)
+                nameLine(tagged: nil)
+            }
+        } else {
+            nameLine(tagged: nil)
+        }
+    }
+
+    private func nameLine(tagged runtime: AppRuntime?) -> some View {
+        HStack(spacing: 6) {
+            Text(result.app.name).font(.body)
+            if model.isRunning(result) {
+                RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
+            }
+            ChannelTag(channel: result.app.releaseChannel)
+            // No optical nudge here: this mark is nearly cap-height, so it is judged
+            // by its edges rather than its centre. See `RunningIndicator.opticalNudge`.
+            if let runtime {
+                RuntimeTag(runtime: runtime, bundle: result.app.path,
+                           appVersion: result.app.shortVersion,
+                           frameworks: result.app.linkedFrameworks)
+            }
+        }
     }
 
     /// What the version line under the name wants out of the same column.
@@ -943,11 +1003,7 @@ private struct AppRow: View {
                     .frame(width: 30, height: 30)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 6) {
-                        Text(result.app.name).font(.body)
-                        if model.isRunning(result) { RunningIndicator(size: 6) }
-                        ChannelTag(channel: result.app.releaseChannel)
-                    }
+                    nameLine
                     versionLine
                 }
                 Spacer()

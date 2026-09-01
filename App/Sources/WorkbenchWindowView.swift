@@ -505,7 +505,8 @@ struct WorkbenchWindowView: View {
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
-                    runningVersion: model.restartFromSide(result.id))
+                    runningVersion: model.restartFromSide(result.id),
+                    showsRuntime: model.prefs.showRuntimeTags)
                     .tag(result.id)
             }
         }
@@ -528,7 +529,8 @@ struct WorkbenchWindowView: View {
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
-                    runningVersion: model.restartFromSide(result.id))
+                    runningVersion: model.restartFromSide(result.id),
+                    showsRuntime: model.prefs.showRuntimeTags)
                     .tag(result.id)
             }
             ForEach(model.brewFormulae) { formula in
@@ -781,6 +783,33 @@ private struct WorkbenchSidebarRow: View {
     /// against the on-disk side rather than in isolation. nil when not lagging an
     /// on-disk build.
     let runningVersion: UpdateResult.VersionSide?
+    /// Whether to show the runtime chip (Electron / Tauri / native / …).
+    let showsRuntime: Bool
+
+    /// Whether the sidebar row has room for the runtime symbol.
+    ///
+    /// Measured against the sidebar's **narrowest** setting (260pt, the minimum
+    /// `navigationSplitViewColumnWidth` allows) rather than its current one. The
+    /// column is user-resizable and the name already truncates at one line, so a
+    /// symbol sized to a wide sidebar would silently start eating names the moment
+    /// someone dragged the divider left — a fixed floor cannot. `ViewThatFits`
+    /// is no help here for the same reason: a truncating `Text` reports a tiny
+    /// minimum width, so every candidate "fits".
+    private var runtimeTag: AppRuntime? {
+        guard showsRuntime, let runtime = result.app.runtime else { return nil }
+        var used = NSAttributedString(
+            string: result.app.name,
+            attributes: [.font: NSFont.preferredFont(forTextStyle: .body)]
+        ).size().width
+        if isRunning { used += 5 + 6 }
+        let channel = ChannelTag.measuredWidth(for: result.app.releaseChannel)
+        if channel > 0 { used += channel + 6 }
+        return used + RuntimeTag.width() + 6 <= Self.narrowestNameColumn ? runtime : nil
+    }
+
+    /// 260pt minimum column, less the list's own insets (8 + 8), the 22pt icon and
+    /// the 8pt gap after it.
+    private static let narrowestNameColumn: CGFloat = 260 - 16 - 22 - 8
 
     var body: some View {
         HStack(spacing: 8) {
@@ -789,8 +818,14 @@ private struct WorkbenchSidebarRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(result.app.name).font(.body).lineLimit(1)
-                    if isRunning { RunningIndicator(size: 5) }
+                    if isRunning {
+                        RunningIndicator(size: 5).offset(y: RunningIndicator.opticalNudge)
+                    }
                     ChannelTag(channel: result.app.releaseChannel)
+                    if let runtimeTag {
+                        RuntimeTag(runtime: runtimeTag, frameworks: result.app.linkedFrameworks,
+                                   overHighlight: isSelected, interactive: false)
+                    }
                 }
                 subtitle
             }
@@ -1068,6 +1103,14 @@ private struct DetailHeader: View {
                         Text(result.app.name).font(.title2).bold()
                         if model.isRunning(result) { RunningIndicator(size: 7) }
                         ChannelTag(channel: result.app.releaseChannel)
+                        // Sized up to sit beside a `.title2` name rather than a
+                        // list row's body text — the marks are drawn in a unit box,
+                        // so they scale without losing their stroke ratio.
+                        if model.prefs.showRuntimeTags, let runtime = result.app.runtime {
+                            RuntimeTag(runtime: runtime, bundle: result.app.path,
+                                       appVersion: result.app.shortVersion,
+                                       frameworks: result.app.linkedFrameworks, size: 18)
+                        }
                     }
                     versionLine
                 }

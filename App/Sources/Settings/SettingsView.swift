@@ -28,7 +28,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            SettingsSidebar(selection: $selection, query: $query)
+            SettingsSidebar(selection: $selection, query: $query, prefs: prefs)
                 .navigationSplitViewColumnWidth(212)
         } detail: {
             detail
@@ -84,6 +84,8 @@ struct SettingsView: View {
 private struct SettingsSidebar: View {
     @Binding var selection: SettingsSection
     @Binding var query: String
+    /// Only for the "new setting" dots — the sidebar itself has nothing to set.
+    @Bindable var prefs: Preferences
 
     private var groups: [(group: SettingsSection.Group, sections: [SettingsSection])] {
         SettingsSection.Group.allCases.compactMap { group in
@@ -121,7 +123,10 @@ private struct SettingsSidebar: View {
 
     private func row(_ section: SettingsSection) -> some View {
         Label {
-            Text(section.label)
+            HStack(spacing: 6) {
+                Text(section.label)
+                if prefs.hasPendingSpotlight(in: section) { SpotlightDot(size: 5) }
+            }
         } icon: {
             SettingsIconTile(section: section)
         }

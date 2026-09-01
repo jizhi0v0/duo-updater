@@ -62,6 +62,60 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     #expect(AppScanner.stripInvisibleMarks("  Plain  ") == "Plain")
 }
 
+@Test func scannerFallsThroughAnEmptyDisplayName() throws {
+    // Eudic (欧路词典) ships `CFBundleDisplayName` = "" — the key is present and the
+    // value is an empty string, because every real name lives in a localized
+    // `InfoPlist.strings` (欧路词典 / EuDic). The old `??` chain only stepped past a
+    // MISSING key, so the row rendered with no name at all while `CFBundleName`
+    // ("Eudic") sat unread right behind it.
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    _ = try makeApp(at: tmp, name: "Eudic", info: [
+        "CFBundleIdentifier": "com.eusoft.eudic",
+        "CFBundleShortVersionString": "26.9.0",
+        "CFBundleVersion": "1229",
+        "CFBundleDisplayName": "",
+        "CFBundleName": "Eudic",
+    ])
+
+    let apps = AppScanner(locations: [tmp]).scan()
+    #expect(apps.map(\.name) == ["Eudic"])
+}
+
+@Test func scannerFallsBackToTheBundleFilenameWhenBothNamesAreBlank() throws {
+    // Both name keys present and useless — whitespace and a lone bidi mark, which
+    // `stripInvisibleMarks` reduces to "". The emptiness test therefore has to run
+    // on the STRIPPED candidate, not on the raw plist value, or this lands back on
+    // a blank row.
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    _ = try makeApp(at: tmp, name: "Nameless", info: [
+        "CFBundleIdentifier": "com.example.nameless",
+        "CFBundleShortVersionString": "1.0",
+        "CFBundleDisplayName": "   ",
+        "CFBundleName": "\u{200E}",
+    ])
+
+    let apps = AppScanner(locations: [tmp]).scan()
+    #expect(apps.map(\.name) == ["Nameless"])  // the bundle's own filename
+}
+
+@Test func firstUsableNameSkipsBlankCandidatesInOrder() {
+    #expect(AppScanner.firstUsableName("", "Eudic", "EudicFile") == "Eudic")
+    #expect(AppScanner.firstUsableName(nil, nil, "EudicFile") == "EudicFile")
+    #expect(AppScanner.firstUsableName("  ", "\u{200E}", "Fallback") == "Fallback")
+    // A usable first candidate still wins, marks stripped (the WhatsApp case).
+    #expect(AppScanner.firstUsableName("\u{200E}WhatsApp", "Other", "File") == "WhatsApp")
+    // Nothing readable anywhere: an empty name is the honest answer, not a crash.
+    #expect(AppScanner.firstUsableName(nil, "", "  ") == "")
+}
+
 @Test func twoBundlesSharingABundleIDGetDistinctIDs() throws {
     // Two JetBrains-Toolbox Android Studio installs (Otter + Koala) ship the
     // same CFBundleIdentifier. Identity keys on the on-disk path, not the

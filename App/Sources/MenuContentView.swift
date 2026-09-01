@@ -159,6 +159,15 @@ struct MenuContentView: View {
             // reopening the popover makes every attempt "the first" again. It also
             // explains why having any window already open hid it — with a window up
             // the app is already active, so no click is spent on activation.
+            //
+            // The cost, accepted deliberately: clicking the menu bar icon now takes
+            // focus from whatever you were in, and if a Duo Updater window is parked
+            // on another Space, macOS may follow it there — so a peek at the popover
+            // from a fullscreen app can leave fullscreen. The alternative, deferring
+            // activation until the first interaction, is the bug above wearing a
+            // different hat: that interaction is the one that gets eaten. Fullscreen
+            // plus a window on another Space is a narrower case than "the first
+            // click never works", which was every click.
             NSApp.activate(ignoringOtherApps: true)
 
             model.refreshPermissionStatus()

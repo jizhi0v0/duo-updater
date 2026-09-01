@@ -79,6 +79,36 @@ public struct AppScanner: Sendable {
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The first of these name candidates that survives `stripInvisibleMarks` as
+    /// something a user can read, in the caller's order of preference.
+    ///
+    /// The fallback chain used to be `??`, which only steps past a key that is
+    /// **missing** — an *empty* `CFBundleDisplayName` is a perfectly good `String`
+    /// and stopped the chain dead. Eudic (欧路词典) ships exactly that: its
+    /// top-level `CFBundleDisplayName` is `""` because every real name lives in a
+    /// localized `InfoPlist.strings` (`欧路词典` / `EuDic`), so the row rendered
+    /// with a blank name while `CFBundleName` ("Eudic") sat right behind it,
+    /// unread. `stripInvisibleMarks` can empty a candidate too — a name made only
+    /// of bidi marks — so the emptiness test has to be on its *output*, not on the
+    /// raw plist value.
+    ///
+    /// We deliberately do not consult the localized `InfoPlist.strings`: every name
+    /// in this app comes from the unlocalized plist (WeChat is "WeChat", not
+    /// "微信"), and the AX/App Store matching that `stripInvisibleMarks` exists for
+    /// compares against those same strings.
+    ///
+    /// The last candidate is the caller's non-optional backstop (the bundle's
+    /// filename); if even that is blank the name is genuinely unknowable and an
+    /// empty string is the honest answer.
+    static func firstUsableName(_ candidates: String?...) -> String {
+        for candidate in candidates {
+            guard let candidate else { continue }
+            let cleaned = stripInvisibleMarks(candidate)
+            if !cleaned.isEmpty { return cleaned }
+        }
+        return ""
+    }
+
     /// The Mac App Store receipt environment for a bundle, from Spotlight metadata
     /// (`kMDItemAppStoreReceiptType`): "Production" for a store purchase,
     /// "ProductionSandbox" for a TestFlight build. Returns nil when Spotlight has
@@ -304,10 +334,10 @@ public struct AppScanner: Sendable {
         // literal comparison against text rendered *without* them — most visibly the
         // App Store AX updater's `heroOwns`/row matching, which then "can't find the
         // update button". Strip them so the canonical name matches everywhere.
-        let displayName = Self.stripInvisibleMarks(
-            (plist["CFBundleDisplayName"] as? String)
-            ?? (plist["CFBundleName"] as? String)
-            ?? bundleURL.deletingPathExtension().lastPathComponent
+        let displayName = Self.firstUsableName(
+            plist["CFBundleDisplayName"] as? String,
+            plist["CFBundleName"] as? String,
+            bundleURL.deletingPathExtension().lastPathComponent
         )
 
         // Wrapped iOS apps can only come from the Mac App Store; native Mac apps

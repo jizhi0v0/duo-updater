@@ -12,24 +12,32 @@ import Foundation
 /// disagreed — see issue #197: the popover offered a button labeled "Open" that
 /// actually revealed the app in Finder (`NSWorkspace.activateFileViewerSelecting`),
 /// while the workbench rendered nothing at all for the identical data.
+///
+/// This type only owns the *decision* (is there a page to send the user to, or
+/// not) and the copy for the case both hosts render identically. It deliberately
+/// does not own a title for `.openPage`, nor how a host actually opens that URL:
+/// the popover's `openAction()` recognizes a non-http(s) scheme and hands it to
+/// the app itself via `NSWorkspace.open(_:withApplicationAt:)` so the app's own
+/// updater can act on it (e.g. Chrome's `chrome://` deep link); the workbench
+/// does a plain `NSWorkspace.shared.open(url)` regardless of scheme. That gap
+/// predates this type and is out of scope for #197 — each host still decides it.
 public enum DetectionOnlyAffordance: Sendable, Equatable {
-    /// There's somewhere to send the user — the vendor's page, or (when the URL's
-    /// scheme isn't http/https) an app-internal deep link into its own updater.
+    /// There's a page URL to send the user to — the vendor's download/release
+    /// page, or an app-internal deep link. What the button says and how the URL
+    /// is opened are both a per-host call; see the type doc above.
     case openPage(URL)
     /// No page at all. The only honest offer left is showing the user where the
-    /// app lives, so they can deal with it by hand.
+    /// app lives, so they can deal with it by hand — every host renders this the
+    /// same way, so its copy lives here.
     case revealInFinder
 
     public static func resolve(pageURL: URL?) -> Self {
         pageURL.map(Self.openPage) ?? .revealInFinder
     }
 
-    /// Button title — matches what the action actually does, unlike the old
-    /// popover behavior where a `pageURL == nil` result still said "Open".
-    public var buttonTitle: String {
-        switch self {
-        case .openPage: return String(localized: "Open")
-        case .revealInFinder: return String(localized: "Reveal in Finder")
-        }
+    /// Localized title for the `.revealInFinder` case only. `.openPage` has no
+    /// shared title on purpose — see the type doc.
+    public static var revealInFinderTitle: String {
+        String(localized: "Reveal in Finder")
     }
 }

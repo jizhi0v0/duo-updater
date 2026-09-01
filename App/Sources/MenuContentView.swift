@@ -1594,10 +1594,20 @@ private struct AppRow: View {
     /// channel; only reveals in Finder if there's no URL to open — in which case
     /// the button title says so too (see `DetectionOnlyAffordance`, #197).
     private var openButton: some View {
-        Button(detectionOnlyAffordance.buttonTitle) { openAction() }
+        Button(openButtonTitle) { openAction() }
             .controlSize(.small)
             .buttonStyle(.bordered)
             .help(openHelp)
+    }
+
+    /// `.openPage`'s title is this host's own call (kept out of
+    /// `DetectionOnlyAffordance` on purpose — see its doc comment): the popover
+    /// says "Open" here, matching its other single-word action buttons.
+    private var openButtonTitle: String {
+        switch detectionOnlyAffordance {
+        case .openPage: return String(localized: "Open")
+        case .revealInFinder: return DetectionOnlyAffordance.revealInFinderTitle
+        }
     }
 
     private var detectionOnlyAffordance: DetectionOnlyAffordance {

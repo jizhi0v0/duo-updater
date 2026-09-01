@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.80
+
+**A version spelled two ways is now one version everywhere, not just when deciding what is newer.** Duo Updater already knew that `v1.2.3` and `1.2.3`, or `1.0` and `1.0.0`, name the same release when it asks whether an update is available. The separate question it asks after an install — "is what is on disk now the version we were waiting for?" — compared the two strings letter for letter, so a vendor whose feed writes the version one way and whose app writes it another could never answer yes: a package that had been downloaded and was ready to install was quietly discarded and fetched again, and a Relaunch could keep waiting on a swap that had already happened. Both questions now use the same reading of a version. Nothing loosens in the other direction: a different build number under the same version is still a different version, and two versions that cannot be compared at all are still not treated as the same one.
+
 ## 0.3.79
 
 **Docker's mark now describes Docker's interface instead of its daemon.** The row said "native"; Docker Desktop is an Electron app. The mark is read from the app's bundle, and Docker's bundle is a wrapper: the program it names is a background service written in Go, it carries no framework of its own, and the actual window-drawing app sits one level inside it. Everything was being read correctly out of the wrong file. Duo Updater now looks in the nested app when — and only when — the outer one brings nothing itself and contains exactly one such app that proves what it is built with, so a helper process shipped alongside a real interface still cannot lend its identity to its host. Docker reads as Electron 42.5.0, and of the hundred and forty-six apps in the list on the machine this was written on, it is the only row that changes.

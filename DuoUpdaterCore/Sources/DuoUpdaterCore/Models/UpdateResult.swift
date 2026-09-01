@@ -492,6 +492,15 @@ public struct UpdateResult: Sendable, Identifiable {
     /// Deliberately excludes "Homebrew" (some casks wrap paid apps) and a Sparkle
     /// feed that merely set no `minimumAutoupdateVersion` (a paid app may simply
     /// omit it), both of which keep the warning — the conservative direction.
+    ///
+    /// Also deliberately excludes "Electron" (#192): an electron-builder manifest
+    /// can belong to a commercial app we've done no license review of, unlike
+    /// Vendor (our own hand-curated, vetted registry) or GitHub (open-source
+    /// feeds) — so a major-version jump arriving through this source still
+    /// raises the "may need a new license" warning. Same conservative treatment
+    /// as Homebrew, not an oversight. `UpdatePolicy.canAutoInstall`'s
+    /// `"Vendor", "GitHub", "Electron"` case (Engine/UpdatePolicy.swift) points
+    /// back here rather than repeating this.
     private static let licenseNeutralSources: Set<String> = ["Vendor", "GitHub", "App Store"]
 
     /// True when the available update is a notable/major upgrade — the signal we

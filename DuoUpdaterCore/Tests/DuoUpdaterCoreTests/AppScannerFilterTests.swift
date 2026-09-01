@@ -314,3 +314,62 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
     #expect(deduped.map(\.path.path).contains("/Applications/Firefox.app"))
     #expect(!deduped.map(\.path.path).contains("/Users/me/Applications/Firefox.app"))
 }
+
+@Test func scopedScanAppliesTheSameEntryRulesAsTheFullScan() throws {
+    // The per-entry rules — sidecar names, symlinks into /System, dedupe on the
+    // resolved path, non-`.app` entries — are one function shared by `scan()` and
+    // `scan(bundlesAt:)`. This pins that sharing: hand the scoped scan every entry
+    // of a directory the full scan would reject most of, and expect the same
+    // single survivor. The row-for-row test in `AppScannerTests` cannot see these
+    // rules, because no real row is ever a sidecar or a /System symlink.
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    let real = try makeApp(at: tmp, name: "DuoPaste", info: [
+        "CFBundleIdentifier": "io.duopaste.daemon",
+        "CFBundleShortVersionString": "0.1.1270",
+        "CFBundleVersion": "1271",
+    ])
+    let sidecar = try makeApp(at: tmp, name: "DuoPaste.backup-20260716-183428", info: [
+        "CFBundleIdentifier": "io.duopaste.daemon",
+        "CFBundleShortVersionString": "0.1.1269",
+        "CFBundleVersion": "1269",
+    ])
+    // A symlink to the real bundle resolves to the same path, so it must fold into
+    // the one row rather than produce a second.
+    let alias = tmp.appendingPathComponent("DuoPaste Alias.app")
+    try FileManager.default.createSymbolicLink(atPath: alias.path, withDestinationPath: real.path)
+    let systemLink = tmp.appendingPathComponent("Feedback Assistant.app")
+    try? FileManager.default.createSymbolicLink(
+        atPath: systemLink.path,
+        withDestinationPath: "/System/Library/CoreServices/Applications/Feedback Assistant.app")
+    let notAnApp = tmp.appendingPathComponent("notes.txt")
+
+    let scanner = AppScanner(locations: [tmp])
+    let full = scanner.scan()
+    let scoped = scanner.scan(bundlesAt: [sidecar, alias, systemLink, notAnApp, real])
+    #expect(full.count == 1)
+    // Whole-value equality, so the URL shape counts too: a directory listing yields
+    // `…/DuoPaste.app/` and `makeApp` built `…/DuoPaste.app`; the scoped scan must
+    // hand back the former, or a hand-built URL produces a row that is `!=` the
+    // full scan's for the same bundle.
+    #expect(scoped == full)
+    #expect(scoped.first?.path.path == real.path)
+
+    // `dedupeIdenticalInstalls` too: a byte-identical clone (same id, channel and
+    // version) in a folder the scanner does not list folds into the first row in
+    // list order, exactly as `/Applications` beats `~/Applications` in a full scan.
+    // Kept out of `tmp` so the full scan above has one deterministic winner.
+    let elsewhere = tmp.appendingPathComponent("elsewhere", isDirectory: true)
+    try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+    let clone = try makeApp(at: elsewhere, name: "DuoPaste", info: [
+        "CFBundleIdentifier": "io.duopaste.daemon",
+        "CFBundleShortVersionString": "0.1.1270",
+        "CFBundleVersion": "1271",
+    ])
+    let withClone = scanner.scan(bundlesAt: [real, clone])
+    #expect(withClone.count == 1)
+    #expect(withClone.first?.path.path == real.path)
+}

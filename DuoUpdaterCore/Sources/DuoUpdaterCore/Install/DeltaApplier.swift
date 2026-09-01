@@ -209,7 +209,10 @@ public enum DeltaApplier {
 public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
     guard let verify = error as? SignatureVerifier.VerifyError else { return true }
     switch verify {
-    case .unsupportedSystemVersion, .unrunnableArchitecture:
+    case .unsupportedSystemVersion, .unrunnableArchitecture, .architectureDowngrade:
+        // Same shape as gate 5/6: which slices a bundle was built with is a
+        // property of the VERSION, so the full archive carries the identical
+        // set and would be refused for the identical reason (issue #196).
         return false
     case .edSignatureMissing, .edSignatureInvalid, .codeSignatureInvalid,
          .noTeamIdentifier, .teamIdentifierMismatch,

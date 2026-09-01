@@ -569,8 +569,8 @@ func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
     // whose `Contents/MacOS` links to itself — the re-entrant call goes through the
     // production proof, so a counter cannot see it, and the only signal left is a
     // clock. The exemption below is the thing that has to hold; the loop follows
-    // from it. Measured while it did not hold: 1.83s against 0.071s, ~26 walks of a
-    // 60 MB binary, terminating only when the path outgrew PATH_MAX.
+    // from it. Measured while it did not hold: 0.38s of CPU against 0.02s, ~26
+    // walks of a 60 MB binary, terminating only when the path outgrew PATH_MAX.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let wrapper = try builder.app("Wrapper")
     let inner = try builder.app(

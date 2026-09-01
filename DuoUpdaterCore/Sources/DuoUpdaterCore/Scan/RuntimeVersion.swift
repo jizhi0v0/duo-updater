@@ -64,10 +64,12 @@ public enum RuntimeVersion {
         // the path leaves the detector and comes back in. On a bundle whose
         // `Contents/MacOS` holds a symlink to itself the descent then terminates
         // only when the path outgrows PATH_MAX, having walked the executable once
-        // per level: measured at 1.83s against 0.071s for the same bundle without
-        // the symlink, ~26 walks of a 60 MB binary where one was intended. Nothing
-        // ships that layout; the guard is here so the invariant is stated in code
-        // rather than left to the shape of what happens to be installed.
+        // per level: 0.38s of CPU against 0.02s for the same bundle without the
+        // symlink, ~26 walks of a 60 MB binary where one was intended. (Measured
+        // after #216 made `probe` use `Data.range(of:)`; against the byte loop it
+        // replaced the same pair read 1.48s against 0.05s.) Nothing ships that
+        // layout; the guard is here so the invariant is stated in code rather than
+        // left to the shape of what happens to be installed.
         let bundleURL = runtime == .tauri
             ? inputBundleURL
             : AppRuntimeDetector.interfaceBundle(at: inputBundleURL)

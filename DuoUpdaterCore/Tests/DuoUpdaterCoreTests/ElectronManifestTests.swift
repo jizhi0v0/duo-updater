@@ -198,13 +198,26 @@ struct ElectronArchSiblingClosureTests {
         // tests' requests are ever in flight together — so this is safe despite
         // not being actor-isolated.
         nonisolated(unsafe) static var routes: [String: Response] = [:]
+        /// For the retry test: a URL that must answer differently across
+        /// successive requests (a 502 then a 200), which a single `Response`
+        /// per URL can't express. Consulted before `routes`; the last entry
+        /// repeats once the sequence is exhausted.
+        nonisolated(unsafe) static var sequenceRoutes: [String: [Response]] = [:]
+        nonisolated(unsafe) static var sequenceCallCount: [String: Int] = [:]
 
         override class func canInit(with request: URLRequest) -> Bool { true }
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
         override func startLoading() {
             guard let url = request.url else { return }
-            guard let route = Self.routes[url.absoluteString] else {
+            let route: Response
+            if let sequence = Self.sequenceRoutes[url.absoluteString], !sequence.isEmpty {
+                let call = Self.sequenceCallCount[url.absoluteString, default: 0]
+                Self.sequenceCallCount[url.absoluteString] = call + 1
+                route = sequence[min(call, sequence.count - 1)]
+            } else if let fixed = Self.routes[url.absoluteString] {
+                route = fixed
+            } else {
                 let response = HTTPURLResponse(
                     url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: nil)!
                 client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
@@ -334,39 +347,128 @@ struct ElectronArchSiblingClosureTests {
         #expect(remote.expectedSHA512 == nil)
     }
 
-    @Test func versionMismatchedSiblingWithholdsTheArtifact() async throws {
-        // The sibling answers 200 but names a different release — a train
-        // change, not an architecture split. Not proof of absence either.
-        let domain = "https://cdn-mismatch.example.test"
+    // MARK: - #203: a resolved sibling is adopted wholesale, version and all
+
+    @Test func aHigherVersionedSiblingIsAdoptedWholesale() async throws {
+        // The real Notion shape, 2026-09-01: the two tracks had drifted four
+        // days apart. `latest-mac.yml` (x64) still said 7.31.3; `arm64-mac.yml`
+        // had shipped 7.32.0 on 2026-08-31. The OLD equality guard made this
+        // source report 7.31.3 — the installed version — so an arm64 host was
+        // told "already up to date" while four days behind. It must now report
+        // 7.32.0 and the arm64 artifact.
+        let domain = "https://cdn-higher.example.test"
         FixtureProtocol.routes = [
             "\(domain)/latest-mac.yml": .init(status: 200, body: """
-                version: 3.0.0
+                version: 7.31.3
                 files:
-                  - url: App-3.0.0.zip
-                    sha512: ZIPSHA==
-                    size: 100
-                path: App-3.0.0.zip
-                sha512: ZIPSHA==
+                  - url: Notion-7.31.3.zip
+                    sha512: X64SHA==
+                    size: 126113061
+                path: Notion-7.31.3.zip
+                sha512: X64SHA==
+                releaseDate: '2026-08-27T01:59:39.485Z'
                 """, transportFailure: false),
             "\(domain)/arm64-mac.yml": .init(status: 200, body: """
-                version: 3.0.1
+                version: 7.32.0
                 files:
-                  - url: App-3.0.1-arm64.zip
+                  - url: Notion-arm64-7.32.0.zip
                     sha512: ARMSHA==
-                    size: 90
-                path: App-3.0.1-arm64.zip
+                    size: 121001845
+                path: Notion-arm64-7.32.0.zip
                 sha512: ARMSHA==
+                releaseDate: '2026-08-31T20:30:08.402Z'
                 """, transportFailure: false),
         ]
-        let bundleID = "com.duoupdater.test.electron.versionMismatch"
+        let bundleID = "com.duoupdater.test.electron.higherSibling"
         let app = electronApp(bundleID: bundleID, domain: domain)
         let source = ElectronManifestSource(session: fixtureSession())
 
         let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "3.0.0")
-        #expect(remote.downloadURL == nil)
-        #expect(remote.vendorInstallerKind == nil)
-        #expect(remote.expectedSHA512 == nil)
+        #expect(remote.shortVersion == "7.32.0")
+        #expect(remote.downloadURL == URL(string: "\(domain)/Notion-arm64-7.32.0.zip"))
+        #expect(remote.vendorInstallerKind == .zip)
+        #expect(remote.expectedSHA512 == "ARMSHA==")
+    }
+
+    @Test func aLowerVersionedSiblingIsAlsoAdoptedWholesale() async throws {
+        // The mirror case named explicitly in #203: the arm64 track can just as
+        // easily be BEHIND the default manifest, and that is still the real
+        // state of the arm64 track — reporting it is correct, not a regression
+        // to an older version.
+        let domain = "https://cdn-lower.example.test"
+        FixtureProtocol.routes = [
+            "\(domain)/latest-mac.yml": .init(status: 200, body: """
+                version: 5.1.0
+                files:
+                  - url: App-5.1.0.zip
+                    sha512: X64SHA==
+                    size: 100
+                path: App-5.1.0.zip
+                sha512: X64SHA==
+                """, transportFailure: false),
+            "\(domain)/arm64-mac.yml": .init(status: 200, body: """
+                version: 5.0.9
+                files:
+                  - url: App-5.0.9-arm64.zip
+                    sha512: ARMSHA==
+                    size: 95
+                path: App-5.0.9-arm64.zip
+                sha512: ARMSHA==
+                """, transportFailure: false),
+        ]
+        let bundleID = "com.duoupdater.test.electron.lowerSibling"
+        let app = electronApp(bundleID: bundleID, domain: domain)
+        let source = ElectronManifestSource(session: fixtureSession())
+
+        let remote = try #require(await source.latestVersion(for: app))
+        #expect(remote.shortVersion == "5.0.9")
+        #expect(remote.downloadURL == URL(string: "\(domain)/App-5.0.9-arm64.zip"))
+        #expect(remote.vendorInstallerKind == .zip)
+        #expect(remote.expectedSHA512 == "ARMSHA==")
+    }
+
+    @Test func aTransientGatewayErrorOnTheSiblingIsRetriedRatherThanTreatedAsIndeterminate() async throws {
+        // #203's second finding: the default manifest fetch retries a gateway
+        // 502/503/504 once (`versionFeedData`), but the sibling probe used to go
+        // through a bare `data(for:)` with none of that — so the identical
+        // transient status self-healed on one request and got read as
+        // "inconclusive, withhold the artifact" on the other. The sibling here
+        // 502s once, then answers normally; that must resolve, not withhold.
+        let domain = "https://cdn-gateway-retry.example.test"
+        FixtureProtocol.routes = [
+            "\(domain)/latest-mac.yml": .init(status: 200, body: """
+                version: 9.0.0
+                files:
+                  - url: App-9.0.0.zip
+                    sha512: X64SHA==
+                    size: 100
+                path: App-9.0.0.zip
+                sha512: X64SHA==
+                """, transportFailure: false),
+        ]
+        FixtureProtocol.sequenceRoutes = [
+            "\(domain)/arm64-mac.yml": [
+                .init(status: 502, body: nil, transportFailure: false),
+                .init(status: 200, body: """
+                    version: 9.0.0
+                    files:
+                      - url: App-9.0.0-arm64.zip
+                        sha512: ARMSHA==
+                        size: 90
+                    path: App-9.0.0-arm64.zip
+                    sha512: ARMSHA==
+                    """, transportFailure: false),
+            ],
+        ]
+        let bundleID = "com.duoupdater.test.electron.gatewayRetrySibling"
+        let app = electronApp(bundleID: bundleID, domain: domain)
+        let source = ElectronManifestSource(session: fixtureSession())
+
+        let remote = try #require(await source.latestVersion(for: app))
+        #expect(remote.shortVersion == "9.0.0")
+        #expect(remote.downloadURL == URL(string: "\(domain)/App-9.0.0-arm64.zip"))
+        #expect(remote.vendorInstallerKind == .zip)
+        #expect(remote.expectedSHA512 == "ARMSHA==")
     }
 
     @Test func aNativeArm64FilesEntryIsUnaffectedBySiblingProbeOutcome() async throws {

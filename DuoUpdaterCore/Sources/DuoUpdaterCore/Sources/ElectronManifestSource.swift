@@ -109,12 +109,28 @@ public struct ElectronManifestSource: UpdateSource {
         // carries no architecture token at all, so nothing about the filename
         // reveals that it is Intel. The sibling's existence is the only signal.
         //
-        // Guarded on the two manifests naming the SAME version, which is what
-        // makes this an architecture choice rather than a train change; a sibling
-        // that disagrees is left alone for a person. Costs one extra request per
-        // check for apps on the default channel, and none for a bundle that
-        // already named its architecture (Typeless ships `channel: arm64`, so the
-        // manifest above IS the arm64 one).
+        // ADOPTED WHOLESALE — version and all — whenever the sibling resolves
+        // (#203). This used to require the two manifests to agree on `version:`
+        // before trusting the sibling, on the theory that agreement was what told
+        // an architecture choice apart from a train (release-channel) change. That
+        // theory doesn't hold on this path: DuoUpdater is arm64-only
+        // (`App/project.yml`), so once `arm64-mac.yml` exists it unambiguously IS
+        // the track for this host — there is no second architecture it could be
+        // confused with. The train change the equality guard was defending against
+        // lives in a DIFFERENT filename (`beta-mac.yml`, same `channel:` slot
+        // electron-builder uses for both), and `mayProbeArchSibling` already
+        // refuses to probe beside anything but `latest-mac.yml` — the risk the
+        // guard existed for cannot reach this code path at all. What the guard
+        // cost instead was real and observed: Notion's two tracks drifted apart
+        // for four real days (`latest-mac.yml` at 7.31.3 from 2026-08-27,
+        // `arm64-mac.yml` at 7.32.0 from 2026-08-31), and requiring equality made
+        // this source report the OLDER, x64-track version — "already up to date"
+        // handed to an arm64 host that was four days behind. A sibling that
+        // resolves at all, even to a version BELOW the default manifest's, is
+        // still the real state of the arm64 track and is reported as such. Costs
+        // one extra request per check for apps on the default channel, and none
+        // for a bundle that already named its architecture (Typeless ships
+        // `channel: arm64`, so the manifest above IS the arm64 one).
         //
         // `try?` used to collapse "no sibling" and "could not tell" into the same
         // nil (#194): a 403 (Canva, observed) or a timeout answered exactly like a
@@ -126,7 +142,7 @@ public struct ElectronManifestSource: UpdateSource {
         var pathFallbackIsTrustworthy = true
         if Self.mayProbeArchSibling(manifestURL) {
             switch await Self.archSibling(
-                of: manifestURL, matching: manifest.version, session: session
+                of: manifestURL, label: "Electron \(app.name) arch-sibling", session: session
             ) {
             case .resolved(let url, let sibling):
                 manifest = sibling
@@ -207,10 +223,14 @@ public struct ElectronManifestSource: UpdateSource {
     /// What probing for the `arm64-mac.yml` sibling found. Three-way, not
     /// optional, because two of the failure shapes must not be treated alike
     /// (#194): only ``confirmedAbsent`` is proof the vendor never split the
-    /// release by architecture. Everything else — a transport failure, a
+    /// release by architecture. Everything else — a transport failure or a
     /// non-2xx/non-404 status (Canva's sibling answers 403, observed
-    /// 2026-09-01), a body that will not parse, or a version that has moved on
-    /// — is silence, not an answer, and must not be allowed to stand in for one.
+    /// 2026-09-01), or a body that will not parse — is silence, not an answer,
+    /// and must not be allowed to stand in for one.
+    ///
+    /// ``resolved`` carries whatever version the sibling names, agreeing with the
+    /// default manifest or not (#203) — see the long comment at the call site for
+    /// why requiring agreement was actively wrong on this path.
     enum ArchSiblingOutcome: Equatable {
         case resolved(url: URL, manifest: ElectronManifest)
         case confirmedAbsent
@@ -218,8 +238,18 @@ public struct ElectronManifestSource: UpdateSource {
     }
 
     /// Probes the `arm64-mac.yml` beside `manifest`.
+    ///
+    /// Goes through `versionFeedData(for:label:)`, the same gateway-retry path
+    /// the default manifest fetch uses, rather than a bare `data(for:)` (#203). A
+    /// transient 502/503/504 used to read as `.indeterminate` here — costing an
+    /// arch-safe artifact for a blip that the DEFAULT manifest's own fetch would
+    /// have retried away — while the identical status on that default fetch
+    /// self-healed one line up. One flaky moment and "the vendor genuinely
+    /// doesn't publish a sibling" must not collapse into the same outcome; that
+    /// asymmetry was #194's own lesson, applied here to the retry policy instead
+    /// of the status-code handling.
     private static func archSibling(
-        of manifest: URL, matching version: String, session: URLSession
+        of manifest: URL, label: String, session: URLSession
     ) async -> ArchSiblingOutcome {
         let sibling = manifest.deletingLastPathComponent()
             .appendingPathComponent("arm64-mac.yml")
@@ -227,7 +257,8 @@ public struct ElectronManifestSource: UpdateSource {
         request.timeoutInterval = 15
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
-        guard let (data, response) = try? await session.data(for: request),
+        guard let (data, response) = try? await session.versionFeedData(
+            for: request, label: label),
               let http = response as? HTTPURLResponse else {
             // Transport failure or a non-HTTP response — not proof of anything.
             return .indeterminate
@@ -240,8 +271,7 @@ public struct ElectronManifestSource: UpdateSource {
         }
         guard (200..<300).contains(http.statusCode),
               let text = String(data: data, encoding: .utf8),
-              let parsed = ElectronManifest.parse(text),
-              parsed.version == version else {
+              let parsed = ElectronManifest.parse(text) else {
             return .indeterminate
         }
         return .resolved(url: sibling, manifest: parsed)

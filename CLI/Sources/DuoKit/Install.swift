@@ -217,7 +217,22 @@ public enum Install {
                 return .refuse("App Store updates need the menu-bar app (the store's "
                     + "install path is not reachable from a CLI)")
             }
-            return .refuse("detection only — this app has no installable artefact we vet")
+            // Two different reasons read identically as "neither flag is true",
+            // and #193 was this text conflating them: a source `UpdatePolicy`
+            // has never heard of (Xcode Releases, Toolbox — no case in
+            // `canAutoInstall`/`requiresInstaller`, so always `default: false`)
+            // is not the same situation as a recognised source (Vendor, GitHub,
+            // Electron, Homebrew) that simply resolved to no artifact THIS
+            // time (no asset pattern matched, no known archive extension, a
+            // manual-installer cask). The first has no install path even in
+            // principle; the second is one manifest edit away from working.
+            // Before #192 wired Electron into the switches, every Electron app
+            // fell into the first bucket while this text described the second —
+            // sending anyone who read it to the wrong layer entirely.
+            if UpdatePolicy.isRecognizedInstallSource(result.remote?.sourceName) {
+                return .refuse("detection only — this app has no installable artefact we vet")
+            }
+            return .refuse("detection only — no install route is wired up for this source yet")
         }
         if UpdatePolicy.defersToSelfUpdater(
             result, settings: settings.updateSettings, environment: environment) {

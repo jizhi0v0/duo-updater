@@ -10,6 +10,15 @@ import Security
 /// Mac at all, by architecture and by the OS version it declares it needs.
 /// Callers pick the gates that apply to their route: the Sparkle installer runs
 /// all of them, the vendor installer runs 2–6 (no feed signature to check).
+///
+/// Gate 5b (`verifyNoArchitectureDowngrade`) is a NARROWER liveness check than 5
+/// and 6: not "can this Mac run the download" but "does the download run worse
+/// than what's already installed" (arm64 → x86_64-only, still launchable under
+/// Rosetta, but never natively again). It is defined here beside Gate 5 but, as
+/// of this writing, is not yet called from `SparkleInstaller`/`VendorInstaller`
+/// — wiring it in needs the installed app's URL threaded to the same call site
+/// as Gate 5 (`result.app.path` is already in scope there for Gates 3/4). See
+/// issue #196.
 public enum SignatureVerifier {
 
     public enum VerifyError: LocalizedError {
@@ -21,6 +30,7 @@ public enum SignatureVerifier {
         case noBundleIdentifier(which: String)
         case bundleIdentifierMismatch(installed: String, downloaded: String)
         case unrunnableArchitecture(built: String, host: String)
+        case architectureDowngrade(installed: String, downloaded: String)
         case unsupportedSystemVersion(required: String, host: String)
 
         public var errorDescription: String? {
@@ -41,6 +51,8 @@ public enum SignatureVerifier {
                 return "Bundle identifier mismatch: installed “\(installed)” vs downloaded “\(downloaded)”. Refusing to install."
             case .unrunnableArchitecture(let built, let host):
                 return "The download is built for \(built) and this Mac runs \(host). Refusing to install a build it cannot launch."
+            case .architectureDowngrade(let installed, let downloaded):
+                return "The installed app runs natively (\(installed)) but this download only has \(downloaded). The download would still launch — under translation, from here on — so this is a downgrade, not an unrunnable build. Refusing to install it."
             case .unsupportedSystemVersion(let required, let host):
                 return "The download requires macOS \(required) and this Mac runs macOS \(host). Refusing to install a build it cannot launch."
             }
@@ -292,6 +304,68 @@ public enum SignatureVerifier {
         // above, so this line is only reached with slices we could read.
         throw VerifyError.unrunnableArchitecture(
             built: names, host: host == .arm64 ? "arm64" : "x86_64")
+    }
+
+    // MARK: Gate 5b — the download must not drop a slice the installed bundle has
+
+    /// Whether swapping `installed`'s architectures for `downloaded`'s would be a
+    /// downgrade: the installed bundle can run natively (it has an arm64 slice)
+    /// and the download cannot (it has none) — while still being a real
+    /// replacement, i.e. it does carry SOME slice (x86_64) rather than reading as
+    /// unparseable.
+    ///
+    /// Gate 5 above asks only "can THIS Mac run the download" — and on Apple
+    /// silicon while Rosetta still covers apps, an Intel-only build answers that
+    /// question ✅. The install then proceeds: it lands, it launches, and from
+    /// that point on the app runs translated, including on the NEXT check, which
+    /// picks the same Intel-only asset again. This predicate catches that one
+    /// case instead: not "can it run", but "does it run WORSE than what's already
+    /// there".
+    ///
+    /// Deliberately narrower than "any slice was dropped": going from universal
+    /// to arm64-only, or from arm64-only to universal, both leave a native arm64
+    /// slice in `downloaded` — normal thinning, not a downgrade, and both must
+    /// return `false` here. Only `downloaded` having x86_64 but no arm64 is
+    /// provably worse than an `installed` that has arm64.
+    ///
+    /// Fails open on an empty set on EITHER side, matching `canRun` above and for
+    /// the same reason: an unreadable Mach-O header (installed OR downloaded)
+    /// must not start refusing swaps that install fine today. This predicate
+    /// proves a downgrade; it is not a proof that no downgrade occurred.
+    static func isArchitectureDowngrade(installed: Set<Int>, downloaded: Set<Int>) -> Bool {
+        guard !installed.isEmpty, !downloaded.isEmpty else { return false }
+        guard installed.contains(NSBundleExecutableArchitectureARM64) else { return false }
+        guard !downloaded.contains(NSBundleExecutableArchitectureARM64) else { return false }
+        return downloaded.contains(NSBundleExecutableArchitectureX86_64)
+    }
+
+    /// Gate 5b, run beside Gate 5 on the downloaded bundle. Only meaningful on
+    /// Apple silicon: an Intel Mac never had an arm64 slice to lose, and this
+    /// product ships arm64-only besides (`App/project.yml`, `ARCHS: arm64`), so
+    /// there is no Intel host for `installedApp` to be read from in practice —
+    /// this still checks `host` explicitly rather than assume it, so the gate
+    /// stays correct if that ever changes.
+    public static func verifyNoArchitectureDowngrade(
+        installedApp: URL,
+        downloadedApp: URL,
+        host: HostArch = .current
+    ) throws {
+        guard host == .arm64 else { return }
+        let installedArchs = executableArchitectures(ofAppAt: installedApp)
+        let downloadedArchs = executableArchitectures(ofAppAt: downloadedApp)
+        guard isArchitectureDowngrade(installed: installedArchs, downloaded: downloadedArchs)
+        else { return }
+        func names(_ archs: Set<Int>) -> String {
+            archs.map { arch -> String in
+                switch arch {
+                case NSBundleExecutableArchitectureARM64:  return "arm64"
+                case NSBundleExecutableArchitectureX86_64: return "x86_64"
+                default: return "arch \(arch)"
+                }
+            }.sorted().joined(separator: " + ")
+        }
+        throw VerifyError.architectureDowngrade(
+            installed: names(installedArchs), downloaded: names(downloadedArchs))
     }
 
     // MARK: Gate 6 — the download declares an OS floor this Mac is below

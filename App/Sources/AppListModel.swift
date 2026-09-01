@@ -4508,31 +4508,37 @@ final class AppListModel {
     }
 
     /// Only independent archive/appcast installs run in parallel, and only once
-    /// App Management is known granted. Package installers, Homebrew, and App Store
-    /// all involve shared system UI/tools, so they stay serial.
+    /// App Management is known granted.
+    ///
+    /// The switch below is reached ONLY by results `installAllTargets()` already
+    /// passed through `canAutoInstall(result) || requiresInstaller(result)` — so
+    /// a source `UpdatePolicy` has no case for at all (Xcode Releases, Toolbox,
+    /// TestFlight: always `default: false` on both) never reaches `targets` to
+    /// begin with, let alone this function. It isn't mis-scheduled here; it's
+    /// simply not a candidate. `requiresInstaller` results are peeled off first
+    /// by the guard above (a Vendor/GitHub/Electron `.pkg`, a signed Sparkle
+    /// `.pkg`, a Homebrew cask needing the manual installer) — those go through
+    /// the system installer, the batch's phase 3, never this switch.
+    ///
+    /// What can still reach `default: false` here, given the above, is exactly
+    /// two sources: Homebrew (shells out to the `brew` CLI, one shared process
+    /// per invocation) and App Store (drives `mas` or App Store.app's own UI
+    /// automation) — both share a system-level resource a second simultaneous
+    /// install would contend with, so they stay serial. Sparkle/Vendor/GitHub/
+    /// Electron are independent in-place archive swaps (`InPlaceSwap`) with no
+    /// such shared resource, so they run in the bounded parallel window —
+    /// Electron joined this list in #192's follow-up: it goes through the exact
+    /// same `VendorInstaller`+`InPlaceSwap` pipeline as Vendor/GitHub, so by
+    /// this function's own criterion it belongs here, not in `default`. (Whether
+    /// parallelizing could race an electron-builder app's own self-updater is a
+    /// question this switch was never answering: `defersToSelfUpdater` already
+    /// excluded a running one from `targets`, and `UpdatePolicy
+    /// .stagedBlocksInstall` is enforced inside `runInstall` itself, which the
+    /// parallel and serial paths both call — identically either way.)
     private func canBatchInstallInParallel(_ result: UpdateResult) -> Bool {
         guard !requiresInstaller(result) else { return false }
         guard appManagementStatus == .granted else { return false }
         switch result.remote?.sourceName {
-        // Electron (electron-builder manifests) belongs here, not in the
-        // default/serial case (#192's sixth decision point, found during that
-        // fix's review and deliberately handled in this follow-up). It goes
-        // through the exact same pipeline as Vendor/GitHub — `VendorInstaller`
-        // downloads the archive and `InPlaceSwap` swaps it in — with no shared
-        // system UI/tooling, which is this function's own stated criterion for
-        // "stays serial".
-        //
-        // The one real question was whether parallelizing could race an
-        // electron-builder app's own self-updater (electron-updater/Squirrel
-        // .Mac). It can't, and not because of anything in THIS function: every
-        // target here already passed `installAllTargets()`'s `defersToSelfUpdater`
-        // filter (so a currently-running self-updating app never reaches this
-        // switch at all), and the staged-build check
-        // (`UpdatePolicy.stagedBlocksInstall`) is enforced inside `runInstall`
-        // itself — the function both `installInParallel` and the serial loop
-        // call — so it applies identically to a parallel target and a serial
-        // one. This switch decides scheduling throughput only; it was never
-        // the layer guarding against a ShipIt-style collision.
         case "Sparkle", "Vendor", "GitHub", "Electron":
             return true
         default:

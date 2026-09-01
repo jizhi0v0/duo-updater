@@ -427,6 +427,51 @@ public struct VendorProbeRecipe: Sendable {
     /// won't match an unrelated number on the page.
     public let versionPattern: String
 
+    /// Regex that recognises the vendor's own **error envelope** — a body served
+    /// with a success status that carries no answer at all.
+    ///
+    /// Without this, such a body is indistinguishable from a vendor changing
+    /// their schema: `versionPattern` matches nothing, and the probe reports
+    /// `versionPatternNoMatch`, which means "a human must go fix this recipe" —
+    /// a red Failed row on every affected Mac and a GitHub issue filed under a
+    /// recipe that is perfectly fine. Declaring the shape turns that into
+    /// `ProbeFailure.vendorErrorEnvelope`, which is infra: retried once at the
+    /// fetch, retried again by `duo verify`, and reported only once it has
+    /// persisted for `Baseline.infraWindow` (five days) rather than after two
+    /// sweeps.
+    ///
+    /// **Only `.responseBody`, and only without `requestBody`.** The retry rides
+    /// on `URLSession.versionFeedData`, which is wired for this on that mode
+    /// alone and refuses to repeat a POST — so declaring it anywhere else would
+    /// hand a recipe the lenient CLASSIFICATION without the retry that is the
+    /// half the user feels. `transientBodyIsOnlyDeclaredWhereItCanBeHonoured`
+    /// pins that from the registry.
+    ///
+    /// CapCut is the measured case and the only recipe that sets it (2026-09-01).
+    /// Its settings endpoint answers **HTTP 200** with
+    /// `{"data": {},"message": "ExecBizCode error: … reason=request timeout
+    /// request_timeout=500ms real_time=501018us"}` — ByteDance's own internal RPC
+    /// overrunning its 500 ms budget — roughly 390 bytes where the answer is
+    /// ~436 KB. Measured at about 1 request in 48 over two 24-way bursts, and it
+    /// bit the shipping app twice in two minutes on 2026-09-01.
+    ///
+    /// Two rules for anything added here, both learned from that one:
+    ///
+    /// 1. **Anchor it to the document, not to a phrase.** CapCut's pattern is
+    ///    `^\s*\{\s*"data"\s*:\s*\{\s*\}` — a TOP-LEVEL `data` that is empty,
+    ///    which is structurally "no settings were returned". The message text is
+    ///    an internal stack trace and will read differently the next time; an
+    ///    empty top-level object cannot mean anything else. (Checked against the
+    ///    real 436 KB healthy body: zero occurrences of an empty `data` object
+    ///    anywhere in it, so even unanchored it would not have collided — the
+    ///    anchor is what keeps that true for the body they serve next year.)
+    /// 2. **It must not be able to match a healthy answer.** This pattern wins
+    ///    over `versionPatternNoMatch`, so one that over-matches converts a
+    ///    genuinely broken recipe into "the vendor is having a bad day, retry
+    ///    forever" — a real breakage that `duo verify` would then never file.
+    ///    `CapCutProbeRecipeTests` pins both directions against captured bodies.
+    public let transientBodyPattern: String?
+
     /// Where to send the user to download the update by hand. Defaults to `url`.
     /// Probed updates are always manual (no trusted in-place install path), so
     /// this is the link surfaced to the user.
@@ -620,6 +665,7 @@ public struct VendorProbeRecipe: Sendable {
         url: URL,
         mode: Mode,
         versionPattern: String,
+        transientBodyPattern: String? = nil,
         downloadURL: URL? = nil,
         changelogURL: URL? = nil,
         selectHighest: Bool = false,
@@ -649,6 +695,7 @@ public struct VendorProbeRecipe: Sendable {
         self.installedVersionPattern = installedVersionPattern
         self.mode = mode
         self.versionPattern = versionPattern
+        self.transientBodyPattern = transientBodyPattern
         self.downloadURL = downloadURL
         self.changelogURL = changelogURL
         self.selectHighest = selectHighest
@@ -699,6 +746,24 @@ public struct VendorProbeRecipe: Sendable {
         guard let relaxed = segmentCountRelaxed(pattern), relaxed != pattern
         else { return nil }
         return extractVersion(from: body, pattern: relaxed)
+    }
+
+    /// Whether `body` is this vendor's error envelope rather than an answer —
+    /// see ``transientBodyPattern``.
+    ///
+    /// False for a recipe that declares no pattern (the whole registry but one),
+    /// and false for a pattern that does not compile. That second `false` is the
+    /// safe direction — an uncompilable pattern costs the recipe its transient
+    /// handling and it goes back to reporting `versionPatternNoMatch`, which is
+    /// today's behaviour — but it is silent, so
+    /// `transientBodyPatternsInTheRegistryAreValidRegexes` is what catches the
+    /// typo before it ships.
+    func matchesTransientBody(_ body: String) -> Bool {
+        guard let pattern = transientBodyPattern,
+              let regex = try? NSRegularExpression(pattern: pattern)
+        else { return false }
+        return regex.firstMatch(
+            in: body, options: [], range: NSRange(body.startIndex..., in: body)) != nil
     }
 
     public static func extractVersion(from text: String, pattern: String) -> String? {
@@ -6186,6 +6251,13 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern:
                 #""\#(urlKey)"\s*:\s*"[^"]*/CapCut_([0-9]+)_([0-9]+)_(\#(patchSegment))_[0-9]+_\#(packageToken)_creatortool\.dmg""#,
+            // ByteDance's settings service overrunning its own 500 ms internal RPC
+            // budget: HTTP 200, `{"data": {},"message": "ExecBizCode error: …
+            // request timeout … real_time=501018us"}`, ~390 bytes where the answer
+            // is ~436 KB. An empty TOP-LEVEL `data` is the structural claim "no
+            // settings were returned"; the message text is an internal stack trace
+            // and is not matched on. See `transientBodyPattern`.
+            transientBodyPattern: #"^\s*\{\s*"data"\s*:\s*\{\s*\}"#,
             downloadURL: URL(string: "https://www.capcut.com/tools/desktop-video-editor"),
             versionIsBuild: versionIsBuild,
             install: VendorInstallSpec(

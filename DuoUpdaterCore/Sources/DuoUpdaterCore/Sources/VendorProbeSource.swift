@@ -563,6 +563,36 @@ public struct VendorProbeSource: UpdateSource {
             ? VendorProbeRecipe.highestVersion
             : VendorProbeRecipe.extractVersion
         guard let version = extractor(scope, recipe.versionPattern) else {
+            // Before accusing the recipe: is this the vendor's own error envelope?
+            // A body that says "I could not compute your answer" is not a schema
+            // change, and reporting it as one puts a red Failed row on every
+            // affected Mac and files an issue under a recipe that is fine. Infra
+            // instead — which `duo verify` retries, and only reports once it has
+            // persisted for `Baseline.infraWindow`. Checked against `body.text`
+            // rather than `scope` deliberately: the envelope is a property of the
+            // whole response, and a scoped recipe whose slicing found no winner
+            // has `scope == body.text` anyway.
+            //
+            // Says "in N bytes" and NOT "after a retry", because reaching here
+            // does not prove one happened: `versionFeedData` spends its single
+            // retry on a gateway 5xx first (a 503 whose retry returns the envelope
+            // has seen the envelope exactly once), refuses to repeat a POST at
+            // all, and is not on the `.redirectFilename`/`.zipEntryPlist` paths.
+            // A log line asserting a retry nobody made is the kind of evidence
+            // that sends the next outage's triage the wrong way.
+            //
+            // Only a recipe that declares `transientBodyPattern` can reach this;
+            // for every other one the guard is false and nothing below changes.
+            if recipe.matchesTransientBody(body.text) {
+                // `.notice`, not `.error`: nobody has to go fix anything, but the
+                // line has to survive to disk (`.info` from a third-party subsystem
+                // does not) or a user asking why their row went red finds nothing.
+                Log.source.notice(
+                    "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: vendor error envelope in \(body.text.utf8.count) bytes")
+                return fail(
+                    .vendorErrorEnvelope(sampleBytes: body.text.utf8.count),
+                    status: body.status, sample: sample)
+            }
             // Symmetric with `GitHubReleasesSource`, which has logged its
             // pattern misses since day one. A probe that fetched fine and matched
             // nothing is the exact shape of a vendor rewriting their page, and
@@ -841,10 +871,23 @@ public struct VendorProbeSource: UpdateSource {
             // / Location), so widen the accepted range and use the blocking session.
             let activeSession = recipe.followRedirects ? session : Self.noRedirectSession
             let okRange = recipe.followRedirects ? (200..<300) : (200..<400)
+            // A vendor that reports its own outage inside a 200 gets the same one
+            // retry a gateway 5xx gets, through the same helper — so the delay, the
+            // "never retry a POST" guard and the sweep's request tally stay in one
+            // place instead of growing a second copy here. Nil for every recipe that
+            // declares no envelope, which is all of them but CapCut's: the predicate
+            // is not built and `versionFeedData` never consults it.
+            var transientBody: (@Sendable (Data) -> Bool)?
+            if recipe.transientBodyPattern != nil {
+                transientBody = { data in
+                    recipe.matchesTransientBody(String(decoding: data, as: UTF8.self))
+                }
+            }
             let data: Data
             let response: URLResponse
             do { (data, response) = try await activeSession.versionFeedData(
-                for: request, label: "VendorProbe \(recipe.bundleID)") }
+                for: request, label: "VendorProbe \(recipe.bundleID)",
+                retryableBody: transientBody) }
             catch { return .failure(Self.transportFailure(error)) }
             guard let http = response as? HTTPURLResponse else {
                 return .failure(.nonHTTPResponse)

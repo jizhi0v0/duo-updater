@@ -766,9 +766,22 @@ final class AppListModel {
     /// asserted once and returned failed all four, and to the user that is a menu
     /// item that does nothing.
     ///
-    /// Bounded at ~1.2 s and stops the moment the window is genuinely in front, so
-    /// the ordinary case — clicking Changelog while the workbench is already up —
-    /// costs one window-list read and no retry, as `surface[1] … front=true`.
+    /// Three costs worth knowing before tuning any of the numbers. A window that is
+    /// in front on the first look still needs `settledChecks` confirmations, so the
+    /// cheapest path is three window-list reads over ~0.2 s — not one, and not free.
+    /// A window that never gets there is chased for the full 1.2 s. And once it HAS
+    /// been in front, the budget shortens to `holdAfterFront`, because past that
+    /// point every re-assertion is as likely to be fighting the user who moved on as
+    /// it is to be fixing the popover pushing our window back down.
+    ///
+    /// One loop at a time, across every scene: opening Settings and then the
+    /// workbench within the same second used to leave two loops each insisting on a
+    /// different window, trading places until both expired.
+    /// Which surfacing loop is the live one. Bumped by every `surfaceWindow` call
+    /// so an older loop — for this scene or a different one — stops on its next
+    /// tick instead of fighting the newer request for the front.
+    @ObservationIgnored private var surfaceGeneration = 0
+
     func surfaceWindow(sceneID: String) {
         // Reaching the front once is not the same as being there when the user
         // looks. Logged from the shipped app, five consecutive opens all reported
@@ -780,26 +793,43 @@ final class AppListModel {
         // So this holds the order rather than asserting it: keep checking until the
         // window has been in front for `settledChecks` checks in a row, re-asserting
         // whenever it is not, and give up at the deadline either way.
-        let deadline = Date().addingTimeInterval(1.2)
+        // A monotonic clock, not `Date`: a wall-clock step (an NTP correction on a
+        // machine that just woke, which is exactly when a menu-bar app gets clicked)
+        // would either end the loop on its first tick or keep it re-ordering the
+        // window for the length of the step.
+        var deadline = ContinuousClock.now.advanced(by: .milliseconds(1200))
+        let holdAfterFront = Duration.milliseconds(400)
         let settledChecks = 3          // ~0.3 s of staying put
         var attempts = 0
         var consecutiveFront = 0
         var everFront = false
 
+        surfaceGeneration &+= 1
+        let generation = surfaceGeneration
+
         func tick() {
+            // Superseded by a later surface request — for this scene or another one.
+            guard generation == surfaceGeneration else { return }
             attempts += 1
             guard let window = NSApp.windows.first(where: {
                 ($0.identifier?.rawValue.contains(sceneID) ?? false) && $0.isVisible
             }) else {
                 // Not visible *yet* is a state to wait through rather than give up
                 // on: `openWindow` took 150–480 ms to return in the traces.
-                if Date() < deadline { retry() } else {
+                if ContinuousClock.now < deadline { retry() } else {
                     Log.app.notice("surface: \(sceneID, privacy: .public) never became visible")
                 }
                 return
             }
             if Self.isFrontmostOnScreen(window) {
-                everFront = true
+                if !everFront {
+                    everFront = true
+                    // It arrived. From here we are only guarding against being
+                    // pushed back down, which happens within a few hundred ms; a
+                    // full second of insisting past that just takes the front away
+                    // from a user who has already moved to another app.
+                    deadline = min(deadline, .now.advanced(by: holdAfterFront))
+                }
                 consecutiveFront += 1
                 if consecutiveFront >= settledChecks {
                     Log.app.notice("""
@@ -808,15 +838,31 @@ final class AppListModel {
                         """)
                     return
                 }
+            } else if everFront, !NSApp.isActive {
+                // The window arrived, the user saw it, and then activated something
+                // else. That is not the popover pushing our window down — it is the
+                // user, and the front belongs to whoever they just switched to.
+                // Without this the loop drags them back for the rest of its budget:
+                // reported from use, "if you switch away quickly it pulls you back".
+                //
+                // Safe as the stopping rule only because the popover now takes
+                // activation when it opens (see MenuContentView), so we stay active
+                // through its dismissal — the moment this guard exists to survive.
+                Log.app.notice("""
+                    surface: \(sceneID, privacy: .public) stopped after \
+                    \(attempts, privacy: .public) checks — the user activated another app
+                    """)
+                return
             } else {
-                // Either it never got there, or it got there and was pushed back —
-                // the second is the case the one-shot version could not see.
+                // Either it never got there, or it got there and was pushed back
+                // while we are still the active app — the second is the case the
+                // one-shot version could not see.
                 if consecutiveFront > 0 { consecutiveFront = 0 }
                 NSApp.activate(ignoringOtherApps: true)
                 window.makeKeyAndOrderFront(nil)
                 window.orderFrontRegardless()
             }
-            if Date() < deadline {
+            if ContinuousClock.now < deadline {
                 retry()
             } else {
                 Log.app.notice("""
@@ -1279,8 +1325,12 @@ final class AppListModel {
             if Task.isCancelled { return }
             guard let self else { return }
             self.changelogTasks[key] = nil
-            self.changelogRevalidated.insert(key)
             if let fresh {
+                // Only a fetch that came back confirms the cached notes. Marking the
+                // key on the attempt would pin whatever is on screen for the rest of
+                // the session the first time the network is down — which is this
+                // change's own bug, reintroduced for the offline case.
+                self.changelogRevalidated.insert(key)
                 self.changelogState[key] = .loaded(fresh)
             } else if case .loaded = self.changelogState[key] {
                 // Network revalidation failed but we already painted cached notes —
@@ -1362,12 +1412,14 @@ final class AppListModel {
                     await Self.prewarmNetworkGate.wait()
                     changelog = await ChangelogService.load(recipe, version: targetVersion)
                     await Self.prewarmNetworkGate.signal()
-                    fetched = true
+                    fetched = changelog != nil
                 }
                 if Task.isCancelled { return }
                 guard let self else { return }
                 self.changelogTasks[key] = nil
-                // A disk hit is provisional; only a real fetch discharges the debt.
+                // A disk hit is provisional; only a fetch that came back discharges
+                // the debt. A failed one leaves the key owing a read, and the open
+                // path will take it.
                 if fetched { self.changelogRevalidated.insert(key) }
                 if let changelog {
                     self.changelogState[key] = .loaded(changelog)

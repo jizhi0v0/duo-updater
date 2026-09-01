@@ -397,7 +397,7 @@ public enum RuntimeVersion {
         for prefix: String,
         components: Int
     ) -> Probe {
-        let needle = Array(prefix.utf8)
+        let needle = Data(prefix.utf8)
 
 
         // `try?` is not available here, and the reason is the whole point of this
@@ -454,7 +454,7 @@ public enum RuntimeVersion {
                 var window = carry
                 window.append(chunk)
                 let version = firstVersion(
-                    in: Array(window), after: needle, components: components,
+                    in: window, after: needle, components: components,
                     // In a continuation window the first byte is there only to be
                     // the character before the second: a match starting *on* it has
                     // no predecessor in this window, and was already whole in the
@@ -514,9 +514,28 @@ public enum RuntimeVersion {
     /// it hands out a `tauri-` match that is not one, which for a *displayed
     /// version* was cosmetic and for a *verdict* is the exact false positive the
     /// rest of this change exists to prevent.
+    ///
+    /// Finding the needle is `Data.range(of:)`'s job rather than a byte loop's, and
+    /// that is a measurement rather than a preference. The loop this replaced was
+    /// **200× slower in a debug build than in a release one** — `-Onone` optimises
+    /// none of it, and every one of those hundreds of millions of iterations pays
+    /// full bounds-checking and retain/release. Measured over Longbridge's 261 MiB
+    /// executable, chunked exactly as `probe` chunks it: **75.2 s for the loop,
+    /// 0.151 s for `Data.range(of:)`**, same match positions on every binary tried.
+    /// `range(of:)` lives in a Foundation that is already compiled with
+    /// optimisations, so it does not care how *this* module was built.
+    ///
+    /// That gap was not academic: three scan tests walk the real `/Applications`,
+    /// and #206 put this walk on that path — `scanFindsRealApps` went from 0.24 s to
+    /// 107 s, which is issue #214. The shipped app, being a release build, never saw
+    /// it. Keep the search out of Swift here; the parse below runs a few bytes per
+    /// match and can stay.
+    ///
+    /// Only the *search* moved. Both window-edge rules and the identifier guard are
+    /// unchanged, and so is the order they run in.
     private static func firstVersion(
-        in bytes: [UInt8],
-        after needle: [UInt8],
+        in bytes: Data,
+        after needle: Data,
         components: Int,
         from start: Int = 0,
         isFinal: Bool = true
@@ -525,18 +544,29 @@ public enum RuntimeVersion {
         let digits = UInt8(ascii: "0")...UInt8(ascii: "9")
         let dot = UInt8(ascii: ".")
         let dash = UInt8(ascii: "-")
-        outer: for index in start...(bytes.count - needle.count - 1) {
-            for offset in 0..<needle.count where bytes[index + offset] != needle[offset] { continue outer }
-            if index > 0 {
+        // Offsets are relative to `startIndex`, not to zero. `carry` is a *slice* of
+        // the previous window, and a `Data` slice keeps the indices it was cut from
+        // — `window.startIndex` is 128, not 0, from the second window on. The
+        // `Array(window)` this replaced re-based to zero as a side effect of
+        // copying; nothing does that now, so `bytes[0]` would be a crash and
+        // `index > 0` would be the identifier guard silently skipped.
+        var searchFrom = bytes.startIndex + start
+        while searchFrom < bytes.endIndex,
+              let match = bytes.range(of: needle, in: searchFrom..<bytes.endIndex) {
+            let index = match.lowerBound
+            // Every position is a candidate, exactly as in the loop: a rejected
+            // match must not hide a real one that overlaps it.
+            searchFrom = index + 1
+            if index > bytes.startIndex {
                 let before = bytes[index - 1]
                 let isIdentifier = digits.contains(before) || before == dash
                     || (before | 0x20) >= UInt8(ascii: "a") && (before | 0x20) <= UInt8(ascii: "z")
                 if isIdentifier { continue }
             }
-            var cursor = index + needle.count
+            var cursor = match.upperBound
             var version = ""
             var dots = 0
-            while cursor < bytes.count {
+            while cursor < bytes.endIndex {
                 let byte = bytes[cursor]
                 if digits.contains(byte) {
                     version.append(Character(UnicodeScalar(byte)))
@@ -551,7 +581,7 @@ public enum RuntimeVersion {
             // A run that stopped because the buffer did, in a window that is not the
             // end of the file, is not a finished version — whatever digits follow
             // are in the next chunk.
-            if !isFinal, cursor == bytes.count { continue }
+            if !isFinal, cursor == bytes.endIndex { continue }
             if dots == components - 1, let last = version.last, last.isNumber { return version }
         }
         return nil

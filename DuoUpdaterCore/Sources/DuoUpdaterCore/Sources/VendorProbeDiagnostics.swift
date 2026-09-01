@@ -48,6 +48,21 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     /// dot-separated numbers their version has — the Zotero `9.0.6` -> `10.0`
     /// shape — and it says both what broke and what the answer is.
     case versionSegmentCountChanged(wouldMatch: String, sampleBytes: Int)
+    /// The endpoint answered with a success status and the vendor's own error
+    /// envelope in the body — their outage, reported inside a 200. Recognised
+    /// only for a recipe that declares the envelope's shape
+    /// (`VendorProbeRecipe.transientBodyPattern`); without that declaration the
+    /// same body is `versionPatternNoMatch`, i.e. an accusation against the
+    /// recipe.
+    ///
+    /// Infra — but "infra" here means *retried, and not reported until it
+    /// persists*, not "ignored": `duo verify` retries it within the sweep and
+    /// `Baseline.isInfraReportable` still surfaces it once it has held for
+    /// `infraWindow` (five days). A vendor that moved its payload out of the key
+    /// the envelope pattern watches would therefore be late, not invisible.
+    /// Usually the fetch has already spent its one retry on this body, but not
+    /// always — see the note at the throw site in `VendorProbeSource`.
+    case vendorErrorEnvelope(sampleBytes: Int)
 
     /// What a sweep should *do* about this failure.
     public enum Classification: String, Sendable {
@@ -63,7 +78,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         switch self {
         case .notApplicable:
             return .notApplicable
-        case .transport, .nonHTTPResponse:
+        case .transport, .nonHTTPResponse, .vendorErrorEnvelope:
             return .infra
         case .httpStatus(let code):
             // 5xx and 429 are the vendor having a bad day; 4xx means the URL we
@@ -89,6 +104,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .plistKeyMissing: return "plistKeyMissing"
         case .versionPatternNoMatch: return "versionPatternNoMatch"
         case .versionSegmentCountChanged: return "versionSegmentCountChanged"
+        case .vendorErrorEnvelope: return "vendorErrorEnvelope"
         }
     }
 
@@ -107,6 +123,11 @@ public enum ProbeFailure: Error, Sendable, Equatable {
             return "no match in \(bytes)-byte body, but the same pattern with a "
                 + "variable segment count matches \(would) — the vendor changed "
                 + "how many numbers are in the version"
+        case .vendorErrorEnvelope(let bytes):
+            // Says whose fault it is, because this text is what the user reads in
+            // the failed-check banner and what `duo verify` puts in a report.
+            return "the vendor answered with an error, not a version "
+                + "(\(bytes)-byte body)"
         }
     }
 }

@@ -747,15 +747,171 @@ final class AppListModel {
     /// Matches on the SwiftUI window identifier, whose rawValue embeds the scene id
     /// (e.g. "settings-AppWindow-1"). Runs on the next runloop so the window exists
     /// for a fresh open, and after `windowAppeared`'s `activate` so our order wins.
+    ///
+    /// Then it **asks the window server whether that actually worked, and asks
+    /// again if it did not**, which is the whole of this change. Ordering a window
+    /// front is a request, and one assertion is not enough — from the popover's row
+    /// menu with the Dock icon hidden (`.accessory`, the default), the first
+    /// assertion left the window not in front every single time. Four consecutive
+    /// opens, logged from the shipped app:
+    ///
+    ///     surface[1] workbench visible=true key=true front=false  policy=accessory
+    ///     surface[2] workbench visible=true key=true front=true   policy=accessory
+    ///
+    /// `visible=true key=true front=false` is the shape of the bug: the window is
+    /// open, and it is even this app's key window, and it is still not the frontmost
+    /// window on screen. AppKit's own state cannot see that — `isVisible` and
+    /// `isKeyWindow` both say yes — which is why this asks CoreGraphics instead. The
+    /// second attempt, ~110 ms later, was in front on all four. The version that
+    /// asserted once and returned failed all four, and to the user that is a menu
+    /// item that does nothing.
+    ///
+    /// Three costs worth knowing before tuning any of the numbers. A window that is
+    /// in front on the first look still needs `settledChecks` confirmations, so the
+    /// cheapest path is three window-list reads over ~0.2 s — not one, and not free.
+    /// A window that never gets there is chased for the full 1.2 s. And once it HAS
+    /// been in front, the budget shortens to `holdAfterFront`, because past that
+    /// point every re-assertion is as likely to be fighting the user who moved on as
+    /// it is to be fixing the popover pushing our window back down.
+    ///
+    /// One loop at a time, across every scene: opening Settings and then the
+    /// workbench within the same second used to leave two loops each insisting on a
+    /// different window, trading places until both expired.
     func surfaceWindow(sceneID: String) {
-        DispatchQueue.main.async {
+        // Reaching the front once is not the same as being there when the user
+        // looks. Logged from the shipped app, five consecutive opens all reported
+        // `front on attempt 2` — and the user still saw the window fail to appear on
+        // some of them. What the one-shot check cannot see is what happens *after*
+        // it returns: the popover dismisses, the app stops being active, and the
+        // window it just ordered up goes back down behind whatever was in front.
+        //
+        // So this holds the order rather than asserting it: keep checking until the
+        // window has been in front for `settledChecks` checks in a row, re-asserting
+        // whenever it is not, and give up at the deadline either way.
+        // A monotonic clock, not `Date`: a wall-clock step (an NTP correction on a
+        // machine that just woke, which is exactly when a menu-bar app gets clicked)
+        // would either end the loop on its first tick or keep it re-ordering the
+        // window for the length of the step.
+        var deadline = ContinuousClock.now.advanced(by: .milliseconds(1200))
+        let holdAfterFront = Duration.milliseconds(400)
+        let settledChecks = 3          // ~0.3 s of staying put
+        var attempts = 0
+        var consecutiveFront = 0
+        var everFront = false
+
+        surfaceGeneration &+= 1
+        let generation = surfaceGeneration
+
+        func tick() {
+            // Superseded by a later surface request — for this scene or another one.
+            guard generation == surfaceGeneration else { return }
+            attempts += 1
             guard let window = NSApp.windows.first(where: {
                 ($0.identifier?.rawValue.contains(sceneID) ?? false) && $0.isVisible
-            }) else { return }
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
+            }) else {
+                // Not visible *yet* is a state to wait through rather than give up
+                // on: `openWindow` took 150–480 ms to return in the traces.
+                if ContinuousClock.now < deadline { retry() } else {
+                    Log.app.notice("surface: \(sceneID, privacy: .public) never became visible")
+                }
+                return
+            }
+            let front = Self.isFrontmostOnScreen(window)
+            if front {
+                if !everFront {
+                    everFront = true
+                    // It arrived. From here we are only guarding against being
+                    // pushed back down, which happens within a few hundred ms; a
+                    // full second of insisting past that just takes the front away
+                    // from a user who has already moved to another app.
+                    deadline = min(deadline, .now.advanced(by: holdAfterFront))
+                }
+                consecutiveFront += 1
+                if consecutiveFront >= settledChecks {
+                    // `isFrontmostOnScreen` answers true when it cannot read the
+                    // window list at all, which is the right way to stop spinning
+                    // and the wrong thing to call "settled": this log line is the
+                    // only evidence this code leaves, and it must not claim a window
+                    // is in front when nothing was able to look.
+                    Log.app.notice("""
+                        surface: \(sceneID, privacy: .public) \
+                        \(Self.canReadWindowList() ? "settled in front" : "stopped — window list unreadable") \
+                        after \(attempts, privacy: .public) checks
+                        """)
+                    return
+                }
+            } else if everFront, !NSApp.isActive {
+                // The window arrived, the user saw it, and then activated something
+                // else. That is not the popover pushing our window down — it is the
+                // user, and the front belongs to whoever they just switched to.
+                // Without this the loop drags them back for the rest of its budget:
+                // reported from use, "if you switch away quickly it pulls you back".
+                //
+                // Safe as the stopping rule only because the popover now takes
+                // activation when it opens (see MenuContentView), so we stay active
+                // through its dismissal — the moment this guard exists to survive.
+                Log.app.notice("""
+                    surface: \(sceneID, privacy: .public) stopped after \
+                    \(attempts, privacy: .public) checks — the user activated another app
+                    """)
+                return
+            } else {
+                // Either it never got there, or it got there and was pushed back
+                // while we are still the active app — the second is the case the
+                // one-shot version could not see.
+                if consecutiveFront > 0 { consecutiveFront = 0 }
+                NSApp.activate(ignoringOtherApps: true)
+                window.makeKeyAndOrderFront(nil)
+                window.orderFrontRegardless()
+            }
+            if ContinuousClock.now < deadline {
+                retry()
+            } else {
+                Log.app.notice("""
+                    surface: \(sceneID, privacy: .public) gave up after \
+                    \(attempts, privacy: .public) checks, everFront=\(everFront, privacy: .public)
+                    """)
+            }
         }
+        func retry() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: tick) }
+        DispatchQueue.main.async(execute: tick)
+    }
+
+    /// Which surfacing loop is the live one. Bumped by every `surfaceWindow` call
+    /// so an older loop — for this scene or a different one — stops on its next
+    /// tick instead of fighting the newer request for the front.
+    @ObservationIgnored private var surfaceGeneration = 0
+
+    /// Whether the window server answered at all. Separates "this window is in
+    /// front" from "nothing could be read", which `isFrontmostOnScreen` deliberately
+    /// collapses so the caller stops retrying.
+    private static func canReadWindowList() -> Bool {
+        CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                   kCGNullWindowID) as? [[String: Any]] != nil
+    }
+
+    /// Whether the window server has this window in front of every other ordinary
+    /// on-screen window. The rule itself is `WindowOrder.isFrontmost`, in Core where
+    /// it can be tested; this only reads the list.
+    private static func isFrontmostOnScreen(_ window: NSWindow) -> Bool {
+        // `.optionOnScreenOnly`, NOT `.optionAll`: only the on-screen list is
+        // ordered front-to-back. Measured with Claude frontmost —
+        //   .optionAll         : Excel > Messages > Finder > Zed > Claude > …
+        //   .optionOnScreenOnly: Claude > Excel > App Store > …
+        // — so reading `.optionAll` as a z-order is reading a list that isn't one,
+        // and this check would answer about window creation order instead. A window
+        // that is not on screen is simply absent from the list, which is the right
+        // answer here: not visible is not in front.
+        guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                   kCGNullWindowID) as? [[String: Any]]
+        else { return true }   // can't tell → don't spin
+        let windows = raw.map {
+            WindowInfo(
+                number: $0[kCGWindowNumber as String] as? Int ?? -1,
+                layer: $0[kCGWindowLayer as String] as? Int ?? -1,
+                isOnScreen: $0[kCGWindowIsOnscreen as String] as? Bool ?? false)
+        }
+        return WindowOrder.isFrontmost(window.windowNumber, in: windows)
     }
 
     // MARK: - Accessibility trust polling
@@ -1086,6 +1242,21 @@ final class AppListModel {
     /// instant instead of restarting from scratch.
     @ObservationIgnored private var changelogTasks: [ChangelogCacheKey: Task<Void, Never>] = [:]
 
+    /// Keys whose notes have been fetched over the network *this session*, as
+    /// opposed to painted from the cross-launch disk cache.
+    ///
+    /// The disk cache is keyed by the version the notes are being shown for, and
+    /// `prewarmChangelogs` treats a hit as final because a released version's notes
+    /// are immutable. They are — but the entry under that key need not be the
+    /// notes for that version at all. CleanShot's 5.0 was offered by the appcast
+    /// six minutes before the vendor published its notes, so the fetch stored the
+    /// 4.8.10-and-older page under the key `5.0`, and from then on: prewarm hit the
+    /// disk, marked the state `.loaded`, and `ensureChangelogLoading` returned at
+    /// its first line every time the user opened the app. The pane showed "5.0" over
+    /// 4.8.10's notes, permanently, with nothing to re-read it. This set is what
+    /// makes a disk hit provisional until the network has confirmed it once.
+    @ObservationIgnored private var changelogRevalidated: Set<ChangelogCacheKey> = []
+
     /// The current state of an app's changelog, if it's recipe-backed. `nil` means
     /// the app has no recipe (the workbench then renders inline/structured/web
     /// notes directly, with no fetch involved).
@@ -1134,11 +1305,19 @@ final class AppListModel {
         let targetVersion = changelogTargetVersion(for: result)
         let key = ChangelogCacheKey(
             bundleID: bundleID, channel: result.app.releaseChannel, version: targetVersion)
+        // A `.loaded` that was only ever painted from the disk cache is not done:
+        // it still owes one network read, because the entry filed under this
+        // version's key may have been fetched before the vendor published that
+        // version's notes (see `changelogRevalidated`). Confirmed once, it is done.
+        var alreadyPainted = false
         switch changelogState[key] {
-        case .loaded, .loading: return          // already done / in flight
-        case .failed, .none: break              // (re)start
+        case .loading: return                        // in flight
+        case .loaded:
+            if changelogRevalidated.contains(key) { return }
+            alreadyPainted = true                    // keep it on screen while re-reading
+        case .failed, .none: break                   // (re)start
         }
-        changelogState[key] = .loading
+        if !alreadyPainted { changelogState[key] = .loading }
         // The version whose notes to show: the offered update if any, else the
         // installed build. Templated recipes (Thunderbird) fetch exactly that
         // version's page so the rendered notes match what the user sees.
@@ -1162,6 +1341,11 @@ final class AppListModel {
             guard let self else { return }
             self.changelogTasks[key] = nil
             if let fresh {
+                // Only a fetch that came back confirms the cached notes. Marking the
+                // key on the attempt would pin whatever is on screen for the rest of
+                // the session the first time the network is down — which is this
+                // change's own bug, reintroduced for the offline case.
+                self.changelogRevalidated.insert(key)
                 self.changelogState[key] = .loaded(fresh)
             } else if case .loaded = self.changelogState[key] {
                 // Network revalidation failed but we already painted cached notes —
@@ -1197,6 +1381,7 @@ final class AppListModel {
         for key in changelogState.keys.filter({ $0.bundleID == bundleID }) {
             changelogState[key] = nil
         }
+        changelogRevalidated = changelogRevalidated.filter { $0.bundleID != bundleID }
         // Clear the network cache for every channel variant (Stable & ESR share this
         // bundle id but have different sources; Warp's three channels share one
         // endpoint but get distinct channel-fragmented cache slots), since we don't
@@ -1234,6 +1419,7 @@ final class AppListModel {
             changelogState[key] = .loading
             changelogTasks[key] = Task { [weak self] in
                 var changelog = await ChangelogService.diskCached(recipe, version: targetVersion)
+                var fetched = false
                 if changelog == nil {
                     // Cap concurrent network prewarms: a cold cache would otherwise
                     // fan out one fetch per recipe-backed app at once. Disk hits above
@@ -1241,10 +1427,15 @@ final class AppListModel {
                     await Self.prewarmNetworkGate.wait()
                     changelog = await ChangelogService.load(recipe, version: targetVersion)
                     await Self.prewarmNetworkGate.signal()
+                    fetched = changelog != nil
                 }
                 if Task.isCancelled { return }
                 guard let self else { return }
                 self.changelogTasks[key] = nil
+                // A disk hit is provisional; only a fetch that came back discharges
+                // the debt. A failed one leaves the key owing a read, and the open
+                // path will take it.
+                if fetched { self.changelogRevalidated.insert(key) }
                 if let changelog {
                     self.changelogState[key] = .loaded(changelog)
                     self.prewarmImages(in: changelog)

@@ -145,6 +145,31 @@ struct MenuContentView: View {
         }
         .frame(width: MenuLayoutMetrics.width)
         .task {
+            // Take activation the moment the popover appears, because otherwise the
+            // user's first click inside it is spent doing exactly that.
+            //
+            // A MenuBarExtra popover opens WITHOUT its app becoming active —
+            // measured: the panel is on screen at layer 101 while
+            // `frontmostApplication` still reads the app the user came from. The
+            // first interaction then goes into activating us instead of doing what
+            // it was aimed at, and the row menu it opened is dismissed with the
+            // action never running. From the second interaction on everything works,
+            // which is the whole shape of the bug that was reported: the first
+            // Changelog does nothing, a second click on any row opens it, and
+            // reopening the popover makes every attempt "the first" again. It also
+            // explains why having any window already open hid it — with a window up
+            // the app is already active, so no click is spent on activation.
+            //
+            // The cost, accepted deliberately: clicking the menu bar icon now takes
+            // focus from whatever you were in, and if a Duo Updater window is parked
+            // on another Space, macOS may follow it there — so a peek at the popover
+            // from a fullscreen app can leave fullscreen. The alternative, deferring
+            // activation until the first interaction, is the bug above wearing a
+            // different hat: that interaction is the one that gets eaten. Fullscreen
+            // plus a window on another Space is a narrower case than "the first
+            // click never works", which was every click.
+            NSApp.activate(ignoringOtherApps: true)
+
             model.refreshPermissionStatus()
             // One-time wiring: arm the background-check loop and teach the
             // notification's "View" action how to open the window.

@@ -62,11 +62,30 @@ private struct BundleBuilder {
         }
         return bundle
     }
+
+    /// Move a built bundle into another's `Contents/MacOS`, where a wrapper keeps
+    /// its interface and where helper processes live too.
+    @discardableResult
+    func nest(_ inner: URL, in outer: URL) throws -> URL {
+        let destination = outer
+            .appendingPathComponent("Contents/MacOS")
+            .appendingPathComponent(inner.lastPathComponent)
+        try FileManager.default.moveItem(at: inner, to: destination)
+        return destination
+    }
 }
 
 /// A library reader that answers the same list for any executable.
 private func reader(_ libraries: String...) -> AppRuntimeDetector.LibraryReader {
     { _ in Set(libraries) }
+}
+
+/// A library reader whose answer depends on which executable it is handed, for
+/// the cases where a bundle and the bundle nested inside it link different things.
+private func reader(
+    byPath answers: [String: Set<String>], default fallback: Set<String> = []
+) -> AppRuntimeDetector.LibraryReader {
+    { url in answers.first { url.path.contains($0.key) }?.value ?? fallback }
 }
 
 private let appKit = "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"
@@ -371,6 +390,126 @@ func theProofIsPaidForOncePerBinaryNotOncePerScan() throws {
     let reading = AppRuntimeDetector.read(bundleAt: bundle, isiOSAppOnMac: true, infoPlist: [:])
     #expect(reading.runtime == .iOSApp)
     #expect(reading.frameworks.isEmpty)
+}
+
+// MARK: - A wrapper whose interface is a nested bundle
+
+@Test func aWrapperThatShipsNothingIsReadFromTheOneBundleNestedInIt() throws {
+    // Docker's shape (#208): the outer bundle declares a daemon that links AppKit,
+    // ships no `Contents/Frameworks` at all, and keeps the GUI one level down. Every
+    // rule is correct about the launcher and none of them is looking at the app.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let wrapper = try builder.app("Docker", executable: "com.docker.backend")
+    let gui = try builder.app("Docker Desktop", frameworks: ["Electron Framework.framework"])
+    try builder.nest(gui, in: wrapper)
+    #expect(detect(wrapper, plist: ["CFBundleExecutable": "com.docker.backend"],
+                   libraries: reader(appKit)) == .electron)
+}
+
+@Test func aWrapperThatShipsFrameworksOfItsOwnIsNotReadFromANestedBundle() throws {
+    // OrbStack, WeChat and QQ all keep a nested `.app` under `Contents/MacOS` and
+    // all ship 3 to 29 frameworks of their own. An app carrying its own runtime is
+    // the app; recursing there would hand a helper's identity to its host.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let host = try builder.app("Suite", frameworks: ["QtCore.framework"])
+    let helper = try builder.app("Renderer", frameworks: ["Electron Framework.framework"])
+    try builder.nest(helper, in: host)
+    #expect(detect(host, libraries: reader(appKit)) == .qt)
+}
+
+@Test func severalNestedBundlesReadAsHelpersRatherThanAsAnInterface() throws {
+    // Parallels ships three, QQ four, WeChat two. One nested bundle is not proof of
+    // an interface, but a crowd of them is proof of the opposite.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let wrapper = try builder.app("Wrapper")
+    for name in ["Helper One", "Helper Two"] {
+        try builder.nest(try builder.app(name, frameworks: ["Electron Framework.framework"]),
+                         in: wrapper)
+    }
+    #expect(detect(wrapper, libraries: reader(appKit)) == .native)
+}
+
+@Test func aNestedBundleThatProvesNothingLeavesTheLabelWhereItWas() throws {
+    // OrbStack's `scli.app` is a command-line helper: it would pass the other two
+    // conditions and has nothing to say about itself. `.native` and `.catalyst` are
+    // read off load commands, which a helper carries exactly like an interface, so
+    // neither is adopted — only a runtime the nested bundle had to *ship*.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let wrapper = try builder.app("Tool")
+    try builder.nest(try builder.app("scli"), in: wrapper)
+    #expect(detect(wrapper, libraries: reader(appKit)) == .native)
+
+    let silent = try builder.app("Mystery")
+    try builder.nest(try builder.app("mystery-cli"), in: silent)
+    #expect(detect(silent, libraries: reader("/usr/lib/libSystem.B.dylib")) == nil)
+}
+
+@Test func theNestedReadingIsAdoptedWholeIncludingWhatItLinks() throws {
+    // Both halves of the reading have to come from the same bundle or the popover
+    // contradicts itself. Docker's launcher links AppKit and its Electron stub links
+    // only the framework, so the line under the label is empty — which is the fact
+    // about the interface, where "AppKit" was the fact about a background daemon.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let wrapper = try builder.app("Docker", executable: "com.docker.backend")
+    try builder.nest(try builder.app("Docker Desktop", frameworks: ["Electron Framework.framework"]),
+                     in: wrapper)
+    let reading = AppRuntimeDetector.read(
+        bundleAt: wrapper, isiOSAppOnMac: false,
+        infoPlist: ["CFBundleExecutable": "com.docker.backend"],
+        linkedLibraries: reader(byPath: [
+            "com.docker.backend": [appKit, swiftUI],
+            "Docker Desktop.app": [],
+        ]))
+    #expect(reading.runtime == .electron)
+    #expect(reading.frameworks.names == [])
+}
+
+@Test func theDescentStopsAfterOneLevel() throws {
+    // A wrapper inside a wrapper is not a shape anything ships, and the guard that
+    // keeps it out is the same one that makes a bundle nesting a link to itself
+    // terminate. Nothing about the verdicts of real apps would change if it were
+    // lost, so only this notices.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let inner = try builder.app("Inner")
+    try builder.nest(try builder.app("Deep", frameworks: ["Electron Framework.framework"]),
+                     in: inner)
+    let outer = try builder.app("Outer")
+    try builder.nest(inner, in: outer)
+    #expect(detect(outer, libraries: reader(appKit)) == .native)
+}
+
+@Test func theRuntimeVersionIsReadFromTheSameBundleAsTheRuntimeName() throws {
+    // Otherwise the row says Electron and the popover has no version to show, out of
+    // a bundle that plainly carries one — `RuntimeVersion` would be reading a
+    // `Contents/Frameworks` that does not exist. Docker's real answer is 42.5.0.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let wrapper = try builder.app("Docker", executable: "com.docker.backend")
+    let gui = try builder.app("Docker Desktop", frameworks: ["Electron Framework.framework"])
+    let framework = gui.appendingPathComponent("Contents/Frameworks/Electron Framework.framework")
+    try FileManager.default.createDirectory(
+        at: framework.appendingPathComponent("Resources"), withIntermediateDirectories: true)
+    try PropertyListSerialization
+        .data(fromPropertyList: ["CFBundleIdentifier": "com.github.Electron.framework",
+                                 "CFBundleVersion": "42.5.0"],
+              format: .xml, options: 0)
+        .write(to: framework.appendingPathComponent("Resources/Info.plist"))
+    try builder.nest(gui, in: wrapper)
+
+    #expect(AppRuntimeDetector.interfaceBundle(at: wrapper).lastPathComponent
+            == "Docker Desktop.app")
+    #expect(RuntimeVersion.read(.electron, bundleAt: wrapper, scanningBinaries: true) == "42.5.0")
+}
+
+@Test func anOrdinaryBundleIsItsOwnInterface() throws {
+    // The redirection has to be invisible to the 209 bundles in 210 that are not
+    // wrappers — including the ones that do nest a helper.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let plain = try builder.app("Plain", frameworks: ["Electron Framework.framework"])
+    #expect(AppRuntimeDetector.interfaceBundle(at: plain) == plain)
+    let host = try builder.app("Suite", frameworks: ["QtCore.framework"])
+    try builder.nest(try builder.app("Helper", frameworks: ["Electron Framework.framework"]),
+                     in: host)
+    #expect(AppRuntimeDetector.interfaceBundle(at: host) == host)
 }
 
 // MARK: - Failing closed

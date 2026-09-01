@@ -355,6 +355,54 @@ private func probe(_ steps: [ScriptedReads.Step],
     #expect(probe([]) == .absent, "a zero-byte binary contains no crate path")
 }
 
+/// The one test in this file whose input is the size of a real executable, and the
+/// only kind that can see the defect it exists for.
+///
+/// Every other fixture here is a few hundred bytes, where an implementation 200×
+/// slower than it needs to be is invisible. #206 put this walk on the library scan
+/// while the search was a hand-rolled byte loop — which `-Onone` does not optimise
+/// at all — so a debug build paid what a release build did not: `scanFindsRealApps`
+/// went from 0.24 s to 107 s and the whole suite from seconds to minutes (#214).
+/// The suite stayed green throughout.
+///
+/// 60 MiB is enough to separate the two by far more than machine noise, and the
+/// four numbers that matter were all measured on this input rather than reasoned
+/// about. **Alone: 0.011 s fixed, 16.7 s with the byte loop put back.** But this
+/// test does not run alone — inside the full suite, with the network tests and the
+/// three real-`/Applications` scans running beside it, the fixed version takes
+/// **0.536 s**, fifty times its solo number, purely from CPU contention.
+///
+/// That inflation is the reason the threshold is where it is. Ten seconds leaves
+/// roughly 18× over the contended green number — enough for a busier or smaller
+/// machine than this one — while still sitting well under a regression, which is
+/// 16.7 s *at its fastest* and would be minutes under the same contention (#214's
+/// scan tests went from 107 s alone to 410 s in the suite). It is not a stopwatch
+/// on the machine; it answers one question, which is whether the search has gone
+/// back into unoptimised Swift. Tighten it toward the green number and this becomes
+/// a test that fails on a loaded laptop, which is a test that gets deleted.
+///
+/// The crate path is in the **last** chunk and the version is asserted, which is
+/// the point rather than a detail: a version that came back from the final chunk is
+/// proof all 60 MiB were walked. Move the payload earlier — or let it stop matching
+/// — and the test becomes fast, green, and empty.
+@Test func theSearchDoesNotDegradeIntoAByteLoop() {
+    let filler = Data(repeating: UInt8(ascii: "."), count: RuntimeVersion.scanChunkSize)
+    let tail = Data("registry/src/index/tauri-2.11.5/src/lib.rs".utf8)
+    var remaining = 16
+    let started = Date()
+    let outcome = RuntimeVersion.probe(
+        reading: {
+            guard remaining > 0 else { return nil }
+            remaining -= 1
+            return remaining == 0 ? tail : filler
+        },
+        for: "tauri-", components: 3)
+    let elapsed = -started.timeIntervalSinceNow
+
+    #expect(outcome == .found("2.11.5"), "the payload is in the last chunk — this is what says it was reached")
+    #expect(elapsed < 10, "60 MiB took \(String(format: "%.2f", elapsed))s; the search is walking bytes in Swift again")
+}
+
 private let stamp = Date(timeIntervalSince1970: 1_700_000_000)
 
 @Test func aProvenAbsenceIsRememberedToo() throws {

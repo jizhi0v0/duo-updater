@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import DuoUpdaterCore
 
@@ -87,6 +88,27 @@ func shortVersion(ofAppAt url: URL) -> String? {
           let info = try? PropertyListSerialization.propertyList(
               from: data, format: nil) as? [String: Any] else { return nil }
     return info["CFBundleShortVersionString"] as? String
+}
+
+/// Bundle paths with a live process, normalised the way the policy looks them up.
+/// Read from the machine rather than assumed empty — see the `InstallEnvironment`
+/// comment below for why an empty set is not a neutral default.
+let runningBundlePaths: Set<String> = Set(
+    NSWorkspace.shared.runningApplications
+        .compactMap(\.bundleURL)
+        .map(UpdatePolicy.runtimeBundlePath))
+
+/// The identifier side of the same question, for bundles whose running copy cannot
+/// be recognised by path (a wrapped iPhone/iPad app reports a shadow container).
+let runningBundleIDs: Set<String> = Set(
+    NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+
+/// The staged self-update the policy needs for this app, keyed the way it looks it
+/// up. Mirrors `DuoKit.Install.stagedSelfUpdates`.
+func stagedSelfUpdates(for app: InstalledApp) -> [String: StagedSelfUpdate] {
+    guard SelfUpdaterStaging.mayHaveStaging(app),
+          let staged = SelfUpdaterStaging.staged(for: app) else { return [:] }
+    return [app.id: staged]
 }
 
 var findings: [String] = []
@@ -185,18 +207,36 @@ for app in electron {
         status: newer
             ? .updateAvailable(latest: remote.displayVersion ?? "?")
             : .upToDate)
+    // OBSERVED, not fabricated. An earlier version of this harness handed the
+    // policy an empty environment, which is strictly more permissive than any real
+    // machine: `runningAppPaths: []` and `stagedSelfUpdates: [:]` each independently
+    // switch off decisions the policy is supposed to make — the running-app defer
+    // and the staged-build suppression — so a green `canAutoInstall` proved nothing
+    // about what the shipping app would offer. Every field below is read off this
+    // machine.
     let environment = InstallEnvironment(
-        isHelperEnabled: false,
-        runningAppPaths: [],
-        stagedSelfUpdates: [:])
+        isHelperEnabled: false,  // only gates the App Store route, which Electron never takes
+        runningAppPaths: runningBundlePaths,
+        stagedSelfUpdates: stagedSelfUpdates(for: app),
+        runningBundleIDs: runningBundleIDs)
+    // The shipped default is "always replace"; the other policy is printed beside
+    // it rather than chosen, because `defersToSelfUpdater` is the one decision an
+    // Electron app is most likely to hit (they are all self-updating) and a harness
+    // that can never observe it is the hole this comment replaced.
     let settings = UpdateSettings(
         appStoreUpdateStrategy: .full, vendorInstallPolicy: .alwaysOverwrite)
+    let deferSettings = UpdateSettings(
+        appStoreUpdateStrategy: .full, vendorInstallPolicy: .deferWhenRunning)
     let canAuto = UpdatePolicy.canAutoInstall(result, settings: settings, environment: environment)
     let needsInstaller = UpdatePolicy.requiresInstaller(result, environment: environment)
     let route = InstallCoordinator.route(for: result, requiresInstaller: needsInstaller)
+    let defersNow = UpdatePolicy.defersToSelfUpdater(
+        result, settings: deferSettings, environment: environment)
     print("    policy      canAutoInstall=\(canAuto)"
         + "  requiresInstaller=\(needsInstaller)"
-        + "  route=\(route.rawValue)")
+        + "  route=\(route.rawValue)"
+        + "  running=\(UpdatePolicy.isRunning(result, environment: environment))"
+        + "  defersUnderDeferWhenRunning=\(defersNow)")
 
     if remote.vendorInstallerKind != nil, !canAuto, !needsInstaller {
         note("\(app.name): a resolved installer artifact that no policy branch "
@@ -220,6 +260,26 @@ for app in electron {
     guard canAuto || needsInstaller else {
         print("\n    --install: refused by policy, see the line above.")
         note("\(app.name): --install asked for, policy refuses")
+        continue
+    }
+    // The two gates `DuoKit.Install.classify` applies after the policy check, and
+    // that this harness used to skip. Skipping them here is worse than skipping
+    // them in `duo`, because every app this harness targets is by construction a
+    // Squirrel app with its own staging directory: install over a parked build and
+    // ShipIt re-applies its own on the next quit, which is the ChatGPT 2026-08-22
+    // shape — the machine ends up on the other version and the disk check below
+    // would blame the installer.
+    if let staged = UpdatePolicy.stagedBlocksInstall(
+        result,
+        staged: SelfUpdaterStaging.staged(for: app, requireNewerThanInstalled: false)) {
+        print("\n    --install: refused — its own updater has \(staged.version ?? staged.buildVersion ?? "a build")"
+            + " staged for the next quit; installing now would be undone (quit it to apply).")
+        continue
+    }
+    if let inFlight = SelfUpdaterStaging.inFlightDownload(for: app) {
+        print(String(
+            format: "\n    --install: refused — its own updater is downloading this release "
+                + "(%.1f MB so far); left it to finish.", Double(inFlight.bytes) / 1_000_000))
         continue
     }
 

@@ -371,8 +371,18 @@ public enum InPlaceSwap {
     /// reports a cancelled authentication as error `-128`; the accompanying text
     /// is localized, so the code is what we match on and the English phrasing is
     /// only a fallback.
+    ///
+    /// osascript prints one line, and the code is its final token in parentheses:
+    /// `0:17: execution error: User canceled. (-128)`. Only that trailing token is
+    /// read. `-128` anywhere else is a different fact — the start of a longer code
+    /// (`-12805`), a path the failing command echoed (`Foo-128.app`), or, per
+    /// TN2065, the shell's own stderr: when the privileged command fails osascript
+    /// adopts its stderr as the message and puts the *exit status* in the
+    /// parentheses, so `… Foo-128.app: Operation not permitted (1)` is a real
+    /// failure that a substring match would record as the user's decision.
     static func isAuthorizationDeclined(_ stderr: String) -> Bool {
-        stderr.contains("-128") || stderr.localizedCaseInsensitiveContains("User canceled")
+        let line = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        return line.hasSuffix("(-128)") || line.localizedCaseInsensitiveContains("User canceled")
     }
 
     /// `target` must be an absolute path to an existing, non-symlink `.app`

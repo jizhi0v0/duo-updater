@@ -607,13 +607,55 @@ private func storeAvailability(
 /// for, versus one that always falls to `default: false` in
 /// `canAutoInstall`/`requiresInstaller` and so has no install path even in
 /// principle.
-@Test func isRecognizedInstallSourceMatchesThePolicySwitches() {
-    for name in ["Sparkle", "Homebrew", "Vendor", "GitHub", "Electron", "App Store"] {
-        #expect(UpdatePolicy.isRecognizedInstallSource(name), "\(name) should be recognized")
+///
+/// Derived from `SourceStack.make(githubToken:)` — the actual production
+/// registry — rather than a hand-written name list, per the rule against
+/// lists that drift (CLAUDE.md: "用例要从 registry 推导、覆盖全部 channel").
+/// A hand-written list caught nothing when Electron itself was added to the
+/// stack without a matching decision in `UpdatePolicy`, which is exactly the
+/// bug #192/#193 were about; this shape makes the next one fail loudly
+/// instead. Every name the stack can produce must be EITHER recognized by
+/// `isRecognizedInstallSource` OR listed in `deliberatelyUnwired` with a
+/// reason — no third option, no silent gap.
+///
+/// `Toolbox` and `TestFlight` never appear in `SourceStack`: `UpdateChecker`
+/// answers them before the stack runs at all (store/Toolbox management is
+/// detected up front, not through an `UpdateSource`). They're supplied here
+/// by hand for exactly that reason, not discovered — and are as much a part
+/// of "every source `duo install` can see a result from" as anything the
+/// stack assembles.
+@Test func isRecognizedInstallSourceCoversEveryProductionSourceOrExplainsWhyNot() {
+    let sourcesOutsideTheStack = ["Toolbox", "TestFlight"]
+
+    let deliberatelyUnwired: [String: String] = [
+        // XcodeReleasesSource never resolves an installable artifact — Apple
+        // gates every Xcode download behind an Apple ID and its own installer
+        // UI, so this source is always detection-only by construction.
+        "Xcode Releases": "always detection-only — no installable artifact exists to vet",
+        // JetBrains Toolbox owns the install; there is no bundle of ours to swap.
+        "Toolbox": "Toolbox manages the app itself",
+        // Apple's TestFlight app owns the install.
+        "TestFlight": "TestFlight manages the app itself",
+    ]
+
+    let stackNames = Set(SourceStack.make(githubToken: nil).map(\.name))
+    let allProductionNames = stackNames.union(sourcesOutsideTheStack)
+    #expect(!allProductionNames.isEmpty)  // guards against an empty stack passing vacuously
+
+    for name in allProductionNames {
+        if UpdatePolicy.isRecognizedInstallSource(name) {
+            #expect(deliberatelyUnwired[name] == nil,
+                "\(name) is claimed by isRecognizedInstallSource AND listed as deliberately unwired — pick one")
+        } else {
+            #expect(deliberatelyUnwired[name] != nil,
+                "\(name) is a real production source with no UpdatePolicy decision recorded — either give it a case in canAutoInstall/requiresInstaller, or add it to deliberatelyUnwired here with a reason")
+        }
     }
-    for name in ["Toolbox", "TestFlight", "Xcode Releases", "SomeFutureSource", nil] {
-        #expect(!UpdatePolicy.isRecognizedInstallSource(name), "\(name ?? "nil") should not be recognized")
-    }
+
+    // And the converse: nothing claims to be recognized that production can't
+    // actually produce, and nil is never mistaken for a real source.
+    #expect(!UpdatePolicy.isRecognizedInstallSource(nil))
+    #expect(!UpdatePolicy.isRecognizedInstallSource("SomeFutureSource"))
 }
 
 // MARK: - isRunning

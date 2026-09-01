@@ -38,16 +38,25 @@ public enum ChangelogURLPolicy {
         return url
     }
 
-    /// IPv4 dotted-quad, or IPv6 in either spelling. `URL.host` strips the
-    /// brackets off an IPv6 literal, so the colon is the reliable signal — and a
-    /// colon cannot appear in a hostname, so this does not catch a legitimate
-    /// vendor domain.
+    /// IPv6 in either spelling, or any IPv4 spelling the resolver accepts.
+    /// `URL.host` strips the brackets off an IPv6 literal, so the colon is the
+    /// reliable signal — and a colon cannot appear in a hostname, so this does
+    /// not catch a legitimate vendor domain.
+    ///
+    /// IPv4 is decided by `inet_aton`, not by counting dot-parts. `2130706433`,
+    /// `0x7f000001`, `127.1` and `0177.0.0.1` are all 127.0.0.1 to the networking
+    /// stack the web view uses, and only the last of them has four parts; a
+    /// dotted-quad check let the other three through. `inet_pton(AF_INET)` is
+    /// not a substitute — it accepts dotted-quad only and would reopen the same
+    /// hole — where `inet_aton` is the classic BSD parser that takes the decimal,
+    /// hex, octal and 1-/2-/3-part forms, which is exactly the set to refuse. A
+    /// hostname can never parse under it: any letter outside a `0x` prefix is
+    /// rejected outright, so `1.2.3.example.com` still reads as a domain. A
+    /// trailing dot (`127.0.0.1.`) is rejected too, which matches CFNetwork —
+    /// it sends that spelling to DNS rather than treating it as an address.
     static func isIPLiteral(_ host: String) -> Bool {
         if host.hasPrefix("[") || host.contains(":") { return true }
-        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count == 4 else { return false }
-        return parts.allSatisfy { part in
-            !part.isEmpty && part.allSatisfy(\.isNumber) && (Int(part) ?? 256) <= 255
-        }
+        var address = in_addr()
+        return inet_aton(host, &address) != 0
     }
 }

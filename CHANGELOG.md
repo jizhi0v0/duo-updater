@@ -5,6 +5,10 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.80
+
+**Every app opening or closing anywhere on your Mac no longer costs Duo Updater a little disk work.** To keep the green "running" dot honest, Duo Updater re-reads the list of running programs each time any of them starts or quits — every helper, every menu-bar utility, all day. Each time, it also asked the filesystem where every one of those programs really lives, about a hundred and thirty lookups on the main thread per event, under a comment that called the whole thing free. It now remembers the answer for as long as a program stays running and only asks about the one that just appeared: on the machine this was written on, one and a half milliseconds per event became a tenth of one. Nothing visible changes; the dot lights up and clears exactly as before, and an app launched through a symlink still matches the copy in the list.
+
 ## 0.3.79
 
 **Docker's mark now describes Docker's interface instead of its daemon.** The row said "native"; Docker Desktop is an Electron app. The mark is read from the app's bundle, and Docker's bundle is a wrapper: the program it names is a background service written in Go, it carries no framework of its own, and the actual window-drawing app sits one level inside it. Everything was being read correctly out of the wrong file. Duo Updater now looks in the nested app when — and only when — the outer one brings nothing itself and contains exactly one such app that proves what it is built with, so a helper process shipped alongside a real interface still cannot lend its identity to its host. Docker reads as Electron 42.5.0, and of the hundred and forty-six apps in the list on the machine this was written on, it is the only row that changes.

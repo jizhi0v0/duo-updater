@@ -747,15 +747,110 @@ final class AppListModel {
     /// Matches on the SwiftUI window identifier, whose rawValue embeds the scene id
     /// (e.g. "settings-AppWindow-1"). Runs on the next runloop so the window exists
     /// for a fresh open, and after `windowAppeared`'s `activate` so our order wins.
+    ///
+    /// Then it **asks the window server whether that actually worked, and asks
+    /// again if it did not**, which is the whole of this change. Ordering a window
+    /// front is a request, and one assertion is not enough — from the popover's row
+    /// menu with the Dock icon hidden (`.accessory`, the default), the first
+    /// assertion left the window not in front every single time. Four consecutive
+    /// opens, logged from the shipped app:
+    ///
+    ///     surface[1] workbench visible=true key=true front=false  policy=accessory
+    ///     surface[2] workbench visible=true key=true front=true   policy=accessory
+    ///
+    /// `visible=true key=true front=false` is the shape of the bug: the window is
+    /// open, and it is even this app's key window, and it is still not the frontmost
+    /// window on screen. AppKit's own state cannot see that — `isVisible` and
+    /// `isKeyWindow` both say yes — which is why this asks CoreGraphics instead. The
+    /// second attempt, ~110 ms later, was in front on all four. The version that
+    /// asserted once and returned failed all four, and to the user that is a menu
+    /// item that does nothing.
+    ///
+    /// Bounded at ~1.2 s and stops the moment the window is genuinely in front, so
+    /// the ordinary case — clicking Changelog while the workbench is already up —
+    /// costs one window-list read and no retry, as `surface[1] … front=true`.
     func surfaceWindow(sceneID: String) {
-        DispatchQueue.main.async {
+        // Reaching the front once is not the same as being there when the user
+        // looks. Logged from the shipped app, five consecutive opens all reported
+        // `front on attempt 2` — and the user still saw the window fail to appear on
+        // some of them. What the one-shot check cannot see is what happens *after*
+        // it returns: the popover dismisses, the app stops being active, and the
+        // window it just ordered up goes back down behind whatever was in front.
+        //
+        // So this holds the order rather than asserting it: keep checking until the
+        // window has been in front for `settledChecks` checks in a row, re-asserting
+        // whenever it is not, and give up at the deadline either way.
+        let deadline = Date().addingTimeInterval(1.2)
+        let settledChecks = 3          // ~0.3 s of staying put
+        var attempts = 0
+        var consecutiveFront = 0
+        var everFront = false
+
+        func tick() {
+            attempts += 1
             guard let window = NSApp.windows.first(where: {
                 ($0.identifier?.rawValue.contains(sceneID) ?? false) && $0.isVisible
-            }) else { return }
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
+            }) else {
+                // Not visible *yet* is a state to wait through rather than give up
+                // on: `openWindow` took 150–480 ms to return in the traces.
+                if Date() < deadline { retry() } else {
+                    Log.app.notice("surface: \(sceneID, privacy: .public) never became visible")
+                }
+                return
+            }
+            if Self.isFrontmostOnScreen(window) {
+                everFront = true
+                consecutiveFront += 1
+                if consecutiveFront >= settledChecks {
+                    Log.app.notice("""
+                        surface: \(sceneID, privacy: .public) settled in front \
+                        after \(attempts, privacy: .public) checks
+                        """)
+                    return
+                }
+            } else {
+                // Either it never got there, or it got there and was pushed back —
+                // the second is the case the one-shot version could not see.
+                if consecutiveFront > 0 { consecutiveFront = 0 }
+                NSApp.activate(ignoringOtherApps: true)
+                window.makeKeyAndOrderFront(nil)
+                window.orderFrontRegardless()
+            }
+            if Date() < deadline {
+                retry()
+            } else {
+                Log.app.notice("""
+                    surface: \(sceneID, privacy: .public) gave up after \
+                    \(attempts, privacy: .public) checks, everFront=\(everFront, privacy: .public)
+                    """)
+            }
         }
+        func retry() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: tick) }
+        DispatchQueue.main.async(execute: tick)
+    }
+
+    /// Whether the window server has this window in front of every other ordinary
+    /// on-screen window. The rule itself is `WindowOrder.isFrontmost`, in Core where
+    /// it can be tested; this only reads the list.
+    private static func isFrontmostOnScreen(_ window: NSWindow) -> Bool {
+        // `.optionOnScreenOnly`, NOT `.optionAll`: only the on-screen list is
+        // ordered front-to-back. Measured with Claude frontmost —
+        //   .optionAll         : Excel > Messages > Finder > Zed > Claude > …
+        //   .optionOnScreenOnly: Claude > Excel > App Store > …
+        // — so reading `.optionAll` as a z-order is reading a list that isn't one,
+        // and this check would answer about window creation order instead. A window
+        // that is not on screen is simply absent from the list, which is the right
+        // answer here: not visible is not in front.
+        guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                   kCGNullWindowID) as? [[String: Any]]
+        else { return true }   // can't tell → don't spin
+        let windows = raw.map {
+            WindowInfo(
+                number: $0[kCGWindowNumber as String] as? Int ?? -1,
+                layer: $0[kCGWindowLayer as String] as? Int ?? -1,
+                isOnScreen: $0[kCGWindowIsOnscreen as String] as? Bool ?? false)
+        }
+        return WindowOrder.isFrontmost(window.windowNumber, in: windows)
     }
 
     // MARK: - Accessibility trust polling

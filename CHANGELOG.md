@@ -5,6 +5,14 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+## 0.3.79
+
+**CleanShot X's release notes are readable again — including 5.0's.** CleanShot shipped its biggest release in years and rebuilt its changelog page along with it: the date moved above the version number, two new layers appeared around it, and a feature release now puts an introduction and two video links between the version and its list of changes. The reader Duo Updater used stopped matching any of it. What made this worse than an empty pane is that it did not look empty: the notes it had already saved for the previous release stayed on screen under the new version's heading, so the pane said "5.0" over 4.8.10's changes and nothing anywhere said otherwise.
+
+**Notes saved before a release was published are now re-read instead of trusted forever.** That is the other half of the same story. Duo Updater knew 5.0 existed six minutes before CleanShot published what was in it, saved the page as it stood, and filed it under 5.0 — and from then on every check found something already saved and never looked again. Saved notes are now confirmed against the vendor once per session before they are treated as final, so a version whose notes arrive late fills itself in on the next visit rather than staying wrong.
+
+**Anything you open from the menu bar now opens on the first click.** Choosing Changelog on a row — or Settings, or the release log — did nothing at all the first time, and worked from the second click on. Reopening the menu made every attempt the first one again, so for people who open the menu, click once, and expect a window, it never worked at all. The first click inside the menu was being spent bringing Duo Updater to the front rather than doing what it was aimed at. The window it opens is also held in front now: it was being ordered up and pushed back down again in the same moment, which is the other way this looked like a click that did nothing.
+
 ## 0.3.78
 
 **An app that leaves its own name blank now gets one anyway.** Eudic (欧路词典) sat in the list with an icon, a version, and nothing at all where the name goes. Its bundle does declare a display name — and leaves it empty, because the real names live in the app's translations — and Duo Updater treated that empty answer as the answer instead of asking the next question. It now falls through to the app's other name, and to the name of the app file after that, so a row is never nameless. One app in a hundred and fifty here was affected; the point is that the information was already there and was being skipped.

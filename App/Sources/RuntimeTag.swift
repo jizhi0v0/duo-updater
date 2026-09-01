@@ -55,10 +55,10 @@ struct RuntimeTag: View {
 
     @State private var showingDetail = false
     @State private var version: String?
-    /// Separate from `version` being nil, which is a real answer: a runtime with no
-    /// trustworthy version, or a Tauri fingerprint with no Tauri crate behind it.
-    /// Without this the nil answer is never remembered and every re-open pays for
-    /// the search again — a quarter of a second, each time, on a large binary.
+    /// Separate from `version` being nil, which is a real answer: Chromium,
+    /// Flutter and the Apple-platform runtimes have no version worth printing, and
+    /// a rebranded Electron framework can hide the one it has. Without this the nil
+    /// answer is never remembered and every re-open pays for the search again.
     @State private var versionLoaded = false
 
     var body: some View {
@@ -139,10 +139,12 @@ struct RuntimeTag: View {
         .padding(14)
         .frame(width: 300, alignment: .leading)
         .task {
-            // Off the main thread and only once the detail is actually open: for
-            // Tauri this walks the whole executable, which is a quarter of a second
-            // on a large one. That cost is fine for a single app someone asked
-            // about and would be indefensible during a scan of the whole library.
+            // Off the main thread and only once the detail is actually open: a
+            // rebranded Electron framework is found by walking a binary, which is
+            // fine for a single app someone asked about and would be indefensible
+            // during a scan of the whole library. Tauri's walk is already paid for
+            // — the scan had to do it to reach the verdict at all, and this reads
+            // the same cached entry back out.
             guard !versionLoaded, let bundle else { return }
             version = await Task.detached(priority: .utility) {
                 RuntimeVersion.read(runtime, bundleAt: bundle,

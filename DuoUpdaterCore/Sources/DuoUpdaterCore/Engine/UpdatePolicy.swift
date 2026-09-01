@@ -146,14 +146,8 @@ public enum UpdatePolicy {
             // .kind(of:)` returns nil), stay detection-only (vendorInstallerKind
             // nil), so they fall through here.
             //
-            // Electron is deliberately NOT added to `UpdateResult
-            // .licenseNeutralSources` (Models/UpdateResult.swift): unlike Vendor
-            // (our own hand-curated, vetted registry) and GitHub (open-source
-            // feeds), an electron-builder manifest can belong to a commercial app
-            // we've done no license review of, so a major-version jump arriving
-            // through this source still raises the "may need a new license"
-            // warning. Same conservative treatment as Homebrew — a decision, not
-            // an oversight (see #192).
+            // Electron is deliberately NOT in `UpdateResult.licenseNeutralSources`
+            // (Models/UpdateResult.swift) — see that property's comment for why.
             return result.remote?.vendorInstallerKind != nil
                 && result.remote?.requiresManualInstaller == false
         case "App Store":
@@ -319,20 +313,21 @@ public enum UpdatePolicy {
     /// in `canAutoInstall` / `requiresInstaller` — i.e. whether the policy has an
     /// opinion about it at all.
     ///
-    /// Exists only to let a caller tell apart two situations that otherwise both
-    /// read as `!canAutoInstall && !requiresInstaller`:
-    ///   - a recognised source that resolved to no artifact THIS time (a GitHub
-    ///     rule with no asset pattern, an Electron manifest whose file has no
-    ///     known extension, a Homebrew cask needing a manual installer) — the
-    ///     update is real, we just have nothing to hand an installer;
-    ///   - a source the policy has never heard of (Xcode Releases, Toolbox) —
-    ///     there is no install path here even in principle.
-    /// `duo install`'s refusal text (`CLI/Sources/DuoKit/Install.swift`) uses
-    /// this to stop conflating the two (#193): the former said "no installable
-    /// artefact we vet", which was actively wrong for the latter — before #192
-    /// wired Electron into the switches above, that message is exactly what an
-    /// Electron app got, and it sent whoever read it looking at the manifest
-    /// instead of at this file.
+    /// NOT used to shape `duo install`'s refusal text. #193 originally used
+    /// this to split that text in two — "no artefact THIS time" for a
+    /// recognised source vs. "no route wired up yet" for one this function
+    /// returns false for — but every source that returns false here in
+    /// production (Xcode Releases, Toolbox, TestFlight) is permanently,
+    /// deliberately artefact-less by design, not a policy gap waiting to be
+    /// closed, so "not wired up yet" was never true for anything that could
+    /// reach it. `Install.swift`'s follow-up review reverted the split; see
+    /// its comment there.
+    ///
+    /// What this DOES back: `isRecognizedInstallSourceCoversEveryProductionSourceOrExplainsWhyNot`
+    /// (`UpdatePolicyTests.swift`), which checks every name `SourceStack.make()`
+    /// can actually produce against this function, so a source that SHOULD
+    /// get install support but doesn't (Electron before #192) fails a test
+    /// instead of silently offering nothing.
     public static func isRecognizedInstallSource(_ sourceName: String?) -> Bool {
         switch sourceName {
         case "Sparkle", "Homebrew", "Vendor", "GitHub", "Electron", "App Store":

@@ -104,11 +104,9 @@ import DuoUpdaterCore
         #expect(why.contains("detection only"))
     }
 
-    /// Same as `detectionOnlyIsRefused`, for Electron: it is a *recognized*
-    /// source (has its own case in `canAutoInstall`/`requiresInstaller`) that
-    /// simply resolved to no artifact this time, so it gets the same "no
-    /// installable artefact we vet" wording — not the "no route wired up"
-    /// wording reserved for sources the policy has never heard of (#193).
+    /// Same as `detectionOnlyIsRefused`, for Electron: recognized source
+    /// (has its own case in `canAutoInstall`/`requiresInstaller`), just no
+    /// artifact resolved this time.
     @Test func electronDetectionOnlyIsRefusedWithTheArtefactWording() {
         let decision = Install.classify(
             result(source: "Electron", vendorKind: nil),
@@ -117,17 +115,23 @@ import DuoUpdaterCore
             Issue.record("expected a refusal, got \(decision)")
             return
         }
-        #expect(why.contains("no installable artefact we vet"))
+        #expect(why.contains("no installable artefact"))
     }
 
-    /// #193: the two ways `!canAuto && !needsInstaller` can happen must not
-    /// share a message. A source `UpdatePolicy` has never heard of (no case in
-    /// `canAutoInstall`/`requiresInstaller`, so always `default: false`) has no
-    /// install path even in principle — unlike Electron above, which has a case
-    /// and just didn't resolve an artifact this time. Before #192 this exact
-    /// wording ("no installable artefact we vet") is what Electron got too,
-    /// which is why the bug report is titled "the reason is fake".
-    @Test func aSourceThePolicyHasNoCaseForGetsTheNoRouteWording() {
+    /// #193 (follow-up): a source `UpdatePolicy` has no case for at all — Xcode
+    /// Releases never resolves an artifact, by design (`downloadURL: nil`, its
+    /// download 302s to an Apple-ID login page) — must get the SAME wording as
+    /// Electron above, not a distinct "no install route wired up yet" message.
+    ///
+    /// #193 originally introduced exactly that distinct message, reasoning it
+    /// should read differently from "no artifact this time". It was reverted
+    /// (see `Install.swift`'s comment) once measured against production: every
+    /// source that reaches this branch — Xcode Releases, Toolbox, TestFlight —
+    /// is permanently artefact-less by design, so "not wired up yet" was false
+    /// for all of them; it just relocated #193's original complaint (a message
+    /// asserting something untrue) to the other bucket. This test pins the
+    /// collapse so the split doesn't quietly come back.
+    @Test func aSourceThePolicyHasNoCaseForGetsTheSameGenericWording() {
         let decision = Install.classify(
             result(source: "Xcode Releases", vendorKind: nil),
             settings: settings(), environment: environment())
@@ -135,8 +139,8 @@ import DuoUpdaterCore
             Issue.record("expected a refusal, got \(decision)")
             return
         }
-        #expect(why.contains("no install route is wired up"))
-        #expect(!why.contains("no installable artefact we vet"))
+        #expect(why.contains("no installable artefact"))
+        #expect(!why.contains("wired up"))
     }
 
     /// The same rule the app applies: don't swap a bundle under a running app

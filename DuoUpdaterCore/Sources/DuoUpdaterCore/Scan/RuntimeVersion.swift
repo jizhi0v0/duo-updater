@@ -326,8 +326,10 @@ public enum RuntimeVersion {
         read(.tauri, bundleAt: bundleURL, scanningBinaries: true) != nil
     }
 
-    /// Walks a binary looking for `<needle><version>`, in chunks so a 261 MB
-    /// executable never lands in memory at once.
+    /// Walks a binary looking for `<needle><version>` in chunks, so that a 261 MiB
+    /// executable never lands in memory at once — see the pool in `probe`, without
+    /// which that sentence was false.
+    ///
     /// Three outcomes, because two of them are not the same thing. A binary that
     /// was read to the end and does not contain the needle is *evidence*; a binary
     /// that could not be opened or could not be read through is the absence of
@@ -355,13 +357,18 @@ public enum RuntimeVersion {
     /// did until round 3 of review noticed.
     static let scanOverlap = 128
 
+    /// How much is read at a time. Internal for the same reason as `scanOverlap`:
+    /// the boundary tests place their payload where these two numbers put the seam,
+    /// and a literal on the test side goes stale silently — the test keeps passing
+    /// while testing nothing.
+    static let scanChunkSize = 4 * 1024 * 1024
+
     private static func probe(_ binary: URL, for prefix: String, components: Int) -> Probe {
         guard let handle = try? FileHandle(forReadingFrom: binary) else { return .unreadable }
         defer { try? handle.close() }
 
         let needle = Array(prefix.utf8)
 
-        let chunkSize = 4 * 1024 * 1024
 
         // `try?` is not available here, and the reason is the whole point of this
         // type: `read(upToCount:)` returns nil *at end of file*, and `try?` flattens
@@ -370,7 +377,7 @@ public enum RuntimeVersion {
         // to end. `do`/`catch` keeps them apart.
         var failed = false
         func read() -> Data? {
-            do { return try handle.read(upToCount: chunkSize) }
+            do { return try handle.read(upToCount: scanChunkSize) }
             catch { failed = true; return nil }
         }
 
@@ -385,35 +392,63 @@ public enum RuntimeVersion {
         // with every later window wrongly calling itself final. A lookahead cannot
         // go stale, and it keeps this working on anything unseekable besides.
         var carry = Data()
+        // Where `window[0]` sits in the file. `carry.isEmpty` looks like the same
+        // question and is not: if a window is no longer than `scanOverlap`, the
+        // carry is the whole of it and the next window still begins at offset 0.
+        // Asking about the offset directly is what keeps `from: 1` from blinding
+        // the first bytes of the file for the rest of the walk.
+        var windowStart = 0
         var pending = read()
         if failed { return .unreadable }
+        var outcome: Probe?
 
         while let chunk = pending, !chunk.isEmpty {
-            let following = read()
-            if failed { return .unreadable }
-            // A short read is legal mid-file; only an empty one is the end. Finality
-            // is therefore decided by the *next* read, not by this one's length —
-            // treating a short read as the end would report a truncated binary as
-            // proof of absence.
-            let isFinal = following?.isEmpty ?? true
-            let continuation = !carry.isEmpty
-            var window = carry
-            window.append(chunk)
-            if let version = firstVersion(
-                in: Array(window), after: needle, components: components,
-                // In a continuation window the first byte is there only to be the
-                // character before the second: a match starting *on* it has no
-                // predecessor in this window, and was already whole in the previous
-                // one, which had `scanOverlap` bytes of room after it.
-                from: continuation ? 1 : 0,
-                // And only the last window may read "my buffer ended" as "the
-                // version ended".
-                isFinal: isFinal
-            ) {
-                return .found(version)
+            // A pool per window, because `read(upToCount:)` hands back a bridged
+            // `NSData` that is autoreleased. Without one nothing drains until the
+            // walk returns, and the "never lands in memory at once" above is false
+            // in the most literal way — the whole file lands, one chunk at a time.
+            // Measured on Longbridge's 261 MiB binary, peak footprint for a single
+            // probe: **+278 MiB without the pool, +30 MiB with it**. That comment
+            // has been shipping since before this branch and was describing an
+            // intent rather than a measurement; the pool is what makes it true, and
+            // this branch is what made it matter, by moving the walk onto the scan.
+            autoreleasepool {
+                let following = read()
+                // A short read is legal mid-file; only an empty one is the end.
+                // Finality is decided by the *next* read rather than by this one's
+                // length — treating a short read as the end would report a
+                // truncated binary as proof of absence. A read that *threw* says
+                // nothing about the end either, so it must not claim finality.
+                let isFinal = failed ? false : (following?.isEmpty ?? true)
+
+                var window = carry
+                window.append(chunk)
+                let version = firstVersion(
+                    in: Array(window), after: needle, components: components,
+                    // In a continuation window the first byte is there only to be
+                    // the character before the second: a match starting *on* it has
+                    // no predecessor in this window, and was already whole in the
+                    // previous one, which had `scanOverlap` bytes of room after it.
+                    from: windowStart == 0 ? 0 : 1,
+                    // And only the last window may read "my buffer ended" as "the
+                    // version ended".
+                    isFinal: isFinal
+                )
+
+                // Deliberately before the `failed` check. A match is positive
+                // evidence and complete in itself; bytes *after* it failing to read
+                // says nothing about it, and discarding it would turn a proven
+                // Tauri app into a native one for that scan. Only the absence of a
+                // match depends on having read the whole file, and that is the case
+                // this hands to `.unreadable`.
+                if let version { outcome = .found(version); return }
+                if failed { outcome = .unreadable; return }
+
+                carry = window.suffix(scanOverlap)
+                windowStart += window.count - carry.count
+                pending = isFinal ? nil : following
             }
-            carry = window.suffix(scanOverlap)
-            pending = isFinal ? nil : following
+            if let outcome { return outcome }
         }
         return .absent
     }

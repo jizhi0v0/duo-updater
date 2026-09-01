@@ -228,10 +228,12 @@ func anAnswerIsRememberedAgainstTheBinaryItWasReadFrom() throws {
     #expect(b.version(.tauri) == "2.12.0", "different bytes — read again, do not remember 2.11.5")
 }
 
-/// `RuntimeVersion` walks a binary in 4 MiB chunks. Both tests below place their
-/// payload against that boundary, which is the only place the two window-edge rules
-/// can be observed at all.
-private let chunkSize = 4 * 1024 * 1024
+/// Both tests below place their payload against a chunk boundary, which is the only
+/// place the two window-edge rules can be observed at all — so both numbers that
+/// decide where that boundary falls are read from the reader itself. Written as
+/// literals, the payload drifts off the seam the moment either is tuned, and the
+/// tests keep passing while testing nothing.
+private let chunkSize = RuntimeVersion.scanChunkSize
 
 /// A bundle whose executable is larger than one chunk, with `payload` written at
 /// `offset` so it straddles — or sits just before — the first boundary.

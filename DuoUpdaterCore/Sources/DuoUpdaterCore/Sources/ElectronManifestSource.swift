@@ -126,40 +126,66 @@ public struct ElectronManifestSource: UpdateSource {
         // carries no architecture token at all, so nothing about the filename
         // reveals that it is Intel. The sibling's existence is the only signal.
         //
-        // ADOPTED WHOLESALE — version and all — whenever the sibling resolves
-        // (#203). This used to require the two manifests to agree on `version:`
-        // before trusting the sibling, on the theory that agreement was what told
-        // an architecture choice apart from a train (release-channel) change. That
-        // theory doesn't hold on this path: DuoUpdater is arm64-only
-        // (`App/project.yml`), so once `arm64-mac.yml` exists it unambiguously IS
-        // the track for this host — there is no second architecture it could be
-        // confused with. The train change the equality guard was defending against
-        // lives in a DIFFERENT filename (`beta-mac.yml`, same `channel:` slot
-        // electron-builder uses for both), and `mayProbeArchSibling` already
-        // refuses to probe beside anything but `latest-mac.yml` — the risk the
-        // guard existed for cannot reach this code path at all. What the guard
-        // cost instead was real and observed: Notion's two tracks drifted apart
-        // for four real days (`latest-mac.yml` at 7.31.3 from 2026-08-27,
-        // `arm64-mac.yml` at 7.32.0 from 2026-08-31), and requiring equality made
-        // this source report the OLDER, x64-track version — "already up to date"
-        // handed to an arm64 host that was four days behind. A sibling that
-        // resolves at all, even to a version BELOW the default manifest's, is
-        // still the real state of the arm64 track and is reported as such. Costs
-        // one extra request per check for apps on the default channel, and none
-        // for a bundle that already named its architecture (Typeless ships
-        // `channel: arm64`, so the manifest above IS the arm64 one).
+        // GUARDED ON THE TWO MANIFESTS NAMING THE SAME VERSION (restored; #203
+        // proposed dropping this, then was withdrawn — the premise didn't hold,
+        // see below). A sibling that resolves to a DIFFERENT version is not this
+        // host's architecture choice — it is a different release train, and
+        // adopting it moves the user onto that train, not just onto arm64:
+        //
+        // - electron-updater does not select `*-mac.yml` by architecture on
+        //   macOS at all. `Provider.getChannelFilePrefix()` only appends
+        //   `-${arch}` on Linux; on darwin it always returns `-mac`, no
+        //   architecture suffix. Architecture selection happens INSIDE the
+        //   manifest instead — `MacUpdater.ts` checks `process.arch === "arm64"`
+        //   and picks the matching `files:` entry. So `arm64-mac.yml` is not a
+        //   standard electron-updater path; only a build whose OWN
+        //   `app-update.yml` names `channel: arm64` ever reads it. (electron-userland/electron-builder:
+        //   `packages/electron-updater/src/providers/Provider.ts`,
+        //   `packages/electron-updater/src/MacUpdater.ts`; see also
+        //   electron-builder issue #6643.)
+        // - Confirmed directly on Notion's real arm64 build (2026-09-01,
+        //   `Notion-arm64-7.32.0.zip`, downloaded whole, length matched
+        //   Content-Length byte for byte): its OWN `Contents/Resources/app-update.yml`
+        //   carries `channel: arm64`, while the machine's installed 7.31.3
+        //   (`universal`) carries `channel: latest`. Installing the arm64 build
+        //   would move this user from the `latest` track to the `arm64` track —
+        //   ONE-WAY, since after that both Notion's own updater and this source
+        //   read `arm64-mac.yml` from then on. That is exactly the "train
+        //   change" the equality guard exists to refuse.
+        //
+        // So on a real drift (Notion's two tracks were four days apart,
+        // 2026-08-27 vs. 2026-08-31, when this was checked), the correct answer
+        // is NOT "adopt whichever one resolves" — it is "report the version on
+        // the track the user is actually on" (`latest`, here 7.31.3, which is
+        // also what Notion's own updater would install), while withholding the
+        // artifact because that track's manifest is x86_64-only and DuoUpdater
+        // is arm64-only. That is exactly #194's failure closure below, doing its
+        // job — a version-mismatched sibling reads as `.indeterminate`, which
+        // makes `pathFallbackIsTrustworthy` false, which withholds the
+        // x86_64 `path` artifact. No further action needed for that case.
+        //
+        // Real gap this leaves, tracked separately (deliberately out of scope
+        // here): `mayProbeArchSibling`'s whole premise — that a vendor
+        // publishing `arm64-mac.yml` means it split ITS release by architecture,
+        // and the default manifest is the x64 half — is an inference, not
+        // something electron-updater's own mechanism guarantees. Costs one extra
+        // request per check for apps on the default channel, and none for a
+        // bundle that already named its architecture (Typeless ships `channel:
+        // arm64`, so the manifest above IS the arm64 one).
         //
         // `try?` used to collapse "no sibling" and "could not tell" into the same
         // nil (#194): a 403 (Canva, observed) or a timeout answered exactly like a
         // clean 404, and either one left `artifact(forArch:)` free to fall back to
         // the DEFAULT manifest's top-level `path` — which, on this shape, is the
         // Intel build. Only a *confirmed* 404 is proof there is no split; anything
-        // else must not be allowed to stand in for that proof, which is what
+        // else — including a sibling that answers but names a different version —
+        // must not be allowed to stand in for that proof, which is what
         // `pathFallbackIsTrustworthy` below enforces.
         var pathFallbackIsTrustworthy = true
         if Self.mayProbeArchSibling(manifestURL) {
             switch await Self.archSibling(
-                of: manifestURL, label: "Electron \(app.name) arch-sibling", session: session
+                of: manifestURL, matching: manifest.version,
+                label: "Electron \(app.name) arch-sibling", session: session
             ) {
             case .resolved(let url, let sibling):
                 manifest = sibling
@@ -276,14 +302,12 @@ public struct ElectronManifestSource: UpdateSource {
     /// What probing for the `arm64-mac.yml` sibling found. Three-way, not
     /// optional, because two of the failure shapes must not be treated alike
     /// (#194): only ``confirmedAbsent`` is proof the vendor never split the
-    /// release by architecture. Everything else — a transport failure or a
+    /// release by architecture. Everything else — a transport failure, a
     /// non-2xx/non-404 status (Canva's sibling answers 403, observed
-    /// 2026-09-01), or a body that will not parse — is silence, not an answer,
-    /// and must not be allowed to stand in for one.
-    ///
-    /// ``resolved`` carries whatever version the sibling names, agreeing with the
-    /// default manifest or not (#203) — see the long comment at the call site for
-    /// why requiring agreement was actively wrong on this path.
+    /// 2026-09-01), a body that will not parse, or (see the long comment at the
+    /// call site — #203 was filed then withdrawn on this point) a version that
+    /// disagrees with the default manifest's — is silence, not an answer, and
+    /// must not be allowed to stand in for one.
     enum ArchSiblingOutcome: Equatable {
         case resolved(url: URL, manifest: ElectronManifest)
         case confirmedAbsent
@@ -302,7 +326,7 @@ public struct ElectronManifestSource: UpdateSource {
     /// asymmetry was #194's own lesson, applied here to the retry policy instead
     /// of the status-code handling.
     private static func archSibling(
-        of manifest: URL, label: String, session: URLSession
+        of manifest: URL, matching version: String, label: String, session: URLSession
     ) async -> ArchSiblingOutcome {
         let sibling = manifest.deletingLastPathComponent()
             .appendingPathComponent("arm64-mac.yml")
@@ -322,9 +346,15 @@ public struct ElectronManifestSource: UpdateSource {
             // default manifest.
             return .confirmedAbsent
         }
+        // `parsed.version == version` — see the long comment at the call site
+        // (restored after #203 proposed and then withdrew dropping this): a
+        // sibling that answers but names a DIFFERENT version is a different
+        // release train, not this host's architecture choice, and adopting it
+        // would move the user onto that train permanently.
         guard (200..<300).contains(http.statusCode),
               let text = String(data: data, encoding: .utf8),
-              let parsed = ElectronManifest.parse(text) else {
+              let parsed = ElectronManifest.parse(text),
+              parsed.version == version else {
             return .indeterminate
         }
         return .resolved(url: sibling, manifest: parsed)

@@ -396,16 +396,27 @@ struct ElectronArchSiblingClosureTests {
         #expect(remote.expectedSHA512 == nil)
     }
 
-    // MARK: - #203: a resolved sibling is adopted wholesale, version and all
+    // MARK: - #203 (filed, then WITHDRAWN — see the long comment above
+    // `pathFallbackIsTrustworthy` in the source): a version-mismatched sibling
+    // is a different release train, not this host's architecture choice, and
+    // must not be adopted.
 
-    @Test func aHigherVersionedSiblingIsAdoptedWholesale() async throws {
-        // The real Notion shape, 2026-09-01: the two tracks had drifted four
-        // days apart. `latest-mac.yml` (x64) still said 7.31.3; `arm64-mac.yml`
-        // had shipped 7.32.0 on 2026-08-31. The OLD equality guard made this
-        // source report 7.31.3 — the installed version — so an arm64 host was
-        // told "already up to date" while four days behind. It must now report
-        // 7.32.0 and the arm64 artifact.
-        let domain = "https://cdn-higher.example.test"
+    @Test func aHigherVersionedMismatchedSiblingIsNotAdopted() async throws {
+        // Notion's REAL shape, 2026-09-01: the two tracks had drifted four days
+        // apart. `latest-mac.yml` (the track this installed 7.31.3 is actually
+        // on — its own `app-update.yml` says `channel: latest`) still said
+        // 7.31.3; `arm64-mac.yml` (a DIFFERENT track — Notion's arm64 build's own
+        // `app-update.yml` says `channel: arm64`) had shipped 7.32.0. #203
+        // proposed adopting 7.32.0 here on the theory that a resolving sibling
+        // unambiguously names this host's architecture; that theory didn't
+        // survive checking electron-updater's actual mechanism (no per-arch
+        // manifest selection on macOS — see the source comment) or the real
+        // arm64 build's own config (a ONE-WAY channel switch, not an arch
+        // marker). The correct report is 7.31.3 — the version on the track this
+        // install is actually on, and what Notion's own updater would install —
+        // with no artifact offered, because `latest-mac.yml`'s own artifact is
+        // x86_64-only and the mismatched sibling cannot vouch for `path`.
+        let domain = "https://cdn-higher-mismatch.example.test"
         FixtureProtocol.routes = [
             "\(domain)/latest-mac.yml": .init(status: 200, body: """
                 version: 7.31.3
@@ -428,23 +439,25 @@ struct ElectronArchSiblingClosureTests {
                 releaseDate: '2026-08-31T20:30:08.402Z'
                 """, transportFailure: false),
         ]
-        let bundleID = "com.duoupdater.test.electron.higherSibling"
+        let bundleID = "com.duoupdater.test.electron.higherMismatch"
         let app = electronApp(bundleID: bundleID, domain: domain)
         let source = ElectronManifestSource(session: fixtureSession())
 
         let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "7.32.0")
-        #expect(remote.downloadURL == URL(string: "\(domain)/Notion-arm64-7.32.0.zip"))
-        #expect(remote.vendorInstallerKind == .zip)
-        #expect(remote.expectedSHA512 == "ARMSHA==")
+        #expect(remote.shortVersion == "7.31.3")
+        #expect(remote.downloadURL == nil)
+        #expect(remote.vendorInstallerKind == nil)
+        #expect(remote.expectedSHA512 == nil)
     }
 
-    @Test func aLowerVersionedSiblingIsAlsoAdoptedWholesale() async throws {
-        // The mirror case named explicitly in #203: the arm64 track can just as
-        // easily be BEHIND the default manifest, and that is still the real
-        // state of the arm64 track — reporting it is correct, not a regression
-        // to an older version.
-        let domain = "https://cdn-lower.example.test"
+    @Test func aLowerVersionedMismatchedSiblingIsAlsoNotAdopted() async throws {
+        // Mirror direction, synthetic (no known live example of the arm64 track
+        // trailing the default one, unlike the higher case above — flagged
+        // honestly rather than dressed up as observed). Same rule either way: a
+        // mismatched sibling names a different train, and "behind" is no more
+        // adoptable than "ahead" — the point isn't which one looks newer, it's
+        // that they disagree at all.
+        let domain = "https://cdn-lower-mismatch.example.test"
         FixtureProtocol.routes = [
             "\(domain)/latest-mac.yml": .init(status: 200, body: """
                 version: 5.1.0
@@ -465,23 +478,25 @@ struct ElectronArchSiblingClosureTests {
                 sha512: ARMSHA==
                 """, transportFailure: false),
         ]
-        let bundleID = "com.duoupdater.test.electron.lowerSibling"
+        let bundleID = "com.duoupdater.test.electron.lowerMismatch"
         let app = electronApp(bundleID: bundleID, domain: domain)
         let source = ElectronManifestSource(session: fixtureSession())
 
         let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "5.0.9")
-        #expect(remote.downloadURL == URL(string: "\(domain)/App-5.0.9-arm64.zip"))
-        #expect(remote.vendorInstallerKind == .zip)
-        #expect(remote.expectedSHA512 == "ARMSHA==")
+        #expect(remote.shortVersion == "5.1.0")
+        #expect(remote.downloadURL == nil)
+        #expect(remote.vendorInstallerKind == nil)
+        #expect(remote.expectedSHA512 == nil)
     }
 
     @Test func aTransientGatewayErrorOnTheSiblingIsRetriedRatherThanTreatedAsIndeterminate() async throws {
-        // #203's second finding: the default manifest fetch retries a gateway
-        // 502/503/504 once (`versionFeedData`), but the sibling probe used to go
-        // through a bare `data(for:)` with none of that — so the identical
-        // transient status self-healed on one request and got read as
-        // "inconclusive, withhold the artifact" on the other. The sibling here
+        // #203's second finding — kept even though #203's main claim (adopt a
+        // mismatched sibling wholesale) was withdrawn above; this half was never
+        // in question. The default manifest fetch retries a gateway 502/503/504
+        // once (`versionFeedData`), but the sibling probe used to go through a
+        // bare `data(for:)` with none of that — so the identical transient
+        // status self-healed on one request and got read as "inconclusive,
+        // withhold the artifact" on the other. The sibling here
         // 502s once, then answers normally; that must resolve, not withhold.
         let domain = "https://cdn-gateway-retry.example.test"
         FixtureProtocol.routes = [

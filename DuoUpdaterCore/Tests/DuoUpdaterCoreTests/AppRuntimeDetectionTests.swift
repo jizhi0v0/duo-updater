@@ -21,9 +21,12 @@ private struct BundleBuilder {
     ///   - frameworks: names to create under `Contents/Frameworks`.
     ///   - directories: extra directories relative to `Contents` (`jbr`, `Java`, …).
     ///   - files: extra files relative to `Contents` (`Resources/app.asar`).
+    ///   - executableContents: bytes to write into the stub executable, for the one
+    ///     rule that reads a binary's contents rather than its header.
     func app(
         _ name: String,
         executable: String? = "Stub",
+        executableContents: String = "",
         frameworks: [String] = [],
         directories: [String] = [],
         files: [String] = []
@@ -48,7 +51,14 @@ private struct BundleBuilder {
         if let executable {
             let macos = contents.appendingPathComponent("MacOS")
             try fm.createDirectory(at: macos, withIntermediateDirectories: true)
-            try Data().write(to: macos.appendingPathComponent(executable))
+            try Data(executableContents.utf8).write(to: macos.appendingPathComponent(executable))
+            // A real Info.plist as well as the dictionary the caller passes in:
+            // `RuntimeVersion` finds the executable by reading the bundle's own
+            // plist off disk, so a bundle without one has no binary to read.
+            try PropertyListSerialization
+                .data(fromPropertyList: ["CFBundleExecutable": executable],
+                      format: .xml, options: 0)
+                .write(to: contents.appendingPathComponent("Info.plist"))
         }
         return bundle
     }
@@ -68,10 +78,18 @@ private func detect(
     _ bundle: URL,
     isiOSAppOnMac: Bool = false,
     plist: [String: Any] = ["CFBundleExecutable": "Stub"],
-    libraries: @escaping AppRuntimeDetector.LibraryReader = { _ in [] }
+    libraries: @escaping AppRuntimeDetector.LibraryReader = { _ in [] },
+    tauriProof: @escaping AppRuntimeDetector.TauriProof = { _, _ in false }
 ) -> AppRuntime? {
     AppRuntimeDetector.detect(
-        bundleAt: bundle, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist, linkedLibraries: libraries)
+        bundleAt: bundle, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist,
+        linkedLibraries: libraries, carriesTauriCrate: tauriProof)
+}
+
+/// The tauri-bundler plist pair — what admits a bundle to the proof, and on its
+/// own says only "cargo-bundle".
+private func cargoBundlePlist() -> [String: Any] {
+    ["CFBundleExecutable": "Stub", "LSRequiresCarbon": true, "CSResourcesFileMapped": true]
 }
 
 // MARK: - Layout rules
@@ -162,13 +180,11 @@ private func detect(
 
 // MARK: - Load-command rules
 
-@Test func detectsTauriFromCargoBundleMarkersPlusWebKit() throws {
+@Test func detectsTauriFromCargoBundleMarkersPlusWebKitPlusTheCrate() throws {
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try builder.app("Shell")
-    let plist: [String: Any] = [
-        "CFBundleExecutable": "Stub", "LSRequiresCarbon": true, "CSResourcesFileMapped": true,
-    ]
-    #expect(detect(bundle, plist: plist, libraries: reader(appKit, webKit)) == .tauri)
+    #expect(detect(bundle, plist: cargoBundlePlist(), libraries: reader(appKit, webKit),
+                   tauriProof: { _, _ in true }) == .tauri)
 }
 
 @Test func cargoBundledAppsWithoutAWebViewAreNativeNotTauri() throws {
@@ -176,18 +192,81 @@ private func detect(
     // windows. Without this split they would both be mislabeled Tauri.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try builder.app("Terminal")
-    let plist: [String: Any] = [
-        "CFBundleExecutable": "Stub", "LSRequiresCarbon": true, "CSResourcesFileMapped": true,
-    ]
-    #expect(detect(bundle, plist: plist, libraries: reader(appKit)) == .native)
+    #expect(detect(bundle, plist: cargoBundlePlist(), libraries: reader(appKit),
+                   tauriProof: { _, _ in true }) == .native)
 }
 
 @Test func aWebKitLinkAloneIsNotTauri() throws {
-    // Plenty of native apps embed a WKWebView (Raycast does). Only the packager
-    // fingerprint plus WebKit means Tauri.
+    // Plenty of native apps embed a WKWebView (Raycast does). The packager
+    // fingerprint has to be there too.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try builder.app("Native")
-    #expect(detect(bundle, libraries: reader(appKit, swiftUI, webKit)) == .native)
+    #expect(detect(bundle, libraries: reader(appKit, swiftUI, webKit),
+                   tauriProof: { _, _ in true }) == .native)
+}
+
+@Test func aCargoBundledWebViewAppWithoutTheTauriCrateIsNative() throws {
+    // Longbridge, and the reason the WebKit rule alone was not enough (#206). It
+    // draws with GPUI like Zed and embeds a renamed wry fork for web content, so
+    // every cheap marker says Tauri and the binary says otherwise.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Broker")
+    #expect(detect(bundle, plist: cargoBundlePlist(), libraries: reader(appKit, webKit),
+                   tauriProof: { _, _ in false }) == .native)
+}
+
+@Test func theTauriProofIsAskedOnlyAboutCargoBundledWebViewApps() throws {
+    // The proof reads a whole executable, so what keeps it affordable during a scan
+    // of the entire library is that almost nothing reaches it. If a later edit
+    // moved the rule above the cheap filters, every app on the machine would pay —
+    // and nothing about the *verdicts* would change, so only this notices.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    final class Counter: @unchecked Sendable { var asked = 0 }
+    let counter = Counter()
+    let proof: AppRuntimeDetector.TauriProof = { _, _ in counter.asked += 1; return true }
+
+    // An Electron app, a Qt app, a plain native one, and a cargo-bundled app that
+    // links no WebView: four shapes, none of them a candidate.
+    _ = detect(try builder.app("Editor", frameworks: ["Electron Framework.framework"]),
+               libraries: reader(appKit), tauriProof: proof)
+    _ = detect(try builder.app("Viewer", frameworks: ["QtCore.framework"]),
+               libraries: reader(appKit), tauriProof: proof)
+    _ = detect(try builder.app("Plain"), libraries: reader(appKit, swiftUI), tauriProof: proof)
+    _ = detect(try builder.app("Terminal"), plist: cargoBundlePlist(),
+               libraries: reader(appKit), tauriProof: proof)
+    #expect(counter.asked == 0)
+
+    _ = detect(try builder.app("Shell"), plist: cargoBundlePlist(),
+               libraries: reader(appKit, webKit), tauriProof: proof)
+    #expect(counter.asked == 1)
+}
+
+// MARK: - The proof, through the real reader
+
+@Test func theRealProofReadsTheCratePathOutOfTheBinary() throws {
+    // End to end through `RuntimeVersion.carriesTauriCrate`, the closure production
+    // actually passes — the injected proofs above would keep passing if it broke.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app(
+        "Shell",
+        executableContents: "junk/Users/x/.cargo/registry/src/index/tauri-2.11.1/src/lib.rsmore")
+    #expect(AppRuntimeDetector.detect(
+        bundleAt: bundle, isiOSAppOnMac: false, infoPlist: cargoBundlePlist(),
+        linkedLibraries: reader(appKit, webKit)) == .tauri)
+}
+
+@Test func theRealProofRejectsAWryOnlyBinary() throws {
+    // The same shape with Longbridge's contents: wry is there, the framework crate
+    // is not. `tauri-runtime-wry-2.11.4` is included deliberately — it contains the
+    // needle as a substring and must not be read as the crate.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app(
+        "Broker",
+        executableContents: "registry/src/index/lb-wry-0.53.3/src/lib.rs "
+            + "and tauri-runtime-wry-2.11.4/src/lib.rs")
+    #expect(AppRuntimeDetector.detect(
+        bundleAt: bundle, isiOSAppOnMac: false, infoPlist: cargoBundlePlist(),
+        linkedLibraries: reader(appKit, webKit)) == .native)
 }
 
 @Test func detectsCatalyst() throws {

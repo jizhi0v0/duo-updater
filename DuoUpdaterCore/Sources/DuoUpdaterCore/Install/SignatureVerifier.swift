@@ -14,11 +14,13 @@ import Security
 /// Gate 5b (`verifyNoArchitectureDowngrade`) is a NARROWER liveness check than 5
 /// and 6: not "can this Mac run the download" but "does the download run worse
 /// than what's already installed" (arm64 → x86_64-only, still launchable under
-/// Rosetta, but never natively again). It is defined here beside Gate 5 but, as
-/// of this writing, is not yet called from `SparkleInstaller`/`VendorInstaller`
-/// — wiring it in needs the installed app's URL threaded to the same call site
-/// as Gate 5 (`result.app.path` is already in scope there for Gates 3/4). See
-/// issue #196.
+/// Rosetta, but never natively again). Both installers call it immediately
+/// AFTER gate 5, never before — a package that is both unrunnable and a
+/// downgrade must fail with gate 5's "cannot launch" message (the more severe,
+/// still-true problem), not gate 5b's "this would run translated" (which
+/// implies it launches). Like gate 5, it never sees the pkg route: `newApp`
+/// there is handed straight to Installer.app, so `PackageInstaller` stays
+/// gated on signature + Team ID only, same as gate 5. See issue #196.
 public enum SignatureVerifier {
 
     public enum VerifyError: LocalizedError {
@@ -339,12 +341,17 @@ public enum SignatureVerifier {
         return downloaded.contains(NSBundleExecutableArchitectureX86_64)
     }
 
-    /// Gate 5b, run beside Gate 5 on the downloaded bundle. Only meaningful on
-    /// Apple silicon: an Intel Mac never had an arm64 slice to lose, and this
-    /// product ships arm64-only besides (`App/project.yml`, `ARCHS: arm64`), so
-    /// there is no Intel host for `installedApp` to be read from in practice —
-    /// this still checks `host` explicitly rather than assume it, so the gate
-    /// stays correct if that ever changes.
+    /// Gate 5b, called by both installers immediately AFTER Gate 5 passes on the
+    /// same `newApp`/`installedApp` pair — never before, and never on its own:
+    /// a package that Gate 5 would refuse outright (arm64 host, no Rosetta,
+    /// Intel-only download) must fail with Gate 5's "cannot launch" message,
+    /// not this one's "would run translated", which implies it launches at
+    /// all. Only meaningful on Apple silicon: an Intel Mac never had an arm64
+    /// slice to lose, and this product ships arm64-only besides
+    /// (`App/project.yml`, `ARCHS: arm64`), so there is no Intel host for
+    /// `installedApp` to be read from in practice — this still checks `host`
+    /// explicitly rather than assume it, so the gate stays correct if that
+    /// ever changes.
     public static func verifyNoArchitectureDowngrade(
         installedApp: URL,
         downloadedApp: URL,

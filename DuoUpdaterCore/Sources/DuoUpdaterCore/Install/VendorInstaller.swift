@@ -18,6 +18,11 @@ import CryptoKit
 ///   - **Gate 5** is not about trust but about liveness: the bundle must have a
 ///     Mach-O slice this Mac can launch (assets are chosen by filename, and
 ///     filenames lie).
+///   - **Gate 5b**, run only once gate 5 has already passed: the download must
+///     not drop the arm64 slice the INSTALLED bundle has. Gate 5 alone answers
+///     "can this Mac run it" — on Apple silicon with Rosetta that is true of an
+///     Intel-only build too, so without this a native install silently becomes
+///     translated, permanently (see `SignatureVerifier.verifyNoArchitectureDowngrade`).
 ///   - **Gate 6**, liveness too: this Mac must not be below the
 ///     `LSMinimumSystemVersion` the bundle declares. Vendor probes and GitHub
 ///     releases mostly publish no OS requirement anywhere we can read before
@@ -257,6 +262,21 @@ public actor VendorInstaller {
         // by filename, which cannot see inside a Mach-O; this reads the real
         // slices, so a mis-named artifact is refused instead of installed.
         try SignatureVerifier.verifyRunnableArchitecture(appAt: newApp)
+        // Gate 5b — and it is not a WORSE build than what's already here. Must run
+        // AFTER gate 5, not before: a package that is both unrunnable and a
+        // downgrade (arm64 host, no Rosetta, Intel-only download) has to fail
+        // with gate 5's "cannot launch" message, the true and more severe
+        // problem — gate 5b's "this would run translated" is only correct once
+        // gate 5 has already confirmed the download CAN launch here. Runs
+        // identically for both routes above (full archive and delta
+        // reconstruction) — `DeltaApplier.reconstruct` states plainly that its
+        // output "goes through exactly the same gates a downloaded archive
+        // does", and this is one of them; the patch is cut by the vendor and
+        // nothing here assumes its architecture set matches the baseline's.
+        try SignatureVerifier.verifyNoArchitectureDowngrade(
+            installedApp: result.app.path,
+            downloadedApp: newApp
+        )
         // Gate 6 — and this Mac is not below the OS floor the bundle declares.
         // Same shape of claim as gate 5 and the same blind spot behind it: the
         // download was selected from what a source published, and most sources

@@ -266,6 +266,22 @@ final class AppListModel {
     /// was added to prevent. Comparing against what we wrote cannot drift,
     /// because whoever overwrote the note also invalidated the comparison.
     @ObservationIgnored private var restartHoldBackNotes: [String: String] = [:]
+    /// id → the "it wouldn't quit" text this model last wrote into `installNotes`,
+    /// under exactly the discipline `restartHoldBackNotes` documents above.
+    ///
+    /// Written by `restart`'s `.stillRunning` bail, which until now said nothing to
+    /// the user at all: the spinner ran the full 30s `AppRestarter` allows for a
+    /// graceful quit, the button came back unchanged, and the only trace was an
+    /// `os_log` line. Measured on Eudic (欧路词典) 2026-09-01 — its login sheet was
+    /// up, so AppKit refused the quit — and the two clicks 52 seconds apart in that
+    /// user's log are what a silent bail buys you.
+    ///
+    /// Not registered in `inFlightNotes` for the same reason the hold-back text
+    /// isn't: the row already has the new build on disk, so it reads `.upToDate`
+    /// for the whole time this note is up and the settle rule would take it down on
+    /// the next rescan with nothing changed. What ends this one is the app finally
+    /// quitting, which `settleQuitHandoffs` observes directly.
+    @ObservationIgnored private var restartWontQuitNotes: [String: String] = [:]
     /// id → the "App Store can't replace this while it's open" text this model wrote
     /// into `installNotes`, so the install can retract exactly its own note when it
     /// finishes. Same discipline as `restartHoldBackNotes`, and for the same reason:
@@ -3594,6 +3610,15 @@ final class AppListModel {
         return String(rest[..<end])
     }
 
+    /// Take down a note one of the restart paths wrote — and only if it is still
+    /// the text on screen. Shared by the two stores that follow the discipline
+    /// `restartHoldBackNotes` documents: if someone replaced the note in between
+    /// (`backupCurrent`'s "applied without a rollback point", say), theirs stands.
+    private func retractRestartNote(_ id: String, from store: inout [String: String]) {
+        guard let mine = store.removeValue(forKey: id), installNotes[id] == mine else { return }
+        installNotes[id] = nil
+    }
+
     /// Quit the stale running instance and relaunch it so the new version takes
     /// effect. Graceful only — if it won't quit (unsaved work), we leave it and
     /// keep the Restart prompt for the user to retry. An app that isn't running
@@ -3625,6 +3650,10 @@ final class AppListModel {
         // to perform, relaunching the app straight into the installer we were
         // trying not to disturb.
         quitHandoffs[result.id] = nil
+        // …and supersedes what that bail put on screen. The note names a quit the
+        // user was asked to unblock; this click IS them coming back to it, so it
+        // must not still be sitting there while the retry runs.
+        retractRestartNote(result.id, from: &restartWontQuitNotes)
         // Is anyone else waiting for this app to quit? Sparkle parks an installer
         // on exactly that signal, so a restart meant to put OUR build into effect
         // can instead apply THEIRS — see `RestartStandoff` for the timeline. Only
@@ -3664,10 +3693,7 @@ final class AppListModel {
         // it is still the one showing, and nothing else. If someone replaced the
         // note in between — `backupCurrent`'s "no rollback point", say — theirs
         // stands.
-        if let mine = restartHoldBackNotes.removeValue(forKey: result.id),
-           installNotes[result.id] == mine {
-            installNotes[result.id] = nil
-        }
+        retractRestartNote(result.id, from: &restartHoldBackNotes)
         switch await AppRestarter.restart(result.app) {
         case .noBundleID, .notRunning:
             needsRestart.remove(result.id)
@@ -3691,6 +3717,17 @@ final class AppListModel {
                     || AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app)),
                 armedAt: Date())
             Log.app.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (won't quit — relaunch if it does)")
+            // Say so. Without this the row is indistinguishable from a click that
+            // did nothing: 30 seconds of spinner, then the same button back. The
+            // sentence has to send the user to the app rather than back to this
+            // button, because nothing here can clear the thing that is blocking
+            // the quit — AppKit refuses to honour it while a modal window or sheet
+            // is up, and that window is the app's, not ours. "A window waiting for
+            // you" rather than "unsaved work": the case in hand was Eudic's login
+            // sheet, which has nothing to save.
+            let note = String(localized: "\(result.app.name) didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.")
+            installNotes[result.id] = note
+            restartWontQuitNotes[result.id] = note
         case .relaunched(let relaunched):
             needsRestart.remove(result.id)
             pendingBatchRestart[result.id] = nil
@@ -3741,8 +3778,18 @@ final class AppListModel {
         relaunching.insert(result.id)
         pinRowOrder()
         defer { relaunching.remove(result.id); releaseRowOrder() }
-        // A fresh attempt supersedes whatever a previous bail left armed.
+        // A fresh attempt supersedes whatever a previous bail left armed — and the
+        // note that bail wrote, which has to go with the marker rather than after
+        // it. `settleQuitHandoffs` is the only thing that retracts that note and it
+        // iterates `quitHandoffs`, so dropping the marker alone strands the
+        // sentence: the row would still say "it didn't quit — deal with that
+        // window" after this relaunch had quit it and ShipIt had swapped. Reachable
+        // because the two buttons live on one row: a `.stillRunning` bail here
+        // leaves the note up, and the moment the app's own updater stages a build
+        // (`actionableStaged`) the row switches from Relaunch-to-restart to
+        // Relaunch-to-apply, which is this function.
         quitHandoffs[result.id] = nil
+        retractRestartNote(result.id, from: &restartWontQuitNotes)
         let running = AppRestarter.runningInstances(of: result.app)
         guard !running.isEmpty else {
             // Not running: the staged swap applies on the app's own next quit, not
@@ -3871,6 +3918,11 @@ final class AppListModel {
                   AppRestarter.runningInstances(of: handoff.result.app).isEmpty
             else { continue }
             quitHandoffs[id] = nil
+            // The app is gone, so the note asking the user to unblock its quit has
+            // nothing left to describe. Before the expiry check, not after: an
+            // expired marker means we won't relaunch it, not that the sentence
+            // about a window blocking the quit is still true.
+            retractRestartNote(id, from: &restartWontQuitNotes)
             guard Date().timeIntervalSince(handoff.armedAt) < Self.quitHandoffMaxAge else {
                 // Too long since the bail: this quit is the user closing the app,
                 // not a late answer to that dialog. ShipIt still swaps — we just

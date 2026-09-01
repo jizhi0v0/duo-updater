@@ -288,6 +288,47 @@
         }
       }
     },
+    "%@ didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde nicht beendet – es hat ein Fenster offen, das auf dich wartet (eine Sicherungsabfrage, ein Anmeldefenster, ein Dialog). Wechsle dorthin, erledige dieses Fenster und beende die App dann selbst oder klicke erneut auf „Neu starten“. Es wurde nichts verändert, und die neue Version ist bereits installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no se cerró: tiene una ventana esperándote (un aviso para guardar, una hoja de inicio de sesión, un diálogo). Ve a la app, resuelve esa ventana y luego ciérrala o vuelve a pulsar «Reabrir». No se ha cambiado nada y la versión nueva ya está instalada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas quitté — une fenêtre y attend ta réponse (une demande d’enregistrement, une feuille de connexion, une boîte de dialogue). Passe à l’app, règle cette fenêtre, puis quitte-la ou reclique sur « Relancer ». Rien n’a été modifié et la nouvelle version est déjà installée."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は終了しませんでした。操作を待っているウインドウがあります（保存の確認、サインインのシート、ダイアログなど）。アプリに切り替えてそのウインドウを片付けてから、自分で終了するか、もう一度「再起動」をクリックしてください。何も変更しておらず、新しいバージョンはすでにインストール済みです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не закрылось — в нём открыто окно, которое ждёт вас (запрос на сохранение, форма входа, диалог). Переключитесь на приложение, разберитесь с этим окном, а затем закройте его сами или нажмите «Перезапустить» ещё раз. Ничего не изменено, новая версия уже установлена."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 没有退出 —— 它有一个窗口在等你处理（保存提示、登录框、对话框之类）。切过去把那个窗口处理掉，然后自己退出它，或者再点一次「重新启动」。什么都没有改动，新版本已经装好了。"
+          }
+        }
+      }
+    },
     "%@ doesn’t publish a changelog we can read.": {
       "extractionState": "manual",
       "localizations": {

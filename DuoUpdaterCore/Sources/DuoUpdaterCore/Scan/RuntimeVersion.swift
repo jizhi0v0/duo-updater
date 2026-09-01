@@ -2,32 +2,39 @@ import Foundation
 
 /// The version of the runtime an app was built with — "Electron 42.4.1", "Qt 6.2".
 ///
-/// Only for the four runtimes where a version can be read as a *fact*. The others
-/// are left blank on purpose, and the reasons are worth keeping because each looks
-/// like it would work:
+/// Only where a version can be read as a *fact*. The rest are left blank on
+/// purpose, and the reasons are worth keeping because each looks like it would
+/// work:
 ///
-/// - **Chromium** publishes three different things under one roof. Chrome's own
-///   framework reports the Chrome version (152.0.7977.65), Spotify's embedded CEF
-///   reports the CEF version (146.0.10.0), and Helium's fork reports *Helium's app
-///   version* (0.16.2.1). Printing any of them after the word "Chromium" would be
-///   wrong for two apps out of three.
 /// - **Flutter**'s embedder carries the *app's* version, not the framework's:
 ///   LocalSend's `FlutterMacOS.framework` says 1.18.2, which is LocalSend. Two
 ///   other Flutter apps say a placeholder 1.0.
 /// - **Native**, **Catalyst** and **iOS App** are not versioned things.
+///
+/// **Chromium used to be on that list and no longer is**, which is worth spelling
+/// out because the reason it was there is still true of the obvious source. Its
+/// framework *plist* reports three different things depending on the app — Chrome's
+/// own says the Chrome version (152.0.7977.65), Spotify's embedded CEF says the CEF
+/// version (146.0.10.0), and Helium's fork says *Helium's app version* (0.16.2.1),
+/// so printing that after the word "Chromium" would be wrong for two apps in three.
+/// `chromiumVersion` reads no plist: it takes the `Chrome/<version>` token out of
+/// the framework's user-agent string, which is the engine describing itself and
+/// agrees for all three.
 public enum RuntimeVersion {
 
     /// Reads the runtime version, or nil where there is nothing trustworthy to read.
     ///
-    /// - Parameter scanningBinaries: whether to allow the one reader that has to
-    ///   walk the executable (Tauri, and the two rebranded Electron shapes). Off
-    ///   during a scan, where it would be paid for every app on the machine, and on
-    ///   when a single app's detail is being shown.
+    /// - Parameter scanningBinaries: whether to allow the readers that walk a whole
+    ///   binary — the two rebranded Electron shapes, and Chromium's user-agent. Off
+    ///   when the caller would pay it for every app on the machine, on when a single
+    ///   app's detail is being shown.
     ///
-    ///   `.tauri` is the exception: it arrives here with scanning on even during a
-    ///   scan, because for that runtime the walk *is* the detection — but only for
-    ///   the two or three bundles `AppRuntimeDetector` has already narrowed to. See
-    ///   `carriesTauriCrate(bundleAt:infoPlist:)`.
+    ///   It is **not** a promise that a library-wide scan never walks a binary, and
+    ///   it stopped being one in this branch: `.tauri` arrives here with scanning on
+    ///   from inside the scan itself, because for that runtime the walk *is* the
+    ///   detection. What keeps that affordable is not this flag but the filter in
+    ///   `AppRuntimeDetector`, which admits six bundles out of about a hundred and
+    ///   fifty. See `carriesTauriCrate(bundleAt:)`.
     public static func read(
         _ runtime: AppRuntime,
         bundleAt bundleURL: URL,
@@ -45,10 +52,10 @@ public enum RuntimeVersion {
         // may be running. Size-and-mtime changes whenever the bytes this answer was
         // read from change, which is the only thing that can make it stale.
         //
-        // The lookup deliberately sits *above* the `scanningBinaries` guard: a
-        // remembered answer costs nothing, so a caller that forbade scanning still
-        // gets it. That is what lets a version paid for once be available to
-        // everything afterwards.
+        // The lookup deliberately sits *above* the `scanningBinaries` guard, so a
+        // caller that forbade scanning still gets an answer someone else paid for.
+        // It is not free — building the key parses `Contents/Info.plist` and stats
+        // the executable — but that is microseconds against a walk of the file.
         //
         // Nil is cached too: "no Tauri crate in here" is an answer, and the
         // expensive one to reach. An *unreadable* binary is not — see `.tauri`.
@@ -83,7 +90,13 @@ public enum RuntimeVersion {
         case .flutter, .native, .catalyst, .iOSApp:
             version = nil
         }
-        if let key { remember(version, for: key) }
+        // A nil reached only because scanning was forbidden is not an answer about
+        // the app, it is an answer about the caller — and the two callers share a
+        // key. `.tauri` and `.chromium` return above rather than fall through here;
+        // `.electron` cannot, because its cheap path and its scanning path are one
+        // function. Without this line a single `scanning: false` read of a
+        // re-signed Electron framework would pin "no version" for the process.
+        if let key, version != nil || scanningBinaries { remember(version, for: key) }
         return version
     }
 
@@ -97,6 +110,13 @@ public enum RuntimeVersion {
     /// bundled framework and leaves the app's own binary byte-identical would go
     /// unnoticed; no packager produces that, since the executable is re-signed
     /// either way.
+    ///
+    /// Two places where it stands in rather than measures: `attributesOfItem` does
+    /// not follow symlinks while `FileHandle` does, so a bundle whose executable is
+    /// a symlink would be keyed on the link (whose size is the length of its path)
+    /// rather than on the bytes read; and a filesystem with coarse timestamps could
+    /// in principle hold two same-sized binaries under one key. Neither shape
+    /// appears in `/Applications`.
     private static func executableIdentity(of executable: URL) -> String? {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: executable.path),
               let size = attributes[.size] as? NSNumber,
@@ -314,12 +334,25 @@ public enum RuntimeVersion {
         guard let handle = try? FileHandle(forReadingFrom: binary) else { return .unreadable }
         defer { try? handle.close() }
 
+        // How far to read, so a window can tell "the end of my buffer" from "the
+        // end of the file" — see `firstVersion`. Taken once, up front; a file that
+        // grows underneath the walk simply ends the walk where it was going to end
+        // anyway.
+        let size: UInt64
+        do {
+            size = try handle.seekToEnd()
+            try handle.seek(toOffset: 0)
+        } catch { return .unreadable }
+
         let needle = Array(prefix.utf8)
-        // Read in chunks, overlapping by enough that a version straddling a
-        // boundary is still whole in one of them.
+        // Read in chunks, carrying enough of each into the next that a match cut by
+        // a boundary is whole in one window — and one byte more than that, so the
+        // window also holds the character *before* such a match. Both of
+        // `firstVersion`'s rules need context the chunk alone cannot supply.
         let chunkSize = 4 * 1024 * 1024
-        let overlap = 64
+        let overlap = 128
         var carry = Data()
+        var consumed: UInt64 = 0
         while true {
             // `try?` is not available here, and the reason is the whole point of
             // this type: `read(upToCount:)` returns nil *at end of file*, and
@@ -333,9 +366,21 @@ public enum RuntimeVersion {
             let chunk: Data?
             do { chunk = try handle.read(upToCount: chunkSize) } catch { return .unreadable }
             guard let chunk, !chunk.isEmpty else { break }
+            consumed += UInt64(chunk.count)
+            let continuation = !carry.isEmpty
             var window = carry
             window.append(chunk)
-            if let version = firstVersion(in: Array(window), after: needle, components: components) {
+            if let version = firstVersion(
+                in: Array(window), after: needle, components: components,
+                // In a continuation window the first byte is there only to be the
+                // character before the second: a match starting *on* it has no
+                // predecessor in this window, and was already whole in the previous
+                // one, which had `overlap` bytes of room after it.
+                from: continuation ? 1 : 0,
+                // And only the last window may read "my buffer ended" as "the
+                // version ended".
+                isFinal: consumed >= size
+            ) {
                 return .found(version)
             }
             carry = window.suffix(overlap)
@@ -354,12 +399,38 @@ public enum RuntimeVersion {
 
     /// The first `<needle><major>.<minor>.<patch>` in `bytes`, where the character
     /// before the needle is not part of a longer identifier.
-    private static func firstVersion(in bytes: [UInt8], after needle: [UInt8], components: Int) -> String? {
-        guard bytes.count > needle.count else { return nil }
+    ///
+    /// `bytes` is one window of a larger file, and both of those rules need to know
+    /// it. Reading the edge of the buffer as the edge of the file gets each rule
+    /// wrong in its own direction, and neither is theoretical — both were
+    /// reproduced against this code:
+    ///
+    /// - **The digit run.** `tauri-2.11.50` cut by a boundary returned `2.11.5`:
+    ///   three components, last one a digit, looks finished. `isFinal` says whether
+    ///   a run that reached the end of the buffer may be trusted; when it may not,
+    ///   the candidate is skipped and the carry presents it whole next time.
+    /// - **The identifier guard.** `index > 0` is a claim about the *file*, and in
+    ///   a continuation window index 0 is not the start of anything — its real
+    ///   predecessor is in the previous chunk. `xtauri-2.11.5` positioned there
+    ///   passed a guard that rejects it everywhere else. `start` is 1 for those
+    ///   windows, so every position examined has its predecessor in hand.
+    ///
+    /// This second one is why the fix belongs in this branch rather than after it:
+    /// it hands out a `tauri-` match that is not one, which for a *displayed
+    /// version* was cosmetic and for a *verdict* is the exact false positive the
+    /// rest of this change exists to prevent.
+    private static func firstVersion(
+        in bytes: [UInt8],
+        after needle: [UInt8],
+        components: Int,
+        from start: Int = 0,
+        isFinal: Bool = true
+    ) -> String? {
+        guard bytes.count > needle.count, start <= bytes.count - needle.count - 1 else { return nil }
         let digits = UInt8(ascii: "0")...UInt8(ascii: "9")
         let dot = UInt8(ascii: ".")
         let dash = UInt8(ascii: "-")
-        outer: for index in 0...(bytes.count - needle.count - 1) {
+        outer: for index in start...(bytes.count - needle.count - 1) {
             for offset in 0..<needle.count where bytes[index + offset] != needle[offset] { continue outer }
             if index > 0 {
                 let before = bytes[index - 1]
@@ -382,6 +453,10 @@ public enum RuntimeVersion {
                 }
                 cursor += 1
             }
+            // A run that stopped because the buffer did, in a window that is not the
+            // end of the file, is not a finished version — whatever digits follow
+            // are in the next chunk.
+            if !isFinal, cursor == bytes.count { continue }
             if dots == components - 1, let last = version.last, last.isNumber { return version }
         }
         return nil

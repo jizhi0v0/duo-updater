@@ -52,10 +52,13 @@ struct RuntimeTag: View {
 
     @State private var showingDetail = false
     @State private var version: String?
-    /// Separate from `version` being nil, which is a real answer: Chromium,
-    /// Flutter and the Apple-platform runtimes have no version worth printing, and
-    /// a rebranded Electron framework can hide the one it has. Without this the nil
-    /// answer is never remembered and every re-open pays for the search again.
+    /// Separate from `version` being nil, which is a real answer: Flutter and the
+    /// Apple-platform runtimes have no version worth printing, and a rebranded
+    /// Electron framework can hide the one it has. A Tauri mark can reach it too,
+    /// though it is now rare rather than ordinary — the binary was unreadable at
+    /// this moment, or it changed between the scan that produced the verdict and
+    /// this read. Without this the nil answer is never remembered and every re-open
+    /// pays for the search again.
     @State private var versionLoaded = false
 
     var body: some View {

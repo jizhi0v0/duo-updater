@@ -234,9 +234,10 @@ public enum AppRuntimeDetector {
         // for the proof — the `tauri-<semver>` Cargo path Rust bakes into the
         // binary, which is positive evidence and yields the version besides.
         //
-        // Six candidates is 471 MB of executable, and five of them stop early
-        // because the needle is found (6 ms for a 9 MB binary, 39 ms for a 64 MB
-        // one); only Longbridge's 262 MB is walked end to end, to prove absence.
+        // Six candidates is 471 MiB of executable. Five stop when the needle is
+        // found, which is later in each file than "early" suggests — measured
+        // first-match offsets are 34%, 52%, 63%, 66% and 86% of the way in — and
+        // only Longbridge's 261 MiB is walked end to end, to prove absence.
         // Whole-library sweep in a release build: 0.50s, against 0.05s for a second
         // sweep once everything is remembered. I/O is not the cost — the same
         // machine reads a cold 795 MB binary in 0.169s — the byte search is, which
@@ -244,10 +245,12 @@ public enum AppRuntimeDetector {
         // half a second.
         //
         // The residual risk moved rather than vanished, and it moved to the safer
-        // side: a Tauri app whose binary keeps no `tauri-` crate path now reads as
-        // native instead of an unrelated app reading as Tauri. Both are labels —
-        // nothing routes on this value. `RuntimeVersion.carriesTauriCrate` lists
-        // the two binary shapes that can hide the path.
+        // side: an app now reads as native when its binary keeps no `tauri-` crate
+        // path — or when that binary could not be read at this moment, since the
+        // proof cannot tell a caller "I don't know". Either beats an unrelated app
+        // reading as Tauri, and both are labels: nothing routes on this value.
+        // `RuntimeVersion.carriesTauriCrate` lists the two binary shapes that can
+        // hide the path even when the read succeeds.
         if infoPlist["LSRequiresCarbon"] as? Bool == true,
            infoPlist["CSResourcesFileMapped"] as? Bool == true,
            MachOImports.links(libraries, framework: "WebKit"),

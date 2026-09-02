@@ -1832,6 +1832,13 @@ final class AppListModel {
             }
         }
 
+        // The round's snapshot is accurate as of right here: the scan has been
+        // published and TestFlight retagging (if any) has landed. The check below
+        // takes minutes, during which the list does NOT hold still — a row install,
+        // an app's own updater, a staged relaunch, a quit-handoff swap, a channel
+        // switch. Whatever differs from this baseline when the round publishes
+        // changed underneath it and must not be reverted to the snapshot (#255).
+        let roundBaseline = results
         isChecking = true
         // Remember what resolved, and under which Settings value, so the per-app
         // rechecks that follow this round's rows reuse it instead of asking `gh`
@@ -1858,7 +1865,8 @@ final class AppListModel {
             "refresh: checking \(checkable.count, privacy: .public) apps, skipping \(ignored.count, privacy: .public) ignored")
         let checked = await checker.check(checkable)
             + ignored.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
-        results = sorted(checked)
+        results = sorted(CheckRoundWriteBack.publishing(
+            checked, changedSince: roundBaseline, live: results))
         // Pre-warm the disk changelog cache for anything pending, so opening its
         // notes is instant (and a no-op network-wise for versions already cached).
         prewarmChangelogs(for: checked)

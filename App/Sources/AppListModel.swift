@@ -336,9 +336,9 @@ final class AppListModel {
     /// "previous"), and comparing against it is what hid the Rollback row.
     private(set) var backupSides: [String: VersionSide] = [:]
     /// Bundle *paths* of apps with at least one live process right now. Kept current
-    /// by `NSWorkspace`'s launch/terminate notifications, so a row's running dot
-    /// lights up/clears the moment the user opens or quits the app — no refresh
-    /// needed. Keyed by path, NOT bundle id: the same app can be installed twice
+    /// by `armRunningAppsMonitor` (KVO on `NSWorkspace.runningApplications`), so a
+    /// row's running dot lights up/clears the moment the user opens or quits the
+    /// app — no refresh needed. Keyed by path, NOT bundle id: the same app can be installed twice
     /// (e.g. two Android Studio versions side by side) sharing one bundle id, and
     /// only the install whose bundle is actually executing should light up.
     private(set) var runningAppPaths: Set<String> = []
@@ -663,12 +663,19 @@ final class AppListModel {
     /// lingering until the next slow backstop tick.
     @ObservationIgnored private var localRescanDeferred = false
 
-    /// `NSWorkspace` launch/terminate observers that keep `runningBundleIDs` live.
-    /// Retained for the app's lifetime (the single model never deallocates), so they
-    /// stay registered without explicit teardown.
+    /// `NSWorkspace` launch/terminate observers, the *backup* source for
+    /// `runningBundleIDs` (see `armRunningAppsMonitor`). Retained for the app's
+    /// lifetime (the single model never deallocates), so they stay registered
+    /// without explicit teardown.
     @ObservationIgnored private var runningAppObservers: [NSObjectProtocol] = []
+    /// KVO on `NSWorkspace.runningApplications` — the primary source. Held because
+    /// an `NSKeyValueObservation` unregisters itself when it is released, so
+    /// dropping this handle would silently switch the running dot back to the
+    /// unreliable notifications and nothing would look broken until an app's dot
+    /// went stale.
+    @ObservationIgnored private var runningAppsObservation: NSKeyValueObservation?
     /// Symlink-resolved bundle path per running process, remembered across
-    /// launch/terminate events so `refreshRunningApps` resolves only the bundle
+    /// running-apps events so `refreshRunningApps` resolves only the bundle
     /// that just appeared instead of every running one (see the type's doc for
     /// the measurement). Not observed: it is a memo, `runningAppPaths` is the fact.
     @ObservationIgnored private var runningBundlePaths = RunningBundlePathCache()
@@ -1076,7 +1083,7 @@ final class AppListModel {
         // flips the Restart badge without waiting for a menu open or networked check.
         armLocalRescan()
         // Track which apps are running so each row can show a live "running" dot,
-        // kept current by NSWorkspace launch/terminate notifications.
+        // kept current by KVO on `NSWorkspace.runningApplications`.
         armRunningAppsMonitor()
         // Did we swap ourselves out from under the user since they last read the
         // notes? Resolved once here: the running version can't change inside a
@@ -1844,6 +1851,23 @@ final class AppListModel {
         // Log any newly-seen releases (those carrying a real vendor timestamp)
         // into the persistent release timeline.
         await recordReleaseTimeline(for: checked)
+        // Reconcile the running set once per completed round. The live monitor is
+        // KVO on `runningApplications` and is measured to be prompt and complete
+        // (issue #247), but this round just spent minutes on the network, and every
+        // verdict below reads `isRunning` — `computeRestartInfo` decides which rows
+        // say "Relaunch", `defersToSelfUpdater` decides whether an app is handed to
+        // its own updater. A floor under the live path costs one snapshot and a
+        // memoized resolve (0.095 ms warm) per round.
+        //
+        // Through the full handler, not a bare `refreshRunningApps()`. A bare
+        // refresh would *absorb* whatever the live path missed — the set would
+        // quietly become correct, and the next real event, diffing against the
+        // already-corrected set, would see nothing changed and skip the channel
+        // recheck that the missed quit was supposed to trigger. Reconciling through
+        // the handler means a change this call discovers is still reacted to. Its
+        // restart branch is inert here (`isChecking` is still true) and
+        // `computeRestartInfo` runs immediately below anyway.
+        handleRunningAppsChange()
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         if prefs.pruneOrphanBackups {
@@ -2029,14 +2053,11 @@ final class AppListModel {
     private func performLocalRescan() async {
         localRescanDeferred = false
         // Re-derive which apps are running. `armRunningAppsMonitor` keeps this live
-        // off NSWorkspace's launch/terminate notifications, but the LAUNCH one is
-        // not reliably posted — measured on this machine: LocalSend never posts it
-        // (2/2), while its terminate posts every time and Calculator's launch posts
-        // normally. The set is a whole recompute rather than a diff, so a missed
-        // notification did self-heal — but only when some *unrelated* app happened
-        // to launch or quit, which is an unbounded wait for a row to admit the app
-        // beside it is open. This bounds it to the rescan cadence, and puts it on
-        // the path the menu itself takes when it opens.
+        // off KVO on `runningApplications`, which is measured to catch what the
+        // launch/terminate notifications miss (issue #247) — but a rescan re-reads
+        // everything else from disk anyway, and this set is one snapshot plus a
+        // memoized resolve (0.095 ms warm). Keeping it is a floor under the live
+        // path, not a substitute for it.
         refreshRunningApps()
         let extraScan = prefs.customScanLocations
         let found = await Task.detached(priority: .userInitiated) {
@@ -2553,9 +2574,9 @@ final class AppListModel {
         // Install policy: a running self-updating app is handed to its own
         // updater rather than swapped under it — unless the user chose to always
         // overwrite. (Re-checked here, not just in the UI, so any caller honors it.)
-        // Re-derive the live running set first: `runningAppPaths` is only updated by
-        // NSWorkspace launch/terminate notifications, which aren't delivered while
-        // this menu-bar app is App-Napped — so a quit that happened during a nap can
+        // Re-derive the live running set first: `runningAppPaths` is updated by the
+        // running-apps monitor, whose events aren't delivered while this menu-bar
+        // app is App-Napped — so a quit that happened during a nap can
         // leave the set stale and make `isRunning` (and thus this defer) lie. This is
         // a consequential decision, so take a fresh `runningApplications` snapshot
         // for it. (`refreshRunningApps` memoizes each path's *resolved form* through
@@ -5402,11 +5423,32 @@ final class AppListModel {
         await performLocalRescan()
     }
 
-    /// Seed `runningAppPaths` from the current process list and keep it live via
-    /// NSWorkspace's launch/terminate notifications. These fire on the main thread
-    /// the instant an app opens or quits, so a row's running dot updates without
-    /// waiting for the next scan. We recompute the whole set on each event rather
-    /// than diffing, so a missed/coalesced notification can't leave the set wrong.
+    /// Seed `runningAppPaths` from the current process list and keep it live.
+    ///
+    /// **The source of truth is KVO on `NSWorkspace.runningApplications`**, which
+    /// AppKit's own header prescribes: "Instead of polling, use key-value observing
+    /// to be notified of changes to this array property" (`NSRunningApplication.h`).
+    /// The launch/terminate notifications are kept as a second, independent
+    /// delivery path — they cost one no-op recompute each when both fire.
+    ///
+    /// **Why not the notifications alone** (issue #247). They are posted per app by
+    /// LaunchServices and are, measured on this machine, simply missing for some
+    /// apps in both directions, while the array — which cannot fail to lose an
+    /// entry when a process exits — always moved. One process, all four observers
+    /// plus a 200 ms poll as ground truth, 2026-09-02:
+    ///
+    ///     Alcove, 4 quits + 4 relaunches   notifications 0/8   KVO 8/8
+    ///     UURemote quit (+UURemoteServer)  no didTerminate     KVO caught both
+    ///     AppCleaner (control)             both fire           KVO 512 ms earlier
+    ///
+    /// KVO also beat the 200 ms poll by 26–180 ms on every transition, so the
+    /// ~2 s reconcile timer the issue proposed is not needed: there is nothing for
+    /// it to catch that this misses sooner.
+    ///
+    /// **What it does not change.** The property "will only change when the main
+    /// run loop is run in a common mode" (same header) — exactly the condition the
+    /// notifications already needed, and the reason a snapshot taken without a live
+    /// run loop is stale either way.
     ///
     /// What one event costs, on the main thread: one `runningApplications`
     /// snapshot (~140 entries, ~130 with a bundle URL and ~105 of those distinct),
@@ -5418,16 +5460,24 @@ final class AppListModel {
     /// snapshot), per launch/quit anywhere on the machine, all day, under a
     /// comment that called it an in-memory walk.
     private func armRunningAppsMonitor() {
+        // Seed before observing rather than passing `.initial`: the seed must set
+        // the baseline the first real change is diffed against, without running the
+        // change handler's side effects (a channel pass over every bound app) at
+        // launch.
         refreshRunningApps()
+        // Not `[.new]`: the handler re-reads the property itself, and asking KVO to
+        // carry a ~140-element array on every process event anywhere on the machine
+        // buys nothing.
+        runningAppsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
+            // The property mutates on the main run loop, but KVO delivers on
+            // whatever thread stores the value; hop rather than assume.
+            Task { @MainActor in self?.handleRunningAppsChange() }
+        }
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didLaunchApplicationNotification,
                      NSWorkspace.didTerminateApplicationNotification] {
-            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
-                // Which app launched/quit, so the channel-switch pass below can skip
-                // the overwhelming majority of these events without doing any I/O.
-                let changed = (note.userInfo?[NSWorkspace.applicationUserInfoKey]
-                    as? NSRunningApplication)?.bundleIdentifier?.lowercased()
-                Task { @MainActor in self?.handleRunningAppsChange(changedBundleID: changed) }
+            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.handleRunningAppsChange() }
             }
             runningAppObservers.append(observer)
         }
@@ -5440,11 +5490,27 @@ final class AppListModel {
     /// never touches the .app on disk: its bundle was already swapped ahead of the
     /// still-running old process, so relaunching changes only which build is executing.
     /// The FS watcher sees no bundle write and no networked check fires, so this
-    /// notification is the only live event that marks it. Without recomputing here the
+    /// event is the only live one that marks it. Without recomputing here the
     /// "Relaunch" badge lingered until the 180s backstop (or the user reopening the
     /// popover) — the "I restarted it myself but it still shows Relaunch" report.
-    private func handleRunningAppsChange(changedBundleID: String? = nil) {
+    private func handleRunningAppsChange() {
+        // Both snapshots, so the channel gate below can tell which identifiers
+        // actually appeared or disappeared. Taken here rather than inside
+        // `refreshRunningApps` because the install paths call that one too, and
+        // they have no event to gate.
+        let before = runningBundleIDs
         refreshRunningApps()
+        // Off by default (debug level), and the one thing that makes this monitor
+        // debuggable at all: issue #247 was a *missing* event, which leaves no
+        // trace anywhere. `log stream --debug --predicate 'subsystem == "..."'`
+        // while opening and quitting an app answers "did the event reach us" in
+        // one step, instead of another standalone observer process.
+        if before != runningBundleIDs {
+            let appeared = runningBundleIDs.subtracting(before).sorted()
+            let left = before.subtracting(runningBundleIDs).sorted()
+            Log.app.debug(
+                "running apps: +[\(appeared.joined(separator: " "), privacy: .public)] -[\(left.joined(separator: " "), privacy: .public)]")
+        }
         // Before the needs-restart early-out below: a quit hand-off fires exactly
         // on a terminate event, and usually with `needsRestart` empty.
         settleQuitHandoffs()
@@ -5454,14 +5520,15 @@ final class AppListModel {
         // flow. Independent of the needs-restart early-out below: a channel switch
         // has nothing to do with a pending restart.
         //
-        // Gated on the app that actually changed. This notification fires for EVERY
-        // app on the machine — every helper, every menu-bar utility, all day — and
-        // the pass behind it reads one vendor preference per bound app (Surge's is a
+        // Gated on the identifiers that actually changed. This fires for EVERY app
+        // on the machine — every helper, every menu-bar utility, all day — and the
+        // pass behind it reads one vendor preference per bound app (Surge's is a
         // plist read off disk). Nine of those on every launch/quit event on the
-        // system is not what "free unless something changed" meant. A nil id (the
-        // notification arrived without one) still runs the pass rather than
-        // silently skipping a real switch.
-        if ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: changedBundleID) {
+        // system is not what "free unless something changed" meant. The gate also
+        // absorbs the duplicate when KVO and a notification both report one event:
+        // whichever arrives second sees an unchanged set and does no work.
+        if ChannelSwitchDetector.isWorthRechecking(
+            runningBundleIDsChangedFrom: before, to: runningBundleIDs) {
             Task { await recheckChannelSwitches(trigger: "running-apps-change") }
         }
         // Nothing pending → nothing a relaunch could clear. A launch can't *create* a

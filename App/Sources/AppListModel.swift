@@ -481,23 +481,39 @@ final class AppListModel {
     /// view so both windows agree on whether a row is one-click at all — the
     /// invariant that matters, since one window offering Update while the other
     /// does not is the same row telling two stories.
+    ///
+    /// The decision itself is `UpdateRoute.resolve(_:)` in Core (issue #261) — this
+    /// is only the wiring that fills `RouteInputs`. It stays a method the caller
+    /// invokes lazily (`rowState(for:)` passes `self.rowRoute(for: result)` into an
+    /// `@autoclosure` parameter) rather than a stored value, so building
+    /// `RouteInputs` — which calls `canAutoInstall` / `requiresInstaller` /
+    /// `defersToSelfUpdater` unconditionally and, when `requiresInstaller` is
+    /// true, reads `stagedPackage(for:)` too — only happens for a row that
+    /// actually reaches `.updateAvailable`. See `RowActionFacts.route`'s doc
+    /// comment, and the note below on what changed inside that boundary.
     private func rowRoute(for result: UpdateResult) -> UpdateRoute {
-        // Toolbox and TestFlight own their installs outright; the action is "open
-        // them", never an in-place swap. Checked first for that reason.
-        if result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged { return .toolbox }
-        if result.remote?.sourceName == "TestFlight" { return .testFlight }
-        if defersToSelfUpdater(result) { return .selfUpdater }
-        if result.isMajorUpgrade && (canAutoInstall(result) || requiresInstaller(result)) {
-            return .majorUpgrade
-        }
-        if canAutoInstall(result) { return .autoInstall }
-        if requiresInstaller(result) {
-            return .installer(stagedFileName: stagedPackage(for: result)?.url.lastPathComponent)
-        }
-        if result.remote?.appStore != nil {
-            return .appStore(managedHere: result.app.isiOSAppOnMac && appStoreStrategyIsFullDownload)
-        }
-        return .detectionOnly
+        // `requiresInstaller` is read twice below (the gate, and the installer
+        // rung itself); computed once here rather than reasked. This does NOT
+        // narrow when `stagedPackage(for:)` runs — with the ladder collapsed into
+        // one struct, it runs whenever `requiresInstaller` is true, including rows
+        // that go on to resolve as `.majorUpgrade`, `.selfUpdater`, `.toolbox` or
+        // `.testFlight`, none of which reached it in the old short-circuiting
+        // `if`/`else if` chain. It stays cheap for a different reason:
+        // `stagedPackage(for:)` guards on the `stagedPackages[result.id]`
+        // dictionary lookup FIRST, and that is nil for nearly every row (a staged
+        // package is rare), so the `fileExists` stat behind it is skipped before
+        // it runs, not because this call site is skipped.
+        let requiresInstaller = requiresInstaller(result)
+        return UpdateRoute.resolve(RouteInputs(
+            isToolboxManaged: result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged,
+            isTestFlight: result.remote?.sourceName == "TestFlight",
+            defersToSelfUpdater: defersToSelfUpdater(result),
+            isMajorUpgrade: result.isMajorUpgrade,
+            canAutoInstall: canAutoInstall(result),
+            requiresInstaller: requiresInstaller,
+            stagedFileName: requiresInstaller ? stagedPackage(for: result)?.url.lastPathComponent : nil,
+            hasAppStoreAvailability: result.remote?.appStore != nil,
+            appStoreManagedHere: result.app.isiOSAppOnMac && appStoreStrategyIsFullDownload))
     }
 
     /// A pending update the user hasn't ignored or skipped — what the badge counts

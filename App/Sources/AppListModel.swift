@@ -3390,7 +3390,9 @@ final class AppListModel {
                 onDiskVersion: app.versionSide,
                 stagedVersion: staged.versionSide,
                 stagedAt: staged.stagedAt,
-                runningLaunchDates: launchDates[key] ?? [])
+                runningLaunchDates: launchDates[key] ?? [],
+                buildIsDerived: AppScanner.buildVersionIsOverridden(
+                    bundleID: app.bundleID))
             switch state {
             case .pending:
                 // Not landed. Normally there's no badge yet; but if one was already

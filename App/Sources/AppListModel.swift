@@ -5835,12 +5835,12 @@ final class AppListModel {
     /// by `UpdateResult.id` (the install path). In memory only — a fresh launch
     /// starts everyone at zero, which is the right bias: after a relaunch we have no
     /// evidence a failure is chronic and should say so once more.
+    ///
+    /// This is the ONLY place a chronic streak is tracked. `RowAction.state(for:)`
+    /// — the ladder both the popover and the workbench draw a row from — has no
+    /// notion of it and is not meant to: see `failedCheckResults` below and
+    /// `CheckFailureRules` for why (issue #264).
     @ObservationIgnored private var consecutiveCheckFailures: [String: Int] = [:]
-
-    /// Rows this many rounds deep stop driving the banner and the header count.
-    /// Three rounds of a check interval (an hour by default) is long past the point
-    /// where "retry" is the useful advice.
-    private static let chronicFailureThreshold = 3
 
     /// Update the streaks from one completed round, and drop rows that are gone.
     /// Called only from `performRefresh` — deliberately NOT from `retryFailedChecks`,
@@ -5854,7 +5854,7 @@ final class AppListModel {
             }
         }
         let newlyChronic = next.filter {
-            $0.value == Self.chronicFailureThreshold
+            $0.value == CheckFailureRules.chronicThreshold
         }.keys.sorted()
         if !newlyChronic.isEmpty {
             Log.app.info(
@@ -5863,16 +5863,30 @@ final class AppListModel {
         consecutiveCheckFailures = next
     }
 
+    /// Rows this many rounds deep stop driving the *aggregate* surfaces below —
+    /// the banner, the header's "N not checked" line, and the bulk-retry target
+    /// list. They do NOT stop being `.checkFailed` rows: `RowAction.state(for:)`
+    /// never reads `consecutiveCheckFailures` (it has no parameter for it), so a
+    /// chronic row keeps its own orange Failed badge — with its own per-row
+    /// Retry, which re-checks only this app rather than every failed row the way
+    /// the banner's Retry does — for as long as it keeps failing.
+    ///
+    /// That split is deliberate, not an oversight (issue #264): the banner is one
+    /// global claim ("your checks are healthy") that becomes false advice once a
+    /// failure is permanent — a vendor that retired its feed fails identically
+    /// forever, and Alfred's appcast did exactly that for weeks. Left counted, it
+    /// pins the banner up with a Retry that just re-runs the same 404, and stops
+    /// the header from ever reading "up to date" again. A row's own badge makes
+    /// no such claim; it states one fact about one app, and that fact stays true.
+    /// Silencing it would blank the row in the workbench, which shows every
+    /// result unconditionally (no "Show all" gate) — and a blank row there reads
+    /// as "up to date", which is the specific failure mode `RowActionState`
+    /// exists to rule out for every non-quiet state. See `CheckFailureRules`.
     var failedCheckResults: [UpdateResult] {
         results.filter {
             guard case .error = $0.status else { return false }
-            // A vendor that retired its feed fails identically forever — Alfred's
-            // appcast 404'd for weeks. Left in, that pins the banner permanently with
-            // a Retry button that re-runs the same 404, and stops the header from
-            // ever reading "up to date" again. Those rows fall back to the old
-            // behaviour: visible under "Show all", reported by `RecipeHealth` and
-            // `duo verify`, and silent here.
-            return (consecutiveCheckFailures[$0.id] ?? 0) < Self.chronicFailureThreshold
+            return !CheckFailureRules.isChronic(
+                consecutiveFailures: consecutiveCheckFailures[$0.id] ?? 0)
         }
     }
 

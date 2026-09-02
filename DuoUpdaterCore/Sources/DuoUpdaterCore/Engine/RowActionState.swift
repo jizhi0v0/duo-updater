@@ -58,6 +58,18 @@ public enum RowActionState: Sendable, Equatable {
     /// re-derive it from `UpdateStatus` — doing that is how the popover drifted
     /// back into having a second opinion. Retryable, and NOT the same as having
     /// nothing to do, which is how a blank row reads.
+    ///
+    /// Deliberately carries no notion of how many rounds in a row this row has
+    /// failed. `AppListModel` tracks that streak (`consecutiveCheckFailures`) and
+    /// uses it to drop a chronically-failing row from the *aggregate* surfaces —
+    /// the failed-check banner, the header count, the bulk-retry target list —
+    /// once a failure looks permanent (a retired vendor feed fails identically
+    /// forever). That is a call about whether the WHOLE-LIST claim "your checks
+    /// are healthy" still holds; it says nothing about whether THIS row's own
+    /// fact ("this check failed") is still true, which it always is until a
+    /// check actually succeeds. So this state stays exactly as retryable at
+    /// round 30 as at round 1 — see `AppListModel.failedCheckResults` and
+    /// `CheckFailureRules` for the full reasoning (issue #264).
     case checkFailed(message: String, rateLimited: Bool)
     /// No source covers this app. Nothing was tried; nothing to retry. Carries
     /// what to name instead of an action — a view used to re-derive this from

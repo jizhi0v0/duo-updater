@@ -395,10 +395,12 @@ enum RowStateGalleryCases {
     ///
     /// - **Pixel-count margin**: scanning all 80 committed tiles at this window
     ///   found an exact bimodal split with nothing in between — 65 tiles at 0
-    ///   matching pixels, 15 at 630 or more (the smallest, `21-…-region-locked`,
-    ///   drops from 638 to 630 once the green floor below is raised — still true
-    ///   for every tile). A `pixelsMatching > 40` cutoff has roughly 15–16×
-    ///   headroom on both sides of that gap.
+    ///   matching pixels, 15 at 616 or more. Raising the green floor from 170 to
+    ///   185 costs each affected tile a little of its anti-aliased fringe and
+    ///   nothing else: the smallest, `21-…-region-locked`, goes 658 → 616, and
+    ///   `18-…-major-upgrade`/`22-…-mac-incompatible` go 638 → 630. A
+    ///   `pixelsMatching > 40` cutoff still has ~15× headroom above the gap and
+    ///   the full width of it below.
     /// - **Colour margin**: real orange this app legitimately paints — the
     ///   `.tint(.orange)` Relaunch/Update buttons, the amber
     ///   `exclamationmark.triangle.fill`/`globe.badge.chevron.backward` warning

@@ -22,6 +22,14 @@ func render() {
     var written: [String] = []
     var unrendered: [String] = []
     var blank: [String] = []
+    // Every surface-qualified name that actually rendered blank this run, exempted
+    // or not — the audit below needs the full set, not just the violations `blank`
+    // collects, to tell a live exemption from a dead one (#271).
+    var actuallyBlank: Set<String> = []
+    // Tiles that contain ImageRenderer's placeholder signature (#269) but are not
+    // in `notFaithful` — a silent lie the sheet was previously making no assertion
+    // about at all.
+    var unregisteredPlaceholder: [String] = []
     /// surface → rendered bytes → EVERY state that drew them. All of them, not
     /// just the first: comparing a new tile against a single predecessor makes the
     /// outcome depend on the order the cases happen to be listed in, and this list
@@ -58,8 +66,18 @@ func render() {
         // A state that draws nothing is the bug this whole gallery is for, so it is
         // reported rather than silently written as an empty tile.
         let isBlank = RowStateGalleryCases.isBlank(rep)
-        if isBlank, !RowStateGalleryCases.mayBeBlank.contains("\(surface)/\(name)") {
-            blank.append("\(surface)/\(name)")
+        if isBlank {
+            actuallyBlank.insert("\(surface)/\(name)")
+            if !RowStateGalleryCases.mayBeBlank.contains("\(surface)/\(name)") {
+                blank.append("\(surface)/\(name)")
+            }
+        }
+        // A tile carrying ImageRenderer's placeholder is drawn, so the blank gate
+        // above has nothing to say about it — this is the check that does (#269).
+        let placeholderCount = RowStateGalleryCases.placeholderPixelCount(rep)
+        if placeholderCount > RowStateGalleryCases.placeholderPixelThreshold,
+           !RowStateGalleryCases.notFaithful.contains("\(surface)/\(name)") {
+            unregisteredPlaceholder.append("\(surface)/\(name) (\(placeholderCount)px)")
         }
         // Two states that draw the SAME pixels on one surface means the view is not
         // reading something the state carries. That is how the popover kept its own
@@ -139,10 +157,35 @@ func render() {
                   .sorted().joined(separator: ", "))
         failed = true
     }
+    // Same reasoning, same shape, applied to the OTHER hand-maintained exemption
+    // list: `mayBeBlank` used to be consulted but never audited, so an entry that
+    // stopped drawing blank stayed exempt forever instead of the detector picking
+    // it back up (#271 — #260 walked into exactly this with `workbench/31`/`/32`
+    // and only caught it because someone happened to remove the entries by hand).
+    let deadBlankExemptions = RowStateGalleryCases.mayBeBlank.subtracting(actuallyBlank)
+    if !deadBlankExemptions.isEmpty {
+        print("DEAD EXEMPTION (these no longer render blank — drop them from"
+              + " mayBeBlank): "
+              + deadBlankExemptions.sorted().joined(separator: ", "))
+        failed = true
+    }
     if blank.isEmpty {
         print("no state renders blank")
     } else {
         print("BLANK (a state drawing nothing): \(blank.joined(separator: ", "))")
+        failed = true
+    }
+    // #269: a placeholder-bearing tile used to be indistinguishable from a
+    // genuine one — nothing scanned pixels, so `notFaithful` only grew when a
+    // human happened to notice. This makes an unregistered placeholder a build
+    // failure instead of a silent lie in the committed sheet.
+    if unregisteredPlaceholder.isEmpty {
+        print("no unregistered ImageRenderer placeholder pixels")
+    } else {
+        print("UNFAITHFUL TILE NOT REGISTERED (contains ImageRenderer's placeholder"
+              + " signature — see RowStateGalleryCases.placeholderPixelCount — but is"
+              + " missing from notFaithful; register it there with a reason, don't"
+              + " just silence this): " + unregisteredPlaceholder.joined(separator: ", "))
         failed = true
     }
     if identical.isEmpty {

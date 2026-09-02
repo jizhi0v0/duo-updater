@@ -134,6 +134,102 @@ public enum UpdateRoute: Sendable, Equatable {
     }
 }
 
+/// Everything `UpdateRoute.resolve(_:)` reads about one row, gathered by the
+/// caller so the decision itself stays pure and testable.
+///
+/// Moved out of `AppListModel.rowRoute(for:)` (issue #261): `App/project.yml`
+/// carries no test target for `App/Sources`, so this was the one rung of the two
+/// row-state ladders that had genuinely been re-derived rather than moved when
+/// `RowActionState` made that trip, and it was executed by nothing — only
+/// hand-compared against the view it replaced. `RowActionFacts.route` stays the
+/// `@autoclosure` deferral point (`routeIsDeferred` pins that); this struct is
+/// built inside it, on the caller's side, once per row that actually reaches
+/// `.updateAvailable`.
+public struct RouteInputs {
+    /// `remote?.sourceName == "Toolbox" || app.isToolboxManaged` — JetBrains
+    /// Toolbox owns the install outright.
+    public var isToolboxManaged: Bool
+    /// `remote?.sourceName == "TestFlight"`.
+    public var isTestFlight: Bool
+    /// `UpdatePolicy.defersToSelfUpdater(...)` — a running self-updating app under
+    /// the "defer while running" policy.
+    public var defersToSelfUpdater: Bool
+    /// `UpdateResult.isMajorUpgrade`.
+    public var isMajorUpgrade: Bool
+    /// `UpdatePolicy.canAutoInstall(...)`.
+    public var canAutoInstall: Bool
+    /// `UpdatePolicy.requiresInstaller(...)`.
+    public var requiresInstaller: Bool
+    /// The staged package's file name, when one is already on disk for this row.
+    /// Only meaningful — and only worth the caller stat'ing disk for — when
+    /// `requiresInstaller` is true.
+    public var stagedFileName: String?
+    /// `remote?.appStore != nil`.
+    public var hasAppStoreAvailability: Bool
+    /// `app.isiOSAppOnMac && <App Store strategy is "full download">`.
+    public var appStoreManagedHere: Bool
+
+    public init(
+        isToolboxManaged: Bool,
+        isTestFlight: Bool,
+        defersToSelfUpdater: Bool,
+        isMajorUpgrade: Bool,
+        canAutoInstall: Bool,
+        requiresInstaller: Bool,
+        stagedFileName: String?,
+        hasAppStoreAvailability: Bool,
+        appStoreManagedHere: Bool
+    ) {
+        self.isToolboxManaged = isToolboxManaged
+        self.isTestFlight = isTestFlight
+        self.defersToSelfUpdater = defersToSelfUpdater
+        self.isMajorUpgrade = isMajorUpgrade
+        self.canAutoInstall = canAutoInstall
+        self.requiresInstaller = requiresInstaller
+        self.stagedFileName = stagedFileName
+        self.hasAppStoreAvailability = hasAppStoreAvailability
+        self.appStoreManagedHere = appStoreManagedHere
+    }
+}
+
+extension UpdateRoute {
+    /// How an available update would be applied — the ladder that used to live in
+    /// `AppListModel.rowRoute(for:)`, moved verbatim. Order is significant and is
+    /// the whole content of this function, the same way it is for
+    /// `RowAction.state(for:)` above.
+    ///
+    /// Toolbox and TestFlight own their installs outright — the action is "open
+    /// them", never an in-place swap — so they are checked first. The
+    /// `.majorUpgrade` gate stays attached to the rung it guards, not hoisted
+    /// out, and reads exactly `isMajorUpgrade && (canAutoInstall ||
+    /// requiresInstaller)`: a major upgrade with neither an auto-install nor an
+    /// installer path falls through instead, same as before.
+    ///
+    /// `.toolbox` / `.testFlight` / `.selfUpdater` deliberately outrank
+    /// `.majorUpgrade` — a major upgrade on one of those routes still shows the
+    /// redirect, not the licence-boundary warning. That is harmless: the redirect
+    /// installs nothing here, so there is nothing for the warning to gate.
+    /// Believed unreachable today (JetBrains ships calendar versions, and
+    /// `UpdateResult.isMajorUpgrade` excludes those), but nothing stated the
+    /// invariant before this, so it is pinned here regardless.
+    public static func resolve(_ inputs: RouteInputs) -> UpdateRoute {
+        if inputs.isToolboxManaged { return .toolbox }
+        if inputs.isTestFlight { return .testFlight }
+        if inputs.defersToSelfUpdater { return .selfUpdater }
+        if inputs.isMajorUpgrade && (inputs.canAutoInstall || inputs.requiresInstaller) {
+            return .majorUpgrade
+        }
+        if inputs.canAutoInstall { return .autoInstall }
+        if inputs.requiresInstaller {
+            return .installer(stagedFileName: inputs.stagedFileName)
+        }
+        if inputs.hasAppStoreAvailability {
+            return .appStore(managedHere: inputs.appStoreManagedHere)
+        }
+        return .detectionOnly
+    }
+}
+
 /// Everything the ladder reads about one row, gathered by the caller so the
 /// decision itself stays pure and testable.
 public struct RowActionFacts {

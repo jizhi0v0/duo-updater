@@ -240,14 +240,17 @@ struct PopoverRowAction: View {
     }
 
     /// Muted tag for an app the user has chosen to ignore — right-click to manage.
+    /// `ignoredRowLabel()` (in `RowActionViews.swift`) is a catalog key distinct
+    /// from the Settings page heading of the same English word — see its doc
+    /// comment for why sharing that key here was wrong.
     private var ignoredTag: some View {
-        Text("Ignored").font(.caption2).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.7)
+        Text(ignoredRowLabel()).font(.caption2).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.7)
             .help("Hidden from update checks — right-click to stop ignoring")
     }
 
     /// Muted tag for an update whose offered version the user skipped.
     private var skippedTag: some View {
-        Text("Skipped").font(.caption2).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.7)
+        Text(skippedRowLabel()).font(.caption2).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.7)
             .help("You skipped this version — right-click to un-skip")
     }
 

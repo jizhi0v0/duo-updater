@@ -59,15 +59,32 @@ public enum RowActionState: Sendable, Equatable {
     /// back into having a second opinion. Retryable, and NOT the same as having
     /// nothing to do, which is how a blank row reads.
     case checkFailed(message: String, rateLimited: Bool)
-    /// No source covers this app. Nothing was tried; nothing to retry.
-    case noSourceCovers
+    /// No source covers this app. Nothing was tried; nothing to retry. Carries
+    /// what to name instead of an action — a view used to re-derive this from
+    /// `result.app.isMASApp` / `sparkleFeedURL` (issue #260), which is how the
+    /// two windows could in principle have drifted even though today they share
+    /// one `sourceHint(for:)` function; the priority between the two lived in a
+    /// view either way.
+    case noSourceCovers(hint: SourceHint)
     /// Something else owns this app's updates.
     case managedElsewhere(Manager)
-    /// Checked, current, nothing pending.
-    case upToDate
+    /// Checked, current, nothing pending. Carries which channel to keep naming —
+    /// a store-managed or TestFlight app must never look like something we could
+    /// update ourselves just because it happens to be current, so the marker
+    /// persists instead of collapsing to a bare checkmark. Used to be the
+    /// popover's own `result.app.isMASApp` / `isTestFlightApp` check (issue #260);
+    /// the workbench had no branch for it at all and drew `EmptyView` for all three.
+    case upToDate(channel: UpToDateChannel)
 
     public enum Manager: Sendable, Equatable {
         case appStore, toolbox, testFlight
+    }
+
+    /// Which channel a current row keeps naming instead of drawing a bare
+    /// checkmark. `.none` is the ordinary case: nothing else claims this app, so
+    /// a plain checkmark is accurate.
+    public enum UpToDateChannel: Sendable, Equatable {
+        case none, appStore, testFlight
     }
 
     /// Whether this state offers to install an update. The two surfaces MUST agree
@@ -96,6 +113,20 @@ public enum RowActionState: Sendable, Equatable {
     }
 }
 
+/// What a `.noSourceCovers` row names instead of an action. Used to be a view
+/// function (`sourceHint(for: UpdateResult)`) reading `result.app.isMASApp` /
+/// `sparkleFeedURL` directly — sharing the function kept the two windows from
+/// disagreeing, but the opinion was still formed in the view layer (issue #260).
+public enum SourceHint: Sendable, Equatable {
+    /// Nothing we know of covers this app.
+    case none
+    /// Installed from the Mac App Store — we just have no read on its update
+    /// status from here.
+    case appStore
+    /// Ships a Sparkle feed we don't have a recipe for yet.
+    case sparkle
+}
+
 /// How an available update is applied — the branch taken once a row is known to
 /// have an actionable update.
 public enum UpdateRoute: Sendable, Equatable {
@@ -118,8 +149,12 @@ public enum UpdateRoute: Sendable, Equatable {
     case installer(stagedFileName: String?)
     /// Redirect to the App Store. `managedHere` is the wrapped iPhone/iPad case,
     /// where the store — not us — owns the download, and the button says so.
-    /// Carried in the route so a view never has to consult a setting to draw itself.
-    case appStore(managedHere: Bool)
+    /// `gate` says whether the listing is region-locked or Mac-incompatible, so a
+    /// view never has to re-derive that from `AppStoreAvailability` itself — it
+    /// used to (issue #260), which is how the workbench ended up collapsing both
+    /// gates into one Label: the branch it switched on was `result.remote?.appStore`,
+    /// not something the route carried.
+    case appStore(managedHere: Bool, gate: AppStoreGate)
     /// Detected but not installable from here — no artifact, no route.
     case detectionOnly
 
@@ -131,6 +166,33 @@ public enum UpdateRoute: Sendable, Equatable {
         case .toolbox, .testFlight, .selfUpdater, .majorUpgrade, .appStore, .detectionOnly:
             return false
         }
+    }
+}
+
+/// Whether an App Store listing an `.appStore` route points at can actually be
+/// installed from here. `.none` outranks nothing — a view checks it before
+/// deciding between a one-click button and an explanatory badge.
+public enum AppStoreGate: Sendable, Equatable {
+    /// Nothing blocks it — a one-click install or redirect, per `managedHere`.
+    case none
+    /// Not listed in the signed-in account's storefront (`AppStoreAvailability.isRegionMismatch`).
+    case region
+    /// The latest build no longer runs on this Mac (`AppStoreAvailability.isLatestMacIncompatible`).
+    case macIncompatible
+}
+
+extension AppStoreGate {
+    /// Same precedence the popover's explanation used when both were somehow
+    /// true for one listing: a build that no longer runs on this Mac at all is
+    /// worth flagging over a region lock. `nil` (no App Store listing at all)
+    /// resolves to `.none` — the caller only reaches this when there IS a
+    /// listing (`RouteInputs.hasAppStoreAvailability`), so that branch is
+    /// defensive rather than reachable.
+    public static func resolve(_ info: AppStoreAvailability?) -> AppStoreGate {
+        guard let info else { return .none }
+        if info.isLatestMacIncompatible { return .macIncompatible }
+        if info.isRegionMismatch { return .region }
+        return .none
     }
 }
 
@@ -168,6 +230,9 @@ public struct RouteInputs {
     public var hasAppStoreAvailability: Bool
     /// `app.isiOSAppOnMac && <App Store strategy is "full download">`.
     public var appStoreManagedHere: Bool
+    /// `AppStoreGate.resolve(remote?.appStore)` — only meaningful when
+    /// `hasAppStoreAvailability` is true, same as `appStoreManagedHere`.
+    public var appStoreGate: AppStoreGate
 
     public init(
         isToolboxManaged: Bool,
@@ -178,7 +243,8 @@ public struct RouteInputs {
         requiresInstaller: Bool,
         stagedFileName: String?,
         hasAppStoreAvailability: Bool,
-        appStoreManagedHere: Bool
+        appStoreManagedHere: Bool,
+        appStoreGate: AppStoreGate
     ) {
         self.isToolboxManaged = isToolboxManaged
         self.isTestFlight = isTestFlight
@@ -189,6 +255,7 @@ public struct RouteInputs {
         self.stagedFileName = stagedFileName
         self.hasAppStoreAvailability = hasAppStoreAvailability
         self.appStoreManagedHere = appStoreManagedHere
+        self.appStoreGate = appStoreGate
     }
 }
 
@@ -224,7 +291,7 @@ extension UpdateRoute {
             return .installer(stagedFileName: inputs.stagedFileName)
         }
         if inputs.hasAppStoreAvailability {
-            return .appStore(managedHere: inputs.appStoreManagedHere)
+            return .appStore(managedHere: inputs.appStoreManagedHere, gate: inputs.appStoreGate)
         }
         return .detectionOnly
     }
@@ -243,6 +310,16 @@ public struct RowActionFacts {
     public var isVersionSkipped: Bool
     public var stagedRelaunchTarget: String?
     public var needsRestart: Bool
+    /// `app.isMASApp` — read by the `.unknown` and `.upToDate` rungs to name the
+    /// App Store as the source hint / kept channel, the same priority a view
+    /// used to apply itself (issue #260).
+    public var isMASApp: Bool
+    /// `app.isTestFlightApp` — read by the `.upToDate` rung only; `.unknown`'s
+    /// hint has no TestFlight case (see `SourceHint`).
+    public var isTestFlightApp: Bool
+    /// `app.sparkleFeedURL != nil` — read by the `.unknown` rung, second after
+    /// `isMASApp`.
+    public var hasSparkleFeed: Bool
     /// Deferred on purpose. Only the `.updateAvailable` rung reads it, and the
     /// caller's route resolution is the expensive part of assembling these facts —
     /// it rebuilds an install environment several times and can stat the disk. As a
@@ -263,6 +340,9 @@ public struct RowActionFacts {
         isVersionSkipped: Bool = false,
         stagedRelaunchTarget: String? = nil,
         needsRestart: Bool = false,
+        isMASApp: Bool = false,
+        isTestFlightApp: Bool = false,
+        hasSparkleFeed: Bool = false,
         route: @autoclosure @escaping () -> UpdateRoute = .autoInstall
     ) {
         self.status = status
@@ -275,6 +355,9 @@ public struct RowActionFacts {
         self.isVersionSkipped = isVersionSkipped
         self.stagedRelaunchTarget = stagedRelaunchTarget
         self.needsRestart = needsRestart
+        self.isMASApp = isMASApp
+        self.isTestFlightApp = isTestFlightApp
+        self.hasSparkleFeed = hasSparkleFeed
         self.route = route
     }
 
@@ -305,11 +388,22 @@ public enum RowAction {
         case .updateAvailable: return .updateAvailable(facts.route())
         case .error(let message):
             return .checkFailed(message: message, rateLimited: facts.status.isRateLimitError)
-        case .unknown: return .noSourceCovers
+        case .unknown:
+            // Same priority a view used to apply itself in `sourceHint(for:)`:
+            // App Store first, Sparkle second, else nothing to name.
+            if facts.isMASApp { return .noSourceCovers(hint: .appStore) }
+            if facts.hasSparkleFeed { return .noSourceCovers(hint: .sparkle) }
+            return .noSourceCovers(hint: .none)
         case .appStoreManaged: return .managedElsewhere(.appStore)
         case .toolboxManaged: return .managedElsewhere(.toolbox)
         case .testFlightManaged: return .managedElsewhere(.testFlight)
-        case .upToDate: return .upToDate
+        case .upToDate:
+            // Same priority the popover's `.upToDate` branch used to apply
+            // itself: a store-managed app keeps the App Store marker even when
+            // it also happens to run through TestFlight-style distribution.
+            if facts.isMASApp { return .upToDate(channel: .appStore) }
+            if facts.isTestFlightApp { return .upToDate(channel: .testFlight) }
+            return .upToDate(channel: .none)
         }
     }
 }

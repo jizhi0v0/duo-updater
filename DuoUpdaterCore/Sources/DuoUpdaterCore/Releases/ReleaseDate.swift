@@ -24,12 +24,12 @@ public enum ReleaseDate {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }
 
-        // A bare digit run is decided here and never handed on: none of the
-        // textual formatters below accepts one, and digits that are not a date
-        // must come back nil rather than as a guess. This used to be
-        // `TimeInterval(trimmed)`, which also accepts "nan", "infinity", "1e9",
-        // "0x1p60" and a sign, and read every one of them as epoch seconds.
-        if isDigitRun(trimmed) { return date(fromDigits: trimmed) }
+        // A bare number is decided here and never handed on: none of the textual
+        // formatters below accepts one, and a number that is not a date must come
+        // back nil rather than as a guess. This used to be `TimeInterval(trimmed)`,
+        // which also accepts "nan", "infinity", "1e9", "0x1p60" and a sign, and
+        // read every one of them as epoch seconds.
+        if isNumericRun(trimmed) { return date(fromDigits: trimmed) }
 
         // ISO8601 with fractional seconds (e.g. "...:24.123Z"), then without.
         if let date = isoWithFraction.date(from: trimmed) { return date }
@@ -55,41 +55,65 @@ public enum ReleaseDate {
         return nil
     }
 
-    // MARK: - Bare digit runs
+    // MARK: - Bare numbers
 
-    /// True when `s` is one or more ASCII digits and nothing else. This — not
-    /// "does `Double` accept it" — is what makes a feed value numeric.
+    /// True when `s` is one or more ASCII digits and nothing else.
     public static func isDigitRun(_ s: String) -> Bool {
         !s.isEmpty && s.utf8.allSatisfy { $0 >= UInt8(ascii: "0") && $0 <= UInt8(ascii: "9") }
     }
 
-    /// The one reading of a bare digit run, shared by `parse` and by
+    /// True when `s` is a bare non-negative decimal: ASCII digits, optionally one
+    /// `.` with more ASCII digits after it. This — not "does `Double` accept it" —
+    /// is what makes a feed value numeric. No sign, no exponent, no hex, no
+    /// "nan"/"inf", no digits in another script.
+    ///
+    /// The fractional part is here because a clock read as a float prints one:
+    /// Python's `time.time()` gives `1750785600.0`, and a backend that forgets
+    /// `.isoformat()` sends exactly that. `Double(_: String)` used to read it
+    /// correctly, and it is the only shape this rewrite would otherwise have made
+    /// worse — everything else `Double` accepted was garbage.
+    public static func isNumericRun(_ s: String) -> Bool {
+        let parts = s.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count <= 2 else { return false }
+        return parts.allSatisfy { isDigitRun(String($0)) }
+    }
+
+    /// The one reading of a bare number, shared by `parse` and by
     /// `AppcastMarkdownParser.displayDate` so the release timeline and the
     /// changelog rail cannot disagree about what a number means. The policy:
     ///
-    ///   - Only an all-ASCII-digit string is numeric. No sign, no decimal point,
-    ///     no exponent, no hex, no "nan"/"inf": those return nil here and, from
-    ///     `parse`, fall through to the textual formatters, which reject them.
+    ///   - Only `isNumericRun` is numeric. No sign, no exponent, no hex, no
+    ///     "nan"/"inf": those return nil here and, from `parse`, fall through to
+    ///     the textual formatters, which reject them.
     ///   - Exactly 8 digits is a bare calendar date, `yyyyMMdd` (UTC, en_US_POSIX,
     ///     non-lenient) — never an epoch. "20260614" is 2026-06-14, and eight
-    ///     digits that are not a date ("99999999") are nil.
-    ///   - A value inside [1990-01-01, 2100-01-01) read as **seconds** is seconds.
-    ///   - A value inside the same window read as **milliseconds** (×1000, i.e.
-    ///     12–13 digits) is milliseconds.
+    ///     digits that are not a date ("99999999", "20260230") are nil.
+    ///   - Whole part inside [1990-01-01, 2100-01-01) read as **seconds** is
+    ///     seconds, and a fractional part rides along as sub-second precision.
+    ///   - A whole number inside the same window read as **milliseconds** (×1000,
+    ///     i.e. 12–13 digits) is milliseconds. A fraction of a millisecond is not
+    ///     a shape anything emits, so a fractional value is only ever seconds.
     ///   - Anything else numeric is nil. Never 1970, never the year 57450, and
     ///     never a non-finite `Date`: the value goes through `UInt64` (so more
     ///     than 20 digits is already nil) and the window caps the magnitude.
     ///
-    /// The two windows do not overlap and neither overlaps 8 digits, so no digit
-    /// run has two readings.
+    /// The two windows do not overlap and neither overlaps 8 digits, so no number
+    /// has two readings.
+    ///
+    /// The `isNumericRun` guard is not redundant with `parse`'s: `displayDate`
+    /// calls straight in, and the 8-digit branch counts *bytes*, which four
+    /// Arabic-Indic digits also fill.
     public static func date(fromDigits digits: String) -> Date? {
-        guard isDigitRun(digits) else { return nil }
-        if digits.utf8.count == 8 { return yyyyMMdd.date(from: digits) }
-        guard let value = UInt64(digits) else { return nil }
+        guard isNumericRun(digits) else { return nil }
+        if digits.utf8.count == 8, isDigitRun(digits) { return yyyyMMdd.date(from: digits) }
+        let whole = digits.prefix { $0 != "." }
+        guard let value = UInt64(whole) else { return nil }
         if secondsWindow.contains(value) {
-            return Date(timeIntervalSince1970: TimeInterval(value))
+            // `Double(digits)` cannot fail after `isNumericRun`, and cannot be
+            // non-finite inside the window; the fallback is belt-and-braces.
+            return Date(timeIntervalSince1970: Double(digits) ?? TimeInterval(value))
         }
-        if millisecondsWindow.contains(value) {
+        if isDigitRun(digits), millisecondsWindow.contains(value) {
             return Date(timeIntervalSince1970: TimeInterval(value) / 1000)
         }
         return nil

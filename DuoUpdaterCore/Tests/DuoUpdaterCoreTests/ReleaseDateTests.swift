@@ -82,13 +82,56 @@ import Foundation
     #expect(ReleaseDate.parse("999999999999999999999") == nil, "21 digits, past UInt64")
 }
 
-@Test func onlyASCIIDigitsCountAsNumeric() {
-    // Everything Double(String) accepts that is not a digit run falls through to
-    // the textual formatters, which reject it — never a 1970 or non-finite Date.
+@Test func onlyABareDecimalCountsAsNumeric() {
+    // Everything Double(String) accepts that is not a bare decimal falls through
+    // to the textual formatters, which reject it — never a 1970 or non-finite Date.
     for raw in ["nan", "NaN", "infinity", "inf", "-inf", "1e9", "0x1p60",
-                "1782320844.5", "-1782320844", "+1782320844", "2026", "١٧٨٢٣٢٠٨٤٤"] {
+                "-1782320844", "+1782320844", "1782320844.", ".5", "1.2.3",
+                "2026", "١٧٨٢٣٢٠٨٤٤", "１７８２３２０８４４"] {
         #expect(ReleaseDate.parse(raw) == nil, "\(raw)")
     }
+}
+
+/// The predicate itself, called directly. `parse` cannot show whether it is
+/// right: `UInt64("١٧٨٢٣٢٠٨٤٤")` is nil anyway, so a version of `isDigitRun`
+/// that accepted digits in any script would leave every case above still green.
+/// The byte test matters because the calendar-date branch counts *bytes*, and
+/// four Arabic-Indic digits are also eight of them.
+@Test func theNumericPredicatesAreASCIIOnlyAndAllowOneFraction() {
+    #expect(ReleaseDate.isDigitRun("20260614"))
+    #expect(!ReleaseDate.isDigitRun("١٧٨٢"), "Arabic-Indic digits are not ASCII digits")
+    #expect(!ReleaseDate.isDigitRun("２０２６"), "nor are full-width ones")
+    #expect(!ReleaseDate.isDigitRun("1782320844.0"), "a fraction is not a digit run")
+    #expect(!ReleaseDate.isDigitRun(""))
+    #expect("١٧٨٢".utf8.count == 8, "the shape the byte-counting branch has to survive")
+    #expect(ReleaseDate.date(fromDigits: "١٧٨٢") == nil)
+    // `displayDate` calls `date(fromDigits:)` directly, so its own guard has to
+    // hold. This is the input that proves it does: `UInt64("+1750785600")` is
+    // 1750785600 — Swift's integer initialiser takes a leading plus — so without
+    // the guard a signed epoch reads as an in-window date. Delete the guard and
+    // this is the only expectation that goes red.
+    #expect(UInt64("+1750785600") == 1_750_785_600, "the reason the guard exists")
+    #expect(ReleaseDate.date(fromDigits: "+1750785600") == nil)
+
+    #expect(ReleaseDate.isNumericRun("1782320844"))
+    #expect(ReleaseDate.isNumericRun("1782320844.0"))
+    for bad in ["", ".", "1.", ".1", "1.2.3", "-1", "1e9", "nan", "١٧٨٢.0"] {
+        #expect(!ReleaseDate.isNumericRun(bad), "\(bad)")
+    }
+}
+
+/// A clock read as a float prints its fraction: Python's `time.time()` gives
+/// `1750785600.0`, and `Double(String)` used to read that correctly. It is the
+/// one shape the digit-run rule would otherwise have taken away, so it is pinned
+/// — the fraction is carried, not dropped.
+@Test func aSecondsEpochMayCarryAFraction() {
+    #expect(ReleaseDate.parse("1750785600.0") == Date(timeIntervalSince1970: 1_750_785_600))
+    #expect(ReleaseDate.parse("1750785600.5") == Date(timeIntervalSince1970: 1_750_785_600.5))
+    // The window is judged on the whole part, and only seconds take a fraction:
+    // a fractional millisecond is not a shape anything emits.
+    #expect(ReleaseDate.parse("631151999.9") == nil, "below the window")
+    #expect(ReleaseDate.parse("1750785600000.5") == nil, "milliseconds stay whole")
+    #expect(ReleaseDate.parse("20260614.0") == nil, "a calendar date does not take a fraction")
 }
 
 @Test func parsedDatesAreAlwaysFinite() {

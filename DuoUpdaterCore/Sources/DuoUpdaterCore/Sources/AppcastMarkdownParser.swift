@@ -65,7 +65,11 @@ enum AppcastMarkdownParser {
     /// and the two must not read one number two ways. Digits that are not a date
     /// pass through like any other string this does not understand.
     static func displayDate(from pubDate: String?) -> String? {
-        guard let raw = pubDate?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else {
+        // The same trim as `ReleaseDate.parse`. With `.whitespaces` here and
+        // `.whitespacesAndNewlines` there, a pubDate carrying a newline was a date
+        // to the timeline and a raw string to the rail — the exact disagreement
+        // the shared reading below exists to prevent.
+        guard let raw = pubDate?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             return nil
         }
         if let date = ReleaseDate.date(fromDigits: raw) {

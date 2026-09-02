@@ -426,6 +426,17 @@ final class AppListModel {
         UpdatePolicy.laggingRemoteVersion(result)
     }
 
+    /// The one version-line fact the row should explain. The precedence lives in
+    /// Core so a relaunch and a lagging-feed note cannot silently swap places in a
+    /// view with no test target (#210).
+    func versionLineState(for result: UpdateResult) -> RowVersionLineState {
+        RowVersionLine.state(
+            staged: actionableStaged(result),
+            pendingBatchRestartMarketing: pendingBatchRestart[result.id],
+            restartFrom: needsRestart.contains(result.id) ? restartFromSide(result.id) : nil,
+            downgradeVersion: downgradeNote(result))
+    }
+
     /// Bring JetBrains Toolbox forward — the action for every Toolbox-managed row,
     /// in both windows. On the model rather than duplicated per view, for the same
     /// reason `rowState` is: one row, one behaviour.

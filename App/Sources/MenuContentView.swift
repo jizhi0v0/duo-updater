@@ -1114,30 +1114,25 @@ private struct AppRow: View {
 
     @ViewBuilder
     private var versionLine: some View {
-        if let staged = model.actionableStaged(result) {
+        switch model.versionLineState(for: result) {
+        case .stagedRelaunch(let staged):
             // Relaunch applies this staged build, which `actionableStaged` guarantees
             // is the latest — so the line is a plain installed → staged. (A staged
             // build that trails the latest isn't shown as Relaunch; it goes through
             // the normal updateAvailable line/Update button below.)
             stagedVersionLine(staged)
-        } else if let older = model.downgradeNote(result) {
-            // Vendor's latest is *older* than what's installed — show it muted with a
-            // down-arrow (only reachable under "Show all", since the row is upToDate).
-            downgradeVersionLine(older)
-        } else if let from = model.pendingBatchRestart[result.id] {
+        case .restart(let from):
             // Update All has landed the new bundle but intentionally postpones its
-            // process-version sweep/restarts until every installer is finished.
-            // Keep the row concrete instead of flashing a false completion.
-            restartVersionLine(from: .init(marketing: from))
-        } else if model.needsRestart.contains(result.id),
-                  let from = model.restartFromSide(result.id) {
-            // Self-updated on disk, restart pending. Show the running version → the
-            // installed version so the row reads as a real change, not a static
-            // "v1.6.1". `lsappinfo` only exposes the running *build*; `restartFromVersion`
-            // recovers the marketing version from the rollback backup when it can, so
-            // the from side reads "26.609.71450 (3965)" rather than a bare "3965".
+            // process-version sweep/restarts until every installer is finished; a
+            // normal pending restart reaches the same line with the recovered
+            // running version/build. Either one outranks an action-less downgrade
+            // note because this line explains the Relaunch button (#210).
             restartVersionLine(from: from)
-        } else {
+        case .downgrade(let older):
+            // Vendor's latest is *older* than what's installed — show it muted with a
+            // down-arrow only when no pending relaunch has a more important fact.
+            downgradeVersionLine(older)
+        case .status:
             switch result.status {
             case .updateAvailable(let latest):
             HStack(spacing: 4) {

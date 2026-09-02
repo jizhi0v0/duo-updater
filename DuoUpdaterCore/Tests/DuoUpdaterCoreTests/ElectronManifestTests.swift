@@ -2,15 +2,11 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
-// Manifest bodies below are the real `*-mac.yml` files those vendors served on
-// 2026-08-31, trimmed only of entries that repeat. The arch cases are the whole
-// reason this type exists, so they are tested against the exact filenames that
-// caught the bug rather than against invented ones.
+// Manifest bodies below are the real `*-mac.yml` shapes those vendors served.
+// The architecture cases use the exact filenames that caught the original bug.
 
 @Test func picksTheArm64ArtifactOverTheOneTheManifestCallsPrimary() {
-    // ChatWise 26.8.0. Its top-level `path` names the **x64** build, so a reader
-    // that trusted `path` would hand an Apple-silicon Mac an Intel zip — the
-    // "installs fine, won't open" failure the registry pins arm64 to avoid.
+    // ChatWise 26.8.0. Its top-level `path` names the **x64** build.
     let manifest = ElectronManifest.parse("""
         version: 26.8.0
         files:
@@ -30,8 +26,6 @@ import Foundation
 }
 
 @Test func fallsBackToTheUniversalArtifactWhenNoArchIsNamed() {
-    // Canva 1.124.1 — and note the shape that makes "first url wins" wrong: the
-    // same dmg is listed three times after the zip.
     let manifest = ElectronManifest.parse("""
         version: 1.124.1
         files:
@@ -51,11 +45,8 @@ import Foundation
 }
 
 @Test func anUnmarkedArtifactIsAccepted() {
-    // Notion's default manifest. Nothing in the filename says which architecture
-    // it is — which is exactly why the SOURCE probes for an `arm64-mac.yml`
-    // sibling before trusting this. At the manifest level, an unmarked name is
-    // taken as runnable, because most vendors ship one universal artifact and
-    // label it nothing at all.
+    // An unmarked name is potentially universal; Gate 5/5b verifies the staged
+    // app's executable architecture before it can replace the current bundle.
     let manifest = ElectronManifest.parse("""
         version: 7.31.3
         files:
@@ -69,8 +60,6 @@ import Foundation
 }
 
 @Test func anX64OnlyManifestOffersNoArtifactAtAll() {
-    // Detection without an install is an honest row; an install button that
-    // fetches a build this Mac cannot run is not.
     let manifest = ElectronManifest.parse("""
         version: 3.0.0
         path: App-3.0.0-x64.zip
@@ -81,8 +70,6 @@ import Foundation
 }
 
 @Test func theTopLevelScalarsAreNotConfusedByTheNestedOnes() {
-    // `url:` and `sha512:` appear at both levels meaning different things, and
-    // `path`/`sha512` at the top must keep naming the primary artifact.
     let manifest = try! #require(ElectronManifest.parse("""
         version: 7.31.3
         files:
@@ -106,8 +93,6 @@ import Foundation
 }
 
 @Test func artifactURLsResolveAgainstTheManifestsOwnDirectory() {
-    // Same rule Sparkle applies to an enclosure, and for the same reason: the
-    // manifest lists a bare filename.
     let manifest = ElectronManifest.parse("""
         version: 2.4.0
         path: Typeless-2.4.0-arm64.zip
@@ -120,19 +105,15 @@ import Foundation
 
 // MARK: - the source's own rules
 
-@Test func theArchSiblingIsProbedOnlyBesideTheDefaultManifest() {
-    // Only `latest-mac.yml` is asking "which architecture?".
-    #expect(ElectronManifestSource.mayProbeArchSibling(
-        URL(string: "https://desktop-release.notion-static.com/latest-mac.yml")!))
-    // Typeless ships `channel: arm64` — already answered; probing would refetch
-    // the same file.
-    #expect(!ElectronManifestSource.mayProbeArchSibling(
-        URL(string: "https://typeless-static.com/desktop-release/arm64-mac.yml")!))
-    // And a named CHANNEL is not asking it at all. Probing `arm64-mac.yml` beside
-    // `beta-mac.yml` would move a beta user onto the stable build whenever the
-    // two agreed on a version — crossing trains, not architectures.
-    #expect(!ElectronManifestSource.mayProbeArchSibling(
-        URL(string: "https://updates.signal.org/desktop/beta-mac.yml")!))
+@Test func eachDeclaredChannelResolvesToItsOwnManifest() {
+    func manifest(_ channel: String) -> URL? {
+        ElectronUpdateConfig(
+            provider: "generic", url: "https://example.invalid/releases",
+            owner: nil, repo: nil, channel: channel).manifestURL
+    }
+    #expect(manifest("latest") == URL(string: "https://example.invalid/releases/latest-mac.yml"))
+    #expect(manifest("arm64") == URL(string: "https://example.invalid/releases/arm64-mac.yml"))
+    #expect(manifest("beta") == URL(string: "https://example.invalid/releases/beta-mac.yml"))
 }
 
 @Test func theInstallerKindComesFromTheChosenArtifact() {
@@ -151,12 +132,6 @@ import Foundation
 }
 
 @Test func aCRLFManifestIsReadLineWiseLikeAnyOther() {
-    // electron-builder normally writes LF, but a build on a Windows CI does not.
-    // Splitting on "\n" alone left the WHOLE document as one line, and the damage
-    // was asymmetric: the config merely came back with a nil url and failed closed,
-    // while the manifest came back with `version` holding the entire file — a
-    // string that then goes into a version comparison against the installed build,
-    // which is how a phantom update gets invented instead of nothing happening.
     let cfg = ElectronUpdateConfig.parse(
         "provider: generic\r\nurl: https://example.invalid\r\nchannel: latest\r\n")
     #expect(cfg?.url == "https://example.invalid")
@@ -171,53 +146,27 @@ import Foundation
     #expect(manifest?.artifact()?.sha512 == "S==")
 }
 
-// MARK: - #194: arch-sibling failure closure, end to end through the source
-//
-// These exercise `ElectronManifestSource.latestVersion(for:)` against a fake
-// network so the sibling-probe *outcome* (confirmed 404 vs. anything else)
-// drives whether the top-level `path` fallback is trusted, and #195's
-// `RecipeHealth` wiring — not just `ElectronManifest.artifact(forArch:)` in
-// isolation, which is the layer `anUnmarkedArtifactIsAccepted` already covers
-// and which this file must not change the meaning of.
+// MARK: - source integration and health
 
 @Suite(.serialized)
-struct ElectronArchSiblingClosureTests {
-
-    /// Routes a fake `URLSession` by exact URL. `.serialized` on the suite (and
-    /// a fresh route table per test) keeps this safe without a lock — no two
-    /// tests' requests are ever in flight at once.
+struct ElectronManifestSourceTests {
     private final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         struct Response {
             let status: Int
             let body: String?
-            /// Simulates a transport failure (e.g. a timeout) rather than any
-            /// HTTP status at all.
             let transportFailure: Bool
         }
-        // `.serialized` on the suite is the actual synchronization — no two
-        // tests' requests are ever in flight together — so this is safe despite
-        // not being actor-isolated.
+
         nonisolated(unsafe) static var routes: [String: Response] = [:]
-        /// For the retry test: a URL that must answer differently across
-        /// successive requests (a 502 then a 200), which a single `Response`
-        /// per URL can't express. Consulted before `routes`; the last entry
-        /// repeats once the sequence is exhausted.
-        nonisolated(unsafe) static var sequenceRoutes: [String: [Response]] = [:]
-        nonisolated(unsafe) static var sequenceCallCount: [String: Int] = [:]
+        nonisolated(unsafe) static var requestedURLs: [String] = []
 
         override class func canInit(with request: URLRequest) -> Bool { true }
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
         override func startLoading() {
             guard let url = request.url else { return }
-            let route: Response
-            if let sequence = Self.sequenceRoutes[url.absoluteString], !sequence.isEmpty {
-                let call = Self.sequenceCallCount[url.absoluteString, default: 0]
-                Self.sequenceCallCount[url.absoluteString] = call + 1
-                route = sequence[min(call, sequence.count - 1)]
-            } else if let fixed = Self.routes[url.absoluteString] {
-                route = fixed
-            } else {
+            Self.requestedURLs.append(url.absoluteString)
+            guard let route = Self.routes[url.absoluteString] else {
                 let response = HTTPURLResponse(
                     url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: nil)!
                 client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
@@ -257,329 +206,54 @@ struct ElectronArchSiblingClosureTests {
                 provider: "generic", url: domain, owner: nil, repo: nil, channel: channel))
     }
 
-    @Test func confirmedAbsentSiblingTrustsThePathFallback() async throws {
-        // Notion's shape (2026-09-01): a default manifest with no arch token in
-        // its filename, and NO split published — the sibling really is a 404.
-        // That is the one outcome that actually proves it, so `path` should win.
-        let domain = "https://cdn-confirmed.example.test"
+    @Test func theBundleDeclaredManifestIsTheOnlyTrackRead() async throws {
+        // Current Notion-shaped pair (2026-09-02). Both manifests can publish the
+        // same version, but `channel: latest` reads only `latest-mac.yml`.
+        let domain = "https://desktop-release.notion-static.com"
+        FixtureProtocol.requestedURLs = []
         FixtureProtocol.routes = [
             "\(domain)/latest-mac.yml": .init(status: 200, body: """
-                version: 7.31.3
+                version: 7.32.0
                 files:
-                  - url: App-7.31.3.zip
-                    sha512: ZIPSHA==
-                    size: 100
-                path: App-7.31.3.zip
-                sha512: ZIPSHA==
-                releaseDate: '2026-08-27T01:59:39.485Z'
-                """, transportFailure: false),
-            "\(domain)/arm64-mac.yml": .init(status: 404, body: nil, transportFailure: false),
-        ]
-        let bundleID = "com.duoupdater.test.electron.confirmedAbsent"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "7.31.3")
-        #expect(remote.downloadURL == URL(string: "\(domain)/App-7.31.3.zip"))
-        #expect(remote.vendorInstallerKind == .zip)
-        #expect(remote.expectedSHA512 == "ZIPSHA==")
-
-        let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
-        #expect(entry?.isHealthy == true)
-    }
-
-    @Test func forbiddenSiblingWithholdsTheArtifact() async throws {
-        // A CONSTRUCTED fixture, not Canva's — flagged in PR #201 review because
-        // an earlier version of this comment claimed it was. Canva's sibling
-        // really does answer 403 (2026-09-01, both #194 and #203 observed it
-        // directly), but Canva's DEFAULT manifest names a `universal` artifact
-        // (`fallsBackToTheUniversalArtifactWhenNoArchIsNamed` above, real body),
-        // which wins in `artifact(forArch:)`'s universal branch — BEFORE the
-        // top-level `path` fallback branch this withholding logic guards. So
-        // Canva's real 403 never reaches the code path this test exercises; see
-        // `aRealCanvaShapedManifestIsUnaffectedByItsForbiddenSibling` below for
-        // Canva's actual (unaffected) behavior, verified against its real body.
-        // This fixture exists because the combination this test DOES need to
-        // cover — an unmarked top-level-`path` artifact plus a non-404 sibling —
-        // has no known live example as of 2026-09-01; it is exercised here as a
-        // synthetic case, the same way `anX64OnlyManifestOffersNoArtifactAtAll`
-        // synthesizes a manifest shape rather than pointing at a real vendor.
-        let domain = "https://cdn-403.example.test"
-        FixtureProtocol.routes = [
-            "\(domain)/latest-mac.yml": .init(status: 200, body: """
-                version: 2.0.0
-                files:
-                  - url: App-2.0.0.zip
-                    sha512: ZIPSHA==
-                    size: 100
-                path: App-2.0.0.zip
-                sha512: ZIPSHA==
-                """, transportFailure: false),
-            "\(domain)/arm64-mac.yml": .init(status: 403, body: nil, transportFailure: false),
-        ]
-        let bundleID = "com.duoupdater.test.electron.forbiddenSibling"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "2.0.0")
-        #expect(remote.downloadURL == nil)
-        #expect(remote.vendorInstallerKind == nil)
-        #expect(remote.expectedSHA512 == nil)
-
-        // The version itself was still real, so this is a success, not a miss.
-        let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
-        #expect(entry?.isHealthy == true)
-    }
-
-    @Test func aRealCanvaShapedManifestIsUnaffectedByItsForbiddenSibling() async throws {
-        // Canva's ACTUAL shape, end to end (2026-09-01, real bodies): its default
-        // manifest names a `universal` artifact, which `artifact(forArch:)` picks
-        // before ever considering the top-level `path` fallback branch — so the
-        // sibling probe's outcome (a real 403 here) is irrelevant to whether an
-        // artifact is offered. This is the test the comment on
-        // `forbiddenSiblingWithholdsTheArtifact` used to (wrongly) claim that one
-        // covered.
-        let domain = "https://desktop-release.canva.com"
-        FixtureProtocol.routes = [
-            "\(domain)/latest-mac.yml": .init(status: 200, body: """
-                version: 1.124.1
-                files:
-                  - url: Canva-1.124.1-universal-mac.zip
-                    sha512: ZIPSHA==
-                    size: 220714081
-                  - url: Canva-1.124.1-universal.dmg
-                    sha512: DMGSHA==
-                    size: 229488791
-                path: Canva-1.124.1-universal-mac.zip
-                sha512: ZIPSHA==
-                """, transportFailure: false),
-            "\(domain)/arm64-mac.yml": .init(status: 403, body: nil, transportFailure: false),
-        ]
-        let bundleID = "com.duoupdater.test.electron.canvaReal"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "1.124.1")
-        #expect(remote.downloadURL == URL(string: "\(domain)/Canva-1.124.1-universal-mac.zip"))
-        #expect(remote.vendorInstallerKind == .zip)
-        #expect(remote.expectedSHA512 == "ZIPSHA==")
-    }
-
-    @Test func timedOutSiblingWithholdsTheArtifact() async throws {
-        // Same shape as the 403 case, but the sibling never answers at all —
-        // the other half of "403 / 超时" from the issue. A transport failure is
-        // exactly as inconclusive as a non-404 status.
-        let domain = "https://cdn-timeout.example.test"
-        FixtureProtocol.routes = [
-            "\(domain)/latest-mac.yml": .init(status: 200, body: """
-                version: 4.0.0
-                files:
-                  - url: App-4.0.0.zip
-                    sha512: ZIPSHA==
-                    size: 100
-                path: App-4.0.0.zip
-                sha512: ZIPSHA==
-                """, transportFailure: false),
-            "\(domain)/arm64-mac.yml": .init(status: 0, body: nil, transportFailure: true),
-        ]
-        let bundleID = "com.duoupdater.test.electron.timedOutSibling"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "4.0.0")
-        #expect(remote.downloadURL == nil)
-        #expect(remote.vendorInstallerKind == nil)
-        #expect(remote.expectedSHA512 == nil)
-    }
-
-    // MARK: - #203 (filed, then WITHDRAWN — see the long comment above
-    // `pathFallbackIsTrustworthy` in the source): a version-mismatched sibling
-    // is a different release train, not this host's architecture choice, and
-    // must not be adopted.
-
-    @Test func aHigherVersionedMismatchedSiblingIsNotAdopted() async throws {
-        // Notion's REAL shape, 2026-09-01: the two tracks had drifted four days
-        // apart. `latest-mac.yml` (the track this installed 7.31.3 is actually
-        // on — its own `app-update.yml` says `channel: latest`) still said
-        // 7.31.3; `arm64-mac.yml` (a DIFFERENT track — Notion's arm64 build's own
-        // `app-update.yml` says `channel: arm64`) had shipped 7.32.0. #203
-        // proposed adopting 7.32.0 here on the theory that a resolving sibling
-        // unambiguously names this host's architecture; that theory didn't
-        // survive checking electron-updater's actual mechanism (no per-arch
-        // manifest selection on macOS — see the source comment) or the real
-        // arm64 build's own config (a ONE-WAY channel switch, not an arch
-        // marker). The correct report is 7.31.3 — the version on the track this
-        // install is actually on, and what Notion's own updater would install —
-        // with no artifact offered, because `latest-mac.yml`'s own artifact is
-        // x86_64-only and the mismatched sibling cannot vouch for `path`.
-        let domain = "https://cdn-higher-mismatch.example.test"
-        FixtureProtocol.routes = [
-            "\(domain)/latest-mac.yml": .init(status: 200, body: """
-                version: 7.31.3
-                files:
-                  - url: Notion-7.31.3.zip
-                    sha512: X64SHA==
-                    size: 126113061
-                path: Notion-7.31.3.zip
-                sha512: X64SHA==
-                releaseDate: '2026-08-27T01:59:39.485Z'
+                  - url: Notion-7.32.0.zip
+                    sha512: LATESTSHA==
+                    size: 127948435
+                path: Notion-7.32.0.zip
+                sha512: LATESTSHA==
                 """, transportFailure: false),
             "\(domain)/arm64-mac.yml": .init(status: 200, body: """
                 version: 7.32.0
                 files:
                   - url: Notion-arm64-7.32.0.zip
                     sha512: ARMSHA==
-                    size: 121001845
+                    size: 122788925
                 path: Notion-arm64-7.32.0.zip
                 sha512: ARMSHA==
-                releaseDate: '2026-08-31T20:30:08.402Z'
                 """, transportFailure: false),
         ]
-        let bundleID = "com.duoupdater.test.electron.higherMismatch"
-        let app = electronApp(bundleID: bundleID, domain: domain)
+        let bundleID = "com.duoupdater.test.electron.declaredTrack"
         let source = ElectronManifestSource(session: fixtureSession())
 
-        let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "7.31.3")
-        #expect(remote.downloadURL == nil)
-        #expect(remote.vendorInstallerKind == nil)
-        #expect(remote.expectedSHA512 == nil)
+        let remote = try #require(await source.latestVersion(
+            for: electronApp(bundleID: bundleID, domain: domain)))
+        #expect(remote.shortVersion == "7.32.0")
+        #expect(remote.downloadURL == URL(string: "\(domain)/Notion-7.32.0.zip"))
+        #expect(remote.expectedSHA512 == "LATESTSHA==")
+        #expect(FixtureProtocol.requestedURLs == ["\(domain)/latest-mac.yml"])
+
+        let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
+        #expect(entry?.isHealthy == true)
     }
-
-    @Test func aLowerVersionedMismatchedSiblingIsAlsoNotAdopted() async throws {
-        // Mirror direction, synthetic (no known live example of the arm64 track
-        // trailing the default one, unlike the higher case above — flagged
-        // honestly rather than dressed up as observed). Same rule either way: a
-        // mismatched sibling names a different train, and "behind" is no more
-        // adoptable than "ahead" — the point isn't which one looks newer, it's
-        // that they disagree at all.
-        let domain = "https://cdn-lower-mismatch.example.test"
-        FixtureProtocol.routes = [
-            "\(domain)/latest-mac.yml": .init(status: 200, body: """
-                version: 5.1.0
-                files:
-                  - url: App-5.1.0.zip
-                    sha512: X64SHA==
-                    size: 100
-                path: App-5.1.0.zip
-                sha512: X64SHA==
-                """, transportFailure: false),
-            "\(domain)/arm64-mac.yml": .init(status: 200, body: """
-                version: 5.0.9
-                files:
-                  - url: App-5.0.9-arm64.zip
-                    sha512: ARMSHA==
-                    size: 95
-                path: App-5.0.9-arm64.zip
-                sha512: ARMSHA==
-                """, transportFailure: false),
-        ]
-        let bundleID = "com.duoupdater.test.electron.lowerMismatch"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "5.1.0")
-        #expect(remote.downloadURL == nil)
-        #expect(remote.vendorInstallerKind == nil)
-        #expect(remote.expectedSHA512 == nil)
-    }
-
-    @Test func aTransientGatewayErrorOnTheSiblingIsRetriedRatherThanTreatedAsIndeterminate() async throws {
-        // #203's second finding — kept even though #203's main claim (adopt a
-        // mismatched sibling wholesale) was withdrawn above; this half was never
-        // in question. The default manifest fetch retries a gateway 502/503/504
-        // once (`versionFeedData`), but the sibling probe used to go through a
-        // bare `data(for:)` with none of that — so the identical transient
-        // status self-healed on one request and got read as "inconclusive,
-        // withhold the artifact" on the other. The sibling here
-        // 502s once, then answers normally; that must resolve, not withhold.
-        let domain = "https://cdn-gateway-retry.example.test"
-        FixtureProtocol.routes = [
-            "\(domain)/latest-mac.yml": .init(status: 200, body: """
-                version: 9.0.0
-                files:
-                  - url: App-9.0.0.zip
-                    sha512: X64SHA==
-                    size: 100
-                path: App-9.0.0.zip
-                sha512: X64SHA==
-                """, transportFailure: false),
-        ]
-        FixtureProtocol.sequenceRoutes = [
-            "\(domain)/arm64-mac.yml": [
-                .init(status: 502, body: nil, transportFailure: false),
-                .init(status: 200, body: """
-                    version: 9.0.0
-                    files:
-                      - url: App-9.0.0-arm64.zip
-                        sha512: ARMSHA==
-                        size: 90
-                    path: App-9.0.0-arm64.zip
-                    sha512: ARMSHA==
-                    """, transportFailure: false),
-            ],
-        ]
-        let bundleID = "com.duoupdater.test.electron.gatewayRetrySibling"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "9.0.0")
-        #expect(remote.downloadURL == URL(string: "\(domain)/App-9.0.0-arm64.zip"))
-        #expect(remote.vendorInstallerKind == .zip)
-        #expect(remote.expectedSHA512 == "ARMSHA==")
-    }
-
-    @Test func aNativeArm64FilesEntryIsUnaffectedBySiblingProbeOutcome() async throws {
-        // ChatWise 26.8.0's shape (2026-09-01): `files:` already carries a
-        // native arm64 entry, and the top-level `path` names x64. This has
-        // nothing to do with the sibling probe — `artifact(forArch:)` picks the
-        // native entry before ever reaching the `path` fallback branch — so an
-        // inconclusive sibling (403 here) must not change the answer.
-        let domain = "https://cdn-chatwise.example.test"
-        FixtureProtocol.routes = [
-            "\(domain)/latest-mac.yml": .init(status: 200, body: """
-                version: 26.8.0
-                files:
-                  - url: ChatWise-26.8.0-x64.zip
-                    sha512: X64SHA==
-                    size: 100
-                  - url: ChatWise-26.8.0-arm64.zip
-                    sha512: ARM64SHA==
-                    size: 99
-                path: ChatWise-26.8.0-x64.zip
-                sha512: X64SHA==
-                """, transportFailure: false),
-            "\(domain)/arm64-mac.yml": .init(status: 403, body: nil, transportFailure: false),
-        ]
-        let bundleID = "com.duoupdater.test.electron.nativeArm64Entry"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try #require(await source.latestVersion(for: app))
-        #expect(remote.shortVersion == "26.8.0")
-        #expect(remote.downloadURL == URL(string: "\(domain)/ChatWise-26.8.0-arm64.zip"))
-        #expect(remote.vendorInstallerKind == .zip)
-        #expect(remote.expectedSHA512 == "ARM64SHA==")
-    }
-
-    // MARK: - #195: RecipeHealth on the two ways the manifest fetch itself fails
 
     @Test func aNon200ManifestRecordsAMiss() async throws {
         let domain = "https://cdn-404.example.test"
+        FixtureProtocol.requestedURLs = []
         FixtureProtocol.routes = [
             "\(domain)/latest-mac.yml": .init(status: 404, body: nil, transportFailure: false),
         ]
         let bundleID = "com.duoupdater.test.electron.manifest404"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try await source.latestVersion(for: app)
+        let remote = try await ElectronManifestSource(session: fixtureSession()).latestVersion(
+            for: electronApp(bundleID: bundleID, domain: domain))
         #expect(remote == nil)
 
         let entry = try #require(await RecipeHealth.shared.snapshot().first { $0.id == bundleID })
@@ -589,15 +263,14 @@ struct ElectronArchSiblingClosureTests {
 
     @Test func anUnparseableManifestBodyRecordsAMiss() async throws {
         let domain = "https://cdn-garbage.example.test"
+        FixtureProtocol.requestedURLs = []
         FixtureProtocol.routes = [
             "\(domain)/latest-mac.yml": .init(
                 status: 200, body: "not a manifest at all", transportFailure: false),
         ]
         let bundleID = "com.duoupdater.test.electron.manifestGarbage"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try await source.latestVersion(for: app)
+        let remote = try await ElectronManifestSource(session: fixtureSession()).latestVersion(
+            for: electronApp(bundleID: bundleID, domain: domain))
         #expect(remote == nil)
 
         let entry = try #require(await RecipeHealth.shared.snapshot().first { $0.id == bundleID })
@@ -606,24 +279,14 @@ struct ElectronArchSiblingClosureTests {
     }
 
     @Test func aTransportFailureOnTheManifestFetchDegradesInsteadOfThrowing() async throws {
-        // PR #201 review, #4: only the non-200 branch used to degrade to nil —
-        // a plain transport failure (timeout, DNS, connection refused, …)
-        // reaching `manifestURL` itself propagated straight out of
-        // `latestVersion` as a thrown error. Since this source sits LAST in
-        // `SourceStack`, that put an error row on an app whose real state might
-        // just be "no coverage yet" — exactly what the non-200 branch's own
-        // "degrade rather than throw" reasoning says to avoid, just not applied
-        // to this failure shape. Must not throw, and must record a miss like
-        // every other way this source fails to read a manifest.
         let domain = "https://cdn-transport-failure.example.test"
+        FixtureProtocol.requestedURLs = []
         FixtureProtocol.routes = [
             "\(domain)/latest-mac.yml": .init(status: 0, body: nil, transportFailure: true),
         ]
         let bundleID = "com.duoupdater.test.electron.manifestTransportFailure"
-        let app = electronApp(bundleID: bundleID, domain: domain)
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try await source.latestVersion(for: app)
+        let remote = try await ElectronManifestSource(session: fixtureSession()).latestVersion(
+            for: electronApp(bundleID: bundleID, domain: domain))
         #expect(remote == nil)
 
         let entry = try #require(await RecipeHealth.shared.snapshot().first { $0.id == bundleID })
@@ -631,19 +294,9 @@ struct ElectronArchSiblingClosureTests {
         #expect(entry.lastMissDetail?.hasPrefix("manifest fetch failed:") == true)
     }
 
-    // MARK: - PR #201 review, #3: the three install fields actually move together
-
     @Test func aFilesEntryMissingItsChecksumWithholdsAllThreeFields() async throws {
-        // The reachable half of the "three fields drift apart" bug flagged in
-        // review: a `files:` entry can name a `url:` with no `sha512:` line
-        // under it. Deriving `expectedSHA512` as `file?.sha512` independently of
-        // `downloadURL`/`vendorInstallerKind` used to let this through as a
-        // download offer with no checksum to verify it against — silently
-        // skipping the integrity check `VendorInstaller` would otherwise run.
-        //
-        // Named channel (not `latest-mac.yml`) so no sibling probe is in play at
-        // all — this withholding reason is orthogonal to #194/#203's.
         let domain = "https://cdn-missing-checksum.example.test"
+        FixtureProtocol.requestedURLs = []
         FixtureProtocol.routes = [
             "\(domain)/arm64-mac.yml": .init(status: 200, body: """
                 version: 6.0.0
@@ -654,17 +307,14 @@ struct ElectronArchSiblingClosureTests {
                 """, transportFailure: false),
         ]
         let bundleID = "com.duoupdater.test.electron.missingChecksum"
-        let app = electronApp(bundleID: bundleID, domain: domain, channel: "arm64")
-        let source = ElectronManifestSource(session: fixtureSession())
-
-        let remote = try #require(await source.latestVersion(for: app))
+        let remote = try #require(await ElectronManifestSource(
+            session: fixtureSession()).latestVersion(
+                for: electronApp(bundleID: bundleID, domain: domain, channel: "arm64")))
         #expect(remote.shortVersion == "6.0.0")
         #expect(remote.downloadURL == nil)
         #expect(remote.vendorInstallerKind == nil)
         #expect(remote.expectedSHA512 == nil)
 
-        // The version was still real and cleanly parsed — this is a success,
-        // not a miss, same as the sibling-withholding cases above.
         let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
         #expect(entry?.isHealthy == true)
     }

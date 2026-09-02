@@ -34,6 +34,30 @@ struct ChangelogURLPolicyTests {
         #expect(!ChangelogURLPolicy.isDisplayable(url("https://[::1]/notes")))
     }
 
+    @Test func reservedLocalHostnamesAreRejected() {
+        for s in [
+            "https://localhost/notes",
+            "https://LOCALHOST./notes",
+            "https://release-notes.localhost/notes",
+            "https://release-notes.localhost./notes",
+            "https://macbook.local/notes",
+            "https://MACBOOK.LOCAL./notes",
+        ] {
+            #expect(!ChangelogURLPolicy.isDisplayable(url(s)), "\(s) should be refused")
+        }
+    }
+
+    @Test func localWordsInsideOrdinaryDomainsStillPass() {
+        for s in [
+            "https://localhost.example.com/notes",
+            "https://local.example.com/notes",
+            "https://notlocal.example/notes",
+            "https://example.localhost.example/notes",
+        ] {
+            #expect(ChangelogURLPolicy.isDisplayable(url(s)), "\(s) should pass")
+        }
+    }
+
     @Test func aHostThatMerelyLooksNumericIsNotAnIPLiteral() {
         // Four dot-separated labels, but not a dotted quad — must still load.
         #expect(ChangelogURLPolicy.isDisplayable(url("https://1.2.3.example.com/notes")))

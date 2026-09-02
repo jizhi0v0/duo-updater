@@ -468,6 +468,16 @@ public struct AppScanner: Sendable {
         // still inferred from the feed's own items. See the type's doc comment.
         if feedURL == nil { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
 
+        // Update ownership deliberately stays with the scanned install bundle.
+        // `AppRuntimeDetector.interfaceBundle` may descend into a nested GUI to
+        // describe its runtime, but that GUI cannot lend updater metadata to its
+        // wrapper. Docker is the concrete trap: Docker Desktop.app embeds a dormant
+        // Squirrel framework, while com.docker.backend.updater owns the real update
+        // flow and reads Docker's appcast.json. There is no Docker ShipIt cache.
+        // Borrowing the nested marker would opt the outer com.docker.docker bundle
+        // into generic ShipIt staging/download probes for a state that cannot exist.
+        // Keep electron config, Squirrel, Sparkle and feed facts on `bundleURL`.
+
         // The electron-builder equivalent, read the same way and for the same
         // reason: it is a file the packager wrote, not something inferred.
         let electronUpdate = ElectronUpdateConfig.read(fromBundleAt: bundleURL)

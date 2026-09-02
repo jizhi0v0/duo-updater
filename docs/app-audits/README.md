@@ -67,7 +67,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Postman** · `com.postmanlabs.mac` — P C (one-click) · ✓ src=Vendor
 - [x] **AweSun** · `com.oray.sunlogin.macclient` — P C (one-click, WAF) · ✓ src=Vendor
 - [x] [**VLC**](org-videolan-vlc.md) · `org.videolan.vlc` — P C (one-click, two-stage changelog) · ✓ src=Vendor · nightly 共享 bundle id，未签名 → **一键永久不可**，检测已可行（#93 已解决），尚未接 recipe（issue #95）
-- [ ] **Docker** · `com.docker.docker` — P · ⏭ skipped (cask now needs sudo to install)
+- [x] [**Docker**](com-docker-docker.md) · `com.docker.docker` — P C (one-click dmg) · ✓ src=Vendor · 外层 backend 拥有更新流程；嵌套 GUI 的 Squirrel 是闲置框架，不借给扫描器 · 2026-09-02
 - [x] **Raycast** · `com.raycast.macos` — P · ✓ src=Vendor
 - [x] **Alfred** · `com.runningwithcrayons.Alfred` — P · ✓ src=Vendor
 - [x] **Shottr** · `cc.ffitch.shottr` — P · ✓ src=Vendor

@@ -148,12 +148,6 @@ public enum FeedDiscovery {
         /// whenever an update is simply pending, which is exactly why it goes to a
         /// person instead of being read as "wrong manifest".
         case electronVersionMismatch
-        /// An `arm64-mac.yml` sibling exists beside a manifest that named no
-        /// architecture, so the vendor splits by arch and `latest-mac.yml` is not
-        /// necessarily this Mac's. Measured: Notion publishes both at the same
-        /// version, Canva only the default, and Typeless's `latest-mac.yml` is the
-        /// **x64** build with `arm64-mac.yml` beside it.
-        case electronArchSplitManifest
     }
 
     public enum Verdict: Sendable, Equatable {
@@ -305,8 +299,11 @@ public enum FeedDiscovery {
         // release's `CFBundleShortVersionString`), which is precisely why
         // `SparkleAppcastSource.channel(ofInstalled:in:)` scans the build across
         // every item before it will consider marketing at all.
-        guard let installedBuild = probe.installed.build,
-              let matched = feedItems.first(where: { $0.version == installedBuild })
+        guard let installedBuild = probe.installed.build else {
+            return .review(.installedBuildNotInFeed, candidate.url)
+        }
+        guard let matched = SparkleAppcastSource.item(
+            matchingInstalledBuild: installedBuild, in: feedItems)
         else {
             return .review(.installedBuildNotInFeed, candidate.url)
         }
@@ -357,17 +354,10 @@ public enum FeedDiscovery {
             let body = await fetch(manifest, session: session).flatMap {
                 String(data: $0, encoding: .utf8)
             }
-            // The arch sibling is probed rather than assumed, because its mere
-            // existence is the finding: a vendor who publishes one is a vendor
-            // whose `latest-mac.yml` may be the Intel build.
-            let archSibling = manifest
-                .deletingLastPathComponent()
-                .appendingPathComponent("arm64-mac.yml")
-            let hasArchSibling = await fetch(archSibling, session: session)
-                .flatMap { String(data: $0, encoding: .utf8) }
-                .flatMap { ElectronManifest.parse($0)?.version } != nil
-            verdict = decideElectron(
-                probe, manifest: manifest, body: body, hasArchSibling: hasArchSibling)
+            // The config's `channel` already names the exact macOS manifest the
+            // bundle reads. electron-updater does not probe an architecture
+            // sibling on Darwin, so discovery must not invent that request either.
+            verdict = decideElectron(probe, manifest: manifest, body: body)
         }
         return Finding(bundlePath: bundleURL, probe: probe, verdict: verdict)
     }
@@ -375,10 +365,10 @@ public enum FeedDiscovery {
     /// Decide an electron-builder bundle. Deliberately a different set of gates
     /// from the Sparkle side: electron's manifest carries ONE version string, so
     /// the whole marketing-versus-build namespace problem cannot arise, and what
-    /// takes its place is a question Sparkle never has to ask — *which* manifest
-    /// file, given the vendor may publish one per architecture and one per channel.
+    /// takes its place is whether the exact manifest declared by this bundle
+    /// carries the version installed on disk.
     static func decideElectron(
-        _ probe: BundleProbe, manifest: URL, body: String?, hasArchSibling: Bool
+        _ probe: BundleProbe, manifest: URL, body: String?
     ) -> Verdict {
         guard let body, let version = ElectronManifest.parse(body)?.version else {
             return .review(.electronManifestUnreachable, manifest)
@@ -386,23 +376,7 @@ public enum FeedDiscovery {
         guard version == probe.installed.marketing else {
             return .review(.electronVersionMismatch, manifest)
         }
-        // The arch gate only asks a question when the manifest we resolved is the
-        // DEFAULT one. A bundle whose `app-update.yml` names an architecture as its
-        // channel — Typeless ships `channel: arm64` — has already answered it, and
-        // probing `arm64-mac.yml` there compares the manifest against itself.
-        guard isArchSpecific(manifest) || !hasArchSibling else {
-            return .review(.electronArchSplitManifest, manifest)
-        }
         return .adopt(manifest)
-    }
-
-    /// Whether a manifest address already names an architecture rather than a
-    /// release channel. electron-builder puts both in the same `channel:` slot, so
-    /// this is decided on the filename, which is the only place the two are
-    /// distinguishable.
-    static func isArchSpecific(_ manifest: URL) -> Bool {
-        let name = manifest.lastPathComponent
-        return name == "arm64-mac.yml" || name == "x64-mac.yml"
     }
 
     private static func fetch(_ url: URL, session: URLSession) async -> Data? {

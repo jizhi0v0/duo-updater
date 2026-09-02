@@ -104,6 +104,12 @@ def compares_near(lines, index):
 # four landing checks answer "nothing moved".
 SHORT_READ = re.compile(r"readShortVersion(?:OffMain)?\s*\(")
 
+# App/Sources has no test target, so pin the one wiring site that must tell Core
+# when the scanner's build does not share the package source's namespace.
+PACKAGE_RESTART_RESOLVE = re.compile(r"PackageRestartState\.resolve\s*\(")
+DERIVED_BUILD_ARGUMENT = "buildIsDerived:"
+PACKAGE_RESTART_WINDOW = 10
+
 
 # A *different* type also binds the name `staged`: `stagedPackage(for:)` returns
 # a `StagedPackage` — a downloaded `.pkg` installer, not a self-update staged by
@@ -138,8 +144,10 @@ def in_package_scope(lines, index):
 def main() -> int:
     display_hits, ledger_hits, compare_hits, read_hits = [], [], [], []
     display_marketing_hits = []
+    package_restart_hits = []
     ledger_seen = 0
     marketing_seen = 0
+    package_restart_seen = 0
     files = list(swift_files())
 
     for path in files:
@@ -170,6 +178,11 @@ def main() -> int:
                     compare_hits.append(f"{rel}:{n}: {line.strip()}")
             if SHORT_READ.search(line) and compares_near(lines, n - 1):
                 read_hits.append(f"{rel}:{n}: {line.strip()}")
+            if PACKAGE_RESTART_RESOLVE.search(line):
+                package_restart_seen += 1
+                call = "\n".join(lines[n - 1:n - 1 + PACKAGE_RESTART_WINDOW])
+                if DERIVED_BUILD_ARGUMENT not in call:
+                    package_restart_hits.append(f"{rel}:{n}: {line.strip()}")
 
     # Vacuity guard. A rule that matches nothing passes forever, which is worse
     # than no rule: it reports success while the thing it was written for has
@@ -186,6 +199,10 @@ def main() -> int:
         print("✗ staged-version guard found no `ledger.isNew/record(version:)` "
               "call at all. Either the nudge ledger was removed (delete rule 2) "
               "or it was renamed and this rule now guards nothing.")
+        return 1
+    if package_restart_seen == 0:
+        print("✗ staged-version guard found no PackageRestartState.resolve call. "
+              "Either the app wiring moved or this rule now guards nothing.")
         return 1
 
     if display_hits:
@@ -225,8 +242,15 @@ def main() -> int:
               "`readVersionSide` so the build can break the tie.")
         for hit in read_hits:
             print(f"    {hit}")
+    if package_restart_hits:
+        print(f"✗ {len(package_restart_hits)} PackageRestartState call(s) omit "
+              "the derived-build namespace flag.")
+        print("  Pass AppScanner.buildVersionIsOverridden(bundleID:) so a "
+              "scanner-substituted build is not compared with a feed build.")
+        for hit in package_restart_hits:
+            print(f"    {hit}")
     if (display_hits or ledger_hits or compare_hits or display_marketing_hits
-            or read_hits):
+            or read_hits or package_restart_hits):
         return 1
 
     print(f"✓ version comparisons discriminate — {len(files)} files, "

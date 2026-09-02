@@ -93,11 +93,15 @@ final class AppListModel {
     private(set) var isScanning = false
     private(set) var isChecking = false
     /// True for the whole of `performRefresh`, unlike `isScanning`/`isChecking`
-    /// which each cover only one leg of it. Between them sits the TestFlight read
-    /// (up to 2s on a user-present refresh), during which BOTH are false while
-    /// `results` still carries the previous round's `.error` rows — long enough for
-    /// a failure banner keyed on those to flash in and back out on every refresh.
-    /// Surfaces that must stay quiet for a whole round read this instead.
+    /// which each cover only one leg of it. A user-present refresh suspends TWICE
+    /// with both of those false: at `ChangelogCache.invalidateAll()` before the scan,
+    /// and at the TestFlight read between the legs (up to 2s). SwiftUI renders at
+    /// both. `results` still carries the previous round's `.error` rows there — long
+    /// enough for a failure banner keyed on those to flash in and back out — and
+    /// every whole-list control read as enabled (#253).
+    ///
+    /// Surfaces that must stay quiet for a whole round read this instead, via
+    /// `listActivity`.
     private(set) var isRefreshing = false
     private(set) var lastScan: Date?
 
@@ -422,6 +426,115 @@ final class AppListModel {
         UpdatePolicy.laggingRemoteVersion(result)
     }
 
+    /// The one version-line fact the row should explain. The precedence lives in
+    /// Core so a relaunch and a lagging-feed note cannot silently swap places in a
+    /// view with no test target (#210).
+    func versionLineState(for result: UpdateResult) -> RowVersionLineState {
+        RowVersionLine.state(
+            staged: actionableStaged(result),
+            pendingBatchRestartMarketing: pendingBatchRestart[result.id],
+            restartFrom: needsRestart.contains(result.id) ? restartFromSide(result.id) : nil,
+            downgradeVersion: downgradeNote(result))
+    }
+
+    /// Bring JetBrains Toolbox forward — the action for every Toolbox-managed row,
+    /// in both windows. On the model rather than duplicated per view, for the same
+    /// reason `rowState` is: one row, one behaviour.
+    func openToolbox() {
+        if let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.jetbrains.toolbox") {
+            NSWorkspace.shared.openApplication(at: url, configuration: .init())
+        }
+    }
+
+    /// Bring TestFlight forward — the action for every TestFlight-managed row, in
+    /// both windows and in the row menu. On the model for the same reason
+    /// `openToolbox` is: one row, one behaviour.
+    func openTestFlight() {
+        if let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.apple.TestFlight") {
+            NSWorkspace.shared.openApplication(at: url, configuration: .init())
+        }
+    }
+
+    /// The single answer both the popover and the workbench render.
+    ///
+    /// `ui = f(state)`: the two surfaces used to each carry their own ladder of
+    /// `if`/`else if`, in different orders and with different coverage, so the same
+    /// row could read differently in the two windows — and did (see
+    /// `RowActionState`). They now ask this and decide only how to *draw* the
+    /// answer, never what the answer is.
+    ///
+    /// Presentation may still differ where it is a deliberate product decision: the
+    /// workbench does not one-click a major upgrade, because the licence-boundary
+    /// warning that makes that safe lives in the popover. What it may not do is
+    /// render a state as nothing.
+    func rowState(for result: UpdateResult) -> RowActionState {
+        RowAction.state(for: RowActionFacts(
+            status: result.status,
+            awaitingQuitConfirm: awaitingQuitConfirm[result.id],
+            isRelaunching: relaunching.contains(result.id),
+            hasPendingBatchRestart: pendingBatchRestart[result.id] != nil,
+            justUpdated: justUpdated.contains(result.id),
+            installStage: installing[result.id],
+            isIgnored: prefs.isIgnored(result.app),
+            isVersionSkipped: prefs.isVersionSkipped(result.app, version: result.remote?.versionSide),
+            stagedRelaunchTarget: actionableStaged(result).map { result.stagedRelaunchLine($0).to },
+            needsRestart: needsRestart.contains(result.id),
+            // Feeds the `.unknown` / `.upToDate` rungs' source-hint and channel
+            // priority — moved here from the popover's own `isMASApp` /
+            // `isTestFlightApp` / `sparkleFeedURL` reads (issue #260), so the
+            // priority between them lives in `RowAction.state` rather than a view.
+            isMASApp: result.app.isMASApp,
+            isTestFlightApp: result.app.isTestFlightApp,
+            hasSparkleFeed: result.app.sparkleFeedURL != nil,
+            // `self.` because the route is an `@autoclosure` the facts hold rather
+            // than a value they copy — see `RowActionFacts.route`. The capture is
+            // safe: the struct is built and consumed in this one expression, and
+            // the closure is called (at most once) before it returns.
+            route: self.rowRoute(for: result)))
+    }
+
+    /// How an available update would be applied. Resolved here rather than in each
+    /// view so both windows agree on whether a row is one-click at all — the
+    /// invariant that matters, since one window offering Update while the other
+    /// does not is the same row telling two stories.
+    ///
+    /// The decision itself is `UpdateRoute.resolve(_:)` in Core (issue #261) — this
+    /// is only the wiring that fills `RouteInputs`. It stays a method the caller
+    /// invokes lazily (`rowState(for:)` passes `self.rowRoute(for: result)` into an
+    /// `@autoclosure` parameter) rather than a stored value, so building
+    /// `RouteInputs` — which calls `canAutoInstall` / `requiresInstaller` /
+    /// `defersToSelfUpdater` unconditionally and, when `requiresInstaller` is
+    /// true, reads `stagedPackage(for:)` too — only happens for a row that
+    /// actually reaches `.updateAvailable`. See `RowActionFacts.route`'s doc
+    /// comment, and the note below on what changed inside that boundary.
+    private func rowRoute(for result: UpdateResult) -> UpdateRoute {
+        // `requiresInstaller` is read twice below (the gate, and the installer
+        // rung itself); computed once here rather than reasked. This does NOT
+        // narrow when `stagedPackage(for:)` runs — with the ladder collapsed into
+        // one struct, it runs whenever `requiresInstaller` is true, including rows
+        // that go on to resolve as `.majorUpgrade`, `.selfUpdater`, `.toolbox` or
+        // `.testFlight`, none of which reached it in the old short-circuiting
+        // `if`/`else if` chain. It stays cheap for a different reason:
+        // `stagedPackage(for:)` guards on the `stagedPackages[result.id]`
+        // dictionary lookup FIRST, and that is nil for nearly every row (a staged
+        // package is rare), so the `fileExists` stat behind it is skipped before
+        // it runs, not because this call site is skipped.
+        let requiresInstaller = requiresInstaller(result)
+        return UpdateRoute.resolve(RouteInputs(
+            isToolboxManaged: result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged,
+            isTestFlight: result.remote?.sourceName == "TestFlight",
+            defersToSelfUpdater: defersToSelfUpdater(result),
+            isMajorUpgrade: result.isMajorUpgrade,
+            canAutoInstall: canAutoInstall(result),
+            requiresInstaller: requiresInstaller,
+            stagedFileName: requiresInstaller ? stagedPackage(for: result)?.url.lastPathComponent : nil,
+            hasAppStoreAvailability: result.remote?.appStore != nil,
+            appStoreManagedHere: result.app.isiOSAppOnMac && appStoreStrategyIsFullDownload,
+            appStoreGate: AppStoreGate.resolve(result.remote?.appStore)))
+    }
+
     /// A pending update the user hasn't ignored or skipped — what the badge counts
     /// and what "Update All" acts on.
     func isActionableUpdate(_ result: UpdateResult) -> Bool {
@@ -450,8 +563,8 @@ final class AppListModel {
     /// The three relaunch terms are gated on the user's verdict, which
     /// `isActionableUpdate` applies for itself and they do not carry: an ignored
     /// row stays in `results` with `remote: nil` and renders as a muted "Ignored"
-    /// tag with no button at all (`MenuContentView.trailing` puts that branch ahead
-    /// of both relaunch branches). Counting one would light the badge with nothing
+    /// tag with no button at all (`RowAction.state` puts the ignore rung ahead
+    /// of both relaunch rungs, for both windows). Counting one would light the badge with nothing
     /// on the other end of the click, forever — the same "hidden in the app, still
     /// nagging" shape `UpdatePolicy.nudgeableStaged` exists to prevent, which is
     /// also why the staged term goes through `nudgeableStaged` rather than raw
@@ -480,11 +593,21 @@ final class AppListModel {
     /// install", which is what the diagnostic log wants.
     var actionCount: Int { results.filter(needsAction).count }
 
+    /// What is in flight across the whole list right now. The whole-list actions
+    /// below all gate on this one value rather than re-listing the flags, which is
+    /// what let them disagree about the mid-refresh gap (#253).
+    var listActivity: ListActivity {
+        ListActivity(
+            isRefreshing: isRefreshing,
+            isScanning: isScanning,
+            isChecking: isChecking,
+            isInstallingAll: isInstallingAll,
+            rowInstallCount: installing.count)
+    }
+
     /// A full networked refresh rewrites the whole result list. Keep it out of
     /// the way while installs are mutating individual rows and replacing bundles.
-    var canRefresh: Bool {
-        !isScanning && !isChecking && installing.isEmpty && !isInstallingAll
-    }
+    var canRefresh: Bool { listActivity.canRefresh }
 
     /// The count shown on the menu-bar badge. A full refresh briefly blanks every
     /// row to `.unknown` (so `actionCount` dips to 0) before the check repopulates
@@ -1818,6 +1941,13 @@ final class AppListModel {
             }
         }
 
+        // The round's snapshot is accurate as of right here: the scan has been
+        // published and TestFlight retagging (if any) has landed. The check below
+        // takes minutes, during which the list does NOT hold still — a row install,
+        // an app's own updater, a staged relaunch, a quit-handoff swap, a channel
+        // switch. Whatever differs from this baseline when the round publishes
+        // changed underneath it and must not be reverted to the snapshot (#255).
+        let roundBaseline = results
         isChecking = true
         // Remember what resolved, and under which Settings value, so the per-app
         // rechecks that follow this round's rows reuse it instead of asking `gh`
@@ -1844,7 +1974,8 @@ final class AppListModel {
             "refresh: checking \(checkable.count, privacy: .public) apps, skipping \(ignored.count, privacy: .public) ignored")
         let checked = await checker.check(checkable)
             + ignored.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
-        results = sorted(checked)
+        results = sorted(CheckRoundWriteBack.publishing(
+            checked, changedSince: roundBaseline, live: results))
         // Pre-warm the disk changelog cache for anything pending, so opening its
         // notes is instant (and a no-op network-wise for versions already cached).
         prewarmChangelogs(for: checked)
@@ -2562,10 +2693,31 @@ final class AppListModel {
         installing[id] = .checking
         let result = await recheck(result)
         replaceRow(result)
-        guard result.hasUpdate else {
-            // Already current on disk — but the running instance may predate
-            // that update, so recompute whether a restart is needed.
-            Log.install.info("install skipped: \(result.app.name, privacy: .public) already current on disk")
+        // Only `.updateAvailable` installs. The other endings all stop here, but
+        // they are NOT the same ending, and this used to report them as if they
+        // were: a source that timed out while you clicked Update was logged as
+        // "already current on disk", which reads as a fact about the bundle and
+        // sends the next person to the wrong place. See `PreInstallGate`.
+        let decision = PreInstallGate.decision(for: result.status)
+        if decision != .proceed {
+            switch decision {
+            case .alreadyCurrent:
+                Log.install.info(
+                    "install skipped: \(result.app.name, privacy: .public) already current on disk")
+            case .managedElsewhere:
+                Log.install.info(
+                    "install skipped: \(result.app.name, privacy: .public) is managed elsewhere — nothing to install here")
+            case .cannotConfirm(let message):
+                // Not a verdict about the app: we never found out. Retryable, and
+                // said so, rather than filed as "nothing to do".
+                Log.install.error(
+                    "install aborted: \(result.app.name, privacy: .public) — the pre-install re-check could not confirm an update: \(message ?? "no source covers this app", privacy: .public)")
+            case .proceed:
+                break  // unreachable: guarded above
+            }
+            // Unchanged for every ending: the bundle on disk may still be newer than
+            // the running process (a manual install, a self-updater), so the restart
+            // state is recomputed either way.
             await computeRestartInfo()
             installing[id] = nil
             return false
@@ -3010,7 +3162,7 @@ final class AppListModel {
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
                 // The swap is fully in effect and nothing is left to do, so this row is
                 // about to filter out of the list. Hold it briefly with an "Updated ✓"
-                // confirmation (see `visible`/`trailing`) so completion is legible
+                // confirmation (see `visible` and `RowAction.state`) so completion is legible
                 // instead of the row just disappearing mid-progress.
                 markJustUpdated(id)
             }
@@ -3238,7 +3390,9 @@ final class AppListModel {
                 onDiskVersion: app.versionSide,
                 stagedVersion: staged.versionSide,
                 stagedAt: staged.stagedAt,
-                runningLaunchDates: launchDates[key] ?? [])
+                runningLaunchDates: launchDates[key] ?? [],
+                buildIsDerived: AppScanner.buildVersionIsOverridden(
+                    bundleID: app.bundleID))
             switch state {
             case .pending:
                 // Not landed. Normally there's no badge yet; but if one was already
@@ -4357,8 +4511,12 @@ final class AppListModel {
               let dict = (try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil)) as? [String: Any]
         else { return (nil, nil) }
-        return (dict["CFBundleShortVersionString"] as? String,
-                dict["CFBundleVersion"] as? String)
+        func nonEmptyVersion(_ key: String) -> String? {
+            guard let value = dict[key] as? String, !value.isEmpty else { return nil }
+            return value
+        }
+        return (nonEmptyVersion("CFBundleShortVersionString"),
+                nonEmptyVersion("CFBundleVersion"))
     }
 
     /// Open System Settings → Privacy & Security → App Management and float the
@@ -4958,7 +5116,14 @@ final class AppListModel {
     /// installer window that interrupts the user. The shared restart/staging/backup
     /// sweep runs once after the whole batch has settled.
     func installAll() async {
-        guard !isInstallingAll, !isScanning, !isChecking, installing.isEmpty else { return }
+        // Say WHY, like `refresh` and `refreshLocal` do. A notification banner's
+        // "Update All" routes straight here, so a tap that lands while a check or a
+        // refresh is running is otherwise a banner that dismisses with nothing
+        // installed and nothing logged.
+        guard listActivity.canInstallAll else {
+            Log.app.info("update all: skipped — \(String(describing: self.listActivity), privacy: .public)")
+            return
+        }
         refreshPermissionStatus()
         // The filter below consults `defersToSelfUpdater`, which reads the running
         // set. That set is only maintained by NSWorkspace launch/terminate
@@ -5077,14 +5242,10 @@ final class AppListModel {
         }
     }
 
-    /// True when there's more than one app "Update All" would act on — used to
-    /// decide whether to show the batch button.
-    ///
-    /// More than one, not at least one: with a single target the row's own
-    /// "Update" button is already right there, and a batch button beside it is a
-    /// second control for exactly the same action.
+    /// Whether to show the batch button: nothing in flight, and more than one app
+    /// it would act on. Both halves live in `ListActivity.canOfferUpdateAll`.
     var canUpdateAll: Bool {
-        !isInstallingAll && !isScanning && !isChecking && installing.isEmpty && installAllTargets().count > 1
+        listActivity.canOfferUpdateAll(targetCount: installAllTargets().count)
     }
 
     // MARK: - Ignore / skip
@@ -5701,12 +5862,12 @@ final class AppListModel {
     /// by `UpdateResult.id` (the install path). In memory only — a fresh launch
     /// starts everyone at zero, which is the right bias: after a relaunch we have no
     /// evidence a failure is chronic and should say so once more.
+    ///
+    /// This is the ONLY place a chronic streak is tracked. `RowAction.state(for:)`
+    /// — the ladder both the popover and the workbench draw a row from — has no
+    /// notion of it and is not meant to: see `failedCheckResults` below and
+    /// `CheckFailureRules` for why (issue #264).
     @ObservationIgnored private var consecutiveCheckFailures: [String: Int] = [:]
-
-    /// Rows this many rounds deep stop driving the banner and the header count.
-    /// Three rounds of a check interval (an hour by default) is long past the point
-    /// where "retry" is the useful advice.
-    private static let chronicFailureThreshold = 3
 
     /// Update the streaks from one completed round, and drop rows that are gone.
     /// Called only from `performRefresh` — deliberately NOT from `retryFailedChecks`,
@@ -5720,7 +5881,7 @@ final class AppListModel {
             }
         }
         let newlyChronic = next.filter {
-            $0.value == Self.chronicFailureThreshold
+            $0.value == CheckFailureRules.chronicThreshold
         }.keys.sorted()
         if !newlyChronic.isEmpty {
             Log.app.info(
@@ -5729,16 +5890,30 @@ final class AppListModel {
         consecutiveCheckFailures = next
     }
 
+    /// Rows this many rounds deep stop driving the *aggregate* surfaces below —
+    /// the banner, the header's "N not checked" line, and the bulk-retry target
+    /// list. They do NOT stop being `.checkFailed` rows: `RowAction.state(for:)`
+    /// never reads `consecutiveCheckFailures` (it has no parameter for it), so a
+    /// chronic row keeps its own orange Failed badge — with its own per-row
+    /// Retry, which re-checks only this app rather than every failed row the way
+    /// the banner's Retry does — for as long as it keeps failing.
+    ///
+    /// That split is deliberate, not an oversight (issue #264): the banner is one
+    /// global claim ("your checks are healthy") that becomes false advice once a
+    /// failure is permanent — a vendor that retired its feed fails identically
+    /// forever, and Alfred's appcast did exactly that for weeks. Left counted, it
+    /// pins the banner up with a Retry that just re-runs the same 404, and stops
+    /// the header from ever reading "up to date" again. A row's own badge makes
+    /// no such claim; it states one fact about one app, and that fact stays true.
+    /// Silencing it would blank the row in the workbench, which shows every
+    /// result unconditionally (no "Show all" gate) — and a blank row there reads
+    /// as "up to date", which is the specific failure mode `RowActionState`
+    /// exists to rule out for every non-quiet state. See `CheckFailureRules`.
     var failedCheckResults: [UpdateResult] {
         results.filter {
             guard case .error = $0.status else { return false }
-            // A vendor that retired its feed fails identically forever — Alfred's
-            // appcast 404'd for weeks. Left in, that pins the banner permanently with
-            // a Retry button that re-runs the same 404, and stops the header from
-            // ever reading "up to date" again. Those rows fall back to the old
-            // behaviour: visible under "Show all", reported by `RecipeHealth` and
-            // `duo verify`, and silent here.
-            return (consecutiveCheckFailures[$0.id] ?? 0) < Self.chronicFailureThreshold
+            return !CheckFailureRules.isChronic(
+                consecutiveFailures: consecutiveCheckFailures[$0.id] ?? 0)
         }
     }
 
@@ -5780,7 +5955,8 @@ final class AppListModel {
         // `refreshLocal` and `installAll` all read `installing.isEmpty` — so claiming
         // 120 rows after an outage would make Update All *vanish* from the header and
         // grey out Refresh for minutes with nothing on screen saying why (the header
-        // spinner keys off `isScanning || isChecking`, which those claims never set).
+        // spinner keys off `listActivity.isRoundInFlight`, which those claims never
+        // set — but `isChecking` does, so the spinner runs for this too).
         // `isChecking` disables the same controls for the same duration, but it is
         // what a check in flight actually is, and it shows the spinner while it runs.
         // It also keeps the failed rows out of `visible`, which claims would have
@@ -5986,14 +6162,29 @@ final class AppListModel {
         syncDockBadge()
     }
 
-    /// Re-run the update check for one app whose source errored — the retry
-    /// affordance on an `.error` row (e.g. a transient GitHub rate-limit). Reuses
-    /// the install-stage spinner to show "Checking" on just that row, and bails
-    /// if the row is already busy (installing or mid-recheck).
+    /// Re-run the update check for one app. Two affordances share this, and
+    /// deliberately so — they ask the same question and must answer it the same
+    /// way: the retry on an `.error` row (a transient GitHub rate-limit, say), and
+    /// "Check Again" in the row's context menu, which is how a user asks about one
+    /// app without paying for a whole sweep.
+    ///
+    /// It re-derives the running set first, so it also corrects a row whose
+    /// *running* state has gone stale. `NSWorkspace`'s launch/terminate
+    /// notifications are the only thing maintaining that set, and some apps never
+    /// post one of them — measured: Alcove posts no `didLaunch`, UURemote no
+    /// `didTerminate` (issue #247) — which leaves the dot lit for an app that has
+    /// quit, or dark for one that is open. That recompute is whole-set and, since
+    /// the resolutions are memoized, 0.095 ms; it happens before the network check
+    /// rather than after, so the dot is right the moment the row starts checking
+    /// instead of when the source answers.
+    ///
+    /// Reuses the install-stage spinner to show "Checking" on just that row, and
+    /// bails if the row is already busy (installing or mid-recheck).
     func retry(_ result: UpdateResult) async {
         let id = result.id
         guard installing[id] == nil else { return }
         Log.app.info("retry: re-checking \(result.app.name, privacy: .public)")
+        refreshRunningApps()
         installing[id] = .checking
         let updated = await recheck(result)
         installing[id] = nil

@@ -492,4 +492,17 @@ import DuoUpdaterCore
         #expect(onlyTransient.signature == "unknown")
     }
 
+    @Test func aChangingUnreadablePublishDateDoesNotMoveTheSignature() {
+        func finding(_ captured: String) -> Finding {
+            Finding(
+                recipeID: "vendor:com.example.app:stable", registry: .vendor,
+                bundleID: "com.example.app", channel: "stable", status: .warn,
+                warnings: [ProbeWarning.publishedAtUnreadable(captured).display],
+                endpointHost: "example.invalid")
+        }
+
+        #expect(finding("yesterday").signature == finding("last Tuesday").signature,
+                "the captured value is evidence, not a new warning kind")
+    }
+
 }

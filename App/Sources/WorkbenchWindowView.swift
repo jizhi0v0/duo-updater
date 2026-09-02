@@ -502,11 +502,19 @@ struct WorkbenchWindowView: View {
             ForEach(filteredApps) { result in
                 WorkbenchSidebarRow(
                     result: result,
+                    checkAgain: { Task { await model.retry(result) } },
+                    isChecking: model.installing[result.id] != nil,
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
                     runningVersion: model.restartFromSide(result.id),
-                    showsRuntime: model.prefs.showRuntimeTags)
+                    showsRuntime: model.prefs.showRuntimeTags,
+                    isIgnored: model.prefs.isIgnored(result.app),
+                    isVersionSkipped: model.prefs.isVersionSkipped(
+                        result.app, version: result.remote?.versionSide),
+                    toggleIgnore: { model.toggleIgnore(result) },
+                    skipVersion: { model.skipThisVersion(result) },
+                    clearSkip: { model.prefs.clearSkip(result.app) })
                     .tag(result.id)
             }
         }
@@ -526,11 +534,19 @@ struct WorkbenchWindowView: View {
             ForEach(brewCasks) { result in
                 WorkbenchSidebarRow(
                     result: result,
+                    checkAgain: { Task { await model.retry(result) } },
+                    isChecking: model.installing[result.id] != nil,
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
                     runningVersion: model.restartFromSide(result.id),
-                    showsRuntime: model.prefs.showRuntimeTags)
+                    showsRuntime: model.prefs.showRuntimeTags,
+                    isIgnored: model.prefs.isIgnored(result.app),
+                    isVersionSkipped: model.prefs.isVersionSkipped(
+                        result.app, version: result.remote?.versionSide),
+                    toggleIgnore: { model.toggleIgnore(result) },
+                    skipVersion: { model.skipThisVersion(result) },
+                    clearSkip: { model.prefs.clearSkip(result.app) })
                     .tag(result.id)
             }
             ForEach(model.brewFormulae) { formula in
@@ -551,178 +567,6 @@ struct WorkbenchWindowView: View {
             ReleaseNotesPane(result: result, model: model)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-}
-
-// MARK: - Workbench action
-
-/// The selected app's primary action, surfaced in the workbench detail header so a
-/// user reading an update's release notes can act on it right there — instead of
-/// having to reopen the menu-bar popover. A deliberately focused mirror of the
-/// popover's `trailing`: it covers the common, safe one-click states (install
-/// progress, Update, Relaunch) and otherwise stays out of the way, leaving
-/// the gated cases (major upgrades, region locks) to the popover's richer affordances.
-private struct WorkbenchActionView: View {
-    let result: UpdateResult
-    @Bindable var model: AppListModel
-
-    private var stage: InstallStage? { model.installing[result.id] }
-
-    var body: some View {
-        if let stage {
-            installProgress(stage)
-        } else if model.relaunching.contains(result.id) {
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text("Relaunching…").font(.callout).foregroundStyle(.secondary)
-            }
-        } else if model.awaitingQuitConfirm[result.id] != nil {
-            Button("Relaunch") { model.confirmQuit(result.id, proceed: true) }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
-                .help("Quit the app to finish installing the update, then reopen it")
-        } else if model.pendingBatchRestart[result.id] != nil {
-            Button("Relaunch now") { Task { await model.restart(result) } }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-                .help("The update is installed; Update All is waiting to relaunch apps until the batch finishes")
-        } else if let staged = model.actionableStaged(result) {
-            Button("Relaunch") { Task { await model.relaunchStagedUpdate(result) } }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-                .help("\(result.app.name) already downloaded \(result.stagedRelaunchLine(staged).to) — relaunch to apply it")
-        } else if model.needsRestart.contains(result.id) && !result.hasUpdate {
-            Button("Relaunch") { Task { await model.restart(result) } }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-                .help("Running an older build — relaunch to apply the installed update")
-        } else if model.isActionableUpdate(result) {
-            updateAction
-        }
-    }
-
-    /// The install action for an actionable update, mirroring the popover's routing
-    /// for the one-click-safe cases. Major upgrades and region/compat-gated App Store
-    /// apps are intentionally NOT one-click here — they keep their explanatory
-    /// popover affordances in the menu bar — so we show a hint that points there.
-    @ViewBuilder
-    private var updateAction: some View {
-        if model.defersToSelfUpdater(result) {
-            // Running self-updating app + "defer while running" policy: open
-            // its own update path rather than swapping the bundle under it.
-            Button("Open") { model.openSelfUpdater(result) }
-                .buttonStyle(.bordered)
-                .help("\(result.app.name) is running — open it so its own updater applies the update. Quit it, or pick “Always replace” in Settings, to install directly.")
-        } else if result.isMajorUpgrade {
-            // License-boundary warning lives in the popover; don't one-click it here.
-            Label("Major update", systemImage: "exclamationmark.triangle.fill")
-                .font(.callout).foregroundStyle(.orange)
-                .help("Major version upgrade — review and install it from the menu-bar popover")
-        } else if model.canAutoInstall(result) {
-            Button("Update \(result.remote?.displayVersion ?? "")") { Task { await model.install(result) } }
-                .buttonStyle(.borderedProminent)
-                .help("Download and install \(result.app.name) \(result.remote?.displayVersion ?? "")")
-        } else if model.requiresInstaller(result) {
-            // Already downloaded → "Install" re-opens that exact package instead of
-            // fetching it again. See `AppListModel.stagedPackage(for:)`.
-            if let staged = model.stagedPackage(for: result) {
-                Button("Install") { Task { await model.openStagedPackage(result) } }
-                    .buttonStyle(.borderedProminent)
-                    .help("\(staged.url.lastPathComponent) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
-            } else {
-                Button("Update") { Task { await model.install(result) } }
-                    .buttonStyle(.bordered)
-                    .help("Downloads the official installer and opens it (asks for admin)")
-            }
-        } else if let info = result.remote?.appStore, !info.isRegionMismatch, !info.isLatestMacIncompatible {
-            // A wrapped iPhone/iPad app on the mas route: mas has no Mac-store entry
-            // for it, so this is a redirect rather than a one-click. Conditioned on
-            // the route, not inferred from it — this branch is reached whenever
-            // `canAutoInstall` is false, which has other causes (a declined
-            // elevation), and on the incremental route these do install from here.
-            // A Mac App Store app lands here when the privileged helper isn't
-            // approved yet — still an installed app with a pending update, so it
-            // says **Update** (what the store calls it), never "Get".
-            Button(storeManagedHere ? String(localized: "App Store") : String(localized: "Update")) {
-                if let url = info.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
-            }
-            .buttonStyle(.bordered)
-            .help(storeManagedHere
-                  ? String(localized: "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
-                  : appStoreRedirectHelp)
-        } else {
-            // Detection-only tail: no artifact, no vendorInstallerKind, no App
-            // Store route above. Mirror the popover's fallback instead of
-            // rendering nothing when there's no page either — see
-            // `DetectionOnlyAffordance` (#197). The title for `.openPage` is
-            // this host's own call (kept out of the shared type on purpose):
-            // "Open page" here, distinct from the popover's single-word "Open".
-            let affordance = DetectionOnlyAffordance.resolve(pageURL: result.remote?.pageURL)
-            let title = affordance == .revealInFinder
-                ? DetectionOnlyAffordance.revealInFinderTitle
-                : String(localized: "Open page")
-            Button(title) {
-                switch affordance {
-                case .openPage(let url):
-                    // Unlike the popover's openAction(), this always does a
-                    // plain open — it does not check for a non-http(s) scheme
-                    // and hand it to the app itself via `withApplicationAt:`.
-                    // Pre-existing gap, out of scope for #197.
-                    NSWorkspace.shared.open(url)
-                case .revealInFinder:
-                    NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
-                }
-            }
-            .buttonStyle(.bordered)
-            .help(affordance == .revealInFinder
-                  ? DetectionOnlyAffordance.revealInFinderTitle
-                  : String(localized: "Open the official download page"))
-        }
-    }
-
-    /// Why this row hands off to the App Store instead of installing in place —
-    /// same reasoning as the popover's: approving the helper is the one lever the
-    /// user has, so say so when that's what's missing.
-    /// This row hands off to the App Store because the store app is the only
-    /// thing that can update it — as opposed to handing off because a permission
-    /// is missing, which is what every other path through this branch means.
-    private var storeManagedHere: Bool {
-        result.app.isiOSAppOnMac && model.appStoreStrategyIsFullDownload
-    }
-
-    private var appStoreRedirectHelp: String {
-        if !model.helperEnabled {
-            return String(localized: "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click.")
-        }
-        return String(localized: "Update \(result.app.name) in the App Store")
-    }
-
-    @ViewBuilder
-    private func installProgress(_ stage: InstallStage) -> some View {
-        HStack(spacing: 8) {
-            if case .downloading(let f) = stage {
-                ProgressView(value: f).frame(width: 80).controlSize(.small)
-                Text("\(Int(f * 100))%")
-                    .font(.callout).foregroundStyle(.secondary)
-                    .monospacedDigit().frame(width: 40, alignment: .trailing)
-            } else {
-                ProgressView().controlSize(.small)
-                Text(stageLabel(stage)).font(.callout).foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func stageLabel(_ stage: InstallStage) -> String {
-        switch stage {
-        case .queued: return String(localized: "Queued")
-        case .checking: return String(localized: "Checking")
-        case .downloading(let f): return String(localized: "\(Int(f * 100))%")
-        case .verifyingSignature, .verifyingCodeSignature: return String(localized: "Verifying")
-        case .extracting: return String(localized: "Extracting")
-        case .installing: return String(localized: "Installing")
-        case .runningCommand: return String(localized: "Installing")
-        case .done: return String(localized: "Installed")
-        }
     }
 }
 
@@ -768,6 +612,12 @@ private struct SplitViewAutosave: NSViewRepresentable {
 
 private struct WorkbenchSidebarRow: View {
     let result: UpdateResult
+    /// Re-check just this app, and whether it is busy already. Passed in as a
+    /// closure and a flag rather than the model itself: this row is deliberately
+    /// value-typed — every one of ~145 of them re-renders on any model change if
+    /// it observes one — and these are the only two things the menu needs.
+    let checkAgain: () -> Void
+    let isChecking: Bool
     /// Whether this row is the selected one. The selection highlight is blue, and so
     /// is the update tint — so a selected update row was blue-on-blue (unreadable).
     /// When selected we render the version line in the emphasized foreground (white
@@ -785,6 +635,14 @@ private struct WorkbenchSidebarRow: View {
     let runningVersion: UpdateResult.VersionSide?
     /// Whether to show the runtime chip (Electron / Tauri / native / …).
     let showsRuntime: Bool
+    /// The user's two verdicts, and the ways back out of them. Passed in rather
+    /// than read from a model for the same reason everything else here is: this row
+    /// stays renderable without one.
+    let isIgnored: Bool
+    let isVersionSkipped: Bool
+    let toggleIgnore: () -> Void
+    let skipVersion: () -> Void
+    let clearSkip: () -> Void
 
     /// Whether the sidebar row has room for the runtime symbol.
     ///
@@ -842,6 +700,31 @@ private struct WorkbenchSidebarRow: View {
             // reason: the latter blocks the main thread until the app has finished
             // launching.
             Button("Open") { Task { await AppRestarter.launchApp(result.app.path) } }
+            // Ask about this one app, through the same entry point as the retry on
+            // a failed row in the popover. Besides re-asking the source it re-reads
+            // the app from disk, which is what corrects a stale running dot — some
+            // apps never post one of the NSWorkspace notifications that set is
+            // built from (issue #247).
+            Button("Check Again", action: checkAgain).disabled(isChecking)
+            // Skip and Ignore are here because this window SAYS they are: a skipped
+            // or ignored row draws "Skipped"/"Ignored" with the popover's own help
+            // text, which tells the user to right-click to undo it. That menu did
+            // not exist here, so the instruction was dead in all seven languages and
+            // the only way out was to reopen the menu bar. Same actions, same
+            // wording, same model calls as the popover's row menu.
+            Divider()
+            if result.hasUpdate {
+                let offered = result.remote?.displayVersion ?? String(localized: "this version")
+                if isVersionSkipped {
+                    Button("Don’t skip \(offered)", action: clearSkip)
+                } else {
+                    Button("Skip \(offered)", action: skipVersion)
+                }
+            }
+            Button(isIgnored
+                   ? String(localized: "Stop ignoring \(result.app.name)")
+                   : String(localized: "Ignore \(result.app.name)"),
+                   action: toggleIgnore)
         }
     }
 
@@ -1117,7 +1000,20 @@ private struct DetailHeader: View {
                 // The contextual primary action (Update / Relaunch / Get),
                 // so an update can be acted on right here while its notes are open —
                 // no trip back to the menu-bar popover.
-                WorkbenchActionView(result: result, model: model)
+                WorkbenchRowAction(
+                    state: model.rowState(for: result),
+                    result: result,
+                    actions: RowActions.live(
+                        install: { Task { await model.install(result) } },
+                        openStagedPackage: { Task { await model.openStagedPackage(result) } },
+                        retry: { Task { await model.retry(result) } },
+                        restart: { Task { await model.restart(result) } },
+                        relaunchStaged: { Task { await model.relaunchStagedUpdate(result) } },
+                        confirmQuit: { model.confirmQuit(result.id, proceed: true) },
+                        openSelfUpdater: { model.openSelfUpdater(result) },
+                        openToolbox: { model.openToolbox() },
+                        openTestFlight: { model.openTestFlight() }),
+                    helperEnabled: model.helperEnabled)
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")
@@ -2012,26 +1908,35 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
         // Only a link the *user* clicked in the *main* frame is redirected. Everything
-        // else is left alone on purpose:
+        // else is left alone by the outbound-link rule:
         //   • sub-frames — `decidePolicyFor` fires for iframes too, and a changelog
         //     page that embeds a video or a third-party widget would otherwise have
         //     every frame cancelled and thrown at the browser, one window each;
         //   • server-side redirects and SPA routing — a vendor moving
-        //     docs.x.com → x.com/docs is normal, and cancelling it just blanks the
-        //     pane. The URL we start from comes from our own recipe registry, not
-        //     from the page, so this is a usability boundary, not a trust boundary.
-        // One thing here IS a trust boundary: the scheme. `ChangelogURLPolicy` only
-        // vets the URL we start from, and a vendor page that redirects itself to
-        // `http://` would land cleartext content in this in-process web view
-        // anyway — which is the whole thing that policy exists to stop. Cross-host
-        // https redirects stay allowed; only the downgrade is refused.
+        //     docs.x.com → x.com/docs is normal, so cross-host HTTPS redirects stay
+        //     allowed when the destination passes `ChangelogURLPolicy`.
+        //
+        // The policy IS reapplied to every main-frame navigation, including a
+        // server redirect. Vetting only the recipe's starting URL let an accepted
+        // vendor URL redirect to an IP literal or a reserved local hostname and
+        // load an origin the policy would have refused at the door. This remains
+        // a structural gate — it cannot see which address an ordinary DNS name
+        // resolves to — but the URL the user lands on now gets the same check as
+        // the URL we start from.
         if let url = navigationAction.request.url,
            url.scheme?.lowercased() == "http" {
             decisionHandler(.cancel); return
         }
 
+        let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+        if isMainFrame,
+           let url = navigationAction.request.url,
+           !ChangelogURLPolicy.isDisplayable(url) {
+            decisionHandler(.cancel); return
+        }
+
         guard navigationAction.navigationType == .linkActivated,
-              navigationAction.targetFrame?.isMainFrame ?? true,
+              isMainFrame,
               let url = navigationAction.request.url,
               url.host != originHost,
               url.scheme == "https" || url.scheme == "http"

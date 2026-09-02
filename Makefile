@@ -1,4 +1,4 @@
-.PHONY: install cli build test notarize release
+.PHONY: install cli build test gallery notarize release
 
 # Build with a stable Developer ID signature and deploy the canonical copy to
 # /Applications. See scripts/install.sh for why the identity matters (TCC grants).
@@ -16,11 +16,17 @@ build:
 
 test:
 	python3 scripts/test_appcast_edit.py
+	python3 scripts/test_claude_lag_probe.py
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI
 	python3 scripts/check_localizable_keys.py
 	python3 scripts/check_staged_version_use.py
 	python3 scripts/check_app_audits.py
+
+# Render every row state to verify/row-states/*.png. The images are committed:
+# re-run after a UI change and read the diff. Fails if a state draws nothing.
+gallery:
+	@scripts/row-state-gallery.sh
 
 # The notarytool keychain profile both targets below need. Not a secret — the
 # credentials it names live in the keychain; this is only which of them to use.

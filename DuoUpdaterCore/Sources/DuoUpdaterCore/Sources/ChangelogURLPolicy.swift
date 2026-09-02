@@ -12,7 +12,10 @@ import Foundation
 /// The rules are deliberately structural, not an allowlist of hosts: a per-recipe
 /// host binding only becomes meaningful once recipes stop being compiled in, and
 /// guessing at vendor domains now would break legitimate documentation sites that
-/// live on a different domain than the download endpoint.
+/// live on a different domain than the download endpoint. Consequently this gate
+/// cannot tell that an otherwise ordinary DNS name resolves to a private address;
+/// callers must not describe it as DNS-rebinding protection. It does reject the
+/// local names whose destination is defined by their spelling.
 public enum ChangelogURLPolicy {
 
     /// Whether `url` may be handed to a web view.
@@ -21,12 +24,13 @@ public enum ChangelogURLPolicy {
     /// transit), URLs carrying credentials (`https://user:pass@host/` renders a
     /// convincing origin and leaks the pair), IP-literal hosts (no certificate
     /// name to reason about, and no vendor publishes notes at a bare address),
-    /// and non-standard ports.
+    /// `localhost`/`.localhost` and mDNS `.local` names, and non-standard ports.
     public static func isDisplayable(_ url: URL) -> Bool {
         guard url.scheme?.lowercased() == "https" else { return false }
         guard url.user == nil, url.password == nil else { return false }
         guard let host = url.host, !host.isEmpty else { return false }
         guard !isIPLiteral(host) else { return false }
+        guard !isLocalHostname(host) else { return false }
         if let port = url.port, port != 443 { return false }
         return true
     }
@@ -79,5 +83,19 @@ public enum ChangelogURLPolicy {
         let bare = host.count > 1 && host.hasSuffix(".") ? String(host.dropLast()) : host
         var address = in_addr()
         return inet_aton(bare, &address) != 0
+    }
+
+    /// Names whose local destination follows from the name itself, without a DNS
+    /// lookup: RFC 6761 reserves `localhost` and every name below it for loopback;
+    /// RFC 6762 gives `.local` to link-local multicast DNS. A trailing root label
+    /// and case do not change either name. Ordinary domains merely containing
+    /// these words (for example `localhost.example.com`) remain displayable.
+    static func isLocalHostname(_ host: String) -> Bool {
+        let withoutRootLabel = host.count > 1 && host.hasSuffix(".")
+            ? String(host.dropLast())
+            : host
+        let bare = withoutRootLabel.lowercased()
+        return bare == "localhost" || bare.hasSuffix(".localhost")
+            || bare == "local" || bare.hasSuffix(".local")
     }
 }

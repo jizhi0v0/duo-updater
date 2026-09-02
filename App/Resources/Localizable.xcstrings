@@ -5511,6 +5511,47 @@
         }
       }
     },
+    "Check Again": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut prüfen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobar de nuevo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier à nouveau"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再確認"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить снова"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新检查"
+          }
+        }
+      }
+    },
     "Changelog": {
       "extractionState": "manual",
       "localizations": {
@@ -9300,6 +9341,47 @@
         }
       }
     },
+    "Ignored (row status)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignoriert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignorado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignoré"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無視中"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Игнорируется"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已忽略"
+          }
+        }
+      }
+    },
     "Ignored apps": {
       "extractionState": "manual",
       "localizations": {
@@ -13002,47 +13084,6 @@
         }
       }
     },
-    "Quit the app to finish installing the update, then reopen it": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App beenden, um die Update-Installation abzuschließen, dann erneut öffnen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cierra la app para terminar de instalar la actualización y vuelve a abrirla"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quittez l'application pour terminer l'installation de la mise à jour, puis rouvrez-la"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アプリを終了して更新のインストールを完了し、再度開いてください"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Закройте приложение, чтобы завершить установку обновления, затем откройте его снова"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "退出该应用以完成更新安装，然后重新打开"
-          }
-        }
-      }
-    },
     "Rate-limited": {
       "extractionState": "manual",
       "localizations": {
@@ -13073,7 +13114,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ограничение частоты запросов"
+            "value": "Лимит запросов"
           }
         },
         "zh-Hans": {
@@ -15609,7 +15650,7 @@
         }
       }
     },
-    "Skipped": {
+    "Skipped (row status)": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -15627,7 +15668,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ignoré (version)"
+            "value": "Version ignorée"
           }
         },
         "ja": {

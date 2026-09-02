@@ -839,6 +839,44 @@ private func verdict(
     #expect(remote.publishedAt == parsed)
 }
 
+@Test func anUnreadableCapturedPublishDateIsWarnedAbout() async throws {
+    let body = #"{"version":"3.1.0","published":"sometime yesterday"}"#
+    let server = try RecipeVerificationTests.StubServer(body: body)
+    defer { server.stop() }
+    let recipe = VendorProbeRecipe(
+        bundleID: "com.example.unreadable-date", url: server.url,
+        mode: .responseBody,
+        versionPattern: #""version":"([^"]+)""#,
+        publishedAtPattern: #""published":"([^"]+)""#)
+
+    let outcome = await VendorProbeSource().probeDiagnostic(recipe)
+
+    #expect(outcome.remote?.shortVersion == "3.1.0",
+            "an optional date must not turn a good version into a probe failure")
+    #expect(outcome.remote?.publishedAt == nil)
+    #expect(outcome.failure == nil)
+    #expect(outcome.warnings == [.publishedAtUnreadable("sometime yesterday")])
+    #expect(outcome.warnings.first?.kind == "publishedAtUnreadable")
+    #expect(outcome.warnings.first?.display
+        == "publishedAtUnreadable: captured value did not parse: sometime yesterday")
+}
+
+@Test func aReadableCapturedPublishDateStaysQuiet() async throws {
+    let body = #"{"version":"3.1.0","published":"2026-09-02T06:00:00Z"}"#
+    let server = try RecipeVerificationTests.StubServer(body: body)
+    defer { server.stop() }
+    let recipe = VendorProbeRecipe(
+        bundleID: "com.example.readable-date", url: server.url,
+        mode: .responseBody,
+        versionPattern: #""version":"([^"]+)""#,
+        publishedAtPattern: #""published":"([^"]+)""#)
+
+    let outcome = await VendorProbeSource().probeDiagnostic(recipe)
+
+    #expect(outcome.remote?.publishedAt != nil)
+    #expect(outcome.warnings.isEmpty)
+}
+
 // Recipes without a publishedAtPattern must stay absent rather than inventing a
 // time — the timeline then shows its estimated "≈" window instead.
 @Test func probeWithoutPublishedAtPatternLeavesReleaseTimeUnset() {

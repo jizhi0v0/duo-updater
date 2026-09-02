@@ -2,6 +2,34 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.80
+
+**Les vérifications en échec sont désormais visibles dans la fenêtre.** La fenêtre n'affichait rien pour une ligne dont la vérification avait échoué — ni pour celles que vous aviez ignorées, celles dont vous aviez passé la version, ni celles gérées par l'App Store, Toolbox ou TestFlight. Cela ressemblait exactement à « à jour ». Les deux fenêtres disent maintenant la même chose de la même application, et le bouton de nouvelle tentative existe des deux côtés.
+
+**« Check Again » interroge, sur n'importe quelle ligne, cette seule application.** La liste des applications en cours d'exécution est relue au passage : c'est le moyen le plus rapide de corriger un point vert qui semble faux.
+
+**Passer une version et ignorer une application s'annulent maintenant depuis le menu contextuel de la fenêtre.** Les deux lignes invitaient à faire un clic droit pour annuler, dans une fenêtre dont le menu ne proposait rien de tel.
+
+**La vérification en arrière-plan ne vous retire plus les notes de version que vous êtes en train de lire.** La vérification horaire jetait toutes les notes déjà chargées, si bien qu'un volet ouvert repassait à l'indicateur de chargement. Seule une actualisation que vous demandez repart de zéro.
+
+**Les téléchargements interrompus sont vérifiés avant d'être déclarés complets.** Un serveur qui renvoyait tout le fichier, comme un serveur qui s'arrêtait trop tôt, était cru sur parole ; l'ennui apparaissait une étape plus loin, sous la forme d'une installation à partir d'une archive abîmée. Les téléchargements derrière certains proxys, qui échouaient définitivement, aboutissent maintenant.
+
+**Mettre à jour une application ne relit plus toutes les applications de votre disque.** Chaque clic effectuait deux balayages complets de vos applications, uniquement pour examiner celle que vous aviez désignée.
+
+**Les notes de version de Chrome ne peuvent plus se figer.** Une simple refonte du blog de Google suffisait à les bloquer plusieurs minutes ; elles se chargent désormais rapidement, quelle que soit l'allure de la page.
+
+**Un programme d'installation déjà téléchargé n'est plus jeté puis récupéré à nouveau.** Lorsqu'un éditeur écrivait la même version de deux façons (`v1.2.3` et `1.2.3`), le paquet en attente n'était pas reconnu, et « Relancer » pouvait attendre un remplacement déjà effectué.
+
+**Une installation administrateur qui échoue n'est plus prise pour une annulation de votre part.** Aucune erreur n'était affichée, et l'application cessait discrètement de proposer la mise à jour en un clic jusqu'à ce que vous redemandiez les droits administrateur depuis le menu de sa ligne.
+
+**Le point vert « en cours d'exécution » repère maintenant toutes les applications.** macOS n'annonce jamais l'ouverture ou la fermeture de certaines d'entre elles, et leur point restait faux jusqu'à ce qu'un événement sans rapport le rafraîchisse.
+
+**« Tout mettre à jour » ne clignote plus pendant une actualisation**, et une application mise à jour en cours d'actualisation n'est plus ramenée à l'état où elle proposait la mise à jour déjà installée.
+
+**Si la vérification échoue au moment où vous appuyez sur Mettre à jour, cela vous est dit** au lieu d'être classé comme « rien à faire ».
+
+**Sous le capot.** Les dates de publication écrites dans des formats inhabituels sont lues correctement, le contrôle d'adresse des pages de notes de version couvre toutes les écritures équivalentes, et la tenue de registre courante ne touche plus au disque chaque fois qu'une application s'ouvre ou se ferme sur votre Mac.
+
 ## 0.3.79
 
 **La marque de Docker décrit désormais l'interface de Docker et non son service d'arrière-plan.** La ligne indiquait « native » ; or Docker Desktop est une app Electron. Cette marque est lue dans le bundle de l'app, et le bundle de Docker n'est qu'une enveloppe : le programme qu'il désigne est un service d'arrière-plan écrit en Go, il n'embarque aucun framework, et l'app qui dessine réellement les fenêtres se trouve un niveau plus bas. Tout était lu correctement — simplement dans le mauvais fichier. Duo Updater regarde maintenant dans l'app imbriquée, mais uniquement lorsque celle de l'extérieur n'apporte rien d'elle-même et qu'elle contient exactement une app de ce type capable de prouver avec quoi elle est construite ; un processus d'assistance livré à côté d'une vraie interface ne peut donc toujours pas prêter son identité à son hôte. Docker se lit comme Electron 42.5.0 et, sur les cent quarante-six apps de la liste de la machine où ceci a été écrit, c'est la seule ligne qui change.

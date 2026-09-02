@@ -153,7 +153,209 @@ func render() {
               + identical.joined(separator: ", "))
         failed = true
     }
+
+    // #263: TWO of `mayLookAlike`'s seven pairs are justified in their own comment
+    // as differentiated BY the tooltip ("the help text says which one" for
+    // 10-vs-11, "the tooltip is what separates them" for 13-vs-19) — a claim
+    // nothing checked, because `.help()` text is invisible in a PNG by
+    // construction. This verifies those two rather than trusting them: collect
+    // every `.help()` string reachable from each side (via `collectHelpTexts`'s
+    // Mirror-reflection walk — see its own doc comment for the technique and its
+    // risk) and require the two sets to differ.
+    //
+    // Deliberately NOT applied to the other five pairs (15-vs-28, 18-vs-22,
+    // 17-vs-23, 27-vs-31, 29-vs-32): their own comments claim the OPPOSITE —
+    // "one button", "a tile cannot show which explanation appears", "the same
+    // marker … never reads like something we could update ourselves" — i.e. those
+    // are deliberately identical end-to-end, tooltip included, not "differentiated
+    // by a tooltip nothing here checks". Running this check against them found
+    // exactly that (identical tooltips) on a first pass — a real discovery, but not
+    // a bug: verified against `RowActionViews.swift`, all three ARE the same
+    // control/wording by design. Folding them into `tooltipDifferentiatedPairs`
+    // would have turned a correct design decision into a build failure.
+    switch tooltipsDifferentiateExemptedPairs() {
+    case .ok(let checked):
+        print("\(checked) mayLookAlike pair(s) claiming a tooltip differentiator"
+              + " checked — every one actually has a different tooltip on each side")
+    case .undifferentiated(let names):
+        print("TOOLTIP DOES NOT DIFFERENTIATE (pixels match AND every collected"
+              + " .help() string matches too — the exemption's own justification is"
+              + " false): " + names.joined(separator: ", "))
+        failed = true
+    case .extractorBroken:
+        // Distinguished from `.undifferentiated` on purpose: if Mirror found NO
+        // `.help()` text anywhere in the whole run, that is far more likely
+        // SwiftUI's private internal shape having changed out from under
+        // `collectHelpTexts` (undocumented by Apple, not guaranteed stable across
+        // an OS/Xcode update) than every single row in the app suddenly losing
+        // its tooltips. Reporting it as its own failure, rather than as N
+        // `.undifferentiated` pairs, keeps a real extractor break from reading
+        // like a wall of unrelated view regressions.
+        print("TOOLTIP EXTRACTOR FOUND NOTHING ANYWHERE: either every `.help()` in"
+              + " the app was removed, or collectHelpTexts's Mirror-reflection"
+              + " technique no longer matches this SwiftUI version's private"
+              + " HelpView<Content> shape — see that function's doc comment.")
+        failed = true
+    case .driftedFromMayLookAlike:
+        print("TOOLTIP CHECK SCOPE DRIFTED: tooltipDifferentiatedPairs names a pair"
+              + " that is no longer in RowStateGalleryCases.mayLookAlike — update"
+              + " (or remove) it to match.")
+        failed = true
+    }
+
     if failed { exit(1) }
+}
+
+/// Result of checking every `mayLookAlike` pair's tooltip text against its pixel
+/// exemption. `.extractorBroken` is kept distinct from `.undifferentiated([...])`
+/// — see the call site for why that distinction matters.
+enum TooltipCheckResult {
+    case ok(checked: Int)
+    case undifferentiated([String])
+    case extractorBroken
+    case driftedFromMayLookAlike
+}
+
+/// `.body` for `PopoverRowAction`/`WorkbenchRowAction` at a state's DEFAULT
+/// `downloadReadout`/`showsStageLabel` — the same defaults `popoverTile`'s
+/// non-explanation branch uses. Deliberately NOT `RowStateGalleryCases`'
+/// `popoverTile`/`workbenchTile`: those wrap the constructed view in `.frame(...)`
+/// and `AnyView` for the PNG pass, and `Mirror` only sees a view's STORED
+/// properties — it cannot see through an unevaluated `body` computed property, so
+/// reflecting the wrapped-but-unevaluated struct finds nothing at all (confirmed:
+/// an earlier version of this function did exactly that and always reported
+/// `.extractorBroken`). Calling `.body` explicitly, on the concrete type, forces
+/// SwiftUI to evaluate the `switch state { … }` into its actual primitive tree
+/// (`Button`, `HelpView`, `_ConditionalContent`, …) BEFORE `Mirror` ever sees it —
+/// which is also why this can't be generalized to walk an arbitrary `AnyView`:
+/// it relies on knowing the concrete type at the call site.
+@MainActor
+private func rowActionHelpTexts(surface: String, state: RowActionState, result: UpdateResult) -> [String] {
+    switch surface {
+    case "popover": return collectHelpTexts(PopoverRowAction(state: state, result: result).body)
+    case "workbench": return collectHelpTexts(WorkbenchRowAction(state: state, result: result).body)
+    default: return []
+    }
+}
+
+/// The subset of `RowStateGalleryCases.mayLookAlike` whose OWN comment claims a
+/// tooltip differentiates the pair — copied out by name rather than computed from
+/// the comment text (comments aren't data). The other five pairs there claim the
+/// opposite (deliberately identical end-to-end — see the doc comment on this
+/// function's call site for why folding them in would be wrong), so this list is
+/// intentionally shorter than `mayLookAlike` itself, not a stand-in for it.
+private let tooltipDifferentiatedPairs: Set<Set<String>> = [
+    // "Both an orange bordered Relaunch; the help text says which one."
+    ["popover/10-relaunch-to-apply-staged", "popover/11-restart-to-apply"],
+    ["workbench/10-relaunch-to-apply-staged", "workbench/11-restart-to-apply"],
+    // "Both a bordered Update: … the tooltip is what separates them."
+    ["popover/13-update-installer", "popover/19-update-app-store"],
+    ["workbench/13-update-installer", "workbench/19-update-app-store"],
+]
+
+@MainActor
+func tooltipsDifferentiateExemptedPairs() -> TooltipCheckResult {
+    // `tooltipDifferentiatedPairs` is a hand-copied subset of `mayLookAlike` — if
+    // a pair is ever dropped or renamed there without this list following, the
+    // loop below would silently skip it (the per-pair `guard` just `continue`s on
+    // a lookup miss) rather than flag the drift. Since a `Set` of `Set<String>`
+    // has no ordering to make "sorted().joined" complain about, catching this
+    // takes an explicit subset check.
+    guard tooltipDifferentiatedPairs.isSubset(of: RowStateGalleryCases.mayLookAlike) else {
+        return .driftedFromMayLookAlike
+    }
+
+    let byName = Dictionary(uniqueKeysWithValues: RowStateGalleryCases.all.map { ($0.0, $0) })
+    var totalHelpStringsFound = 0
+    var undifferentiated: [String] = []
+    var checked = 0
+
+    for pair in tooltipDifferentiatedPairs {
+        let members = pair.sorted()
+        guard members.count == 2,
+              let slashA = members[0].firstIndex(of: "/"),
+              let slashB = members[1].firstIndex(of: "/") else { continue }
+        let surfaceA = String(members[0][..<slashA]), nameA = String(members[0][members[0].index(after: slashA)...])
+        let surfaceB = String(members[1][..<slashB]), nameB = String(members[1][members[1].index(after: slashB)...])
+        // The three explanation-content names (38–40) aren't in `RowStateGalleryCases
+        // .all`'s SURFACE-neutral form the way this lookup wants — they're not part
+        // of any `mayLookAlike` pair today, so this is a defensive guard, not a
+        // known gap.
+        guard surfaceA == surfaceB,
+              let (_, stateA, resultA) = byName[nameA],
+              let (_, stateB, resultB) = byName[nameB] else { continue }
+
+        let helpA = Set(rowActionHelpTexts(surface: surfaceA, state: stateA, result: resultA))
+        let helpB = Set(rowActionHelpTexts(surface: surfaceA, state: stateB, result: resultB))
+        totalHelpStringsFound += helpA.count + helpB.count
+        checked += 1
+        if helpA == helpB {
+            undifferentiated.append("\(surfaceA): \(nameA) vs \(nameB)"
+                                     + " (tooltip set: \(helpA.sorted()))")
+        }
+    }
+
+    guard totalHelpStringsFound > 0 else { return .extractorBroken }
+    guard undifferentiated.isEmpty else { return .undifferentiated(undifferentiated.sorted()) }
+    return .ok(checked: checked)
+}
+
+/// Recursively finds every `.help(...)` payload in a rendered view's tree via
+/// `Mirror` reflection. SwiftUI wraps a `.help()` call in a private `HelpView
+/// <Content>` type carrying the wrapped content plus the help text as a `Text`;
+/// walking for a node whose runtime type name starts with `"HelpView<"` and
+/// pulling every `String` leaf out of its `text` child recovers the tooltip
+/// content with no accessibility tree, no window, and no on-screen anchor —
+/// unlike every other AX-driving technique this repo has needed (see memory
+/// `duo-updater-ax-popover-driving`), because this walks a view VALUE this
+/// process itself constructed, not another process's rendered window.
+///
+/// Verified against SwiftUI's current (2026-09, Xcode 27 beta) internal shape for
+/// both patterns `PopoverRowAction`/`WorkbenchRowAction` actually use: a literal
+/// `.help("...")` (stored as a `LocalizedStringKey`) and `.help(someString)`
+/// (stored as a verbatim `String`) — both landed inside the same `HelpView`
+/// wrapper's `text` child, just with different internal storage underneath, which
+/// is why this walks for ANY `String` leaf rather than one specific storage shape.
+/// Also verified past an unrelated sibling `.help()` in the same `HStack`, and
+/// (separately, in a throwaway probe — not exercised by this file's actual call
+/// site, which never wraps in `AnyView`) confirmed to still work through `AnyView`
+/// erasure.
+///
+/// Fragile BY CONSTRUCTION: `HelpView` and its internal layout are undocumented
+/// SwiftUI implementation details, not a stable public contract, and Apple can
+/// reshape them on any OS/Swift Toolchain update with no compiler error — this
+/// would simply stop finding anything. `tooltipsDifferentiateExemptedPairs()`'s
+/// `.extractorBroken` case is the guard against that turning into silent false
+/// failures (or worse, a silent false pass) if it ever happens.
+@MainActor
+func collectHelpTexts(_ any: Any, depth: Int = 0) -> [String] {
+    // A real view tree from this app is nowhere near this deep; the cutoff exists
+    // so a future SwiftUI internal shape with a reference cycle in its Mirror
+    // children (unlikely, but undocumented territory) fails closed with an empty
+    // result — caught by `.extractorBroken` — rather than hanging.
+    guard depth <= 60 else { return [] }
+    let mirror = Mirror(reflecting: any)
+    var found: [String] = []
+    if String(describing: mirror.subjectType).hasPrefix("HelpView<") {
+        for child in mirror.children where child.label == "text" {
+            found.append(contentsOf: stringLeaves(child.value))
+        }
+    }
+    for child in mirror.children {
+        found.append(contentsOf: collectHelpTexts(child.value, depth: depth + 1))
+    }
+    return found
+}
+
+private func stringLeaves(_ any: Any, depth: Int = 0) -> [String] {
+    guard depth <= 60 else { return [] }
+    if let s = any as? String { return [s] }
+    let mirror = Mirror(reflecting: any)
+    var found: [String] = []
+    for child in mirror.children {
+        found.append(contentsOf: stringLeaves(child.value, depth: depth + 1))
+    }
+    return found
 }
 
 // `ImageRenderer` and AppKit are main-actor bound, and a `tool` target's top level

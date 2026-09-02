@@ -1829,11 +1829,42 @@ public enum ChangelogRecipeRegistry {
         ChangelogRecipe(
             bundleID: "com.google.Chrome",
             source: URL(string: "https://chromereleases.googleblog.com/search/label/Stable%20updates")!,
+            // Every gap here is written so that a FAILING match costs one pass, not
+            // a combinatorial search. This pattern used to be four unbounded lazy
+            // gaps (`.*?`) in a row, which is fine while the page still matches and
+            // ruinous the day it stops — and a vendor restyle is exactly "it stops".
+            // Measured against the live 852 KB page (6 posts) with the old form:
+            // renaming the closing `</script>` ran past 150 s, and a page whose
+            // 4-part build numbers went away took 20.6 s, both on a thread the
+            // caller is awaiting. Every gap below is now either
+            //
+            //   • an atomic group `(?>…)` around a gap AND the literal that ends it,
+            //     so once the first publishdate (then the first template opener)
+            //     after the title is found, a later failure cannot send the engine
+            //     back to look for another one; or
+            //   • a lookahead, which is atomic in ICU: the version is located once,
+            //     and a failure downstream cannot retry against the next
+            //     version-shaped number in the body.
+            //
+            // Same seven mutations, new form: worst case 0.074 s, and the pristine
+            // page still yields the identical two entries. `ChromeChangelogPatternTests`
+            // pins that with a generated page (the real one is too big to commit).
+            //
+            // What NOT to reach for here: `(?:…)*+` and `(?>(?:…)*)` over the BODY.
+            // A possessive/atomic run silently stops matching past ~250 000
+            // characters — measured: 100 000 matches, 250 000 does not, and the
+            // failure is a quiet "no match", not an error. Chrome's second post is
+            // a 324 KB body, so that form drops it and the pane loses an entry with
+            // nothing anywhere saying so. The gaps below are atomic only across
+            // spans of a few hundred characters, well under that limit.
             entryPattern:
-                #"title='Stable Channel Update for Desktop'>.*?"#
-                + #"<span class='publishdate'[^>]*>\s*(?<date>[^<]+?)\s*</span>.*?"#
-                + #"<script type='text/template'>\s*"#
-                + #"(?<body>.*?(?<version>\d+\.\d+\.\d+\.\d+).*?)</script>"#,
+                #"title='Stable Channel Update for Desktop'>"#
+                + #"(?>(?:(?!<span class='publishdate').)*?"#
+                + #"<span class='publishdate'[^>]*>\s*(?<date>[^<]+?)\s*</span>)"#
+                + #"(?>(?:(?!<script type='text/template'>).)*?"#
+                + #"<script type='text/template'>\s*)"#
+                + #"(?=(?:(?!</script>).)*?(?<version>\d+\.\d+\.\d+\.\d+))"#
+                + #"(?<body>(?:(?!</script>).)*?)</script>"#,
             itemPatterns: [
                 #"(?<item>CVE-\d{4}-\d+:[^<]*)"#,
                 #"<p[^>]*>(?<item>(?:(?!</p>).)*?(?:promotion of Chrome|been updated to)(?:(?!</p>).)*?)</p>"#,

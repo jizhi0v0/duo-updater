@@ -55,17 +55,20 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
 - ⚠️ **别裸跑 `xcodegen generate`**:它会把 `DEVELOPMENT_TEAM` 写空,当场不报错,下一次
   `make install` 才炸在 "requires a development team"。`scripts/row-state-gallery.sh` 像
   `install.sh` 一样先 `export DUO_TEAM_ID` 再生成,照抄这个做法。
-- **改了行的画法就跑 `make gallery`**,它把 34 个状态 × 两个界面渲染到
-  `verify/row-states/{popover,workbench}/*.png`,共 68 张。**这些图是提交进仓库的**,
+- **改了行的画法就跑 `make gallery`**,它把 40 个状态 × 两个界面渲染到
+  `verify/row-states/{popover,workbench}/*.png`,共 80 张。**这些图是提交进仓库的**,
   所以改动会以图片 diff 的形式出现在 PR 里;两边对同一状态画得不一致,也会并排显示出来。
   脚本先 `rm -rf verify/row-states` 再渲染(渲染器只写不删,改名过一次就留下 8 张孤儿图),
-  并 pin 住 `AppleLanguages` / `AppleLocale` / Light —— `ImageRenderer` 跟着宿主的外观和
-  语言走,在深色模式或非英文环境下重跑会把 68 张全改写成与本次改动无关的 diff。
+  并用 `-AppleInterfaceStyle Light` 钉住外观 —— `ImageRenderer` 跟着宿主外观走,
+  在深色模式下重跑会把 80 张全改写成与本次改动无关的 diff。
+  ⚠️ 脚本里那两行 `export AppleLanguages` / `AppleLocale` **对字符串是空操作**,别当成
+  它在"选语言"。原因见下面「只渲染英文」那条:这个 target 里根本没有译文可选。
 - **新增状态必须在 `RowStateGalleryCases.all` 里登记**。那份清单是手写的、不是从 enum 派生的
   ——派生会自动把新状态画出来,正好掩盖"加了状态但没人画它"这件事。
-- `make gallery` 有两道闸,都会让构建失败:
+- `make gallery` 有五道闸,都会让构建失败:
 
-  1. **某个状态什么都没画**。`mayBeBlank` 里只有工作台的三个 `up-to-date`,而且
+  1. **某个状态什么都没画**。`mayBeBlank` 目前是工作台的 `30-up-to-date` 加三张解释面板
+     (`38`/`39`/`40`,工作台没有对应视图),而且
      白名单的 key 是「界面/状态」不是「状态」—— popover 对同一状态画的是对勾,按名字
      豁免会把检测器在 popover 那半边一起卸掉。⚠️ 判空要**逐像素扫**:第一版用采样网格,
      把 `no-source-covers` 误报成空白——它只有一个几像素高的淡 em dash,网格跨过去了。
@@ -86,6 +89,11 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   4. **豁免已经不需要了**。`mayLookAlike` 是手维护的,一条不再匹配任何东西的豁免就是给
      未来的漂移发的免检证。把视图改严的那个人,正是该顺手撤掉豁免的人,所以这条也让
      构建失败(加 TestFlight 按钮时当场抓到一条)。
+     ⚠️ **`mayBeBlank` 没有这道检测**(#271):一条不再匹配的判空豁免留着照样全绿,那张图
+     就永久免检。改了某个状态的画法、让它从空白变成有内容时,得**自己**回去撤掉那条。
+  5. **`DownloadReadout` 的枚举顺序被改了**。`AppRow` 走 `allCases` 取第一个合身的,所以
+     那个声明顺序就是算法本身,重排会静默改掉每一行下载中的读数,没有编译错误、也没有
+     别的测试看得见。图片 diff 是现象不是断言,所以单独一道闸钉它。
 
   ⚠️ **碰撞比对要跟「所有」同摘要的前驱比,不能只比一个。** 三个状态撞在一起、其中两对
   已豁免时,只留一个前驱会让第三对永远不报,而且报不报取决于这份清单的编号顺序——它
@@ -104,14 +112,28 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   就坏,跟 `.popover` 无关)。受影响的三张登记在 `notFaithful` 里,每次运行都打印出来:
   popover 的两个琥珀徽章和地球徽章。**这三张的画面不能当真**,同一状态看工作台那张
   (它用 `Label`,渲染是对的)。
-- ⚠️ **gallery 只渲染英文**(脚本 pin 了 `AppleLanguages='(en)'`,否则重跑就是满屏无关 diff)。
+- ⚠️ **gallery 只渲染英文,而且换语言也没用**。`RowStateGallery` 是 `type: tool`,产物是裸
+  Mach-O 不是 `.app`,`App/project.yml` 里只有 app 那一个 target 有 resources 阶段——所以
+  `Localizable.xcstrings` 根本没被编进去,视图里的 `String(localized:)` 无论进程 locale 是什么
+  都返回英文。(实测:`Build/Products/Debug/RowStateGallery` 下没有 `.lproj`、没有
+  `Localizable.strings`;#263 第一版正是照 gallery 的做法渲染真视图,结果**在每种语言里都在量英文**。)
   所以**译文溢出这类事故它结构性看不见**,而这个仓库真出过(见 memory「状态行没空间加字」,
   es 只剩 9pt)。跟着 popover 抄状态文案时,`.lineLimit(1)` + `.minimumScaleFactor(0.7)`
   要一起抄——工作台第一版把这两个丢了,而它用的是更大的 `.callout`,俄语
   `Ограничение частоты запросов` 27 个字符会直接挤掉应用名。
-- **`.help()` 的文案没有任何检查能看**,PNG 里根本不存在。所以"只差 tooltip"这个豁免理由
-  是有代价的:目前 13/34 个状态的"两边一致"实际上压在没人验的 tooltip 上。写这种豁免时
-  要意识到自己在花什么。
+- **译文宽度改跑 `make width-check`**(#263):它绕开渲染,直接读 `App/Resources/Localizable.xcstrings`
+  的译文值,用各调用点真实的字体/控件量自然宽度,结果提交在 `verify/row-state-widths/{en,fr,ru}.txt`。
+  ⚠️ **它的 320pt 闸很松,别把它读成"溢出已经守住了"**:最宽的实测是 ru 的
+  `Not supported on this Mac` 194.5pt,余量 125.5pt(~1.65 倍)。真正起作用的是那三份**提交进仓库的
+  测量文件**——译文一变就是一份可评审的数字 diff,跟 PNG 一个机制;`growth_ratio` 列 ≥2.0x 会打印
+  `HIGH GROWTH` 但**不拦构建**(ru `Rate-limited` 现在就是 2.73x)。硬拦会当场红:今天已有 8 条
+  在架字符串超过任何一个整数倍阈值。
+- **`.help()` 的文案在 PNG 里根本不存在**,所以"只差 tooltip"这个豁免理由是有代价的。
+  #263 补了一半:`mayLookAlike` 的 12 对里,**只有两对**的注释真的声称"靠 tooltip 区分"
+  (10/11 和 13/19),现在有检查用 `Mirror` 反射把两边的 `.help()` 收出来比对。⚠️ 那是
+  SwiftUI 私有的 `HelpView<Content>` 形状,OS/Xcode 升级可能失配——所以"到处都没收到 help
+  文案"会单独报 `TOOLTIP EXTRACTOR FOUND NOTHING` 而不是静默放行。剩下十对的注释写的是
+  **故意画成一样**(不是靠 tooltip 区分),没有被这条检查覆盖,也不该被覆盖。
 
 顺带:`App/project.yml` 仍然没有测试 target,所以 `App/Sources` 里的判断没人执行。
 `RowActionStateTests`(Core)钉的是**哪个条件赢**,gallery 钉的是**画出来长什么样**,

@@ -502,6 +502,8 @@ struct WorkbenchWindowView: View {
             ForEach(filteredApps) { result in
                 WorkbenchSidebarRow(
                     result: result,
+                    checkAgain: { Task { await model.retry(result) } },
+                    isChecking: model.installing[result.id] != nil,
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
@@ -526,6 +528,8 @@ struct WorkbenchWindowView: View {
             ForEach(brewCasks) { result in
                 WorkbenchSidebarRow(
                     result: result,
+                    checkAgain: { Task { await model.retry(result) } },
+                    isChecking: model.installing[result.id] != nil,
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
@@ -768,6 +772,12 @@ private struct SplitViewAutosave: NSViewRepresentable {
 
 private struct WorkbenchSidebarRow: View {
     let result: UpdateResult
+    /// Re-check just this app, and whether it is busy already. Passed in as a
+    /// closure and a flag rather than the model itself: this row is deliberately
+    /// value-typed — every one of ~145 of them re-renders on any model change if
+    /// it observes one — and these are the only two things the menu needs.
+    let checkAgain: () -> Void
+    let isChecking: Bool
     /// Whether this row is the selected one. The selection highlight is blue, and so
     /// is the update tint — so a selected update row was blue-on-blue (unreadable).
     /// When selected we render the version line in the emphasized foreground (white
@@ -842,6 +852,12 @@ private struct WorkbenchSidebarRow: View {
             // reason: the latter blocks the main thread until the app has finished
             // launching.
             Button("Open") { Task { await AppRestarter.launchApp(result.app.path) } }
+            // Ask about this one app, through the same entry point as the retry on
+            // a failed row in the popover. Besides re-asking the source it re-reads
+            // the app from disk, which is what corrects a stale running dot — some
+            // apps never post one of the NSWorkspace notifications that set is
+            // built from (issue #247).
+            Button("Check Again", action: checkAgain).disabled(isChecking)
         }
     }
 

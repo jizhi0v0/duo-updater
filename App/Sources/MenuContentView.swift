@@ -1100,6 +1100,12 @@ private struct AppRow: View {
         // the main thread until the app has finished launching.
         Button("Open") { Task { await AppRestarter.launchApp(result.app.path) } }
         Button("Changelog") { openChangelog() }
+        // Ask about this one app. Same entry point as the retry on a failed row —
+        // one question, one answer — and the cheap way to correct a row whose
+        // running dot has gone stale (issue #247). Disabled while the row is busy,
+        // which is also what `retry` itself refuses on.
+        Button("Check Again") { Task { await model.retry(result) } }
+            .disabled(stage != nil)
         Divider()
         if result.hasUpdate {
             let offered = result.remote?.displayVersion ?? String(localized: "this version")

@@ -487,13 +487,22 @@ final class AppListModel {
     /// invokes lazily (`rowState(for:)` passes `self.rowRoute(for: result)` into an
     /// `@autoclosure` parameter) rather than a stored value, so building
     /// `RouteInputs` — which calls `canAutoInstall` / `requiresInstaller` /
-    /// `defersToSelfUpdater` and, for installer rows, stats disk via
-    /// `stagedPackage(for:)` — only happens for a row that actually reaches
-    /// `.updateAvailable`. See `RowActionFacts.route`'s doc comment.
+    /// `defersToSelfUpdater` unconditionally and, when `requiresInstaller` is
+    /// true, reads `stagedPackage(for:)` too — only happens for a row that
+    /// actually reaches `.updateAvailable`. See `RowActionFacts.route`'s doc
+    /// comment, and the note below on what changed inside that boundary.
     private func rowRoute(for result: UpdateResult) -> UpdateRoute {
         // `requiresInstaller` is read twice below (the gate, and the installer
-        // rung itself); computed once here rather than reasked, which also means
-        // `stagedPackage(for:)` — the disk stat — only runs when it can matter.
+        // rung itself); computed once here rather than reasked. This does NOT
+        // narrow when `stagedPackage(for:)` runs — with the ladder collapsed into
+        // one struct, it runs whenever `requiresInstaller` is true, including rows
+        // that go on to resolve as `.majorUpgrade`, `.selfUpdater`, `.toolbox` or
+        // `.testFlight`, none of which reached it in the old short-circuiting
+        // `if`/`else if` chain. It stays cheap for a different reason:
+        // `stagedPackage(for:)` guards on the `stagedPackages[result.id]`
+        // dictionary lookup FIRST, and that is nil for nearly every row (a staged
+        // package is rare), so the `fileExists` stat behind it is skipped before
+        // it runs, not because this call site is skipped.
         let requiresInstaller = requiresInstaller(result)
         return UpdateRoute.resolve(RouteInputs(
             isToolboxManaged: result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged,

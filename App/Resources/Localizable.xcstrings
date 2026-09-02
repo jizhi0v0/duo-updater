@@ -13114,7 +13114,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ограничение частоты запросов"
+            "value": "Лимит запросов"
           }
         },
         "zh-Hans": {

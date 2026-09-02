@@ -65,6 +65,21 @@ public enum VersionComparator {
     ///
     /// This is `RestartStandoff.decide`'s rule, which was the one place in the
     /// codebase that had it right, lifted so everything else can share it.
+    ///
+    /// "Agree" means `compare` calls them equal, not that the strings match. The
+    /// two sides of a comparison are read at different moments, and often from
+    /// different places — a feed and an `Info.plist`, a persisted offer and the
+    /// current one — and a vendor who respells a release between them (`v1.2.3`
+    /// then `1.2.3`, `1.0` then `1.0.0`, `1.02` then `1.2`) makes the pair differ
+    /// as strings while naming one version. Under raw `==` such a pair was "not
+    /// newer" and "not the same" at once, and `hasReached` — the disjunction of
+    /// the two — could stay false for a swap that had plainly landed.
+    ///
+    /// The tokenizer's separator class is wide: `.` `-` `_` `+` space and
+    /// parentheses are one separator, so `1.0 (123)` and `1.0.123` are the same
+    /// build here. That is deliberate — macOS writes builds both ways — but it is
+    /// the widest thing this call now accepts, so it is pinned in the tests
+    /// rather than left for someone to discover.
     public static func isSame(_ lhs: VersionSide, as rhs: VersionSide) -> Bool {
         let comparable: [(String, String)] = [
             (lhs.marketing, rhs.marketing),
@@ -74,7 +89,7 @@ public enum VersionComparator {
             return (mine, theirs)
         }
         guard !comparable.isEmpty else { return false }
-        return comparable.allSatisfy { $0.0 == $0.1 }
+        return comparable.allSatisfy { compare($0.0, $0.1) == .orderedSame }
     }
 
     /// True when `disk` has reached `target` — the landing test for a swap we are

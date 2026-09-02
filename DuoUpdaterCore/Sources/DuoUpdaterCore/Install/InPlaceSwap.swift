@@ -368,11 +368,37 @@ public enum InPlaceSwap {
 
     /// Whether an `osascript … with administrator privileges` failure is the user
     /// dismissing the prompt rather than the script going wrong. AppleScript
-    /// reports a cancelled authentication as error `-128`; the accompanying text
-    /// is localized, so the code is what we match on and the English phrasing is
-    /// only a fallback.
+    /// reports a cancelled authentication as error `-128`, and the code is the
+    /// *only* thing matched: the message beside it is localized.
+    ///
+    /// **The shape, measured rather than assumed.** osascript prints one line,
+    /// LF-terminated (hence the trim), and renders the code as its final
+    /// parenthesised token. Run on this machine across five languages, the text
+    /// changes and the token does not:
+    ///
+    ///     en      0:17: execution error: User canceled. (-128)
+    ///     en-GB   0:17: execution error: User cancelled. (-128)
+    ///     de      0:17: execution error: Von Benutzer:in abgebrochen. (-128)
+    ///     zh-Hans 0:17: execution error: 用户已取消。 (-128)
+    ///
+    /// So the trailing token is read and nothing else. `-128` anywhere earlier is
+    /// a different fact — the start of a longer code (`-12805`), a path the
+    /// failing command echoed (`Foo-128.app`), or the shell's own stderr: TN2065
+    /// specifies that a non-zero exit makes `do shell script` raise the *status*
+    /// as the error number and the child's stderr as the message, so
+    /// `… Foo-128.app: Operation not permitted (1)` is a real failure that a
+    /// substring match recorded as the user's decision. (The parentheses are
+    /// osascript's own rendering of the number; TN2065 describes the AppleScript
+    /// error, not the formatting.)
+    ///
+    /// **No English backstop.** Matching `"User canceled"` as well used to look
+    /// like cheap insurance and was the same defect one clause over: it fires on a
+    /// genuine `mv` failure under a path called `User Canceled.app`, and it cannot
+    /// buy a single true positive, because every osascript error line carries the
+    /// code. It did not even cover the English it was named for — en-GB and en-AU
+    /// spell it `User cancelled.`, which that needle misses.
     static func isAuthorizationDeclined(_ stderr: String) -> Bool {
-        stderr.contains("-128") || stderr.localizedCaseInsensitiveContains("User canceled")
+        stderr.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("(-128)")
     }
 
     /// `target` must be an absolute path to an existing, non-symlink `.app`

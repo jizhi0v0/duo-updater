@@ -42,8 +42,8 @@ import Foundation
 /// harness used for exactly this kind of question. No `AppleLanguages` pinning, no
 /// process relaunch per language, no dependency on `DuoUpdaterCore` or SwiftUI.
 ///
-/// What a pass proves, precisely
-/// ------------------------------
+/// What a pass proves, precisely — and the headroom this admits to
+/// -----------------------------------------------------------------
 /// This measures NATURAL (unconstrained) width — a string's width in its font with
 /// no line limit applied — compared against `tileWidth`, NOT a simulation of
 /// either window's real layout. `PopoverRowAction`'s real neighbour, in
@@ -51,21 +51,34 @@ import Foundation
 /// width to a wide button rather than clipping it; `WorkbenchRowAction`'s only
 /// production home (`WorkbenchWindowView.DetailHeader`) sits after a `Spacer()`
 /// with roughly 900pt of window behind it. Nothing in this codebase hard-clips at
-/// `tileWidth` today. What DOES hold: every tile in the committed English sheet
-/// was drawn at exactly this width, so it is the widest any state's content has
-/// ever actually been reviewed at — a string that needs MORE than that in another
-/// language is asking for room no screenshot in this repo has shown to a human.
-/// A pass is not a promise that nothing can ever look cramped in production; it is
-/// a promise that this string, in this language, is not asking for more room than
-/// the English baseline the sheet already treats as normal — the previously
-/// invisible half of the failure class this exists to surface.
+/// `tileWidth` today, and `tileWidth` was never derived from one — it is the box
+/// every committed tile happens to be drawn into, not a measured production
+/// ceiling.
 ///
-/// The report also prints each string's growth versus its English width, even
-/// when it stays under budget: informational, not a second gate — there is no
-/// non-arbitrary "acceptable growth" number to enforce, but the magnitude is worth
-/// a human's eyes (Russian `Rate-limited` is +103pt over English at `.caption2`
-/// while still clearing a 320pt budget by a wide margin, which is exactly the kind
-/// of number a reviewer should see even though nothing here fails on it).
+/// **Say the number plainly: the widest string measured across en/ru/fr is
+/// `workbench/Not supported on this Mac [label:callout]` at 194.5pt (ru), against
+/// a 320pt budget — 125.5pt of headroom, ~1.65x. A gate with that much slack
+/// cannot fire on anything realistic, and could not have caught the failure that
+/// motivated this issue (the status line left 9pt in Spanish — a different view
+/// this tool structurally can't reach, see above — not 125pt). A PASS from the
+/// OVERFLOW gate below means "not wider than the widest tile this repo has
+/// committed a screenshot of", nothing stronger.**
+///
+/// **The actual signal is the GROWTH RATIO, and it is not a second gate — it is
+/// the primary deliverable.** Every line in `verify/row-state-widths/*.txt` carries
+/// `growth_ratio` (width ÷ its English width, same kind). A translation change
+/// shows up there as a reviewable numeric diff the same way a rendering change
+/// shows up as a PNG diff — read it, don't just check the exit code. To make that
+/// legible without asking a reviewer to scan 150+ rows by hand, any string whose
+/// ratio is 2.0x or more is echoed to the console as `HIGH GROWTH` — informational,
+/// not gating (see `highGrowthRatio`'s own doc comment for why 2.0, chosen before
+/// looking at what it would catch, not tuned to spare any specific string). It
+/// currently catches eight (four per language): ru `Rate-limited`/`Verifying` on
+/// both surfaces (2.7x — `Rate-limited` is the exact string CLAUDE.md already
+/// names as risky) and fr `Verifying`/`Installing` on both surfaces (2.3x). None
+/// of those are false positives to explain away; they are real, already-shipped
+/// translations legitimately larger than anything this sheet has shown a
+/// reviewer, surfaced rather than hidden behind a 320pt pass.
 @MainActor
 func run() -> Bool {
     let languages = Array(CommandLine.arguments.dropFirst())
@@ -99,6 +112,9 @@ func run() -> Bool {
         var lines: [String] = []
         var overflow: [String] = []
         var missing: [String] = []
+        var highGrowth: [String] = []
+        var widestWidth: CGFloat = 0
+        var widestTile = ""
 
         for entry in MeasuredString.all {
             let english = entry.english
@@ -116,20 +132,34 @@ func run() -> Bool {
                 let width = occurrence.kind.width(of: value)
                 let budget = tileWidth
                 let isOver = width > budget
+                let tileLabel = "\(occurrence.surface)/\(entry.key) [\(occurrence.kind.reportKey)]"
                 let baseline = englishWidthByKind[occurrence.kind.reportKey] ?? width
                 let delta = width - baseline
+                // Guards a division by (near-)zero baseline (an empty/near-empty
+                // English string) from reporting a meaningless huge ratio.
+                let ratio = baseline > 0.5 ? width / baseline : 1.0
                 lines.append(
-                    "\(occurrence.surface)/\(entry.key) [\(occurrence.kind.reportKey)]"
+                    tileLabel
                     + "\t\(fmt(width))\t\(fmt(budget))\t\(isOver ? "OVERFLOW" : "ok")"
-                    + "\t\(String(format: "%+.1f", delta))")
+                    + "\t\(String(format: "%+.1f", delta))\t\(String(format: "%.2f", ratio))")
                 if isOver {
-                    overflow.append("\(occurrence.surface)/\(entry.key) [\(occurrence.kind.reportKey)]"
-                                     + " = \"\(value)\" (\(fmt(width))pt > \(fmt(budget))pt)")
+                    overflow.append("\(tileLabel) = \"\(value)\" (\(fmt(width))pt > \(fmt(budget))pt)")
+                }
+                // See the file header ("What a pass proves") for why this is
+                // informational rather than a second gate, and why 2.0 was picked
+                // before looking at what it would catch.
+                if ratio >= highGrowthRatio, lang != "en" {
+                    highGrowth.append("\(tileLabel) = \"\(value)\" (\(String(format: "%.2f", ratio))x"
+                                       + " English's \(fmt(baseline))pt → \(fmt(width))pt)")
+                }
+                if width > widestWidth {
+                    widestWidth = width
+                    widestTile = tileLabel
                 }
             }
         }
 
-        let header = "tile\twidth_pt\tbudget_pt\tstatus\tdelta_vs_en_pt\n"
+        let header = "tile\twidth_pt\tbudget_pt\tstatus\tdelta_vs_en_pt\tgrowth_ratio\n"
         let report = header + lines.sorted().joined(separator: "\n") + "\n"
         let reportURL = outDir.appendingPathComponent("\(lang).txt")
         do {
@@ -146,18 +176,42 @@ func run() -> Bool {
                   + " but this means catalogue coverage regressed): \(missing.joined(separator: ", "))")
             overallFailed = true
         }
+        // Deliberately NOT "overflow is guarded" language — see the file header's
+        // "headroom this admits to". Widest-observed + headroom is stated every
+        // run so this can't be misread as a tight bound in a console scrollback
+        // either, not just in the doc comment.
+        let headroom = tileWidth - widestWidth
         if overflow.isEmpty {
-            print("\(lang): no string exceeds the \(fmt(tileWidth))pt tile width")
+            print("\(lang): no string exceeds the \(fmt(tileWidth))pt tile width"
+                  + " (widest: \(widestTile) at \(fmt(widestWidth))pt —"
+                  + " \(fmt(headroom))pt of headroom left in that budget)")
         } else {
             print("\(lang): OVERFLOW — \(overflow.count) string(s) exceed the tile width:")
             for o in overflow.sorted() { print("  \(o)") }
             overallFailed = true
+        }
+        if !highGrowth.isEmpty {
+            print("\(lang): HIGH GROWTH (≥\(String(format: "%.1f", highGrowthRatio))x English's width —"
+                  + " informational, does not fail the build; see the file header):")
+            for g in highGrowth.sorted() { print("  \(g)") }
         }
     }
     return !overallFailed
 }
 
 private func fmt(_ v: CGFloat) -> String { String(format: "%.1f", v) }
+
+/// A translation drawing at least this many times its English natural width —
+/// picked as a round number BEFORE measuring what it would catch (not tuned to
+/// clear or catch any specific string), so it isn't a threshold reverse-engineered
+/// from the data it grades. Applied per (key, kind), same units `delta_vs_en_pt`
+/// already reports. See the file header ("What a pass proves") for why this is
+/// informational only, not a second gate: doubling in one language is not
+/// inherently a defect (Cyrillic and multi-word German equivalents routinely run
+/// long), so failing the build on it would mean either fixing translations this
+/// tool has no authority over or inventing an exemption list under time pressure
+/// — surfacing it for a human is the honest amount of automation here.
+let highGrowthRatio: CGFloat = 2.0
 
 /// Mirrors `RowStateGalleryCases.tileWidth` (`App/RowStateGallery/Cases.swift`) —
 /// the box every committed `verify/row-states/*.png` tile is drawn into.

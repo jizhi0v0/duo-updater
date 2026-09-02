@@ -255,9 +255,8 @@ public struct AppScanner: Sendable {
     /// Scan all configured locations and return the apps found, sorted by name.
     public func scan() -> [InstalledApp] {
         let fm = FileManager.default
-        var seen = Set<String>()
+        var pass = EntryPass()
         var apps: [InstalledApp] = []
-        var skippedSidecars = 0
 
         for dir in locations {
             guard let entries = try? fm.contentsOfDirectory(
@@ -266,33 +265,95 @@ public struct AppScanner: Sendable {
                 options: [.skipsHiddenFiles]
             ) else { continue }
 
-            for entry in entries where entry.pathExtension == "app" {
-                // A backup/duplicate bundle parked next to the real app — same id,
-                // same everything, just a dead path. Checked on the ORIGINAL entry
-                // name (pre-symlink-resolution): that's the name that marks it.
-                if Self.isSidecarCopy(entry) {
-                    skippedSidecars += 1
-                    continue
-                }
-                // Resolve symlinks: /Applications/Utilities often links Apple
-                // system apps out of /System (e.g. Feedback Assistant). Those are
-                // OS-managed by Software Update, not us — skip them, and dedupe on
-                // the real path so a symlink can't smuggle one back in.
-                let resolved = entry.resolvingSymlinksInPath()
-                if resolved.path.hasPrefix("/System/") { continue }
-                guard seen.insert(resolved.path).inserted else { continue }
-                if let app = readApp(at: resolved) {
+            for entry in entries {
+                if let app = admit(entry, pass: &pass) {
                     apps.append(app)
                 }
             }
         }
 
-        apps = Self.dedupeIdenticalInstalls(apps)
-        if skippedSidecars > 0 {
-            Log.scan.info("skipped \(skippedSidecars, privacy: .public) sidecar backup/duplicate bundle(s)")
-        }
+        apps = finish(apps, pass: pass)
         Log.scan.info("scanned \(self.locations.count, privacy: .public) locations → \(apps.count, privacy: .public) apps")
-        return apps.sorted {
+        return apps
+    }
+
+    /// Re-read a known set of bundles — the per-row form of `scan()`, for a
+    /// recheck of one app (or a handful) that should not pay for a sweep of every
+    /// location on the machine (issue #226). Each URL goes through exactly the
+    /// entry rules a directory listing goes through (`admit`), then the same
+    /// dedupe and sort (`finish`), so the row that comes back is the row the full
+    /// scan would have produced for that bundle. `locations` is not consulted.
+    ///
+    /// A bundle that is gone yields nothing: `readApp` finds no Info.plist and the
+    /// URL simply contributes no row. Callers rely on that — "missing from the
+    /// result" is how `recheckMany` reports "uninstalled since the last scan".
+    ///
+    /// On `dedupeIdenticalInstalls`: a row the caller holds already survived the
+    /// dedupe of the full scan it came from, and the clone it would have folded
+    /// into (or that folded into it) sits at a different path that is not in this
+    /// list — so re-reading the row alone returns the row. The dedupe still runs
+    /// here so a caller that does hand over two clones gets the full scan's
+    /// first-wins answer in list order, not two rows.
+    ///
+    /// One rule a directory listing applies that this cannot: `.skipsHiddenFiles`.
+    /// A dot-prefixed bundle passed here explicitly is read. No row can come from
+    /// one, so the App's recheck never meets the difference.
+    public func scan(bundlesAt bundles: [URL]) -> [InstalledApp] {
+        var pass = EntryPass()
+        var apps: [InstalledApp] = []
+        for bundle in bundles {
+            // A directory listing hands `admit` directory URLs (trailing slash), and
+            // that URL becomes `InstalledApp.path` — the row's `Hashable` identity.
+            // A caller building the URL by hand gets the same value only if it is
+            // shaped the same way; `path` strips the slash, so the difference is
+            // invisible in logs and in `id`, and visible only to `==`.
+            let asDirectory = URL(fileURLWithPath: bundle.path, isDirectory: true)
+            if let app = admit(asDirectory, pass: &pass) {
+                apps.append(app)
+            }
+        }
+        apps = finish(apps, pass: pass)
+        Log.scan.info("re-read \(bundles.count, privacy: .public) bundle(s) → \(apps.count, privacy: .public) apps")
+        return apps
+    }
+
+    /// Bookkeeping that spans one pass of `admit` calls: the resolved paths already
+    /// taken, and how many sidecar bundles were turned away (logged once).
+    private struct EntryPass {
+        var seen = Set<String>()
+        var skippedSidecars = 0
+    }
+
+    /// The per-entry rules, in one place so `scan()` and `scan(bundlesAt:)` cannot
+    /// drift: `.app` only, sidecar names turned away, symlinks resolved, anything
+    /// under `/System/` skipped, one row per resolved path, then `readApp`.
+    private func admit(_ entry: URL, pass: inout EntryPass) -> InstalledApp? {
+        guard entry.pathExtension == "app" else { return nil }
+        // A backup/duplicate bundle parked next to the real app — same id,
+        // same everything, just a dead path. Checked on the ORIGINAL entry
+        // name (pre-symlink-resolution): that's the name that marks it.
+        if Self.isSidecarCopy(entry) {
+            pass.skippedSidecars += 1
+            return nil
+        }
+        // Resolve symlinks: /Applications/Utilities often links Apple
+        // system apps out of /System (e.g. Feedback Assistant). Those are
+        // OS-managed by Software Update, not us — skip them, and dedupe on
+        // the real path so a symlink can't smuggle one back in.
+        let resolved = entry.resolvingSymlinksInPath()
+        if resolved.path.hasPrefix("/System/") { return nil }
+        guard pass.seen.insert(resolved.path).inserted else { return nil }
+        return readApp(at: resolved)
+    }
+
+    /// The whole-pass rules that follow `admit`: collapse identical installs,
+    /// report the sidecars turned away, sort by name.
+    private func finish(_ apps: [InstalledApp], pass: EntryPass) -> [InstalledApp] {
+        let deduped = Self.dedupeIdenticalInstalls(apps)
+        if pass.skippedSidecars > 0 {
+            Log.scan.info("skipped \(pass.skippedSidecars, privacy: .public) sidecar backup/duplicate bundle(s)")
+        }
+        return deduped.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }

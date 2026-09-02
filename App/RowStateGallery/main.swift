@@ -19,7 +19,8 @@ func render() {
     let outDir = URL(fileURLWithPath: "verify/row-states", isDirectory: true)
     try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
 
-    var written = 0
+    var written: [String] = []
+    var unrendered: [String] = []
     var blank: [String] = []
     /// surface → rendered bytes → EVERY state that drew them. All of them, not
     /// just the first: comparing a new tile against a single predecessor makes the
@@ -44,7 +45,11 @@ func render() {
               let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff),
               let png = rep.representation(using: .png, properties: [:]) else {
-            FileHandle.standardError.write(Data("could not render \(surface)/\(name)\n".utf8))
+            // NOT just a stderr line. The output directory is wiped before every
+            // run, so a tile that does not render leaves no file at all — which is
+            // "a state nobody drew", the one thing this tool exists to refuse. It
+            // used to `continue` and let the run exit 0.
+            unrendered.append("\(surface)/\(name)")
             continue
         }
         // A state that draws nothing is the bug this whole gallery is for, so it is
@@ -71,13 +76,21 @@ func render() {
         }
         drawn[surface, default: [:]][digest, default: []].append(name)
         let surfaceDir = outDir.appendingPathComponent(surface, isDirectory: true)
-        try? FileManager.default.createDirectory(at: surfaceDir, withIntermediateDirectories: true)
-        try? png.write(to: surfaceDir.appendingPathComponent("\(name).png"))
-        written += 1
+        do {
+            try FileManager.default.createDirectory(
+                at: surfaceDir, withIntermediateDirectories: true)
+            try png.write(to: surfaceDir.appendingPathComponent("\(name).png"))
+            written.append("\(surface)/\(name)")
+        } catch {
+            // Same reasoning as the render failure: a discarded write is a missing
+            // committed tile. It was `try?`, and `written` was incremented anyway,
+            // so the run could report 68 tiles with 67 on disk.
+            unrendered.append("\(surface)/\(name) (\(error.localizedDescription))")
+        }
     }
     }
 
-    print("rendered \(written) states → \(outDir.path)")
+    print("rendered \(written.count) states → \(outDir.path)")
     // Named every run rather than left in a comment: a picture that lies is worse
     // than no picture, and the only defence is that nobody opens these three
     // expecting the truth.
@@ -85,6 +98,28 @@ func render() {
           + " button — read the workbench tile for these states instead): "
           + RowStateGalleryCases.notFaithful.sorted().joined(separator: ", "))
     var failed = false
+    if !unrendered.isEmpty {
+        print("NOT WRITTEN (no tile on disk for these states): "
+              + unrendered.joined(separator: ", "))
+        failed = true
+    }
+    // An exemption that no longer matches anything is a standing permission for a
+    // divergence to reappear unreported, and the list is maintained by hand. Making
+    // the tightening of a view fail the build is the point: whoever made the two
+    // tiles differ is the person who should retire the exemption.
+    let drawnPairs = Set(drawn.flatMap { surface, byDigest in
+        byDigest.values.flatMap { names in
+            names.flatMap { a in names.map { b in Set(["\(surface)/\(a)", "\(surface)/\(b)"]) } }
+        }
+    }.filter { $0.count == 2 })
+    let deadExemptions = RowStateGalleryCases.mayLookAlike.subtracting(drawnPairs)
+    if !deadExemptions.isEmpty {
+        print("DEAD EXEMPTION (these no longer draw alike — drop them from"
+              + " mayLookAlike): "
+              + deadExemptions.map { $0.sorted().joined(separator: " == ") }
+                  .sorted().joined(separator: ", "))
+        failed = true
+    }
     if blank.isEmpty {
         print("no state renders blank")
     } else {

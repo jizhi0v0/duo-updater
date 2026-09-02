@@ -154,9 +154,6 @@ enum RowStateGalleryCases {
         // "Toolbox owns the update" and "Toolbox owns the app" are one button.
         ["popover/15-update-toolbox", "popover/28-managed-toolbox"],
         ["workbench/15-update-toolbox", "workbench/28-managed-toolbox"],
-        // Workbench only: it draws a plain "TestFlight" label for both. The popover
-        // offers a Button for the update case, so there the two DO differ.
-        ["workbench/16-update-testflight", "workbench/29-managed-testflight"],
         // Popover only: both are a bordered "Open" — into the app's own updater, or
         // onto its download page. The workbench labels them differently.
         ["popover/17-update-self-updater", "popover/23-update-detection-only"],

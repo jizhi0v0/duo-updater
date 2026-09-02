@@ -1120,10 +1120,18 @@ struct LaggingRemoteVersionTests {
              stderr: "0:0: execution error: User canceled. (-128)", expected: true),
             (name: "a localized cancellation still carries the code",
              stderr: "0:0: execution error: 使用者已取消。 (-128)", expected: true),
-            (name: "an English cancellation without the code",
-             stderr: "User canceled.", expected: true),
+            // Real osascript output is LF-terminated — measured, 45 bytes for the
+            // English line. The fixture is a *localized* cancel on purpose: with an
+            // English one, deleting the trim still passes, because the old English
+            // substring clause rescued it. This case is what makes the trim
+            // load-bearing in the table as well as in production.
             (name: "osascript ends the line with a newline, which must not defeat the anchor",
-             stderr: "0:17: execution error: User canceled. (-128)\n", expected: true),
+             stderr: "0:17: execution error: Von Benutzer:in abgebrochen. (-128)\n", expected: true),
+            // The English text is not a signal. It is absent on en-GB ("User
+            // cancelled."), and present in failures that are nobody's decision —
+            // see the `User Canceled.app` case below.
+            (name: "an English cancellation without the code is not one",
+             stderr: "User canceled.", expected: false),
             (name: "a genuine failure must not be mistaken for a refusal",
              stderr: "mv: rename /Applications/Fixture.app: Operation not permitted", expected: false),
             (name: "empty stderr is not a refusal",
@@ -1140,7 +1148,10 @@ struct LaggingRemoteVersionTests {
             (name: "a bare longer code",
              stderr: "-1280", expected: false),
             (name: "a version-like file name",
-             stderr: "App-1.28.dmg", expected: false),
+             stderr: "App-128.dmg", expected: false),
+            (name: "a real failure under a path that names the English phrase",
+             stderr: "0:42: execution error: mv: rename /Users/x/User Canceled.app: Operation not permitted (1)",
+             expected: false),
             (name: "a shell failure whose stderr names a -128 path; the status is the code",
              stderr: "0:42: execution error: mv: rename /Applications/Foo-128.app: Operation not permitted (1)", expected: false),
             (name: "a shell that printed (-128) itself still failed with its own status",

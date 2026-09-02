@@ -396,6 +396,14 @@ final class Preferences {
     /// exactly what they did when they were written.
     static let stagedPackageBuildField = "build"
 
+    /// The marketing half of the source's comparable version pair. The empty
+    /// string records an explicitly-absent marketing version; a missing field is
+    /// an older entry and is decoded with the legacy `version` value instead.
+    /// Keeping those two cases distinct matters for `versionIsBuild` sources:
+    /// their display version is a build, but it must never be compared against an
+    /// installed marketing version.
+    static let stagedPackageMarketingField = "marketing"
+
     /// Overwrite the staged-package map (the model recomputes it each rescan).
     func setStagedPackages(_ map: [String: [String: String]]) {
         stagedPackages = map

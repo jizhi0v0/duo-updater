@@ -8,7 +8,7 @@ import Foundation
 /// **What it saves.** `UpdatePolicy.runtimeBundlePath` calls
 /// `resolvingSymlinksInPath()`, which is a `realpath` — a filesystem walk, not a
 /// string operation. The running set is recomputed on the main thread on every
-/// `NSWorkspace` launch/terminate notification for *any* process on the machine.
+/// change to `NSWorkspace.runningApplications` — for *any* process on the machine.
 /// Measured on the development machine in a release build, over a live snapshot
 /// of 129 bundle URLs (106 distinct paths):
 ///

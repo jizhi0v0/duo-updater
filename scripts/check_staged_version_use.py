@@ -53,6 +53,11 @@ LEDGER_OK = "buildIdentity"
 # `VersionComparator.isNewer(_:than:)`/`isSame(_:as:)` is what replaced them.
 MARKETING_FIRST = re.compile(
     r"(?:shortVersion|displayVersion)\s*\?\?\s*[\w.]*[Bb]uildVersion")
+# `RemoteVersion.displayVersion` already hides that fallback one level down, so
+# passing it into `VersionSide(marketing:)` is the same bug without a literal
+# `??` for the rule above to see.
+DISPLAY_VERSION_AS_MARKETING = re.compile(
+    r"VersionSide\s*\([^)]*marketing:\s*[\w.]*displayVersion", re.DOTALL)
 # A site where marketing-first IS correct because BOTH sides are marketing by
 # construction opts out by name, on the line or anywhere in the comment block
 # directly above it. A marker beats
@@ -132,6 +137,7 @@ def in_package_scope(lines, index):
 
 def main() -> int:
     display_hits, ledger_hits, compare_hits, read_hits = [], [], [], []
+    display_marketing_hits = []
     ledger_seen = 0
     marketing_seen = 0
     files = list(swift_files())
@@ -139,6 +145,11 @@ def main() -> int:
     for path in files:
         rel = path.relative_to(ROOT)
         lines = path.read_text(encoding="utf-8").splitlines()
+        source = "\n".join(lines)
+        for match in DISPLAY_VERSION_AS_MARKETING.finditer(source):
+            line = source.count("\n", 0, match.start()) + 1
+            display_marketing_hits.append(
+                f"{rel}:{line}: displayVersion passed as marketing")
         for n, line in enumerate(lines, 1):
             # `Log.` lines are diagnostics read by whoever is holding the log
             # beside the code, not text shown to a user. Left alone on purpose.
@@ -200,6 +211,13 @@ def main() -> int:
               "/ .isSame(_:as:).")
         for hit in compare_hits:
             print(f"    {hit}")
+    if display_marketing_hits:
+        print(f"✗ {len(display_marketing_hits)} `displayVersion` value(s) passed "
+              "as `VersionSide.marketing`.")
+        print("  `displayVersion` is marketing-first but falls back to a build; "
+              "copy the source's `versionSide` instead.")
+        for hit in display_marketing_hits:
+            print(f"    {hit}")
     if read_hits:
         print(f"\u2717 {len(read_hits)} change-detector(s) reading only the marketing "
               "half off disk.")
@@ -207,7 +225,8 @@ def main() -> int:
               "`readVersionSide` so the build can break the tie.")
         for hit in read_hits:
             print(f"    {hit}")
-    if display_hits or ledger_hits or compare_hits or read_hits:
+    if (display_hits or ledger_hits or compare_hits or display_marketing_hits
+            or read_hits):
         return 1
 
     print(f"✓ version comparisons discriminate — {len(files)} files, "

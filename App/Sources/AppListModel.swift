@@ -3458,23 +3458,17 @@ final class AppListModel {
     // MARK: - Staged installer packages
 
     /// An installer package already downloaded for this row and handed to macOS's
-    /// installer. `version` is the version that package installs, so a newer release
-    /// invalidates it rather than silently re-opening a stale installer.
+    /// installer. `version` is its display label; `versionSide` identifies the build
+    /// it installs, so a newer release invalidates it rather than silently re-opening
+    /// a stale installer.
     struct StagedPackage: Sendable, Equatable {
         let version: String
-        /// The build the package installs, when the source reported one. Absent on
-        /// entries persisted before this field existed, and for sources that report
-        /// no build at all — in both cases the pair below degrades to marketing
-        /// only, which is what this always was.
-        let buildVersion: String?
-
         /// The comparable pair. Everything asking "is this the version on offer"
-        /// or "has it landed" uses this: `version` alone is a marketing string,
-        /// equal release after release for a vendor that freezes it, which made
-        /// those questions answer "yes" before the installer had run.
-        var versionSide: VersionSide {
-            VersionSide(marketing: version, build: buildVersion)
-        }
+        /// or "has it landed" uses this. It is copied from the source rather than
+        /// rebuilt from `version`, because `version` is marketing-first DISPLAY:
+        /// for a `versionIsBuild` source it contains a build string, and putting
+        /// that into `marketing` would compare two different namespaces.
+        let versionSide: VersionSide
         let url: URL
         /// When the package was handed to macOS's installer. Used to tell a copy
         /// running the OLD code (launched before this) from one the vendor's own
@@ -3499,9 +3493,21 @@ final class AppListModel {
             let stagedAt = fields[Preferences.stagedPackageStagedAtField]
                 .flatMap(TimeInterval.init).map(Date.init(timeIntervalSince1970:))
                 ?? .distantPast
+            // New entries persist the source's marketing half explicitly, using
+            // an empty string for "the source reported none". A missing field is a
+            // pre-migration entry whose `version` historically served as marketing;
+            // preserve that comparison rather than invalidating an in-flight pkg.
+            let marketing: String?
+            if let stored = fields[Preferences.stagedPackageMarketingField] {
+                marketing = stored.isEmpty ? nil : stored
+            } else {
+                marketing = version
+            }
             restored[id] = StagedPackage(
                 version: version,
-                buildVersion: fields[Preferences.stagedPackageBuildField],
+                versionSide: VersionSide(
+                    marketing: marketing,
+                    build: fields[Preferences.stagedPackageBuildField]),
                 url: URL(fileURLWithPath: path), stagedAt: stagedAt)
         }
         stagedPackages = restored
@@ -3509,9 +3515,9 @@ final class AppListModel {
     }
 
     private func recordStagedPackage(_ result: UpdateResult, packageURL: URL) {
-        guard let version = result.remote?.displayVersion else { return }
+        guard let remote = result.remote, let version = remote.displayVersion else { return }
         stagedPackages[result.id] = StagedPackage(
-            version: version, buildVersion: result.remote?.version,
+            version: version, versionSide: remote.versionSide,
             url: packageURL, stagedAt: Date())
         persistStagedPackages()
         Log.install.info("package staged: \(result.app.name, privacy: .public) \(version, privacy: .public) → \(packageURL.lastPathComponent, privacy: .public)")
@@ -3640,7 +3646,11 @@ final class AppListModel {
                 Preferences.stagedPackagePathField: $0.url.path,
                 Preferences.stagedPackageStagedAtField:
                     String($0.stagedAt.timeIntervalSince1970),
-            ].merging($0.buildVersion.map {
+                // Presence distinguishes a new entry whose source has no
+                // marketing version (empty) from a legacy entry (missing).
+                Preferences.stagedPackageMarketingField:
+                    $0.versionSide.marketing ?? "",
+            ].merging($0.versionSide.build.map {
                 [Preferences.stagedPackageBuildField: $0]
             } ?? [:], uniquingKeysWith: { a, _ in a })
         })

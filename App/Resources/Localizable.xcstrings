@@ -9341,6 +9341,47 @@
         }
       }
     },
+    "Ignored (row status)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignoriert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignorado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignoré"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無視中"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Игнорируется"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已忽略"
+          }
+        }
+      }
+    },
     "Ignored apps": {
       "extractionState": "manual",
       "localizations": {
@@ -15609,7 +15650,7 @@
         }
       }
     },
-    "Skipped": {
+    "Skipped (row status)": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -15627,7 +15668,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ignoré (version)"
+            "value": "Version ignorée"
           }
         },
         "ja": {

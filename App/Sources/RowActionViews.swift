@@ -30,6 +30,26 @@ func installStageLabel(_ stage: InstallStage) -> String {
     }
 }
 
+/// Muted tag for a row hidden from update checks. A distinct catalog key from
+/// `SettingsSection.label` (case `.ignored`) on purpose: that one is a **plural**
+/// page heading ("Ignored" apps), and several languages translated it as such
+/// (es "Ignoradas", fr "Ignorées", ru "Игнорируемые" — all plural). Sharing that
+/// key here read as a plural describing the single app on this row. Shared
+/// between this file and `PopoverRowAction`, same reasoning as `sourceHint`.
+func ignoredRowLabel() -> String {
+    String(localized: "Ignored (row status)", defaultValue: "Ignored",
+           comment: "Muted tag on a single row for an app hidden from update checks. Keep this singular — it is not the plural Settings page heading of the same English word.")
+}
+
+/// Muted tag for a row whose offered version the user skipped. A distinct key
+/// from the popover's original value, which carried a disambiguating
+/// parenthetical sized for a tiny `.caption2` tag (fr: "Ignoré (version)") that
+/// reads oddly once also drawn at the workbench's larger `.callout`.
+func skippedRowLabel() -> String {
+    String(localized: "Skipped (row status)", defaultValue: "Skipped",
+           comment: "Muted tag on a single row for a version the user skipped — short, standalone, no parenthetical qualifier.")
+}
+
 /// The row actions both windows can trigger, as plain closures.
 ///
 /// The views below take these rather than an `AppListModel`, which is what makes
@@ -126,12 +146,12 @@ struct WorkbenchRowAction: View {
             installProgress(stage)
 
         case .ignored:
-            Text("Ignored").font(.callout).foregroundStyle(.tertiary)
+            Text(ignoredRowLabel()).font(.callout).foregroundStyle(.tertiary)
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .help("Hidden from update checks — right-click to stop ignoring")
 
         case .versionSkipped:
-            Text("Skipped").font(.callout).foregroundStyle(.tertiary)
+            Text(skippedRowLabel()).font(.callout).foregroundStyle(.tertiary)
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .help("You skipped this version — right-click to un-skip")
 

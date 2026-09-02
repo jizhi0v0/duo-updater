@@ -39,6 +39,14 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
 
 规矩:
 
+- **两个窗口的动作一律走 `RowActions.live(...)`**,不要直接用 `RowActions(...)`。九个闭包
+  全都默认空实现(gallery 需要),于是漏接一个能编译、跑起来是个死按钮——工作台的
+  `openTestFlight` 就这么静默死过一轮。`live` 没有默认值,加第十个动作会在两个调用点同时
+  报错,而不是在被忘掉的那个点上安静下去。
+- **`RowActionFacts.route` 是 `@autoclosure`,别改成值。** 只有 `.updateAvailable` 那一级读它,
+  而算它是组装 facts 里最贵的部分(反复重建 `InstallEnvironment`,pkg 行还要 stat 磁盘)。
+  写成普通参数就是每行每次重绘都算一遍,包括正在装、被忽略、等退出确认这些根本读不到它的行
+  ——跟 `ListActivity.canOfferUpdateAll` 同一个坑。`routeIsDeferred` 数闭包调用次数钉住了它。
 - **渲染所需的一切都放进 state 或视图入参**,别让视图回头问 model(staged 版本号、安装包
   文件名、`managedHere` 进了 state;`downloadReadout`/`showsStageLabel` 这类由行测量出来的
   布局量当入参传下去)。这不是洁癖:`PopoverRowAction` / `WorkbenchRowAction` 靠这条才能
@@ -72,6 +80,13 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   理由写的是"**工作台**故意把两个闸合并成一个 Label",顺手关掉了 popover 那半边,而
   popover 恰恰必须把它们画成地球徽章和三角徽章。判空那条的文档里写过这个道理,
   重复图这条上又犯了一遍。
+  3. **某张图根本没写到盘上**(渲染返回 nil,或写盘抛错)。输出目录每次先 `rm -rf`,
+     所以这两种情况都等于「committed sheet 里永久少一张」,而第一版只往 stderr 写一行就
+     `continue`、`written` 照加,构建全绿——正好绕开这个工具存在的理由。
+  4. **豁免已经不需要了**。`mayLookAlike` 是手维护的,一条不再匹配任何东西的豁免就是给
+     未来的漂移发的免检证。把视图改严的那个人,正是该顺手撤掉豁免的人,所以这条也让
+     构建失败(加 TestFlight 按钮时当场抓到一条)。
+
   ⚠️ **碰撞比对要跟「所有」同摘要的前驱比,不能只比一个。** 三个状态撞在一起、其中两对
   已豁免时,只留一个前驱会让第三对永远不报,而且报不报取决于这份清单的编号顺序——它
   被重编过号。判空豁免掉的图不参与碰撞比对(空白跟空白必然相同,那不是信号)。

@@ -21,8 +21,12 @@ func render() {
 
     var written = 0
     var blank: [String] = []
-    /// surface → rendered bytes → the state that drew them first.
-    var drawn: [String: [String: String]] = [:]
+    /// surface → rendered bytes → EVERY state that drew them. All of them, not
+    /// just the first: comparing a new tile against a single predecessor makes the
+    /// outcome depend on the order the cases happen to be listed in, and this list
+    /// gets renumbered. With three states sharing a picture and two of the three
+    /// pairs exempt, keeping only one predecessor lets the third pair go unreported.
+    var drawn: [String: [String: [String]]] = [:]
     var identical: [String] = []
     // Both surfaces, from the same state. Rendering them side by side is the point:
     // a state that reads differently in the two windows shows up as two tiles that
@@ -45,8 +49,8 @@ func render() {
         }
         // A state that draws nothing is the bug this whole gallery is for, so it is
         // reported rather than silently written as an empty tile.
-        if RowStateGalleryCases.isBlank(rep),
-           !RowStateGalleryCases.mayBeBlank.contains("\(surface)/\(name)") {
+        let isBlank = RowStateGalleryCases.isBlank(rep)
+        if isBlank, !RowStateGalleryCases.mayBeBlank.contains("\(surface)/\(name)") {
             blank.append("\(surface)/\(name)")
         }
         // Two states that draw the SAME pixels on one surface means the view is not
@@ -56,12 +60,16 @@ func render() {
         // because the blank check only asks whether SOMETHING was drawn. States
         // whose pictures are legitimately identical (only the tooltip differs) are
         // listed in `mayLookAlike`.
+        // Blank tiles collide with every other blank tile by construction, so the
+        // collision gate has nothing to say about them — the blank gate above is the
+        // one that judges those.
         let digest = png.base64EncodedString()
-        if let twin = drawn[surface]?[digest],
-           !RowStateGalleryCases.mayLookAlike.contains([twin, name]) {
+        for twin in isBlank ? [] : drawn[surface]?[digest] ?? []
+        where !RowStateGalleryCases.mayLookAlike
+            .contains(["\(surface)/\(twin)", "\(surface)/\(name)"]) {
             identical.append("\(surface)/\(twin) == \(surface)/\(name)")
         }
-        drawn[surface, default: [:]][digest] = name
+        drawn[surface, default: [:]][digest, default: []].append(name)
         let surfaceDir = outDir.appendingPathComponent(surface, isDirectory: true)
         try? FileManager.default.createDirectory(at: surfaceDir, withIntermediateDirectories: true)
         try? png.write(to: surfaceDir.appendingPathComponent("\(name).png"))

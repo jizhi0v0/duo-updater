@@ -15,9 +15,33 @@ enum RowStateGalleryCases {
         path: URL(fileURLWithPath: "/Applications/Example.app"),
         isMASApp: false, sparkleFeedURL: nil)
 
-    private static func result(appStore: AppStoreAvailability? = nil) -> UpdateResult {
+    /// Same app, but flagged as store-managed / TestFlight / Sparkle-fed. Several
+    /// branches key off the ROW rather than the state — `.upToDate` and the source
+    /// hint both do — so with one plain fixture five branches were drawn by nothing.
+    /// Exactly the failure the App Store fixtures above exist to prevent, one file
+    /// over.
+    private static let masInstalled = InstalledApp(
+        name: "Example", bundleID: "com.example.app",
+        shortVersion: "1.2.3", buildVersion: "1230",
+        path: URL(fileURLWithPath: "/Applications/Example.app"),
+        isMASApp: true, sparkleFeedURL: nil)
+    private static let sparkleInstalled = InstalledApp(
+        name: "Example", bundleID: "com.example.app",
+        shortVersion: "1.2.3", buildVersion: "1230",
+        path: URL(fileURLWithPath: "/Applications/Example.app"),
+        isMASApp: false, sparkleFeedURL: URL(string: "https://example.com/appcast.xml"))
+    private static let testFlightInstalled = InstalledApp(
+        name: "Example", bundleID: "com.example.app",
+        shortVersion: "1.2.3", buildVersion: "1230",
+        path: URL(fileURLWithPath: "/Applications/Example.app"),
+        isMASApp: false, isTestFlightApp: true, sparkleFeedURL: nil)
+
+    private static func result(
+        app: InstalledApp = installed,
+        appStore: AppStoreAvailability? = nil
+    ) -> UpdateResult {
         UpdateResult(
-            app: installed,
+            app: app,
             remote: RemoteVersion(
                 shortVersion: "1.3.0", version: "1300",
                 downloadURL: URL(string: "https://example.com/Example.dmg"),
@@ -88,6 +112,14 @@ enum RowStateGalleryCases {
         ("28-managed-toolbox", .managedElsewhere(.toolbox), app),
         ("29-managed-testflight", .managedElsewhere(.testFlight), app),
         ("30-up-to-date", .upToDate, app),
+        // `.upToDate` is not one picture: a store-managed or TestFlight app keeps
+        // its channel marker so it never reads like something we could update
+        // ourselves, and the source hint has three answers of its own. The workbench
+        // draws EmptyView for all of them — deliberate, and now visible as such.
+        ("31-up-to-date-app-store", .upToDate, result(app: masInstalled)),
+        ("32-up-to-date-testflight", .upToDate, result(app: testFlightInstalled)),
+        ("33-no-source-covers-app-store", .noSourceCovers, result(app: masInstalled)),
+        ("34-no-source-covers-sparkle", .noSourceCovers, result(app: sparkleInstalled)),
     ]
 
     /// Tiles that are ALLOWED to draw nothing — keyed by SURFACE and state, not by
@@ -96,31 +128,50 @@ enum RowStateGalleryCases {
     /// on the popover's checkmark, so a regression there would report "nothing is
     /// blank". Everything not listed drawing nothing is the bug this gallery exists
     /// to catch.
-    static let mayBeBlank: Set<String> = ["workbench/30-up-to-date"]
+    static let mayBeBlank: Set<String> = [
+        "workbench/30-up-to-date",
+        "workbench/31-up-to-date-app-store",
+        "workbench/32-up-to-date-testflight",
+    ]
 
-    /// Pairs of states that legitimately draw the same picture on a surface, where
-    /// only the tooltip differs. Everything else drawing identical pixels means a
-    /// view is ignoring part of the state — see the check in `main.swift`.
+    /// Pairs of states that legitimately draw the same picture, keyed
+    /// `surface/state` — the SAME rule `mayBeBlank` follows, and for the same
+    /// reason. Written first with bare state names, which earned each exemption on
+    /// one surface and switched the check off on the other for free: four of the
+    /// seven below hold on one surface only. The worst was the App Store pair,
+    /// justified by what the WORKBENCH draws (one amber Label for both gates) while
+    /// silently disarming the popover, where those two must stay a globe badge and
+    /// a triangle badge — the whole reason this window is called the richer one.
     static let mayLookAlike: Set<Set<String>> = [
-        // Both are an orange bordered "Relaunch"; the help text says which one.
-        ["10-relaunch-to-apply-staged", "11-restart-to-apply"],
+        // Both an orange bordered "Relaunch"; the help text says which one.
+        ["popover/10-relaunch-to-apply-staged", "popover/11-restart-to-apply"],
+        ["workbench/10-relaunch-to-apply-staged", "workbench/11-restart-to-apply"],
+        // Both a bordered "Update": the pkg route downloads an installer, the App
+        // Store route hands off to the store. Same word because the store uses it
+        // too; the tooltip is what separates them.
+        ["popover/13-update-installer", "popover/19-update-app-store"],
+        ["workbench/13-update-installer", "workbench/19-update-app-store"],
         // "Toolbox owns the update" and "Toolbox owns the app" are one button.
-        ["15-update-toolbox", "28-managed-toolbox"],
-        ["16-update-testflight", "29-managed-testflight"],
-        // Both are a bordered "Update": the pkg route downloads an installer, the
-        // App Store route hands off to the store. Same word because the store uses
-        // it too; the tooltip is what separates them.
-        ["13-update-installer", "19-update-app-store"],
-        // Both are a bordered "Open" — into the app's own updater, or onto its
-        // download page. Verified in `PopoverRowAction`: `openSelfUpdaterButton`
-        // and `openButtonTitle`'s `.openPage` are both the single word "Open".
-        ["17-update-self-updater", "23-update-detection-only"],
-        // Both are the amber triangle that opens an explanation popover; which
-        // explanation appears is the difference, and a tile cannot show that.
-        ["18-update-major-upgrade", "22-update-app-store-mac-incompatible"],
-        // The workbench deliberately collapses both App Store gates into one amber
-        // Label and points at the popover — the tooltip names which gate it is.
-        ["21-update-app-store-region-locked", "22-update-app-store-mac-incompatible"],
+        ["popover/15-update-toolbox", "popover/28-managed-toolbox"],
+        ["workbench/15-update-toolbox", "workbench/28-managed-toolbox"],
+        // Workbench only: it draws a plain "TestFlight" label for both. The popover
+        // offers a Button for the update case, so there the two DO differ.
+        ["workbench/16-update-testflight", "workbench/29-managed-testflight"],
+        // Popover only: both are a bordered "Open" — into the app's own updater, or
+        // onto its download page. The workbench labels them differently.
+        ["popover/17-update-self-updater", "popover/23-update-detection-only"],
+        // Popover only: both are an amber triangle opening an explanation popover,
+        // and a tile cannot show which explanation appears.
+        ["popover/18-update-major-upgrade", "popover/22-update-app-store-mac-incompatible"],
+        // Workbench only: it collapses both App Store gates into one amber Label and
+        // points at the popover; the tooltip names which gate it is.
+        ["workbench/21-update-app-store-region-locked", "workbench/22-update-app-store-mac-incompatible"],
+        // Popover only, and deliberate: a store-managed app that is CURRENT keeps
+        // the same marker as one the store manages generally, so a managed row never
+        // reads like something we could update ourselves — a bare checkmark looks
+        // identical to Sparkle's. The code says so at `.upToDate`'s isMASApp branch.
+        ["popover/27-managed-app-store", "popover/31-up-to-date-app-store"],
+        ["popover/29-managed-testflight", "popover/32-up-to-date-testflight"],
     ]
 
     /// Tiles whose PICTURE is a harness artifact and must not be read as the real
@@ -148,7 +199,7 @@ enum RowStateGalleryCases {
     /// `24-no-source-covers` as blank: its glyph is a single faint em dash a few
     /// pixels tall, and the grid stepped straight over it. A false "blank" here
     /// would send someone hunting a rendering bug that does not exist, so the tile
-    /// is small enough (640×88) to just look at all of it.
+    /// is small enough (672×120) to just look at all of it.
     static func isBlank(_ rep: NSBitmapImageRep) -> Bool {
         guard let first = rep.colorAt(x: 0, y: 0) else { return false }
         for x in 0..<rep.pixelsWide {

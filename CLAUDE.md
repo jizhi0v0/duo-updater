@@ -47,17 +47,17 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
 - ⚠️ **别裸跑 `xcodegen generate`**:它会把 `DEVELOPMENT_TEAM` 写空,当场不报错,下一次
   `make install` 才炸在 "requires a development team"。`scripts/row-state-gallery.sh` 像
   `install.sh` 一样先 `export DUO_TEAM_ID` 再生成,照抄这个做法。
-- **改了行的画法就跑 `make gallery`**,它把 30 个状态 × 两个界面渲染到
-  `verify/row-states/{popover,workbench}/*.png`,共 60 张。**这些图是提交进仓库的**,
+- **改了行的画法就跑 `make gallery`**,它把 34 个状态 × 两个界面渲染到
+  `verify/row-states/{popover,workbench}/*.png`,共 68 张。**这些图是提交进仓库的**,
   所以改动会以图片 diff 的形式出现在 PR 里;两边对同一状态画得不一致,也会并排显示出来。
   脚本先 `rm -rf verify/row-states` 再渲染(渲染器只写不删,改名过一次就留下 8 张孤儿图),
   并 pin 住 `AppleLanguages` / `AppleLocale` / Light —— `ImageRenderer` 跟着宿主的外观和
-  语言走,在深色模式或非英文环境下重跑会把 60 张全改写成与本次改动无关的 diff。
+  语言走,在深色模式或非英文环境下重跑会把 68 张全改写成与本次改动无关的 diff。
 - **新增状态必须在 `RowStateGalleryCases.all` 里登记**。那份清单是手写的、不是从 enum 派生的
   ——派生会自动把新状态画出来,正好掩盖"加了状态但没人画它"这件事。
 - `make gallery` 有两道闸,都会让构建失败:
 
-  1. **某个状态什么都没画**。只有 `workbench/30-up-to-date` 在 `mayBeBlank` 里,而且
+  1. **某个状态什么都没画**。`mayBeBlank` 里只有工作台的三个 `up-to-date`,而且
      白名单的 key 是「界面/状态」不是「状态」—— popover 对同一状态画的是对勾,按名字
      豁免会把检测器在 popover 那半边一起卸掉。⚠️ 判空要**逐像素扫**:第一版用采样网格,
      把 `no-source-covers` 误报成空白——它只有一个几像素高的淡 em dash,网格跨过去了。
@@ -67,16 +67,36 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
      照样全绿——它只问「画了没有」,不问「画对没有」。真的只差 tooltip 的成对状态登记进
      `mayLookAlike`,**带上理由**。
 
+  ⚠️ **两份白名单的 key 都必须带界面前缀,`mayLookAlike` 也是。** 第一版用裸状态名,
+  七条豁免里四条只在一个界面上挣到、却把另一个界面白送掉——最坏的是那对 App Store 闸,
+  理由写的是"**工作台**故意把两个闸合并成一个 Label",顺手关掉了 popover 那半边,而
+  popover 恰恰必须把它们画成地球徽章和三角徽章。判空那条的文档里写过这个道理,
+  重复图这条上又犯了一遍。
+  ⚠️ **碰撞比对要跟「所有」同摘要的前驱比,不能只比一个。** 三个状态撞在一起、其中两对
+  已豁免时,只留一个前驱会让第三对永远不报,而且报不报取决于这份清单的编号顺序——它
+  被重编过号。判空豁免掉的图不参与碰撞比对(空白跟空白必然相同,那不是信号)。
+
 - ⚠️ **fixture 的分布本身就是一个坑,而且犯过两次。** 判空全绿可能只是在量 fixture 而不是量
   代码:2026-09 那次多语言 harness 给每行喂 `remote: nil`,整屏截出「Reveal in Finder」,
   看着像真 UI 其实全落在兜底分支;这次 gallery 用一份 `remote.appStore == nil` 的行,
   三个 App Store 状态全掉进 `openButton`,`appStoreTrailing` 一次都没被画过。所以
-  `all` 里每个 case 各自带一份 `UpdateResult`,区域锁 / Mac 不兼容都有专门的行。
+  `all` 里每个 case 各自带一份 `UpdateResult`。**同一个坑在同一个文件里犯了两次**:
+  修完 App Store 那三个,`sourceHint` 的三个分支和 `.upToDate` 的三个分支仍然各自只画得出
+  一个,因为那份行恒定是 `isMASApp: false` / `sparkleFeedURL: nil`。现在 MAS、Sparkle、
+  TestFlight 都有专门的行。**加分支时先问:它是看 state 还是看行?看行的就需要新 fixture。**
 - ⚠️ **`ImageRenderer` 画不出 `.buttonStyle(.borderless)` 里的 SF Symbol**,会渲染成黄底
   红斜杠的占位图(三方对照探针验过:裸 `Image(systemName:)` 正常,包进 borderless button
   就坏,跟 `.popover` 无关)。受影响的三张登记在 `notFaithful` 里,每次运行都打印出来:
   popover 的两个琥珀徽章和地球徽章。**这三张的画面不能当真**,同一状态看工作台那张
   (它用 `Label`,渲染是对的)。
+- ⚠️ **gallery 只渲染英文**(脚本 pin 了 `AppleLanguages='(en)'`,否则重跑就是满屏无关 diff)。
+  所以**译文溢出这类事故它结构性看不见**,而这个仓库真出过(见 memory「状态行没空间加字」,
+  es 只剩 9pt)。跟着 popover 抄状态文案时,`.lineLimit(1)` + `.minimumScaleFactor(0.7)`
+  要一起抄——工作台第一版把这两个丢了,而它用的是更大的 `.callout`,俄语
+  `Ограничение частоты запросов` 27 个字符会直接挤掉应用名。
+- **`.help()` 的文案没有任何检查能看**,PNG 里根本不存在。所以"只差 tooltip"这个豁免理由
+  是有代价的:目前 13/34 个状态的"两边一致"实际上压在没人验的 tooltip 上。写这种豁免时
+  要意识到自己在花什么。
 
 顺带:`App/project.yml` 仍然没有测试 target,所以 `App/Sources` 里的判断没人执行。
 `RowActionStateTests`(Core)钉的是**哪个条件赢**,gallery 钉的是**画出来长什么样**,

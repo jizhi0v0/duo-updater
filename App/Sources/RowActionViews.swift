@@ -8,13 +8,16 @@ import DuoUpdaterCore
 /// ("App Store", "Sparkle") while the workbench always drew a bare em dash, so the
 /// same state read as two different things depending on which window you opened.
 ///
-/// It reads the ROW rather than the state, which is the last place either view
-/// still forms its own opinion — see `RowActionState`. Shared here so that opinion
-/// is at least a single one.
-func sourceHint(for result: UpdateResult) -> String {
-    if result.app.isMASApp { return String(localized: "App Store") }
-    if result.app.sparkleFeedURL != nil { return String(localized: "Sparkle") }
-    return "—"
+/// Takes the `SourceHint` the state now carries rather than reading
+/// `result.app.isMASApp` / `sparkleFeedURL` itself — that was the last place
+/// either view still formed its own opinion about what to name (issue #260); the
+/// priority between App Store and Sparkle now lives in `RowAction.state`.
+func sourceHint(for hint: SourceHint) -> String {
+    switch hint {
+    case .none: return "—"
+    case .appStore: return String(localized: "App Store")
+    case .sparkle: return String(localized: "Sparkle")
+    }
 }
 
 func installStageLabel(_ stage: InstallStage) -> String {
@@ -170,14 +173,12 @@ struct WorkbenchRowAction: View {
                       : String(localized: "\(message) — click to retry"))
             }
 
-        case .noSourceCovers:
-            Text(sourceHint(for: result)).font(.callout).foregroundStyle(.tertiary)
+        case .noSourceCovers(let hint):
+            Text(sourceHint(for: hint)).font(.callout).foregroundStyle(.tertiary)
                 .lineLimit(1)
 
         case .managedElsewhere(.appStore):
-            Image(nsImage: AppIconCache.appStore)
-                .resizable().frame(width: 16, height: 16)
-                .help("Managed by the App Store — it handles this app's updates")
+            appStoreManagedTile
 
         case .managedElsewhere(.toolbox):
             Button("Toolbox") { actions.openToolbox() }
@@ -185,13 +186,36 @@ struct WorkbenchRowAction: View {
                 .help("Managed by JetBrains Toolbox — open Toolbox to update \(result.app.name)")
 
         case .managedElsewhere(.testFlight):
-            Text("TestFlight").font(.callout).foregroundStyle(.tertiary)
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .help("Managed by TestFlight — it handles this beta's updates")
+            testFlightManagedTile
 
-        case .upToDate:
-            EmptyView()
+        case .upToDate(let channel):
+            // Blank is deliberate for `.none` (`mayBeBlank` in the gallery says
+            // so); a store-managed or TestFlight app keeps naming its channel so
+            // it never reads like something we could update ourselves, matching
+            // the popover's `.managedElsewhere` tiles rather than repeating them.
+            switch channel {
+            case .none: EmptyView()
+            case .appStore: appStoreManagedTile
+            case .testFlight: testFlightManagedTile
+            }
         }
+    }
+
+    /// Shared between `.managedElsewhere(.appStore)` and a current row that keeps
+    /// naming the App Store (`.upToDate(channel: .appStore)`) — same tile either
+    /// way, since updates are the store's job in both.
+    private var appStoreManagedTile: some View {
+        Image(nsImage: AppIconCache.appStore)
+            .resizable().frame(width: 16, height: 16)
+            .help("Managed by the App Store — it handles this app's updates")
+    }
+
+    /// Shared between `.managedElsewhere(.testFlight)` and a current row that
+    /// keeps naming TestFlight (`.upToDate(channel: .testFlight)`).
+    private var testFlightManagedTile: some View {
+        Text("TestFlight").font(.callout).foregroundStyle(.tertiary)
+            .lineLimit(1).minimumScaleFactor(0.7)
+            .help("Managed by TestFlight — it handles this beta's updates")
     }
 
     /// The install action for an actionable update, mirroring the popover's routing
@@ -251,33 +275,41 @@ struct WorkbenchRowAction: View {
                     .help("Downloads the official installer and opens it (asks for admin)")
             }
 
-        case .appStore(let storeManagedHere):
-            // A wrapped iPhone/iPad app on the mas route: mas has no Mac-store entry
-            // for it, so this is a redirect rather than a one-click. A Mac App Store
-            // app lands here when the privileged helper isn't approved yet — still an
-            // installed app with a pending update, so it says **Update** (what the
-            // store calls it), never "Get".
-            //
-            // A region-locked or OS-incompatible listing used to fall through to the
-            // detection-only tail, which said "Open page" and explained nothing. It
-            // now says why, and sends the user to the popover that can.
-            if let info = result.remote?.appStore, !info.isRegionMismatch, !info.isLatestMacIncompatible {
+        case .appStore(let storeManagedHere, let gate):
+            // Which of the three pictures below applies comes from the route's
+            // `gate`, not from re-reading `result.remote?.appStore` here — that
+            // used to be exactly how this branch decided (issue #260), which is
+            // also why it used to collapse both gates into one identical Label:
+            // nothing forced the two windows' branch conditions to agree, only
+            // their content did. `info` below is read for display text only
+            // (a deep link, a version number), never to choose a branch.
+            let info = result.remote?.appStore
+            switch gate {
+            case .macIncompatible:
+                // The popover explains this in a popover of its own; this window
+                // names the gate and stays out of the way. Same title the popover
+                // uses for its explanation, so the two cannot describe the same
+                // row differently.
+                Label("Not supported on this Mac", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout).foregroundStyle(.orange)
+                    .help("The latest version no longer supports this Mac — click for details")
+            case .region:
+                Label("Region-locked", systemImage: "globe.badge.chevron.backward")
+                    .font(.callout).foregroundStyle(.orange)
+                    .help("Not available in your App Store region — click for details")
+            case .none:
+                // A wrapped iPhone/iPad app on the mas route: mas has no Mac-store
+                // entry for it, so this is a redirect rather than a one-click. A
+                // Mac App Store app lands here when the privileged helper isn't
+                // approved yet — still an installed app with a pending update, so
+                // it says **Update** (what the store calls it), never "Get".
                 Button(storeManagedHere ? String(localized: "App Store") : String(localized: "Update")) {
-                    if let url = info.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
+                    if let url = info?.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
                 }
                 .buttonStyle(.bordered)
                 .help(storeManagedHere
                       ? String(localized: "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
                       : appStoreRedirectHelp)
-            } else {
-                // The popover explains these two in a popover of their own; this
-                // window names the gate and stays out of the way. Same strings, so
-                // the two windows cannot describe the same row differently.
-                Label("App Store", systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout).foregroundStyle(.orange)
-                    .help(result.remote?.appStore?.isLatestMacIncompatible == true
-                          ? String(localized: "The latest version no longer supports this Mac — click for details")
-                          : String(localized: "Not available in your App Store region — click for details"))
             }
 
         case .detectionOnly:

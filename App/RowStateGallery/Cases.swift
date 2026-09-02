@@ -386,30 +386,43 @@ enum RowStateGalleryCases {
 
     /// Counts pixels matching `ImageRenderer`'s "unavailable" placeholder — the
     /// signature yellow it substitutes for content it cannot draw (see
-    /// `notFaithful`'s doc comment for the two things that triggers it): red
-    /// channel over 230, green between 170 and 225, blue under 70, all in 0...255
+    /// `notFaithful`'s doc comment for the two things that trigger it): red
+    /// channel over 230, green between 185 and 225, blue under 70, all in 0...255
     /// (this compares against `NSColor`'s 0...1 components instead).
     ///
-    /// Threshold and window are #269's, re-measured directly against the
-    /// committed sheet rather than trusted from the issue: scanning all 80
-    /// committed tiles found an exact bimodal split with nothing in between — 65
-    /// tiles at 0 matching pixels, 15 at 638 or more, no tile anywhere from 1 to
-    /// 637. The 0-pixel group includes every tile this app legitimately paints
-    /// orange (the `.tint(.orange)` Relaunch/Update buttons, the amber
-    /// `exclamationmark.triangle.fill`/`globe.badge.chevron.backward` warning
-    /// `Label`s, the rate-limited badge) — none of them land in the window
-    /// because system orange's green channel (~141–153 across the samples
-    /// checked) sits below it; the placeholder's is ~204. So the separation is
-    /// structural, not a threshold picked to happen to clear this sheet: a
-    /// `pixelsMatching > 40` cutoff has roughly 16× headroom on both sides of the
-    /// actual gap (638 down to 40, 40 up from the observed max-non-match of 0).
+    /// There are TWO margins here, not one, and the window's green floor exists
+    /// to protect the thinner of them:
+    ///
+    /// - **Pixel-count margin**: scanning all 80 committed tiles at this window
+    ///   found an exact bimodal split with nothing in between — 65 tiles at 0
+    ///   matching pixels, 15 at 630 or more (the smallest, `21-…-region-locked`,
+    ///   drops from 638 to 630 once the green floor below is raised — still true
+    ///   for every tile). A `pixelsMatching > 40` cutoff has roughly 15–16×
+    ///   headroom on both sides of that gap.
+    /// - **Colour margin**: real orange this app legitimately paints — the
+    ///   `.tint(.orange)` Relaunch/Update buttons, the amber
+    ///   `exclamationmark.triangle.fill`/`globe.badge.chevron.backward` warning
+    ///   `Label`s, the rate-limited badge — tops out at green ≈167–169 across
+    ///   every sampled pixel in the sheet; the placeholder's is ≈204, with the
+    ///   bulk of it (a strong majority of matching pixels) sitting at exactly
+    ///   204 and the rest (anti-aliased edges) spread down to ≈174. A floor of
+    ///   170 put only 1–3 units between real orange's ceiling and the window —
+    ///   thin enough that a future system-orange nudge could push those hundreds
+    ///   of legitimate pixels straight into the window and fail unrelated tiles
+    ///   by the hundreds, which the pixel-count margin above does nothing to
+    ///   stop (a false positive of that kind arrives WAY over 40). 185 sits
+    ///   roughly halfway between the two clusters — ~18 units above real
+    ///   orange's ceiling, ~19 below the placeholder's centre — trading 1.5% of
+    ///   the placeholder's own matching pixels (still nowhere near the 40-pixel
+    ///   cutoff on the smallest affected tile) for a margin that isn't the one
+    ///   thing standing between this gate and a false-positive storm.
     static func placeholderPixelCount(_ rep: NSBitmapImageRep) -> Int {
         var count = 0
         for x in 0..<rep.pixelsWide {
             for y in 0..<rep.pixelsHigh {
                 guard let c = rep.colorAt(x: x, y: y) else { continue }
                 if c.redComponent > 230.0 / 255.0,
-                   c.greenComponent >= 170.0 / 255.0, c.greenComponent <= 225.0 / 255.0,
+                   c.greenComponent >= 185.0 / 255.0, c.greenComponent <= 225.0 / 255.0,
                    c.blueComponent < 70.0 / 255.0 {
                     count += 1
                 }

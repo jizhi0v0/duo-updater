@@ -197,6 +197,24 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 - 区分「vendor 真的变了」和「我们这边逻辑错了」——前者改 recipe,后者改代码,别混成一个 commit。
 - 拿不准就标「未验证」,不要给一个看起来合理的推测当结论。
 
+## 跑长命令:重定向到文件,杀的时候杀进程树
+
+`make release` / `make notarize` / 全量 `duo verify` / `make test` 都会刷出几十万字节。
+
+- **把输出直接重定向到文件,别让它走管道捕获。** 管道缓冲区只有 64KB,读端不排空就会把进程
+  堵死在 `write` 上——现象是 CPU 恒为 `0:00.00`、日志文件 0 字节、看起来"特别慢"。
+  判据三条:`lsof` 看 fd 1/2 是不是 PIPE、stdin 是不是 `/dev/null`(排除等输入)、
+  日志有没有在长。2026-09-02 发 0.3.80 时它在前置检查阶段就堵住了。
+- ⚠️ **杀这类命令必须杀整棵进程树。** 同一次里我只 kill 了两个 `bash publish-release.sh`,
+  没杀它们派生的 `swift test`,那条孤儿链(`sh → swift-test → swiftpm-testing-helper`)
+  一直攥着 `DuoUpdaterCore/.build` 的 SwiftPM 锁。下一轮于是停在
+  `Another instance of SwiftPM (PID: …) is already running … waiting until that process
+  has finished execution`,等一个永远不会结束的东西——**症状同样伪装成"某某工具好慢"**。
+  杀之前先 `pgrep -lf 'publish-release|swift-test|swiftpm-testing-helper|xcodebuild'`,
+  杀完再查一遍(注意自己的轮询 shell 会因为命令行里含关键字而被 grep 命中,不是残留)。
+- **判断"卡住了"要看有没有在推进,不是看 CPU。** 我一度断言下载卡死,实测那个
+  `.partial` 文件 20 秒涨了 966KB —— CPU 为 0 只是在等网络。量文件大小,别看 `%CPU`。
+
 ## 发布
 
 - `CHANGELOG.md` 是发布说明的**唯一真源**:`scripts/publish-release.sh` 直接读对应版本那一节,塞进 GitHub Release 和 Sparkle appcast。**英文**,写给用户看的人话,不要写 commit 流水账。
@@ -204,6 +222,16 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 - ⚠️ 我在 0.3.80 那次先用中文重写了整节才发现:**这个文件历来是英文的**,而且会原样发给全量用户。改之前先看一眼相邻版本。
 - `make install` / `make cli` 用的是**稳定的 Developer ID 签名**,这不是洁癖:macOS 把 TCC 授权(完全磁盘访问、辅助功能、App 管理)绑在代码身份上,ad-hoc 签名每次重编 CDHash 都变,授权就掉。别为了图快改成 ad-hoc。
 - `make notarize` → `dist/DuoUpdater-notarized.zip`;`make release` 才推 GitHub Release。
+- **`make release` 会在发布前跑一遍 gate 测试,那些用例要真下厂商的包**(下完校验 sha512 和
+  Team ID),所以耗时取决于当时的下行带宽。2026-09-02 傍晚实测经本机 Surge 代理只有
+  **~48 KB/s**,一个 VLC 量级的包就要几十分钟。**这不是稳定现象**——用户说可能是晚高峰,
+  有时候不会这样,所以别把它写成"代理一定会掐"(相关但不等同:memory 里那条
+  「本机代理会掐大文件,小请求照过」)。发版前先量一下实际速度再决定是等、是绕开代理、
+  还是 `SKIP_TESTS=1`。
+- 顺带:`SKIP_NOTARIZE=1` 会复用 `dist/DuoUpdater-notarized.zip`,脚本自己会校验 zip 里的
+  版本号和即将打的 tag 一致,所以中途失败重跑不必重新公证(公证一次好几分钟)。
+  发布顺序是 **先克隆仓库更新 appcast,后 `gh release create`**,所以卡在克隆那步时
+  tag / release / appcast 都还没动,是一次干净的失败,直接重试即可。
 
 ## Git
 

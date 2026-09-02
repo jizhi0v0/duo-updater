@@ -303,20 +303,19 @@ private func item(
     let manifest = URL(string: "https://desktop-release.canva.com/latest-mac.yml")!
     let verdict = FeedDiscovery.decideElectron(
         electronProbe(marketing: "1.124.1"),
-        manifest: manifest, body: "version: 1.124.1\n", hasArchSibling: false)
+        manifest: manifest, body: "version: 1.124.1\n")
     #expect(verdict == .adopt(manifest))
 }
 
-@Test func anArchSplitManifestIsNotThisMacsManifest() {
-    // Notion publishes `latest-mac.yml` AND `arm64-mac.yml`, and its config names
-    // neither — so which one this Mac wants is unanswered, and taking the default
-    // could hand an arm64 Mac an Intel download (which is exactly what Typeless's
-    // `latest-mac.yml` is).
+@Test func anAdjacentManifestDoesNotChangeTheDeclaredTrack() {
+    // Notion's `channel: latest` build reads this file even when the vendor also
+    // publishes `arm64-mac.yml`. The adjacent file belongs to builds whose own
+    // config says `channel: arm64`; its existence is not an architecture signal.
     let manifest = URL(string: "https://desktop-release.notion-static.com/latest-mac.yml")!
     let verdict = FeedDiscovery.decideElectron(
         electronProbe(marketing: "7.31.3"),
-        manifest: manifest, body: "version: 7.31.3\n", hasArchSibling: true)
-    #expect(verdict == .review(.electronArchSplitManifest, manifest))
+        manifest: manifest, body: "version: 7.31.3\n")
+    #expect(verdict == .adopt(manifest))
 }
 
 @Test func aBundleThatNamesItsArchitectureHasAlreadyAnsweredTheArchQuestion() {
@@ -332,10 +331,9 @@ private func item(
     let manifest = try! #require(cfg?.manifestURL)
     #expect(manifest
         == URL(string: "https://typeless-static.com/desktop-release/arm64-mac.yml"))
-    #expect(FeedDiscovery.isArchSpecific(manifest))
     let verdict = FeedDiscovery.decideElectron(
         electronProbe(marketing: "2.4.0"),
-        manifest: manifest, body: "version: 2.4.0\n", hasArchSibling: true)
+        manifest: manifest, body: "version: 2.4.0\n")
     #expect(verdict == .adopt(manifest))
 }
 
@@ -354,7 +352,7 @@ private func item(
     let manifest = URL(string: "https://example.invalid/latest-mac.yml")!
     let verdict = FeedDiscovery.decideElectron(
         electronProbe(marketing: "1.0.0"),
-        manifest: manifest, body: "version: 2.0.0\n", hasArchSibling: false)
+        manifest: manifest, body: "version: 2.0.0\n")
     #expect(verdict == .review(.electronVersionMismatch, manifest))
 }
 
@@ -362,7 +360,7 @@ private func item(
     let manifest = URL(string: "https://example.invalid/latest-mac.yml")!
     let verdict = FeedDiscovery.decideElectron(
         electronProbe(marketing: "1.0.0"),
-        manifest: manifest, body: nil, hasArchSibling: false)
+        manifest: manifest, body: nil)
     #expect(verdict == .review(.electronManifestUnreachable, manifest))
 }
 

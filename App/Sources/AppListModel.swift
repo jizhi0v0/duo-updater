@@ -1858,7 +1858,16 @@ final class AppListModel {
         // say "Relaunch", `defersToSelfUpdater` decides whether an app is handed to
         // its own updater. A floor under the live path costs one snapshot and a
         // memoized resolve (0.095 ms warm) per round.
-        refreshRunningApps()
+        //
+        // Through the full handler, not a bare `refreshRunningApps()`. A bare
+        // refresh would *absorb* whatever the live path missed — the set would
+        // quietly become correct, and the next real event, diffing against the
+        // already-corrected set, would see nothing changed and skip the channel
+        // recheck that the missed quit was supposed to trigger. Reconciling through
+        // the handler means a change this call discovers is still reacted to. Its
+        // restart branch is inert here (`isChecking` is still true) and
+        // `computeRestartInfo` runs immediately below anyway.
+        handleRunningAppsChange()
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         if prefs.pruneOrphanBackups {

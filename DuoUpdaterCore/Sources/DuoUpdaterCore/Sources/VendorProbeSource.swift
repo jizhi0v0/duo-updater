@@ -624,13 +624,14 @@ public struct VendorProbeSource: UpdateSource {
             VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
         }
         // Optional authoritative publish time, from the same scope (first match,
-        // so it belongs to the entry `versionPattern` matched). An unparseable or
-        // missing date is not a failure — it just means the Release Log falls back
-        // to its estimated "≈" window, exactly as for recipes with no pattern.
-        let publishedAt = ReleaseDate.parse(
-            recipe.publishedAtPattern.flatMap {
-                VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
-            })
+        // so it belongs to the entry `versionPattern` matched). A missing date is
+        // not a failure — the Release Log falls back to its estimated "≈" window.
+        // A captured but unreadable date takes the same fallback, but warns: it
+        // also silently disables `duo verify`'s age-gated phantom-update check.
+        let publishedAtValue = recipe.publishedAtPattern.flatMap {
+            VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
+        }
+        let publishedAt = ReleaseDate.parse(publishedAtValue)
 
         var warnings: [ProbeWarning] = []
         if scoped.fellBack { warnings.append(.entryPatternNoMatch) }
@@ -639,6 +640,9 @@ public struct VendorProbeSource: UpdateSource {
         // string, a 404 where the release notes were. See `.displayPatternNoMatch`.
         if recipe.displayVersionPattern != nil, display == nil {
             warnings.append(.displayPatternNoMatch)
+        }
+        if let publishedAtValue, publishedAt == nil {
+            warnings.append(.publishedAtUnreadable(publishedAtValue))
         }
         var remote: RemoteVersion
 

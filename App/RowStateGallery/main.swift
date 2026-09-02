@@ -22,6 +22,10 @@ func render() {
     var written: [String] = []
     var unrendered: [String] = []
     var blank: [String] = []
+    // Every surface-qualified name that actually rendered blank this run, exempted
+    // or not — the audit below needs the full set, not just the violations `blank`
+    // collects, to tell a live exemption from a dead one (#271).
+    var actuallyBlank: Set<String> = []
     /// surface → rendered bytes → EVERY state that drew them. All of them, not
     /// just the first: comparing a new tile against a single predecessor makes the
     /// outcome depend on the order the cases happen to be listed in, and this list
@@ -58,8 +62,11 @@ func render() {
         // A state that draws nothing is the bug this whole gallery is for, so it is
         // reported rather than silently written as an empty tile.
         let isBlank = RowStateGalleryCases.isBlank(rep)
-        if isBlank, !RowStateGalleryCases.mayBeBlank.contains("\(surface)/\(name)") {
-            blank.append("\(surface)/\(name)")
+        if isBlank {
+            actuallyBlank.insert("\(surface)/\(name)")
+            if !RowStateGalleryCases.mayBeBlank.contains("\(surface)/\(name)") {
+                blank.append("\(surface)/\(name)")
+            }
         }
         // Two states that draw the SAME pixels on one surface means the view is not
         // reading something the state carries. That is how the popover kept its own
@@ -137,6 +144,18 @@ func render() {
               + " mayLookAlike): "
               + deadExemptions.map { $0.sorted().joined(separator: " == ") }
                   .sorted().joined(separator: ", "))
+        failed = true
+    }
+    // Same reasoning, same shape, applied to the OTHER hand-maintained exemption
+    // list: `mayBeBlank` used to be consulted but never audited, so an entry that
+    // stopped drawing blank stayed exempt forever instead of the detector picking
+    // it back up (#271 — #260 walked into exactly this with `workbench/31`/`/32`
+    // and only caught it because someone happened to remove the entries by hand).
+    let deadBlankExemptions = RowStateGalleryCases.mayBeBlank.subtracting(actuallyBlank)
+    if !deadBlankExemptions.isEmpty {
+        print("DEAD EXEMPTION (these no longer render blank — drop them from"
+              + " mayBeBlank): "
+              + deadBlankExemptions.sorted().joined(separator: ", "))
         failed = true
     }
     if blank.isEmpty {

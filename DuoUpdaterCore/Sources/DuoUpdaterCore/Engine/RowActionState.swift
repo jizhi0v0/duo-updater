@@ -136,7 +136,7 @@ public enum UpdateRoute: Sendable, Equatable {
 
 /// Everything the ladder reads about one row, gathered by the caller so the
 /// decision itself stays pure and testable.
-public struct RowActionFacts: Sendable {
+public struct RowActionFacts {
     public var status: UpdateStatus
     public var awaitingQuitConfirm: String?
     public var isRelaunching: Bool
@@ -147,7 +147,14 @@ public struct RowActionFacts: Sendable {
     public var isVersionSkipped: Bool
     public var stagedRelaunchTarget: String?
     public var needsRestart: Bool
-    public var route: UpdateRoute
+    /// Deferred on purpose. Only the `.updateAvailable` rung reads it, and the
+    /// caller's route resolution is the expensive part of assembling these facts —
+    /// it rebuilds an install environment several times and can stat the disk. As a
+    /// plain argument it ran for EVERY row on every repaint, including rows that
+    /// leave the ladder at the quit prompt or the install stage and never look at
+    /// it. Same trap as `ListActivity.canOfferUpdateAll`, which is why this is an
+    /// `@autoclosure` too rather than a value.
+    public var route: () -> UpdateRoute
 
     public init(
         status: UpdateStatus,
@@ -160,7 +167,7 @@ public struct RowActionFacts: Sendable {
         isVersionSkipped: Bool = false,
         stagedRelaunchTarget: String? = nil,
         needsRestart: Bool = false,
-        route: UpdateRoute = .autoInstall
+        route: @autoclosure @escaping () -> UpdateRoute = .autoInstall
     ) {
         self.status = status
         self.awaitingQuitConfirm = awaitingQuitConfirm
@@ -199,7 +206,7 @@ public enum RowAction {
         if facts.needsRestart && !facts.hasUpdate { return .restartToApply }
 
         switch facts.status {
-        case .updateAvailable: return .updateAvailable(facts.route)
+        case .updateAvailable: return .updateAvailable(facts.route())
         case .error(let message):
             return .checkFailed(message: message, rateLimited: facts.status.isRateLimitError)
         case .unknown: return .noSourceCovers

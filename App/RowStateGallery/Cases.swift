@@ -356,6 +356,46 @@ enum RowStateGalleryCases {
         return true
     }
 
+    /// Counts pixels matching `ImageRenderer`'s "unavailable" placeholder — the
+    /// signature yellow it substitutes for content it cannot draw (see
+    /// `notFaithful`'s doc comment for the two things that triggers it): red
+    /// channel over 230, green between 170 and 225, blue under 70, all in 0...255
+    /// (this compares against `NSColor`'s 0...1 components instead).
+    ///
+    /// Threshold and window are #269's, re-measured directly against the
+    /// committed sheet rather than trusted from the issue: scanning all 80
+    /// committed tiles found an exact bimodal split with nothing in between — 65
+    /// tiles at 0 matching pixels, 15 at 638 or more, no tile anywhere from 1 to
+    /// 637. The 0-pixel group includes every tile this app legitimately paints
+    /// orange (the `.tint(.orange)` Relaunch/Update buttons, the amber
+    /// `exclamationmark.triangle.fill`/`globe.badge.chevron.backward` warning
+    /// `Label`s, the rate-limited badge) — none of them land in the window
+    /// because system orange's green channel (~141–153 across the samples
+    /// checked) sits below it; the placeholder's is ~204. So the separation is
+    /// structural, not a threshold picked to happen to clear this sheet: a
+    /// `pixelsMatching > 40` cutoff has roughly 16× headroom on both sides of the
+    /// actual gap (638 down to 40, 40 up from the observed max-non-match of 0).
+    static func placeholderPixelCount(_ rep: NSBitmapImageRep) -> Int {
+        var count = 0
+        for x in 0..<rep.pixelsWide {
+            for y in 0..<rep.pixelsHigh {
+                guard let c = rep.colorAt(x: x, y: y) else { continue }
+                if c.redComponent > 230.0 / 255.0,
+                   c.greenComponent >= 170.0 / 255.0, c.greenComponent <= 225.0 / 255.0,
+                   c.blueComponent < 70.0 / 255.0 {
+                    count += 1
+                }
+            }
+        }
+        return count
+    }
+
+    /// A tile with more matching pixels than this is presumed to be carrying the
+    /// placeholder, not a few incidental orange pixels — see
+    /// `placeholderPixelCount`'s doc comment for the measurement behind the
+    /// number.
+    static let placeholderPixelThreshold = 40
+
     /// `DownloadReadout`'s declaration order IS the algorithm `AppRow.downloadReadout`
     /// runs — widest first, first fit wins (see that property's doc comment). The
     /// gallery tiles added for #265 make the three cases look different, but a diff

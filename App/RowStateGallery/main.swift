@@ -34,8 +34,11 @@ func render() {
     // disagree, which is the class of bug that made this necessary.
     for (surface, tile) in RowStateGalleryCases.surfaces {
     for (name, state, result) in RowStateGalleryCases.all {
-        let view = tile(state, result)
-            .frame(width: 320, height: 44, alignment: .trailing)
+        // Sizing now lives inside `tile` itself (see `popoverTile`/`workbenchTile`):
+        // every ordinary row still gets the 320×44 slot, but the three
+        // explanation-content cases size to their own content instead of being
+        // forced into a row-sized box that would clip a paragraph.
+        let view = tile(name, state, result)
             .padding(8)
             .background(Color(nsColor: .windowBackgroundColor))
 
@@ -93,11 +96,27 @@ func render() {
     print("rendered \(written.count) states → \(outDir.path)")
     // Named every run rather than left in a comment: a picture that lies is worse
     // than no picture, and the only defence is that nobody opens these three
-    // expecting the truth.
-    print("NOT FAITHFUL (ImageRenderer cannot draw an SF Symbol in a borderless"
-          + " button — read the workbench tile for these states instead): "
+    // expecting the truth. Two ImageRenderer gaps land here: an SF Symbol inside a
+    // `.buttonStyle(.borderless)` button (workbench draws the same state
+    // correctly, via `Label` — read that tile instead), and, found while adding
+    // #265's cases, a plain `ProgressView()` (no such alternate — see
+    // `notFaithful`'s doc comment for which is which).
+    print("NOT FAITHFUL (see RowStateGalleryCases.notFaithful for why each one): "
           + RowStateGalleryCases.notFaithful.sorted().joined(separator: ", "))
     var failed = false
+    // #265: the gallery images alone are a diff, not an assertion — this pins
+    // `DownloadReadout`'s widest-first declaration order directly, independent of
+    // which tiles get rendered.
+    if RowStateGalleryCases.downloadReadoutOrderIsIntact() {
+        print("DownloadReadout order intact (barAndPercent, ringAndPercent, ringOnly)")
+    } else {
+        print("DOWNLOAD READOUT ORDER CHANGED: `DownloadReadout` must stay widest-first"
+              + " (barAndPercent, ringAndPercent, ringOnly) — AppRow walks `allCases`"
+              + " and takes the first that fits, so this order IS the algorithm."
+              + " Reordering it silently changes which readout every downloading row"
+              + " gets, with no compile error and no other test to catch it.")
+        failed = true
+    }
     if !unrendered.isEmpty {
         print("NOT WRITTEN (no tile on disk for these states): "
               + unrendered.joined(separator: ", "))

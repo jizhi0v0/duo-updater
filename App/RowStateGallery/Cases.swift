@@ -71,12 +71,69 @@ enum RowStateGalleryCases {
         latestMacCompatible: false))
 
     /// The two windows, each drawing the same states. `AnyView` because they are
-    /// different types; the gallery only needs "draw this state".
+    /// different types; the gallery only needs "draw this state". Takes the case
+    /// NAME as well as the state/row now (not just for the two windows to differ,
+    /// but so `popoverTile` can special-case the three explanation-content names
+    /// below and `workbenchTile` can recognize them too).
     @MainActor
-    static let surfaces: [(String, (RowActionState, UpdateResult) -> AnyView)] = [
-        ("popover", { AnyView(PopoverRowAction(state: $0, result: $1)) }),
-        ("workbench", { AnyView(WorkbenchRowAction(state: $0, result: $1)) }),
+    static let surfaces: [(String, (String, RowActionState, UpdateResult) -> AnyView)] = [
+        ("popover", popoverTile),
+        ("workbench", workbenchTile),
     ]
+
+    /// Every case except the three explanation-content ones (38–40) draws
+    /// `PopoverRowAction` at the row's normal 320×44 slot, with the readout/stage
+    /// overrides above applied where a case names one. The explanation cases draw
+    /// the popover's own content view instead, sized to itself (`.fixedSize()`) —
+    /// it already carries its own `.frame(width:)`/`.padding()`, and forcing it
+    /// into a 44pt-tall row slot would clip the paragraph.
+    @MainActor
+    private static func popoverTile(name: String, state: RowActionState, result: UpdateResult) -> AnyView {
+        switch name {
+        case "38-major-upgrade-explanation":
+            return AnyView(
+                PopoverRowAction(state: state, result: result).majorUpgradePopover.fixedSize())
+        case "39-region-hint-explanation", "40-mac-compat-hint-explanation":
+            // Both read the row's own App Store info — same source the real badge
+            // uses to pick which popover to open (`appStoreTrailing`).
+            guard let info = result.remote?.appStore else {
+                // Cannot happen for the two fixtures these names are paired with in
+                // `all` (both carry `appStore`) — a mismatch here would be a bug in
+                // this file, not a state the gallery should render as if it were
+                // fine, hence `unrendered` rather than a placeholder.
+                return AnyView(EmptyView())
+            }
+            let popover = PopoverRowAction(state: state, result: result)
+            return AnyView(
+                (name == "39-region-hint-explanation"
+                    ? AnyView(popover.regionHintPopover(info))
+                    : AnyView(popover.macCompatHintPopover(info)))
+                .fixedSize())
+        default:
+            return AnyView(
+                PopoverRowAction(
+                    state: state, result: result,
+                    downloadReadout: popoverDownloadReadoutOverrides[name] ?? .barAndPercent,
+                    showsStageLabel: popoverShowsStageLabelOverrides[name] ?? { _ in true })
+                .frame(width: 320, height: 44, alignment: .trailing))
+        }
+    }
+
+    /// The workbench has no equivalent of "open the popover's explanation panel" —
+    /// it points at the popover for that (see the file-level doc comment on
+    /// `PopoverRowAction`) — so it draws `EmptyView` for those three names rather
+    /// than silently repeating case 18/21/22's tile under a new name. That EmptyView
+    /// is registered in `mayBeBlank`, the same way `.upToDate`'s three workbench
+    /// tiles already are.
+    @MainActor
+    private static func workbenchTile(name: String, state: RowActionState, result: UpdateResult) -> AnyView {
+        if explanationCaseNames.contains(name) {
+            return AnyView(EmptyView())
+        }
+        return AnyView(
+            WorkbenchRowAction(state: state, result: result)
+                .frame(width: 320, height: 44, alignment: .trailing))
+    }
 
     /// Each case names the row it is drawn against, because several states only
     /// differ in what the row carries (an App Store listing, a region mismatch).
@@ -120,6 +177,69 @@ enum RowStateGalleryCases {
         ("32-up-to-date-testflight", .upToDate, result(app: testFlightInstalled)),
         ("33-no-source-covers-app-store", .noSourceCovers, result(app: masInstalled)),
         ("34-no-source-covers-sparkle", .noSourceCovers, result(app: sparkleInstalled)),
+
+        // #265: `DownloadReadout` has three cases and `showsStageLabel` two, but the
+        // gallery only ever constructed `PopoverRowAction` with their defaults
+        // (`.barAndPercent`, `{ _ in true }`) — so `ringAndPercent`, `ringOnly` and
+        // the unlabelled-spinner branch were drawn by nothing. `downloadReadout` and
+        // `showsStageLabel` are already `PopoverRowAction` init parameters (measured
+        // by the row in production, see `MenuContentView.downloadReadout`); these
+        // three cases just supply the non-default values, via
+        // `popoverDownloadReadoutOverrides`/`popoverShowsStageLabelOverrides` below,
+        // keyed by name so the override sits beside its row instead of reshaping the
+        // tuple every other case already uses. The workbench has no
+        // such parameter — it always renders full width — so on that surface these
+        // three read as ordinary rows; different fractions/stage from every existing
+        // case keep them from colliding with 06/07 there without needing an
+        // exemption.
+        ("35-download-ring-and-percent", .installing(.downloading(fraction: 0.65)), app),
+        ("36-download-ring-only", .installing(.downloading(fraction: 0.83)), app),
+        // `.verifyingSignature` rather than reusing `.queued`/`.extracting`: those
+        // two are already drawn (05, 07) with a label, and reusing one of them here
+        // would make this tile's workbench half byte-identical to that case's —
+        // an unused `InstallStage` sidesteps the collision instead of asking for an
+        // exemption for it.
+        ("37-stage-label-hidden", .installing(.verifyingSignature), app),
+
+        // The three explanation popovers sit behind `@State` flags that only a live
+        // click can flip — `RowStateGallery` never opens a real popover. Instead,
+        // for exactly these three names, the popover surface (see `popoverTile`
+        // below) reads `majorUpgradePopover` / `regionHintPopover` /
+        // `macCompatHintPopover` directly off a freshly constructed
+        // `PopoverRowAction` and draws THAT view — the panel's content, with no
+        // `.popover(isPresented:)` involved. Production behavior is unchanged: the
+        // flags this bypasses still start `false` on every real row. The state/row
+        // pairing is deliberately identical to the case that shows the badge
+        // (18, 21, 22) — the badge is what the button that opens this panel looks
+        // like; this is what's inside it. The workbench has nothing analogous to
+        // draw for "show me the popover's panel", so it renders EmptyView (see
+        // `mayBeBlank`) rather than repeating 18/21/22's tile under a new name.
+        ("38-major-upgrade-explanation", .updateAvailable(.majorUpgrade), app),
+        ("39-region-hint-explanation", .updateAvailable(.appStore(managedHere: false)), storeRegionLocked),
+        ("40-mac-compat-hint-explanation", .updateAvailable(.appStore(managedHere: false)), storeMacIncompatible),
+    ]
+
+    /// Popover-only overrides for the three readout/stage-label cases above, keyed
+    /// by name. `PopoverRowAction`'s `downloadReadout` and `showsStageLabel` are
+    /// layout knobs the ROW measures in production and hands down (see its doc
+    /// comment) — the gallery has no row to measure with, so these three cases set
+    /// them explicitly instead of taking the defaults every other case relies on.
+    static let popoverDownloadReadoutOverrides: [String: DownloadReadout] = [
+        "35-download-ring-and-percent": .ringAndPercent,
+        "36-download-ring-only": .ringOnly,
+    ]
+    static let popoverShowsStageLabelOverrides: [String: (InstallStage) -> Bool] = [
+        "37-stage-label-hidden": { _ in false },
+    ]
+
+    /// Names whose popover tile is a popover's CONTENT rather than a row — see the
+    /// comment on cases 38–40 above. Shared between `popoverTile` (which switches
+    /// on it) and `workbenchTile` (which uses it to draw `EmptyView` instead of
+    /// repeating an existing tile under a new name).
+    static let explanationCaseNames: Set<String> = [
+        "38-major-upgrade-explanation",
+        "39-region-hint-explanation",
+        "40-mac-compat-hint-explanation",
     ]
 
     /// Tiles that are ALLOWED to draw nothing — keyed by SURFACE and state, not by
@@ -132,6 +252,12 @@ enum RowStateGalleryCases {
         "workbench/30-up-to-date",
         "workbench/31-up-to-date-app-store",
         "workbench/32-up-to-date-testflight",
+        // The workbench has no view for "the popover's explanation panel" — see
+        // `workbenchTile` above. Its badge for the same state is already drawn at
+        // 18/21/22; these three names exist only to exercise the popover half.
+        "workbench/38-major-upgrade-explanation",
+        "workbench/39-region-hint-explanation",
+        "workbench/40-mac-compat-hint-explanation",
     ]
 
     /// Pairs of states that legitimately draw the same picture, keyed
@@ -187,6 +313,19 @@ enum RowStateGalleryCases {
         "popover/18-update-major-upgrade",
         "popover/21-update-app-store-region-locked",
         "popover/22-update-app-store-mac-incompatible",
+        // A DIFFERENT `ImageRenderer` gap, found while adding this case for #265:
+        // it also cannot draw a plain native `ProgressView()` — the yellow/red
+        // "unavailable" placeholder stands in for the spinner on BOTH surfaces (no
+        // `Label`/borderless-button escape hatch here, unlike the three above).
+        // The state coverage is still real (no stage label is drawn, which is the
+        // branch this case exists to exercise) — only the spinner glyph itself is
+        // the harness artifact. This same substitution is visible on several
+        // already-committed tiles that predate #265 (e.g. 02/05/06/07's spinners
+        // and progress bar); widening this list to cover those is a separate,
+        // larger cleanup and out of scope here — flagged instead of silently
+        // left off this one new case.
+        "popover/37-stage-label-hidden",
+        "workbench/37-stage-label-hidden",
     ]
 
     /// "Nothing was drawn" — every pixel matches the window background painted
@@ -195,8 +334,10 @@ enum RowStateGalleryCases {
     /// Scans EVERY pixel. A sampled grid was tried first and reported
     /// `24-no-source-covers` as blank: its glyph is a single faint em dash a few
     /// pixels tall, and the grid stepped straight over it. A false "blank" here
-    /// would send someone hunting a rendering bug that does not exist, so the tile
-    /// is small enough (672×120) to just look at all of it.
+    /// would send someone hunting a rendering bug that does not exist, so ordinary
+    /// row tiles are small enough (672×120) to just look at all of it — and the
+    /// three explanation-content tiles (#265), though bigger, get the same full
+    /// scan rather than a size-conditioned shortcut.
     static func isBlank(_ rep: NSBitmapImageRep) -> Bool {
         guard let first = rep.colorAt(x: 0, y: 0) else { return false }
         for x in 0..<rep.pixelsWide {
@@ -210,5 +351,28 @@ enum RowStateGalleryCases {
             }
         }
         return true
+    }
+
+    /// `DownloadReadout`'s declaration order IS the algorithm `AppRow.downloadReadout`
+    /// runs — widest first, first fit wins (see that property's doc comment). The
+    /// gallery tiles added for #265 make the three cases look different, but a diff
+    /// in a committed PNG is not an assertion; nothing stopped a future reorder from
+    /// landing as an unremarkable-looking diff across three files, still red-handed
+    /// only to someone who actually opens them. This is the assertion, independent
+    /// of what gets rendered.
+    ///
+    /// Mutation-tested by hand: swapping `ringAndPercent` and `ringOnly` in
+    /// `RowActionViews.swift`'s declaration turns this red (`make gallery` exits 1
+    /// with the message below); putting the declaration back turns it green again.
+    static func downloadReadoutOrderIsIntact() -> Bool {
+        func rank(_ readout: DownloadReadout) -> Int {
+            switch readout {
+            case .barAndPercent: return 0
+            case .ringAndPercent: return 1
+            case .ringOnly: return 2
+            }
+        }
+        let ranks = DownloadReadout.allCases.map(rank)
+        return ranks == ranks.sorted()
     }
 }

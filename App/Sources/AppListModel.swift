@@ -2584,10 +2584,31 @@ final class AppListModel {
         installing[id] = .checking
         let result = await recheck(result)
         replaceRow(result)
-        guard result.hasUpdate else {
-            // Already current on disk — but the running instance may predate
-            // that update, so recompute whether a restart is needed.
-            Log.install.info("install skipped: \(result.app.name, privacy: .public) already current on disk")
+        // Only `.updateAvailable` installs. The other endings all stop here, but
+        // they are NOT the same ending, and this used to report them as if they
+        // were: a source that timed out while you clicked Update was logged as
+        // "already current on disk", which reads as a fact about the bundle and
+        // sends the next person to the wrong place. See `PreInstallGate`.
+        let decision = PreInstallGate.decision(for: result.status)
+        if decision != .proceed {
+            switch decision {
+            case .alreadyCurrent:
+                Log.install.info(
+                    "install skipped: \(result.app.name, privacy: .public) already current on disk")
+            case .managedElsewhere:
+                Log.install.info(
+                    "install skipped: \(result.app.name, privacy: .public) is managed elsewhere — nothing to install here")
+            case .cannotConfirm(let message):
+                // Not a verdict about the app: we never found out. Retryable, and
+                // said so, rather than filed as "nothing to do".
+                Log.install.error(
+                    "install aborted: \(result.app.name, privacy: .public) — the pre-install re-check could not confirm an update: \(message ?? "no source covers this app", privacy: .public)")
+            case .proceed:
+                break  // unreachable: guarded above
+            }
+            // Unchanged for every ending: the bundle on disk may still be newer than
+            // the running process (a manual install, a self-updater), so the restart
+            // state is recomputed either way.
             await computeRestartInfo()
             installing[id] = nil
             return false

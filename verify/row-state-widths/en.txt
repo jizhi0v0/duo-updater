@@ -1,0 +1,53 @@
+tile	width_pt	budget_pt	status	delta_vs_en_pt
+popover/App Store [button:small]	73.0	320.0	ok	+0.0
+popover/App Store [tag:caption2]	49.2	320.0	ok	+0.0
+popover/Checking [tag:caption2]	46.2	320.0	ok	+0.0
+popover/Extracting [tag:caption2]	50.5	320.0	ok	+0.0
+popover/Failed [tag:caption2]	29.3	320.0	ok	+0.0
+popover/Ignored (row status) [tag:caption2]	37.9	320.0	ok	+0.0
+popover/Install [button:small]	52.0	320.0	ok	+0.0
+popover/Installed [tag:caption2]	42.2	320.0	ok	+0.0
+popover/Installing [tag:caption2]	45.1	320.0	ok	+0.0
+popover/Open [button:small]	49.0	320.0	ok	+0.0
+popover/Queued [tag:caption2]	38.4	320.0	ok	+0.0
+popover/Rate-limited [tag:caption2]	60.8	320.0	ok	+0.0
+popover/Relaunch [button:small]	69.0	320.0	ok	+0.0
+popover/Relaunch now [button:small]	93.0	320.0	ok	+0.0
+popover/Relaunching… [tag:caption2]	69.3	320.0	ok	+0.0
+popover/Reveal in Finder [button:small]	104.0	320.0	ok	+0.0
+popover/Skipped (row status) [tag:caption2]	40.2	320.0	ok	+0.0
+popover/Sparkle [tag:caption2]	37.4	320.0	ok	+0.0
+popover/TestFlight [button:small]	72.0	320.0	ok	+0.0
+popover/TestFlight [tag:caption2]	48.8	320.0	ok	+0.0
+popover/Toolbox [button:small]	61.0	320.0	ok	+0.0
+popover/Update [button:small]	59.0	320.0	ok	+0.0
+popover/Updated [tag:caption2]	42.3	320.0	ok	+0.0
+popover/Verifying [tag:caption2]	44.1	320.0	ok	+0.0
+workbench/App Store [button:regular]	85.0	320.0	ok	+0.0
+workbench/App Store [tag:callout]	56.4	320.0	ok	+0.0
+workbench/Checking [tag:callout]	53.0	320.0	ok	+0.0
+workbench/Extracting [tag:callout]	57.5	320.0	ok	+0.0
+workbench/Failed [tag:callout]	33.3	320.0	ok	+0.0
+workbench/Ignored (row status) [tag:callout]	43.2	320.0	ok	+0.0
+workbench/Install [button:regular]	60.0	320.0	ok	+0.0
+workbench/Installed [tag:callout]	47.7	320.0	ok	+0.0
+workbench/Installing [tag:callout]	50.8	320.0	ok	+0.0
+workbench/Major update [label:callout]	74.5	320.0	ok	+0.0
+workbench/Not supported on this Mac [label:callout]	150.6	320.0	ok	+0.0
+workbench/Open [button:regular]	57.0	320.0	ok	+0.0
+workbench/Open page [button:regular]	91.0	320.0	ok	+0.0
+workbench/Queued [tag:callout]	44.3	320.0	ok	+0.0
+workbench/Rate-limited [tag:callout]	69.2	320.0	ok	+0.0
+workbench/Region-locked [label:callout]	81.8	320.0	ok	+0.0
+workbench/Relaunch [button:regular]	80.0	320.0	ok	+0.0
+workbench/Relaunch now [button:regular]	109.0	320.0	ok	+0.0
+workbench/Relaunching… [tag:callout]	78.9	320.0	ok	+0.0
+workbench/Reveal in Finder [button:regular]	120.0	320.0	ok	+0.0
+workbench/Skipped (row status) [tag:callout]	46.0	320.0	ok	+0.0
+workbench/Sparkle [tag:callout]	42.6	320.0	ok	+0.0
+workbench/TestFlight [button:regular]	84.0	320.0	ok	+0.0
+workbench/TestFlight [tag:callout]	55.5	320.0	ok	+0.0
+workbench/Toolbox [button:regular]	72.0	320.0	ok	+0.0
+workbench/Update [button:regular]	69.0	320.0	ok	+0.0
+workbench/Updated [tag:callout]	48.7	320.0	ok	+0.0
+workbench/Verifying [tag:callout]	50.0	320.0	ok	+0.0

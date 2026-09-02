@@ -68,7 +68,7 @@ struct RowActionStateTests {
     @Test("a skip with no update left to skip says nothing")
     func skipNeedsAnUpdateToSuppress() {
         #expect(RowAction.state(for: RowActionFacts(status: .upToDate, isVersionSkipped: true))
-                == .upToDate)
+                == .upToDate(channel: .none))
         // Ignored is NOT conditioned the same way on purpose: ignoring is a verdict
         // about the app, not about a version, so it still speaks when nothing is
         // pending. Pinned here so the asymmetry is deliberate rather than a typo.
@@ -210,7 +210,7 @@ struct RowActionStateTests {
     @Test("no covering source is distinct from a failure")
     func unknownIsNotFailure() {
         let state = RowAction.state(for: RowActionFacts(status: .unknown))
-        #expect(state == .noSourceCovers)
+        #expect(state == .noSourceCovers(hint: .none))
         #expect(state != .checkFailed(message: "", rateLimited: false))
         #expect(state.needsExplanation)
     }
@@ -233,7 +233,7 @@ struct RowActionStateTests {
     ])
     func onlyUpToDateIsSilent(_ status: UpdateStatus) {
         let state = RowAction.state(for: RowActionFacts(status: status))
-        if state == .upToDate {
+        if state == .upToDate(channel: .none) {
             #expect(state.needsExplanation == false)
         } else {
             #expect(state.needsExplanation || state.offersUpdate || state == .managedElsewhere(.appStore)
@@ -255,8 +255,8 @@ struct RowActionStateTests {
         (.testFlight, false),
         (.selfUpdater, false),
         (.majorUpgrade, false),
-        (.appStore(managedHere: false), false),
-        (.appStore(managedHere: true), false),
+        (.appStore(managedHere: false, gate: .none), false),
+        (.appStore(managedHere: true, gate: .none), false),
         (.detectionOnly, false),
     ])
     func onlyOurRoutesInstall(route: UpdateRoute, installs: Bool) {
@@ -269,7 +269,7 @@ struct RowActionStateTests {
     /// the workbench's blank rows wrong.
     @Test("a non-installable route still explains itself", arguments: [
         UpdateRoute.toolbox, .testFlight, .selfUpdater, .majorUpgrade,
-        .appStore(managedHere: false), .detectionOnly,
+        .appStore(managedHere: false, gate: .none), .detectionOnly,
     ])
     func nonInstallableRoutesExplain(_ route: UpdateRoute) {
         let state = RowAction.state(for: RowActionFacts(
@@ -280,8 +280,42 @@ struct RowActionStateTests {
     @Test("a quiet row is up to date")
     func upToDateIsQuiet() {
         let state = RowAction.state(for: RowActionFacts(status: .upToDate))
-        #expect(state == .upToDate)
+        #expect(state == .upToDate(channel: .none))
         #expect(state.needsExplanation == false)
         #expect(state.offersUpdate == false)
+    }
+
+    // MARK: - The two opinions moved out of the views (issue #260)
+
+    /// Same priority the popover's `.upToDate` branch used to apply itself:
+    /// `isMASApp` beats `isTestFlightApp`. A store-managed app that also happens
+    /// to be TestFlight-flagged (shouldn't normally happen, but nothing enforced
+    /// it) keeps naming the App Store.
+    @Test("a current row's channel: App Store beats TestFlight beats neither")
+    func upToDateChannelPriority() {
+        #expect(RowAction.state(for: RowActionFacts(status: .upToDate, isMASApp: true))
+                == .upToDate(channel: .appStore))
+        #expect(RowAction.state(for: RowActionFacts(status: .upToDate, isTestFlightApp: true))
+                == .upToDate(channel: .testFlight))
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .upToDate, isMASApp: true, isTestFlightApp: true))
+                == .upToDate(channel: .appStore))
+        #expect(RowAction.state(for: RowActionFacts(status: .upToDate))
+                == .upToDate(channel: .none))
+    }
+
+    /// Same priority `sourceHint(for:)` used to apply itself: App Store beats
+    /// Sparkle beats a bare em dash.
+    @Test("a source hint: App Store beats Sparkle beats none")
+    func noSourceCoversHintPriority() {
+        #expect(RowAction.state(for: RowActionFacts(status: .unknown, isMASApp: true))
+                == .noSourceCovers(hint: .appStore))
+        #expect(RowAction.state(for: RowActionFacts(status: .unknown, hasSparkleFeed: true))
+                == .noSourceCovers(hint: .sparkle))
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .unknown, isMASApp: true, hasSparkleFeed: true))
+                == .noSourceCovers(hint: .appStore))
+        #expect(RowAction.state(for: RowActionFacts(status: .unknown))
+                == .noSourceCovers(hint: .none))
     }
 }

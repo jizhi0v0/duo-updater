@@ -470,6 +470,13 @@ final class AppListModel {
             isVersionSkipped: prefs.isVersionSkipped(result.app, version: result.remote?.versionSide),
             stagedRelaunchTarget: actionableStaged(result).map { result.stagedRelaunchLine($0).to },
             needsRestart: needsRestart.contains(result.id),
+            // Feeds the `.unknown` / `.upToDate` rungs' source-hint and channel
+            // priority — moved here from the popover's own `isMASApp` /
+            // `isTestFlightApp` / `sparkleFeedURL` reads (issue #260), so the
+            // priority between them lives in `RowAction.state` rather than a view.
+            isMASApp: result.app.isMASApp,
+            isTestFlightApp: result.app.isTestFlightApp,
+            hasSparkleFeed: result.app.sparkleFeedURL != nil,
             // `self.` because the route is an `@autoclosure` the facts hold rather
             // than a value they copy — see `RowActionFacts.route`. The capture is
             // safe: the struct is built and consumed in this one expression, and
@@ -513,7 +520,8 @@ final class AppListModel {
             requiresInstaller: requiresInstaller,
             stagedFileName: requiresInstaller ? stagedPackage(for: result)?.url.lastPathComponent : nil,
             hasAppStoreAvailability: result.remote?.appStore != nil,
-            appStoreManagedHere: result.app.isiOSAppOnMac && appStoreStrategyIsFullDownload))
+            appStoreManagedHere: result.app.isiOSAppOnMac && appStoreStrategyIsFullDownload,
+            appStoreGate: AppStoreGate.resolve(result.remote?.appStore)))
     }
 
     /// A pending update the user hasn't ignored or skipped — what the badge counts

@@ -22,7 +22,8 @@ struct UpdateRouteResolutionTests {
         requiresInstaller: Bool = false,
         stagedFileName: String? = nil,
         hasAppStoreAvailability: Bool = false,
-        appStoreManagedHere: Bool = false
+        appStoreManagedHere: Bool = false,
+        appStoreGate: AppStoreGate = .none
     ) -> RouteInputs {
         RouteInputs(
             isToolboxManaged: isToolboxManaged,
@@ -33,7 +34,8 @@ struct UpdateRouteResolutionTests {
             requiresInstaller: requiresInstaller,
             stagedFileName: stagedFileName,
             hasAppStoreAvailability: hasAppStoreAvailability,
-            appStoreManagedHere: appStoreManagedHere)
+            appStoreManagedHere: appStoreManagedHere,
+            appStoreGate: appStoreGate)
     }
 
     // MARK: - Every rung reachable on its own
@@ -48,7 +50,7 @@ struct UpdateRouteResolutionTests {
         #expect(UpdateRoute.resolve(Self.inputs(requiresInstaller: true, stagedFileName: "App.pkg"))
                 == .installer(stagedFileName: "App.pkg"))
         #expect(UpdateRoute.resolve(Self.inputs(hasAppStoreAvailability: true, appStoreManagedHere: true))
-                == .appStore(managedHere: true))
+                == .appStore(managedHere: true, gate: .none))
         #expect(UpdateRoute.resolve(Self.inputs()) == .detectionOnly)
     }
 
@@ -114,7 +116,7 @@ struct UpdateRouteResolutionTests {
 
     @Test("appStore outranks the detectionOnly default")
     func appStoreBeatsDetectionOnly() {
-        #expect(UpdateRoute.resolve(Self.inputs(hasAppStoreAvailability: true)) == .appStore(managedHere: false))
+        #expect(UpdateRoute.resolve(Self.inputs(hasAppStoreAvailability: true)) == .appStore(managedHere: false, gate: .none))
     }
 
     // MARK: - The majorUpgrade gate: `isMajorUpgrade && (canAutoInstall ||
@@ -124,7 +126,7 @@ struct UpdateRouteResolutionTests {
     func majorUpgradeGateRequiresAnInstallPath() {
         #expect(UpdateRoute.resolve(Self.inputs(isMajorUpgrade: true)) == .detectionOnly)
         #expect(UpdateRoute.resolve(Self.inputs(isMajorUpgrade: true, hasAppStoreAvailability: true))
-                == .appStore(managedHere: false))
+                == .appStore(managedHere: false, gate: .none))
     }
 
     @Test("the gate is an OR: either half alone is enough")
@@ -148,8 +150,65 @@ struct UpdateRouteResolutionTests {
     @Test("appStore carries managedHere through")
     func appStoreCarriesManagedHere() {
         #expect(UpdateRoute.resolve(Self.inputs(hasAppStoreAvailability: true, appStoreManagedHere: true))
-                == .appStore(managedHere: true))
+                == .appStore(managedHere: true, gate: .none))
         #expect(UpdateRoute.resolve(Self.inputs(hasAppStoreAvailability: true, appStoreManagedHere: false))
-                == .appStore(managedHere: false))
+                == .appStore(managedHere: false, gate: .none))
+    }
+
+    /// Mutation guard for issue #260's `gate`: if `resolve(_:)` stopped reading
+    /// `inputs.appStoreGate` (hardcoding `.none`, say, the way the route used to
+    /// carry no gate at all), this is the test that would go red — every other
+    /// `.appStore` assertion above passes `appStoreGate: .none` by default and
+    /// would not notice.
+    @Test("appStore carries the gate through", arguments: [
+        AppStoreGate.none, .region, .macIncompatible,
+    ])
+    func appStoreCarriesGate(_ gate: AppStoreGate) {
+        #expect(UpdateRoute.resolve(Self.inputs(hasAppStoreAvailability: true, appStoreGate: gate))
+                == .appStore(managedHere: false, gate: gate))
+    }
+}
+
+/// `AppStoreGate.resolve(_:)` — the precedence a view used to apply itself
+/// (`appStoreTrailing`'s `if info.isLatestMacIncompatible … else if
+/// info.isRegionMismatch …`), moved here so both windows read the same answer
+/// off the route instead of each re-deriving it from `AppStoreAvailability`.
+@Suite("AppStoreGate.resolve")
+struct AppStoreGateResolutionTests {
+    @Test("no listing at all resolves to none")
+    func noListing() {
+        #expect(AppStoreGate.resolve(nil) == .none)
+    }
+
+    @Test("an ordinary listing resolves to none")
+    func ordinaryListing() {
+        let info = AppStoreAvailability(trackID: 1, availableRegion: "us", homeRegion: "us")
+        #expect(AppStoreGate.resolve(info) == .none)
+    }
+
+    @Test("a region mismatch resolves to region")
+    func regionMismatch() {
+        let info = AppStoreAvailability(trackID: 1, availableRegion: "cn", homeRegion: "us")
+        #expect(AppStoreGate.resolve(info) == .region)
+    }
+
+    @Test("a Mac-incompatible latest build resolves to macIncompatible")
+    func macIncompatible() {
+        let info = AppStoreAvailability(
+            trackID: 1, availableRegion: "us", homeRegion: "us", latestMacCompatible: false)
+        #expect(AppStoreGate.resolve(info) == .macIncompatible)
+    }
+
+    /// The precedence itself: when a listing is somehow both region-mismatched
+    /// AND Mac-incompatible, `.macIncompatible` wins — same as the popover's old
+    /// `if isLatestMacIncompatible … else if isRegionMismatch …` order. Deleting
+    /// this ordering (checking `isRegionMismatch` first) makes this go red and
+    /// nothing else in the suite would catch it, since every other case here
+    /// only sets one flag at a time.
+    @Test("macIncompatible outranks region when both are true")
+    func macIncompatibleOutranksRegion() {
+        let info = AppStoreAvailability(
+            trackID: 1, availableRegion: "cn", homeRegion: "us", latestMacCompatible: false)
+        #expect(AppStoreGate.resolve(info) == .macIncompatible)
     }
 }

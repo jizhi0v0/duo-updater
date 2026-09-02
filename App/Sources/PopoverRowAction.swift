@@ -92,8 +92,8 @@ struct PopoverRowAction: View {
         case .checkFailed(let message, let rateLimited):
             errorBadge(message: message, rateLimited: rateLimited)
 
-        case .noSourceCovers:
-            Text(sourceHint(for: result)).font(.caption2).foregroundStyle(.tertiary)
+        case .noSourceCovers(let hint):
+            Text(sourceHint(for: hint)).font(.caption2).foregroundStyle(.tertiary)
 
         case .managedElsewhere(.appStore):
             appStoreManagedLabel
@@ -104,18 +104,23 @@ struct PopoverRowAction: View {
         case .managedElsewhere(.testFlight):
             testFlightManagedLabel
 
-        case .upToDate:
-            if result.app.isMASApp {
+        case .upToDate(let channel):
+            // The channel comes from the state, not a fresh read of
+            // `result.app.isMASApp` / `isTestFlightApp` — that used to be this
+            // branch's own opinion (issue #260), formed independently of the
+            // workbench's (which had no branch here at all and drew nothing).
+            switch channel {
+            case .appStore:
                 // We checked it against the store and it's current — but keep
                 // the "App Store" signal so a managed app never looks like an
                 // app we can update ourselves (a bare ✅ reads the same as
                 // Sparkle/brew). Same label as `.appStoreManaged`.
                 appStoreManagedLabel
-            } else if result.app.isTestFlightApp {
+            case .testFlight:
                 // Current on TestFlight — keep the channel tag rather than a
                 // bare check, so it never reads like a self-updatable app.
                 testFlightManagedLabel
-            } else {
+            case .none:
                 Image(systemName: "checkmark").foregroundStyle(.secondary).font(.caption)
             }
         }
@@ -146,9 +151,9 @@ struct PopoverRowAction: View {
             autoUpdateButton
         case .installer(let stagedFileName):
             installerButton(stagedFileName: stagedFileName)
-        case .appStore(let managedHere):
+        case .appStore(let managedHere, let gate):
             if let info = result.remote?.appStore {
-                appStoreTrailing(info, managedHere: managedHere)
+                appStoreTrailing(info, managedHere: managedHere, gate: gate)
             } else {
                 openButton
             }
@@ -495,9 +500,15 @@ struct PopoverRowAction: View {
     /// deep-links to the product page; when it isn't, a globe badge opens a
     /// popover explaining the region lock (the store would just say "App Not
     /// Available").
+    ///
+    /// Which of the three branches applies comes from `gate` — the route's own
+    /// answer — not from re-reading `info.isLatestMacIncompatible` /
+    /// `isRegionMismatch` here (issue #260). `info` is still read below, but only
+    /// for its CONTENT: the deep link, the region names in the two sub-popovers.
+    /// Never again to choose between them.
     @ViewBuilder
-    private func appStoreTrailing(_ info: AppStoreAvailability, managedHere: Bool) -> some View {
-        if info.isLatestMacIncompatible {
+    private func appStoreTrailing(_ info: AppStoreAvailability, managedHere: Bool, gate: AppStoreGate) -> some View {
+        if gate == .macIncompatible {
             // A newer build exists but Apple has marked it as no longer running on
             // Macs — installing it here is impossible, so flag it rather than
             // offering a "Get" the store would reject.
@@ -510,7 +521,7 @@ struct PopoverRowAction: View {
             .popover(isPresented: $showMacCompatHint, arrowEdge: .bottom) {
                 macCompatHintPopover(info)
             }
-        } else if info.isRegionMismatch {
+        } else if gate == .region {
             Button { showRegionHint = true } label: {
                 Image(systemName: "globe.badge.chevron.backward")
                     .foregroundStyle(.orange)

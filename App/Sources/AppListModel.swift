@@ -600,6 +600,30 @@ final class AppListModel {
     /// which only exist after a check has run `makeSources` and set this).
     private(set) var hasGitHubToken = false
 
+    /// The most recent GitHub token resolution: the token (nil when none was
+    /// found) and the explicit Settings value it was resolved under.
+    ///
+    /// Per-app rechecks reuse this rather than resolving again. With no explicit
+    /// token and no env var — the zero-config `gh` login case, which is the common
+    /// one — `GitHubToken.resolve` shells out to `gh auth token`, and one Update
+    /// click runs two rechecks (the pre-install guard and the post-install
+    /// re-read): two subprocesses per click for an answer the full check a minute
+    /// earlier already had (issue #226).
+    ///
+    /// Invalidation is by comparison, not by event: a recheck reuses the entry only
+    /// while `explicit` still equals what Settings holds, so a token pasted or
+    /// cleared there takes effect on the very next recheck, and every full refresh
+    /// re-resolves regardless and overwrites this. The one change this cannot see
+    /// is the `gh` CLI's own login moving underneath us — `gh auth login` after
+    /// launch reaches the next full check, not the next install; until then a
+    /// recheck runs unauthenticated, exactly as a full check would have before the
+    /// login. Not read by the UI; the banner reads `hasGitHubToken`.
+    private struct ResolvedGitHubToken {
+        let explicit: String?
+        let token: String?
+    }
+    @ObservationIgnored private var resolvedGitHubToken: ResolvedGitHubToken?
+
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
 
@@ -1073,6 +1097,10 @@ final class AppListModel {
     private static func resolveGitHubToken(
         explicit: String?, timeout: Duration = .seconds(2)
     ) async -> String? {
+        // Logged so a resolve is visible in `log stream`: without an explicit or env
+        // token each one is a `gh auth token` subprocess, and this line is how to
+        // count them per action (one per full check; none per Update click).
+        Log.app.info("GitHub token: resolving (explicit=\(explicit != nil, privacy: .public))")
         let loader = Task.detached(priority: .utility) {
             GitHubToken.resolve(explicit: explicit)
         }
@@ -1081,6 +1109,19 @@ final class AppListModel {
         }
         Log.app.error("GitHub token resolve timed out — continuing without a token")
         return nil
+    }
+
+    /// The token for a per-app recheck: the most recent resolution, unless the
+    /// explicit Settings value has changed since — then a fresh resolve, remembered
+    /// in turn. See `resolvedGitHubToken` for what this can and cannot notice.
+    private func githubTokenForRecheck() async -> String? {
+        let explicit = explicitGitHubToken()
+        if let cached = resolvedGitHubToken, cached.explicit == explicit {
+            return cached.token
+        }
+        let token = await Self.resolveGitHubToken(explicit: explicit)
+        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, token: token)
+        return token
     }
 
     /// The ordered source stack, rebuilt per check so it picks up a token change
@@ -1731,7 +1772,8 @@ final class AppListModel {
         let extraScan = prefs.customScanLocations
         // Start token resolution early and off-main so a slow `gh` CLI overlaps the
         // local scan instead of freezing the UI or delaying the whole refresh later.
-        async let githubToken = Self.resolveGitHubToken(explicit: explicitGitHubToken())
+        let explicitToken = explicitGitHubToken()
+        async let githubToken = Self.resolveGitHubToken(explicit: explicitToken)
         var found = await Task.detached(priority: .userInitiated) {
             AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF).scan()
         }.value
@@ -1770,8 +1812,13 @@ final class AppListModel {
         }
 
         isChecking = true
+        // Remember what resolved, and under which Settings value, so the per-app
+        // rechecks that follow this round's rows reuse it instead of asking `gh`
+        // again (see `resolvedGitHubToken`).
+        let token = await githubToken
+        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, token: token)
         let checker = UpdateChecker(
-            sources: makeSources(token: await githubToken),
+            sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)
@@ -5515,10 +5562,19 @@ final class AppListModel {
         await recheckMany([result]).first ?? result
     }
 
-    /// The batch form: one disk scan and one `UpdateChecker` for the whole set,
+    /// The batch form: one disk read and one `UpdateChecker` for the whole set,
     /// rather than `recheck` per row. `retryFailedChecks` can hand this a hundred
-    /// rows after an outage, and per-row it would mean a hundred full `AppScanner`
-    /// sweeps and a hundred GitHub-token resolves for one answer each.
+    /// rows after an outage, and per-row it would mean a hundred reads and a hundred
+    /// GitHub-token resolves for one answer each.
+    ///
+    /// The read is scoped to the rows' own bundles (`AppScanner.scan(bundlesAt:)`),
+    /// not a sweep of every location: a recheck is only ever asked about rows it
+    /// already holds, and sweeping ~145 apps to re-read one was the bulk of an
+    /// Update click's disk work — twice per click, before and after the install
+    /// (issue #226). Anything a sweep would find that this cannot — an app installed
+    /// since, a clone that would now dedupe differently, a row whose custom folder
+    /// was removed in Settings — is the next full scan's job. The token comes from
+    /// `githubTokenForRecheck` for the same reason.
     ///
     /// Rows that no longer scan (uninstalled between the failure and the retry)
     /// simply come back missing, which is why callers keep their own copy.
@@ -5530,15 +5586,18 @@ final class AppListModel {
         // TestFlight tagging, so a single-app recheck just scans without it.
         let testflight = TestFlightInventory(macRows: [], accessible: false)
         let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
-        async let githubToken = Self.resolveGitHubToken(explicit: explicitGitHubToken())
-        let extraScan = prefs.customScanLocations
+        let githubToken = await githubTokenForRecheck()
+        let bundles = targets.map(\.app.path)
         let apps = await Task.detached(priority: .userInitiated) {
-            AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: testflight).scan()
+            AppScanner(toolbox: toolbox, testflight: testflight).scan(bundlesAt: bundles)
         }.value
+        // Identity is the resolved path, which is what a row already carries, so
+        // this normally admits everything. Kept as the guard it always was: a bundle
+        // that now resolves elsewhere reads as gone, not as a row under another id.
         let fresh = apps.filter { ids.contains($0.id) }
         guard !fresh.isEmpty else { return [] }
         let checker = UpdateChecker(
-            sources: makeSources(token: await githubToken),
+            sources: makeSources(token: githubToken),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)

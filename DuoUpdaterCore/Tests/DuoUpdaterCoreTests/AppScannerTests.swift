@@ -58,3 +58,52 @@ import Foundation
     let gone = URL(fileURLWithPath: "/Applications/DuoUpdaterTests-\(UUID().uuidString).app")
     #expect(AppScanner().scan(bundlesAt: [gone]).isEmpty)
 }
+
+/// Runtime attribution and update ownership are different questions. Docker's
+/// outer bundle launches the product, while its one nested GUI supplies the
+/// Electron runtime label. That nested GUI also happens to embed Squirrel, but
+/// Docker updates through `com.docker.backend.updater`, not ShipIt (#217).
+@Test func nestedInterfaceDoesNotLendItsUpdaterToTheWrapper() throws {
+    let fm = FileManager.default
+    let root = fm.temporaryDirectory
+        .appendingPathComponent("scanner-docker-\(UUID().uuidString)")
+    defer { try? fm.removeItem(at: root) }
+
+    let wrapper = root.appendingPathComponent("Docker.app")
+    let nested = wrapper.appendingPathComponent("Contents/MacOS/Docker Desktop.app")
+    let nestedFrameworks = nested.appendingPathComponent("Contents/Frameworks")
+    try fm.createDirectory(
+        at: nestedFrameworks.appendingPathComponent("Electron Framework.framework"),
+        withIntermediateDirectories: true)
+    try fm.createDirectory(
+        at: nestedFrameworks.appendingPathComponent("Squirrel.framework"),
+        withIntermediateDirectories: true)
+
+    let outerPlist: [String: Any] = [
+        "CFBundleDisplayName": "Docker",
+        "CFBundleIdentifier": "com.docker.docker",
+        "CFBundleShortVersionString": "4.89.0",
+        "CFBundleVersion": "238018",
+        "CFBundleExecutable": "com.docker.backend",
+    ]
+    let nestedPlist: [String: Any] = [
+        "CFBundleDisplayName": "Docker Desktop",
+        "CFBundleIdentifier": "com.electron.dockerdesktop",
+        "CFBundleShortVersionString": "4.89.0",
+        "CFBundleVersion": "4.89.0.9",
+    ]
+    for (bundle, plist) in [(wrapper, outerPlist), (nested, nestedPlist)] {
+        let info = bundle.appendingPathComponent("Contents/Info.plist")
+        try fm.createDirectory(at: info.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try PropertyListSerialization
+            .data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: info)
+    }
+
+    let app = try #require(AppScanner().scan(bundlesAt: [wrapper]).first)
+    #expect(app.runtime == .electron)
+    #expect(!app.hasSelfUpdater)
+    #expect(!app.hasSparkleUpdater)
+    #expect(app.electronUpdate == nil)
+    #expect(app.sparkleFeedURL == nil)
+}

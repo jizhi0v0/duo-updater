@@ -426,6 +426,80 @@ final class AppListModel {
         UpdatePolicy.laggingRemoteVersion(result)
     }
 
+    /// Bring JetBrains Toolbox forward — the action for every Toolbox-managed row,
+    /// in both windows. On the model rather than duplicated per view, for the same
+    /// reason `rowState` is: one row, one behaviour.
+    func openToolbox() {
+        if let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.jetbrains.toolbox") {
+            NSWorkspace.shared.openApplication(at: url, configuration: .init())
+        }
+    }
+
+    /// Bring TestFlight forward — the action for every TestFlight-managed row, in
+    /// both windows and in the row menu. On the model for the same reason
+    /// `openToolbox` is: one row, one behaviour.
+    func openTestFlight() {
+        if let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.apple.TestFlight") {
+            NSWorkspace.shared.openApplication(at: url, configuration: .init())
+        }
+    }
+
+    /// The single answer both the popover and the workbench render.
+    ///
+    /// `ui = f(state)`: the two surfaces used to each carry their own ladder of
+    /// `if`/`else if`, in different orders and with different coverage, so the same
+    /// row could read differently in the two windows — and did (see
+    /// `RowActionState`). They now ask this and decide only how to *draw* the
+    /// answer, never what the answer is.
+    ///
+    /// Presentation may still differ where it is a deliberate product decision: the
+    /// workbench does not one-click a major upgrade, because the licence-boundary
+    /// warning that makes that safe lives in the popover. What it may not do is
+    /// render a state as nothing.
+    func rowState(for result: UpdateResult) -> RowActionState {
+        RowAction.state(for: RowActionFacts(
+            status: result.status,
+            awaitingQuitConfirm: awaitingQuitConfirm[result.id],
+            isRelaunching: relaunching.contains(result.id),
+            hasPendingBatchRestart: pendingBatchRestart[result.id] != nil,
+            justUpdated: justUpdated.contains(result.id),
+            installStage: installing[result.id],
+            isIgnored: prefs.isIgnored(result.app),
+            isVersionSkipped: prefs.isVersionSkipped(result.app, version: result.remote?.versionSide),
+            stagedRelaunchTarget: actionableStaged(result).map { result.stagedRelaunchLine($0).to },
+            needsRestart: needsRestart.contains(result.id),
+            // `self.` because the route is an `@autoclosure` the facts hold rather
+            // than a value they copy — see `RowActionFacts.route`. The capture is
+            // safe: the struct is built and consumed in this one expression, and
+            // the closure is called (at most once) before it returns.
+            route: self.rowRoute(for: result)))
+    }
+
+    /// How an available update would be applied. Resolved here rather than in each
+    /// view so both windows agree on whether a row is one-click at all — the
+    /// invariant that matters, since one window offering Update while the other
+    /// does not is the same row telling two stories.
+    private func rowRoute(for result: UpdateResult) -> UpdateRoute {
+        // Toolbox and TestFlight own their installs outright; the action is "open
+        // them", never an in-place swap. Checked first for that reason.
+        if result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged { return .toolbox }
+        if result.remote?.sourceName == "TestFlight" { return .testFlight }
+        if defersToSelfUpdater(result) { return .selfUpdater }
+        if result.isMajorUpgrade && (canAutoInstall(result) || requiresInstaller(result)) {
+            return .majorUpgrade
+        }
+        if canAutoInstall(result) { return .autoInstall }
+        if requiresInstaller(result) {
+            return .installer(stagedFileName: stagedPackage(for: result)?.url.lastPathComponent)
+        }
+        if result.remote?.appStore != nil {
+            return .appStore(managedHere: result.app.isiOSAppOnMac && appStoreStrategyIsFullDownload)
+        }
+        return .detectionOnly
+    }
+
     /// A pending update the user hasn't ignored or skipped — what the badge counts
     /// and what "Update All" acts on.
     func isActionableUpdate(_ result: UpdateResult) -> Bool {
@@ -454,8 +528,8 @@ final class AppListModel {
     /// The three relaunch terms are gated on the user's verdict, which
     /// `isActionableUpdate` applies for itself and they do not carry: an ignored
     /// row stays in `results` with `remote: nil` and renders as a muted "Ignored"
-    /// tag with no button at all (`MenuContentView.trailing` puts that branch ahead
-    /// of both relaunch branches). Counting one would light the badge with nothing
+    /// tag with no button at all (`RowAction.state` puts the ignore rung ahead
+    /// of both relaunch rungs, for both windows). Counting one would light the badge with nothing
     /// on the other end of the click, forever — the same "hidden in the app, still
     /// nagging" shape `UpdatePolicy.nudgeableStaged` exists to prevent, which is
     /// also why the staged term goes through `nudgeableStaged` rather than raw
@@ -3053,7 +3127,7 @@ final class AppListModel {
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
                 // The swap is fully in effect and nothing is left to do, so this row is
                 // about to filter out of the list. Hold it briefly with an "Updated ✓"
-                // confirmation (see `visible`/`trailing`) so completion is legible
+                // confirmation (see `visible` and `RowAction.state`) so completion is legible
                 // instead of the row just disappearing mid-progress.
                 markJustUpdated(id)
             }

@@ -13043,47 +13043,6 @@
         }
       }
     },
-    "Quit the app to finish installing the update, then reopen it": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App beenden, um die Update-Installation abzuschließen, dann erneut öffnen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cierra la app para terminar de instalar la actualización y vuelve a abrirla"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quittez l'application pour terminer l'installation de la mise à jour, puis rouvrez-la"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アプリを終了して更新のインストールを完了し、再度開いてください"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Закройте приложение, чтобы завершить установку обновления, затем откройте его снова"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "退出该应用以完成更新安装，然后重新打开"
-          }
-        }
-      }
-    },
     "Rate-limited": {
       "extractionState": "manual",
       "localizations": {

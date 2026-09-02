@@ -305,8 +305,11 @@ public enum FeedDiscovery {
         // release's `CFBundleShortVersionString`), which is precisely why
         // `SparkleAppcastSource.channel(ofInstalled:in:)` scans the build across
         // every item before it will consider marketing at all.
-        guard let installedBuild = probe.installed.build,
-              let matched = feedItems.first(where: { $0.version == installedBuild })
+        guard let installedBuild = probe.installed.build else {
+            return .review(.installedBuildNotInFeed, candidate.url)
+        }
+        guard let matched = SparkleAppcastSource.item(
+            matchingInstalledBuild: installedBuild, in: feedItems)
         else {
             return .review(.installedBuildNotInFeed, candidate.url)
         }

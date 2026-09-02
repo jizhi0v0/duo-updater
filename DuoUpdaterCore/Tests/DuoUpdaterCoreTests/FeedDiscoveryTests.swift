@@ -113,6 +113,33 @@ private func item(
     #expect(verdict == .adopt(URL(string: "https://example.invalid/appcast.xml")!))
 }
 
+@Test func equivalentBuildSpellingsStillIdentifyTheInstalledFeedItem() {
+    let expected = FeedDiscovery.Verdict.adopt(
+        URL(string: "https://example.invalid/appcast.xml")!)
+
+    #expect(FeedDiscovery.decide(
+        probe(marketing: "1.2.3", build: "1.2.3"),
+        feedItems: [item(short: "1.2.3", version: "v1.2.3")]) == expected,
+        "a conventional version prefix does not change build identity")
+
+    #expect(FeedDiscovery.decide(
+        probe(marketing: "1.0", build: "1.0"),
+        feedItems: [item(short: "1.0", version: "1.0.0")]) == expected,
+        "missing trailing zero components do not change build identity")
+}
+
+@Test func anExactBuildSpellingBeatsAnEarlierEquivalentSpelling() {
+    let verdict = FeedDiscovery.decide(
+        probe(marketing: "1.0", build: "1.0"),
+        feedItems: [
+            item(short: "unrelated", version: "1.0.0"),
+            item(short: "1.0", version: "1.0"),
+        ])
+
+    #expect(verdict == .adopt(
+        URL(string: "https://example.invalid/appcast.xml")!))
+}
+
 // MARK: - the channel gate
 
 @Test func aFeedWhereEveryItemIsChannelTaggedWouldStarveAStableInstall() {

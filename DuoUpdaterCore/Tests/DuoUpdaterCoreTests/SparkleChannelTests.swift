@@ -96,6 +96,32 @@ struct SparkleChannelTests {
         #expect(SparkleAppcastSource.channel(ofInstalled: app(short: "1.5", build: "x"), in: items) == nil)
     }
 
+    @Test func equivalentBuildSpellingStillPreservesTheInstalledChannel() {
+        let collidingMarketing = [
+            SparkleAppcastItem(shortVersionString: "1.0", version: "101"),
+            SparkleAppcastItem(
+                shortVersionString: "1.0", version: "v100", channel: "beta"),
+        ]
+
+        #expect(SparkleAppcastSource.channel(
+            ofInstalled: app(short: "1.0", build: "100"),
+            in: collidingMarketing) == "beta",
+            "the semantically identical build must win before marketing fallback")
+    }
+
+    @Test func exactBuildSpellingBeatsAnEarlierEquivalentBuild() {
+        let duplicateSpellings = [
+            SparkleAppcastItem(
+                shortVersionString: "1.0", version: "1.0.0", channel: "tip"),
+            SparkleAppcastItem(
+                shortVersionString: "1.0", version: "1.0", channel: "beta"),
+        ]
+
+        #expect(SparkleAppcastSource.channel(
+            ofInstalled: app(short: "1.0", build: "1.0"),
+            in: duplicateSpellings) == "beta")
+    }
+
     /// TypeWhisper's real appcast, 2026-08-31: three trains on one bundle id,
     /// and the `release-candidate` build ships the SAME
     /// `CFBundleShortVersionString` (`1.6.0`) as the stable item that sits

@@ -199,7 +199,9 @@ vendor 换 DNS、改 manifest 结构、端点开始要 license,都发生过。�
 
 ## 发布
 
-- `CHANGELOG.md` 是发布说明的**唯一真源**:`scripts/publish-release.sh` 直接读对应版本那一节,塞进 GitHub Release 和 Sparkle appcast。写给用户看的人话,不要写 commit 流水账——照着已有版本的语气写。
+- `CHANGELOG.md` 是发布说明的**唯一真源**:`scripts/publish-release.sh` 直接读对应版本那一节,塞进 GitHub Release 和 Sparkle appcast。**英文**,写给用户看的人话,不要写 commit 流水账。
+- **写用户得到了什么,不写我们是怎么查出来的。** 一句加粗的收益,最多再补一句"以前是什么样",格式规范写在 `CHANGELOG.md` 开头。**0.3.80 起改的**,之前那些是旧的长篇体例,保持原样别动。具体不要写的:排查过程、量到的毫秒数、文件名和符号名、issue 号、复审抓到了什么。用户感知不到的改动(重构、内部加固、多数性能优化)合并成结尾一句 "Under the hood:",或者干脆不写——性能优化只有在用户真的会感觉到时才单独成条。
+- ⚠️ 我在 0.3.80 那次先用中文重写了整节才发现:**这个文件历来是英文的**,而且会原样发给全量用户。改之前先看一眼相邻版本。
 - `make install` / `make cli` 用的是**稳定的 Developer ID 签名**,这不是洁癖:macOS 把 TCC 授权(完全磁盘访问、辅助功能、App 管理)绑在代码身份上,ad-hoc 签名每次重编 CDHash 都变,授权就掉。别为了图快改成 ad-hoc。
 - `make notarize` → `dist/DuoUpdater-notarized.zip`;`make release` 才推 GitHub Release。
 

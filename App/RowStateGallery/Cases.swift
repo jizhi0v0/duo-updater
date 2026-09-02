@@ -301,34 +301,62 @@ enum RowStateGalleryCases {
     ]
 
     /// Tiles whose PICTURE is a harness artifact and must not be read as the real
-    /// UI. `ImageRenderer` draws an SF Symbol inside a `.buttonStyle(.borderless)`
-    /// button as a yellow "unavailable" placeholder instead of the glyph — verified
-    /// with a three-way probe: a bare `Image(systemName:)` renders correctly, the
-    /// same image wrapped in a borderless Button does not, and `.popover` has no
-    /// bearing on it. These three are the popover's amber/globe badges, and the
-    /// workbench draws the same states correctly (it uses `Label`, not a borderless
-    /// button), so the pair is still worth comparing for CONTENT — just not for how
-    /// the badge itself looks.
+    /// UI. Membership is enforced, not just documented: `main.swift` scans every
+    /// rendered tile for `ImageRenderer`'s placeholder signature
+    /// (`placeholderPixelCount`) and fails the build if a tile carries it and is
+    /// missing from this set (#269) — so an unlisted placeholder tile is caught
+    /// the same run it appears, not discovered by someone reading pixels by hand.
     ///
-    /// They are still checked for blank and for collisions: the state coverage is
-    /// real even when the glyph is not.
+    /// Three separate causes, each its own reason because they differ in whether
+    /// the OTHER surface has a faithful picture to read instead:
     static let notFaithful: Set<String> = [
+        // Cause 1: an SF Symbol inside a `.buttonStyle(.borderless)` button —
+        // verified with a three-way probe: a bare `Image(systemName:)` renders
+        // correctly, the same image wrapped in a borderless Button does not, and
+        // `.popover` has no bearing on it. These three are the popover's
+        // amber/globe badges; the workbench draws the same STATES correctly (it
+        // uses `Label`, not a borderless button) — so for this cause, the other
+        // surface IS a faithful twin. Read that tile instead.
         "popover/18-update-major-upgrade",
         "popover/21-update-app-store-region-locked",
         "popover/22-update-app-store-mac-incompatible",
-        // A DIFFERENT `ImageRenderer` gap, found while adding this case for #265:
-        // it also cannot draw a plain native `ProgressView()` — the yellow/red
-        // "unavailable" placeholder stands in for the spinner on BOTH surfaces (no
-        // `Label`/borderless-button escape hatch here, unlike the three above).
-        // The state coverage is still real (no stage label is drawn, which is the
-        // branch this case exists to exercise) — only the spinner glyph itself is
-        // the harness artifact. This same substitution is visible on several
-        // already-committed tiles that predate #265 (e.g. 02/05/06/07's spinners
-        // and progress bar); widening this list to cover those is a separate,
-        // larger cleanup and out of scope here — flagged instead of silently
-        // left off this one new case.
+
+        // Cause 2: a plain native `ProgressView()` (indeterminate spinner) or
+        // `ProgressView(value:)` (determinate bar) — `ImageRenderer` draws the
+        // same yellow/red "unavailable" placeholder in its place. Unlike cause 1,
+        // NEITHER surface has an escape hatch here: both `PopoverRowAction` and
+        // `WorkbenchRowAction` reach for a real `ProgressView` for every install
+        // stage that isn't the ring readout (`stageProgress`/`installProgress` in
+        // `RowActionViews.swift`/`PopoverRowAction.swift`), so relaunching and the
+        // three non-ring install stages are placeholder-only on both windows —
+        // there is no faithful picture of an installing row anywhere in the
+        // committed sheet. First found on `37-stage-label-hidden` while adding it
+        // for #265; #269 measured the rest of this group (02/05/06/07), which
+        // predate #265 and had been silently wrong the whole time.
+        "popover/02-relaunching",
+        "popover/05-installing-queued",
+        "popover/06-installing-downloading",
+        "popover/07-installing-extracting",
         "popover/37-stage-label-hidden",
+        "workbench/02-relaunching",
+        "workbench/05-installing-queued",
+        "workbench/06-installing-downloading",
+        "workbench/07-installing-extracting",
         "workbench/37-stage-label-hidden",
+
+        // Cause 3: also a plain `ProgressView(value:)`, but WORKBENCH-only — found
+        // by the same #269 scan. `PopoverRowAction.downloadProgress` draws
+        // `ringAndPercent`/`ringOnly` with `ProgressRing`, a shape this file draws
+        // itself rather than borrowing from `ProgressView` (see that type's own
+        // doc comment), so the popover half of these two states renders correctly
+        // — it just looks different from `barAndPercent`, which is the whole
+        // point of the ring readout. `WorkbenchRowAction` has no such alternative:
+        // it always calls `installProgress`, which is `ProgressView(value:)`
+        // regardless of which readout the popover would have picked. So unlike
+        // cause 2, THIS pair has an escape hatch — read the popover tile — it's
+        // just the opposite surface from cause 1's.
+        "workbench/35-download-ring-and-percent",
+        "workbench/36-download-ring-only",
     ]
 
     /// "Nothing was drawn" — every pixel matches the window background painted

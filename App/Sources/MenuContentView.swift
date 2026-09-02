@@ -963,7 +963,7 @@ private struct AppRow: View {
                 PopoverRowAction(
                     state: model.rowState(for: result),
                     result: result,
-                    actions: RowActions(
+                    actions: RowActions.live(
                         install: { Task { await model.install(result) } },
                         openStagedPackage: { Task { await model.openStagedPackage(result) } },
                         retry: { Task { await model.retry(result) } },

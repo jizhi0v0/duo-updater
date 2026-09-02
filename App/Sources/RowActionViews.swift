@@ -37,6 +37,14 @@ func installStageLabel(_ stage: InstallStage) -> String {
 /// to draw every `RowActionState` into a reference image. Defaults are no-ops, so a
 /// gallery or preview supplies only what it wants to observe.
 struct RowActions {
+    /// Every action defaults to a no-op so a gallery or preview can supply only
+    /// what it wants to observe. That convenience is also a trap for the two real
+    /// windows: a construction site that omits one compiles fine and ships a button
+    /// that does nothing. It has happened once already — the workbench's literal
+    /// ended at `openToolbox`, so `openTestFlight` was silently dead — which is why
+    /// `live(...)` exists. **The two windows must build their actions through it**,
+    /// so adding a tenth action breaks the build at both sites instead of going
+    /// quiet at whichever one was forgotten.
     var install: () -> Void = {}
     var openStagedPackage: () -> Void = {}
     var retry: () -> Void = {}
@@ -46,6 +54,26 @@ struct RowActions {
     var openSelfUpdater: () -> Void = {}
     var openToolbox: () -> Void = {}
     var openTestFlight: () -> Void = {}
+
+    /// The full set, with no defaults — for a real window, where a missing action
+    /// is a dead control rather than a deliberate omission.
+    static func live(
+        install: @escaping () -> Void,
+        openStagedPackage: @escaping () -> Void,
+        retry: @escaping () -> Void,
+        restart: @escaping () -> Void,
+        relaunchStaged: @escaping () -> Void,
+        confirmQuit: @escaping () -> Void,
+        openSelfUpdater: @escaping () -> Void,
+        openToolbox: @escaping () -> Void,
+        openTestFlight: @escaping () -> Void
+    ) -> RowActions {
+        RowActions(
+            install: install, openStagedPackage: openStagedPackage, retry: retry,
+            restart: restart, relaunchStaged: relaunchStaged, confirmQuit: confirmQuit,
+            openSelfUpdater: openSelfUpdater, openToolbox: openToolbox,
+            openTestFlight: openTestFlight)
+    }
 }
 
 struct WorkbenchRowAction: View {

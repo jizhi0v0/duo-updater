@@ -470,7 +470,11 @@ final class AppListModel {
             isVersionSkipped: prefs.isVersionSkipped(result.app, version: result.remote?.versionSide),
             stagedRelaunchTarget: actionableStaged(result).map { result.stagedRelaunchLine($0).to },
             needsRestart: needsRestart.contains(result.id),
-            route: rowRoute(for: result)))
+            // `self.` because the route is an `@autoclosure` the facts hold rather
+            // than a value they copy — see `RowActionFacts.route`. The capture is
+            // safe: the struct is built and consumed in this one expression, and
+            // the closure is called (at most once) before it returns.
+            route: self.rowRoute(for: result)))
     }
 
     /// How an available update would be applied. Resolved here rather than in each

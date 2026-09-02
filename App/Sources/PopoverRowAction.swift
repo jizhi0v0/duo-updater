@@ -379,7 +379,16 @@ struct PopoverRowAction: View {
         }
     }
 
-    private var majorUpgradePopover: some View {
+    // Not `private`: the licence-boundary warning, the region explanation and the
+    // Mac-compat explanation are each already a self-contained view — the seam
+    // #265 needed was already here, just locked behind `private`. `RowStateGallery`
+    // (a separate target that compiles this file directly, see `App/project.yml`)
+    // constructs a `PopoverRowAction` and reads these three off it to render the
+    // panel's CONTENT on its own tile, without going through the `@State` flag /
+    // `.popover(isPresented:)` machinery that only a live, on-screen anchor can
+    // drive. Nothing about the popover's on-screen behavior changes: the flags
+    // still start `false`, and both buttons here still call `actions.install()`.
+    var majorUpgradePopover: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Major version upgrade", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
@@ -553,7 +562,8 @@ struct PopoverRowAction: View {
         }
     }
 
-    private func regionHintPopover(_ info: AppStoreAvailability) -> some View {
+    // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.
+    func regionHintPopover(_ info: AppStoreAvailability) -> some View {
         let here = info.homeRegion.map(Self.regionName) ?? String(localized: "your region")
         let there = Self.regionName(info.availableRegion)
         return VStack(alignment: .leading, spacing: 8) {
@@ -585,7 +595,8 @@ struct PopoverRowAction: View {
         .frame(width: 300)
     }
 
-    private func macCompatHintPopover(_ info: AppStoreAvailability) -> some View {
+    // See the doc comment on `majorUpgradePopover` — same seam, same reasoning.
+    func macCompatHintPopover(_ info: AppStoreAvailability) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Not supported on this Mac", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)

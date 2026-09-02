@@ -43,6 +43,122 @@ import Foundation
     #expect(date == Date(timeIntervalSince1970: 1_782_320_844))
 }
 
+// MARK: - Bare digit runs
+
+/// A bare number used to be handed to `TimeInterval(String)` and read as epoch
+/// seconds, whatever its shape. `yyyyMMdd` came out in 1970, a millisecond epoch
+/// in the year 57450, and "nan"/"infinity" produced a non-finite `Date` that then
+/// went into sorts and formatters. Only an all-digit string is numeric now, and a
+/// numeric string is a calendar date, seconds, milliseconds, or nothing.
+
+@Test func eightDigitsIsACalendarDateNotAnEpoch() {
+    // 2026-06-14T00:00:00Z — python: datetime(2026,6,14,tzinfo=utc).timestamp()
+    #expect(ReleaseDate.parse("20260614") == Date(timeIntervalSince1970: 1_781_395_200))
+    // Eight digits that are not a date are nothing, not 20-odd million seconds.
+    #expect(ReleaseDate.parse("99999999") == nil)
+    #expect(ReleaseDate.parse("20261301") == nil, "month 13")
+    #expect(ReleaseDate.parse("20260230") == nil, "non-lenient: no 30 Feb")
+}
+
+@Test func thirteenDigitsIsMilliseconds() {
+    // 2025-06-24T17:20:00Z — python: datetime.fromtimestamp(1750785600000/1000, utc)
+    #expect(ReleaseDate.parse("1750785600000") == Date(timeIntervalSince1970: 1_750_785_600))
+}
+
+@Test func secondsAndMillisecondWindowsAre1990To2100() {
+    // [1990-01-01, 2100-01-01) in seconds: 631152000 ..< 4102444800.
+    #expect(ReleaseDate.parse("631152000") == Date(timeIntervalSince1970: 631_152_000))
+    #expect(ReleaseDate.parse("631151999") == nil)
+    #expect(ReleaseDate.parse("4102444799") == Date(timeIntervalSince1970: 4_102_444_799))
+    #expect(ReleaseDate.parse("4102444800") == nil)
+    // The same window ×1000 in milliseconds.
+    #expect(ReleaseDate.parse("631152000000") == Date(timeIntervalSince1970: 631_152_000))
+    #expect(ReleaseDate.parse("631151999999") == nil)
+    #expect(ReleaseDate.parse("4102444799999")?.timeIntervalSince1970 == 4_102_444_799.999)
+    #expect(ReleaseDate.parse("4102444800000") == nil)
+    // Between the windows, and past them, is nothing.
+    #expect(ReleaseDate.parse("100000000000") == nil, "12 digits, 1973 in ms")
+    #expect(ReleaseDate.parse("99999999999999999999") == nil, "20 digits")
+    #expect(ReleaseDate.parse("999999999999999999999") == nil, "21 digits, past UInt64")
+}
+
+@Test func onlyABareDecimalCountsAsNumeric() {
+    // Everything Double(String) accepts that is not a bare decimal falls through
+    // to the textual formatters, which reject it — never a 1970 or non-finite Date.
+    for raw in ["nan", "NaN", "infinity", "inf", "-inf", "1e9", "0x1p60",
+                "-1782320844", "+1782320844", "1782320844.", ".5", "1.2.3",
+                "2026", "١٧٨٢٣٢٠٨٤٤", "１７８２３２０８４４"] {
+        #expect(ReleaseDate.parse(raw) == nil, "\(raw)")
+    }
+}
+
+/// The predicate itself, called directly. `parse` cannot show whether it is
+/// right: `UInt64("١٧٨٢٣٢٠٨٤٤")` is nil anyway, so a version of `isDigitRun`
+/// that accepted digits in any script would leave every case above still green.
+/// The byte test matters because the calendar-date branch counts *bytes*, and
+/// four Arabic-Indic digits are also eight of them.
+@Test func theNumericPredicatesAreASCIIOnlyAndAllowOneFraction() {
+    #expect(ReleaseDate.isDigitRun("20260614"))
+    #expect(!ReleaseDate.isDigitRun("١٧٨٢"), "Arabic-Indic digits are not ASCII digits")
+    #expect(!ReleaseDate.isDigitRun("２０２６"), "nor are full-width ones")
+    #expect(!ReleaseDate.isDigitRun("1782320844.0"), "a fraction is not a digit run")
+    #expect(!ReleaseDate.isDigitRun(""))
+    #expect("١٧٨٢".utf8.count == 8, "the shape the byte-counting branch has to survive")
+    #expect(ReleaseDate.date(fromDigits: "١٧٨٢") == nil)
+    // `displayDate` calls `date(fromDigits:)` directly, so its own guard has to
+    // hold. This is the input that proves it does: `UInt64("+1750785600")` is
+    // 1750785600 — Swift's integer initialiser takes a leading plus — so without
+    // the guard a signed epoch reads as an in-window date. Delete the guard and
+    // this is the only expectation that goes red.
+    #expect(UInt64("+1750785600") == 1_750_785_600, "the reason the guard exists")
+    #expect(ReleaseDate.date(fromDigits: "+1750785600") == nil)
+
+    #expect(ReleaseDate.isNumericRun("1782320844"))
+    #expect(ReleaseDate.isNumericRun("1782320844.0"))
+    for bad in ["", ".", "1.", ".1", "1.2.3", "-1", "1e9", "nan", "١٧٨٢.0"] {
+        #expect(!ReleaseDate.isNumericRun(bad), "\(bad)")
+    }
+}
+
+/// A clock read as a float prints its fraction: Python's `time.time()` gives
+/// `1750785600.0`, and `Double(String)` used to read that correctly. It is the
+/// one shape the digit-run rule would otherwise have taken away, so it is pinned
+/// — the fraction is carried, not dropped.
+@Test func aSecondsEpochMayCarryAFraction() {
+    #expect(ReleaseDate.parse("1750785600.0") == Date(timeIntervalSince1970: 1_750_785_600))
+    #expect(ReleaseDate.parse("1750785600.5") == Date(timeIntervalSince1970: 1_750_785_600.5))
+    // The window is judged on the whole part, and only seconds take a fraction:
+    // a fractional millisecond is not a shape anything emits.
+    #expect(ReleaseDate.parse("631151999.9") == nil, "below the window")
+    #expect(ReleaseDate.parse("1750785600000.5") == nil, "milliseconds stay whole")
+    #expect(ReleaseDate.parse("20260614.0") == nil, "a calendar date does not take a fraction")
+}
+
+@Test func parsedDatesAreAlwaysFinite() {
+    for raw in ["20260614", "1782320844", "1750785600000", "nan", "infinity", "inf",
+                "1e999", "-1e999", "4102444799999", "631152000"] {
+        if let date = ReleaseDate.parse(raw) {
+            #expect(date.timeIntervalSince1970.isFinite, "\(raw)")
+        }
+    }
+}
+
+/// The same reading is what `AppcastMarkdownParser.displayDate` shows, so the
+/// timeline and the rail subtitle cannot disagree about a bare number.
+@Test func digitReadingIsSharedWithTheDisplayString() {
+    for raw in ["20260614", "1782320844", "1750785600000", "631152000", "2026", "nan"] {
+        let parsed = ReleaseDate.parse(raw)
+        let shown = AppcastMarkdownParser.displayDate(from: raw)
+        if let parsed {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withFullDate, .withDashSeparatorInDate]
+            #expect(shown == f.string(from: parsed), "\(raw)")
+        } else {
+            #expect(shown == raw, "\(raw): a non-date passes through verbatim")
+        }
+    }
+}
+
 @Test func returnsNilForEmptyOrGarbage() {
     #expect(ReleaseDate.parse(nil) == nil)
     #expect(ReleaseDate.parse("") == nil)

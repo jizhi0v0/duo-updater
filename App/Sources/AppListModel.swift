@@ -93,11 +93,15 @@ final class AppListModel {
     private(set) var isScanning = false
     private(set) var isChecking = false
     /// True for the whole of `performRefresh`, unlike `isScanning`/`isChecking`
-    /// which each cover only one leg of it. Between them sits the TestFlight read
-    /// (up to 2s on a user-present refresh), during which BOTH are false while
-    /// `results` still carries the previous round's `.error` rows — long enough for
-    /// a failure banner keyed on those to flash in and back out on every refresh.
-    /// Surfaces that must stay quiet for a whole round read this instead.
+    /// which each cover only one leg of it. A user-present refresh suspends TWICE
+    /// with both of those false: at `ChangelogCache.invalidateAll()` before the scan,
+    /// and at the TestFlight read between the legs (up to 2s). SwiftUI renders at
+    /// both. `results` still carries the previous round's `.error` rows there — long
+    /// enough for a failure banner keyed on those to flash in and back out — and
+    /// every whole-list control read as enabled (#253).
+    ///
+    /// Surfaces that must stay quiet for a whole round read this instead, via
+    /// `listActivity`.
     private(set) var isRefreshing = false
     private(set) var lastScan: Date?
 
@@ -480,11 +484,21 @@ final class AppListModel {
     /// install", which is what the diagnostic log wants.
     var actionCount: Int { results.filter(needsAction).count }
 
+    /// What is in flight across the whole list right now. The whole-list actions
+    /// below all gate on this one value rather than re-listing the flags, which is
+    /// what let them disagree about the mid-refresh gap (#253).
+    var listActivity: ListActivity {
+        ListActivity(
+            isRefreshing: isRefreshing,
+            isScanning: isScanning,
+            isChecking: isChecking,
+            isInstallingAll: isInstallingAll,
+            rowInstallCount: installing.count)
+    }
+
     /// A full networked refresh rewrites the whole result list. Keep it out of
     /// the way while installs are mutating individual rows and replacing bundles.
-    var canRefresh: Bool {
-        !isScanning && !isChecking && installing.isEmpty && !isInstallingAll
-    }
+    var canRefresh: Bool { listActivity.canRefresh }
 
     /// The count shown on the menu-bar badge. A full refresh briefly blanks every
     /// row to `.unknown` (so `actionCount` dips to 0) before the check repopulates
@@ -4948,7 +4962,14 @@ final class AppListModel {
     /// installer window that interrupts the user. The shared restart/staging/backup
     /// sweep runs once after the whole batch has settled.
     func installAll() async {
-        guard !isInstallingAll, !isScanning, !isChecking, installing.isEmpty else { return }
+        // Say WHY, like `refresh` and `refreshLocal` do. A notification banner's
+        // "Update All" routes straight here, so a tap that lands while a check or a
+        // refresh is running is otherwise a banner that dismisses with nothing
+        // installed and nothing logged.
+        guard listActivity.canInstallAll else {
+            Log.app.info("update all: skipped — \(String(describing: self.listActivity), privacy: .public)")
+            return
+        }
         refreshPermissionStatus()
         // The filter below consults `defersToSelfUpdater`, which reads the running
         // set. That set is only maintained by NSWorkspace launch/terminate
@@ -5067,14 +5088,10 @@ final class AppListModel {
         }
     }
 
-    /// True when there's more than one app "Update All" would act on — used to
-    /// decide whether to show the batch button.
-    ///
-    /// More than one, not at least one: with a single target the row's own
-    /// "Update" button is already right there, and a batch button beside it is a
-    /// second control for exactly the same action.
+    /// Whether to show the batch button: nothing in flight, and more than one app
+    /// it would act on. Both halves live in `ListActivity.canOfferUpdateAll`.
     var canUpdateAll: Bool {
-        !isInstallingAll && !isScanning && !isChecking && installing.isEmpty && installAllTargets().count > 1
+        listActivity.canOfferUpdateAll(targetCount: installAllTargets().count)
     }
 
     // MARK: - Ignore / skip
@@ -5770,7 +5787,8 @@ final class AppListModel {
         // `refreshLocal` and `installAll` all read `installing.isEmpty` — so claiming
         // 120 rows after an outage would make Update All *vanish* from the header and
         // grey out Refresh for minutes with nothing on screen saying why (the header
-        // spinner keys off `isScanning || isChecking`, which those claims never set).
+        // spinner keys off `listActivity.isRoundInFlight`, which those claims never
+        // set — but `isChecking` does, so the spinner runs for this too).
         // `isChecking` disables the same controls for the same duration, but it is
         // what a check in flight actually is, and it shows the spinner while it runs.
         // It also keeps the failed rows out of `visible`, which claims would have

@@ -195,7 +195,11 @@ struct MenuContentView: View {
     @ViewBuilder
     private var content: some View {
         if model.results.isEmpty {
-            let emptyTitle = model.isScanning
+            // `isRoundInFlight`, not `isScanning`: a user-present refresh clears the
+            // saved release notes BEFORE it raises `isScanning`, and that await lets
+            // a cold launch paint here with no rows yet — which read "No apps yet"
+            // over a scan that was about to start (#253's gap, one surface over).
+            let emptyTitle = model.listActivity.isRoundInFlight
                 ? String(localized: "Scanning…")
                 : String(localized: "No apps yet")
             ContentUnavailableView(
@@ -470,7 +474,7 @@ struct MenuContentView: View {
                     } label: {
                         // Keep both refresh states in the same 16pt layout box.
                         Group {
-                            if model.isScanning || model.isChecking {
+                            if model.listActivity.isRoundInFlight {
                                 ProgressView()
                                     .controlSize(.small)
                                     .scaleEffect(0.72)

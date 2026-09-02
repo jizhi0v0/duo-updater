@@ -465,7 +465,7 @@ public enum UpdateStatus: Sendable, Equatable {
 }
 
 /// The outcome of checking one installed app for updates.
-public struct UpdateResult: Sendable, Identifiable {
+public struct UpdateResult: Sendable, Identifiable, Equatable {
     public let app: InstalledApp
     public let remote: RemoteVersion?
     public let status: UpdateStatus

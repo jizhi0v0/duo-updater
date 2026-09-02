@@ -3123,7 +3123,7 @@ final class AppListModel {
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
                 // The swap is fully in effect and nothing is left to do, so this row is
                 // about to filter out of the list. Hold it briefly with an "Updated ✓"
-                // confirmation (see `visible`/`trailing`) so completion is legible
+                // confirmation (see `visible` and `RowAction.state`) so completion is legible
                 // instead of the row just disappearing mid-progress.
                 markJustUpdated(id)
             }

@@ -37,9 +37,9 @@ targets:
   # created the need was a state drawing NOTHING, which no assertion about the
   # state itself can catch. Run with `make gallery`.
   #
-  # It links only `RowActionViews.swift`, which is deliberately free of
-  # `AppListModel`: the views take a state plus plain closures, so the gallery
-  # needs no scanning, no network and no notification permission to draw them.
+  # The sources it links are deliberately free of `AppListModel`: the views take a
+  # state plus plain closures, so the gallery needs no scanning, no network and no
+  # notification permission to draw them.
   RowStateGallery:
     type: tool
     platform: macOS

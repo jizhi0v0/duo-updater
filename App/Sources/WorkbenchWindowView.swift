@@ -508,7 +508,13 @@ struct WorkbenchWindowView: View {
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
                     runningVersion: model.restartFromSide(result.id),
-                    showsRuntime: model.prefs.showRuntimeTags)
+                    showsRuntime: model.prefs.showRuntimeTags,
+                    isIgnored: model.prefs.isIgnored(result.app),
+                    isVersionSkipped: model.prefs.isVersionSkipped(
+                        result.app, version: result.remote?.versionSide),
+                    toggleIgnore: { model.toggleIgnore(result) },
+                    skipVersion: { model.skipThisVersion(result) },
+                    clearSkip: { model.prefs.clearSkip(result.app) })
                     .tag(result.id)
             }
         }
@@ -534,7 +540,13 @@ struct WorkbenchWindowView: View {
                     isRunning: model.isRunning(result),
                     needsRestart: model.needsRestart.contains(result.id),
                     runningVersion: model.restartFromSide(result.id),
-                    showsRuntime: model.prefs.showRuntimeTags)
+                    showsRuntime: model.prefs.showRuntimeTags,
+                    isIgnored: model.prefs.isIgnored(result.app),
+                    isVersionSkipped: model.prefs.isVersionSkipped(
+                        result.app, version: result.remote?.versionSide),
+                    toggleIgnore: { model.toggleIgnore(result) },
+                    skipVersion: { model.skipThisVersion(result) },
+                    clearSkip: { model.prefs.clearSkip(result.app) })
                     .tag(result.id)
             }
             ForEach(model.brewFormulae) { formula in
@@ -623,6 +635,14 @@ private struct WorkbenchSidebarRow: View {
     let runningVersion: UpdateResult.VersionSide?
     /// Whether to show the runtime chip (Electron / Tauri / native / …).
     let showsRuntime: Bool
+    /// The user's two verdicts, and the ways back out of them. Passed in rather
+    /// than read from a model for the same reason everything else here is: this row
+    /// stays renderable without one.
+    let isIgnored: Bool
+    let isVersionSkipped: Bool
+    let toggleIgnore: () -> Void
+    let skipVersion: () -> Void
+    let clearSkip: () -> Void
 
     /// Whether the sidebar row has room for the runtime symbol.
     ///
@@ -686,6 +706,25 @@ private struct WorkbenchSidebarRow: View {
             // apps never post one of the NSWorkspace notifications that set is
             // built from (issue #247).
             Button("Check Again", action: checkAgain).disabled(isChecking)
+            // Skip and Ignore are here because this window SAYS they are: a skipped
+            // or ignored row draws "Skipped"/"Ignored" with the popover's own help
+            // text, which tells the user to right-click to undo it. That menu did
+            // not exist here, so the instruction was dead in all seven languages and
+            // the only way out was to reopen the menu bar. Same actions, same
+            // wording, same model calls as the popover's row menu.
+            Divider()
+            if result.hasUpdate {
+                let offered = result.remote?.displayVersion ?? String(localized: "this version")
+                if isVersionSkipped {
+                    Button("Don’t skip \(offered)", action: clearSkip)
+                } else {
+                    Button("Skip \(offered)", action: skipVersion)
+                }
+            }
+            Button(isIgnored
+                   ? String(localized: "Stop ignoring \(result.app.name)")
+                   : String(localized: "Ignore \(result.app.name)"),
+                   action: toggleIgnore)
         }
     }
 
@@ -972,7 +1011,8 @@ private struct DetailHeader: View {
                         relaunchStaged: { Task { await model.relaunchStagedUpdate(result) } },
                         confirmQuit: { model.confirmQuit(result.id, proceed: true) },
                         openSelfUpdater: { model.openSelfUpdater(result) },
-                        openToolbox: { model.openToolbox() }),
+                        openToolbox: { model.openToolbox() },
+                        openTestFlight: { model.openTestFlight() }),
                     helperEnabled: model.helperEnabled)
                 if let url = changelogURL {
                     Link(destination: url) {

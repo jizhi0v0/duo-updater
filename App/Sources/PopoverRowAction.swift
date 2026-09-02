@@ -5,7 +5,7 @@ import DuoUpdaterCore
 /// The popover's row action — the trailing edge of every row in the menu bar.
 ///
 /// Model-free by construction: it takes the shared `RowActionState`, the row, and
-/// plain closures. That is what lets `RowStateGallery` draw all 28 states without
+/// plain closures. That is what lets `RowStateGallery` draw all 30 states without
 /// an `AppListModel` (whose `init` registers notification permission, arms timers
 /// and starts FS watchers — not things a screenshot tool should do).
 ///
@@ -93,7 +93,7 @@ struct PopoverRowAction: View {
             errorBadge(message: message, rateLimited: rateLimited)
 
         case .noSourceCovers:
-            Text(sourceHint).font(.caption2).foregroundStyle(.tertiary)
+            Text(sourceHint(for: result)).font(.caption2).foregroundStyle(.tertiary)
 
         case .managedElsewhere(.appStore):
             appStoreManagedLabel
@@ -307,6 +307,9 @@ struct PopoverRowAction: View {
 
     /// Shown while a staged relaunch is in flight: the app is quit and its own
     /// ShipIt is swapping the bundle. Matches the install spinner's footprint.
+    ///
+    /// A spinner rather than a disabled button on purpose: it both signals progress
+    /// and, because it REPLACES the button, makes a second click impossible.
     private var relaunchingIndicator: some View {
         HStack(spacing: 6) {
             ProgressView().controlSize(.small)
@@ -648,9 +651,4 @@ struct PopoverRowAction: View {
         }
     }
 
-    private var sourceHint: String {
-        if result.app.isMASApp { return String(localized: "App Store") }
-        if result.app.sparkleFeedURL != nil { return String(localized: "Sparkle") }
-        return "—"
-    }
 }

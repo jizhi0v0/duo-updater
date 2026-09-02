@@ -3,6 +3,20 @@ import DuoUpdaterCore
 
 /// The word shown beside an install spinner. Shared: `AppRow` needs it to decide
 /// whether the label fits beside the name, and both action views need it to draw.
+/// What a row with no covering source says instead of an action. Shared, because
+/// the two windows used to disagree: the popover named the source it knows about
+/// ("App Store", "Sparkle") while the workbench always drew a bare em dash, so the
+/// same state read as two different things depending on which window you opened.
+///
+/// It reads the ROW rather than the state, which is the last place either view
+/// still forms its own opinion — see `RowActionState`. Shared here so that opinion
+/// is at least a single one.
+func sourceHint(for result: UpdateResult) -> String {
+    if result.app.isMASApp { return String(localized: "App Store") }
+    if result.app.sparkleFeedURL != nil { return String(localized: "Sparkle") }
+    return "—"
+}
+
 func installStageLabel(_ stage: InstallStage) -> String {
     switch stage {
     case .queued: return String(localized: "Queued")
@@ -56,11 +70,11 @@ struct WorkbenchRowAction: View {
         // for what this is" used to look identical to "all good", in a window whose
         // other rows carry an Update button.
         switch state {
-        case .awaitingQuitConfirm:
+        case .awaitingQuitConfirm(let appName):
             Button("Relaunch") { actions.confirmQuit() }
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)
-                .help("Quit the app to finish installing the update, then reopen it")
+                .help("\(appName.isEmpty ? result.app.name : appName) must quit to finish updating — click to quit it, install, and reopen")
 
         case .relaunching:
             HStack(spacing: 6) {
@@ -85,10 +99,12 @@ struct WorkbenchRowAction: View {
 
         case .ignored:
             Text("Ignored").font(.callout).foregroundStyle(.tertiary)
+                .lineLimit(1).minimumScaleFactor(0.7)
                 .help("Hidden from update checks — right-click to stop ignoring")
 
         case .versionSkipped:
             Text("Skipped").font(.callout).foregroundStyle(.tertiary)
+                .lineLimit(1).minimumScaleFactor(0.7)
                 .help("You skipped this version — right-click to un-skip")
 
         case .relaunchToApplyStaged(let target):
@@ -115,6 +131,7 @@ struct WorkbenchRowAction: View {
                      ? String(localized: "Rate-limited")
                      : String(localized: "Failed"))
                     .font(.callout)
+                    .lineLimit(1).minimumScaleFactor(0.7)
                     .foregroundStyle(rateLimited ? Color.orange : Color.secondary)
                 Button { actions.retry() } label: {
                     Image(systemName: "arrow.clockwise")
@@ -126,7 +143,8 @@ struct WorkbenchRowAction: View {
             }
 
         case .noSourceCovers:
-            Text("—").font(.callout).foregroundStyle(.tertiary)
+            Text(sourceHint(for: result)).font(.callout).foregroundStyle(.tertiary)
+                .lineLimit(1)
 
         case .managedElsewhere(.appStore):
             Image(nsImage: AppIconCache.appStore)
@@ -140,6 +158,7 @@ struct WorkbenchRowAction: View {
 
         case .managedElsewhere(.testFlight):
             Text("TestFlight").font(.callout).foregroundStyle(.tertiary)
+                .lineLimit(1).minimumScaleFactor(0.7)
                 .help("Managed by TestFlight — it handles this beta's updates")
 
         case .upToDate:
@@ -169,7 +188,8 @@ struct WorkbenchRowAction: View {
                 .help("Managed by JetBrains Toolbox — open Toolbox to update \(result.app.name)")
 
         case .testFlight:
-            Text("TestFlight").font(.callout).foregroundStyle(.tertiary)
+            Button("TestFlight") { actions.openTestFlight() }
+                .buttonStyle(.bordered)
                 .help("Managed by TestFlight — open TestFlight to update \(result.app.name)")
 
         case .selfUpdater:
@@ -288,9 +308,18 @@ struct WorkbenchRowAction: View {
 
 }
 
-/// How much of the download readout fits beside the name. Not private: the popover
-/// row action was extracted to its own file (so the gallery can draw it), and this
-/// is a layout decision the ROW makes and hands down.
+/// The readouts a downloading row can wear, WIDEST FIRST — `AppRow` walks
+/// `allCases` in order and takes the first one the app's name leaves room for, so
+/// the declaration order is the algorithm. Reorder these and every downloading row
+/// silently degrades to the narrowest option: no compile error, no test (there is
+/// no test target over `App/Sources`), and no gallery tile, since the gallery draws
+/// only the default.
+///
+/// The widths are what the group actually lays out to: the indicator, the 4pt
+/// HStack spacing, and the percentage's fixed 32pt slot.
+///
+/// Not private: the popover row action was extracted to its own file (so the
+/// gallery can draw it), and this is a layout decision the ROW makes and hands down.
 enum DownloadReadout: CaseIterable {
     case barAndPercent      // 86pt
     case ringAndPercent     // 51pt

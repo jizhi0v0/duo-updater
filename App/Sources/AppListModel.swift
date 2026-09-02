@@ -9,6 +9,13 @@ enum ChangelogLoadState {
     case loading
     case loaded(Changelog)
     case failed
+
+    /// The one state a scheduled refresh is allowed to drop — see
+    /// `RefreshIntent.dropsChangelogEntry(failed:)`.
+    var isFailed: Bool {
+        if case .failed = self { return true }
+        return false
+    }
 }
 
 /// Identity for one rendered changelog in the workbench. Some apps share a
@@ -1450,7 +1457,9 @@ final class AppListModel {
                     // (`changelogState(for:)` maps a *missing* key back to `.loading`,
                     // and the view's `.onAppear` fires once per appearance — so clearing
                     // the key would leave an in-flight-looking spinner that never
-                    // re-triggers a fetch. The next refresh re-prewarms and can recover.)
+                    // re-triggers a fetch. The next refresh of either kind drops
+                    // `.failed` entries before re-prewarming — see `performRefresh` —
+                    // which is the only retry a failed prewarm gets.)
                     self.changelogState[key] = .failed
                 }
             }
@@ -1488,11 +1497,12 @@ final class AppListModel {
     /// network check — which is exactly how an "up to date" snapshot could clobber
     /// a check that had found updates.
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    /// Whether the in-flight `refreshTask` was started with TestFlight reads enabled.
-    /// A user-present caller (`allowTestFlight: true`) that coalesces onto a silent
-    /// background refresh (`false`) would otherwise return with TestFlight tags never
-    /// applied — so we check this and run one follow-up that does the TestFlight read.
-    @ObservationIgnored private var refreshTaskAllowedTestFlight = false
+    /// What the in-flight `refreshTask` was started for. A user-present caller that
+    /// coalesces onto a silent scheduled refresh would otherwise return with neither
+    /// of its consequences delivered — TestFlight tags never applied, release notes
+    /// left as they were — so `refresh` checks this and runs one user-present
+    /// follow-up (`RefreshIntent.owesFollowUp`).
+    @ObservationIgnored private var refreshTaskIntent: RefreshIntent?
 
     /// The Toolbox inventory to use for a scan: the real one (reads `state.json`)
     /// when JetBrains Toolbox is actually installed, an EMPTY one when it isn't.
@@ -1513,27 +1523,31 @@ final class AppListModel {
     /// Single-flight entry point. If a refresh is already running, await it and
     /// return instead of starting a second one.
     ///
-    /// `allowTestFlight` gates the one read that triggers the "access data from
-    /// other apps" TCC prompt: user-present callers (menu/window open, the manual
-    /// button) pass `true`; the silent background scheduler passes `false` so a
-    /// cold launch never prompts unprompted.
-    func refresh(allowTestFlight: Bool = true) async {
+    /// `intent` says who asked, and `RefreshIntent` spells out what follows from
+    /// it: a user-present refresh (menu/window open, the manual button, a re-check
+    /// after a permission grant) may take the TestFlight read that triggers the
+    /// "access data from other apps" TCC prompt, and starts the release notes over;
+    /// the silent scheduler's tick does neither, so a cold launch never prompts
+    /// unprompted and an hourly check never blanks the notes being read.
+    func refresh(intent: RefreshIntent = .userPresent) async {
         if let existing = refreshTask {
-            // A `true` caller that lands on a silent (`false`) refresh would otherwise
-            // return without ever doing the TestFlight read — its tags stay missing
-            // until the next refresh. Note the in-flight grant *before* awaiting, since
-            // the owning call clears `refreshTask`/`refreshTaskAllowedTestFlight` once
-            // it returns.
-            let needTestFlightFollowUp = allowTestFlight && !refreshTaskAllowedTestFlight
+            // A user-present caller that lands on a scheduled refresh would otherwise
+            // return with neither of its consequences delivered — TestFlight tags
+            // missing until the next refresh, notes untouched. Note the in-flight
+            // intent *before* awaiting, since the owning call clears `refreshTask` /
+            // `refreshTaskIntent` once it returns.
+            let needFollowUp = refreshTaskIntent.map(intent.owesFollowUp(afterCoalescingOnto:)) ?? false
             Log.app.info("refresh: already in flight — coalescing onto it")
             await existing.value
-            // Run one fresh refresh with TestFlight enabled. This recurses at most
-            // once: that refresh starts with `allowTestFlight == true`, so it can't
-            // re-trigger this branch and loop. (`reapplyTestFlightWhenGranted` also
-            // folds in, so no duplicate prompt.)
-            if needTestFlightFollowUp {
-                Log.app.info("refresh: coalesced onto a silent refresh — running TestFlight follow-up")
-                await refresh(allowTestFlight: true)
+            // Run one fresh user-present refresh. This recurses at most once: that
+            // refresh starts as `.userPresent`, so it can't re-trigger this branch
+            // and loop. (`reapplyTestFlightWhenGranted` also folds in, so no
+            // duplicate prompt.) It is also what makes "refresh" mean fresh notes
+            // when the click landed mid-tick: the scheduled pass that just finished
+            // left them alone, and this one restarts them.
+            if needFollowUp {
+                Log.app.info("refresh: coalesced onto a scheduled refresh — running user-present follow-up")
+                await refresh(intent: .userPresent)
             }
             return
         }
@@ -1543,18 +1557,18 @@ final class AppListModel {
         }
         // Only this path ever assigns `refreshTask`; coalescing callers above just
         // await it. Clear ownership *inside* the task — before `task.value` resolves
-        // — so a `true` caller that coalesced onto a silent refresh resumes to find
-        // `refreshTask` already nil. Clearing it *after* `await task.value` (out here)
-        // left a window where that caller re-entered the TestFlight follow-up branch
-        // above against the same just-finished silent task and recursed on
-        // `refresh(allowTestFlight: true)` forever — a main-thread livelock (ANR).
+        // — so a user-present caller that coalesced onto a scheduled refresh resumes
+        // to find `refreshTask` already nil. Clearing it *after* `await task.value`
+        // (out here) left a window where that caller re-entered the follow-up branch
+        // above against the same just-finished scheduled task and recursed on
+        // `refresh(intent: .userPresent)` forever — a main-thread livelock (ANR).
         let task = Task {
-            await self.performRefresh(allowTestFlight: allowTestFlight)
+            await self.performRefresh(intent: intent)
             self.refreshTask = nil
-            self.refreshTaskAllowedTestFlight = false
+            self.refreshTaskIntent = nil
         }
         refreshTask = task
-        refreshTaskAllowedTestFlight = allowTestFlight
+        refreshTaskIntent = intent
         await task.value
     }
 
@@ -1651,8 +1665,9 @@ final class AppListModel {
         }
     }
 
-    private func performRefresh(allowTestFlight: Bool = true) async {
-        Log.app.info("refresh: start (scan + network check, testflight=\(allowTestFlight, privacy: .public))")
+    private func performRefresh(intent: RefreshIntent) async {
+        let allowTestFlight = intent.readsTestFlight
+        Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public))")
         isRefreshing = true
         defer { isRefreshing = false }
         // Once per session, before the scan: recover any app left at
@@ -1668,13 +1683,29 @@ final class AppListModel {
         // Snapshot the current count before we blank the rows below, so the menu-bar
         // badge holds it steady through the scan/check instead of flickering to 0.
         heldBadgeCount = actionCount
-        // Expire all cached changelog pages so the detail window re-fetches
-        // after a manual refresh — the user expects fresh release notes. Drop the
-        // parsed-changelog cache too, so the workbench re-loads fresh notes.
-        await ChangelogCache.shared.invalidateAll()
-        changelogState = [:]
-        changelogTasks.values.forEach { $0.cancel() }
-        changelogTasks = [:]
+        // Release notes. A user-present refresh starts them over — expire the
+        // network-level cache so the next read reaches the vendor, drop every entry
+        // and in-flight load so the prewarm below re-reads them, and forget which
+        // entries the network had confirmed (`changelogRevalidated`): that memo
+        // described states that no longer exist, and a disk hit painted after the
+        // user asked for fresh notes owes its confirmation again. The scheduled
+        // tick does none of that — until #228 it did, hourly, and the workbench pane
+        // the user was reading blinked to a spinner and reloaded — it drops only
+        // `.failed` entries, so a prewarm that lost the network gets retried on the
+        // next tick (nothing else retries one: `prewarmChangelogs` skips keys with a
+        // state, and the pane renders `.failed` as the web fallback without asking
+        // for a reload). `.loaded` and `.loading` survive untouched, and a new
+        // version discovered by the check lives under a new key anyway.
+        if intent.restartsChangelogs {
+            await ChangelogCache.shared.invalidateAll()
+            changelogRevalidated = []
+        }
+        for (key, state) in changelogState
+        where intent.dropsChangelogEntry(failed: state.isFailed) {
+            changelogTasks[key]?.cancel()
+            changelogTasks[key] = nil
+            changelogState[key] = nil
+        }
         isScanning = true
         // The Toolbox inventory and the on-disk scan are local and fast. The
         // TestFlight inventory is the one TCC-gated read — another app's sandbox
@@ -5174,11 +5205,12 @@ final class AppListModel {
 
     /// A scheduled check. Notifications are emitted by `notifyNewUpdates` at the
     /// end of every refresh (manual or background), so this just runs the check —
-    /// skipping the TestFlight container read so a silent scheduled check (notably
-    /// the one a cold launch fires immediately) can't surface the "access data from
-    /// other apps" prompt unprompted.
+    /// as `.scheduled`, which skips the TestFlight container read so a silent check
+    /// (notably the one a cold launch fires immediately) can't surface the "access
+    /// data from other apps" prompt unprompted, and leaves the release notes the
+    /// user may be reading in place (`RefreshIntent`).
     private func backgroundRefresh() async {
-        await refresh(allowTestFlight: false)
+        await refresh(intent: .scheduled)
     }
 
     /// Arm the filesystem watcher and the slow periodic backstop that keep the

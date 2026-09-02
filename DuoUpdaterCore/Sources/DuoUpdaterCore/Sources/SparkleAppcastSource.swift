@@ -337,6 +337,21 @@ public struct SparkleAppcastSource: UpdateSource {
         return allowed
     }
 
+    /// Find the feed item that describes an installed build. Prefer a byte-for-byte
+    /// match before accepting a comparator-equivalent spelling: normalization must
+    /// not let an earlier `1.0.0` entry steal a later exact `1.0` match.
+    static func item(
+        matchingInstalledBuild build: String,
+        in items: [SparkleAppcastItem]
+    ) -> SparkleAppcastItem? {
+        if let exact = items.first(where: { $0.version == build }) { return exact }
+        let installedBuild = VersionSide(build: build)
+        return items.first(where: {
+            VersionComparator.isSame(
+                VersionSide(build: $0.version), as: installedBuild)
+        })
+    }
+
     /// The Sparkle channel the installed build sits on, found by matching the
     /// installed version to a feed item — build number first (Sparkle's
     /// canonical key), then the marketing string. nil = the default (stable)
@@ -368,7 +383,7 @@ public struct SparkleAppcastSource: UpdateSource {
     /// showed it at all.
     static func channel(ofInstalled app: InstalledApp, in items: [SparkleAppcastItem]) -> String? {
         if let b = app.buildVersion, !b.isEmpty,
-           let match = items.first(where: { $0.version == b }) {
+           let match = item(matchingInstalledBuild: b, in: items) {
             return normalizeChannel(match.channel)
         }
         if let s = app.shortVersion, !s.isEmpty,

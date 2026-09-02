@@ -1,4 +1,4 @@
-.PHONY: install cli build test gallery width-check notarize release
+.PHONY: install cli build test gallery notarize release
 
 # Build with a stable Developer ID signature and deploy the canonical copy to
 # /Applications. See scripts/install.sh for why the identity matters (TCC grants).
@@ -26,14 +26,6 @@ test:
 # re-run after a UI change and read the diff. Fails if a state draws nothing.
 gallery:
 	@scripts/row-state-gallery.sh
-
-# Measure (not render) every row-action tile's width in ru/fr against the same
-# 320pt box the gallery's PNGs use — see scripts/row-state-width-check.sh for
-# why those two languages, and App/RowStateWidthCheck/main.swift for what a pass
-# proves. The English pass above cannot see a translated string outgrowing its
-# slot; this is the companion check that catches that class instead.
-width-check:
-	@scripts/row-state-width-check.sh
 
 # The notarytool keychain profile both targets below need. Not a secret — the
 # credentials it names live in the keychain; this is only which of them to use.

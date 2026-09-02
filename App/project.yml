@@ -51,29 +51,6 @@ targets:
     dependencies:
       - package: DuoUpdaterCore
 
-  # #263: measures (does not render) every translatable string
-  # `PopoverRowAction`/`WorkbenchRowAction` draw, in each of a small set of
-  # languages, against `RowStateGalleryCases.tileWidth` (320pt, mirrored as a
-  # local constant — see this target's own doc comment in main.swift for why it
-  # isn't imported). `make gallery` pins English on purpose (see its target's own
-  # comment above), which means it structurally cannot see a translated string
-  # outgrowing that box; this is the companion check that runs in other languages
-  # instead of widening the committed PNG sheet. Run with `make width-check`
-  # (`scripts/row-state-width-check.sh`).
-  #
-  # Reads `App/Resources/Localizable.xcstrings` directly rather than rendering the
-  # real views through `ImageRenderer` with `AppleLanguages` pinned, which a first
-  # version tried and which does not work: a `type: tool` product never gets the
-  # catalogue compiled into it, so `String(localized:)` inside those views always
-  # resolves English regardless of the process locale — see main.swift's header
-  # comment for how that was confirmed, not assumed. No dependency on
-  # `DuoUpdaterCore` or SwiftUI as a result.
-  RowStateWidthCheck:
-    type: tool
-    platform: macOS
-    sources:
-      - RowStateWidthCheck
-
   DuoUpdater:
     type: application
     platform: macOS

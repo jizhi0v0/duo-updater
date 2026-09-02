@@ -99,6 +99,29 @@ struct RunningBundlePathCacheTests {
         #expect(recorder.calls == ["/Applications/A.app"], "forgotten, so resolved again")
     }
 
+    /// The default resolver is `UpdatePolicy.runtimeBundlePath`, not a bare
+    /// `resolvingSymlinksInPath` — and the difference is the whole reason that
+    /// function exists. Swapping the default for the bare resolve left every
+    /// other test in this file green while reintroducing the bug
+    /// `runtimeBundlePath` was written for: a process still reporting the staging
+    /// name stops matching its installed path, so its row goes dark and Relaunch
+    /// cannot find it. Nothing here creates those paths on disk; the rewrite is a
+    /// string rule and `resolvingSymlinksInPath` leaves a nonexistent path alone.
+    @Test func theDefaultResolverNormalisesDuoUpdatersStagingNames() {
+        var cache = RunningBundlePathCache()
+        let paths = cache.update(with: [
+            url("/Applications/.duoupdater-staged-Fixture.app"),
+            url("/Applications/Other.app.duoupdater-old"),
+            url("/Applications/Third.app.duoupdater-new"),
+            // The nested case `runtimeBundlePath` rewrites every component for.
+            url("/Applications/.duoupdater-staged-Surge.app/Contents/Applications/Dash.app"),
+        ])
+        #expect(paths.contains("/Applications/Fixture.app"))
+        #expect(paths.contains("/Applications/Other.app"))
+        #expect(paths.contains("/Applications/Third.app"))
+        #expect(paths.contains("/Applications/Surge.app/Contents/Applications/Dash.app"))
+    }
+
     /// The reason the resolution cannot simply be dropped: `InstalledApp.path`
     /// is symlink-resolved, and the default resolver has to bring a process
     /// launched through a symlink to the same string. Real filesystem, real

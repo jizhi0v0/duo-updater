@@ -2479,7 +2479,11 @@ final class AppListModel {
         // NSWorkspace launch/terminate notifications, which aren't delivered while
         // this menu-bar app is App-Napped — so a quit that happened during a nap can
         // leave the set stale and make `isRunning` (and thus this defer) lie. This is
-        // a consequential decision, so base it on the live process list, not a cache.
+        // a consequential decision, so take a fresh `runningApplications` snapshot
+        // for it. (`refreshRunningApps` memoizes each path's *resolved form* through
+        // `RunningBundlePathCache`, but membership always comes from the live
+        // snapshot and a path that has left it is dropped — so what this call is
+        // here for is exactly what it still does.)
         refreshRunningApps()
         let wasRunningBeforeInstall = isRunning(result)
         if defersToSelfUpdater(result) {
@@ -5326,11 +5330,13 @@ final class AppListModel {
     /// than diffing, so a missed/coalesced notification can't leave the set wrong.
     ///
     /// What one event costs, on the main thread: one `runningApplications`
-    /// snapshot (~140 entries), a bundle-id set, and a `realpath` for each bundle
-    /// path *not seen in the previous snapshot* — normally just the app that
-    /// launched. `RunningBundlePathCache` is what keeps it to that: this used to
-    /// resolve every running bundle's symlinks on every event, ~127 filesystem
-    /// walks and 1.5 ms per launch/quit anywhere on the machine, all day, under a
+    /// snapshot (~140 entries, ~130 with a bundle URL and ~105 of those distinct),
+    /// a bundle-id set, and a `realpath` for each bundle path *not seen in the
+    /// previous snapshot* — for most events, none; for a launch, the app and
+    /// whatever XPC services came up with it. `RunningBundlePathCache` is what
+    /// keeps it to that: this used to resolve every running bundle's symlinks on
+    /// every event, measured at 1.16 ms against 0.10 ms now (release build, live
+    /// snapshot), per launch/quit anywhere on the machine, all day, under a
     /// comment that called it an in-memory walk.
     private func armRunningAppsMonitor() {
         refreshRunningApps()

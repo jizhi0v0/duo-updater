@@ -117,17 +117,16 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   `Localizable.xcstrings` 根本没被编进去,视图里的 `String(localized:)` 无论进程 locale 是什么
   都返回英文。(实测:`Build/Products/Debug/RowStateGallery` 下没有 `.lproj`、没有
   `Localizable.strings`;#263 第一版正是照 gallery 的做法渲染真视图,结果**在每种语言里都在量英文**。)
-  所以**译文溢出这类事故它结构性看不见**,而这个仓库真出过(见 memory「状态行没空间加字」,
-  es 只剩 9pt)。跟着 popover 抄状态文案时,`.lineLimit(1)` + `.minimumScaleFactor(0.7)`
+  所以**译文溢出这类事故它结构性看不见,而且现在没有任何东西看得见**。#263 曾经加过一个
+  `make width-check` 来量译文宽度,2026-09-03 删掉了:它的 320pt 闸余量 1.65 倍(最宽实测是
+  ru 的 `Not supported on this Mac` 194.5pt),现实中不可能红,而且没挂进 `make test`、
+  没有任何东西会去跑它——一个没人跑又不会红的检查,正是本文件反复警告的那种免检证。
+  **要重做的话别再做成"量单条字符串"**:真出过的事故(memory「状态行没空间加字」,es 只剩 9pt)
+  是名字列 + 版本行 + 尾部槽位在一行里抢空间,是构图不是长度;该测的是
+  `MenuContentView` 里 `nameColumnDemand` / `versionLineDemand` / `trailingSlot` 那几个纯算式。
+  在那之前,跟着 popover 抄状态文案时,`.lineLimit(1)` + `.minimumScaleFactor(0.7)`
   要一起抄——工作台第一版把这两个丢了,而它用的是更大的 `.callout`,俄语
   `Ограничение частоты запросов` 27 个字符会直接挤掉应用名。
-- **译文宽度改跑 `make width-check`**(#263):它绕开渲染,直接读 `App/Resources/Localizable.xcstrings`
-  的译文值,用各调用点真实的字体/控件量自然宽度,结果提交在 `verify/row-state-widths/{en,fr,ru}.txt`。
-  ⚠️ **它的 320pt 闸很松,别把它读成"溢出已经守住了"**:最宽的实测是 ru 的
-  `Not supported on this Mac` 194.5pt,余量 125.5pt(~1.65 倍)。真正起作用的是那三份**提交进仓库的
-  测量文件**——译文一变就是一份可评审的数字 diff,跟 PNG 一个机制;`growth_ratio` 列 ≥2.0x 会打印
-  `HIGH GROWTH` 但**不拦构建**(ru `Rate-limited` 现在就是 2.73x)。硬拦会当场红:今天已有 8 条
-  在架字符串超过任何一个整数倍阈值。
 - **`.help()` 的文案在 PNG 里根本不存在**,所以"只差 tooltip"这个豁免理由是有代价的。
   #263 补了一半:`mayLookAlike` 的 12 对里,**只有两对**的注释真的声称"靠 tooltip 区分"
   (10/11 和 13/19),现在有检查用 `Mirror` 反射把两边的 `.help()` 收出来比对。⚠️ 那是

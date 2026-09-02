@@ -30,6 +30,27 @@ packages:
     exactVersion: 2.9.3
 
 targets:
+  # A developer tool, not part of the shipped app: renders every `RowActionState`
+  # to `verify/row-states/*.png` so a change to how a row is drawn shows up as an
+  # image diff. It exists because there is no test target over `App/Sources` (see
+  # below), so nothing else executes the row rendering — and the failure that
+  # created the need was a state drawing NOTHING, which no assertion about the
+  # state itself can catch. Run with `make gallery`.
+  #
+  # It links only `RowActionViews.swift`, which is deliberately free of
+  # `AppListModel`: the views take a state plus plain closures, so the gallery
+  # needs no scanning, no network and no notification permission to draw them.
+  RowStateGallery:
+    type: tool
+    platform: macOS
+    sources:
+      - RowStateGallery
+      - path: Sources/RowActionViews.swift
+      - path: Sources/AppIconCache.swift
+      - path: Sources/PopoverRowAction.swift
+    dependencies:
+      - package: DuoUpdaterCore
+
   DuoUpdater:
     type: application
     platform: macOS

@@ -15,27 +15,6 @@ enum RowStateGalleryCases {
         path: URL(fileURLWithPath: "/Applications/Example.app"),
         isMASApp: false, sparkleFeedURL: nil)
 
-    /// Same app, but flagged as store-managed / TestFlight / Sparkle-fed. Several
-    /// branches key off the ROW rather than the state — `.upToDate` and the source
-    /// hint both do — so with one plain fixture five branches were drawn by nothing.
-    /// Exactly the failure the App Store fixtures above exist to prevent, one file
-    /// over.
-    private static let masInstalled = InstalledApp(
-        name: "Example", bundleID: "com.example.app",
-        shortVersion: "1.2.3", buildVersion: "1230",
-        path: URL(fileURLWithPath: "/Applications/Example.app"),
-        isMASApp: true, sparkleFeedURL: nil)
-    private static let sparkleInstalled = InstalledApp(
-        name: "Example", bundleID: "com.example.app",
-        shortVersion: "1.2.3", buildVersion: "1230",
-        path: URL(fileURLWithPath: "/Applications/Example.app"),
-        isMASApp: false, sparkleFeedURL: URL(string: "https://example.com/appcast.xml"))
-    private static let testFlightInstalled = InstalledApp(
-        name: "Example", bundleID: "com.example.app",
-        shortVersion: "1.2.3", buildVersion: "1230",
-        path: URL(fileURLWithPath: "/Applications/Example.app"),
-        isMASApp: false, isTestFlightApp: true, sparkleFeedURL: nil)
-
     private static func result(
         app: InstalledApp = installed,
         appStore: AppStoreAvailability? = nil
@@ -157,26 +136,28 @@ enum RowStateGalleryCases {
         ("16-update-testflight", .updateAvailable(.testFlight), app),
         ("17-update-self-updater", .updateAvailable(.selfUpdater), app),
         ("18-update-major-upgrade", .updateAvailable(.majorUpgrade), app),
-        ("19-update-app-store", .updateAvailable(.appStore(managedHere: false)), storeApp),
-        ("20-update-app-store-managed-here", .updateAvailable(.appStore(managedHere: true)), storeApp),
-        ("21-update-app-store-region-locked", .updateAvailable(.appStore(managedHere: false)), storeRegionLocked),
-        ("22-update-app-store-mac-incompatible", .updateAvailable(.appStore(managedHere: false)), storeMacIncompatible),
+        ("19-update-app-store", .updateAvailable(.appStore(managedHere: false, gate: .none)), storeApp),
+        ("20-update-app-store-managed-here", .updateAvailable(.appStore(managedHere: true, gate: .none)), storeApp),
+        ("21-update-app-store-region-locked", .updateAvailable(.appStore(managedHere: false, gate: .region)), storeRegionLocked),
+        ("22-update-app-store-mac-incompatible", .updateAvailable(.appStore(managedHere: false, gate: .macIncompatible)), storeMacIncompatible),
         ("23-update-detection-only", .updateAvailable(.detectionOnly), app),
         ("24-check-failed", .checkFailed(message: "The request timed out.", rateLimited: false), app),
         ("25-check-failed-rate-limit", .checkFailed(message: "API rate limit exceeded for 1.2.3.4.", rateLimited: true), app),
-        ("26-no-source-covers", .noSourceCovers, app),
+        ("26-no-source-covers", .noSourceCovers(hint: .none), app),
         ("27-managed-app-store", .managedElsewhere(.appStore), app),
         ("28-managed-toolbox", .managedElsewhere(.toolbox), app),
         ("29-managed-testflight", .managedElsewhere(.testFlight), app),
-        ("30-up-to-date", .upToDate, app),
+        ("30-up-to-date", .upToDate(channel: .none), app),
         // `.upToDate` is not one picture: a store-managed or TestFlight app keeps
         // its channel marker so it never reads like something we could update
-        // ourselves, and the source hint has three answers of its own. The workbench
-        // draws EmptyView for all of them — deliberate, and now visible as such.
-        ("31-up-to-date-app-store", .upToDate, result(app: masInstalled)),
-        ("32-up-to-date-testflight", .upToDate, result(app: testFlightInstalled)),
-        ("33-no-source-covers-app-store", .noSourceCovers, result(app: masInstalled)),
-        ("34-no-source-covers-sparkle", .noSourceCovers, result(app: sparkleInstalled)),
+        // ourselves. Used to need a dedicated MAS/TestFlight-flagged `InstalledApp`
+        // fixture to reach these branches at all (the view read `result.app`
+        // directly) — now the branch keys off the state's `channel`/`hint`, same
+        // plain `app` row as everything else (issue #260).
+        ("31-up-to-date-app-store", .upToDate(channel: .appStore), app),
+        ("32-up-to-date-testflight", .upToDate(channel: .testFlight), app),
+        ("33-no-source-covers-app-store", .noSourceCovers(hint: .appStore), app),
+        ("34-no-source-covers-sparkle", .noSourceCovers(hint: .sparkle), app),
 
         // #265: `DownloadReadout` has three cases and `showsStageLabel` two, but the
         // gallery only ever constructed `PopoverRowAction` with their defaults
@@ -215,8 +196,8 @@ enum RowStateGalleryCases {
         // draw for "show me the popover's panel", so it renders EmptyView (see
         // `mayBeBlank`) rather than repeating 18/21/22's tile under a new name.
         ("38-major-upgrade-explanation", .updateAvailable(.majorUpgrade), app),
-        ("39-region-hint-explanation", .updateAvailable(.appStore(managedHere: false)), storeRegionLocked),
-        ("40-mac-compat-hint-explanation", .updateAvailable(.appStore(managedHere: false)), storeMacIncompatible),
+        ("39-region-hint-explanation", .updateAvailable(.appStore(managedHere: false, gate: .region)), storeRegionLocked),
+        ("40-mac-compat-hint-explanation", .updateAvailable(.appStore(managedHere: false, gate: .macIncompatible)), storeMacIncompatible),
     ]
 
     /// Popover-only overrides for the three readout/stage-label cases above, keyed
@@ -250,8 +231,6 @@ enum RowStateGalleryCases {
     /// to catch.
     static let mayBeBlank: Set<String> = [
         "workbench/30-up-to-date",
-        "workbench/31-up-to-date-app-store",
-        "workbench/32-up-to-date-testflight",
         // The workbench has no view for "the popover's explanation panel" — see
         // `workbenchTile` above. Its badge for the same state is already drawn at
         // 18/21/22; these three names exist only to exercise the popover half.
@@ -263,11 +242,20 @@ enum RowStateGalleryCases {
     /// Pairs of states that legitimately draw the same picture, keyed
     /// `surface/state` — the SAME rule `mayBeBlank` follows, and for the same
     /// reason. Written first with bare state names, which earned each exemption on
-    /// one surface and switched the check off on the other for free: four of the
-    /// seven below hold on one surface only. The worst was the App Store pair,
-    /// justified by what the WORKBENCH draws (one amber Label for both gates) while
-    /// silently disarming the popover, where those two must stay a globe badge and
-    /// a triangle badge — the whole reason this window is called the richer one.
+    /// one surface and switched the check off on the other for free: two of the
+    /// seven below hold on one surface only.
+    ///
+    /// The App Store gate pair used to be here too (`21-…-region-locked` ==
+    /// `22-…-mac-incompatible` on the workbench), justified by what the WORKBENCH
+    /// drew — one amber Label for both gates. Issue #260 moved the gate itself
+    /// (`AppStoreGate`, carried on the route) out of the views, and the workbench
+    /// now draws a distinct Label per gate rather than re-deriving one Label from
+    /// `result.remote?.appStore`, so the pair no longer looks alike — removed
+    /// rather than carried forward, per the rule below it: an exemption that stops
+    /// matching anything is a free pass for future drift, not a thing to keep. The
+    /// same issue also added the workbench halves of the managed/up-to-date pairs
+    /// below, once the workbench started drawing `.upToDate`'s channel instead of
+    /// `EmptyView` — those two pairs now hold on both surfaces rather than one.
     static let mayLookAlike: Set<Set<String>> = [
         // Both an orange bordered "Relaunch"; the help text says which one.
         ["popover/10-relaunch-to-apply-staged", "popover/11-restart-to-apply"],
@@ -286,15 +274,17 @@ enum RowStateGalleryCases {
         // Popover only: both are an amber triangle opening an explanation popover,
         // and a tile cannot show which explanation appears.
         ["popover/18-update-major-upgrade", "popover/22-update-app-store-mac-incompatible"],
-        // Workbench only: it collapses both App Store gates into one amber Label and
-        // points at the popover; the tooltip names which gate it is.
-        ["workbench/21-update-app-store-region-locked", "workbench/22-update-app-store-mac-incompatible"],
-        // Popover only, and deliberate: a store-managed app that is CURRENT keeps
-        // the same marker as one the store manages generally, so a managed row never
-        // reads like something we could update ourselves — a bare checkmark looks
-        // identical to Sparkle's. The code says so at `.upToDate`'s isMASApp branch.
+        // Deliberate on both surfaces: a store-managed / TestFlight-managed app
+        // that is CURRENT keeps the same marker as one the store/TestFlight
+        // manages generally, so a managed row never reads like something we could
+        // update ourselves. `RowAction.state` returns the same tile either way —
+        // `.managedElsewhere(.appStore)` and `.upToDate(channel: .appStore)` share
+        // one branch in both `PopoverRowAction` and `WorkbenchRowAction` now that
+        // the workbench actually draws `.upToDate`'s channel instead of `EmptyView`.
         ["popover/27-managed-app-store", "popover/31-up-to-date-app-store"],
+        ["workbench/27-managed-app-store", "workbench/31-up-to-date-app-store"],
         ["popover/29-managed-testflight", "popover/32-up-to-date-testflight"],
+        ["workbench/29-managed-testflight", "workbench/32-up-to-date-testflight"],
     ]
 
     /// Tiles whose PICTURE is a harness artifact and must not be read as the real

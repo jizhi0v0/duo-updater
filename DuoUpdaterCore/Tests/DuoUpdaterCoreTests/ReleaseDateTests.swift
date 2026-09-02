@@ -43,6 +43,20 @@ import Foundation
     #expect(date == Date(timeIntervalSince1970: 1_782_320_844))
 }
 
+@Test func parsesDashedCalendarDateAtMidnightUTC() {
+    #expect(ReleaseDate.parse("2026-08-31")
+        == Date(timeIntervalSince1970: 1_788_134_400))
+    #expect(ReleaseDate.parse("  2026-08-31\n")
+        == Date(timeIntervalSince1970: 1_788_134_400))
+}
+
+@Test func dashedCalendarDateIsExactAndNonLenient() {
+    for raw in ["2026-02-29", "2026-13-01", "2026-8-31", "26-08-31",
+                "2026-08-31junk", "２０２６-０８-３１"] {
+        #expect(ReleaseDate.parse(raw) == nil, "\(raw) is not a yyyy-MM-dd calendar day")
+    }
+}
+
 // MARK: - Bare digit runs
 
 /// A bare number used to be handed to `TimeInterval(String)` and read as epoch

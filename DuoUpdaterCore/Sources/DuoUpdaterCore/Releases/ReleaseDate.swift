@@ -5,13 +5,14 @@ import Foundation
 ///
 /// This is deliberately separate from `AppcastMarkdownParser.displayDate`, which
 /// only produces a *display string* and passes most inputs through verbatim. The
-/// release timeline needs an actual `Date` so it can sort, dedupe, and (later)
-/// answer "what time of day does this vendor ship?" — a question that dies the
-/// moment we round to a bare day. Three wire formats cover every source we feed
-/// from here (Sparkle `<pubDate>`, GitHub/Alcove `published_at`):
+/// release timeline needs an actual `Date` so it can sort and dedupe. Timestamps
+/// preserve their time of day; date-only feeds resolve to midnight UTC. Four wire
+/// formats cover the sources we feed from here (Sparkle `<pubDate>`,
+/// GitHub/Alcove `published_at`):
 ///   - RFC822, e.g. "Wed, 24 Jun 2026 17:07:24 +0000" (RSS standard)
 ///   - ISO8601, e.g. "2026-06-24T17:07:24Z" (GitHub, Alcove), with or without
 ///     fractional seconds
+///   - a dashed calendar date, e.g. "2026-06-24"
 ///   - a bare digit run: a Unix epoch in seconds, e.g. "1750785600" (Surge's
 ///     appcast does this), in milliseconds, or a `yyyyMMdd` calendar date — told
 ///     apart by `date(fromDigits:)`, whose rules are documented there
@@ -30,6 +31,11 @@ public enum ReleaseDate {
         // which also accepts "nan", "infinity", "1e9", "0x1p60" and a sign, and
         // read every one of them as epoch seconds.
         if isNumericRun(trimmed) { return date(fromDigits: trimmed) }
+
+        // Some RSS and JSON feeds publish only a calendar day. Keep this branch
+        // shape-gated: DateFormatter otherwise accepts prefixes and non-ASCII
+        // digits that are not the yyyy-MM-dd wire format we mean to support.
+        if let date = date(fromDashedCalendarDay: trimmed) { return date }
 
         // ISO8601 with fractional seconds (e.g. "...:24.123Z"), then without.
         if let date = isoWithFraction.date(from: trimmed) { return date }
@@ -136,6 +142,27 @@ public enum ReleaseDate {
         f.dateFormat = "yyyyMMdd"
         return f
     }()
+
+    private static let yyyyDashMMdd: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.isLenient = false
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    private static func date(fromDashedCalendarDay value: String) -> Date? {
+        let parts = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].utf8.count == 4,
+              parts[1].utf8.count == 2,
+              parts[2].utf8.count == 2,
+              parts.allSatisfy({ isDigitRun(String($0)) })
+        else { return nil }
+        return yyyyDashMMdd.date(from: value)
+    }
 
     // MARK: - Formatters
 

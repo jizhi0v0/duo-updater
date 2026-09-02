@@ -94,9 +94,24 @@ enum RowStateGalleryCases {
                     state: state, result: result,
                     downloadReadout: popoverDownloadReadoutOverrides[name] ?? .barAndPercent,
                     showsStageLabel: popoverShowsStageLabelOverrides[name] ?? { _ in true })
-                .frame(width: 320, height: 44, alignment: .trailing))
+                .frame(width: tileWidth, height: tileHeight, alignment: .trailing))
         }
     }
+
+    /// The box every ordinary row tile is drawn into — named rather than left as
+    /// a bare `320`/`44` so `RowStateWidthCheck` (#263) can measure a state's
+    /// UNCONSTRAINED width against the exact same number instead of inventing its
+    /// own budget. Not a literal SwiftUI hard clip anywhere else in the app:
+    /// `PopoverRowAction`'s real neighbour in `MenuContentView` is a `minWidth`
+    /// reservation that concedes width to a wide button rather than clipping it,
+    /// and `WorkbenchRowAction`'s only home (`WorkbenchWindowView.DetailHeader`)
+    /// sits after a `Spacer()` with roughly 900pt of window behind it. What DOES
+    /// hold at this size: every tile in the committed English sheet was drawn at
+    /// exactly this width, so it is the widest any state's content has ever
+    /// actually been reviewed at — see `RowStateWidthCheck/main.swift`'s doc
+    /// comment for what exceeding it does and doesn't prove.
+    static let tileWidth: CGFloat = 320
+    static let tileHeight: CGFloat = 44
 
     /// The workbench has no equivalent of "open the popover's explanation panel" —
     /// it points at the popover for that (see the file-level doc comment on
@@ -111,7 +126,7 @@ enum RowStateGalleryCases {
         }
         return AnyView(
             WorkbenchRowAction(state: state, result: result)
-                .frame(width: 320, height: 44, alignment: .trailing))
+                .frame(width: tileWidth, height: tileHeight, alignment: .trailing))
     }
 
     /// Each case names the row it is drawn against, because several states only

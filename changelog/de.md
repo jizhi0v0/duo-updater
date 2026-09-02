@@ -2,6 +2,34 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.80
+
+**Fehlgeschlagene Prüfungen sind jetzt auch im Fenster sichtbar.** Das Fenster zeichnete für eine Zeile, deren Prüfung fehlgeschlagen war, gar nichts — ebenso wenig für ignorierte, übersprungene oder vom App Store, von Toolbox oder TestFlight verwaltete Zeilen. Das sah genauso aus wie „auf dem neuesten Stand". Beide Fenster sagen jetzt dasselbe über dieselbe App, und die Schaltfläche zum erneuten Versuch gibt es in beiden.
+
+**„Check Again" fragt in jeder Zeile nur nach dieser einen App.** Dabei wird auch neu eingelesen, welche Apps laufen — der schnellste Weg, einen grünen Punkt zu korrigieren, der falsch aussieht.
+
+**Überspringen und Ignorieren lassen sich jetzt auch über das Kontextmenü des Fensters rückgängig machen.** Beide Zeilen forderten dazu auf, per Rechtsklick zu widerrufen — in einem Fenster, dessen Menü genau das nicht anbot.
+
+**Die Hintergrundprüfung nimmt Ihnen keine Versionshinweise mehr weg, die Sie gerade lesen.** Die stündliche Prüfung verwarf alle bereits geladenen Hinweise, sodass ein offenes Fenster mit Versionshinweisen zurück zur Ladeanzeige sprang. Nur eine von Ihnen ausgelöste Aktualisierung beginnt jetzt von vorn.
+
+**Unterbrochene Downloads werden geprüft, bevor sie als vollständig gelten.** Ein Server, der die ganze Datei erneut schickte, und einer, der vorzeitig abbrach, wurden bislang beide beim Wort genommen; der Ärger zeigte sich erst einen Schritt später als Installation aus einem defekten Archiv. Downloads hinter bestimmten Proxys, die zuvor dauerhaft fehlschlugen, funktionieren jetzt.
+
+**Das Aktualisieren einer App liest nicht mehr alle Apps auf Ihrer Festplatte neu ein.** Jeder Klick führte zwei vollständige Durchläufe über alle Ihre Programme aus, nur um das eine angefragte anzusehen.
+
+**Chromes Versionshinweise können nicht mehr hängen bleiben.** Eine gewöhnliche Umgestaltung von Googles Blog genügte, um sie minutenlang zu blockieren; jetzt laden sie zügig, wie die Seite auch aussieht.
+
+**Ein bereits geladenes Installationsprogramm wird nicht mehr verworfen und erneut geholt.** Wenn ein Anbieter dieselbe Version auf zwei Arten schrieb (`v1.2.3` und `1.2.3`), wurde das wartende Paket nicht wiedererkannt, und „Neu starten" konnte auf einen Austausch warten, der längst erfolgt war.
+
+**Eine fehlgeschlagene Installation mit Administratorrechten wird nicht mehr für einen Abbruch durch Sie gehalten.** Es wurde kein Fehler angezeigt, und die betreffende App bot stillschweigend keine Ein-Klick-Aktualisierung mehr an, bis Sie über ihr Zeilenmenü erneut Administratorrechte anforderten.
+
+**Der grüne Punkt für „läuft" bemerkt jetzt jede App.** Bei manchen Apps meldet macOS das Starten oder Beenden überhaupt nicht, und ihr Punkt blieb falsch, bis etwas Unbeteiligtes ihn auffrischte.
+
+**„Alle aktualisieren" flackert während einer Aktualisierung nicht mehr**, und eine App, die Sie mitten in der Aktualisierung aktualisieren, wird nicht mehr auf den bereits installierten Stand zurückgesetzt.
+
+**Schlägt die Prüfung in dem Moment fehl, in dem Sie auf Aktualisieren drücken, wird das gesagt** — statt als „nichts zu tun" abgelegt zu werden.
+
+**Unter der Haube.** Ungewöhnlich geschriebene Veröffentlichungsdaten werden korrekt gelesen, die Adressprüfung für Seiten mit Versionshinweisen erfasst jede gleichwertige Schreibweise, und die laufende Buchführung greift nicht mehr jedes Mal auf die Festplatte zu, wenn auf Ihrem Mac irgendeine App startet oder endet.
+
 ## 0.3.79
 
 **Dockers Kennzeichnung beschreibt jetzt Dockers Oberfläche statt seines Hintergrunddienstes.** In der Zeile stand „nativ“; Docker Desktop ist eine Electron-App. Die Kennzeichnung wird aus dem Bundle der App gelesen, und Dockers Bundle ist eine Hülle: Das darin benannte Programm ist ein in Go geschriebener Hintergrunddienst, es bringt kein eigenes Framework mit, und die App, die tatsächlich Fenster zeichnet, sitzt eine Ebene darin. Alles wurde korrekt gelesen — nur aus der falschen Datei. Duo Updater schaut nun in die verschachtelte App, aber ausschließlich dann, wenn die äußere selbst nichts beisteuert und genau eine solche App enthält, die belegt, womit sie gebaut ist. Ein Hilfsprozess, der neben einer echten Oberfläche ausgeliefert wird, kann seine Identität also weiterhin nicht an seinen Wirt verleihen. Docker liest sich als Electron 42.5.0, und von den hundertsechsundvierzig Apps in der Liste auf dem Rechner, auf dem dies geschrieben wurde, ist es die einzige Zeile, die sich ändert.

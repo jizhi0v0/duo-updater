@@ -2,6 +2,34 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.80
+
+**Las comprobaciones fallidas ya se ven en la ventana.** La ventana no dibujaba nada para una fila cuya comprobación había fallado —ni para las que habías ignorado, aquellas cuya versión habías omitido, ni las que gestionan la App Store, Toolbox o TestFlight—, y eso se veía exactamente igual que «al día». Ahora las dos ventanas dicen lo mismo sobre la misma aplicación, y el botón para reintentar está en ambas.
+
+**«Check Again» consulta, en cualquier fila, solo esa aplicación.** De paso vuelve a leer qué aplicaciones están abiertas: es la forma más rápida de corregir un punto verde que parece equivocado.
+
+**Omitir una versión e ignorar una aplicación ahora se deshacen desde el menú contextual de la ventana.** Ambas filas pedían hacer clic derecho para deshacerlo, en una ventana cuyo menú no ofrecía nada de eso.
+
+**La comprobación en segundo plano ya no te quita las notas de versión que estás leyendo.** La comprobación cada hora descartaba todas las notas ya cargadas, así que un panel abierto volvía al indicador de carga. Ahora solo vuelve a empezar si tú pides actualizar.
+
+**Las descargas interrumpidas se comprueban antes de darlas por completas.** Se daba por buena tanto la respuesta de un servidor que reenviaba el archivo entero como la de uno que se cortaba antes de tiempo, y el problema aparecía un paso después, como una instalación desde un archivo dañado. Las descargas tras ciertos proxies, que fallaban de forma permanente, ahora funcionan.
+
+**Actualizar una aplicación ya no vuelve a leer todas las aplicaciones del disco.** Cada clic hacía dos recorridos completos de todas tus aplicaciones solo para mirar la que habías señalado.
+
+**Las notas de versión de Chrome ya no pueden quedarse bloqueadas.** Un rediseño corriente del blog de Google bastaba para detenerlas varios minutos; ahora cargan enseguida, sea cual sea el aspecto de la página.
+
+**Un instalador ya descargado no se descarta para volver a bajarlo.** Cuando un proveedor escribía la misma versión de dos maneras (`v1.2.3` y `1.2.3`), el paquete en espera no se reconocía, y «Reiniciar» podía quedarse esperando un reemplazo que ya había ocurrido.
+
+**Una instalación con permisos de administrador que falla ya no se confunde con una cancelación tuya.** No se mostraba ningún error, y esa aplicación dejaba de ofrecer en silencio la actualización con un clic hasta que volvías a pedir permisos de administrador desde el menú de su fila.
+
+**El punto verde de «en ejecución» ya detecta todas las aplicaciones.** macOS no anuncia en absoluto la apertura o el cierre de algunas, y su punto se quedaba equivocado hasta que algo ajeno lo refrescaba.
+
+**«Actualizar todo» ya no aparece y desaparece durante una actualización**, y una aplicación que actualices a mitad de la comprobación no vuelve a ofrecer la actualización que ya instaló.
+
+**Si la comprobación falla justo al pulsar Actualizar, se te dice**, en lugar de archivarlo como «nada que hacer».
+
+**Por dentro.** Las fechas de publicación escritas en formatos poco habituales se leen correctamente, la comprobación de direcciones de las páginas de notas de versión cubre todas las escrituras equivalentes, y el registro rutinario ya no toca el disco cada vez que se abre o se cierra cualquier aplicación en tu Mac.
+
 ## 0.3.79
 
 **La marca de Docker ahora describe la interfaz de Docker y no su servicio en segundo plano.** La fila decía «nativa»; pero Docker Desktop es una app de Electron. Esa marca se lee del paquete de la app, y el paquete de Docker es una envoltura: el programa que nombra es un servicio en segundo plano escrito en Go, no lleva ningún framework propio, y la app que dibuja realmente las ventanas está un nivel más adentro. Todo se leía correctamente — solo que del archivo equivocado. Duo Updater mira ahora dentro de la app anidada, pero solo cuando la exterior no aporta nada por sí misma y contiene exactamente una app de ese tipo que demuestre con qué está construida; así, un proceso auxiliar distribuido junto a una interfaz real sigue sin poder prestarle su identidad a su anfitrión. Docker se lee como Electron 42.5.0 y, de las ciento cuarenta y seis apps de la lista en la máquina donde se escribió esto, es la única fila que cambia.

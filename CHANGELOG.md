@@ -45,7 +45,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **A check that fails as you press Update says so**, instead of being filed as "nothing to do".
 
-Under the hood: release dates written in unusual formats are read correctly, the address check on release-notes pages covers every equivalent spelling, and routine bookkeeping no longer touches the disk each time any app on your Mac opens or quits.
+**Under the hood.** Release dates written in unusual formats are read correctly, the address check on release-notes pages covers every equivalent spelling, and routine bookkeeping no longer touches the disk each time any app on your Mac opens or quits.
 
 ## 0.3.79
 

@@ -5,8 +5,8 @@ import Foundation
 /// Usually it is, and the quit is ours alone. But an app with its own updater
 /// can have a build already downloaded, unpacked and parked, with an installer
 /// process waiting for precisely one signal: that app terminating. Our restart
-/// is that signal. Sparkle's `Autoupdate` and Squirrel's `ShipIt` both work this
-/// way, and both wait as long as it takes — 22 minutes for ChatGPT on
+/// is that signal. Sparkle 2's installer agent and Squirrel's `ShipIt` both work
+/// this way, and both wait as long as it takes — 22 minutes for ChatGPT on
 /// 2026-08-22, 6 hours 49 minutes for Claude the day before, same PID throughout.
 ///
 /// So a quit we think of as the last step of our install is also the first step
@@ -18,6 +18,17 @@ import Foundation
 ///
 /// Nothing failed. The install was correct, the restart was correct, and the
 /// user saw the update reappear.
+///
+/// **Sparkle 1 is not covered.** Its automatic driver arms an
+/// `NSApplicationWillTerminateNotification` observer in the host process and
+/// launches `Autoupdate.app` only after the quit has begun. Before the decision
+/// this type is asked to make there is therefore no parked helper to enumerate.
+/// Its extracted bundle also lives below a random `NSTemporaryDirectory()` path,
+/// not Sparkle 2's bundle-id-keyed cache. Neither a leftover extraction nor the
+/// mere presence of the Sparkle 1 framework proves that an install is armed.
+/// `disableSuddenTermination` accompanies the hook, but no public cross-process
+/// API and acceptable noise floor have been established for that signal. Do not
+/// turn any of those into a hold-back predicate without first measuring it.
 ///
 /// The decision therefore is not "is another installer armed" — that alone is
 /// harmless — but "is it armed with something OTHER than what we just wrote".

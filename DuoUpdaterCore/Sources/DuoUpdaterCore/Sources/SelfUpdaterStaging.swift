@@ -361,21 +361,16 @@ public enum SelfUpdaterStaging {
     ///
     /// `…Updater` is Sparkle 2's progress agent — observed live as pid 27939 at
     /// `…/Caches/com.tinyapp.TablePlus/org.sparkle-project.Sparkle/Launcher/<random>/Updater.app`.
-    /// `…Autoupdate` is Sparkle 1's, which ships as `Autoupdate.app` inside the
-    /// host's framework (VLC 1.16.0 on this machine). Sparkle 2 also has an
-    /// `Autoupdate`, but as a bare executable with no bundle — LaunchServices
-    /// cannot enumerate it, so it is not a usable signal and is not one of these.
     ///
-    /// **Sparkle 1 is nonetheless not covered**, and not because of this list:
-    /// `sparkleStagedBundle` walks the `Caches/<id>/org.sparkle-project.Sparkle/`
-    /// layout, which is Sparkle 2's. Sparkle 1 apps have no such directory
-    /// (checked: VLC has a cache directory and no Sparkle subdirectory), so the
-    /// walk finds nothing for them whatever is parked. Listing Sparkle 1's
-    /// identity here costs nothing and errs toward holding back, which is the
-    /// safe direction; it is not a claim that Sparkle 1 staging is detected.
+    /// Sparkle 1's bundled `org.sparkle-project.Sparkle.Autoupdate` is deliberately
+    /// absent. In the automatic-update path the host process arms the quit hook;
+    /// `Autoupdate.app` is launched only after termination begins, too late to be
+    /// evidence for `RestartStandoff`. Sparkle 1 also stages below a random temp
+    /// path instead of the cache tree this detector validates. Querying its bundle
+    /// id here could never make the detector answer non-nil and misleadingly made
+    /// this list look like coverage. See `RestartStandoff`'s known limitation.
     static let sparkleInstallerBundleIDs = [
         "org.sparkle-project.Sparkle.Updater",
-        "org.sparkle-project.Sparkle.Autoupdate",
     ]
 
     /// Bundle locations of every Sparkle installer currently parked, for any app.

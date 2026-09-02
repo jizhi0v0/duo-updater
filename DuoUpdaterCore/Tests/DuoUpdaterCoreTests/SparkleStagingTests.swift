@@ -378,15 +378,17 @@ struct SparkleStagingTests {
         }
     }
 
-    /// A tripwire for the machines the test above finds nothing on: changing an
-    /// identifier fails loudly instead of turning the standoff off in silence.
-    /// `…Updater` was observed live on 2026-08-22 (pid 27939, parked for
-    /// TablePlus); `…Autoupdate` is Sparkle 1's, as shipped inside VLC 1.16.0.
-    @Test func theInstallerIdentitiesAreTheOnesSparkleShips() {
+    /// A tripwire for the machines the test above finds nothing on: changing the
+    /// Sparkle 2 identifier fails loudly instead of turning the standoff off in
+    /// silence. Sparkle 1's `…Autoupdate` must stay absent: it is launched by the
+    /// host's termination hook only after the decision this detector serves, and
+    /// its random temp staging is not readable through this Sparkle 2 cache walk.
+    @Test func theParkedInstallerIdentityCoversSparkle2Only() {
         #expect(SelfUpdaterStaging.sparkleInstallerBundleIDs == [
             "org.sparkle-project.Sparkle.Updater",
-            "org.sparkle-project.Sparkle.Autoupdate",
         ])
+        #expect(!SelfUpdaterStaging.sparkleInstallerBundleIDs.contains(
+            "org.sparkle-project.Sparkle.Autoupdate"))
     }
 
     // MARK: - The Amp scenario, end to end

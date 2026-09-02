@@ -5909,14 +5909,29 @@ final class AppListModel {
         syncDockBadge()
     }
 
-    /// Re-run the update check for one app whose source errored — the retry
-    /// affordance on an `.error` row (e.g. a transient GitHub rate-limit). Reuses
-    /// the install-stage spinner to show "Checking" on just that row, and bails
-    /// if the row is already busy (installing or mid-recheck).
+    /// Re-run the update check for one app. Two affordances share this, and
+    /// deliberately so — they ask the same question and must answer it the same
+    /// way: the retry on an `.error` row (a transient GitHub rate-limit, say), and
+    /// "Check Again" in the row's context menu, which is how a user asks about one
+    /// app without paying for a whole sweep.
+    ///
+    /// It re-derives the running set first, so it also corrects a row whose
+    /// *running* state has gone stale. `NSWorkspace`'s launch/terminate
+    /// notifications are the only thing maintaining that set, and some apps never
+    /// post one of them — measured: Alcove posts no `didLaunch`, UURemote no
+    /// `didTerminate` (issue #247) — which leaves the dot lit for an app that has
+    /// quit, or dark for one that is open. That recompute is whole-set and, since
+    /// the resolutions are memoized, 0.095 ms; it happens before the network check
+    /// rather than after, so the dot is right the moment the row starts checking
+    /// instead of when the source answers.
+    ///
+    /// Reuses the install-stage spinner to show "Checking" on just that row, and
+    /// bails if the row is already busy (installing or mid-recheck).
     func retry(_ result: UpdateResult) async {
         let id = result.id
         guard installing[id] == nil else { return }
         Log.app.info("retry: re-checking \(result.app.name, privacy: .public)")
+        refreshRunningApps()
         installing[id] = .checking
         let updated = await recheck(result)
         installing[id] = nil

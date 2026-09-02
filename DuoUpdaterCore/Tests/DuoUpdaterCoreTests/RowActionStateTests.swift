@@ -106,6 +106,33 @@ struct RowActionStateTests {
             isIgnored: true)) == .installing(.installing))
     }
 
+    /// The three rungs between the user's verdicts and the relaunch pair, which
+    /// `inFlightPrecedence` stops short of. The ignore-over-relaunch one is not
+    /// cosmetic: `AppListModel.needsAction` gates its relaunch terms on
+    /// `!prefs.isIgnored` and its doc cites THIS order as the reason. Reverse it and
+    /// the badge counts a row the list renders as "Ignored", so the badge lights
+    /// with nothing on the other end of the click — and every other test stays green.
+    @Test("the verdict rungs outrank the relaunch rungs")
+    func verdictPrecedence() {
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .updateAvailable(latest: "2.0"),
+            isIgnored: true,
+            isVersionSkipped: true)) == .ignored)
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .updateAvailable(latest: "2.0"),
+            isIgnored: true,
+            stagedRelaunchTarget: "2.0")) == .ignored)
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .updateAvailable(latest: "2.0"),
+            isVersionSkipped: true,
+            stagedRelaunchTarget: "2.0")) == .versionSkipped)
+        // A staged build is a specific thing already on disk; a bare restart is not.
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .unknown,
+            stagedRelaunchTarget: "2.0",
+            needsRestart: true)) == .relaunchToApplyStaged(to: "2.0"))
+    }
+
     /// A staged build the app already downloaded outranks our own Update:
     /// re-downloading the same bytes would collide with the pending swap.
     @Test("an already-staged build outranks downloading it again")

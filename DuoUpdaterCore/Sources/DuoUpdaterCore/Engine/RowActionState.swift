@@ -41,6 +41,13 @@ public enum RowActionState: Sendable, Equatable {
     /// The app's own updater already downloaded the latest and needs a relaunch.
     /// Carries the version it would relaunch into, so a view never has to go back
     /// to the model to write its own label.
+    ///
+    /// PRECONDITION on whoever fills `stagedRelaunchTarget`: only when the staged
+    /// build IS the latest. A staged build that trails a newer release must fall
+    /// through to Update (a direct jump), because relaunching into it would not get
+    /// the user current — offering Relaunch there sends them to a stale version and
+    /// calls it done. `AppListModel.actionableStaged` applies this; raw
+    /// `pendingSelfUpdate` does not.
     case relaunchToApplyStaged(to: String)
     /// The bundle on disk is newer than the running process.
     case restartToApply

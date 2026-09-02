@@ -223,4 +223,36 @@ import Testing
         #expect(VersionComparator.hasReached(s("v2.0", "130"), disk: s("2.0", "131")))
         #expect(!VersionComparator.hasReached(s("v2.0", "131"), disk: s("2.0", "130")))
     }
+
+    /// `hasReached` must stay `isSame || isNewer`, not "disk is not behind".
+    ///
+    /// Issue #221 offers `!isNewer(target, than: disk)` as an equivalent
+    /// rewrite. It is not, and nothing above catches the difference: with the
+    /// rewrite in place every other expectation in this file still passes. The
+    /// two forms agree wherever both sides carry a comparable field and part
+    /// company exactly where nothing is comparable — `isNewer` answers "cannot
+    /// tell" as `false`, so negating it turns "cannot tell" into "landed".
+    /// That is the fail-open direction on a swap-landing test: `RelaunchProgress`
+    /// would call an unreadable bundle arrived and stop waiting.
+    @Test func hasReachedFailsClosedWhenNothingIsComparable() {
+        #expect(!VersionComparator.hasReached(s("1.0", "130"), disk: VersionSide()))
+        #expect(!VersionComparator.hasReached(VersionSide(), disk: VersionSide()))
+        #expect(!VersionComparator.hasReached(s("1.0", nil), disk: s(nil, "1")),
+                "marketing against a build is not a comparison")
+        #expect(!VersionComparator.hasReached(s(nil, "130"), disk: s("1.0", nil)))
+    }
+
+    /// The tokenizer's separator class is wider than the `v`-prefix and
+    /// zero-padding cases above: `.`, `-`, `_`, `+`, a space and parentheses are
+    /// all one separator, so these pairs are equal too. Pinned not because any
+    /// vendor is known to ship two of them as different builds, but so the next
+    /// reader sees the real size of what `isSame` now calls the same — macOS
+    /// writes builds as `1.0 (123)` by convention, and that shape is in here.
+    @Test func theSeparatorClassIsPartOfWhatIsSameNowAccepts() {
+        for (a, b) in [("1.0-1", "1.0.1"), ("1.0 (1)", "1.0.1"), ("1.0_1", "1.0-1"),
+                       ("3.5.0(1234)", "3.5.0.1234"), ("1.0.0+1", "1.0.0.1")] {
+            #expect(VersionComparator.compare(a, b) == .orderedSame, "\(a) vs \(b)")
+            #expect(VersionComparator.isSame(s("1.0", a), as: s("1.0", b)), "builds \(a) vs \(b)")
+        }
+    }
 }

@@ -357,6 +357,44 @@ private let timeMachineEditorHomepageFixture = #"""
 /// `.app` (confirmed by expanding the real pkg 2026-08-29), so a bundle-only
 /// unpack (`.dmg`/`.zip`) would leave a stale daemon next to the updated app.
 /// The install must go through the system installer, and the URL is a static
+
+// MARK: - 2026-08-30 AnythingLLM
+
+/// Verbatim body of `https://cdn.anythingllm.com/latest/version.txt`, fetched
+/// 2026-08-30 — a one-line plain-text version body. This is the endpoint
+/// Homebrew's own `anythingllm` cask names in its `livecheck` block.
+private let anythingLLMVersionTxtFixture = "1.16.1"
+
+/// The cask is not `auto_updates`, but `HomebrewCaskSource` never got a row for
+/// this bundle id either way — this probe is the only source able to answer for
+/// `com.anythingllm` at all. Pin the pattern against the real body.
+@Test func anythingLLMReadsTheVersionFromThePlainTextBody() {
+    #expect(batchVersion("com.anythingllm", in: anythingLLMVersionTxtFixture) == "1.16.1")
+    #expect(batchVersion("com.anythingllm", in: anythingLLMVersionTxtFixture + "\n") == "1.16.1")
+}
+
+/// A body that grows a second line (e.g. the vendor starts appending a changelog
+/// line) must read as "unknown", not as the first line's version — the `$`
+/// anchor exists to keep this a one-line document.
+@Test func anythingLLMPatternRejectsAMultiLineBody() {
+    #expect(batchVersion("com.anythingllm", in: "1.16.1\n1.15.0") == nil)
+}
+
+/// The download is an UNVERSIONED moving `/latest/` pointer (no versioned path
+/// exists on the CDN; 404), the same pairing the cask itself ships — the spec
+/// must stay `.fixed` on the arm64 Silicon dmg and `kind: .dmg` (self-contained
+/// bundle, no daemons — a drift to `.pkg` or to the Intel dmg would be wrong).
+@Test func anythingLLMInstallIsADmgOverTheFixedSiliconURL() {
+    let recipe = try! #require(batchRecipe("com.anythingllm"))
+    let install = try! #require(recipe.install)
+    guard case .fixed(let url) = install.urlSource else {
+        Issue.record("expected a fixed install URL")
+        return
+    }
+    #expect(url.absoluteString == "https://cdn.anythingllm.com/latest/AnythingLLMDesktop-Silicon.dmg")
+    #expect(install.kind == .dmg)
+}
+
 /// filename that always serves the current release (no pattern to resolve).
 @Test func timeMachineEditorInstallsViaThePkgFromAFixedURL() throws {
     let spec = try #require(
@@ -401,24 +439,141 @@ private let chatGPTClassicAppcastFixture = #"""
     #expect(batchVersion("com.openai.chat", in: chatGPTClassicAppcastFixture) == "1.2026.184")
 }
 
-/// The enclosure is an unversioned moving pkg pointer — version and enclosure
-/// come from the same feed entry, so freshness is by construction — and the
-/// install must be `kind: .pkg` (verified Developer ID Installer pkg, not a
-/// self-extracted dmg).
-@Test func chatGPTClassicInstallsTheFeedPkgFromTheEnclosure() throws {
+/// Detection-only on purpose, and this pins the reason so a later reader does
+/// not "fix" it by adding an install spec.
+///
+/// The vendor pkg declares no destinations at all — `PackageInfo` has an empty
+/// `<bundle-version/>` and no `<bundle path=…>`, and the Bom's only `.app`-bearing
+/// entry is `ChatGPT Classic.app.zip`, whose components never end in `.app`. Both
+/// readers `PackageInstaller.verifyOpenable` consults therefore return the empty
+/// set, and that gate is fail-closed: an install would download 78 MB and throw
+/// `packageDestinationsUnreadable` every single time. (Real metadata, 2026-09-03.)
+@Test func chatGPTClassicStaysDetectionOnlyBecauseThePkgDeclaresNoDestination() throws {
     let recipe = try #require(batchRecipe("com.openai.chat"))
+    #expect(recipe.install == nil)
+
+    let packageInfo = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <pkg-info overwrite-permissions="true" relocatable="false" \
+    identifier="com.openai.chat.classic-update" postinstall-action="none" \
+    version="1784145287" format-version="2" install-location="/" auth="root">
+        <payload numberOfFiles="6" installKBytes="76981"/>
+        <bundle-version/>
+        <upgrade-bundle/>
+    </pkg-info>
+    """
+    let bom = """
+    .
+    ./Library
+    ./Library/Application Support
+    ./Library/Application Support/OpenAI
+    ./Library/Application Support/OpenAI/ChatGPT Classic Update
+    ./Library/Application Support/OpenAI/ChatGPT Classic Update/ChatGPT Classic.app.zip
+    """
+    let location = PackageInstaller.installLocation(inPackageInfo: packageInfo)
+    let declared = PackageInstaller.destinations(inPackageInfo: packageInfo)
+        .union(PackageInstaller.destinations(inBomListing: bom, installLocation: location))
+    #expect(declared.isEmpty)
+}
+
+// MARK: - 2026-08-30 Microsoft 365 Copilot
+
+/// The fwlink 302s to a versioned pkg on the Office CDN; the filename carries
+/// the BUILD (`1.2608.0301` == the expanded app's CFBundleVersion verbatim,
+/// while its short is `1.2608`) — so versionIsBuild routes the comparison and
+/// no segment surgery is needed (unlike OneDrive's path-component pattern).
+@Test func m365CopilotReadsTheBuildFromTheRedirectedPkgFilename() throws {
+    let recipe = try #require(batchRecipe("com.microsoft.m365copilot"))
+    #expect(recipe.followRedirects == false)
+    #expect(recipe.versionIsBuild)
+    let url = "https://res.cdn.office.net/mro1cdnstorage/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_365_Copilot_universal_1.2608.0301_Installer.pkg"
+    #expect(
+        VendorProbeRecipe.extractVersion(from: url, pattern: recipe.versionPattern)
+            == "1.2608.0301")
+}
+
+/// The pkg installs Microsoft AutoUpdate as a sibling (verified by expanding
+/// the real pkg 2026-08-30), so the install must go through the system
+/// installer via the canonical fwlink — a bundle-only unpack would leave the
+/// app next to a stale MAU.
+@Test func m365CopilotInstallsViaTheFwlinkPkg() throws {
+    let recipe = try #require(batchRecipe("com.microsoft.m365copilot"))
     let install = try #require(recipe.install)
     #expect(install.kind == .pkg)
-    guard case .bodyPattern(let pattern) = install.urlSource else {
-        Issue.record("expected a body-pattern install URL"); return
+    guard case .redirect(let url) = install.urlSource else {
+        Issue.record("expected a redirect install URL"); return
     }
-    let regex = try NSRegularExpression(pattern: pattern)
+    #expect(url.absoluteString == "https://go.microsoft.com/fwlink/?linkid=2325438")
+}
+
+/// The fwlink is a two-hop chain (fwlink → aka.ms → CDN); probing the fwlink
+/// with redirects disabled would read the bare aka.ms alias as the "version".
+/// The probe must therefore point at the aka.ms alias directly, whose single
+/// Location header is the versioned CDN pkg URL.
+@Test func m365CopilotProbesTheSingleHopAkaMsAlias() throws {
+    let recipe = try #require(batchRecipe("com.microsoft.m365copilot"))
+    #expect(recipe.url.absoluteString == "https://aka.ms/M365CopilotForMac")
+    #expect(recipe.followRedirects == false)
+}
+
+// MARK: - 2026-08-30 Chatbox
+
+/// Verbatim body of `https://download.chatboxai.app/releases/latest-mac.yml`,
+/// fetched 2026-08-30 — electron-builder feed, version on the first line.
+/// Trimmed to the arm64 dmg entry plus its x64 sibling (the real feed also
+/// lists both zips; the pattern only ever needs the dmg pair to prove the arm64
+/// selection).
+private let chatboxMacYmlFixture = """
+version: 1.22.6
+files:
+  - url: Chatbox-1.22.6-arm64-mac.zip
+    sha512: K0ltIPtoUqXkAxw1r4CMO/dsT9oihH0KTUO32n0gLkjSVxhjRu+0FIHtnRVK0E0Ph2PJde7lxAG30QfEz/JrBA==
+    size: 145831546
+  - url: Chatbox-1.22.6-mac.zip
+    sha512: R0lvQCu5AlHUUE9PwlP+kaaU2CJ9HQlHp477eck6pJyFE4/Lyf02jRumVxjBSvnbnITSAtr31kgTVg8hOQfjIQ==
+    size: 153028792
+  - url: Chatbox-1.22.6-arm64.dmg
+    sha512: wUKJID49530D5hi9bMH9sLx8H/rj39wsZC9+lIo1H5790bKS/rptqfmSTKmybBCiBYJfBruQl1b0V2+uCun1KQ==
+    size: 151499252
+  - url: Chatbox-1.22.6.dmg
+    sha512: dbqzsXqbfq/ItPwjCgkywHsMzhN0ibUOzxaMXp+zFxvTlVYryrQ1auDpMLC+AUMqSG48jFhF4ySIfZEPCvlpow==
+    size: 158726093
+path: Chatbox-1.22.6-arm64-mac.zip
+sha512: K0ltIPtoUqXkAxw1r4CMO/dsT9oihH0KTUO32n0gLkjSVxhjRu+0FIHtnRVK0E0Ph2PJde7lxAG30QfEz/JrBA==
+releaseDate: '2026-08-23T07:44:52.995Z'
+"""
+
+/// The cask is `auto_updates` (HomebrewCaskSource skips it) and the bundle has
+/// no SUFeedURL — this probe is the only source able to answer for
+/// `xyz.chatboxapp.app` at all. The version line sits on top of the feed.
+@Test func chatboxReadsTheVersionFromTheElectronBuilderFeed() {
+    #expect(batchVersion("xyz.chatboxapp.app", in: chatboxMacYmlFixture) == "1.22.6")
+}
+
+/// The install must resolve the ARM64 dmg (the x64 dmg and both zips are
+/// siblings), the URL must resolve against the releases base, and the sha512
+/// the CDN actually serves must be verified — computed over the real dmg
+/// 2026-08-30, it equals the feed hash byte-for-byte.
+@Test func chatboxInstallPinsTheArm64DmgWithItsChecksum() throws {
+    let recipe = try #require(batchRecipe("xyz.chatboxapp.app"))
+    let install = try #require(recipe.install)
+    guard case .bodyPatternRelative(let pattern, let base) = install.urlSource else {
+        Issue.record("expected a relative body-pattern install URL"); return
+    }
+    #expect(base.absoluteString == "https://download.chatboxai.app/releases/")
+    let url = try #require(
+        chatboxMacYmlFixture.range(of: pattern, options: .regularExpression)
+            .map { String(chatboxMacYmlFixture[$0]) })
+    #expect(url == "Chatbox-1.22.6-arm64.dmg")
+    #expect(install.kind == .dmg)
+    let checksum = try #require(install.checksumPattern)
+    let regex = try NSRegularExpression(pattern: checksum)
     let match = try #require(
         regex.firstMatch(
-            in: chatGPTClassicAppcastFixture, options: [],
-            range: NSRange(chatGPTClassicAppcastFixture.startIndex..., in: chatGPTClassicAppcastFixture)))
-    let group = try #require(Range(match.range(at: 1), in: chatGPTClassicAppcastFixture))
+            in: chatboxMacYmlFixture, options: [],
+            range: NSRange(chatboxMacYmlFixture.startIndex..., in: chatboxMacYmlFixture)))
+    let group = try #require(Range(match.range(at: 1), in: chatboxMacYmlFixture))
     #expect(
-        String(chatGPTClassicAppcastFixture[group])
-            == "https://persistent.oaistatic.com/sidekick/public/ChatGPT_Classic.pkg")
+        String(chatboxMacYmlFixture[group])
+            == "wUKJID49530D5hi9bMH9sLx8H/rj39wsZC9+lIo1H5790bKS/rptqfmSTKmybBCiBYJfBruQl1b0V2+uCun1KQ==")
 }

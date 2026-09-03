@@ -16,12 +16,22 @@ struct GeneralSettingsPage: View {
     @State private var backupBytes: Int64?
     @State private var isCleaningBackups = false
 
+    /// Settings marked "new" when this page was opened. See `SettingsSpotlights`.
+    @State private var spotlit: Set<String> = []
+
     var body: some View {
         SettingsPage(section: .general) {
             scheduleCard
             afterUpdateCard
             concurrencyCard
             routingCard
+        }
+        .onAppear {
+            // Snapshot before acknowledging: `acknowledgeSpotlights` clears the
+            // page's dots as soon as the page is looked at, which is what the menu
+            // bar and the sidebar want, but the row still has to show its own.
+            spotlit = prefs.pendingSpotlights
+            prefs.acknowledgeSpotlights(in: .general)
         }
         .task {
             // Resolve token availability once. `GitHubToken.resolve` may shell out
@@ -72,6 +82,16 @@ struct GeneralSettingsPage: View {
             SettingsDivider()
             Toggle("Hide the Dock icon", isOn: $prefs.hideDockIcon)
                 .settingsRow()
+            SettingsDivider()
+            HStack(spacing: 6) {
+                Toggle("Show what each app is built with", isOn: $prefs.showRuntimeTags)
+                // From the snapshot, not from `prefs`: opening the page retires the
+                // dot immediately (so the menu bar and sidebar stop pointing here),
+                // and reading the live value would make this one vanish in the same
+                // frame it was meant to be noticed in.
+                if spotlit.contains(SettingsSpotlights.appRuntimeTags.id) { SpotlightDot() }
+            }
+            .settingsRow()
         } footer: {
             if prefs.hideDockIcon {
                 Text("Duo Updater runs from the menu bar only. The pending-update count moves to the menu-bar icon — the Dock badge needs a Dock icon to sit on.")

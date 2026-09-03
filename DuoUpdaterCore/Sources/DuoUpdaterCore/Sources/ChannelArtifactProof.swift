@@ -299,6 +299,26 @@ public enum ChannelProofRegistry {
         // catch. Caught in adversarial review of #101, not by measurement.
         ChannelProofKey("com.vscodium.VSCodiumInsiders", .preview):
             .artifact(#"/download/[^/]*-insider"#),
+        // T3 Code nightly names its channel in the tag, and GitHub builds the
+        // asset URL as `…/download/<tag>/<name>` — so the tag the version
+        // pattern matched is in the path.
+        ChannelProofKey("com.t3tools.t3code", .nightly):
+            .artifact(#"/download/v[0-9.]+-nightly\."#),
+        // T3 Code alpha is the one channel with no token in the tag OR the asset
+        // name: `v0.0.36` / `T3-Code-0.0.36-arm64.dmg` are byte-identical in
+        // shape to what a hypothetical stable train would publish. What keeps
+        // the alpha rule off the nightly train is the install pattern's PURE
+        // DIGIT run — nightly assets (`T3-Code-0.0.37-nightly.20260830.1227-
+        // arm64.dmg`) carry `-nightly.<date>.<seq>` between the version and
+        // `-arm64`, which `[0-9.]+` refuses. So the proof is an anchor on that
+        // field, not on the artifact: it fails the day someone loosens the
+        // pattern enough to match nightly names (e.g. a `.*` run), which is the
+        // only other train this repo publishes. What it cannot do is catch a
+        // vendor-launched stable train with identical naming — nothing in the
+        // URL would distinguish it, and `/releases/latest` would return it; the
+        // anchor documents that exposure rather than pretending to close it.
+        ChannelProofKey("com.t3tools.t3code", .alpha):
+            .recipeAnchor(#"\[0-9\.\]\+-arm64"#, in: ["installAssetPattern"]),
     ]
 
     /// Every `(bundleID, channel)` in the GitHub registry that carries an install

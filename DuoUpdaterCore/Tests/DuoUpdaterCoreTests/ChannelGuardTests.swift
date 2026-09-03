@@ -139,6 +139,22 @@ import Foundation
         keystoneChannel: nil, version: "0.1.1251-beta+962a0e1") == .stable)
 }
 
+// Vorssaint Stable and Beta share `com.vorssaint.utils` and the app name
+// "Vorssaint". The dotted beta suffix is the only channel signal in the real
+// v3.3.3-beta.3 bundle mounted on 2026-08-30.
+@Test func dottedBetaVersionSuffixSignalsBeta() {
+    #expect(ReleaseChannel.detect(
+        name: "Vorssaint", bundleID: "com.vorssaint.utils",
+        keystoneChannel: nil, version: "3.3.3-beta.3") == .beta)
+    #expect(ReleaseChannel.detect(
+        name: "Vorssaint", bundleID: "com.vorssaint.utils",
+        keystoneChannel: nil, version: "3.3.2") == .stable)
+    // A suffix followed by build metadata is deliberately outside the rule.
+    #expect(ReleaseChannel.detect(
+        name: "Some App", bundleID: "com.example.some",
+        keystoneChannel: nil, version: "0.3.377-beta.1429+sha") == .stable)
+}
+
 @Test func mozillaRemotingNameIsAuthoritative() {
     // Real values read from official bundles 2026-06-04. RemotingName is checked
     // FIRST and overrides the (misleading) name/version signals: an ESR install

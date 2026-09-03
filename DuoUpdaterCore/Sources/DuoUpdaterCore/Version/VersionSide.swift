@@ -47,4 +47,29 @@ public struct VersionSide: Sendable, Equatable {
         guard withBuild, let build, build != marketing else { return marketing }
         return "\(marketing) (\(build))"
     }
+
+    /// One field out of a bundle's raw `Info.plist` dictionary —
+    /// `CFBundleShortVersionString` or `CFBundleVersion` — with a blank value
+    /// folded into `nil`.
+    ///
+    /// `dict["CFBundleVersion"] as? String` only guards against the key being
+    /// absent or non-string; a *present but blank* value sails straight through,
+    /// and vendors ship it both empty (`""`) and whitespace-only (`"   "`).
+    /// Either is dangerous input to ``VersionComparator``: its tokenizer treats a
+    /// string with no digits at all the same as `"0"` (`compare("", "0") ==
+    /// .orderedSame`), so a bundle that declares no version at all reads as "the
+    /// oldest version there is" instead of "unknown" — and once that value is
+    /// paired against a real "0"-tokenizing string (`"0"`, `"0.0"`, `"v0"`, …)
+    /// two genuinely different builds compare as identical.
+    ///
+    /// Trimmed first, so a whitespace-only value cannot slip past a plain
+    /// `isEmpty` check the way `""` cannot slip past a plain `== nil` check —
+    /// every other reader of these two keys used to skip the trim.
+    public static func plistVersionField(_ rawValue: Any?) -> String? {
+        guard let trimmed = (rawValue as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty
+        else { return nil }
+        return trimmed
+    }
 }

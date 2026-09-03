@@ -2,24 +2,32 @@ import Testing
 import Foundation
 @testable import DuoUpdaterCore
 
-// A trimmed fixture mirroring CleanShot's real markup (Nuxt `data-v-*` attrs,
-// `&quot;` entity, multiple entries, one with several items and one with a single
-// item). Kept inline so the parser is tested offline, no network.
+// A trimmed fixture mirroring CleanShot's real markup (Nuxt `data-v-*` attrs and
+// `<!--[-->` fragment markers, `&quot;` entity, multiple entries, one with several
+// items and one with a single item). Kept inline so the parser is tested offline,
+// no network.
+//
+// Re-cut 2026-09-01 against the page as it was rebuilt for the 5.0 release: the
+// date now precedes the number, and `content` > `topbar` wrap it. The items are the
+// ones this file's tests have always asserted on; only the structure around them
+// moved. See CleanShotChangelogRecipeTests for the two blocks kept verbatim.
 private let cleanshotFixture = """
-<div class="col-1224" data-v-62d3e76f><h1 class="heading">Changelog</h1>
-<section class="versions" data-v-62d3e76f>
-<div class="version" data-v-62d3e76f><div class="number" data-v-62d3e76f>4.8.8</div>\
-<div class="date" data-v-62d3e76f>23 March, 2026</div>\
-<ul class="changes" data-v-62d3e76f>\
-<li class="change" data-v-62d3e76f>Fixed issue with recording microphone</li>\
-<li class="change" data-v-62d3e76f>Fixed bug with the &quot;Ask for Name&quot; dialog not receiving focus</li>\
-<li class="change" data-v-62d3e76f>Minor fixes &amp; UX improvements</li>\
-</ul></div>\
-<div class="version" data-v-62d3e76f><div class="number" data-v-62d3e76f>4.8.7</div>\
-<div class="date" data-v-62d3e76f>22 December, 2025</div>\
-<ul class="changes" data-v-62d3e76f>\
-<li class="change" data-v-62d3e76f>Fixed an issue that caused CleanShot to crash</li>\
-</ul></div>\
+<div class="col-1224" data-v-0266dac0><h1 class="heading">Changelog</h1>
+<section class="versions" data-v-0266dac0>
+<div class="version" data-v-0266dac0 data-v-55b70507><div class="date" data-v-55b70507>23 March, 2026</div>\
+<div class="content" data-v-55b70507><div class="topbar" data-v-55b70507>\
+<div class="number" data-v-55b70507>4.8.8</div><!----></div><!--[--><!--]--><!--[-->\
+<ul class="changes" data-v-0266dac0 data-v-55b70507-s>\
+<li class="change" data-v-55b70507-s>Fixed issue with recording microphone</li>\
+<li class="change" data-v-55b70507-s>Fixed bug with the &quot;Ask for Name&quot; dialog not receiving focus</li>\
+<li class="change" data-v-55b70507-s>Minor fixes &amp; UX improvements</li>\
+</ul><!--]--></div></div>\
+<div class="version" data-v-0266dac0 data-v-55b70507><div class="date" data-v-55b70507>22 December, 2025</div>\
+<div class="content" data-v-55b70507><div class="topbar" data-v-55b70507>\
+<div class="number" data-v-55b70507>4.8.7</div><!----></div><!--[--><!--]--><!--[-->\
+<ul class="changes" data-v-0266dac0 data-v-55b70507-s>\
+<li class="change" data-v-55b70507-s>Fixed an issue that caused CleanShot to crash</li>\
+</ul><!--]--></div></div>\
 </section></div>
 """
 
@@ -632,8 +640,9 @@ private let bionicFixture = """
     // A version block with an empty list contributes nothing; with all blocks
     // empty the extractor returns nil so the UI falls back to the web view.
     let html = """
-    <div class="version"><div class="number">9.9.9</div>\
-    <div class="date">today</div><ul class="changes"></ul></div>
+    <div class="version"><div class="date">today</div><div class="content">\
+    <div class="topbar"><div class="number">9.9.9</div></div>\
+    <ul class="changes"></ul></div></div>
     """
     let recipe = ChangelogRecipeRegistry.recipe(forBundleID: "pl.maketheweb.cleanshotx")!
     #expect(ChangelogExtractor.extract(from: html, using: recipe) == nil)
@@ -648,15 +657,13 @@ private let bionicFixture = """
     #expect(ChangelogExtractor.extract(from: cleanshotFixture, using: recipe) == nil)
 }
 
-@Test func maxEntriesCapsOutput() {
-    let recipe = ChangelogRecipe(
-        bundleID: "pl.maketheweb.cleanshotx",
-        source: URL(string: "https://cleanshot.com/changelog")!,
-        entryPattern:
-            #"<div class="version"[^>]*>\s*<div class="number"[^>]*>(?<version>[^<]+)</div>\s*"#
-            + #"(?:<div class="date"[^>]*>(?<date>[^<]*)</div>\s*)?<ul[^>]*class="changes"[^>]*>(?<body>.*?)</ul>"#,
-        itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#],
-        maxEntries: 1)
+@Test func maxEntriesCapsOutput() throws {
+    // The cap is the only thing under test, so the recipe is the registry's own
+    // with that one field changed. Written out by hand, this test kept a private
+    // copy of CleanShot's entry pattern — which went stale the day the vendor
+    // rebuilt the page (2026-09-01) and had to be repaired twice for one change.
+    var recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "pl.maketheweb.cleanshotx"))
+    recipe.maxEntries = 1
     let changelog = ChangelogExtractor.extract(from: cleanshotFixture, using: recipe)
     #expect(changelog?.entries.count == 1)
     #expect(changelog?.entries.first?.version == "4.8.8")
@@ -2587,3 +2594,237 @@ p)] left-[-1px] inline-flex items-center"><a class="hover:text-theme-text inline
 </ul>
 <p>Browse the new plugins in the <a href="https://cursor.com/marketplace" rel="noopener noreferrer" target="_blank">Cursor Marketplace</a> or install them from the Customize page in Cursor. Learn more in our <a href="https://cursor.com/docs/plugins" rel="noopener noreferrer" target="_blank">docs</a>.</p></div></div></div></div></article><article><div class="grid-cursor gap-y-0 pb-v5 mb-v5 border-theme-border-02 border-b"><div class="mb-v2/12 col-span-full max-xl:mx-auto max-xl:w-full max-xl:max-w-[48rem] xl:col-end-7"><p class="text-theme-text-sec sticky top-[var(--site-sticky-to<footer class="site-footer"><p>Cursor is a registered trademark.</p><li>nav item that is not a change</li></footer>
 """#
+
+// MARK: - MacWhisper (shared release-notes page, bare <li> under <h2>)
+
+/// Trimmed from the live page the appcast's `sparkle:releaseNotesLink` points
+/// every one of its 210 items at. Note the `<li>`s are NOT inside a `<ul>` —
+/// that is the vendor's markup, and it is why the entry body has to run to the
+/// next `<h2>` rather than to a list close tag.
+private let macWhisperFixture = #"""
+<html>
+	<style>
+		body { margin: 20px; }
+	</style>
+
+	<h2>14.8</h2>
+	<h3>New:</h3>
+	<li>Dictation: You can now export the audio recording of a dictation from its right-click menu in History.</li>
+
+	<h3>Improvements:</h3>
+	<li>Model downloads: Models are now prepared right after downloading, so your first transcription with a new model is no longer held up by a one-off preparation step.</li>
+
+	<h3>Bugfixes:</h3>
+	<li>Fixed: MacWhisper now tells you when macOS refuses access to the login keychain.</li>
+
+	<h2>14.7.1</h2>
+	<h3>New:</h3>
+	<li>Cloud transcription: Added Cohere Transcribe and Speechmatics, including model, language, and region options.</li>
+</html>
+"""#
+
+@Test func extractsMacWhisperNotesFromTheSharedReleaseNotesPage() throws {
+    let recipe = try #require(
+        ChangelogRecipeRegistry.recipe(forBundleID: "com.goodsnooze.MacWhisper"))
+    let log = try #require(ChangelogExtractor.extract(from: macWhisperFixture, using: recipe))
+
+    #expect(log.entries.count == 2)
+    #expect(log.entries[0].version == "14.8")
+    #expect(log.entries[1].version == "14.7.1")
+    // The <h3> group headings ("New:", "Improvements:") are not items.
+    #expect(log.entries[0].items.count == 3)
+    #expect(log.entries[0].items[0].hasPrefix("Dictation: You can now export"))
+    #expect(!log.entries[0].items.contains { $0 == "New:" })
+    // The body stops at the next <h2>: 14.8 must not absorb 14.7.1's line.
+    #expect(!log.entries[0].items.contains { $0.contains("Cohere Transcribe") })
+}
+
+// MARK: - GitHub Copilot for Xcode (Keep a Changelog markdown)
+
+/// Verbatim slice of the repo's `CHANGELOG.md`.
+private let copilotForXcodeFixture = #"""
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## 0.51.0 - August 12, 2026
+### Added
+- Support for Kimi K3 through the updated Copilot language server.
+
+### Changed
+- Updated the Copilot language server from 1.488.0 to 1.523.3.
+
+## 0.49.0 - May 15, 2026
+### Added
+- Native Anthropic Messages API (`/v1/messages`) endpoint support.
+- See the [release notes](https://example.com/notes) for details.
+"""#
+
+@Test func extractsCopilotForXcodeNotesFromTheRepoChangelog() throws {
+    let recipe = try #require(
+        ChangelogRecipeRegistry.recipe(forBundleID: "com.github.CopilotForXcode"))
+    let log = try #require(ChangelogExtractor.extract(from: copilotForXcodeFixture, using: recipe))
+
+    #expect(log.entries.count == 2)
+    #expect(log.entries[0].version == "0.51.0")
+    #expect(log.entries[0].date == "August 12, 2026")
+    #expect(log.entries[0].items == [
+        "Support for Kimi K3 through the updated Copilot language server.",
+        "Updated the Copilot language server from 1.488.0 to 1.523.3.",
+    ])
+    // `markdownSource` unwraps inline code and flattens [text](url) — otherwise
+    // the backticks and the bracket/paren syntax reach the user as punctuation.
+    #expect(log.entries[1].items[0] == "Native Anthropic Messages API (/v1/messages) endpoint support.")
+    #expect(log.entries[1].items[1] == "See the release notes for details.")
+}
+
+// MARK: - TypeWhisper (one list, two platforms)
+
+/// Four cards in the vendor's own order: a macOS release, a Windows release, a
+/// macOS card that carries NO prose block (old cards on the live page look like
+/// this), and another macOS release. Trimmed of svg/class noise except where the
+/// pattern anchors on it.
+private let typeWhisperFixture = #"""
+<div><span class="badge">macOS</span><h3 class="font-display text-base font-semibold">v1.7.0-daily.20260826</h3></div><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v1.7.0-daily.20260826">gh</a><p class="mt-1 text-xs text-muted-foreground">August 26, 2026</p><div class="prose prose-neutral prose-sm mt-3 max-w-none"><h2>Bug Fixes</h2>
+<ul>
+<li>expand iCloud container entitlements for release signing (<a href="https://github.com/TypeWhisper/typewhisper-mac/issues/1141">#1141</a>)</li>
+<li>propagate provider cancellations</li>
+</ul></div>
+<div><span class="badge">Windows</span><h3 class="font-display text-base font-semibold">v1.0.9-daily.20260826</h3></div><a href="https://github.com/TypeWhisper/typewhisper-win/releases/tag/v1.0.9-daily.20260826">gh</a><p class="mt-1 text-xs text-muted-foreground">August 26, 2026</p><div class="prose prose-neutral prose-sm mt-3 max-w-none"><p>Maintenance release v1.0.9-daily.20260826</p></div>
+<div><span class="badge">macOS</span><h3 class="font-display text-base font-semibold">v0.6.1</h3></div><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v0.6.1">gh</a>
+<div><span class="badge">macOS</span><h3 class="font-display text-base font-semibold">v1.6.0</h3></div><a href="https://github.com/TypeWhisper/typewhisper-mac/releases/tag/v1.6.0">gh</a><p class="mt-1 text-xs text-muted-foreground">August 20, 2026</p><div class="prose prose-neutral prose-sm mt-3 max-w-none"><ul>
+<li>Add Web Link transcription plugin</li>
+</ul></div>
+"""#
+
+@Test func typeWhisperReadsOnlyTheMacCardsAndNeverCrossesOne() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.typewhisper.mac"))
+    let log = try #require(ChangelogExtractor.extract(from: typeWhisperFixture, using: recipe))
+
+    // The Windows release is not a version of this app.
+    #expect(log.entries.map(\.version) == ["1.7.0-daily.20260826", "1.6.0"])
+    #expect(!log.entries.contains { $0.version.hasPrefix("1.0.9") })
+
+    // v0.6.1 has no prose block. The tempered scan must abandon it, NOT run on
+    // into v1.6.0's card — doing that both mislabels 1.6.0's notes as 0.6.1's
+    // and consumes 1.6.0's own heading, so the real entry disappears. Two live
+    // entries did exactly this before the pattern was tempered.
+    #expect(!log.entries.contains { $0.version == "0.6.1" })
+    #expect(log.entries[1].items == ["Add Web Link transcription plugin"])
+
+    #expect(log.entries[0].date == "August 26, 2026")
+    #expect(log.entries[0].items == [
+        "expand iCloud container entitlements for release signing (#1141)",
+        "propagate provider cancellations",
+    ])
+}
+
+/// The Copilot file with its `# Changelog` preamble gone, so the first heading
+/// sits at offset 0. `ChangelogExtractor` does not compile with
+/// `.anchorsMatchLines`, so a `\n##`-only pattern cannot see that heading: it
+/// would drop the NEWEST release and still render every older one — a partial,
+/// silent loss, and the newest entry is the one the row is about.
+@Test func copilotForXcodeReadsAHeadingAtTheStartOfTheFile() throws {
+    let recipe = try #require(
+        ChangelogRecipeRegistry.recipe(forBundleID: "com.github.CopilotForXcode"))
+    let trimmed = #"""
+    ## 0.51.0 - August 12, 2026
+    ### Added
+    - Support for Kimi K3 through the updated Copilot language server.
+
+    ## 0.50.0 - May 20, 2026
+    ### Added
+    - Reasoning effort control for supported models.
+    """#
+    let log = try #require(ChangelogExtractor.extract(from: trimmed, using: recipe))
+    #expect(log.entries.map(\.version) == ["0.51.0", "0.50.0"])
+}
+
+/// A trimmed slice of Eudic's live Sparkle appcast (fetched 2026-09-01), keeping
+/// every shape the recipe has to survive: the `<h2>` current release separated
+/// from its own notes by an `<h3>更新内容</h3>` LABEL, a bare `<h3>` version, a
+/// suffixed one, a suffixed one with no space, a section whose lines are wrapped
+/// in `<b>`, the CDATA close, and one of the 2010-era stub `<item>`s that follows
+/// it in the real feed.
+private let eudicAppcastFixture = #"""
+        <item>
+            <title>《欧路词典》Mac 26.9.0</title>
+            <description><![CDATA[
+                <h2>《欧路词典》Mac 26.9.0 更新</h2>
+                <h3>更新内容</h3>
+                  <p>
+                    - 全新 界面大改版 符合现代MacOS设计规范<br>
+                    - 新增 可以隐藏Docker栏图标<br>
+                    - 改进 2026秋季词库更新
+                </p>
+                <h3>4.9.0</h3>
+                <p>
+                    - 新增 词库在线同步功能<br>
+                    - 新增 同声传译功能<br>
+                    - 词库更新
+                </p>
+                <h3>3.6.0 改进</h3>
+                <p>
+                新增 导出生词本时可以单独导出笔记了<br />
+                新增 浏览第三方词典库内单词<br />
+                </p>
+                <h3>3.5.0 改进</h3>
+                <p>
+                <b>支持TouchBar操作</b><br />
+                <b>支持macOS Sierra系统</b><br />
+                新增 支持Mdx格式词库全文检索<br />
+                </p>
+                <h3>2.5.2改进</h3>
+                <p>
+                - 新增 输入单词时即时提示（可在设置中心里开启）<br />
+                - 新增 双击单词自动跳转解释
+                </p>
+            ]]></description>
+            <pubDate>2026-08-31</pubDate>
+        </item>
+        <item>
+            <title>《欧路词典》Mac 1.7.0</title>
+            <description><![CDATA[<h2>新增功能</h2>
+            <p>新增学习菜单，提供：<br />在线学习记录同步。</p>
+            ]]></description>
+        </item>
+"""#
+
+@Test func eudicSplitsOneAppcastDescriptionIntoOneEntryPerVersion() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.eusoft.eudic"))
+    let log = try #require(ChangelogExtractor.extract(from: eudicAppcastFixture, using: recipe))
+
+    // The whole history lives in ONE item's description, so the win is that it
+    // becomes several entries rather than sixteen years under "26.9.0".
+    #expect(log.entries.map(\.version) == ["26.9.0", "4.9.0", "3.6.0", "3.5.0", "2.5.2"])
+
+    // "更新内容" is a label, not a release. Keying on the heading TAG would make it
+    // an entry and steal 26.9.0's notes; keying on a dotted number steps over it.
+    #expect(!log.entries.contains { $0.version.contains("更新") })
+    #expect(log.entries[0].items == [
+        "全新 界面大改版 符合现代MacOS设计规范",
+        "新增 可以隐藏Docker栏图标",
+        "改进 2026秋季词库更新",
+    ])
+
+    // The suffix forms the vendor uses, with and without a space before it.
+    #expect(log.entries[2].version == "3.6.0")
+    #expect(log.entries[4].version == "2.5.2")
+
+    // Pre-3.7 sections wrap whole lines in <b>. A no-tag item capture (`[^<]+`)
+    // silently dropped every one of them — the failure this pattern is shaped
+    // against, because a partial parse suppresses the fallback.
+    #expect(log.entries[3].items == [
+        "支持TouchBar操作",
+        "支持macOS Sierra系统",
+        "新增 支持Mdx格式词库全文检索",
+    ])
+
+    // The last section must stop at the CDATA close. Without that terminator it
+    // runs on into the 2010-era stub items that fill the rest of the feed.
+    #expect(log.entries[4].items == [
+        "新增 输入单词时即时提示（可在设置中心里开启）",
+        "新增 双击单词自动跳转解释",
+    ])
+    #expect(!log.entries.contains { $0.items.contains { $0.contains("在线学习记录同步") } })
+}

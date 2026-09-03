@@ -162,6 +162,16 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(!matches("bruno_4.0.0_arm64_win.zip", "com.usebruno.app"))
 }
 
+@Test func openLogiRuleReadsStableTagsOnlyAndStaysDetectionOnly() {
+    #expect(extract("v0.8.2", "org.openlogi.openlogi") == "0.8.2")
+    // A prerelease must not be truncated and served to a stable install.
+    #expect(extract("v0.8.3-rc.1", "org.openlogi.openlogi") == nil)
+    #expect(rule("org.openlogi.openlogi").usePrereleases == false)
+    // One-click is a separate, explicitly approved capability.
+    #expect(rule("org.openlogi.openlogi").installAssetPattern == nil)
+    #expect(rule("org.openlogi.openlogi").installerKind == nil)
+}
+
 /// PureMac ships a second product out of the same releases: `cli-v1.0.0`
 /// (2026-08-17) carries only `puremac-cli-1.0.0.tar.gz` and GitHub marks it
 /// latest. Unanchored, the default pattern read that as 1.0.0 — and a remote
@@ -645,6 +655,7 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     let expected: [String: String] = [
         "com.ccswitch.desktop": "farion1231/cc-switch",
         "com.usebruno.app": "usebruno/bruno",
+        "org.openlogi.openlogi": "AprilNEA/OpenLogi",
         "org.localsend.localsendApp": "localsend/localsend",
         "com.utmapp.UTM": "utmapp/UTM",
         "net.kovidgoyal.kitty": "kovidgoyal/kitty",

@@ -112,6 +112,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**KeePassXC**](org-keepassxc-keepassxc.md) · `org.keepassxc.keepassxc` — G (one-click) · ✓ src=GitHub · snapshot 共享 bundle id，完全无签名 → **一键永久不可**，检测已可行（#93 已解决），尚未接 recipe（issue #95）
 - [x] [**Insomnia**](com-insomnia-app.md) · `com.insomnia.app` — G C (one-click) · ✓ src=GitHub · changelog=insomnia.rest(`__NEXT_DATA__` JSON) · 修 stable 跨渠道误推（pattern 加 `$` 锚，2026-06-06）· beta/alpha 受阻于 detect() 不解析 `-beta.N` 后缀
 - [x] **Pearcleaner** · `com.alienator88.Pearcleaner` — G · ✓ src=GitHub
+- [x] [**OpenLogi**](org-openlogi-openlogi.md) · `org.openlogi.openlogi` — G (detection-only) · Homebrew `auto_updates:true` 会让位；真包 0.8.1 → GitHub stable 0.8.2 全链验证 ✓ · 2026-08-30
 - [x] **Macs Fan Control** · `com.crystalidea.macsfancontrol` — G · ✓ src=GitHub
 - [x] **Alcove** · `com.henrikruscon.Alcove` — P(stable, detection-only) · ✓ src=Vendor `download.tryalcove.com/latest`（GitHub 镜像滞后已删；`update.tryalcove.com` 2026-07-29 起 NXDOMAIN，recipe 已改指 `/latest`）· 公开下载是滞后的 trial 构建（metadata 1.7.9 时 dmg 仍 1.7.7）故**不给一键** · 授权用户走 `AlcoveUpdateSource`（changelog + published_at + 一键）· 2026-07-29
 - [ ] **Zen Browser** · `app.zen-browser.zen` — G C · (not installed; prerelease-tag channel, not a pure single-channel sweep target)

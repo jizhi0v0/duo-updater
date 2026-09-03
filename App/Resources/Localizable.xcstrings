@@ -12961,6 +12961,53 @@
         }
       }
     },
+    "Published on %@ — the vendor gave only a date, not a time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Veröffentlicht am %@ – der Anbieter nannte nur ein Datum, keine Uhrzeit."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Published on %@ — the vendor gave only a date, not a time."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publicado el %@: el proveedor solo indicó una fecha, no una hora."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publié le %@ — l’éditeur n’a indiqué qu’une date, pas d’heure."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に公開 — ベンダーは日付のみを示し、時刻は示していません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Опубликовано %@ — поставщик указал только дату, без времени."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发布于 %@ —— 厂商只给了日期，没有给时间。"
+          }
+        }
+      }
+    },
     "Queued": {
       "extractionState": "manual",
       "localizations": {

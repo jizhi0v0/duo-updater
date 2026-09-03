@@ -220,8 +220,8 @@ public enum FeedDiscovery {
 
         let bundleID = plist["CFBundleIdentifier"] as? String
         let installed = VersionSide(
-            marketing: (plist["CFBundleShortVersionString"] as? String)?.nonEmpty,
-            build: (plist["CFBundleVersion"] as? String)?.nonEmpty)
+            marketing: VersionSide.plistVersionField(plist["CFBundleShortVersionString"]),
+            build: VersionSide.plistVersionField(plist["CFBundleVersion"]))
 
         let declared = (plist["SUFeedURL"] as? String)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

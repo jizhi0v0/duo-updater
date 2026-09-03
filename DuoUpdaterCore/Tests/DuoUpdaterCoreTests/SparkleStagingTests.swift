@@ -150,6 +150,46 @@ struct SparkleStagingTests {
         }
     }
 
+    /// Issue #287: `dict["CFBundleShortVersionString"] as? String` only guarded
+    /// non-nil, not non-blank. A staged bundle whose plist declares `""` for
+    /// its marketing version used to come back as a "readable" empty
+    /// `StagedSelfUpdate.version` — which then tokenizes the same as `"0"`
+    /// inside `VersionComparator` and feeds `RestartStandoff.decide` a fake
+    /// verdict. It must instead be skipped exactly as if the key were absent.
+    @Test func aStagedBundleWithBlankMarketingVersionIsNotReported() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "", build: "769")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "1.0", build: "765")
+
+            #expect(SelfUpdaterStaging.sparkleStagedBundle(
+                for: app(at: installed, short: "1.0", build: "765"),
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)]) == nil)
+        }
+    }
+
+    /// Same issue, the other field: a blank `CFBundleVersion` on an otherwise
+    /// valid staged bundle must come back as `buildVersion == nil`, not as an
+    /// empty string standing in for "no build" while looking like a value.
+    @Test func aStagedBundleWithBlankBuildVersionReportsNilNotEmptyString() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            _ = try stage(in: caches, short: "26.9.11", build: "   ")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            try makeApp(at: installed, identifier: bundleID, short: "26.9.9", build: "765")
+
+            let found = SelfUpdaterStaging.sparkleStagedBundle(
+                for: app(at: installed, short: "26.9.9", build: "765"),
+                cachesDirectory: caches,
+                parkedInstallerBundleURLs: [parkedInstaller(in: caches)])
+
+            #expect(found?.version == "26.9.11")
+            #expect(found?.buildVersion == nil)
+        }
+    }
+
     /// Nothing staged at all — no cache tree for this app.
     @Test func noSparkleCacheYieldsNil() throws {
         try withScratch { root in

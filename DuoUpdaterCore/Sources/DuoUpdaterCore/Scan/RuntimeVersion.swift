@@ -254,7 +254,7 @@ public enum RuntimeVersion {
                   identifier.hasSuffix(electronFrameworkID)
             else { continue }
             if identifier == electronFrameworkID,
-               let version = plist["CFBundleVersion"] as? String, !version.isEmpty {
+               let version = VersionSide.plistVersionField(plist["CFBundleVersion"]) {
                 return version
             }
             resigned = framework
@@ -296,7 +296,7 @@ public enum RuntimeVersion {
         }
         let core = bundleURL.appendingPathComponent("Contents/Frameworks/QtCore.framework")
         guard let plist = frameworkPlist(core),
-              let version = plist["CFBundleShortVersionString"] as? String, !version.isEmpty
+              let version = VersionSide.plistVersionField(plist["CFBundleShortVersionString"])
         else { return nil }
         return version
     }

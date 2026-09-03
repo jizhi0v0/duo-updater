@@ -62,6 +62,25 @@ import Testing
     #expect(VersionComparator.compare("v", "v") == .orderedSame)
 }
 
+/// The tokenizer treats a string with no digits at all — including the empty
+/// string — the same as "0", because a missing trailing component is filled
+/// with `.number("0")` on both sides (see `compare`'s loop). That is correct
+/// for "1.2" vs "1.2.0", and it is exactly why an empty *marketing* or *build*
+/// string must never reach this function: "no version" and "the oldest
+/// version there is" become indistinguishable, and a real "0"-tokenizing
+/// string on the other side ("0", "0.0", "00", "v0") reads as an exact match.
+/// This is the ground fact issue #287's whole helper (`VersionSide
+/// .plistVersionField`) exists to keep out of every plist read.
+@Test func emptyStringTokenizesTheSameAsZero() {
+    #expect(VersionComparator.compare("", "0") == .orderedSame)
+    #expect(VersionComparator.compare("", "0.0") == .orderedSame)
+    #expect(VersionComparator.compare("", "00") == .orderedSame)
+    #expect(VersionComparator.compare("", "v0") == .orderedSame)
+    #expect(VersionComparator.isSame(
+        VersionSide(marketing: "", build: nil),
+        as: VersionSide(marketing: "0", build: nil)))
+}
+
 @Test func evaluatePrefersBuildVersion() {
     let app = InstalledApp(
         name: "X", bundleID: "x", shortVersion: "1.0", buildVersion: "100",

@@ -4519,12 +4519,8 @@ final class AppListModel {
               let dict = (try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil)) as? [String: Any]
         else { return (nil, nil) }
-        func nonEmptyVersion(_ key: String) -> String? {
-            guard let value = dict[key] as? String, !value.isEmpty else { return nil }
-            return value
-        }
-        return (nonEmptyVersion("CFBundleShortVersionString"),
-                nonEmptyVersion("CFBundleVersion"))
+        return (VersionSide.plistVersionField(dict["CFBundleShortVersionString"]),
+                VersionSide.plistVersionField(dict["CFBundleVersion"]))
     }
 
     /// Open System Settings → Privacy & Security → App Management and float the

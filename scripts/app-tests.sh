@@ -12,6 +12,11 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # the way `make test`'s /tmp/duo-loc-check already does, except here the symptom
 # is tests failing rather than a build stalling, which reads as a real regression.
 # `APP_TESTS_DD` overrides, as GALLERY_DD does for the gallery.
+#
+# Two runs in the SAME checkout still share this directory, and two concurrent
+# xcodebuilds on one derived-data path is the hazard CLAUDE.md records for
+# /tmp/duo-loc-check. Not fixed here — `make gallery` and the loc-check have the
+# same shape — so don't run this alongside itself in one checkout.
 DD="${APP_TESTS_DD:-/tmp/duo-app-tests-$(printf %s "$REPO" | shasum | cut -c1-8)}"
 
 # Exported before xcodegen for the reason install.sh and row-state-gallery.sh
@@ -21,6 +26,14 @@ DD="${APP_TESTS_DD:-/tmp/duo-app-tests-$(printf %s "$REPO" | shasum | cut -c1-8)
 export DUO_TEAM_ID="${DUO_TEAM_ID:-RS59HDH7Y3}"
 
 cd "$REPO"
+
+# Checked before anything reads a log: `xcodebuild: command not found` matches
+# none of the failure patterns below, so without this the no-Xcode case exited
+# with a log path and no reason.
+command -v xcodebuild >/dev/null 2>&1 || {
+  echo "✗ App tests: xcodebuild not found — install Xcode, or point xcode-select at it."
+  exit 1
+}
 # Only when the spec has actually moved. Regenerating on every `make test` would
 # rewrite project.pbxproj and so invalidate the incremental build that
 # check_localizable_keys.py runs a few lines later in the same target.
@@ -64,35 +77,24 @@ fi
 # that stops matching, would otherwise leave `make test` green forever while
 # nothing at all executes — the vacuity that `make gallery`'s blank-tile gate and
 # the repo's "计时测试要防空过" rule both exist to catch.
-# Counted from the PER-CASE lines, not from the run summary. Measured: with a
-# case marked `.disabled()`, swift-testing's summary still reads "Test run with
-# 9 tests" — it counts what it knows about, not what it ran — so a summary-based
-# gate passes while a case sits switched off. Only cases that actually executed
-# get a "Test x() passed" line.
-#
-# Occurrences, NOT lines, and no `^` anchor. swift-testing runs cases in
-# parallel and its writes interleave, so a case's line routinely lands appended
-# to another's; anchored `grep -c` undercounted by one on a measured run (8 cases
-# executed, 7 counted) and would eventually fail a green build.
-RAN="$(grep -oE "Test [A-Za-z0-9_]+\(\) passed" "$LOG" | wc -l | tr -d ' ')"
-# The floor is DERIVED from the sources, not written down here: a hand-kept
-# number is a number that drifts, and a gate on "more than zero" would pass with
-# eight of nine cases silently not running — `.disabled()`, a rename, a `sources:`
-# entry that stops matching. `-lt` rather than `-ne` so a parameterized case,
-# which runs more times than it is declared, does not read as a failure.
-# `@Test.*func` rather than `@Test func`, so a case wearing a trait — including
-# `.disabled(…)`, the exact thing this gate is here to notice — still counts as
-# declared. Matching the bare form let a disabled case shrink BOTH sides at once.
-DECLARED="$(grep -rhoE "@Test.*func " App/Tests | wc -l | tr -d ' ')"
-if [ -z "$RAN" ]; then
-  echo "✗ App tests: no executed cases found in the log."
-  echo "  Either nothing ran, or swift-testing changed the per-case line this"
-  echo "  gate counts (\"✔ Test x() passed\"). Log: $LOG"
+# Which declared cases actually ran, by NAME. The reasoning — and the three
+# ways a count got this wrong — is in the script.
+GATE="$(python3 scripts/app_test_coverage.py "$LOG" App/Tests || true)"
+COUNTS="$(printf '%s\n' "$GATE" | sed -n 1p)"
+MISSING="$(printf '%s\n' "$GATE" | sed -n 2p)"
+DECLARED="${COUNTS%% *}"
+RAN="${COUNTS##* }"
+
+if [ -z "$DECLARED" ] || [ "$DECLARED" = "0" ]; then
+  echo "✗ App tests: the coverage gate found no @Test cases."
+  echo "  Either App/Tests is gone, the log is unreadable, or the gate's own"
+  echo "  scan broke. Log: $LOG"
   exit 1
 fi
-if [ "$RAN" -lt "$DECLARED" ]; then
-  echo "✗ App tests ran $RAN of the $DECLARED cases declared in App/Tests."
+if [ -n "$MISSING" ]; then
+  echo "✗ App tests: $RAN of $DECLARED declared cases ran. Never executed:"
+  for m in $MISSING; do echo "    $m"; done
   echo "  A case that stops running is a case that stops guarding. Log: $LOG"
   exit 1
 fi
-echo "✓ App tests — $RAN executed"
+echo "✓ App tests — $RAN of $DECLARED cases executed"

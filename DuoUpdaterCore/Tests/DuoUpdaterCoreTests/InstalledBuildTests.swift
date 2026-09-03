@@ -74,6 +74,17 @@ private func scratch() -> URL {
         fromPropertyList: ["CFBundleVersion": ""], format: .xml, options: 0)
     try blankData.write(to: blank.appendingPathComponent("Contents/Info.plist"))
     #expect(InstalledBuild.read(at: blank) == nil)
+
+    // Present but whitespace-only — issue #287: a bare `isEmpty` check (what
+    // this read used before converging onto `VersionSide.plistVersionField`)
+    // lets "   " through as a "real" build number.
+    let whitespace = base.appendingPathComponent("Whitespace.app")
+    try FileManager.default.createDirectory(
+        at: whitespace.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+    let whitespaceData = try PropertyListSerialization.data(
+        fromPropertyList: ["CFBundleVersion": "   "], format: .xml, options: 0)
+    try whitespaceData.write(to: whitespace.appendingPathComponent("Contents/Info.plist"))
+    #expect(InstalledBuild.read(at: whitespace) == nil)
 }
 
 // MARK: - Deciding

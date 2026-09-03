@@ -75,15 +75,23 @@ public enum Report {
             }
         }
 
-        // A gateway 5xx that succeeded on retry leaves no other trace: the status
-        // is `ok`, no warning is raised, and the loop above prints only actionable
+        // A flap that succeeded on retry leaves no other trace: the status is
+        // `ok`, no warning is raised, and the loop above prints only actionable
         // findings. That is the flap worth seeing early — an endpoint answering
         // 502 to one request in N is degrading, and by the time it fails outright
         // it is no longer news. Printed for every status, since a finding that
         // retried and then failed anyway cost those requests too.
+        //
+        // The heading says "5xx or an error body" because the retry now has two
+        // causes: a gateway status, and — for a recipe that declares
+        // `transientBodyPattern` — a vendor serving its own error envelope under a
+        // success status (CapCut). Naming only the first would make this line
+        // assert something untrue about the second, which is worse than a vague
+        // heading. The field keeps its name so an older `report.json` still
+        // decodes.
         let retried = findings.filter { ($0.gatewayRetries ?? 0) > 0 }
         if !retried.isEmpty {
-            print("\n  \u{27F3} GATEWAY RETRIES (endpoint 5xx'd, request was repeated once)")
+            print("\n  \u{27F3} RETRIES (endpoint 5xx'd or answered with an error body; repeated once)")
             for finding in retried {
                 let n = finding.gatewayRetries ?? 0
                 print("      \(finding.recipeID) — \(finding.endpointHost) "

@@ -30,9 +30,19 @@ enum VendorAppcastDeltas {
     ///
     /// Ambiguity is refused rather than guessed: if two items claim the version,
     /// there is no single right answer and the full archive is always correct.
-    static func patches(inBody body: String, forVersion version: String) -> [DeltaPatch] {
+    ///
+    /// `feedURL` is the endpoint the body came from, and it is passed for the same
+    /// reason `SparkleAppcastSource` passes its own: Sparkle resolves every URL in
+    /// an appcast against the appcast's address, so a vendor writing
+    /// `assets/App-1.2-1.1.delta` yields a schemeless, unfetchable patch without
+    /// it. No vendor appcast we read publishes relative patches today — this is
+    /// here so the two Sparkle-parsing paths cannot drift, which is exactly how
+    /// the first one came to be wrong.
+    static func patches(
+        inBody body: String, forVersion version: String, feedURL: URL? = nil
+    ) -> [DeltaPatch] {
         guard body.contains("sparkle:deltas") else { return [] }
-        let items = SparkleAppcastParser.parse(Data(body.utf8))
+        let items = SparkleAppcastParser.parse(Data(body.utf8), relativeTo: feedURL)
         let matching = items.filter {
             $0.version == version || $0.shortVersionString == version
         }

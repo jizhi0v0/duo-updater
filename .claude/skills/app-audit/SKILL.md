@@ -156,6 +156,43 @@ codesign -dvvv "<path>" 2>&1 | grep "TeamIdentifier"
 
 ### Phase 1: Distribution sources — WHERE can users get this app?
 
+**1a-0. FIRST: ask whether a generic source already covers it. Often it does.**
+
+Two families need no per-app entry at all, because a generic source reads the
+address out of the bundle itself:
+
+```bash
+swift run --package-path application-test feed-discover <path-to-.app/.dmg/.zip>
+```
+
+| Verdict | What it means | What to do |
+|---------|---------------|------------|
+| `declared` | Bundle names its own `SUFeedURL`; `SparkleAppcastSource` already resolves it | **STOP.** No recipe. Only changelog + channel remain (see below) |
+| `ADOPT` (electron) | `app-update.yml` names a fetchable `*-mac.yml`; `ElectronManifestSource` covers it | **STOP**, unless you need a page/changelog link — the generic source carries neither |
+| `ADOPT` (sparkle) | Address found in code and proved against the bundle | Propose a `SparkleFeedCatalog` entry, not a recipe |
+| `review <blocker>` | The blocker names the reason | Continue the audit; the blocker tells you what to investigate |
+| `noKnownUpdater` | No Sparkle, no electron-builder config | Continue the audit |
+
+**Skipping this step has a measured cost.** Bartender, ImageOptim and Vivaldi
+Snapshot each got a hand-written `VendorProbeRecipe` pointing at the *exact
+address their own bundle already declares in `SUFeedURL`*. `SparkleAppcastSource`
+sits ahead of `VendorProbeSource`, so all three recipes were dead the day they
+were written — and nobody noticed for months, because a dead recipe and a working
+one look identical from outside. Three of them, one avoidable read.
+
+**When the verdict is `declared`, the only questions left are:**
+
+1. **changelog** — does the feed inline notes (`<description>` /
+   `<sparkle:releaseNotesLink>` / `<markdownDescription>`)? If yes, nothing to do.
+   If no, that is a `ChangelogRecipe` / `ChangelogCatalog` question, not a source one.
+2. **channel** — does the feed carry `<sparkle:channel>` tags, or does the vendor
+   publish one feed per track? See Phase "channels" below. ⚠️ A feed where EVERY
+   item is tagged has no default channel, and a stable install then matches zero
+   items (measured: OrbStack 7/7 tagged, ClaudeUsageMenuBar 20/20).
+
+Everything else — version parsing, download URL, EdDSA verification, release
+history, OS floor — the generic source already does.
+
 **1a. Check all possible sources systematically:**
 
 | Check | Command / method |

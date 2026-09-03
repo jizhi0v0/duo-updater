@@ -22,9 +22,12 @@ public struct ReleaseStats: Sendable, Equatable {
     /// Build the histogram from release events, bucketing each by its publish
     /// instant in `calendar` (whose `timeZone` decides the wall-clock reading).
     ///
-    /// Only the trustworthy tier counts: events with no real `publishedAt`
-    /// (detection-only estimates) are skipped entirely, so a heatmap built from
-    /// this never reflects our polling clock — only when vendors actually shipped.
+    /// Only the to-the-minute tier counts: events with no real `publishedAt` are
+    /// skipped entirely — both `vendorDay` events (a real vendor date, but no
+    /// time of day, so any hour/weekday bucket would be invented) and
+    /// detection-only `estimatedRange` events (our own polling clock, not the
+    /// vendor's). A heatmap built from this only ever reflects when vendors
+    /// stated they actually shipped.
     public init(events: [ReleaseEvent], calendar: Calendar = .current) {
         var hour = Array(repeating: 0, count: 24)
         var weekday = Array(repeating: 0, count: 7)

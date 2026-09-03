@@ -357,6 +357,44 @@ private let timeMachineEditorHomepageFixture = #"""
 /// `.app` (confirmed by expanding the real pkg 2026-08-29), so a bundle-only
 /// unpack (`.dmg`/`.zip`) would leave a stale daemon next to the updated app.
 /// The install must go through the system installer, and the URL is a static
+
+// MARK: - 2026-08-30 AnythingLLM
+
+/// Verbatim body of `https://cdn.anythingllm.com/latest/version.txt`, fetched
+/// 2026-08-30 — a one-line plain-text version body. This is the endpoint
+/// Homebrew's own `anythingllm` cask names in its `livecheck` block.
+private let anythingLLMVersionTxtFixture = "1.16.1"
+
+/// The cask is not `auto_updates`, but `HomebrewCaskSource` never got a row for
+/// this bundle id either way — this probe is the only source able to answer for
+/// `com.anythingllm` at all. Pin the pattern against the real body.
+@Test func anythingLLMReadsTheVersionFromThePlainTextBody() {
+    #expect(batchVersion("com.anythingllm", in: anythingLLMVersionTxtFixture) == "1.16.1")
+    #expect(batchVersion("com.anythingllm", in: anythingLLMVersionTxtFixture + "\n") == "1.16.1")
+}
+
+/// A body that grows a second line (e.g. the vendor starts appending a changelog
+/// line) must read as "unknown", not as the first line's version — the `$`
+/// anchor exists to keep this a one-line document.
+@Test func anythingLLMPatternRejectsAMultiLineBody() {
+    #expect(batchVersion("com.anythingllm", in: "1.16.1\n1.15.0") == nil)
+}
+
+/// The download is an UNVERSIONED moving `/latest/` pointer (no versioned path
+/// exists on the CDN; 404), the same pairing the cask itself ships — the spec
+/// must stay `.fixed` on the arm64 Silicon dmg and `kind: .dmg` (self-contained
+/// bundle, no daemons — a drift to `.pkg` or to the Intel dmg would be wrong).
+@Test func anythingLLMInstallIsADmgOverTheFixedSiliconURL() {
+    let recipe = try! #require(batchRecipe("com.anythingllm"))
+    let install = try! #require(recipe.install)
+    guard case .fixed(let url) = install.urlSource else {
+        Issue.record("expected a fixed install URL")
+        return
+    }
+    #expect(url.absoluteString == "https://cdn.anythingllm.com/latest/AnythingLLMDesktop-Silicon.dmg")
+    #expect(install.kind == .dmg)
+}
+
 /// filename that always serves the current release (no pattern to resolve).
 @Test func timeMachineEditorInstallsViaThePkgFromAFixedURL() throws {
     let spec = try #require(

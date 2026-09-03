@@ -48,6 +48,19 @@ private func extract(
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func paseoRuleKeepsTheStableTrackOffTheBetaSuffix() {
+    #expect(extract("v0.6.1", "sh.paseo.desktop") == "0.6.1")
+    // The beta train is prerelease releases with a suffix tag — the anchored
+    // stable pattern must reject it so a stable install is never offered one.
+    #expect(extract("v0.7.0-beta.2", "sh.paseo.desktop") == nil)
+    let pattern = try! #require(rule("sh.paseo.desktop").installAssetPattern)
+    #expect("Paseo-0.6.1-arm64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("Paseo-0.6.1-amd64.deb".range(of: pattern, options: .regularExpression) == nil)
+    #expect("beta-mac.yml".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("sh.paseo.desktop").slug == "getpaseo/paseo")
+    #expect(rule("sh.paseo.desktop").installerKind == .dmg)
+}
+
 @Test func openSuperWhisperRuleReadsBareTagsAndTheVersionlessDmg() {
     #expect(extract("0.1.0", "ru.starmel.OpenSuperWhisper") == "0.1.0")
     // Bare tags only — a future prerelease must not read as stable.

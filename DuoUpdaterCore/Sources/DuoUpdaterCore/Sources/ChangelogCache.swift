@@ -87,8 +87,10 @@ public actor ChangelogCache {
     }
 
     /// Drop all cached entries and cancel any in-flight fetches. Called on a
-    /// manual refresh so the user gets up-to-date release notes after explicitly
-    /// asking for a fresh check.
+    /// user-present refresh (`RefreshIntent.restartsChangelogs`) so the user gets
+    /// up-to-date release notes after asking for a fresh check. The scheduled
+    /// background check does not call it: the TTL is what keeps its reads fresh,
+    /// and a silent tick has no business discarding what the user is reading.
     public func invalidateAll() {
         for task in inflight.values { task.cancel() }
         inflight.removeAll()

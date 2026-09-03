@@ -7,19 +7,28 @@ import Foundation
 // match). These fixtures pin the pattern against the REAL tag formats observed
 // on each repo, so a future pattern edit that breaks extraction fails loudly.
 
-private func rule(_ bundleID: String) -> GitHubReleaseRule {
+private func rule(
+    _ bundleID: String, channel: ReleaseChannel? = nil
+) -> GitHubReleaseRule {
     // Reported as a failed expectation rather than a crash: a deleted registry
     // entry should fail the test that covers it, not take the whole suite down.
-    guard let match = GitHubReleaseRegistry.rules.first(where: { $0.bundleID == bundleID })
+    guard let match = GitHubReleaseRegistry.rules.first(where: {
+        $0.bundleID == bundleID && (channel == nil || $0.channel == channel)
+    })
     else {
-        Issue.record("no GitHubReleaseRule for \(bundleID)")
-        return GitHubReleaseRule(bundleID: bundleID, owner: "", repo: "")
+        let suffix = channel.map { " [\($0.rawValue)]" } ?? ""
+        Issue.record("no GitHubReleaseRule for \(bundleID)\(suffix)")
+        return GitHubReleaseRule(
+            bundleID: bundleID, owner: "", repo: "", channel: channel ?? .stable)
     }
     return match
 }
 
-private func extract(_ tag: String, _ bundleID: String) -> String? {
-    VendorProbeRecipe.extractVersion(from: tag, pattern: rule(bundleID).versionPattern)
+private func extract(
+    _ tag: String, _ bundleID: String, channel: ReleaseChannel? = nil
+) -> String? {
+    VendorProbeRecipe.extractVersion(
+        from: tag, pattern: rule(bundleID, channel: channel).versionPattern)
 }
 
 @Test func statsRuleExtractsVPrefixedTag() {
@@ -37,6 +46,38 @@ private func extract(_ tag: String, _ bundleID: String) -> String? {
 
 @Test func beekeeperRuleExtractsVPrefixedTag() {
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
+}
+
+@Test func heliumRuleReadsBareTagsAndPinsTheArm64Dmg() {
+    #expect(extract("0.16.2.1", "net.imput.helium") == "0.16.2.1")
+    #expect(extract("v0.16.2.1", "net.imput.helium") == nil)
+    let pattern = try! #require(rule("net.imput.helium").installAssetPattern)
+    #expect("helium_0.16.2.1_arm64-macos.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("helium_0.16.2.1_x86_64-macos.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("0.15.4.1-arm64.delta".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("net.imput.helium").slug == "imputnet/helium-macos")
+    #expect(rule("net.imput.helium").installerKind == .dmg)
+}
+
+@Test func claudeStatusBarRuleReadsVPrefixedTagsAndTheVersionlessDmg() {
+    #expect(extract("v0.4.4", "com.local.claudestatusbar") == "0.4.4")
+    #expect(extract("v0.4.4-beta.1", "com.local.claudestatusbar") == nil)
+    let pattern = try! #require(rule("com.local.claudestatusbar").installAssetPattern)
+    #expect("ClaudeStatusBar.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("ClaudeStatusBar.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("com.local.claudestatusbar").slug == "m1ckc3s/claude-status-bar")
+    #expect(rule("com.local.claudestatusbar").installerKind == .dmg)
+}
+
+@Test func claudeDevtoolsRulePinsTheArm64Dmg() {
+    #expect(extract("v0.5.0", "com.claudecode.context") == "0.5.0")
+    #expect(extract("v0.5.0-rc.1", "com.claudecode.context") == nil)
+    let pattern = try! #require(rule("com.claudecode.context").installAssetPattern)
+    #expect("claude-devtools-0.5.0-arm64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("claude-devtools-0.5.0-x64.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("claude-devtools-0.5.0-arm64.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("com.claudecode.context").slug == "matt1398/claude-devtools")
+    #expect(rule("com.claudecode.context").installerKind == .dmg)
 }
 
 @Test func insomniaRuleMatchesCoreTagOnly() {
@@ -145,6 +186,30 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(!matches("bruno_4.0.0_x64_mac.dmg", "com.usebruno.app"))
     #expect(!matches("bruno_4.0.0_arm64_mac.pkg", "com.usebruno.app"))
     #expect(!matches("bruno_4.0.0_arm64_win.zip", "com.usebruno.app"))
+}
+
+@Test func vorssaintRulesKeepStableAndBetaSeparate() {
+    let bundleID = "com.vorssaint.utils"
+
+    #expect(extract("v3.3.2", bundleID, channel: .stable) == "3.3.2")
+    #expect(extract("v3.3.3-beta.3", bundleID, channel: .stable) == nil)
+    #expect(rule(bundleID, channel: .stable).usePrereleases == false)
+    #expect(rule(bundleID, channel: .stable).installAssetPattern == nil)
+
+    #expect(extract("v3.3.3-beta.3", bundleID, channel: .beta) == "3.3.3-beta.3")
+    #expect(extract("v3.3.2", bundleID, channel: .beta) == nil)
+    #expect(rule(bundleID, channel: .beta).usePrereleases == true)
+    #expect(rule(bundleID, channel: .beta).installAssetPattern == nil)
+}
+
+@Test func openLogiRuleReadsStableTagsOnlyAndStaysDetectionOnly() {
+    #expect(extract("v0.8.2", "org.openlogi.openlogi") == "0.8.2")
+    // A prerelease must not be truncated and served to a stable install.
+    #expect(extract("v0.8.3-rc.1", "org.openlogi.openlogi") == nil)
+    #expect(rule("org.openlogi.openlogi").usePrereleases == false)
+    // One-click is a separate, explicitly approved capability.
+    #expect(rule("org.openlogi.openlogi").installAssetPattern == nil)
+    #expect(rule("org.openlogi.openlogi").installerKind == nil)
 }
 
 /// PureMac ships a second product out of the same releases: `cli-v1.0.0`
@@ -630,6 +695,8 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     let expected: [String: String] = [
         "com.ccswitch.desktop": "farion1231/cc-switch",
         "com.usebruno.app": "usebruno/bruno",
+        "com.vorssaint.utils": "vorssaintapp/vorssaint-utils",
+        "org.openlogi.openlogi": "AprilNEA/OpenLogi",
         "org.localsend.localsendApp": "localsend/localsend",
         "com.utmapp.UTM": "utmapp/UTM",
         "net.kovidgoyal.kitty": "kovidgoyal/kitty",

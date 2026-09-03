@@ -10,10 +10,14 @@ import Foundation
 /// lost" with nothing salvaged:
 ///
 ///   - **Resume.** Each attempt records how many bytes already landed on disk and
-///     re-requests with `Range: bytes=<n>-`. A 263 MB download that dies at 85%
-///     picks up from there instead of restarting from zero. If the server ignores
-///     the range (replies `200` instead of `206`), we discard the partial and
-///     start over — correctness over cleverness.
+///     re-requests with `Range: bytes=<n>-` (and `If-Range`, so a server whose
+///     object changed in between answers with the whole new one). A 263 MB
+///     download that dies at 85% picks up from there instead of restarting from
+///     zero. If the server ignores the range — replies `200`, or `206` from byte
+///     0 — we discard the partial and start over: correctness over cleverness. A
+///     `206` is only appended when its `Content-Range` starts exactly where the
+///     partial ends, and a clean close that leaves fewer bytes on disk than the
+///     server's own declared total is another resume, not a finished file (#225).
 ///   - **Retry.** Transient mid-transfer failures (`-1005` connection lost,
 ///     `-1001` timeout, TLS reset) are retried a few times with a short backoff,
 ///     resuming from the partial file each time. Definitive failures (an HTTP
@@ -33,12 +37,24 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     enum DownloadError: LocalizedError {
         case httpStatus(Int)
         case unsafeFilename(String)
+        /// A `206` whose `Content-Range` is missing, invalid, or describes a range
+        /// that cannot be joined onto the bytes already on disk. Not retried: the
+        /// same request would draw the same answer.
+        case badPartialContent(String)
+        /// The connection closed cleanly with a different number of bytes on disk
+        /// than the server itself declared as the object's length. Transient when
+        /// short — the next attempt resumes from where this one stopped.
+        case lengthMismatch(received: Int64, expected: Int64)
         var errorDescription: String? {
             switch self {
             case .httpStatus(let code):
                 return "The server returned HTTP \(code) instead of the file."
             case .unsafeFilename(let name):
                 return "The server suggested an unsafe download filename: \(name)"
+            case .badPartialContent(let reason):
+                return "The server sent a partial response that cannot be used: \(reason)."
+            case .lengthMismatch(let received, let expected):
+                return "The server closed the connection after \(received) of \(expected) bytes."
             }
         }
     }
@@ -101,6 +117,20 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private var attemptStartOffset: Int64 = 0   // bytes already on disk when the attempt began
     private var writtenOffset: Int64 = 0        // absolute bytes on disk now
     private var totalExpected: Int64 = 0
+    /// The object's complete length as the server itself declared it in a
+    /// `Content-Range` — the only figure a clean close is checked against. Nil on
+    /// a `200` (its `Content-Length` is not authoritative for us: gzip and
+    /// `x-goog-stored-content-length` both make it describe something else, and
+    /// URLSession already fails a body that stops short of it) and for a `*`
+    /// total.
+    private var declaredTotal: Int64?
+    /// The validator a resume sends as `If-Range`, captured from the response
+    /// that started the file on disk. A server whose object changed in between
+    /// then answers `200`, which discards the partial, instead of `206`, which
+    /// would splice two different builds. RFC 9110 §13.1.5: a strong `ETag`;
+    /// never a weak (`W/`) one; `Last-Modified` only when there is no `ETag` at
+    /// all. Reset per `download`, and whenever the file on disk starts over.
+    private var resumeValidator: String?
     private var suggestedFilename: String?
     /// Last whole-percent handed to `onProgress`, so the delegate only reports a
     /// visible change. `-1` means "nothing reported yet this attempt".
@@ -162,6 +192,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         try? FileManager.default.removeItem(at: partial)
         partialURL = partial
         suggestedFilename = nil
+        resumeValidator = nil
         fallbackFilename = Self.safeSuggestedFilename(url.lastPathComponent)
         // On any exit: a leftover partial is swept (on success it's already moved).
         defer { try? FileManager.default.removeItem(at: partial) }
@@ -234,11 +265,15 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         request.timeoutInterval = 60
         if existing > 0 {
             request.setValue("bytes=\(existing)-", forHTTPHeaderField: "Range")
+            if let validator = resumeValidator {
+                request.setValue(validator, forHTTPHeaderField: "If-Range")
+            }
         }
 
         attemptStartOffset = existing
         writtenOffset = existing
         totalExpected = 0
+        declaredTotal = nil
         fileHandle = nil
         pendingError = nil
         lastReportedPercent = -1
@@ -269,23 +304,46 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         let status = http?.statusCode ?? 200
 
         do {
-            if status == 206, attemptStartOffset > 0 {
-                // Server honoured our range — append to what we already have.
-                totalExpected = Self.contentRangeTotal(http)
-                    ?? (attemptStartOffset + max(0, response.expectedContentLength))
-                let handle = try FileHandle(forWritingTo: partialURL!)
-                try handle.seekToEnd()
-                fileHandle = handle
-                writtenOffset = attemptStartOffset
+            if status == 206 {
+                // A 206 is only ever joined onto the partial on the strength of its
+                // Content-Range. RFC 9110 §15.3.7.1 requires the header on a
+                // single-part 206; without it (or with one that is invalid, §14.4)
+                // there is no way to know where these bytes belong — appending is
+                // the double-append in #225, writing from zero is a different
+                // corruption — so the response is rejected. Not retried: the same
+                // request would draw the same answer.
+                let raw = http?.value(forHTTPHeaderField: "Content-Range")
+                guard let raw, let range = Self.parseContentRange(raw) else {
+                    throw DownloadError.badPartialContent(
+                        raw.map { "invalid Content-Range '\($0)'" } ?? "no Content-Range")
+                }
+                declaredTotal = range.total
+                if attemptStartOffset > 0, range.first == attemptStartOffset {
+                    // Server honoured our range — append to what we already have.
+                    totalExpected = range.total
+                        ?? (attemptStartOffset + max(0, response.expectedContentLength))
+                    let handle = try FileHandle(forWritingTo: partialURL!)
+                    try handle.seekToEnd()
+                    fileHandle = handle
+                    writtenOffset = attemptStartOffset
+                } else if range.first == 0 {
+                    // The whole object from byte zero, just labelled 206: a server
+                    // that ignored our range but kept the status, or an always-206
+                    // proxy answering a request that carried no Range. Same as a
+                    // 200 — discard the partial and start fresh.
+                    totalExpected = range.total
+                        ?? effectiveTotal(response.expectedContentLength, response: response)
+                    try startFresh(from: http)
+                } else {
+                    throw DownloadError.badPartialContent(
+                        "Content-Range starts at \(range.first), \(attemptStartOffset) bytes on disk")
+                }
             } else if status == 200 || http == nil {
                 // Fresh download, or the server ignored our range and re-sent the
                 // whole body: discard any partial bytes and start from zero so we
                 // never append a full body onto a partial one.
                 totalExpected = effectiveTotal(response.expectedContentLength, response: response)
-                try? FileManager.default.removeItem(at: partialURL!)
-                FileManager.default.createFile(atPath: partialURL!.path, contents: nil)
-                fileHandle = try FileHandle(forWritingTo: partialURL!)
-                writtenOffset = 0
+                try startFresh(from: http)
             } else {
                 // Any other non-2xx (a 403/404 anti-bot page, a stray 416): reject.
                 // Such a body must never reach the extractor as if it were the
@@ -352,6 +410,17 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         }
         if let error {
             finish(.failure(error))
+            return
+        }
+        // A clean close only means "done" when the server's own declared length
+        // agrees. A ranged answer may legitimately stop short of the remainder
+        // (a CDN's per-request cap, a proxy that closes politely at a timeout),
+        // and URLSession has no reason to complain: its Content-Length was
+        // honest. Before #225 that short file was finalized as the download.
+        // Short is transient — the next attempt asks for `bytes=<writtenOffset>-`;
+        // long (more bytes than the object has) is not, and fails here.
+        if let total = declaredTotal, writtenOffset != total {
+            finish(.failure(DownloadError.lengthMismatch(received: writtenOffset, expected: total)))
             return
         }
         // Success: the full body streamed to the partial file. Move it into place.
@@ -469,19 +538,75 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         return reported
     }
 
-    /// The total size from a `Content-Range: bytes <start>-<end>/<total>` header
-    /// (total may be `*` when unknown, which yields nil).
-    private static func contentRangeTotal(_ http: HTTPURLResponse?) -> Int64? {
-        guard let value = http?.value(forHTTPHeaderField: "Content-Range"),
-              let slash = value.lastIndex(of: "/") else { return nil }
-        let total = value[value.index(after: slash)...].trimmingCharacters(in: .whitespaces)
-        return Int64(total)
+    /// Start the partial file over from byte zero for a response that carries the
+    /// whole object, and adopt that response's validator for later resumes: the
+    /// old one described bytes that are being thrown away.
+    private func startFresh(from http: HTTPURLResponse?) throws {
+        try? FileManager.default.removeItem(at: partialURL!)
+        FileManager.default.createFile(atPath: partialURL!.path, contents: nil)
+        fileHandle = try FileHandle(forWritingTo: partialURL!)
+        writtenOffset = 0
+        resumeValidator = Self.strongValidator(http)
     }
 
-    /// `URLError` codes that represent a transient mid-transfer hiccup worth
-    /// resuming — a connection the network/proxy/CDN dropped while bytes were
-    /// flowing, not a definitive "this won't work" answer.
+    /// The validator to send back as `If-Range`, per RFC 9110 §13.1.5: an entity
+    /// tag unless it is weak (`W/…`), and a `Last-Modified` date only when the
+    /// server gave no entity tag at all — a weak tag is still a tag, and it says
+    /// the server cannot promise byte-identity, which is the one thing a resume
+    /// needs. (The section also asks the date to be "strong" in the sense of
+    /// §8.8.2.2, i.e. at least a minute older than the response's `Date`; not
+    /// checked here. The failure mode of a too-fresh date is the one we already
+    /// live with today without `If-Range` at all.)
+    private static func strongValidator(_ http: HTTPURLResponse?) -> String? {
+        guard let http else { return nil }
+        if let etag = http.value(forHTTPHeaderField: "ETag")?
+            .trimmingCharacters(in: .whitespaces), !etag.isEmpty {
+            return etag.hasPrefix("W/") ? nil : etag
+        }
+        if let date = http.value(forHTTPHeaderField: "Last-Modified")?
+            .trimmingCharacters(in: .whitespaces), !date.isEmpty {
+            return date
+        }
+        return nil
+    }
+
+    /// A parsed `Content-Range: bytes <first>-<last>/<total>`; `total` is nil
+    /// for `*`.
+    struct ContentRange: Equatable {
+        let first: Int64
+        let last: Int64
+        let total: Int64?
+    }
+
+    /// Parse a `Content-Range` value. Nil when it is not a byte range, is the
+    /// `*/<total>` form (only meaningful on a 416), or is invalid in the RFC 9110
+    /// §14.4 sense — last-pos below first-pos, or a total at or below last-pos —
+    /// which a recipient "MUST NOT attempt to recombine" with what it has.
+    static func parseContentRange(_ value: String) -> ContentRange? {
+        let parts = value.trimmingCharacters(in: .whitespaces)
+            .split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+        guard parts.count == 2, parts[0].lowercased() == "bytes" else { return nil }
+        let spec = parts[1].split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
+        guard spec.count == 2 else { return nil }
+        let bounds = spec[0].split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+        guard bounds.count == 2,
+              let first = Int64(bounds[0].trimmingCharacters(in: .whitespaces)),
+              let last = Int64(bounds[1].trimmingCharacters(in: .whitespaces)),
+              last >= first else { return nil }
+        let totalText = spec[1].trimmingCharacters(in: .whitespaces)
+        if totalText == "*" { return ContentRange(first: first, last: last, total: nil) }
+        guard let total = Int64(totalText), total > last else { return nil }
+        return ContentRange(first: first, last: last, total: total)
+    }
+
+    /// Failures worth another attempt from the partial file: a `URLError` for a
+    /// connection the network/proxy/CDN dropped while bytes were flowing, or a
+    /// clean close that left the file short of the server's declared total. Not
+    /// a definitive "this won't work" answer.
     private static func isTransient(_ error: Error) -> Bool {
+        if case .lengthMismatch(let received, let expected) = error as? DownloadError {
+            return received < expected
+        }
         guard let urlError = error as? URLError else { return false }
         switch urlError.code {
         case .networkConnectionLost,   // -1005: the proxy/CDN reset mid-transfer

@@ -346,10 +346,11 @@ public enum SelfUpdaterStaging {
                   // Must be a staged copy of THIS app. Rejects Sparkle's own
                   // Updater.app and anything else sharing the cache namespace.
                   dict["CFBundleIdentifier"] as? String == bundleID,
-                  let short = dict["CFBundleShortVersionString"] as? String
+                  let short = VersionSide.plistVersionField(dict["CFBundleShortVersionString"])
             else { continue }
             return StagedSelfUpdate(
-                version: short, buildVersion: dict["CFBundleVersion"] as? String,
+                version: short,
+                buildVersion: VersionSide.plistVersionField(dict["CFBundleVersion"]),
                 stagedBundlePath: url)
         }
         return nil
@@ -361,21 +362,20 @@ public enum SelfUpdaterStaging {
     ///
     /// `…Updater` is Sparkle 2's progress agent — observed live as pid 27939 at
     /// `…/Caches/com.tinyapp.TablePlus/org.sparkle-project.Sparkle/Launcher/<random>/Updater.app`.
-    /// `…Autoupdate` is Sparkle 1's, which ships as `Autoupdate.app` inside the
-    /// host's framework (VLC 1.16.0 on this machine). Sparkle 2 also has an
-    /// `Autoupdate`, but as a bare executable with no bundle — LaunchServices
-    /// cannot enumerate it, so it is not a usable signal and is not one of these.
+    /// Sparkle 2's own `Autoupdate` ships alongside it as a bare executable with
+    /// no bundle (same TablePlus install), so it has no identifier to query.
     ///
-    /// **Sparkle 1 is nonetheless not covered**, and not because of this list:
-    /// `sparkleStagedBundle` walks the `Caches/<id>/org.sparkle-project.Sparkle/`
-    /// layout, which is Sparkle 2's. Sparkle 1 apps have no such directory
-    /// (checked: VLC has a cache directory and no Sparkle subdirectory), so the
-    /// walk finds nothing for them whatever is parked. Listing Sparkle 1's
-    /// identity here costs nothing and errs toward holding back, which is the
-    /// safe direction; it is not a claim that Sparkle 1 staging is detected.
+    /// Sparkle 1's `Autoupdate.app` — a real bundle, `CFBundleIdentifier =
+    /// org.sparkle-project.Sparkle.Autoupdate` (VLC 1.16.0, Eudic 1.27.3) — is
+    /// deliberately absent from this list. Not because it is unenumerable: it is
+    /// because in the automatic-update path the host process arms the quit hook
+    /// itself, and `Autoupdate.app` is only launched from `applicationWillTerminate:`
+    /// — after the decision `RestartStandoff` makes has already been acted on, so
+    /// it never exists yet when this list would be queried. Querying its bundle
+    /// id here could never make the detector answer non-nil and misleadingly made
+    /// this list look like coverage. See `RestartStandoff`'s known limitation.
     static let sparkleInstallerBundleIDs = [
         "org.sparkle-project.Sparkle.Updater",
-        "org.sparkle-project.Sparkle.Autoupdate",
     ]
 
     /// Bundle locations of every Sparkle installer currently parked, for any app.

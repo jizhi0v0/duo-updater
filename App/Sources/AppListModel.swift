@@ -3827,42 +3827,28 @@ final class AppListModel {
     /// button that can't do anything.
     private func pruneStagedPackages() {
         guard !stagedPackages.isEmpty else { return }
-        let onDisk = Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a })
-        let offered = Dictionary(
-            results.compactMap { r -> (String, VersionSide)? in
-                guard let side = r.remote?.versionSide, !side.isEmpty else { return nil }
-                return (r.id, side)
+        // The rules are `StagedPackagePrune` in Core, which shares its "has this
+        // landed" test with `PackageRestartState` rather than keeping a second
+        // copy of the expression here.
+        let keep = StagedPackagePrune.keep(
+            staged: stagedPackages.mapValues {
+                StagedPackageFacts(versionSide: $0.versionSide, stagedAt: $0.stagedAt)
             },
-            uniquingKeysWith: { a, _ in a })
-        let kept = stagedPackages.filter { id, staged in
-            // A landed package that left a stale copy running is no longer "on offer"
-            // (the app is now current) and its download may have been swept, yet its
-            // entry must survive to keep the Restart badge lit until the app is
-            // relaunched. `reconcilePackageRestarts` retires it once it settles.
-            if packageRestartPending.contains(id) { return true }
-            let fileThere = FileManager.default.fileExists(atPath: staged.url.path)
-            guard let app = onDisk[id] else {
-                // Row missing from THIS scan (bundle mid-swap): don't reclaim on a
-                // blind pass — a genuinely deleted app is still bounded by the file
-                // backstop once its download is swept.
-                return fileThere
-            }
-            // Landed (the app now IS the staged version): keep so restart tracking
-            // survives a one-scan flicker of the launch-time signal, even if the
-            // download was swept. Reconcile settles it once the copy is fresh/gone.
-            // `buildIsDerived` matches the guard `reconcilePackageRestarts` passes
-            // to `PackageRestartState.resolve` — same two inputs, same namespace
-            // problem for `AppScanner.buildVersionIsOverridden` apps (#285).
-            if VersionComparator.isSame(app.versionSide, as: staged.versionSide,
-                buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)
-            ) { return true }
-            // Otherwise it's only usable while still on offer and re-openable.
-            return offered[id].map {
-                VersionComparator.isSame($0, as: staged.versionSide)
-            } == true && fileThere
-        }
-        guard kept.count != stagedPackages.count else { return }
-        stagedPackages = kept
+            onDisk: Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a }),
+            offered: Dictionary(
+                results.compactMap { r -> (String, VersionSide)? in
+                    guard let side = r.remote?.versionSide, !side.isEmpty else { return nil }
+                    return (r.id, side)
+                },
+                uniquingKeysWith: { a, _ in a }),
+            pending: packageRestartPending,
+            downloadExists: { [stagedPackages] id in
+                guard let url = stagedPackages[id]?.url else { return false }
+                return FileManager.default.fileExists(atPath: url.path)
+            })
+
+        guard keep.count != stagedPackages.count else { return }
+        stagedPackages = stagedPackages.filter { keep.contains($0.key) }
         persistStagedPackages()
     }
 

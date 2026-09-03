@@ -144,3 +144,81 @@ public enum RestartLine {
         return VersionSide(marketing: marketing == build ? nil : marketing, build: build)
     }
 }
+
+/// Which staged package entries are still worth keeping.
+///
+/// A staged entry outlives its download: the file can be swept by the system
+/// while the entry still has a job to do (keeping the Restart badge lit until
+/// the user relaunches). So this is not "is the file there" — it is four rules,
+/// and three of them keep an entry whose file is gone.
+///
+/// Split out of `AppListModel.pruneStagedPackages` for the reason its own
+/// comment gave away: it decided "has this landed" with its own copy of the
+/// expression in `PackageRestartState`, kept in step by a comment saying so.
+/// Both now call `PackageRestartState.hasLanded`, and a test asserts the two
+/// agree — including for the derived-build apps where the copies were most
+/// likely to diverge.
+public enum StagedPackagePrune {
+
+    /// - Parameters:
+    ///   - staged: staged packages by row id.
+    ///   - onDisk: the apps THIS scan found. An id missing here is a blind pass.
+    ///   - offered: the version each row's source currently offers, by row id.
+    ///     Absent when the source said nothing, or said nothing usable.
+    ///   - pending: rows whose landed package is waiting on a relaunch.
+    ///   - downloadExists: whether the staged download is still on disk, by row
+    ///     id. A closure rather than a precomputed set so the `pending`
+    ///     short-circuit below keeps costing no syscall — the entries that are
+    ///     certain to be kept never ask.
+    /// - Returns: the ids to keep.
+    public static func keep(
+        staged: [String: StagedPackageFacts],
+        onDisk: [String: InstalledApp],
+        offered: [String: VersionSide],
+        pending: Set<String>,
+        downloadExists: (String) -> Bool
+    ) -> Set<String> {
+        var kept: Set<String> = []
+        for id in staged.keys.sorted() {
+            guard let package = staged[id] else { continue }
+
+            // A landed package that left a stale copy running is no longer "on
+            // offer" (the app is now current) and its download may have been
+            // swept, yet its entry must survive to keep the Restart badge lit
+            // until the app is relaunched. The reconciler retires it once it
+            // settles. Checked first, so this costs no filesystem call.
+            if pending.contains(id) {
+                kept.insert(id)
+                continue
+            }
+
+            guard let app = onDisk[id] else {
+                // Row missing from THIS scan (bundle mid-swap): don't reclaim on
+                // a blind pass — a genuinely deleted app is still bounded by the
+                // file backstop once its download is swept.
+                if downloadExists(id) { kept.insert(id) }
+                continue
+            }
+
+            // Landed: keep, so restart tracking survives a one-scan flicker of
+            // the launch-time signal even if the download was swept.
+            if PackageRestartState.hasLanded(
+                onDiskVersion: app.versionSide, stagedVersion: package.versionSide,
+                buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)
+            ) {
+                kept.insert(id)
+                continue
+            }
+
+            // Otherwise it is only usable while still on offer AND re-openable.
+            // Both halves matter: an entry for a version no longer offered would
+            // install something the source has moved past, and one whose download
+            // is gone has nothing to install at all.
+            let stillOffered = offered[id].map {
+                VersionComparator.isSame($0, as: package.versionSide)
+            } == true
+            if stillOffered && downloadExists(id) { kept.insert(id) }
+        }
+        return kept
+    }
+}

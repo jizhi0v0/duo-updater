@@ -119,16 +119,22 @@ PACKAGE_RESTART_RESOLVE = re.compile(r"PackageRestartState\.resolve\s*\(")
 DERIVED_BUILD_ARGUMENT = "buildIsDerived:"
 PACKAGE_RESTART_WINDOW = 10
 
-# The second such wiring site (#285): `pruneStagedPackages` compares the same
-# scanner-derived on-disk `VersionSide` (`app.versionSide`) against a staged
-# package's, for the identical reason `PackageRestartState.resolve` needed the
-# flag above — so it needs it too. Scoped to `app.versionSide` specifically:
-# the many other `VersionComparator.isSame(` calls compare two sides that are
-# NOT one scanner value against one package/feed value (e.g. two scanner reads
-# of the same app, which share whatever namespace they're in) and must not be
-# forced to carry an argument that means nothing for them.
-PRUNE_STAGED_ISSAME = re.compile(r"VersionComparator\.isSame\s*\(\s*app\.versionSide")
+# The second such site (#285). It used to be `pruneStagedPackages` comparing
+# `app.versionSide` against a staged package's with its own copy of the
+# expression; both copies now go through `PackageRestartState.hasLanded`, so the
+# anchor follows them there. `hasLanded` has no default for the flag, so a
+# missing argument is a compile error rather than something a regex must catch —
+# what is left for this rule is the argument being present and WRONG.
+PRUNE_STAGED_ISSAME = re.compile(r"PackageRestartState\.hasLanded\s*\(")
 PRUNE_STAGED_WINDOW = 6
+
+# `buildIsDerived: false` written out in Sources. Legitimate in tests (they say
+# which case they mean), never in shipping code: the flag exists precisely
+# because the answer depends on the app, and hardcoding it is the same defect as
+# omitting it — a landed Xcode/豆包 package that never lights the badge and never
+# settles. This is what the `resolve` rule below could not see: it only checked
+# that the argument was written at all.
+DERIVED_BUILD_HARDCODED = re.compile(r"buildIsDerived:\s*false\b")
 
 
 # A *different* type also binds the name `staged`: `stagedPackage(for:)` returns
@@ -203,12 +209,14 @@ def main() -> int:
             if PACKAGE_RESTART_RESOLVE.search(line):
                 package_restart_seen += 1
                 call = "\n".join(lines[n - 1:n - 1 + PACKAGE_RESTART_WINDOW])
-                if DERIVED_BUILD_ARGUMENT not in call:
+                if (DERIVED_BUILD_ARGUMENT not in call
+                        or DERIVED_BUILD_HARDCODED.search(call)):
                     package_restart_hits.append(f"{rel}:{n}: {line.strip()}")
             if PRUNE_STAGED_ISSAME.search(line):
                 prune_staged_seen += 1
                 call = "\n".join(lines[n - 1:n - 1 + PRUNE_STAGED_WINDOW])
-                if DERIVED_BUILD_ARGUMENT not in call:
+                if (DERIVED_BUILD_ARGUMENT not in call
+                        or DERIVED_BUILD_HARDCODED.search(call)):
                     prune_staged_hits.append(f"{rel}:{n}: {line.strip()}")
 
     # Vacuity guard. A rule that matches nothing passes forever, which is worse
@@ -232,9 +240,9 @@ def main() -> int:
               "Either the app wiring moved or this rule now guards nothing.")
         return 1
     if prune_staged_seen == 0:
-        print("✗ staged-version guard found no VersionComparator.isSame(app.versionSide "
-              "call in pruneStagedPackages. Either that wiring moved or renamed, or "
-              "this rule now guards nothing.")
+        print("✗ staged-version guard found no PackageRestartState.hasLanded call. "
+              "Either that wiring moved or was renamed, or this rule now guards "
+              "nothing.")
         return 1
 
     if display_hits:
@@ -282,8 +290,8 @@ def main() -> int:
         for hit in package_restart_hits:
             print(f"    {hit}")
     if prune_staged_hits:
-        print(f"✗ {len(prune_staged_hits)} pruneStagedPackages comparison(s) omit "
-              "the derived-build namespace flag.")
+        print(f"✗ {len(prune_staged_hits)} PackageRestartState.hasLanded call(s) "
+              "omit or hardcode the derived-build namespace flag.")
         print("  Pass buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID:) "
               "so a scanner-substituted build is not compared with a staged package's.")
         for hit in prune_staged_hits:

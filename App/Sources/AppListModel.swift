@@ -3855,7 +3855,12 @@ final class AppListModel {
             // Landed (the app now IS the staged version): keep so restart tracking
             // survives a one-scan flicker of the launch-time signal, even if the
             // download was swept. Reconcile settles it once the copy is fresh/gone.
-            if VersionComparator.isSame(app.versionSide, as: staged.versionSide) { return true }
+            // `buildIsDerived` matches the guard `reconcilePackageRestarts` passes
+            // to `PackageRestartState.resolve` — same two inputs, same namespace
+            // problem for `AppScanner.buildVersionIsOverridden` apps (#285).
+            if VersionComparator.isSame(app.versionSide, as: staged.versionSide,
+                buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)
+            ) { return true }
             // Otherwise it's only usable while still on offer and re-openable.
             return offered[id].map {
                 VersionComparator.isSame($0, as: staged.versionSide)

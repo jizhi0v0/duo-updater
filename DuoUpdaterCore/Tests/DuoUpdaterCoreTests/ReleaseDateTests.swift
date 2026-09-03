@@ -43,18 +43,64 @@ import Foundation
     #expect(date == Date(timeIntervalSince1970: 1_782_320_844))
 }
 
-@Test func parsesDashedCalendarDateAtMidnightUTC() {
-    #expect(ReleaseDate.parse("2026-08-31")
-        == Date(timeIntervalSince1970: 1_788_134_400))
-    #expect(ReleaseDate.parse("  2026-08-31\n")
+@Test func parseReturnsNilForADashedCalendarDayNeverAFabricatedMidnight() {
+    // #239: "2026-08-31" IS a real, parseable date (Eudic's <pubDate> uses this
+    // shape) — but `parse` must not hand it back as a plain `Date`, because every
+    // existing caller (SparkleAppcastSource et al.) treats a non-nil `parse`
+    // result as trustworthy to the minute. Day-only values only ever reach a
+    // caller through `parseWithPrecision`, tagged `.day`.
+    #expect(ReleaseDate.parse("2026-08-31") == nil)
+    #expect(ReleaseDate.parse("  2026-08-31\n") == nil)
+}
+
+// MARK: - parseWithPrecision
+
+@Test func parseWithPrecisionReadsADashedCalendarDayAsDayPrecision() {
+    let parsed = ReleaseDate.parseWithPrecision("2026-08-31")
+    #expect(parsed?.date == Date(timeIntervalSince1970: 1_788_134_400))
+    #expect(parsed?.precision == .day)
+    // Whitespace-trimming matches `parse`.
+    #expect(ReleaseDate.parseWithPrecision("  2026-08-31\n")?.date
         == Date(timeIntervalSince1970: 1_788_134_400))
 }
 
-@Test func dashedCalendarDateIsExactAndNonLenient() {
-    for raw in ["2026-02-29", "2026-13-01", "2026-8-31", "26-08-31",
-                "2026-08-31junk", "２０２６-０８-３１"] {
-        #expect(ReleaseDate.parse(raw) == nil, "\(raw) is not a yyyy-MM-dd calendar day")
+@Test func parseWithPrecisionAgreesWithParseOnEveryMinutePreciseShape() {
+    // ISO8601 (with/without fraction), zone-less ISO, RFC822: `parseWithPrecision`
+    // must read the same instant as `parse`, tagged `.minute` — the two can never
+    // be allowed to answer "is this parseable?" differently.
+    for raw in [
+        "2026-06-24T17:07:24Z", "2026-06-24T17:07:24.512Z",
+        "2026-08-14T22:50:24.042387", "2026-08-14T22:50:24",
+        "Wed, 24 Jun 2026 17:07:24 +0000", "Wed, 24 Jun 2026 17:07:24 GMT",
+        "1782320844",
+    ] {
+        let viaParse = ReleaseDate.parse(raw)
+        let viaPrecision = ReleaseDate.parseWithPrecision(raw)
+        #expect(viaParse != nil, "\(raw)")
+        #expect(viaPrecision?.date == viaParse, "\(raw)")
+        #expect(viaPrecision?.precision == .minute, "\(raw)")
     }
+}
+
+@Test func parseWithPrecisionReadsABareEightDigitCalendarDateAsDayPrecision() {
+    // `parse("20260614")` already returns a plain `Date` (pre-existing, #222) —
+    // unchanged here. But it is exactly as day-only as the dashed spelling, so
+    // `parseWithPrecision` tags it `.day` too, for any future caller that reaches
+    // this shape through the precision-aware entry point.
+    let parsed = ReleaseDate.parseWithPrecision("20260614")
+    #expect(parsed?.date == Date(timeIntervalSince1970: 1_781_395_200))
+    #expect(parsed?.precision == .day)
+    // A 13-digit millisecond epoch is a real instant, not a bare day.
+    #expect(ReleaseDate.parseWithPrecision("1750785600000")?.precision == .minute)
+}
+
+@Test func parseWithPrecisionRejectsExactlyWhatParseRejects() {
+    for raw in ["2026-02-29", "2026-13-01", "2026-8-31", "26-08-31",
+                "2026-08-31junk", "２０２６-０８-３１", "not a date", "", "   "] {
+        #expect(ReleaseDate.parseWithPrecision(raw) == nil, "\(raw)")
+        #expect(ReleaseDate.parse(raw) == nil, "\(raw)")
+    }
+    #expect(ReleaseDate.parseWithPrecision(nil) == nil)
 }
 
 // MARK: - Bare digit runs

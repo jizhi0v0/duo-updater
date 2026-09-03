@@ -5,8 +5,8 @@ import Foundation
 /// Usually it is, and the quit is ours alone. But an app with its own updater
 /// can have a build already downloaded, unpacked and parked, with an installer
 /// process waiting for precisely one signal: that app terminating. Our restart
-/// is that signal. Sparkle's `Autoupdate` and Squirrel's `ShipIt` both work this
-/// way, and both wait as long as it takes — 22 minutes for ChatGPT on
+/// is that signal. Sparkle 2's installer agent and Squirrel's `ShipIt` both work
+/// this way, and both wait as long as it takes — 22 minutes for ChatGPT on
 /// 2026-08-22, 6 hours 49 minutes for Claude the day before, same PID throughout.
 ///
 /// So a quit we think of as the last step of our install is also the first step
@@ -18,6 +18,26 @@ import Foundation
 ///
 /// Nothing failed. The install was correct, the restart was correct, and the
 /// user saw the update reappear.
+///
+/// **Sparkle 1 is not covered.** Its automatic driver arms an
+/// `NSApplicationWillTerminateNotification` observer in the host process and
+/// launches `Autoupdate.app` only after the quit has begun. Before the decision
+/// this type is asked to make there is therefore no parked helper to enumerate.
+/// The gap is not that its extraction is unfindable: Sparkle 1 stages downloads
+/// and extraction under `Caches/<bundleID>/org.sparkle-project.Sparkle/
+/// PersistentDownloads/` (confirmed against the 1.16.0 and 1.27.3 sources —
+/// `SPUDownloader.getAndCleanTempDirectory` calls `SPULocalCacheDirectory
+/// .cachePathForBundleIdentifier:`), the same bundle-id-keyed tree
+/// `sparkleStagedBundle` already walks for Sparkle 2's `Installation/`, just a
+/// different subdirectory. What is missing is a signal independent of the host
+/// process that proves an install is armed: `PersistentDownloads/` has the same
+/// stale-leftover problem `Installation/` does — Sparkle only garbage-collects
+/// entries older than ten days, and only on the next staging run — so an
+/// unpacked bundle sitting there is no more evidence than one in `Installation/`
+/// is. `disableSuddenTermination` accompanies the hook, but no public
+/// cross-process API and acceptable noise floor have been established for that
+/// signal. Do not turn any of those into a hold-back predicate without first
+/// measuring it.
 ///
 /// The decision therefore is not "is another installer armed" — that alone is
 /// harmless — but "is it armed with something OTHER than what we just wrote".

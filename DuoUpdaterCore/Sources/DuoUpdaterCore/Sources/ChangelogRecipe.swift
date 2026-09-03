@@ -2682,6 +2682,71 @@ public enum ChangelogRecipeRegistry {
             ],
             minItemLength: 2),
 
+        // MARK: - 2026-09-03 AnythingLLM / Chatbox
+
+        // AnythingLLM — the desktop build's version source is the vendor CDN
+        // (`cdn.anythingllm.com/latest/version.txt`), which is a bare version
+        // string and carries no notes at all. The notes live in the project's
+        // GitHub releases, and the two are the SAME numbering: `version.txt`
+        // answered `1.16.1` on 2026-09-03 and the newest release there is tagged
+        // `v1.16.1` (bodies run 1.7–10.7 KB). That alignment is what makes this
+        // safe to attach — a changelog keyed to a version the app never reports
+        // renders an empty pane, which is worse than the web-view fallback.
+        //
+        // `docs.anythingllm.com/changelog` is NOT the source: it 404s (checked
+        // 2026-09-03). Reuses `.gitHubReleases`, the same decoder Waku and
+        // Shotbase go through.
+        ChangelogRecipe(
+            bundleID: "com.anythingllm",
+            source: URL(
+                string: "https://api.github.com/repos/Mintplex-Labs/anything-llm/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            structuredFormat: .gitHubReleases),
+
+        // Chatbox — the electron-builder feed we read for the version
+        // (`latest-mac.yml`) is a manifest: filenames, sizes and hashes, no prose.
+        // The vendor's own changelog page has the notes and uses the same
+        // numbering as the feed (`v1.23.1` on the page, `version: 1.23.1` in the
+        // yml, 2026-09-03).
+        //
+        // Each release renders as `<h2>v<ver> - <date></h2>` followed by TWO
+        // lists: an `<ol>` of changes and a `<ul>` of per-platform download
+        // links. The entry pattern binds the `<ol>` specifically — capturing up
+        // to the next `<h2>` instead would put six download links ("MacOS(Apple
+        // Silicon)", "Windows", …) into every release's notes. Validated against
+        // the live page 2026-09-03: 30 entries, 1.23.1 → 4 items, 1.23.0 → 9,
+        // and zero entries whose body contains a `download.chatboxai.app` link.
+        ChangelogRecipe(
+            bundleID: "xyz.chatboxapp.app",
+            source: URL(string: "https://chatboxai.app/en/help-center/changelog")!,
+            entryPattern:
+                #"<h2>v(?<version>[0-9][0-9.]*) - (?<date>[0-9.]+)</h2>\s*<ol>(?<body>.*?)</ol>"#,
+            itemPatterns: [#"<li>(?<item>.*?)</li>"#],
+            maxEntries: 20),
+
+        // Deliberately NOT covered, both checked 2026-09-03 against the real
+        // bytes rather than assumed:
+        //
+        //   * **ChatGPT Classic** (`com.openai.chat`). Its Sparkle appcast has a
+        //     `<description>`, so it LOOKS like a changelog source — the content
+        //     is vendor marketing, not release notes: "&#8220;Install Update&#8221;
+        //     to keep using ChatGPT Classic", then "[Recommended] Or, try the new
+        //     ChatGPT app" with a link to the replacement product. One `<item>`,
+        //     no per-version history, and the same copy would render under every
+        //     future build. Rendering that as "what is new" is worse than the
+        //     web-view fallback, which at least shows it as the vendor's page.
+        //   * **Microsoft 365 Copilot** (`com.microsoft.m365copilot`).
+        //     `learn.microsoft.com/en-us/microsoft-365-copilot/release-notes` is
+        //     organised by DATE and then by PRODUCT (Excel, Word, Outlook,
+        //     PowerPoint, OneNote, Viva Insights, …) for the whole Microsoft 365
+        //     Copilot service. The string `1.2608` — the build our probe reads
+        //     out of the pkg filename — appears ZERO times on the page, so no
+        //     version-keyed recipe can bind, and a date-keyed one would show
+        //     Excel and Outlook features under the Copilot app's row.
+
+        // MARK: - 2026-09-03 AnyDesk / Antigravity / Headlamp / Helium / Xcode
+
         // AnyDesk — the same plain-text changelog its `VendorProbeRecipe` already
         // reads for version detection. The vendor's HTML changelog
         // (`anydesk.com/en/changelog/mac-os`) answers 403 behind a Cloudflare

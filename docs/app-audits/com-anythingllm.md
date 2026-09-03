@@ -42,8 +42,15 @@
 | 证据 | — | CDN 无 `.delta`/`.patch` 资产；非 Sparkle（观测 2026-08-30） | — |
 
 ## Changelog
-- 来源: 无内联 notes；未接 ChangelogRecipe（vendor 页面结构未查）
-- Recipe 状态: 暂无——UI 回落到嵌入式网页
+- 来源: **项目 GitHub releases**（`Mintplex-Labs/anything-llm`）。版本源
+  `cdn.anythingllm.com/latest/version.txt` 只是一行版本号，没有任何 notes。
+- **同号是接它的前提**：2026-09-03 `version.txt` 答 `1.16.1`，仓库最新 release 正是
+  `v1.16.1`（正文 1.7–10.7 KB）。号对不上的 changelog 只会渲染出空面板，比回落到
+  网页更糟。
+- `docs.anythingllm.com/changelog` **不是**源：404（2026-09-03 实测）。
+- Recipe 状态: **已接**，`mode: .json` + `structuredFormat: .gitHubReleases`
+  （与 Waku / Shotbase 同一个解码器）。`duo verify --only anythingllm` 打真实端点
+  `changelog ✓ 1`。
 
 ## 一键安装
 - 状态: **支持**

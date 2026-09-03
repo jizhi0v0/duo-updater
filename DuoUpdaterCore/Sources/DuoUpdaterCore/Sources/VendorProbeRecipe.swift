@@ -6387,6 +6387,10 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern: #"version:\s*([0-9][^\s]*)"#,
             downloadURL: URL(string: "https://chatboxai.app/en")!,
+            // The yml is a manifest with no prose; the notes are on the vendor's
+            // changelog page, same numbering. Parsed natively by the
+            // `ChangelogRecipe` for `xyz.chatboxapp.app`.
+            changelogURL: URL(string: "https://chatboxai.app/en/help-center/changelog"),
             install: VendorInstallSpec(
                 urlSource: .bodyPatternRelative(
                     #"(Chatbox-[^\s]+-arm64\.dmg)"#,
@@ -6428,11 +6432,16 @@ public enum VendorProbeRegistry {
         //
         // Delta/binary patch: not a Sparkle app and the CDN carries no
         // `.delta`/`.patch` artifacts — nothing to consume.
+        // Notes live in the project's GitHub releases, on the SAME numbering as
+        // `version.txt` (`1.16.1` ↔ `v1.16.1`, 2026-09-03) — see the
+        // `ChangelogRecipe` for `com.anythingllm`, which parses them natively.
+        // `docs.anythingllm.com/changelog` 404s and is not the page.
         VendorProbeRecipe(
             bundleID: "com.anythingllm",
             url: URL(string: "https://cdn.anythingllm.com/latest/version.txt")!,
             mode: .responseBody,
             versionPattern: #"^([0-9]+(?:\.[0-9]+)+)\s*$"#,
+            changelogURL: URL(string: "https://github.com/Mintplex-Labs/anything-llm/releases"),
             install: VendorInstallSpec(
                 urlSource: .fixed(
                     URL(string: "https://cdn.anythingllm.com/latest/AnythingLLMDesktop-Silicon.dmg")!),

@@ -41,8 +41,16 @@
 | 证据 | — | yml 无 delta 条目（观测 2026-08-30） | — |
 
 ## Changelog
-- 来源: 无内联 notes；未接 ChangelogRecipe
-- Recipe 状态: 暂无——UI 回落到嵌入式网页
+- 来源: **厂商自己的 changelog 页** `chatboxai.app/en/help-center/changelog`。
+  版本源那份 `latest-mac.yml` 是 electron-builder 清单（文件名/大小/哈希），没有正文。
+- 同号（2026-09-03）: 页面 `v1.23.1`，yml `version: 1.23.1`。
+- 页面结构: 每个版本是 `<h2>v<ver> - <date></h2>`，**后面跟两个列表**——`<ol>` 是
+  改动，`<ul>` 是各平台下载链接。entry pattern **必须绑住 `<ol>`**；捕获到下一个
+  `<h2>` 为止会把 6 条下载链接（"MacOS(Apple Silicon)"、"Windows"…）塞进每个版本的
+  notes 里。
+- 实测（2026-09-03，对真实页面跑正则）: **30 条**，`1.23.1` → 4 items、`1.23.0` → 9
+  items，**没有任何一条 body 含 `download.chatboxai.app`**。
+- Recipe 状态: **已接**。`duo verify --only chatboxapp` 打真实端点 `changelog ✓ 1`。
 
 ## 一键安装
 - 状态: **支持**

@@ -58,11 +58,37 @@ public enum PackageRestartState: Sendable, Equatable {
         runningLaunchDates: [Date],
         buildIsDerived: Bool = false
     ) -> Self {
-        guard let onDiskVersion else { return .pending }
-        guard VersionComparator.isSame(
-            onDiskVersion, as: stagedVersion, buildIsDerived: buildIsDerived)
+        guard hasLanded(
+            onDiskVersion: onDiskVersion, stagedVersion: stagedVersion,
+            buildIsDerived: buildIsDerived)
         else { return .pending }
         let staleRunning = runningLaunchDates.contains { $0 < stagedAt }
         return staleRunning ? .readyToRestart : .settled
+    }
+
+    /// Whether the app on disk IS the version the staged package installs — as
+    /// opposed to still being the old one (the install has not finished) or
+    /// already carrying a newer one (the staged package was superseded, not
+    /// applied).
+    ///
+    /// Named and shared because **two** places decide it and they must not drift:
+    /// `resolve` above, and `StagedPackagePrune.keep`, which keeps a landed entry
+    /// so restart tracking survives a one-scan flicker even after the download is
+    /// swept. Those were two copies of the same expression in two files, with the
+    /// invariant maintained by a comment in one of them saying it matched the
+    /// other — the shape CLAUDE.md records as having already drifted twice here.
+    ///
+    /// `buildIsDerived` discards the build half: a scanner-substituted build
+    /// (Xcode, 豆包输入法) is not in the package source's namespace, so landing
+    /// falls back to marketing-to-marketing. Getting that wrong on either side
+    /// means a landed package that never lights the badge and never settles.
+    public static func hasLanded(
+        onDiskVersion: VersionSide?,
+        stagedVersion: VersionSide,
+        buildIsDerived: Bool
+    ) -> Bool {
+        guard let onDiskVersion else { return false }
+        return VersionComparator.isSame(
+            onDiskVersion, as: stagedVersion, buildIsDerived: buildIsDerived)
     }
 }

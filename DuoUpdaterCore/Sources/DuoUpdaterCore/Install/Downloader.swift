@@ -163,12 +163,13 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
 
     /// File the transfer with the request ledger.
     ///
-    /// Separate from `_bytesDownloaded`, which counts body bytes for the per-app
-    /// ``TrafficStore`` and is the number the user sees against an app. This one
-    /// records the same transfer as *network activity* — per host, including every
-    /// redirect hop and the request/response headers — so the two answer different
-    /// questions and are allowed to differ. A resumed transfer reports one
-    /// transaction per attempt here, which is what actually happened.
+    /// Separate from `_bytesDownloaded`, which counts body bytes and becomes the
+    /// `install` event the Traffic window reads — the number the user sees against
+    /// an app. This one records the same transfer as *network activity*: per host,
+    /// including every redirect hop and the request/response headers. The two
+    /// answer different questions and are allowed to differ, which is why both are
+    /// kept rather than one being derived from the other. A resumed transfer
+    /// reports one transaction per attempt here, which is what actually happened.
     ///
     /// Unlike `URLSession.updates`, this session's tasks are delegate-driven, so
     /// the callback would arrive either way; it is implemented here rather than via

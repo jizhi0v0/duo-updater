@@ -20687,47 +20687,6 @@
         }
       }
     },
-    "What Duo Updater fetched for itself": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Was Duo Updater für sich selbst geladen hat"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lo que Duo Updater descargó para sí mismo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ce que Duo Updater a récupéré pour lui-même"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duo Updater 自身が取得した通信"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Что Duo Updater загрузил для себя"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duo Updater 自己发起的请求"
-          }
-        }
-      }
-    },
     "What Duo Updater itself put on the network": {
       "extractionState": "manual",
       "localizations": {
@@ -21835,47 +21794,6 @@
         }
       }
     },
-    "Homebrew and the App Store fetch their own bytes, so this is a lower bound. Query strings are never recorded.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew und der App Store laden ihre Bytes selbst, dies ist also eine Untergrenze. Query-Strings werden nie aufgezeichnet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew y la App Store descargan sus propios bytes, así que esto es un mínimo. Las cadenas de consulta nunca se registran."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew et l’App Store téléchargent leurs propres octets : ce total est donc un minimum. Les chaînes de requête ne sont jamais enregistrées."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew と App Store は自分でダウンロードするため、これは下限値です。クエリ文字列は一切記録しません。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew и App Store загружают свои байты сами, поэтому это нижняя граница. Строки запроса не записываются никогда."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew 和 App Store 自己下载自己的字节，所以这是个下限。查询字符串一律不记录。"
-          }
-        }
-      }
-    },
     "The totals above run from the start. Individual requests are only kept back to %@; older ones are pruned, but their bytes are still counted.": {
       "extractionState": "manual",
       "localizations": {
@@ -22085,6 +22003,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "接收 %lld 字节，发送 %lld 字节"
+          }
+        }
+      }
+    },
+    "Every request, including app downloads": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jede Anfrage, App-Downloads eingeschlossen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todas las solicitudes, incluidas las descargas de apps"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toutes les requêtes, téléchargements d’apps compris"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリのダウンロードを含む全リクエスト"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все запросы, включая загрузки приложений"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部请求，含应用下载"
+          }
+        }
+      }
+    },
+    "App downloads appear here and in the Traffic window; this side counts what crossed the socket, that side counts the file. Homebrew and the App Store fetch their own bytes, so this is a lower bound.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Downloads erscheinen hier und im Traffic-Fenster; hier zählt, was über die Verbindung ging, dort die Datei. Homebrew und der App Store laden ihre Bytes selbst, dies ist also eine Untergrenze."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las descargas de apps aparecen aquí y en la ventana de tráfico; este lado cuenta lo que pasó por el socket, el otro cuenta el archivo. Homebrew y la App Store descargan sus propios bytes, así que esto es un mínimo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les téléchargements d’apps figurent ici et dans la fenêtre Trafic ; ici on compte ce qui a transité par la connexion, là-bas le fichier. Homebrew et l’App Store téléchargent leurs propres octets : ce total est donc un minimum."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリのダウンロードはここにもトラフィックウィンドウにも出ます。こちらは通信路を通ったバイト数、あちらはファイルのサイズです。Homebrew と App Store は自分でダウンロードするため、これは下限値です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузки приложений видны и здесь, и в окне трафика: здесь считается прошедшее по соединению, там — сам файл. Homebrew и App Store загружают свои байты сами, поэтому это нижняя граница."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用下载在这里和流量窗口都会出现：这边算的是走过连接的字节，那边算的是文件本身。Homebrew 和 App Store 自己下载自己的字节，所以这是个下限。"
           }
         }
       }

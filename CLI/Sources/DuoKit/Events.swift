@@ -25,11 +25,13 @@ public enum Events {
         let store = EventStore.shared
 
         if options.showStatus {
-            let coverage = await store.coverage()
+            let coverage = await store.coverage(kind: "request")
             let problems = await store.schemaProblems()
             print("store:    \(EventStore.defaultFileURL().path)")
             print("size:     \(ByteFormat.string(await store.databaseBytes()))")
-            print("events:   \(coverage.count)")
+            let installs = await store.coverage(kind: "install")
+            print("requests: \(coverage.count)   (pruned by the policy below)")
+            print("installs: \(installs.count)   (the download ledger; never pruned)")
             if let oldest = coverage.oldest, let newest = coverage.newest {
                 print("covering: \(Self.stamp.string(from: oldest)) → \(Self.stamp.string(from: newest))")
             }
@@ -39,8 +41,15 @@ public enum Events {
             return 0
         }
 
+        // The home directory is abbreviated on the way out. An install event's
+        // `appID` is a bundle path, and on a real machine a third of them sit
+        // under `/Users/<name>/Applications`, so a dump framed as something to
+        // pipe elsewhere would carry the account name in every one of them —
+        // while the same command advertises that query strings are never
+        // recorded. The payload is otherwise emitted exactly as stored.
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
         for row in await store.rawRows(options.query) {
-            print(row.json)
+            print(row.json.replacingOccurrences(of: home, with: "~"))
         }
         return 0
     }

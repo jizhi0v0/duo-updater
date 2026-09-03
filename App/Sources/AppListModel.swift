@@ -1322,7 +1322,11 @@ final class AppListModel {
         // otherwise wait out the coalescing timer.
         await eventStore.flush()
         let totals = await eventStore.totals()
-        let coverage = await eventStore.coverage()
+        // `kind: "request"` matters: install events live in the same table and are
+        // never pruned, so an unfiltered count would report the retained request
+        // window as the whole install history and make the retention caveat
+        // unreachable.
+        let coverage = await eventStore.coverage(kind: "request")
         let recent = await eventStore
             .events(EventQuery(kind: "request", client: .app, limit: 200))
             .compactMap(\.request)

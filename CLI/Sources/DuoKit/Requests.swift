@@ -47,7 +47,7 @@ public enum Requests {
         switch options.operation {
         case .summary:
             let snapshot = await store.totals()
-            let coverage = await store.coverage()
+            let coverage = await store.coverage(kind: "request")
             options.json
                 ? printJSON(summaryPayload(snapshot, client: client))
                 : printSummary(snapshot, client: client, allClients: options.allClients,

@@ -1,15 +1,22 @@
 import SwiftUI
 import DuoUpdaterCore
 
-/// What Duo Updater itself put on the network: which hosts, what for, and what
-/// it cost.
+/// Everything Duo Updater put on the network: which hosts, what for, and what it
+/// cost.
 ///
-/// The other half of the accounting the Traffic window shows. That one counts
-/// the installer bytes you asked for; this one counts what the updater spends on
-/// its own — version checks against every watched app on a timer, changelog
-/// fetches, the Homebrew catalog, its own self-update. A background updater is a
-/// plausible candidate for the heaviest network consumer on a machine, so it
-/// owes the person running it an answer.
+/// **Including the app downloads the Traffic window also reports** — the same
+/// transfers, counted differently. That window counts the bytes that became a
+/// file; this counts what crossed the socket, per redirect hop, headers included,
+/// so the two figures for one download will not match and are not supposed to.
+/// Leaving downloads out would be worse: on a real machine they are 115 GB
+/// against a few hundred megabytes of everything else, and a panel that omitted
+/// them would answer "what does this cost me" with the small half.
+///
+/// What it adds is everything the other window cannot see: version checks against
+/// every watched app on a timer, changelog fetches, the Homebrew catalog, the
+/// updater's own self-update. A background updater is a plausible candidate for
+/// the heaviest network consumer on a machine, so it owes the person running it
+/// an answer.
 ///
 /// Every figure here comes off ``NetworkActivitySummary``. Nothing is decided in
 /// this file: `App/Sources` has no test target, so a rule written into a `body`
@@ -81,7 +88,7 @@ struct NetworkActivityPane: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Network Activity")
                     .font(.headline)
-                Text("What Duo Updater fetched for itself")
+                Text("Every request, including app downloads")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -372,7 +379,7 @@ struct NetworkActivityPane: View {
             if summary.showsRetentionCaveat, let oldest = summary.oldestEvent {
                 note(String(localized: "The totals above run from the start. Individual requests are only kept back to \(Self.monthDay.string(from: oldest)); older ones are pruned, but their bytes are still counted."))
             }
-            note(String(localized: "Homebrew and the App Store fetch their own bytes, so this is a lower bound. Query strings are never recorded."))
+            note(String(localized: "App downloads appear here and in the Traffic window; this side counts what crossed the socket, that side counts the file. Homebrew and the App Store fetch their own bytes, so this is a lower bound."))
             Text("\(summary.retainedEvents) events · \(ByteFormat.string(summary.storeBytes)) on disk")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)

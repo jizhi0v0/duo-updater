@@ -235,6 +235,152 @@ struct InstallEventMigrationTests {
         }
     }
 
+    /// A colliding pair must cost at most itself.
+    ///
+    /// The first integrity guard compared this run's iterations against the
+    /// table's total install count, so a single `INSERT OR REPLACE` collision made
+    /// the numbers disagree and rolled the **whole** import back — permanently,
+    /// on every future launch. Reproduced against a three-event file: 0 of 3
+    /// imported, and `nil` returned forever after.
+    @Test("Two legacy rows that would collide are both kept, and nothing aborts")
+    func collidingLegacyRowsDoNotAbortTheImport() async throws {
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+
+        // Same app, same second, same byte count — the whole tuple the id hashes.
+        // Legacy dates carry no sub-second part, so this is reachable in principle.
+        let instant = Date(timeIntervalSince1970: 1_760_000_000)
+        let stat = AppTrafficStat(
+            appID: "/Applications/A.app", appName: "A", bundleID: nil, totalBytes: 300,
+            events: [
+                TrafficEvent(date: instant, fromVersion: "1.0", toVersion: "1.1",
+                             sourceName: "Sparkle", bytes: 100),
+                TrafficEvent(date: instant, fromVersion: "1.1", toVersion: "1.2",
+                             sourceName: "Sparkle", bytes: 100),
+                TrafficEvent(date: instant + 86_400, fromVersion: "1.2", toVersion: "1.3",
+                             sourceName: "Sparkle", bytes: 100),
+            ])
+        let legacyURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("traffic-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: legacyURL) }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode([stat.appID: stat]).write(to: legacyURL)
+
+        #expect(await store.importLegacyTraffic(from: legacyURL) == 3)
+        let migrated = await store.appTrafficStats().first
+        #expect(migrated?.updateCount == 3)
+        #expect(migrated?.totalBytes == 300)
+    }
+
+    /// Re-import when the source changes, which is what survives a downgrade.
+    ///
+    /// The old build knows nothing about this store: it reads *and writes*
+    /// `traffic.json`. A one-shot marker therefore skipped every install made
+    /// while the user was back on it — replayed against a real 187-event file,
+    /// the install made on the old build was silently and permanently lost.
+    @Test("A traffic.json that changed since the last import is imported again")
+    func aChangedSourceIsReimported() async throws {
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+        let (legacyURL, legacy) = try Self.legacyFile()
+        defer { try? FileManager.default.removeItem(at: legacyURL) }
+
+        #expect(await store.importLegacyTraffic(from: legacyURL) == 5)
+        #expect(await store.importLegacyTraffic(from: legacyURL) == nil, "unchanged")
+
+        // An install recorded on the new build, which the old one cannot see.
+        await store.append(DuoEvent(payload: .install(
+            InstallEvent(appID: "/Applications/OnNew.app", appName: "OnNew", bundleID: nil,
+                         fromVersion: "1", toVersion: "2", sourceName: "GitHub",
+                         bytes: 7_000))))
+        await store.flush()
+
+        // …and one the old build appended to the legacy file while it was in charge.
+        var updated = legacy
+        var extra = AppTrafficStat(appID: "/Applications/OnOld.app", appName: "OnOld",
+                                   bundleID: nil)
+        extra.totalBytes = 3_000
+        extra.events = [TrafficEvent(date: Date(), fromVersion: "1", toVersion: "2",
+                                     sourceName: "Vendor", bytes: 3_000)]
+        updated[extra.appID] = extra
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(updated).write(to: legacyURL)
+
+        #expect(await store.importLegacyTraffic(from: legacyURL) == 6)
+        let stats = await store.appTrafficStats()
+        #expect(stats.contains { $0.appID == "/Applications/OnNew.app" }, "new-build install lost")
+        #expect(stats.contains { $0.appID == "/Applications/OnOld.app" }, "old-build install lost")
+        // 5 legacy (replaced in place) + 1 old-build + 1 new-build.
+        #expect(stats.reduce(0) { $0 + $1.updateCount } == 7, "something was counted twice")
+    }
+
+    /// Pre-existing install rows must not mask a failed insert.
+    @Test("Importing into a store that already holds installs still checks the write")
+    func importIntoANonEmptyStore() async throws {
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+        for index in 0..<20 {
+            await store.append(DuoEvent(payload: .install(
+                InstallEvent(appID: "/Applications/P\(index).app", appName: "P\(index)",
+                             bundleID: nil, fromVersion: "1", toVersion: "2",
+                             sourceName: "GitHub", bytes: 100))))
+        }
+        await store.flush()
+        let (legacyURL, _) = try Self.legacyFile()
+        defer { try? FileManager.default.removeItem(at: legacyURL) }
+
+        #expect(await store.importLegacyTraffic(from: legacyURL) == 5)
+        // 20 live + 5 imported, and the guard did not pass merely because 20 rows
+        // were already sitting there.
+        #expect(await store.appTrafficStats().reduce(0) { $0 + $1.updateCount } == 25)
+    }
+
+    @Test("Wiping the ledger lets it be imported again")
+    func wipingClearsTheImportMarker() async throws {
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+        let (legacyURL, _) = try Self.legacyFile()
+        defer { try? FileManager.default.removeItem(at: legacyURL) }
+
+        #expect(await store.importLegacyTraffic(from: legacyURL) == 5)
+        await store.reset(includingInstalls: true)
+        // The whole design rests on traffic.json being kept as the user's copy; a
+        // wipe that left the marker behind would make that copy unreachable.
+        #expect(await store.metaMarker("traffic.json") == nil)
+        #expect(await store.importLegacyTraffic(from: legacyURL) == 5)
+        #expect(await store.appTrafficStats().reduce(0) { $0 + $1.updateCount } == 5)
+    }
+
+    @Test("Coverage counts the kind it is asked about, not the whole table")
+    func coverageIsFilteredByKind() async throws {
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+        let old = Date().addingTimeInterval(-200 * 86_400)
+        await store.append(DuoEvent(date: old, payload: .install(
+            InstallEvent(appID: "/Applications/A.app", appName: "A", bundleID: nil,
+                         fromVersion: "1", toVersion: "2", sourceName: "GitHub",
+                         bytes: 10))))
+        await store.append(DuoEvent(payload: .request(
+            RequestEvent(purpose: .versionCheck, method: "GET", scheme: "https",
+                         host: "example.com", port: nil, path: "/f", taskID: UUID(),
+                         hopIndex: 0, redirectCount: 0, status: 200,
+                         fetchType: .networkLoad, responseBodyBytes: 10,
+                         fetchStart: Date(), responseEnd: Date()))))
+        await store.flush()
+
+        // The network panel asks about requests. Counting installs too made it
+        // over-report by the whole install history and dragged `oldest` back to
+        // before the store existed — which silently disabled the retention caveat,
+        // because that fires only when the events start *later* than the totals.
+        let requests = await store.coverage(kind: "request")
+        #expect(requests.count == 1)
+        #expect((requests.oldest ?? .distantPast) > old)
+        #expect(await store.coverage(kind: "install").count == 1)
+        #expect(await store.coverage().count == 2)
+    }
+
     // MARK: - Kept forever
 
     @Test("Retention prunes request events and never touches installs")
@@ -265,7 +411,8 @@ struct InstallEventMigrationTests {
 
     @Test("The size budget gives up request events, not the ledger")
     func sizeRetentionSpareInstalls() async {
-        let (store, url) = Self.store(retentionDays: 3650, pruneInterval: .zero)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("events-\(UUID().uuidString).sqlite")
         defer { Self.remove(url) }
         let tiny = EventStore(fileURL: url, retentionDays: 3650, retentionBytes: 64 * 1024,
                               flushEventCount: 500, flushDelay: .milliseconds(10),
@@ -290,6 +437,10 @@ struct InstallEventMigrationTests {
         let stats = await tiny.appTrafficStats()
         #expect(stats.count == 40, "the size pass took install events with it")
         #expect(stats.reduce(Int64(0)) { $0 + $1.totalBytes } == 40_000)
+        // And it really did have to give something up, so this is not passing
+        // merely because the budget was never binding.
+        #expect(await tiny.coverage(kind: "request").count < 3000,
+                "nothing was pruned; the case proves nothing about the exemption")
     }
 
     @Test("Clearing the network log leaves the download ledger alone")

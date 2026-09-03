@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import SQLite3
 
 /// Everything DuoUpdater did, kept as events in a SQLite database.
@@ -274,6 +275,14 @@ public actor EventStore {
              ? "DELETE FROM events;"
              : "DELETE FROM events WHERE kind <> 'install';")
         exec(db, "DELETE FROM totals;")
+        if includingInstalls {
+            // Forget that the legacy file was imported, so it can be imported
+            // again. The whole design rests on `traffic.json` being kept as the
+            // user's own copy; a wipe that leaves the marker behind makes that
+            // copy permanently unreachable, which is the opposite of what keeping
+            // it is for.
+            exec(db, "DELETE FROM meta WHERE key = 'traffic.json';")
+        }
         guard exec(db, "COMMIT;") else { exec(db, "ROLLBACK;"); return }
         // Vacuum then checkpoint, for the reason spelled out in `prune`: the
         // other order leaves the freed pages in the log and the file as large as
@@ -356,14 +365,15 @@ public actor EventStore {
         }
     }
 
-    private func insert(_ event: DuoEvent, into db: OpaquePointer) {
+    @discardableResult
+    private func insert(_ event: DuoEvent, into db: OpaquePointer) -> Bool {
         let sql = """
             INSERT OR REPLACE INTO events
               (id, at, client, kind, purpose, host, app_id, status,
                bytes_in, bytes_out, payload)
             VALUES (?,?,?,?,?,?,?,?,?,?,?);
             """
-        guard let statement = prepare(db, sql) else { return }
+        guard let statement = prepare(db, sql) else { return false }
         defer { sqlite3_finalize(statement) }
 
         // The envelope columns are denormalised out of the payload so the common
@@ -395,9 +405,9 @@ public actor EventStore {
             bind(statement, 7, install.appID)
             sqlite3_bind_int64(statement, 9, install.bytes)
         }
-        guard let payload = try? event.payloadJSON() else { return }
+        guard let payload = try? event.payloadJSON() else { return false }
         bind(statement, 11, payload)
-        step(db, statement)
+        return step(db, statement)
     }
 
     private func upsertTotal(
@@ -686,18 +696,48 @@ public actor EventStore {
     @discardableResult
     public func importLegacyTraffic(from fileURL: URL? = nil, force: Bool = false) -> Int? {
         guard let db = open() else { return nil }
-        if !force, metaValue(db, "traffic.json") != nil { return nil }
         let url = fileURL ?? TrafficStore.defaultFileURL()
+        // Keyed on the file's contents, not on "have we ever run".
+        //
+        // A one-shot marker loses data on a path a user really does take: upgrade,
+        // then go back to the old build for a while, then upgrade again. The old
+        // build knows nothing about this store — it reads *and writes*
+        // `traffic.json` — so every install made during that window lives only in
+        // the legacy file, and a marker that says "already imported" skips them
+        // forever. Replayed against a real 187-event file: the install made on the
+        // old build was silently and permanently lost.
+        //
+        // Re-importing is free because it is idempotent by construction, so the
+        // safe rule is simply "import whenever the source is not what we last
+        // imported". A content hash rather than a modification date: a restore
+        // from backup or a clock that moved makes mtime lie, and this is the only
+        // thing standing between a downgrade and a hole in someone's history.
+        let fingerprint = Self.fingerprint(of: url)
+        if !force, metaValue(db, "traffic.json") == fingerprint { return nil }
         let stats = TrafficStore.loadStats(from: url)
         guard !stats.isEmpty else {
             // Nothing to import is still a completed migration: without recording
             // it, a machine that never had a traffic.json re-reads a missing file
             // on every launch forever.
-            setMeta(db, "traffic.json", "empty")
+            setMeta(db, "traffic.json", fingerprint)
             return nil
         }
 
         var imported = 0
+        /// Inserts that actually completed. Asked of the write itself rather than
+        /// inferred from how much the table grew — a re-import replaces rows, so
+        /// growth is not the same question.
+        var written = 0
+        // Ids already used by this run. Two events of one app in the same second
+        // with the same byte count hash to the same id — the legacy dates carry
+        // no sub-second component at all (measured: 0 of 586 real rows), so the
+        // key is (app, whole second, bytes), not the microsecond one it looks
+        // like. That is rare (0 collisions across two real machines; the closest
+        // two events of one app were 181 s apart) but it is not impossible, and
+        // an `INSERT OR REPLACE` collision used to merge two downloads into one —
+        // which then failed the integrity check below and rolled the **entire**
+        // import back, permanently, on every future launch.
+        var used: Set<UUID> = []
         guard exec(db, "BEGIN IMMEDIATE;") else { return nil }
         for stat in stats.values {
             for legacy in stat.events {
@@ -711,31 +751,57 @@ public actor EventStore {
                     // rather than a guess about a decade of mostly-successful
                     // installs.
                     applied: nil)
-                insert(DuoEvent(
-                    id: InstallEvent.migrationID(
-                        appID: stat.appID, date: legacy.date, bytes: legacy.bytes),
-                    date: legacy.date, client: .app, payload: .install(event)),
-                    into: db)
+                // Only a genuine duplicate falls back to the disambiguated id, so
+                // a file with no collisions — every real one so far — produces
+                // exactly the ids it produced before. That is what keeps a
+                // re-import a no-op rather than a second copy.
+                var id = InstallEvent.migrationID(
+                    appID: stat.appID, date: legacy.date, bytes: legacy.bytes)
+                var attempt = 1
+                while used.contains(id) {
+                    id = InstallEvent.migrationID(
+                        appID: "\(stat.appID)#\(attempt)", date: legacy.date,
+                        bytes: legacy.bytes)
+                    attempt += 1
+                }
+                used.insert(id)
+                if insert(DuoEvent(id: id, date: legacy.date, client: .app,
+                                   payload: .install(event)), into: db) {
+                    written += 1
+                }
                 imported += 1
             }
         }
         // Count what actually landed before claiming the migration happened. An
         // insert can fail for reasons the loop cannot see — a schema older than
         // this build, a disk that filled — and a marker written anyway means the
-        // next launch skips a migration that never ran, permanently. Cheap
-        // (`kind` is indexed) against the thing it protects.
-        let stored = installEventCount(db)
+        // next launch skips a migration that never ran, permanently.
+        //
+        // Asked of the write itself, not inferred from how much the table grew.
+        // Two earlier shapes of this check were both wrong, in opposite
+        // directions: comparing against `count(*)` let pre-existing rows mask
+        // failed inserts, and comparing against the growth broke the re-import
+        // path entirely, because a repeat replaces rows rather than adding them —
+        // 188 events written, a delta of 1, and the whole thing rolled back.
+        let stored = written
         guard stored >= imported else {
             exec(db, "ROLLBACK;")
             Log.install.error(
                 "events: traffic.json import wrote \(stored, privacy: .public) of \(imported, privacy: .public) events; not marking it done")
             return nil
         }
-        setMeta(db, "traffic.json", ISO8601DateFormatter.duoEvent.string(from: now()))
+        setMeta(db, "traffic.json", fingerprint)
         guard exec(db, "COMMIT;") else { exec(db, "ROLLBACK;"); return nil }
         Log.install.notice(
             "events: imported \(imported, privacy: .public) install events from traffic.json")
         return imported
+    }
+
+    /// What the legacy file currently holds, as a hash. `"absent"` when there is
+    /// no file, which is itself a state worth remembering.
+    static func fingerprint(of url: URL) -> String {
+        guard let data = try? Data(contentsOf: url) else { return "absent" }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     private func installEventCount(_ db: OpaquePointer) -> Int {
@@ -771,11 +837,26 @@ public actor EventStore {
     }
 
     /// How many events are stored, and the span they cover.
-    public func coverage() -> (count: Int, oldest: Date?, newest: Date?) {
-        guard let db = open(),
-              let statement = prepare(db, "SELECT count(*), min(at), max(at) FROM events;"),
-              sqlite3_step(statement) == SQLITE_ROW
-        else { return (0, nil, nil) }
+    ///
+    /// - Parameter kind: which kind to measure, or nil for all of them. **Callers
+    ///   reporting on retention must pass one.** This was written when the table
+    ///   held only request events; install events then moved in and are never
+    ///   pruned, so an unfiltered count silently started meaning something else —
+    ///   it over-reported the retained request count by the whole install history
+    ///   (586 against 5202 on the machine this was found on), and dragged `oldest`
+    ///   back 92 days to an install that predates the store. That in turn made the
+    ///   retention caveat unreachable: it fires when the events start later than
+    ///   the totals, and an install from before the totals began can never satisfy
+    ///   it. The guard was intact; its input had quietly changed meaning.
+    public func coverage(kind: String? = nil) -> (count: Int, oldest: Date?, newest: Date?) {
+        let sql = kind == nil
+            ? "SELECT count(*), min(at), max(at) FROM events;"
+            : "SELECT count(*), min(at), max(at) FROM events WHERE kind = ?;"
+        guard let db = open(), let statement = prepare(db, sql) else { return (0, nil, nil) }
+        if let kind { bind(statement, 1, kind) }
+        guard sqlite3_step(statement) == SQLITE_ROW else {
+            sqlite3_finalize(statement); return (0, nil, nil)
+        }
         defer { sqlite3_finalize(statement) }
         let count = Int(sqlite3_column_int64(statement, 0))
         guard count > 0 else { return (0, nil, nil) }
@@ -828,9 +909,16 @@ public actor EventStore {
         // commit, and WAL's NORMAL only risks the last transactions on power loss.
         exec(db, "PRAGMA synchronous=NORMAL;")
         createSchema(db)
-        // 0600 for the same reason the directory is 0700: Application Support is
-        // readable by anything running as the user and lands in every unencrypted
-        // backup.
+        // 0600 on every open, not only at creation. Measured: SQLite gives the
+        // `-wal` and `-shm` files the same mode as the main database, so this one
+        // call covers all three — which matters, because the write-ahead log holds
+        // the same rows.
+        //
+        // The directory is asked for as 0700 above, but `createDirectory` does
+        // nothing to one that already exists, so on every upgrade it stays as the
+        // older build left it (measured: 0755 on both machines here). That is not
+        // worth chmod-ing under the user: `~/Library/Application Support` is itself
+        // 0700, and the files are 0600 regardless.
         try? FileManager.default.setAttributes(
             [.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
         connection = Connection(db)
@@ -838,6 +926,15 @@ public actor EventStore {
     }
 
     private func createSchema(_ db: OpaquePointer) {
+        // Columns added after a database was first created have to be added
+        // explicitly — `CREATE TABLE IF NOT EXISTS` does nothing to a table that
+        // already exists — and this has to run **before** the batch below, not
+        // after it. `sqlite3_exec` abandons the rest of a batch at the first
+        // error, so with the repair afterwards, an older database failed on the
+        // first statement mentioning the new column and skipped everything after
+        // it. Measured: `events_app_at` was missing from the real store, and so
+        // was every statement that followed it.
+        addColumnIfMissing(db, table: "events", column: "app_id", type: "TEXT")
         exec(db, """
             CREATE TABLE IF NOT EXISTS events (
               id        TEXT PRIMARY KEY,
@@ -855,7 +952,6 @@ public actor EventStore {
             CREATE INDEX IF NOT EXISTS events_at        ON events(at);
             CREATE INDEX IF NOT EXISTS events_kind_at   ON events(kind, at);
             CREATE INDEX IF NOT EXISTS events_host_at   ON events(host, at);
-            CREATE INDEX IF NOT EXISTS events_app_at    ON events(app_id, at);
 
             CREATE TABLE IF NOT EXISTS totals (
               client         TEXT    NOT NULL,
@@ -874,13 +970,6 @@ public actor EventStore {
 
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """)
-        // `CREATE TABLE IF NOT EXISTS` does nothing to a table that is already
-        // there, so a column added after the first release has to be added
-        // explicitly. Found the hard way: `app_id` arrived with the install
-        // events, every INSERT against an older database failed on the unknown
-        // column, and the import marked itself done having written nothing.
-        addColumnIfMissing(db, table: "events", column: "app_id", type: "TEXT")
-
         if let statement = prepare(db, "INSERT OR IGNORE INTO meta VALUES ('schema', ?);") {
             bind(statement, 1, String(DuoEvent.schemaVersion))
             step(db, statement)
@@ -923,11 +1012,14 @@ public actor EventStore {
         return statement
     }
 
-    private func step(_ db: OpaquePointer, _ statement: OpaquePointer) {
+    @discardableResult
+    private func step(_ db: OpaquePointer, _ statement: OpaquePointer) -> Bool {
         let result = sqlite3_step(statement)
-        if result != SQLITE_DONE && result != SQLITE_ROW {
+        guard result == SQLITE_DONE || result == SQLITE_ROW else {
             Log.app.error("events: \(String(cString: sqlite3_errmsg(db)), privacy: .public)")
+            return false
         }
+        return true
     }
 
     private func bind(_ statement: OpaquePointer, _ column: Int32, _ value: String) {

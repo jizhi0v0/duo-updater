@@ -141,8 +141,12 @@ struct TrafficLedgerTests {
     }
 
     @Test func formattedBytesIsHumanReadable() {
-        #expect(ByteFormat.string(0) == ByteCountFormatter.string(fromByteCount: 0, countStyle: .file))
+        // `.file` style, i.e. the decimal units macOS shows for downloads, not the
+        // binary ones. Comparing against `ByteCountFormatter` with the same style
+        // would only restate the delegation.
         #expect(ByteFormat.string(1_500_000).contains("MB"))
+        #expect(ByteFormat.string(1_500).contains("KB"))
+        #expect(ByteFormat.string(2_000_000_000).contains("GB"))
     }
 
     @Test func lastUpdatedTracksNewestEvent() async {

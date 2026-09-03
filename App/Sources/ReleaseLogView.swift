@@ -199,6 +199,10 @@ private struct ReleaseRow: View {
             Text(published.formatted(date: .omitted, time: .shortened))
                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                 .help("Published \(published.formatted(date: .abbreviated, time: .standard))")
+        } else if let day = event.event.vendorDay {
+            Text(day.formatted(ReleaseTiming.vendorDayStyle))
+                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                .help(ReleaseTiming.vendorDayHelp(day))
         } else if let range = event.event.estimatedRange {
             Text(ReleaseTiming.approxLabel(range))
                 .font(.caption).foregroundStyle(.tertiary).monospacedDigit()
@@ -210,6 +214,18 @@ private struct ReleaseRow: View {
 /// Compact formatting for an estimated release window, shared by the feed and the
 /// per-app version list.
 enum ReleaseTiming {
+    /// A `vendorDay` names a calendar day the vendor stated, not a moment in our
+    /// own clock — `Date.FormatStyle`'s default `timeZone` is
+    /// `.autoupdatingCurrent`, which would let a UTC-negative reader see the
+    /// UTC-midnight `Date` this holds land on the PREVIOUS calendar day. Always
+    /// render it in the zone it was recorded in, GMT, with no time component (we
+    /// don't have one to show).
+    static let vendorDayStyle = Date.FormatStyle(date: .abbreviated, time: .omitted, timeZone: .gmt)
+
+    static func vendorDayHelp(_ day: Date) -> String {
+        String(localized: "Published on \(day.formatted(vendorDayStyle)) — the vendor gave only a date, not a time.")
+    }
+
     /// "≈ 2:00–6:00 PM" for a tight (≤36h) window, else "≈ within 3d".
     static func approxLabel(_ range: DateInterval) -> String {
         if range.duration <= 36 * 3600 {
@@ -378,6 +394,10 @@ private struct ReleasePatternsView: View {
                     if let published = row.event.publishedAt {
                         Text(published.formatted(date: .abbreviated, time: .shortened))
                             .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    } else if let day = row.event.vendorDay {
+                        Text(day.formatted(ReleaseTiming.vendorDayStyle))
+                            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            .help(ReleaseTiming.vendorDayHelp(day))
                     } else if let range = row.event.estimatedRange {
                         Text(range.end.formatted(date: .abbreviated, time: .omitted) + " " + ReleaseTiming.approxLabel(range))
                             .font(.caption).foregroundStyle(.tertiary).monospacedDigit()

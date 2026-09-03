@@ -2042,6 +2042,44 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^wailbrew-v[0-9.]+\.zip$"#,
             installerKind: .zip),
 
+        // T3 Code — two trains, ONE bundle id (`com.t3tools.t3code`), one repo.
+        // `ReleaseChannel.detect()` reads the display name: the primary build is
+        // `T3 Code (Alpha).app` (→ .alpha) and the prerelease train is
+        // `T3 Code (Nightly).app` (→ .nightly), verified on the mounted artifacts.
+        // Neither carries SUFeedURL; the cask is auto_updates, so Homebrew defers.
+        //
+        // The alpha train tags plain `vX.Y.Z` and is NOT prerelease-flagged, so
+        // `/releases/latest` answers for it; the anchored pattern keeps the
+        // nightly tags (same repo) from ever reading as alpha. One-click: the
+        // arm64 dmg holds the same notarized `T3 Code (Alpha)` app — Team
+        // ARK85ZXQ4Z, verified on the mounted v0.0.36 artifact.
+        GitHubReleaseRule(
+            bundleID: "com.t3tools.t3code",
+            owner: "pingdotgg", repo: "t3code",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^T3-Code-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg,
+            channel: .alpha),
+
+        // T3 Code nightly — prerelease tags `vX.Y.Z-nightly.<date>.<seq>`, several
+        // per day, marked prerelease, so `usePrereleases` reads the list and the
+        // pattern is anchored to the nightly shape end to end. The app reports the
+        // whole string as BOTH marketing and build, so the extracted version must
+        // keep it intact rather than truncate to `X.Y.Z` — a nightly install shows
+        // `0.0.37-nightly.20260830.1227` on both sides, and `VersionComparator`
+        // orders the date/seq runs numerically. One-click: same Team
+        // ARK85ZXQ4Z, verified on the mounted nightly artifact. The asset name
+        // carries `-nightly.` — which is also why the alpha pattern above cannot
+        // drift onto this train: its `[0-9.]+` run refuses the dash.
+        GitHubReleaseRule(
+            bundleID: "com.t3tools.t3code",
+            owner: "pingdotgg", repo: "t3code",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+\.[0-9]+)$"#,
+            installAssetPattern: #"^T3-Code-[0-9.]+-nightly\.[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg,
+            channel: .nightly),
+
         // Deliberately NOT covered — FreeCAD (`org.freecad.FreeCAD`). Its bundle
         // ships an EMPTY `CFBundleShortVersionString` and puts 1.1.3 in
         // `CFBundleVersion` alone. `AppScanner` drops any bundle with no marketing

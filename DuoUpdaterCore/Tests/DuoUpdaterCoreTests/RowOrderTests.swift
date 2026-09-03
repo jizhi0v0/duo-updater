@@ -116,15 +116,21 @@ struct RowOrderTests {
     /// Inserting it into the middle would push the pinned rows down, which is
     /// exactly what freezing prevents — even when its rank says it belongs first.
     ///
+    /// Asserted in BOTH input orders, which is not belt-and-braces: with two
+    /// elements Swift's sort calls the comparator exactly once, as
+    /// `(list[1], list[0])`, so one input order reaches only ONE arm of the
+    /// pinned/new switch. The first line below lands on `(nil, _?)` and the
+    /// second on `(_?, nil)`; with only the first, the other arm could be
+    /// `fatalError()` and every case here would still pass.
+    ///
     /// Mutations: `case (_?, nil): return false`; or `case (nil, _?): return true`.
     @Test func aRowNewSinceTheFreezeGoesAfterEveryPinnedRow() {
-        let rows = [
-            row("Zulu"),                         // pinned, lowest rank
-            row("Alpha", latest: "2.0"),         // NEW, and would rank first
-        ]
         let pinned = ["/Applications/Zulu.app": 0]
+        let zulu = row("Zulu")                    // pinned, lowest rank
+        let alpha = row("Alpha", latest: "2.0")   // NEW, and would rank first
 
-        #expect(sorted(rows, pinned: pinned) == ["Zulu", "Alpha"])
+        #expect(sorted([zulu, alpha], pinned: pinned) == ["Zulu", "Alpha"])
+        #expect(sorted([alpha, zulu], pinned: pinned) == ["Zulu", "Alpha"])
     }
 
     /// Two rows that are both new fall through to the ordinary order rather than
@@ -140,10 +146,10 @@ struct RowOrderTests {
 
     /// An empty pin table means the order is live, not that everything is new.
     ///
-    /// Mutation: drop the `!pinnedOrder.isEmpty` guard so the switch always runs
-    /// — with no pins every row is `(nil, nil)`, which today falls through, so
-    /// this pins that the guard's absence would be a behaviour change only in
-    /// combination. Kept as the positive pole for the frozen cases above.
+    /// No mutation: the `!pinnedOrder.isEmpty` guard is provably a no-op — with
+    /// no pins every lookup is `(nil, nil)`, which falls through anyway — so it
+    /// saves two dictionary reads and nothing else. This case is the positive
+    /// pole for the frozen ones above, not a guard on that line.
     @Test func anEmptyPinTableSortsNormally() {
         #expect(sorted([row("Zulu"), row("Alpha", latest: "2.0")]) == ["Alpha", "Zulu"])
     }
@@ -175,7 +181,12 @@ struct CheckScheduleTests {
             now: now, lastCheck: now, interval: 6 * 3600,
             isFirstCheck: true, hasResults: true)
 
-        #expect(wait == CheckSchedule.launchFloor)
+        // Literals on both sides. Written as `wait == CheckSchedule.launchFloor`
+        // the assertion is self-referential: change the constant to fifty
+        // minutes and it still passes, so the number — a product decision about
+        // how long after a relaunch the user may wait — was pinned by nothing.
+        #expect(wait == 5 * 60)
+        #expect(CheckSchedule.launchFloor == 5 * 60)
     }
 
     /// Later checks use the full interval — the floor is a launch concession, not
@@ -205,6 +216,23 @@ struct CheckScheduleTests {
         #expect(CheckSchedule.nextWait(
             now: now, lastCheck: now.addingTimeInterval(-3600),
             interval: 6 * 3600, isFirstCheck: false, hasResults: true) == 5 * 3600)
+    }
+
+    /// The run-now shortcut is for a COLD launch only. A later tick that happens
+    /// to find the list empty — a scan that matched nothing, everything filtered
+    /// out — must still wait out the interval. Without the `isFirstCheck` half of
+    /// that condition it answers zero forever, and because a deferred tick leaves
+    /// `isFirstCheck` and `lastCheck` untouched, the loop becomes an unthrottled
+    /// run of network checks behind nothing but the caller's 60s back-off.
+    ///
+    /// Every other case here passes `hasResults: true`, so that conjunct was
+    /// constant across the whole suite and dropping it passed all six.
+    ///
+    /// Mutation: `if !hasResults { return 0 }`.
+    @Test func aLaterTickWithAnEmptyListStillWaitsTheInterval() {
+        #expect(CheckSchedule.nextWait(
+            now: now, lastCheck: now, interval: 6 * 3600,
+            isFirstCheck: false, hasResults: false) == 6 * 3600)
     }
 
     /// Never checked before: run now rather than treating a missing date as

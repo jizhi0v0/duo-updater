@@ -82,13 +82,23 @@ public enum CheckSchedule {
         lastCheck: Date?,
         interval: TimeInterval,
         isFirstCheck: Bool,
-        hasResults: Bool,
-        launchFloor: TimeInterval = CheckSchedule.launchFloor
+        hasResults: Bool
     ) -> TimeInterval {
         // A cold launch with nothing in memory yet shows the empty zero-badge
         // icon until something populates the list. Check immediately rather than
         // waiting out the floor, so the menu bar reflects real state right after
         // a launch without a click.
+        //
+        // ⚠️ `isFirstCheck &&` is load-bearing, and the two halves guard
+        // different things. Zero here means "run now", NOT "looping here is
+        // safe": when the caller then DEFERS the tick (offline, or a refresh
+        // already running) it leaves `isFirstCheck` and `lastCheck` untouched,
+        // so the next call answers zero again. Without the `isFirstCheck` half
+        // any later tick that found an empty list — a scan that matched nothing,
+        // everything filtered out — would do the same forever. The only thing
+        // between that and an unthrottled run of network checks is the caller's
+        // own back-off (`AppListModel`'s 60s sleep on the deferred branch), and
+        // it lives in another package with nothing pointing at it from here.
         if isFirstCheck && !hasResults { return 0 }
         let effectiveInterval = isFirstCheck ? min(interval, launchFloor) : interval
         // Sleep only until the next check is DUE relative to the last one — zero

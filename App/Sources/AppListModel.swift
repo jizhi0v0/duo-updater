@@ -5406,6 +5406,12 @@ final class AppListModel {
                 } else {
                     let why = offline ? "offline" : "busy"
                     Log.app.info("scheduler: tick deferred (\(why, privacy: .public)) — retrying in 60s")
+                    // The only back-off on this path, and the condition that reaches it
+                    // is decided elsewhere: `CheckSchedule.nextWait` returns 0 for a cold
+                    // launch with an empty list, and a deferred tick leaves both
+                    // `isFirstCheck` and `lastCheck` untouched — so the next call answers
+                    // 0 again. Cold launch plus no network lands exactly here. Do not
+                    // remove this sleep on the grounds that the wait above covers it.
                     try? await Task.sleep(for: .seconds(60))
                 }
             }

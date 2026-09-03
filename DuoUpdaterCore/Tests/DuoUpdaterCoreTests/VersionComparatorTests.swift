@@ -169,6 +169,31 @@ import Testing
                 "nothing comparable is not sameness")
     }
 
+    /// `isSame(_:as:buildIsDerived:)` is the shared primitive behind both
+    /// `PackageRestartState.resolve` and `AppListModel.pruneStagedPackages` (#285):
+    /// a scanner-substituted build (`AppScanner.buildVersionIsOverridden`'s Xcode,
+    /// 豆包输入法) does not share the other side's namespace, so when
+    /// `buildIsDerived` is true the `lhs` build must be dropped before comparing —
+    /// falling back to marketing alone — rather than let the plain `isSame` rule
+    /// ("every comparable field must agree") veto a real match on an incomparable
+    /// build pair.
+    @Test func isSameWithDerivedBuildFallsBackToMarketing() {
+        // Marketing matches, build is a foreign namespace: derived must call it
+        // the same; the plain rule (every comparable field agrees) must not.
+        #expect(VersionComparator.isSame(
+            s("1.0", "90602"), as: s("1.0", "1"), buildIsDerived: true))
+        #expect(!VersionComparator.isSame(s("1.0", "90602"), as: s("1.0", "1")),
+                "precondition: without the flag the mismatched builds veto it")
+        // Marketing itself differs: dropping the build must not manufacture a
+        // false match out of an unrelated build pair.
+        #expect(!VersionComparator.isSame(
+            s("1.0", "90602"), as: s("1.1", "1"), buildIsDerived: true))
+        // False (the default) must behave exactly like the un-flagged overload.
+        #expect(VersionComparator.isSame(
+            s("1.0", "130"), as: s("1.0", "130"), buildIsDerived: false)
+            == VersionComparator.isSame(s("1.0", "130"), as: s("1.0", "130")))
+    }
+
     /// `hasReached` is the landing test: the exact build, or one past it.
     @Test func hasReachedAcceptsTheTargetOrAnythingPastIt() {
         let target = s("1.0", "130")

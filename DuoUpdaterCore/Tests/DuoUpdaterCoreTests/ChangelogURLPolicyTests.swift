@@ -70,6 +70,100 @@ struct ChangelogURLPolicyTests {
         #expect(ChangelogURLPolicy.rejectionReason(url("https://example.com:8443/notes")) != nil)
     }
 
+    /// #299: `rejectionReason` used to return a bare `String` that a caller put
+    /// straight on screen — the one user-visible literal
+    /// `check_localizable_keys.py` cannot see, because it never goes through
+    /// `String(localized:)`. This pins the *specific* case each guard now
+    /// reports, not just non-nil, so a change that reorders `RejectionReason`'s
+    /// cases or has two guards collapse onto the same one is caught here.
+    @Test func rejectionReasonReportsTheSpecificCategory() {
+        #expect(ChangelogURLPolicy.rejectionReason(url("http://example.com/notes")) == .notHTTPS)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://user:pw@example.com/notes")) == .hasCredentials)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://192.168.1.10/notes")) == .ipLiteral)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://local/notes")) == .reservedLocalName)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://macbook.local/notes")) == .reservedLocalName)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://example.com:8443/notes")) == .nonStandardPort)
+    }
+
+    /// `logToken` feeds a `Log.` line (CLAUDE.md: those stay English and stable
+    /// so reports stay grep-able), `localizedDescription` feeds the on-screen
+    /// blocked-notice pane. They must never be the same representation, or one
+    /// audience is getting the wrong one — and every case needs both, worded
+    /// distinctly, with nothing interpolated into either.
+    @Test func everyReasonHasADistinctLogTokenAndLocalizedDescription() {
+        let allCases: [ChangelogURLPolicy.RejectionReason] = [
+            .notHTTPS, .hasCredentials, .noHost, .ipLiteral, .reservedLocalName, .nonStandardPort,
+        ]
+        var seenLogTokens = Set<String>()
+        var seenDescriptions = Set<String>()
+        for reason in allCases {
+            let token = reason.logToken
+            let description = reason.localizedDescription
+            #expect(!token.isEmpty)
+            #expect(!description.isEmpty)
+            #expect(token != description, "\(reason) should word its log line and its on-screen text differently")
+            #expect(seenLogTokens.insert(token).inserted, "duplicate logToken: \(token)")
+            #expect(seenDescriptions.insert(description).inserted, "duplicate localizedDescription: \(description)")
+        }
+    }
+
+    /// `logToken` is read out of shipped log lines and compared against past
+    /// reports — see CLAUDE.md's rule that `Log.` text must stay stable. This
+    /// pins the exact strings `rejectionReason` used to return directly, before
+    /// #299 turned it into an enum, so a future refactor cannot silently reword
+    /// them.
+    @Test func logTokenTextIsUnchangedFromTheOriginalStrings() {
+        #expect(ChangelogURLPolicy.RejectionReason.notHTTPS.logToken == "not an https URL")
+        #expect(ChangelogURLPolicy.RejectionReason.hasCredentials.logToken == "URL carries credentials")
+        #expect(ChangelogURLPolicy.RejectionReason.noHost.logToken == "URL has no host")
+        #expect(ChangelogURLPolicy.RejectionReason.ipLiteral.logToken == "host is an IP literal, not a name")
+        #expect(ChangelogURLPolicy.RejectionReason.reservedLocalName.logToken == "host is a reserved local-only name")
+        #expect(ChangelogURLPolicy.RejectionReason.nonStandardPort.logToken == "non-standard port")
+    }
+
+    /// The whole point of `RejectionReason` being a closed enum instead of the
+    /// `String` it replaced is that no case can carry the attacker/vendor-
+    /// controlled host or port that triggered it. This is the regression test
+    /// for that property: feed hosts and ports designed to show up if anything
+    /// ever leaked into the text, on every reason `rejectionReason` can return
+    /// for a URL that actually carries one.
+    @Test func neitherRepresentationEverInterpolatesTheURL() {
+        let needle = "tell-tale-host-should-never-appear"
+        let cases: [(URL, ChangelogURLPolicy.RejectionReason)] = [
+            (url("http://\(needle).example/notes"), .notHTTPS),
+            (url("https://user:\(needle)@example.com/notes"), .hasCredentials),
+            (url("https://192.168.1.10/notes"), .ipLiteral),
+            (url("https://\(needle).local/notes"), .reservedLocalName),
+            (url("https://example.com:6667/notes"), .nonStandardPort),
+        ]
+        for (u, expected) in cases {
+            let reason = ChangelogURLPolicy.rejectionReason(u)
+            #expect(reason == expected)
+            #expect(reason?.logToken.contains(needle) != true)
+            #expect(reason?.localizedDescription.contains(needle) != true)
+            #expect(reason?.logToken.contains("6667") != true)
+            #expect(reason?.localizedDescription.contains("6667") != true)
+        }
+    }
+
+    /// #299: the blocked-notice pane writes a *translated* string into raw
+    /// HTML — a fixed English category never needed more than `&`/`<` escaped,
+    /// but a translation of it can legitimately contain any of the five
+    /// characters below (French/German quoting conventions, for one). Mutating
+    /// any single replacement out of `htmlEscaped` must turn one of these red.
+    @Test func htmlEscapedCoversAllFiveSignificantCharacters() {
+        #expect(ChangelogURLPolicy.htmlEscaped("&") == "&amp;")
+        #expect(ChangelogURLPolicy.htmlEscaped("<") == "&lt;")
+        #expect(ChangelogURLPolicy.htmlEscaped(">") == "&gt;")
+        #expect(ChangelogURLPolicy.htmlEscaped("\"") == "&quot;")
+        #expect(ChangelogURLPolicy.htmlEscaped("'") == "&#39;")
+        // Ordering matters: escaping `&` first must not double-escape the
+        // entities this function itself just inserted.
+        #expect(ChangelogURLPolicy.htmlEscaped("<a href=\"x\">it's & done</a>")
+                == "&lt;a href=&quot;x&quot;&gt;it&#39;s &amp; done&lt;/a&gt;")
+        #expect(ChangelogURLPolicy.htmlEscaped("plain text") == "plain text")
+    }
+
     @Test func localWordsInsideOrdinaryDomainsStillPass() {
         for s in [
             "https://localhost.example.com/notes",

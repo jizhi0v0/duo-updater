@@ -1988,7 +1988,14 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
 
         if let url = navigationAction.request.url,
            url.scheme?.lowercased() == "http" {
-            reject(webView, url: url, reason: "cleartext http connection", isMainFrame: isMainFrame)
+            // Same category `ChangelogURLPolicy.rejectionReason` would report for
+            // this URL (`.notHTTPS`) — reused rather than given its own case so
+            // there is exactly one place that owns the log/display text for "this
+            // navigation isn't https". This check exists as its own branch
+            // because it is broader than the policy check below: it also catches
+            // a sub-frame loading http (mixed content), where `isMainFrame` would
+            // otherwise let it through.
+            reject(webView, url: url, reason: .notHTTPS, isMainFrame: isMainFrame)
             decisionHandler(.cancel); return
         }
 
@@ -2029,8 +2036,8 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     /// `.error`, not `.info`: per `Log`'s own doc comment, `.info` is memory-only
     /// for a third-party subsystem and would be gone by the time anyone went
     /// looking for why a changelog pane went dark.
-    private func reject(_ webView: WKWebView, url: URL, reason: String, isMainFrame: Bool) {
-        Log.changelog.error("webview navigation blocked (\(reason, privacy: .public)) mainFrame=\(isMainFrame ? "yes" : "no", privacy: .public) url=\(Redactor.url(url), privacy: .public) origin=\(self.originHost ?? "?", privacy: .public)")
+    private func reject(_ webView: WKWebView, url: URL, reason: ChangelogURLPolicy.RejectionReason, isMainFrame: Bool) {
+        Log.changelog.error("webview navigation blocked (\(reason.logToken, privacy: .public)) mainFrame=\(isMainFrame ? "yes" : "no", privacy: .public) url=\(Redactor.url(url), privacy: .public) origin=\(self.originHost ?? "?", privacy: .public)")
         guard isMainFrame, !hasCommittedFirstLoad else { return }
         showBlockedNotice(webView, reason: reason)
     }
@@ -2043,19 +2050,30 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     /// here back to that SwiftUI state without threading a binding through the
     /// cache for every call site that can hand out a cached view. Loading a small
     /// HTML page directly into the same pane keeps the fix self-contained to this
-    /// type, at the cost of a hand-rolled (not SwiftUI) message; `reason` is one
-    /// of `WebGuardian`'s or `ChangelogURLPolicy`'s own fixed strings, never
-    /// interpolated URL content, so the light escaping below is defence in depth
-    /// rather than the only thing standing between this and a vendor page.
+    /// type, at the cost of a hand-rolled (not SwiftUI) message.
     ///
-    /// The title is a plain English literal, not `String(localized:)` — it lives
-    /// inside an HTML string handed to `WKWebView`, outside whatever the
-    /// `Localizable.xcstrings` extraction step scans, and this fix does not touch
-    /// that pipeline. Known gap, not an oversight.
-    private func showBlockedNotice(_ webView: WKWebView, reason: String) {
-        let escaped = reason
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
+    /// #299: both strings below now go through `String(localized:)` — the title
+    /// here, and `reason.localizedDescription` in `ChangelogURLPolicy`. Neither
+    /// ever carries interpolated URL content (see `RejectionReason`'s doc
+    /// comment), but a *translation* of a fixed category can still contain `&`,
+    /// `<`, `>`, or a quote mark — French and German punctuation both do — so the
+    /// escaping below now covers all five HTML-significant characters, not just
+    /// the two an English-only literal happened to need.
+    ///
+    /// `check_localizable_keys.py` cannot see either string: it diffs
+    /// `Localizable.xcstrings` against the keys `SWIFT_EMIT_LOC_STRINGS` recorded
+    /// for `String(localized:)` call sites, and both calls here are ordinary call
+    /// sites like any other — so this is not a blind spot in that checker, it
+    /// would have caught the original English literal too had it gone through
+    /// `String(localized:)` in the first place. The actual blind spot was this
+    /// function loading a *hand-built HTML string* instead of calling
+    /// `String(localized:)` at all; nothing short of grepping `WKWebView`-bound
+    /// strings for the absence of `String(localized:)` would catch a *future*
+    /// literal slipped in here the same way, and that is a much noisier check to
+    /// add than the value of catching one call site.
+    private func showBlockedNotice(_ webView: WKWebView, reason: ChangelogURLPolicy.RejectionReason) {
+        let title = ChangelogURLPolicy.htmlEscaped(String(localized: "Can’t show this page safely"))
+        let body = ChangelogURLPolicy.htmlEscaped(reason.localizedDescription)
         let html = """
         <!doctype html><html><head><meta charset="utf-8">
         <style>
@@ -2070,8 +2088,8 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
           .title { color: CanvasText; font-weight: 600; margin-bottom: 6px; }
         </style></head>
         <body><div class="box">
-          <div class="title">Can’t show this page safely</div>
-          <div>\(escaped)</div>
+          <div class="title">\(title)</div>
+          <div>\(body)</div>
         </div></body></html>
         """
         webView.loadHTMLString(html, baseURL: nil)

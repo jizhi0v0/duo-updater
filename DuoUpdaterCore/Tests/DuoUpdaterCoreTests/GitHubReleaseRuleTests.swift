@@ -319,28 +319,63 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(!matches("bruno_4.0.0_arm64_win.zip", "com.usebruno.app"))
 }
 
+/// Asset match for a rule on a specific channel — `matches` above resolves the
+/// first rule for a bundle id, which is the stable one when a bundle ships two
+/// trains under the SAME id, as Vorssaint does.
+private func matches(
+    _ name: String, _ bundleID: String, channel: ReleaseChannel
+) -> Bool {
+    guard let p = rule(bundleID, channel: channel).installAssetPattern else { return false }
+    return name.range(of: p, options: .regularExpression) != nil
+}
+
+/// Stable and beta share the bundle id AND the app name here, so the asset is
+/// the only thing that tells the two trains apart after a download. Both
+/// directions matter: stable must refuse a beta artifact (the substitution the
+/// channel proof exists to catch) and beta must refuse a stable one.
 @Test func vorssaintRulesKeepStableAndBetaSeparate() {
     let bundleID = "com.vorssaint.utils"
 
     #expect(extract("v3.3.2", bundleID, channel: .stable) == "3.3.2")
     #expect(extract("v3.3.3-beta.3", bundleID, channel: .stable) == nil)
     #expect(rule(bundleID, channel: .stable).usePrereleases == false)
-    #expect(rule(bundleID, channel: .stable).installAssetPattern == nil)
 
     #expect(extract("v3.3.3-beta.3", bundleID, channel: .beta) == "3.3.3-beta.3")
     #expect(extract("v3.3.2", bundleID, channel: .beta) == nil)
     #expect(rule(bundleID, channel: .beta).usePrereleases == true)
-    #expect(rule(bundleID, channel: .beta).installAssetPattern == nil)
+
+    // One asset per release on both trains (real names, 2026-09-03).
+    #expect(matches("Vorssaint-3.3.2.dmg", bundleID, channel: .stable))
+    #expect(rule(bundleID, channel: .stable).installerKind == .dmg)
+    // `[0-9.]+` cannot cross the `-` in `-beta.3`. Without that, `/releases/latest`
+    // excluding prereleases would be the ONLY thing keeping stable off the beta
+    // train, and the list fallback would not have it.
+    #expect(!matches("Vorssaint-3.3.3-beta.3.dmg", bundleID, channel: .stable))
+
+    #expect(matches("Vorssaint-3.3.3-beta.3.dmg", bundleID, channel: .beta))
+    #expect(rule(bundleID, channel: .beta).installerKind == .dmg)
+    #expect(!matches("Vorssaint-3.3.2.dmg", bundleID, channel: .beta))
 }
 
-@Test func openLogiRuleReadsStableTagsOnlyAndStaysDetectionOnly() {
+/// OpenLogi publishes twelve artifacts per release across three platforms, each
+/// with a `.minisig` beside it. The pattern has to pick exactly one of them.
+@Test func openLogiRulePinsTheArm64DmgAndRejectsItsTwelveSiblings() {
     #expect(extract("v0.8.2", "org.openlogi.openlogi") == "0.8.2")
     // A prerelease must not be truncated and served to a stable install.
     #expect(extract("v0.8.3-rc.1", "org.openlogi.openlogi") == nil)
     #expect(rule("org.openlogi.openlogi").usePrereleases == false)
-    // One-click is a separate, explicitly approved capability.
-    #expect(rule("org.openlogi.openlogi").installAssetPattern == nil)
-    #expect(rule("org.openlogi.openlogi").installerKind == nil)
+
+    #expect(matches("OpenLogi-v0.8.3-macos-arm64.dmg", "org.openlogi.openlogi"))
+    #expect(rule("org.openlogi.openlogi").installerKind == .dmg)
+    // The Intel twin ships in the same release; this host is arm64-only.
+    #expect(!matches("OpenLogi-v0.8.3-macos-x86_64.dmg", "org.openlogi.openlogi"))
+    // Every artifact has a detached signature beside it. Without the `$` anchor
+    // the match truncates to a URL the vendor never published.
+    #expect(!matches("OpenLogi-v0.8.3-macos-arm64.dmg.minisig", "org.openlogi.openlogi"))
+    #expect(!matches("OpenLogi-v0.8.3-windows-arm64.msi", "org.openlogi.openlogi"))
+    #expect(!matches("OpenLogi-v0.8.3-windows-arm64.zip", "org.openlogi.openlogi"))
+    #expect(!matches("openlogi-v0.8.3-linux-arm64.deb", "org.openlogi.openlogi"))
+    #expect(!matches("SHA256SUMS", "org.openlogi.openlogi"))
 }
 
 /// PureMac ships a second product out of the same releases: `cli-v1.0.0`

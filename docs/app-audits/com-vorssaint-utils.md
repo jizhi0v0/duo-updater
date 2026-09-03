@@ -89,7 +89,8 @@ GitHub 两轨的端点和 tag 提取由上面的 `duo verify` 独立验证。
 
 ## 一键安装
 
-**未启用 —— 但不是因为包有问题。**
+**已启用（两轨各一条 `installAssetPattern` + `kind: .dmg`）。** 曾因一个测错对象的
+结论被搁置，下面把过程留着，免得再走一遍。
 
 > ⚠️ 2026-08-30 首次审计时记录为：`codesign --verify --deep --strict` 对两个真实 app
 > 均报 `invalid signature (code or signature have been modified)`，同时 `spctl` 返回
@@ -117,9 +118,36 @@ origin=Developer ID Application: Pedro Gomes (3D485NHW29)
 `spctl` 报 `no usable signature`）——而这不是安装路径检查的东西：`SignatureVerifier`
 的闸开在解出来的 `.app` 上，不在容器上。
 
-结论：**一键在技术上可行，只是还没有端到端验过**。要启用需要两步：(1) 走一遍真实
-安装验收；(2) beta 那条属于非 stable 渠道，必须先在 `ChannelProofRegistry` 登记
-proof（其资产名带 `-beta.`，可以用 `.artifact`）。在这之前保持 detection-only。
+### 启用后的形态（2026-09-03）
+
+两轨每个 release 各只发一个资产，beta 的名字带渠道：
+
+```text
+stable  Vorssaint-3.3.2.dmg          （tag v3.3.2）
+beta    Vorssaint-3.3.3-beta.3.dmg   （tag v3.3.3-beta.3）
+```
+
+- stable 的 `^Vorssaint-[0-9.]+\.dmg$` 里 `[0-9.]+` **跨不过 `-beta.3` 的连字符**，
+  所以它匹配不上 beta 资产。这不是多余的保险：`/releases/latest` 排除 prerelease 只在
+  正常路径成立，**列表兜底那条路没有这个保护**。
+- beta 已在 `ChannelProofRegistry.githubProofs` 登记
+  `.artifact(#"/download/v[0-9.]+-beta\."#)`。锚在 tag 路径段而不是裸 `-beta`——
+  owner（`vorssaintapp`）和 repo（`vorssaint-utils`）今天都不含这个词，但**能被每个
+  URL 的固定部分满足的 proof 是永远不会失败的 proof**（VSCodium 那条注释的教训）。
+  本次顺手补了一条从 registry 推导的检查 `anArtifactProofCannotMatchItsRulesInvariantURLPrefix`
+  来钉死这件事：写这条 proof 时把它改成裸 `vorssaint` 曾经**全套测试都能过**。
+
+### 端到端验收（2026-09-03，走 beta 这一侧，因为它才会出错）
+
+```text
+~/Applications 装 Vorssaint 3.3.3-beta.1（build 80）
+duo check    → 3.3.3-beta.1 → 3.3.3-beta.3  [GitHub, in-place]     ← 不是 stable 3.3.2
+duo install  → installed
+落盘          short 3.3.3-beta.3  build 82  Team 3D485NHW29
+```
+
+stable 与 beta **共享 bundle id 和 app 名**，`ReleaseChannel.detect` 只能靠显示版本里的
+`-beta.N` 分流——这条路径现在有真实安装验过，不只是单元测试。
 
 ## 结论
 

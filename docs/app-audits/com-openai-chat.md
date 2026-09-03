@@ -49,9 +49,13 @@ ChatGPT app."。截至 2026-08-30 仍在发版（1.2026.184，pubDate 2026-07-15
 | 证据 | — | feed 条目无 `<sparkle:deltas>`（观测 2026-08-30） | — |
 
 ## Changelog
-- 来源: feed `<description>` 是产品通知文案（劝用户换新 app），不是 release
-  notes；未接 ChangelogRecipe
-- Recipe 状态: 暂无——UI 回落到嵌入式网页
+- 来源: **没有**。feed 的 `<description>` 是产品通知文案，不是 release notes ——
+  2026-09-03 抓下原文核过，整段是：「"Install Update" to keep using ChatGPT Classic」
+  +「**[Recommended] Or, try the new ChatGPT app**」+ 一个指向新产品的链接。
+  全 feed **只有 1 个 `<item>`**，没有任何按版本的历史，同一段文案会挂在之后每一个
+  build 下面。
+- Recipe 状态: **有意不接**。把厂商的劝退广告渲染成「本次更新内容」比回落到嵌入式网页
+  更糟——后者至少如实呈现为「厂商的页面」。
 
 ## 一键安装
 - 状态: **不支持（detection-only）**。

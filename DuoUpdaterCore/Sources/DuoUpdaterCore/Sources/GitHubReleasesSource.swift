@@ -1238,30 +1238,46 @@ public enum GitHubReleaseRegistry {
         // bundle id and app name; the installed beta's real short version carries
         // `-beta.<N>`, which ReleaseChannel uses to select this pair safely.
         //
-        // Detection-only — but NOT because the artifacts are unsound. Re-measured
-        // 2026-09-03 on macOS 27.0 (26A5425a): the apps inside both the stable
-        // 3.3.2 and the 3.3.3-beta.3 dmg pass `codesign --verify --deep --strict`
-        // ("valid on disk", "satisfies its Designated Requirement") and
-        // `spctl -a -t execute` ("accepted", "Notarized Developer ID", ticket
-        // stapled, Team 3D485NHW29). The earlier reading of "invalid signature"
-        // did not reproduce; it coincided with spctl returning a Code Signing
-        // subsystem internal error on the same machine, which points at a
-        // transient system state rather than the artifact.
+        // One-click enabled 2026-09-03 after measuring the artifacts rather than
+        // trusting the earlier note. That note said the stable dmg's app failed
+        // strict code-sign verification on macOS 27 and used it as the reason to
+        // withhold an install spec; on the same OS build (27.0 / 26A5425a) both
+        // the stable 3.3.2 and the 3.3.3-beta.3 app pass
+        // `codesign --verify --deep --strict` ("valid on disk", "satisfies its
+        // Designated Requirement") and `spctl -a -t execute` ("accepted",
+        // "Notarized Developer ID", ticket stapled, Team 3D485NHW29). What IS
+        // unsigned is the dmg CONTAINER — and `SignatureVerifier` gates on the
+        // extracted `.app`, never the container, so it was never the blocker it
+        // was read as.
         //
-        // What IS unsigned is the dmg CONTAINER ("code object is not signed at
-        // all") — and that is not what the install path checks: `SignatureVerifier`
-        // gates on the extracted `.app`. So one-click is feasible here; it is
-        // simply not verified end to end yet, and the beta half would first need a
-        // `ChannelProofRegistry` entry (its asset name carries `-beta.`).
+        // Both trains ship exactly one asset per release, and the beta's carries
+        // the channel: `Vorssaint-3.3.2.dmg` vs `Vorssaint-3.3.3-beta.3.dmg`. The
+        // stable pattern's `[0-9.]+` run refuses the `-` in `-beta.3`, so it
+        // cannot match a beta artifact even on the list fallback (which is
+        // stable-only anyway); the beta pattern names the suffix outright. The
+        // beta pair is registered in `ChannelProofRegistry` — see
+        // `ChannelArtifactProof` for why an install-capable non-stable rule
+        // without a proof is a hard finding.
+        //
+        // Verified end to end 2026-09-03 from the beta side, which is the one
+        // that can go wrong: installed `3.3.3-beta.1` in `~/Applications`, the
+        // row offered `3.3.3-beta.3` and NOT stable 3.3.2 (the display version's
+        // `-beta.N` is what `ReleaseChannel.detect` reads — stable and beta share
+        // both the bundle id and the app name, so nothing else distinguishes
+        // them), and `duo install` landed it on the beta build.
         GitHubReleaseRule(
             bundleID: "com.vorssaint.utils",
             owner: "vorssaintapp", repo: "vorssaint-utils",
-            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Vorssaint-[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
         GitHubReleaseRule(
             bundleID: "com.vorssaint.utils",
             owner: "vorssaintapp", repo: "vorssaint-utils",
             usePrereleases: true,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
+            installAssetPattern: #"^Vorssaint-[0-9.]+-beta\.[0-9]+\.dmg$"#,
+            installerKind: .dmg,
             channel: .beta),
 
         // OpenLogi — fast-moving native Logitech utility. The real 0.8.1 bundle
@@ -1272,11 +1288,32 @@ public enum GitHubReleaseRegistry {
         // point at AprilNEA/OpenLogi, where stable tags are exactly `vX.Y.Z` and
         // publishing is gated on both macOS DMGs existing. The anchored pattern
         // rejects prerelease suffixes rather than truncating one onto stable.
-        // Detection-only until one-click is approved and separately verified.
+        //
+        // One-click verified 2026-09-03 end to end: installed 0.8.2 in
+        // `~/Applications`, `duo install` took it to 0.8.3. Mounted arm64 dmg:
+        // org.openlogi.openlogi, short `0.8.3` == tag, Team 8U3ZJ258K9 (the same
+        // Team 0.8.2 carries, so the swap gate passes), signed Developer ID and
+        // accepted by `spctl` as Notarized Developer ID. Each release also ships
+        // an `-macos-x86_64.dmg` plus Windows/Linux artifacts and a `.minisig`
+        // beside every one of them, so the pattern pins the arm64 dmg and ends on
+        // `.dmg$` — without the anchor `OpenLogi-v0.8.3-macos-arm64.dmg.minisig`
+        // truncates onto a URL nobody published.
+        //
+        // ⚠️ Two facts worth not rediscovering. The app carries NO stapled
+        // notarization ticket (0.8.2 and 0.8.3 both; it is how this vendor ships,
+        // not a regression) — `SignatureVerifier` checks signature validity and
+        // Team, never stapling, so the swap is unaffected, but Gatekeeper has to
+        // resolve the ticket online at first launch. And `CFBundleVersion` is a
+        // TIMESTAMP (`20260830.162827`), a different namespace from the tag —
+        // harmless only because this source sets the remote build to nil, so the
+        // comparison is marketing-only. Do not "improve" that by feeding the tag
+        // in as a build.
         GitHubReleaseRule(
             bundleID: "org.openlogi.openlogi",
             owner: "AprilNEA", repo: "OpenLogi",
-            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^OpenLogi-v[0-9.]+-macos-arm64\.dmg$"#,
+            installerKind: .dmg),
 
         // LocalSend — the reason `installAssetPattern` doubles as the macOS-release
         // gate. Upstream builds Windows/Linux/Android on CI but the dmg by hand

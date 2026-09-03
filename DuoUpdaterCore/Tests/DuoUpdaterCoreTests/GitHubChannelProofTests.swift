@@ -158,6 +158,42 @@ struct GitHubChannelProofTests {
     /// Written per-registry rather than as a loop over `githubProofs`, because
     /// the falsifying URL is different for each proof — a generic "does some
     /// string fail" test would be its own tautology.
+    /// Every `.artifact` proof, derived from the registry: the pattern must not
+    /// match the part of the URL that is FIXED for its rule.
+    ///
+    /// GitHub builds every asset URL for a rule as
+    /// `https://github.com/<owner>/<repo>/releases/download/<tag>/<name>`, so the
+    /// prefix through `/download/` is a constant this rule cannot vary. A proof
+    /// that matches inside that constant is satisfied by every URL the rule can
+    /// ever resolve — including stable's — and can therefore never fail. That is
+    /// the failure `aProofMustBeAbleToFailOnItsOwnRepository` below describes,
+    /// but it names ONE bundle id, and `stablesArtifactUnderAChannelRuleIsCaught`
+    /// hand-lists three; neither sees a rule added later. This one is derived, so
+    /// it covers the next one automatically.
+    ///
+    /// Caught in practice: writing the Vorssaint beta proof, a mutation to the
+    /// bare token `vorssaint` — which sits in BOTH the owner (`vorssaintapp`) and
+    /// the repo (`vorssaint-utils`), so it matches every URL this rule builds —
+    /// passed the entire suite. It fails here.
+    @Test func anArtifactProofCannotMatchItsRulesInvariantURLPrefix() {
+        for (key, proof) in ChannelProofRegistry.githubProofs {
+            guard case .artifact(let pattern) = proof else { continue }
+            guard let rule = GitHubReleaseRegistry.rules.first(where: {
+                $0.bundleID == key.bundleID && $0.channel == key.channel
+            }) else {
+                Issue.record("no GitHubReleaseRule for \(key)")
+                continue
+            }
+            let invariant = "https://github.com/\(rule.slug)/releases/download/"
+            #expect(
+                invariant.range(
+                    of: pattern, options: [.regularExpression, .caseInsensitive]) == nil,
+                """
+                \(key)'s proof /\(pattern)/ matches the invariant prefix                 \(invariant) — it is satisfied by every URL this rule can build,                 stable's included, so it can never fail
+                """)
+        }
+    }
+
     @Test func aProofMustBeAbleToFailOnItsOwnRepository() {
         let rule = try! #require(nonStableRule("com.vscodium.VSCodiumInsiders"))
         // Same repository, same host, a tag with no channel token: the shape a

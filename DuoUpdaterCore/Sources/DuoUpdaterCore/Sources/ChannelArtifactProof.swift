@@ -319,6 +319,19 @@ public enum ChannelProofRegistry {
         // anchor documents that exposure rather than pretending to close it.
         ChannelProofKey("com.t3tools.t3code", .alpha):
             .recipeAnchor(#"\[0-9\.\]\+-arm64"#, in: ["installAssetPattern"]),
+        // Vorssaint beta names its channel in the tag, and the single asset per
+        // release carries it too (`Vorssaint-3.3.3-beta.3.dmg`). Anchored on the
+        // tag segment of the download path rather than a bare `-beta`, for the
+        // reason spelled out on VSCodium above: neither the owner
+        // (`vorssaintapp`) nor the repo (`vorssaint-utils`) contains the token
+        // today, but a proof that could be satisfied by a fixed part of every URL
+        // this rule can ever build is a proof that cannot fail. Stable's artifact
+        // (`Vorssaint-3.3.2.dmg`, under `/download/v3.3.2/`) fails this pattern,
+        // which is the substitution the proof exists to catch — the two trains
+        // share the bundle id AND the app name, so the artifact is the only thing
+        // that tells them apart after the fact.
+        ChannelProofKey("com.vorssaint.utils", .beta):
+            .artifact(#"/download/v[0-9.]+-beta\."#),
     ]
 
     /// Every `(bundleID, channel)` in the GitHub registry that carries an install

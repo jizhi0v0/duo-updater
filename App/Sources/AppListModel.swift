@@ -488,8 +488,12 @@ final class AppListModel {
 
     /// The per-row tables as Core wants them. Seven copies of a
     /// copy-on-write collection: retains, no allocation.
+    ///
+    /// `.live` rather than the plain initialiser, which defaults every table:
+    /// this is the one place completeness matters, so an eighth table has to
+    /// break here rather than go quiet. Same rule as `RowActions.live`.
     private var rowStateTables: RowStateTables {
-        RowStateTables(
+        RowStateTables.live(
             installing: installing,
             needsRestart: needsRestart,
             pendingBatchRestart: pendingBatchRestart,

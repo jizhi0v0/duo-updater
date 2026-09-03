@@ -345,6 +345,35 @@ public struct RowStateTables: Sendable {
         self.awaitingQuitConfirm = awaitingQuitConfirm
         self.justUpdated = justUpdated
     }
+
+    /// The same tables with **no defaults** — what a UI layer must use.
+    ///
+    /// Every parameter above has a default because the tests populate one table
+    /// at a time on purpose, which is exactly the shape CLAUDE.md records for
+    /// `RowActions`: nine closures with empty defaults meant a forgotten one
+    /// compiled and shipped a dead button. Here there is one production caller,
+    /// so adding an eighth table and forgetting to wire it would compile, render
+    /// a plausible row, and be caught by nothing — not the gallery (which never
+    /// goes through `assemble`), not `RowActionStateTests` (which builds facts
+    /// directly), not the assembly suite (which populates partially by design).
+    ///
+    /// Calling this from the UI makes that omission a compile error at the one
+    /// place it matters, the way `RowActions.live` does.
+    public static func live(
+        installing: [String: InstallStage],
+        needsRestart: Set<String>,
+        pendingBatchRestart: [String: String],
+        pendingSelfUpdate: [String: StagedSelfUpdate],
+        relaunching: Set<String>,
+        awaitingQuitConfirm: [String: String],
+        justUpdated: Set<String>
+    ) -> RowStateTables {
+        RowStateTables(
+            installing: installing, needsRestart: needsRestart,
+            pendingBatchRestart: pendingBatchRestart,
+            pendingSelfUpdate: pendingSelfUpdate, relaunching: relaunching,
+            awaitingQuitConfirm: awaitingQuitConfirm, justUpdated: justUpdated)
+    }
 }
 
 public struct RowActionFacts {

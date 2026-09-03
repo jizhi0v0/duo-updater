@@ -117,6 +117,38 @@ struct NeedsActionTests {
         #expect(!needsAction(row(installed: "2.0", latest: nil), staged: stagedBuild("1.0")))
     }
 
+    /// Skipping the version silences a staged build too. This is the ONLY reason
+    /// the term goes through `nudgeableStaged` rather than the cheaper
+    /// `actionableStaged`, which applies the newer-than-installed gate but not
+    /// the user's skip — so without this case, swapping one for the other leaves
+    /// every other case green while a hidden version keeps lighting the badge.
+    ///
+    /// Mutation: `nudgeableStaged(…)` replaced by
+    /// `actionableStaged(result, staged: staged)`.
+    @Test func askippedVersionSilencesAStagedBuildToo() {
+        #expect(!needsAction(row(latest: nil), skipped: true, staged: stagedBuild("2.0")))
+        // The same row without the skip does count — otherwise the assertion
+        // above would hold for the wrong reason.
+        #expect(needsAction(row(latest: nil), skipped: false, staged: stagedBuild("2.0")))
+    }
+
+    /// Which version is offered to the skip check: the REMOTE side, not the
+    /// installed one. Reading the installed side would silence the app
+    /// permanently after a single skip — the failure `VersionSide` exists to
+    /// prevent.
+    ///
+    /// Mutation: `isVersionSkipped(result.app.versionSide)` in
+    /// `isActionableUpdate`.
+    @Test func theSkipCheckIsAskedAboutTheRemoteVersion() {
+        var seen: [VersionSide?] = []
+        _ = UpdatePolicy.isActionableUpdate(
+            row(installed: "1.0", latest: "2.0"), isIgnored: false,
+            isVersionSkipped: { seen.append($0); return false })
+
+        #expect(seen.count == 1)
+        #expect(seen.first??.marketing == "2.0")
+    }
+
     /// Nothing staged means nothing to count. Deliberately NOT a test of the
     /// `staged != nil` short-circuit that precedes the `nudgeableStaged` call:
     /// that check is behaviour-neutral (see the note on `needsAction`), so no
@@ -237,6 +269,59 @@ struct RowFactsAssemblyTests {
         #expect(!f.needsRestart && !f.isRelaunching && !f.justUpdated)
     }
 
+    /// The five facts that come from somewhere other than a table. The fixture
+    /// used by every other case here is all-false and all-nil, so a transposition
+    /// among them is invisible: `isIgnored: isVersionSkipped` renders a skipped
+    /// row as Ignored (`RowAction.state` ranks ignored first), and the three
+    /// source hints feed the `.unknown`/`.upToDate` rungs' badges.
+    ///
+    /// Same fixture-distribution trap CLAUDE.md records twice for the gallery —
+    /// a fixture that is constant across a set of branches measures one branch
+    /// and reports on all of them.
+    ///
+    /// Mutations: transpose `isIgnored` with `isVersionSkipped`; feed any one of
+    /// the three hints from either of the other two.
+    @Test func theNonTableFactsEachComeFromTheirOwnSource() {
+        let ignored = RowActionFacts.assemble(
+            for: row, tables: RowStateTables(), isIgnored: true,
+            isVersionSkipped: false, route: .autoInstall)
+        #expect(ignored.isIgnored && !ignored.isVersionSkipped)
+
+        let skipped = RowActionFacts.assemble(
+            for: row, tables: RowStateTables(), isIgnored: false,
+            isVersionSkipped: true, route: .autoInstall)
+        #expect(skipped.isVersionSkipped && !skipped.isIgnored)
+
+        for (label, app) in [
+            ("mas", hinted(isMASApp: true)),
+            ("testflight", hinted(isTestFlightApp: true)),
+            ("sparkle", hinted(sparkle: URL(string: "https://example.com/appcast.xml"))),
+        ] {
+            let f = RowActionFacts.assemble(
+                for: UpdateResult(app: app, remote: nil, status: .upToDate),
+                tables: RowStateTables(), isIgnored: false, isVersionSkipped: false,
+                route: .autoInstall)
+            let hits = [f.isMASApp, f.isTestFlightApp, f.hasSparkleFeed].filter { $0 }.count
+            #expect(hits == 1, "\(label) set \(hits) hints")
+            switch label {
+            case "mas": #expect(f.isMASApp)
+            case "testflight": #expect(f.isTestFlightApp)
+            default: #expect(f.hasSparkleFeed)
+            }
+        }
+    }
+
+    private func hinted(
+        isMASApp: Bool = false, isTestFlightApp: Bool = false, sparkle: URL? = nil
+    ) -> InstalledApp {
+        InstalledApp(
+            name: "Example", bundleID: "com.example.app",
+            shortVersion: "1.0", buildVersion: nil,
+            path: URL(fileURLWithPath: Self.path),
+            isMASApp: isMASApp, isToolboxManaged: false,
+            isTestFlightApp: isTestFlightApp, sparkleFeedURL: sparkle)
+    }
+
     /// A staged build not ahead of what is installed is not a relaunch target —
     /// the target goes through `UpdatePolicy.actionableStaged`, not straight off
     /// the table.
@@ -268,11 +353,20 @@ struct RowFactsAssemblyTests {
         final class Counter: @unchecked Sendable { var calls = 0 }
         let counter = Counter()
 
-        _ = RowActionFacts.assemble(
+        let facts = RowActionFacts.assemble(
             for: row, tables: RowStateTables(), isIgnored: false,
             isVersionSkipped: false,
-            route: { counter.calls += 1; return UpdateRoute.autoInstall }())
+            route: { counter.calls += 1; return UpdateRoute.majorUpgrade }())
 
         #expect(counter.calls == 0)
+
+        // Deferred is only half of it: `RowActionFacts.route` has a DEFAULT, so
+        // dropping the argument from `assemble` altogether compiles and leaves a
+        // deferral-only assertion green — while every `.updateAvailable` row in
+        // production renders whatever that default happens to be. Read it once
+        // and check the value arrived. (`routeIsDeferred` in RowActionStateTests
+        // carries the same positive pole for the same reason.)
+        #expect(facts.route() == .majorUpgrade)
+        #expect(counter.calls == 1)
     }
 }

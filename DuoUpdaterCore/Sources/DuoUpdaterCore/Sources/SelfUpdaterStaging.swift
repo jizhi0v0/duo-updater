@@ -361,12 +361,16 @@ public enum SelfUpdaterStaging {
     ///
     /// `…Updater` is Sparkle 2's progress agent — observed live as pid 27939 at
     /// `…/Caches/com.tinyapp.TablePlus/org.sparkle-project.Sparkle/Launcher/<random>/Updater.app`.
+    /// Sparkle 2's own `Autoupdate` ships alongside it as a bare executable with
+    /// no bundle (same TablePlus install), so it has no identifier to query.
     ///
-    /// Sparkle 1's bundled `org.sparkle-project.Sparkle.Autoupdate` is deliberately
-    /// absent. In the automatic-update path the host process arms the quit hook;
-    /// `Autoupdate.app` is launched only after termination begins, too late to be
-    /// evidence for `RestartStandoff`. Sparkle 1 also stages below a random temp
-    /// path instead of the cache tree this detector validates. Querying its bundle
+    /// Sparkle 1's `Autoupdate.app` — a real bundle, `CFBundleIdentifier =
+    /// org.sparkle-project.Sparkle.Autoupdate` (VLC 1.16.0, Eudic 1.27.3) — is
+    /// deliberately absent from this list. Not because it is unenumerable: it is
+    /// because in the automatic-update path the host process arms the quit hook
+    /// itself, and `Autoupdate.app` is only launched from `applicationWillTerminate:`
+    /// — after the decision `RestartStandoff` makes has already been acted on, so
+    /// it never exists yet when this list would be queried. Querying its bundle
     /// id here could never make the detector answer non-nil and misleadingly made
     /// this list look like coverage. See `RestartStandoff`'s known limitation.
     static let sparkleInstallerBundleIDs = [

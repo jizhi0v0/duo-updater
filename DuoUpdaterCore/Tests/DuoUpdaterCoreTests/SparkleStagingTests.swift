@@ -381,14 +381,14 @@ struct SparkleStagingTests {
     /// A tripwire for the machines the test above finds nothing on: changing the
     /// Sparkle 2 identifier fails loudly instead of turning the standoff off in
     /// silence. Sparkle 1's `…Autoupdate` must stay absent: it is launched by the
-    /// host's termination hook only after the decision this detector serves, and
-    /// its random temp staging is not readable through this Sparkle 2 cache walk.
+    /// host's termination hook only after the decision this detector serves, so it
+    /// never exists yet to be queried — not because its staging is unreadable
+    /// through this cache walk (it stages under the same `Caches/<bundleID>/
+    /// org.sparkle-project.Sparkle/` tree Sparkle 2 does, see `RestartStandoff`).
     @Test func theParkedInstallerIdentityCoversSparkle2Only() {
         #expect(SelfUpdaterStaging.sparkleInstallerBundleIDs == [
             "org.sparkle-project.Sparkle.Updater",
         ])
-        #expect(!SelfUpdaterStaging.sparkleInstallerBundleIDs.contains(
-            "org.sparkle-project.Sparkle.Autoupdate"))
     }
 
     // MARK: - The Amp scenario, end to end

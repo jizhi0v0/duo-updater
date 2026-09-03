@@ -23,12 +23,21 @@ import Foundation
 /// `NSApplicationWillTerminateNotification` observer in the host process and
 /// launches `Autoupdate.app` only after the quit has begun. Before the decision
 /// this type is asked to make there is therefore no parked helper to enumerate.
-/// Its extracted bundle also lives below a random `NSTemporaryDirectory()` path,
-/// not Sparkle 2's bundle-id-keyed cache. Neither a leftover extraction nor the
-/// mere presence of the Sparkle 1 framework proves that an install is armed.
-/// `disableSuddenTermination` accompanies the hook, but no public cross-process
-/// API and acceptable noise floor have been established for that signal. Do not
-/// turn any of those into a hold-back predicate without first measuring it.
+/// The gap is not that its extraction is unfindable: Sparkle 1 stages downloads
+/// and extraction under `Caches/<bundleID>/org.sparkle-project.Sparkle/
+/// PersistentDownloads/` (confirmed against the 1.16.0 and 1.27.3 sources —
+/// `SPUDownloader.getAndCleanTempDirectory` calls `SPULocalCacheDirectory
+/// .cachePathForBundleIdentifier:`), the same bundle-id-keyed tree
+/// `sparkleStagedBundle` already walks for Sparkle 2's `Installation/`, just a
+/// different subdirectory. What is missing is a signal independent of the host
+/// process that proves an install is armed: `PersistentDownloads/` has the same
+/// stale-leftover problem `Installation/` does — Sparkle only garbage-collects
+/// entries older than ten days, and only on the next staging run — so an
+/// unpacked bundle sitting there is no more evidence than one in `Installation/`
+/// is. `disableSuddenTermination` accompanies the hook, but no public
+/// cross-process API and acceptable noise floor have been established for that
+/// signal. Do not turn any of those into a hold-back predicate without first
+/// measuring it.
 ///
 /// The decision therefore is not "is another installer armed" — that alone is
 /// harmless — but "is it armed with something OTHER than what we just wrote".

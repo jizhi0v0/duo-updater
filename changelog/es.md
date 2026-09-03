@@ -2,6 +2,22 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.81
+
+**Word, Excel, PowerPoint, Outlook y OneNote ya se dan cuenta de que su actualización se instaló.** Estas cinco seguían ofreciendo reabrir un instalador que ya habías terminado y nunca llegaban a ofrecer el reinicio: esperar o volver a comprobar no lo resolvía.
+
+**Una fila que espera reiniciarse vuelve a explicarse, en ambas ventanas.** Cuando una app iba por delante de lo que publica su proveedor y además esperaba un reinicio, la línea sobre el botón describía algo totalmente distinto; en las filas que esperaban el reinicio de «Actualizar todo», la ventana y el menú también se contradecían.
+
+**Las etiquetas de estado ya no desplazan el nombre de la app en ruso.** Además, algunas etiquetas tomaban prestada la redacción de textos sin relación en todos los idiomas traducidos.
+
+**Las notas de la versión ya aparecen para las apps cuyo proveedor fecha una publicación sin indicar la hora.** Antes esas publicaciones no dejaban rastro en ninguna parte.
+
+**Una página de notas que nos negamos a abrir ahora dice por qué.** Antes se quedaba en blanco, lo que parecía exactamente una app que no publica notas.
+
+**Las notas de la versión Nightly de WeChat DevTools ya no están vacías.**
+
+**Por dentro.** El manejo de versiones y de fechas de publicación se unificó, de modo que un número de compilación nunca se lee como versión comercial y la cronología de publicaciones ya no inventa una hora que el proveedor nunca dio.
+
 ## 0.3.80
 
 **Las comprobaciones fallidas ya se ven en la ventana.** La ventana no dibujaba nada para una fila cuya comprobación había fallado —ni para las que habías ignorado, aquellas cuya versión habías omitido, ni las que gestionan la App Store, Toolbox o TestFlight—, y eso se veía exactamente igual que «al día». Ahora las dos ventanas dicen lo mismo sobre la misma aplicación, y el botón para reintentar está en ambas.

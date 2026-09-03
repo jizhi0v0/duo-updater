@@ -33,7 +33,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **WeChat DevTools nightly release notes are no longer empty.**
 
-Under the hood: version and release-date handling were consolidated so a build number can never be read as a marketing version, and the release timeline no longer invents a time of day the vendor never gave.
+**Under the hood.** Version and release-date handling were consolidated so a build number can never be read as a marketing version, and the release timeline no longer invents a time of day the vendor never gave.
 
 ## 0.3.80
 

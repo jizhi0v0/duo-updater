@@ -675,21 +675,55 @@ public enum UpdatePolicy {
     }
 
     /// Normalize app bundle paths reported by running processes back to the live
-    /// installed bundle. macOS can keep a process mapped to DuoUpdater's temporary
-    /// `replaceItemAt` staging name after a hot swap; treating that hidden/deleted
-    /// path as distinct makes running detection and Relaunch miss the exact app.
+    /// installed bundle. The premise: macOS *can* keep a process mapped to
+    /// DuoUpdater's temporary `replaceItemAt` staging name after a hot swap;
+    /// treating that hidden/deleted path as distinct would make running detection
+    /// and Relaunch miss the exact app.
     ///
-    /// Rewrites **every** component, not just the last one. An app nested inside
-    /// another app's bundle — Surge ships `Surge.app/Contents/Applications/Surge
-    /// Dashboard.app`, and it is a full app with its own bundle id, not a helper
-    /// the parent process owns — reports a path whose staged component is in the
-    /// middle:
+    /// ⚠️ That premise is asserted at every one of this function's callers and
+    /// measured at none of them (issue #242). The one existing measurement in this
+    /// repo of a related question points the other way:
+    /// `docs/app-audits/com-eusoft-eudic.md` records that after moving a bundle
+    /// aside by hand, both `NSRunningApplication.bundleURL` and `lsappinfo` kept
+    /// reporting the ORIGINAL path, not the moved-aside one — overturning a prior
+    /// assumption to the contrary.
+    ///
+    /// Measured here specifically, 2026-09-03 on macOS 27.0 (26A5425a, arm64): a
+    /// throwaway `.app` was launched, then put through this file's *actual*
+    /// unprivileged swap — `FileManager.moveItem` to `.duoupdater-staged-<name>`
+    /// followed by `FileManager.replaceItemAt`, the same two calls
+    /// `InPlaceSwap.replace(newApp:over:)` makes for an unelevated target. The
+    /// still-running old process's `NSRunningApplication.bundleURL` and
+    /// `lsappinfo`'s `bundle path` both kept reporting the pre-swap path
+    /// throughout and after the swap — no `.duoupdater-staged-` component ever
+    /// appeared. Repeated for the nested shape below (an inner app, itself
+    /// untouched, running out of an outer bundle that gets swapped from under
+    /// it): same result, original path throughout for the inner app too.
+    ///
+    /// So on the one route measured — unprivileged in-place swap, flat and
+    /// nested — this function's rewrite is a no-op on the input it actually
+    /// receives here: nothing in that route ever hands it a path carrying a
+    /// staged/-old/-new component. UNMEASURED: the privileged (administrator
+    /// prompt) swap route (`privilegedReplace`) and the Contents-rotation route
+    /// input methods use (`rotateContents`) — either could behave differently,
+    /// and the commit that added the nested-path rewrite below (1d08b62,
+    /// 2026-08-26) narrates a real Surge incident as if `bundleURL` had shown
+    /// the staged component for the nested Dashboard process, but the commit
+    /// and its tests only ever construct that path as a string literal — no
+    /// raw captured value from the incident backs the claim.
+    /// Don't delete this rewrite on the strength of one route's measurement;
+    /// see issue #242 for what measuring the other two routes would take.
+    ///
+    /// Rewrites **every** component, not just the last one, in case the staged
+    /// name ever does leak through: an app nested inside another app's bundle —
+    /// Surge ships `Surge.app/Contents/Applications/Surge Dashboard.app`, and it
+    /// is a full app with its own bundle id, not a helper the parent process
+    /// owns — would report a path whose staged component is in the middle:
     ///
     ///     /Applications/.duoupdater-staged-Surge.app/Contents/Applications/Surge Dashboard.app
     ///
-    /// Normalising the leaf alone left that string untouched, so nothing could
-    /// tell that the process belonged to Surge at all, and the nested app went on
-    /// running the pre-swap binary out of a bundle that had been moved aside.
+    /// Normalising the leaf alone would leave that string untouched, so nothing
+    /// could tell that the process belonged to Surge at all.
     public static func runtimeBundlePath(_ url: URL) -> String {
         let resolved = url.resolvingSymlinksInPath()
         let stagedPrefix = ".duoupdater-staged-"

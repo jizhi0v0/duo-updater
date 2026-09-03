@@ -19,20 +19,20 @@ import Foundation
 /// dashed (`"2026-08-31"`). `parse` returns nil for that spelling rather than
 /// fabricating a midnight moment the vendor never stated — the release timeline
 /// only plots a `publishedAt` it can trust to the minute (see
-/// `ReleaseTimelineStore`). Use ``parseWithPrecision(_:)`` when the caller has
-/// somewhere honest to put a day-only value (`vendorDay`, not `publishedAt`).
+/// `ReleaseTimelineStore`). Use ``parseWithPrecision(_:)`` (or the even more
+/// convenient ``publishedFields(from:)``) when the caller has somewhere honest
+/// to put a day-only value (`vendorDay`, not `publishedAt`).
 ///
-/// ⚠️ EXCEPTION, not swept up in the above: a bare 8-digit run (`"20260831"`) is
-/// ALSO a calendar day with no time, but `parse` still returns a plain `Date`
-/// for it via the `date(fromDigits:)` branch below — pre-existing behavior from
-/// #222, left unchanged here. Fixing it would touch `parse`'s one return path
-/// shared by every caller (`AlcoveUpdateSource`, `GitHubReleasesSource`,
-/// `ElectronManifestSource`, `VendorProbeSource`, and `SparkleAppcastSource`
-/// before this file's `publishedFields`/`releaseHistory` moved off it), which
-/// needs its own decision per caller, not a change riding along with this one.
-/// `parseWithPrecision` tags this shape `.day` too, for what that is worth: it
-/// changes what a *new* caller of that entry point sees, not what `parse`
-/// itself returns.
+/// #300: every production caller now goes through ``publishedFields(from:)``
+/// (`AlcoveUpdateSource`, `ElectronManifestSource`, `GitHubReleasesSource`,
+/// `SparkleAppcastSource`, `VendorProbeSource`) rather than `parse` directly, so
+/// `parse` itself is `internal`, not `public` — there is no external caller left
+/// to preserve source compatibility for. It stays as the implementation `parse`
+/// always was (unlike `parseWithPrecision`, it still reads a bare 8-digit
+/// `"20260831"` as a plain `Date` rather than tagging it `.day` — pre-existing
+/// #222 behavior), kept because `ReleaseDateTests.swift` uses it to pin the
+/// numeric-window and formatter logic `parseWithPrecision` shares with it, one
+/// layer below the day/minute split.
 public enum ReleaseDate {
 
     /// Convert a raw feed date string to a `Date`, or nil when it's empty or in a
@@ -42,8 +42,10 @@ public enum ReleaseDate {
     /// Returns nil for a *dashed* date-only day (`"2026-08-31"`) — see
     /// ``parseWithPrecision(_:)`` for that case — but NOT for a *bare-digit*
     /// date-only day (`"20260831"`): that one still comes back as a plain `Date`,
-    /// unchanged pre-existing behavior explained on ``ReleaseDate`` above.
-    public static func parse(_ raw: String?) -> Date? {
+    /// unchanged pre-existing behavior explained on ``ReleaseDate`` above. Moot
+    /// for every production caller since #300 (none call `parse` any more), but
+    /// still exercised directly by `ReleaseDateTests.swift`.
+    static func parse(_ raw: String?) -> Date? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }
 
@@ -317,5 +319,27 @@ extension ReleaseDate {
         }
 
         return nil
+    }
+
+    /// Split a raw feed date string into the one field it may honestly fill,
+    /// per ``Precision``: a real time of day becomes `publishedAt` — the only
+    /// tier `ReleaseTimeline.publishedAt`/`ReleaseTimelineStore` may plot to the
+    /// minute — while a bare calendar day becomes `vendorDay` instead of a
+    /// fabricated midnight moment the vendor never stated. Never both.
+    ///
+    /// #300: this is the one place that routing happens, shared by every
+    /// `UpdateSource` that reads a vendor timestamp (`AlcoveUpdateSource`,
+    /// `ElectronManifestSource`, `GitHubReleasesSource`, `SparkleAppcastSource`,
+    /// `VendorProbeSource`) — previously `SparkleAppcastSource` carried its own
+    /// copy of exactly this switch while the other four sources called `parse`
+    /// directly and so had no `vendorDay` tier at all. One routing function
+    /// means the "day precision never reaches `publishedAt`" invariant only
+    /// has to be true in one place for it to be true everywhere.
+    public static func publishedFields(from raw: String?) -> (publishedAt: Date?, vendorDay: Date?) {
+        guard let parsed = parseWithPrecision(raw) else { return (nil, nil) }
+        switch parsed.precision {
+        case .minute: return (parsed.date, nil)
+        case .day: return (nil, parsed.date)
+        }
     }
 }

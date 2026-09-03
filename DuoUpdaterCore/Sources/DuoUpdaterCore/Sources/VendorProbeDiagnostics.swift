@@ -218,19 +218,23 @@ public enum ProbeWarning: Sendable, Equatable {
     /// with no warnings check would call this recipe healthy.
     ///
     /// Deliberately NOT `publishedAtUnreadable`. That one means the pattern DID
-    /// fire and `ReleaseDate` rejected the captured text — there is a value to
-    /// show and a date spelling to add support for. This one means the pattern
-    /// never matched at all, so there is nothing captured to show; the fix is
-    /// to go re-derive the pattern against the vendor's current response, same
-    /// as `displayPatternNoMatch`. A recipe missing `publishedAtPattern`
-    /// entirely stays quiet — that is the normal, supported "no publish time"
-    /// shape and not a degradation of anything the recipe author declared.
+    /// fire and `ReleaseDate` rejected the captured text at both tiers — there
+    /// is a value to show and a date spelling to add support for. This one
+    /// means the pattern never matched at all, so there is nothing captured to
+    /// show; the fix is to go re-derive the pattern against the vendor's
+    /// current response, same as `displayPatternNoMatch`. A recipe missing
+    /// `publishedAtPattern` entirely stays quiet — that is the normal,
+    /// supported "no publish time" shape and not a degradation of anything the
+    /// recipe author declared.
     case publishedAtPatternNoMatch
-    /// `publishedAtPattern` captured a value, but `ReleaseDate` could not parse
-    /// it. The version remains usable, but the release timeline loses its exact
-    /// event and `duo verify`'s age-gated phantom-update check is disabled.
-    /// Carry the captured value so the recipe author can see which date spelling
-    /// needs support without reproducing a response that may already have moved.
+    /// `publishedAtPattern` captured a value, but `ReleaseDate.publishedFields`
+    /// could parse it as neither a `.minute`-precise time nor a bare `.day` —
+    /// so it produced neither `publishedAt` nor `vendorDay`. The version
+    /// remains usable, but the release timeline loses this release's event
+    /// entirely and `duo verify`'s age-gated phantom-update check is disabled.
+    /// Carry the captured value so the recipe author can see which date
+    /// spelling needs support without reproducing a response that may already
+    /// have moved.
     case publishedAtUnreadable(String)
 
     /// The part of a warning that varies, kept OUT of `kind` on purpose.

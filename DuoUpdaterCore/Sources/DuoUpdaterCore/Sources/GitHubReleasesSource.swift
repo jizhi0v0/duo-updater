@@ -540,10 +540,19 @@ public struct GitHubReleasesSource: UpdateSource {
         // visible release history into the timeline at no extra network cost (these
         // are the same releases we already fetched). A single-`latest` fetch yields
         // just one entry; a prerelease-channel list yields the whole page.
+        //
+        // #300: GitHub's `published_at` is normally a full ISO8601 timestamp, so
+        // this almost always resolves to `.minute` in practice — but routing it
+        // through `publishedFields` rather than the old `ReleaseDate.parse` means
+        // a release that only carried a bare calendar day would still get a
+        // history entry (as `vendorDay`) instead of being silently dropped, same
+        // as `SparkleAppcastSource.releaseHistory` already does.
         let history: [ReleaseHistoryEntry] = releases.compactMap { release in
-            guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern),
-                  let date = ReleaseDate.parse(release.publishedAt) else { return nil }
-            return ReleaseHistoryEntry(version: v, publishedAt: date)
+            guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern)
+            else { return nil }
+            let fields = ReleaseDate.publishedFields(from: release.publishedAt)
+            guard fields.publishedAt != nil || fields.vendorDay != nil else { return nil }
+            return ReleaseHistoryEntry(version: v, publishedAt: fields.publishedAt, vendorDay: fields.vendorDay)
         }
         var skippedForMissingAsset: [String] = []
         var archIncompatible = false
@@ -581,6 +590,11 @@ public struct GitHubReleasesSource: UpdateSource {
                 let structured = body.flatMap {
                     GitHubMarkdownParser.parse(body: $0, version: version, date: release.publishedAt)
                 }
+                // #300: same day/minute split as the history backfill above —
+                // `release.publishedAt` is normally a full ISO8601 timestamp,
+                // but a bare calendar day now lands honestly in `vendorDay`
+                // instead of being dropped by the old `ReleaseDate.parse`.
+                let publishedFields = ReleaseDate.publishedFields(from: release.publishedAt)
 
                 // When the rule names an installable asset and this release ships
                 // a matching one, offer a one-click in-place install (the Team-ID
@@ -608,7 +622,8 @@ public struct GitHubReleasesSource: UpdateSource {
                     releaseNotesHTML: structured == nil ? body : nil,
                     structuredChangelog: structured,
                     changelogURL: page,
-                    publishedAt: ReleaseDate.parse(release.publishedAt),
+                    publishedAt: publishedFields.publishedAt,
+                    vendorDay: publishedFields.vendorDay,
                     releaseHistory: history
                 ), tags: releases.map(\.tag), archIncompatible: false)
             }

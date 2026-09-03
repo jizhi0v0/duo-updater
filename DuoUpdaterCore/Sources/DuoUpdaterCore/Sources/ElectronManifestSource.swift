@@ -187,6 +187,12 @@ public struct ElectronManifestSource: UpdateSource {
         // read) is broken, so it does not affect the health verdict — same reasoning
         // `GitHubReleasesSource` gives its own `archIncompatible` rows no miss.
         await RecipeHealth.shared.recordSuccess(id: healthID, source: name)
+        // #300: `manifest.releaseDate` is electron-builder's own `releaseDate`
+        // field (normally a full ISO8601 timestamp), routed through the same
+        // day/minute split every other source uses rather than the old
+        // `ReleaseDate.parse`, which had no honest place to put a bare
+        // calendar day and so silently dropped one.
+        let fields = ReleaseDate.publishedFields(from: manifest.releaseDate)
         return RemoteVersion(
             shortVersion: manifest.version,
             version: nil,
@@ -195,7 +201,8 @@ public struct ElectronManifestSource: UpdateSource {
             sourceName: name,
             vendorInstallerKind: Self.kind(of: file?.url),
             expectedSHA512: file?.sha512,
-            publishedAt: ReleaseDate.parse(manifest.releaseDate))
+            publishedAt: fields.publishedAt,
+            vendorDay: fields.vendorDay)
     }
 
     /// The archive kind, from the chosen artifact's own extension.

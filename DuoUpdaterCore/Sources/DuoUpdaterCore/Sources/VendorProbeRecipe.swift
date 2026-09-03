@@ -6254,6 +6254,45 @@ public enum VendorProbeRegistry {
             hostRequirement: VendorHostRequirement(minimumSystemVersion: "10.10"),
             installedVersionPattern: #"^5\."#),
 
+        // MARK: - 2026-08-30 Chatbox
+
+        // Chatbox — desktop client for OpenAI-compatible chat APIs (Electron,
+        // electron-updater). No Sparkle: the real bundle (downloaded and mounted
+        // 2026-08-30) carries no `SUFeedURL`, and the cask (`chatbox`) is
+        // `auto_updates true`, which makes `HomebrewCaskSource` skip it — the
+        // electron-builder feed is the only public "latest version" surface.
+        // It is also EXACTLY the endpoint Homebrew's own `livecheck` block
+        // resolves against (`strategy :electron_builder`), a third-party witness
+        // that this is the vendor's intended version surface, not a guess.
+        //
+        // Feed shape: `version: 1.22.6` on the first line, then a `files:` list
+        // pairing each artifact's relative `url:` with its base64 `sha512:`.
+        // The arm64 dmg is resolved against `download.chatboxai.app/releases/`
+        // and its sha512 verified from the feed — unlike Signal's yml, the hash
+        // here IS the bytes the CDN serves: computed over the real downloaded
+        // dmg 2026-08-30, byte-for-byte equal (151,499,252 bytes). The x64 dmg
+        // and both zips are siblings we deliberately don't select; DuoUpdater
+        // is arm64-only. Signed "Developer ID Application" (Team YJ5GSB3AMW,
+        // notarized) — matches the mounted artifact, so the VendorInstaller
+        // Team gate passes.
+        //
+        // `version` is the marketing string and equals the installed
+        // CFBundleShortVersionString (1.22.6 == build 1.22.6); no versionIsBuild.
+        //
+        // Single channel, self-contained bundle (no daemons outside the .app) →
+        // `kind: .dmg` is right.
+        VendorProbeRecipe(
+            bundleID: "xyz.chatboxapp.app",
+            url: URL(string: "https://download.chatboxai.app/releases/latest-mac.yml")!,
+            mode: .responseBody,
+            versionPattern: #"version:\s*([0-9][^\s]*)"#,
+            downloadURL: URL(string: "https://chatboxai.app/en")!,
+            install: VendorInstallSpec(
+                urlSource: .bodyPatternRelative(
+                    #"(Chatbox-[^\s]+-arm64\.dmg)"#,
+                    base: URL(string: "https://download.chatboxai.app/releases/")!),
+                kind: .dmg,
+                checksumPattern: #"Chatbox-[^\n]+-arm64\.dmg\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#)),
         // MARK: - 2026-08-30 AnythingLLM
 
         // AnythingLLM — private desktop AI chat (Electron). No Sparkle: the real

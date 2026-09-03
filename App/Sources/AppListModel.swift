@@ -5343,11 +5343,6 @@ final class AppListModel {
         Log.app.info("permissions: accessibility=\(self.accessibilityTrusted, privacy: .public) appManagement=\(String(describing: self.appManagementStatus), privacy: .public)")
     }
 
-    /// Upper bound on how long after launch the first auto-check may wait. Caps the
-    /// persisted-`lastCheck` interval for the first tick only, so a relaunch refreshes
-    /// within minutes instead of sleeping a full (up to 6h) interval — while a flurry
-    /// of dev relaunches inside this window is still throttled to one check.
-    private static let launchCheckFloor: TimeInterval = 5 * 60
 
     /// Drop the App Nap opt-out (if held). Called when switching to manual, where
     /// there's no loop to keep alive.
@@ -5385,24 +5380,12 @@ final class AppListModel {
             var isFirstCheck = true
             while !Task.isCancelled {
                 guard let self else { return }
-                // The FIRST check after launch uses a small floor instead of the
-                // full interval. `lastCheck` is persisted across relaunches (so we
-                // don't re-check on *every* launch), but a fresh process starts with
-                // an empty in-memory list — without this floor a relaunch that
-                // inherited a recent `lastCheck` would sleep a whole interval (up to
-                // 6h) showing nothing. The floor refreshes promptly after launch
-                // while still throttling rapid dev relaunches within a few minutes.
-                let effectiveInterval = isFirstCheck ? min(interval, Self.launchCheckFloor) : interval
-                // Sleep only until the next check is *due* relative to the last one
-                // — zero (run now) when we're already overdue, e.g. a cold launch.
-                let due = (self.lastCheck ?? .distantPast).addingTimeInterval(effectiveInterval)
-                // A cold launch with nothing in memory yet shows the empty zero-badge
-                // icon until something populates `results`. Check immediately in that
-                // case rather than waiting out the floor, so the menu-bar icon
-                // reflects real state right after (re)launch without a click.
-                let wait = (isFirstCheck && self.results.isEmpty)
-                    ? 0
-                    : max(0, due.timeIntervalSinceNow)
+                // The arithmetic — the launch floor, the due time, and the
+                // run-now case for a cold launch with nothing in memory — is
+                // `CheckSchedule.nextWait` in Core, where it is executed.
+                let wait = CheckSchedule.nextWait(
+                    now: .now, lastCheck: self.lastCheck, interval: interval,
+                    isFirstCheck: isFirstCheck, hasResults: !self.results.isEmpty)
                 if wait > 0 {
                     try? await Task.sleep(for: .seconds(wait))
                     guard !Task.isCancelled else { return }
@@ -6196,33 +6179,14 @@ final class AppListModel {
     ///
     /// …except while the order is frozen (see `pinRowOrder`), when every row the
     /// user can already see keeps the slot it had, whatever its rank has become.
+    /// The order is `RowOrder.sorted` in Core, where it is executed. This is the
+    /// wiring that hands it the tables it ranks by.
     private func sorted(_ list: [UpdateResult]) -> [UpdateResult] {
-        func rank(_ r: UpdateResult) -> Int {
-            if needsRestart.contains(r.id) { return 0 }
-            // A staged build that IS the latest is one relaunch from live, just like
-            // needs-restart — top tier. One that trails the latest ranks as a normal
-            // pending update (it'll show Update).
-            if actionableStaged(r) != nil { return 0 }
-            if r.hasUpdate { return 1 }
-            return 2
-        }
-        return list.sorted { a, b in
-            // Frozen: pinned rows hold their recorded slot, and anything that showed
-            // up since the freeze goes after them (inserting into the middle would
-            // push the pinned rows down, which is the thing being prevented).
-            if !pinnedOrder.isEmpty {
-                switch (pinnedOrder[a.id], pinnedOrder[b.id]) {
-                case let (pa?, pb?): return pa < pb
-                case (_?, nil): return true
-                case (nil, _?): return false
-                case (nil, nil): break  // both new — fall through to the normal order
-                }
-            }
-            let ra = rank(a), rb = rank(b)
-            if ra != rb { return ra < rb }
-            return a.app.name.localizedCaseInsensitiveCompare(b.app.name) == .orderedAscending
-        }
+        RowOrder.sorted(
+            list, needsRestart: needsRestart,
+            stagedSelfUpdates: pendingSelfUpdate, pinnedOrder: pinnedOrder)
     }
+
 
     // MARK: - Frozen row order
     //

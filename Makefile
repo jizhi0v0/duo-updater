@@ -21,6 +21,7 @@ test:
 	swift test --package-path CLI
 	python3 scripts/check_localizable_keys.py
 	python3 scripts/check_staged_version_use.py
+	python3 scripts/test_check_staged_version_use.py
 	python3 scripts/check_app_audits.py
 
 # Render every row state to verify/row-states/*.png. The images are committed:

@@ -61,8 +61,14 @@ import Foundation
 
 /// Runtime attribution and update ownership are different questions. Docker's
 /// outer bundle launches the product, while its one nested GUI supplies the
-/// Electron runtime label. That nested GUI also happens to embed Squirrel, but
-/// Docker updates through `com.docker.backend.updater`, not ShipIt (#217).
+/// Electron runtime label. That nested GUI also happens to embed Squirrel,
+/// Sparkle and an electron-builder manifest, but Docker updates through
+/// `com.docker.backend.updater`, not ShipIt (#217). The fixture plants all
+/// three files (plus a nested `SUFeedURL`) precisely so each probe has
+/// something to wrongly find if it ever descended into the nested bundle —
+/// see #290: an earlier version of this fixture only planted Squirrel, so a
+/// mutation moving `hasSparkleUpdater` or `ElectronUpdateConfig.read` onto
+/// `AppRuntimeDetector.interfaceBundle(at:)` left this test green.
 @Test func nestedInterfaceDoesNotLendItsUpdaterToTheWrapper() throws {
     let fm = FileManager.default
     let root = fm.temporaryDirectory
@@ -78,6 +84,14 @@ import Foundation
     try fm.createDirectory(
         at: nestedFrameworks.appendingPathComponent("Squirrel.framework"),
         withIntermediateDirectories: true)
+    try fm.createDirectory(
+        at: nestedFrameworks.appendingPathComponent("Sparkle.framework"),
+        withIntermediateDirectories: true)
+    let nestedResources = nested.appendingPathComponent("Contents/Resources")
+    try fm.createDirectory(at: nestedResources, withIntermediateDirectories: true)
+    try "provider: generic\nurl: https://example.com/nested-updates\n".write(
+        to: nestedResources.appendingPathComponent("app-update.yml"),
+        atomically: true, encoding: .utf8)
 
     let outerPlist: [String: Any] = [
         "CFBundleDisplayName": "Docker",
@@ -86,11 +100,25 @@ import Foundation
         "CFBundleVersion": "238018",
         "CFBundleExecutable": "com.docker.backend",
     ]
+    // `SUFeedURL` on the nested plist is a belt-and-suspenders addition, not a
+    // mutation witness: `sparkleFeedURL` reads the SHARED `plist` this test
+    // parses once from `wrapper`'s own Info.plist (see `AppScanner.readApp`,
+    // which loads `infoURL` from `bundleURL` before either bundle's identity
+    // is known), never a plist re-read from `interfaceBundle`. A path-swap
+    // mutation analogous to the other three probes' therefore has nothing to
+    // move — the address would have to come from swapping `bundleID` itself
+    // (SparkleFeedCatalog looks up by bundle id, not by path), which is a
+    // change to a different, shared fact and not a faithful analog of "this
+    // one probe descended a level". Confirmed by hand (#290): rerouting the
+    // `SUFeedURL` read through a plist loaded from `interfaceBundle(at:)`
+    // left this test green, because neither plist here sets `SUFeedURL` and
+    // the `SparkleFeedCatalog` fallback still keys off the outer bundle id.
     let nestedPlist: [String: Any] = [
         "CFBundleDisplayName": "Docker Desktop",
         "CFBundleIdentifier": "com.electron.dockerdesktop",
         "CFBundleShortVersionString": "4.89.0",
         "CFBundleVersion": "4.89.0.9",
+        "SUFeedURL": "https://example.com/nested-appcast.xml",
     ]
     for (bundle, plist) in [(wrapper, outerPlist), (nested, nestedPlist)] {
         let info = bundle.appendingPathComponent("Contents/Info.plist")

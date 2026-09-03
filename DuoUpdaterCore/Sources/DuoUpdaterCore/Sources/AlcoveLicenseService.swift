@@ -144,7 +144,7 @@ public struct AlcoveLicenseService: Sendable {
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
         request.httpBody = try JSONSerialization.data(withJSONObject: json)
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.countedData(for: request, purpose: .versionCheck)
         guard let http = response as? HTTPURLResponse else { return nil }
         if (200..<300).contains(http.statusCode) { return data }
         if allow403 && http.statusCode == 403 { return data }

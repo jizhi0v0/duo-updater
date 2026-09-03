@@ -138,8 +138,12 @@ public actor HomebrewCaskCatalog {
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
 
+        // `.catalog`, not `.versionCheck`: this one request is the whole cask
+        // index — measured at 2.1 MB, i.e. larger than every version feed in a
+        // full sweep put together. Filed under the same purpose as a 4 KB appcast
+        // it would hide inside a bucket it single-handedly dominates.
         let (data, response) = try await session.versionFeedData(
-            for: request, label: "Homebrew cask catalog")
+            for: request, label: "Homebrew cask catalog", purpose: .catalog)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw CaskError.badStatus(http.statusCode)
         }

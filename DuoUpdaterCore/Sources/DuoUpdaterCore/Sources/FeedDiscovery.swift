@@ -384,7 +384,7 @@ public enum FeedDiscovery {
         request.timeoutInterval = 20
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
-        guard let (data, response) = try? await session.data(for: request),
+        guard let (data, response) = try? await session.countedData(for: request, purpose: .versionCheck),
               let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode) else { return nil }
         return data

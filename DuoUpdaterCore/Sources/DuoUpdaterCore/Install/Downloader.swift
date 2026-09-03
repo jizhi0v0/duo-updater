@@ -140,15 +140,54 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// triggers.
     private var pendingError: Error?
 
+    /// What the request ledger should call these bytes. Every current caller is
+    /// installing an app; carried as a parameter rather than hard-coded so a route
+    /// that downloads something else through this class has to say so.
+    private let ledgerPurpose: RequestPurpose
+    private let store: EventStore
+
     init(
         destinationDir: URL,
         configuration: URLSessionConfiguration = .default,
+        purpose: RequestPurpose = .install,
+        store: EventStore = .shared,
         onProgress: @escaping @Sendable (Double) -> Void
     ) {
         self.destinationDir = destinationDir
         self.onProgress = onProgress
         self.configuration = configuration
+        self.ledgerPurpose = purpose
+        self.store = store
         super.init()
+    }
+
+    /// File the transfer with the request ledger.
+    ///
+    /// Separate from `_bytesDownloaded`, which counts body bytes for the per-app
+    /// ``TrafficStore`` and is the number the user sees against an app. This one
+    /// records the same transfer as *network activity* — per host, including every
+    /// redirect hop and the request/response headers — so the two answer different
+    /// questions and are allowed to differ. A resumed transfer reports one
+    /// transaction per attempt here, which is what actually happened.
+    ///
+    /// Unlike `URLSession.updates`, this session's tasks are delegate-driven, so
+    /// the callback would arrive either way; it is implemented here rather than via
+    /// a per-task delegate only because `self` is already the delegate.
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask,
+        didFinishCollecting metrics: URLSessionTaskMetrics
+    ) {
+        let events = RequestMetricsRecorder.events(
+            from: metrics, task: task, purpose: ledgerPurpose)
+        guard !events.isEmpty else { return }
+        let store = self.store
+        Task {
+            for event in events {
+                await store.append(DuoEvent(
+                    date: event.responseEnd ?? event.fetchStart ?? Date(),
+                    payload: .request(event)))
+            }
+        }
     }
 
     /// Download `url`, returning the location of the downloaded file on disk.

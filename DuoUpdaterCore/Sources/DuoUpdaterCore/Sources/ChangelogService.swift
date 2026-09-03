@@ -480,7 +480,8 @@ public enum ChangelogService {
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             }
         }
-        guard let (data, response) = try? await session.data(for: request) else {
+        guard let (data, response) = try? await session.countedData(for: request, purpose: .changelog)
+        else {
             return (nil, nil)
         }
         guard let http = response as? HTTPURLResponse else { return (nil, nil) }

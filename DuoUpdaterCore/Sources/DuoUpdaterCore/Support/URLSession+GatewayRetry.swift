@@ -61,13 +61,18 @@ public extension URLSession {
     /// reproducing an origin's own exception) that a body shape does not change.
     /// A success status is what makes this a *disguised* outage rather than a
     /// stated one.
+    /// `purpose` only labels the request in ``RequestLedger``; it changes nothing
+    /// about the fetch. It defaults to `.versionCheck` because that is what a
+    /// version feed is — the one caller that is something else (`ChangelogService`
+    /// fetching a release-notes feed through this same retry) passes its own.
     func versionFeedData(
         for request: URLRequest,
         label: String,
         retryDelay: Duration = URLSession.gatewayRetryDelay,
-        retryableBody: (@Sendable (Data) -> Bool)? = nil
+        retryableBody: (@Sendable (Data) -> Bool)? = nil,
+        purpose: RequestPurpose = .versionCheck
     ) async throws -> (Data, URLResponse) {
-        let first = try await data(for: request)
+        let first = try await countedData(for: request, purpose: purpose)
         let http = first.1 as? HTTPURLResponse
         // What we would be retrying, in the words the log line wants. Nil means the
         // answer is settled and this returns untouched — the path every caller that
@@ -108,7 +113,10 @@ public extension URLSession {
         // `URLError(.cancelled)`; keep that, so every existing catch stays honest.
         do { try await Task.sleep(for: retryDelay) }
         catch { throw URLError(.cancelled) }
-        let second = try await data(for: request)
+        // Counted too, deliberately: the second request is the cost this retry
+        // decided to pay, and a ledger that hid it would under-report by exactly
+        // the amount `GatewayRetry.tally` exists to make visible.
+        let second = try await countedData(for: request, purpose: purpose)
         let status = (second.1 as? HTTPURLResponse)?.statusCode
         Log.source.info(
             "\(label, privacy: .public): gateway retry → \(status.map(String.init) ?? "non-HTTP", privacy: .public)")

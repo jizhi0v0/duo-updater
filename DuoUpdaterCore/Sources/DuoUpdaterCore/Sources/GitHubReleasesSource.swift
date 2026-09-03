@@ -1114,6 +1114,37 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^bruno_[0-9.]+_arm64_mac\.dmg$"#,
             installerKind: .dmg),
 
+        // Vorssaint — Homebrew marks the cask `auto_updates true`, so the generic
+        // Homebrew source intentionally skips it. Stable and Beta share both the
+        // bundle id and app name; the installed beta's real short version carries
+        // `-beta.<N>`, which ReleaseChannel uses to select this pair safely.
+        //
+        // Detection-only — but NOT because the artifacts are unsound. Re-measured
+        // 2026-09-03 on macOS 27.0 (26A5425a): the apps inside both the stable
+        // 3.3.2 and the 3.3.3-beta.3 dmg pass `codesign --verify --deep --strict`
+        // ("valid on disk", "satisfies its Designated Requirement") and
+        // `spctl -a -t execute` ("accepted", "Notarized Developer ID", ticket
+        // stapled, Team 3D485NHW29). The earlier reading of "invalid signature"
+        // did not reproduce; it coincided with spctl returning a Code Signing
+        // subsystem internal error on the same machine, which points at a
+        // transient system state rather than the artifact.
+        //
+        // What IS unsigned is the dmg CONTAINER ("code object is not signed at
+        // all") — and that is not what the install path checks: `SignatureVerifier`
+        // gates on the extracted `.app`. So one-click is feasible here; it is
+        // simply not verified end to end yet, and the beta half would first need a
+        // `ChannelProofRegistry` entry (its asset name carries `-beta.`).
+        GitHubReleaseRule(
+            bundleID: "com.vorssaint.utils",
+            owner: "vorssaintapp", repo: "vorssaint-utils",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
+        GitHubReleaseRule(
+            bundleID: "com.vorssaint.utils",
+            owner: "vorssaintapp", repo: "vorssaint-utils",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
+            channel: .beta),
+
         // OpenLogi — fast-moving native Logitech utility. The real 0.8.1 bundle
         // is `org.openlogi.openlogi` and carries neither Sparkle nor another
         // standard update feed in Info.plist; its Homebrew cask is

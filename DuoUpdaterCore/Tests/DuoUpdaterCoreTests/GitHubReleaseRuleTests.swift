@@ -7,19 +7,28 @@ import Foundation
 // match). These fixtures pin the pattern against the REAL tag formats observed
 // on each repo, so a future pattern edit that breaks extraction fails loudly.
 
-private func rule(_ bundleID: String) -> GitHubReleaseRule {
+private func rule(
+    _ bundleID: String, channel: ReleaseChannel? = nil
+) -> GitHubReleaseRule {
     // Reported as a failed expectation rather than a crash: a deleted registry
     // entry should fail the test that covers it, not take the whole suite down.
-    guard let match = GitHubReleaseRegistry.rules.first(where: { $0.bundleID == bundleID })
+    guard let match = GitHubReleaseRegistry.rules.first(where: {
+        $0.bundleID == bundleID && (channel == nil || $0.channel == channel)
+    })
     else {
-        Issue.record("no GitHubReleaseRule for \(bundleID)")
-        return GitHubReleaseRule(bundleID: bundleID, owner: "", repo: "")
+        let suffix = channel.map { " [\($0.rawValue)]" } ?? ""
+        Issue.record("no GitHubReleaseRule for \(bundleID)\(suffix)")
+        return GitHubReleaseRule(
+            bundleID: bundleID, owner: "", repo: "", channel: channel ?? .stable)
     }
     return match
 }
 
-private func extract(_ tag: String, _ bundleID: String) -> String? {
-    VendorProbeRecipe.extractVersion(from: tag, pattern: rule(bundleID).versionPattern)
+private func extract(
+    _ tag: String, _ bundleID: String, channel: ReleaseChannel? = nil
+) -> String? {
+    VendorProbeRecipe.extractVersion(
+        from: tag, pattern: rule(bundleID, channel: channel).versionPattern)
 }
 
 @Test func statsRuleExtractsVPrefixedTag() {
@@ -160,6 +169,20 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(!matches("bruno_4.0.0_x64_mac.dmg", "com.usebruno.app"))
     #expect(!matches("bruno_4.0.0_arm64_mac.pkg", "com.usebruno.app"))
     #expect(!matches("bruno_4.0.0_arm64_win.zip", "com.usebruno.app"))
+}
+
+@Test func vorssaintRulesKeepStableAndBetaSeparate() {
+    let bundleID = "com.vorssaint.utils"
+
+    #expect(extract("v3.3.2", bundleID, channel: .stable) == "3.3.2")
+    #expect(extract("v3.3.3-beta.3", bundleID, channel: .stable) == nil)
+    #expect(rule(bundleID, channel: .stable).usePrereleases == false)
+    #expect(rule(bundleID, channel: .stable).installAssetPattern == nil)
+
+    #expect(extract("v3.3.3-beta.3", bundleID, channel: .beta) == "3.3.3-beta.3")
+    #expect(extract("v3.3.2", bundleID, channel: .beta) == nil)
+    #expect(rule(bundleID, channel: .beta).usePrereleases == true)
+    #expect(rule(bundleID, channel: .beta).installAssetPattern == nil)
 }
 
 @Test func openLogiRuleReadsStableTagsOnlyAndStaysDetectionOnly() {
@@ -655,6 +678,7 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     let expected: [String: String] = [
         "com.ccswitch.desktop": "farion1231/cc-switch",
         "com.usebruno.app": "usebruno/bruno",
+        "com.vorssaint.utils": "vorssaintapp/vorssaint-utils",
         "org.openlogi.openlogi": "AprilNEA/OpenLogi",
         "org.localsend.localsendApp": "localsend/localsend",
         "com.utmapp.UTM": "utmapp/UTM",

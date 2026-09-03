@@ -40,20 +40,42 @@ public enum ChangelogURLPolicy {
     /// categorical rather than including the attacker/vendor-controlled host or
     /// port: those already reach the log line through the caller's own URL
     /// argument (safe there because it goes through a redactor, not straight to
-    /// on-screen HTML), and keeping this string free of interpolated URL content
-    /// means a caller can put it on screen without having to re-derive an
-    /// escaping rule for it.
+    /// on-screen HTML). #299: an earlier version of this returned that category
+    /// as a bare `String`, and a caller put it straight on screen — inside a
+    /// signed app that otherwise localizes everything, that string was the one
+    /// English literal `check_localizable_keys.py` cannot see, because it never
+    /// goes through `String(localized:)`. Returning an enum instead of a string
+    /// forces every caller to *choose* a representation rather than reuse
+    /// whichever one first came to hand: `RejectionReason.logToken` for a `Log.`
+    /// line (fixed English, so it stays grep-able across reports) and
+    /// `RejectionReason.localizedDescription` for anything shown to the user.
+    /// Neither carries the host or port that triggered the rejection — that
+    /// property now lives in the type instead of a comment asking callers to
+    /// preserve it by hand.
     ///
     /// Checked in the same order as `isDisplayable`, so the reason reported is
     /// always the same guard that actually rejected the URL.
-    public static func rejectionReason(_ url: URL) -> String? {
-        guard url.scheme?.lowercased() == "https" else { return "not an https URL" }
-        guard url.user == nil, url.password == nil else { return "URL carries credentials" }
-        guard let host = url.host, !host.isEmpty else { return "URL has no host" }
-        guard !isIPLiteral(host) else { return "host is an IP literal, not a name" }
-        guard !isLocalHostname(host) else { return "host is a reserved local-only name" }
-        if let port = url.port, port != 443 { return "non-standard port" }
+    public static func rejectionReason(_ url: URL) -> RejectionReason? {
+        guard url.scheme?.lowercased() == "https" else { return .notHTTPS }
+        guard url.user == nil, url.password == nil else { return .hasCredentials }
+        guard let host = url.host, !host.isEmpty else { return .noHost }
+        guard !isIPLiteral(host) else { return .ipLiteral }
+        guard !isLocalHostname(host) else { return .reservedLocalName }
+        if let port = url.port, port != 443 { return .nonStandardPort }
         return nil
+    }
+
+    /// Which structural guard rejected a changelog URL. See `rejectionReason`
+    /// for why this is a closed set of categories rather than a `String`: no
+    /// case here may ever be given an associated value carrying the URL, host,
+    /// or port that triggered it — that is the whole point of the type.
+    public enum RejectionReason: Sendable, Equatable {
+        case notHTTPS
+        case hasCredentials
+        case noHost
+        case ipLiteral
+        case reservedLocalName
+        case nonStandardPort
     }
 
     /// `url` when it passes, `nil` when it does not — so a caller can fall through
@@ -125,5 +147,69 @@ public enum ChangelogURLPolicy {
         let bare = withoutRootLabel.lowercased()
         return bare == "localhost" || bare.hasSuffix(".localhost")
             || bare == "local" || bare.hasSuffix(".local")
+    }
+}
+
+extension ChangelogURLPolicy.RejectionReason {
+
+    /// Fixed English text for a `Log.` line. Never localized — a log line is
+    /// read by whoever has the crash report or the console output open next to
+    /// the source, not by the person running the app, and translating it would
+    /// break grepping and cross-report comparison (see `Log`'s own doc comment,
+    /// and CLAUDE.md). Kept identical to what `rejectionReason` used to return
+    /// directly, so an existing log search for these phrases still matches.
+    public var logToken: String {
+        switch self {
+        case .notHTTPS: return "not an https URL"
+        case .hasCredentials: return "URL carries credentials"
+        case .noHost: return "URL has no host"
+        case .ipLiteral: return "host is an IP literal, not a name"
+        case .reservedLocalName: return "host is a reserved local-only name"
+        case .nonStandardPort: return "non-standard port"
+        }
+    }
+
+    /// Localized text for the on-screen blocked-notice pane
+    /// (`WorkbenchWindowView`'s `WebGuardian.showBlockedNotice`). Translates
+    /// only these six fixed categories, never the URL, host, or port that
+    /// triggered the rejection — the caller still has to HTML-escape whatever
+    /// this returns before handing it to a web view, since a translation can
+    /// legitimately contain `&`, `<`, `>`, or a quote mark.
+    public var localizedDescription: String {
+        switch self {
+        case .notHTTPS:
+            return String(localized: "This link isn’t secure (it doesn’t use https).")
+        case .hasCredentials:
+            return String(localized: "This link includes a login that can’t be shown safely.")
+        case .noHost:
+            return String(localized: "This link has no address to load.")
+        case .ipLiteral:
+            return String(localized: "This link points at a raw network address instead of a name.")
+        case .reservedLocalName:
+            return String(localized: "This link points at a local-only name.")
+        case .nonStandardPort:
+            return String(localized: "This link uses a non-standard port.")
+        }
+    }
+}
+
+extension ChangelogURLPolicy {
+
+    /// Escapes the five characters that are significant inside HTML text
+    /// content, for embedding `RejectionReason.localizedDescription` (or the
+    /// blocked-notice pane's title) into the hand-built HTML string
+    /// `WorkbenchWindowView`'s `WebGuardian` loads in place of a blank
+    /// changelog pane. `&` is replaced first so it does not double-escape the
+    /// entities this function itself just inserted. Needed because these are
+    /// *translated* strings: a fixed English category never contained a quote
+    /// mark, but German and French punctuation routinely do, and this pane is
+    /// the one place in the app that writes a string into raw HTML rather than
+    /// handing it to a `Text` view that escapes on its own.
+    public static func htmlEscaped(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 }

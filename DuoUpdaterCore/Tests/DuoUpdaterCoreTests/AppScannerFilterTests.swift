@@ -33,6 +33,35 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     #expect(apps.map(\.name) == ["Real"])  // helper excluded
 }
 
+/// Issue #287: `buildVersion` used to be read with a bare `as? String`, no
+/// emptiness check at all — the one gap `shortVersion` five lines above it
+/// didn't have. A bundle whose `CFBundleVersion` is `""` or all-whitespace must
+/// come out of the scan as `buildVersion == nil`, not as a "readable" blank
+/// string that then tokenizes the same as `"0"` inside `VersionComparator`.
+@Test func scannerReadsABlankBuildVersionAsNilNotEmptyString() throws {
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    _ = try makeApp(at: tmp, name: "EmptyBuild", info: [
+        "CFBundleIdentifier": "com.example.emptybuild",
+        "CFBundleShortVersionString": "1.0",
+        "CFBundleVersion": "",
+    ])
+    _ = try makeApp(at: tmp, name: "WhitespaceBuild", info: [
+        "CFBundleIdentifier": "com.example.whitespacebuild",
+        "CFBundleShortVersionString": "1.0",
+        "CFBundleVersion": "   ",
+    ])
+
+    let apps = AppScanner(locations: [tmp]).scan()
+    let byName = Dictionary(uniqueKeysWithValues: apps.map { ($0.name, $0) })
+    #expect(byName["EmptyBuild"]?.buildVersion == nil)
+    #expect(byName["WhitespaceBuild"]?.buildVersion == nil)
+    #expect(byName["EmptyBuild"]?.versionSide.build == nil)
+}
+
 @Test func scannerStripsInvisibleBidiMarksFromDisplayName() throws {
     // WhatsApp ships CFBundleDisplayName "\u{200E}WhatsApp" (a leading LEFT-TO-RIGHT
     // MARK). That invisible mark made the canonical name "\u{200E}WhatsApp", which

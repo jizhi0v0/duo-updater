@@ -134,9 +134,10 @@ public enum ProbeFailure: Error, Sendable, Equatable {
 
 /// A recipe that still reads a version but has quietly lost part of its job.
 ///
-/// Both of these are invisible today: the probe returns a perfectly good version
-/// and silently drops back to detection-only, or installs without the checksum
-/// the recipe author wrote down. A half-broken recipe reads as healthy.
+/// These are invisible without an explicit warning: the probe returns a perfectly
+/// good version and silently drops back to detection-only, loses release metadata,
+/// or installs without the checksum the recipe author wrote down. A half-broken
+/// recipe reads as healthy.
 public enum ProbeWarning: Sendable, Equatable {
     /// The recipe carries an install spec but the installer URL didn't resolve —
     /// one-click is dead even though detection still works.
@@ -206,6 +207,12 @@ public enum ProbeWarning: Sendable, Equatable {
     /// value jump from `155.0b5` to `20260826090609` — an increase, and the only
     /// history check there is looks for a version moving BACKWARDS.
     case displayPatternNoMatch
+    /// `publishedAtPattern` captured a value, but `ReleaseDate` could not parse
+    /// it. The version remains usable, but the release timeline loses its exact
+    /// event and `duo verify`'s age-gated phantom-update check is disabled.
+    /// Carry the captured value so the recipe author can see which date spelling
+    /// needs support without reproducing a response that may already have moved.
+    case publishedAtUnreadable(String)
 
     /// The part of a warning that varies, kept OUT of `kind` on purpose.
     ///
@@ -228,6 +235,15 @@ public enum ProbeWarning: Sendable, Equatable {
             return host.map { "\(code) from \($0)" } ?? code
         case .installURLTransient(let status):
             return status.map { "HTTP \($0)" }
+        case .publishedAtUnreadable(let value):
+            // Keep a stable prefix longer than Finding.signature's 40-character
+            // window; the captured value can change every release without making
+            // one persistent parser problem look like a new failure each sweep.
+            let oneLine = value.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            let captured = oneLine.count > 160
+                ? String(oneLine.prefix(160)) + "…"
+                : oneLine
+            return "captured value did not parse: \(captured)"
         default:
             return nil
         }
@@ -246,6 +262,7 @@ public enum ProbeWarning: Sendable, Equatable {
         case .checksumPatternNoMatch: return "checksumPatternNoMatch"
         case .entryPatternNoMatch: return "entryPatternNoMatch"
         case .displayPatternNoMatch: return "displayPatternNoMatch"
+        case .publishedAtUnreadable: return "publishedAtUnreadable"
         }
     }
 }

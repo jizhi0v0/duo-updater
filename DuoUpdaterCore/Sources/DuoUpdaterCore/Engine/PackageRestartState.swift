@@ -37,22 +37,32 @@ public enum PackageRestartState: Sendable, Equatable {
     ///   - stagedAt: when the package was handed to macOS's installer.
     ///   - runningLaunchDates: `launchDate` of every currently-running copy of this
     ///     app's bundle (by resolved path — a channel sibling must not stand in).
+    ///   - buildIsDerived: whether `onDiskVersion.build` was substituted by
+    ///     `AppScanner` rather than read from `CFBundleVersion`. A package source's
+    ///     build is not known to share that namespace, so the derived half is
+    ///     discarded and landing falls back to marketing-to-marketing.
     ///
-    /// "Landed" is `onDiskVersion == stagedVersion`: the app now IS the version the
-    /// package installs, as opposed to still being the old one (install not done) or
-    /// already carrying a newer one (the staged package was superseded, not applied).
-    /// Compared as PAIRS. `onDiskVersion` and `stagedVersion` used to be bare
-    /// marketing strings, so for a vendor that keeps one marketing version across
-    /// builds they were equal before the installer had run — `.pending` was never
-    /// returned and a genuinely-unfinished install was classified as landed.
+    /// "Landed" means the two sides agree in every shared version namespace: the app
+    /// now IS the version the package installs, as opposed to still being the old one
+    /// (install not done) or already carrying a newer one (the staged package was
+    /// superseded, not applied). Normally both marketing and build participate. A
+    /// scanner-derived build is removed first because it does not describe the same
+    /// namespace as the package build. These used to be bare marketing strings, so
+    /// for a vendor that keeps one marketing version across builds they were equal
+    /// before the installer had run — `.pending` was never returned and a genuinely-
+    /// unfinished install was classified as landed.
     public static func resolve(
         onDiskVersion: VersionSide?,
         stagedVersion: VersionSide,
         stagedAt: Date,
-        runningLaunchDates: [Date]
+        runningLaunchDates: [Date],
+        buildIsDerived: Bool = false
     ) -> Self {
-        guard let onDiskVersion,
-              VersionComparator.isSame(onDiskVersion, as: stagedVersion)
+        guard var onDiskVersion else { return .pending }
+        if buildIsDerived {
+            onDiskVersion = VersionSide(marketing: onDiskVersion.marketing)
+        }
+        guard VersionComparator.isSame(onDiskVersion, as: stagedVersion)
         else { return .pending }
         let staleRunning = runningLaunchDates.contains { $0 < stagedAt }
         return staleRunning ? .readyToRestart : .settled

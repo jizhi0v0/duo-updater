@@ -1908,26 +1908,35 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
         // Only a link the *user* clicked in the *main* frame is redirected. Everything
-        // else is left alone on purpose:
+        // else is left alone by the outbound-link rule:
         //   • sub-frames — `decidePolicyFor` fires for iframes too, and a changelog
         //     page that embeds a video or a third-party widget would otherwise have
         //     every frame cancelled and thrown at the browser, one window each;
         //   • server-side redirects and SPA routing — a vendor moving
-        //     docs.x.com → x.com/docs is normal, and cancelling it just blanks the
-        //     pane. The URL we start from comes from our own recipe registry, not
-        //     from the page, so this is a usability boundary, not a trust boundary.
-        // One thing here IS a trust boundary: the scheme. `ChangelogURLPolicy` only
-        // vets the URL we start from, and a vendor page that redirects itself to
-        // `http://` would land cleartext content in this in-process web view
-        // anyway — which is the whole thing that policy exists to stop. Cross-host
-        // https redirects stay allowed; only the downgrade is refused.
+        //     docs.x.com → x.com/docs is normal, so cross-host HTTPS redirects stay
+        //     allowed when the destination passes `ChangelogURLPolicy`.
+        //
+        // The policy IS reapplied to every main-frame navigation, including a
+        // server redirect. Vetting only the recipe's starting URL let an accepted
+        // vendor URL redirect to an IP literal or a reserved local hostname and
+        // load an origin the policy would have refused at the door. This remains
+        // a structural gate — it cannot see which address an ordinary DNS name
+        // resolves to — but the URL the user lands on now gets the same check as
+        // the URL we start from.
         if let url = navigationAction.request.url,
            url.scheme?.lowercased() == "http" {
             decisionHandler(.cancel); return
         }
 
+        let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+        if isMainFrame,
+           let url = navigationAction.request.url,
+           !ChangelogURLPolicy.isDisplayable(url) {
+            decisionHandler(.cancel); return
+        }
+
         guard navigationAction.navigationType == .linkActivated,
-              navigationAction.targetFrame?.isMainFrame ?? true,
+              isMainFrame,
               let url = navigationAction.request.url,
               url.host != originHost,
               url.scheme == "https" || url.scheme == "http"

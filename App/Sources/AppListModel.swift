@@ -426,6 +426,17 @@ final class AppListModel {
         UpdatePolicy.laggingRemoteVersion(result)
     }
 
+    /// The one version-line fact the row should explain. The precedence lives in
+    /// Core so a relaunch and a lagging-feed note cannot silently swap places in a
+    /// view with no test target (#210).
+    func versionLineState(for result: UpdateResult) -> RowVersionLineState {
+        RowVersionLine.state(
+            staged: actionableStaged(result),
+            pendingBatchRestartMarketing: pendingBatchRestart[result.id],
+            restartFrom: needsRestart.contains(result.id) ? restartFromSide(result.id) : nil,
+            downgradeVersion: downgradeNote(result))
+    }
+
     /// Bring JetBrains Toolbox forward — the action for every Toolbox-managed row,
     /// in both windows. On the model rather than duplicated per view, for the same
     /// reason `rowState` is: one row, one behaviour.
@@ -3379,7 +3390,9 @@ final class AppListModel {
                 onDiskVersion: app.versionSide,
                 stagedVersion: staged.versionSide,
                 stagedAt: staged.stagedAt,
-                runningLaunchDates: launchDates[key] ?? [])
+                runningLaunchDates: launchDates[key] ?? [],
+                buildIsDerived: AppScanner.buildVersionIsOverridden(
+                    bundleID: app.bundleID))
             switch state {
             case .pending:
                 // Not landed. Normally there's no badge yet; but if one was already
@@ -3599,23 +3612,17 @@ final class AppListModel {
     // MARK: - Staged installer packages
 
     /// An installer package already downloaded for this row and handed to macOS's
-    /// installer. `version` is the version that package installs, so a newer release
-    /// invalidates it rather than silently re-opening a stale installer.
+    /// installer. `version` is its display label; `versionSide` identifies the build
+    /// it installs, so a newer release invalidates it rather than silently re-opening
+    /// a stale installer.
     struct StagedPackage: Sendable, Equatable {
         let version: String
-        /// The build the package installs, when the source reported one. Absent on
-        /// entries persisted before this field existed, and for sources that report
-        /// no build at all — in both cases the pair below degrades to marketing
-        /// only, which is what this always was.
-        let buildVersion: String?
-
         /// The comparable pair. Everything asking "is this the version on offer"
-        /// or "has it landed" uses this: `version` alone is a marketing string,
-        /// equal release after release for a vendor that freezes it, which made
-        /// those questions answer "yes" before the installer had run.
-        var versionSide: VersionSide {
-            VersionSide(marketing: version, build: buildVersion)
-        }
+        /// or "has it landed" uses this. It is copied from the source rather than
+        /// rebuilt from `version`, because `version` is marketing-first DISPLAY:
+        /// for a `versionIsBuild` source it contains a build string, and putting
+        /// that into `marketing` would compare two different namespaces.
+        let versionSide: VersionSide
         let url: URL
         /// When the package was handed to macOS's installer. Used to tell a copy
         /// running the OLD code (launched before this) from one the vendor's own
@@ -3640,9 +3647,21 @@ final class AppListModel {
             let stagedAt = fields[Preferences.stagedPackageStagedAtField]
                 .flatMap(TimeInterval.init).map(Date.init(timeIntervalSince1970:))
                 ?? .distantPast
+            // New entries persist the source's marketing half explicitly, using
+            // an empty string for "the source reported none". A missing field is a
+            // pre-migration entry whose `version` historically served as marketing;
+            // preserve that comparison rather than invalidating an in-flight pkg.
+            let marketing: String?
+            if let stored = fields[Preferences.stagedPackageMarketingField] {
+                marketing = stored.isEmpty ? nil : stored
+            } else {
+                marketing = version
+            }
             restored[id] = StagedPackage(
                 version: version,
-                buildVersion: fields[Preferences.stagedPackageBuildField],
+                versionSide: VersionSide(
+                    marketing: marketing,
+                    build: fields[Preferences.stagedPackageBuildField]),
                 url: URL(fileURLWithPath: path), stagedAt: stagedAt)
         }
         stagedPackages = restored
@@ -3650,9 +3669,9 @@ final class AppListModel {
     }
 
     private func recordStagedPackage(_ result: UpdateResult, packageURL: URL) {
-        guard let version = result.remote?.displayVersion else { return }
+        guard let remote = result.remote, let version = remote.displayVersion else { return }
         stagedPackages[result.id] = StagedPackage(
-            version: version, buildVersion: result.remote?.version,
+            version: version, versionSide: remote.versionSide,
             url: packageURL, stagedAt: Date())
         persistStagedPackages()
         Log.install.info("package staged: \(result.app.name, privacy: .public) \(version, privacy: .public) → \(packageURL.lastPathComponent, privacy: .public)")
@@ -3781,7 +3800,11 @@ final class AppListModel {
                 Preferences.stagedPackagePathField: $0.url.path,
                 Preferences.stagedPackageStagedAtField:
                     String($0.stagedAt.timeIntervalSince1970),
-            ].merging($0.buildVersion.map {
+                // Presence distinguishes a new entry whose source has no
+                // marketing version (empty) from a legacy entry (missing).
+                Preferences.stagedPackageMarketingField:
+                    $0.versionSide.marketing ?? "",
+            ].merging($0.versionSide.build.map {
                 [Preferences.stagedPackageBuildField: $0]
             } ?? [:], uniquingKeysWith: { a, _ in a })
         })
@@ -4488,8 +4511,12 @@ final class AppListModel {
               let dict = (try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil)) as? [String: Any]
         else { return (nil, nil) }
-        return (dict["CFBundleShortVersionString"] as? String,
-                dict["CFBundleVersion"] as? String)
+        func nonEmptyVersion(_ key: String) -> String? {
+            guard let value = dict[key] as? String, !value.isEmpty else { return nil }
+            return value
+        }
+        return (nonEmptyVersion("CFBundleShortVersionString"),
+                nonEmptyVersion("CFBundleVersion"))
     }
 
     /// Open System Settings → Privacy & Security → App Management and float the
@@ -5835,12 +5862,12 @@ final class AppListModel {
     /// by `UpdateResult.id` (the install path). In memory only — a fresh launch
     /// starts everyone at zero, which is the right bias: after a relaunch we have no
     /// evidence a failure is chronic and should say so once more.
+    ///
+    /// This is the ONLY place a chronic streak is tracked. `RowAction.state(for:)`
+    /// — the ladder both the popover and the workbench draw a row from — has no
+    /// notion of it and is not meant to: see `failedCheckResults` below and
+    /// `CheckFailureRules` for why (issue #264).
     @ObservationIgnored private var consecutiveCheckFailures: [String: Int] = [:]
-
-    /// Rows this many rounds deep stop driving the banner and the header count.
-    /// Three rounds of a check interval (an hour by default) is long past the point
-    /// where "retry" is the useful advice.
-    private static let chronicFailureThreshold = 3
 
     /// Update the streaks from one completed round, and drop rows that are gone.
     /// Called only from `performRefresh` — deliberately NOT from `retryFailedChecks`,
@@ -5854,7 +5881,7 @@ final class AppListModel {
             }
         }
         let newlyChronic = next.filter {
-            $0.value == Self.chronicFailureThreshold
+            $0.value == CheckFailureRules.chronicThreshold
         }.keys.sorted()
         if !newlyChronic.isEmpty {
             Log.app.info(
@@ -5863,16 +5890,30 @@ final class AppListModel {
         consecutiveCheckFailures = next
     }
 
+    /// Rows this many rounds deep stop driving the *aggregate* surfaces below —
+    /// the banner, the header's "N not checked" line, and the bulk-retry target
+    /// list. They do NOT stop being `.checkFailed` rows: `RowAction.state(for:)`
+    /// never reads `consecutiveCheckFailures` (it has no parameter for it), so a
+    /// chronic row keeps its own orange Failed badge — with its own per-row
+    /// Retry, which re-checks only this app rather than every failed row the way
+    /// the banner's Retry does — for as long as it keeps failing.
+    ///
+    /// That split is deliberate, not an oversight (issue #264): the banner is one
+    /// global claim ("your checks are healthy") that becomes false advice once a
+    /// failure is permanent — a vendor that retired its feed fails identically
+    /// forever, and Alfred's appcast did exactly that for weeks. Left counted, it
+    /// pins the banner up with a Retry that just re-runs the same 404, and stops
+    /// the header from ever reading "up to date" again. A row's own badge makes
+    /// no such claim; it states one fact about one app, and that fact stays true.
+    /// Silencing it would blank the row in the workbench, which shows every
+    /// result unconditionally (no "Show all" gate) — and a blank row there reads
+    /// as "up to date", which is the specific failure mode `RowActionState`
+    /// exists to rule out for every non-quiet state. See `CheckFailureRules`.
     var failedCheckResults: [UpdateResult] {
         results.filter {
             guard case .error = $0.status else { return false }
-            // A vendor that retired its feed fails identically forever — Alfred's
-            // appcast 404'd for weeks. Left in, that pins the banner permanently with
-            // a Retry button that re-runs the same 404, and stops the header from
-            // ever reading "up to date" again. Those rows fall back to the old
-            // behaviour: visible under "Show all", reported by `RecipeHealth` and
-            // `duo verify`, and silent here.
-            return (consecutiveCheckFailures[$0.id] ?? 0) < Self.chronicFailureThreshold
+            return !CheckFailureRules.isChronic(
+                consecutiveFailures: consecutiveCheckFailures[$0.id] ?? 0)
         }
     }
 

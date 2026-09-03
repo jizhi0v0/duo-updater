@@ -54,15 +54,25 @@ enum AppcastMarkdownParser {
     }
 
     /// Normalize an item's publish date for display. Sparkle feeds spell `pubDate`
-    /// several ways; Surge uses a bare Unix epoch. Convert a numeric epoch to
-    /// `yyyy-MM-dd`; pass anything else through verbatim (the renderer already
-    /// formats ISO8601 and shows other strings as-is). nil stays nil.
+    /// several ways; Surge uses a bare Unix epoch. Convert a bare digit run that
+    /// reads as a date to `yyyy-MM-dd`; pass anything else through verbatim (the
+    /// renderer already formats ISO8601 and shows other strings as-is). nil stays
+    /// nil.
+    ///
+    /// What a digit run means — seconds, milliseconds, `yyyyMMdd`, or nothing —
+    /// is `ReleaseDate.date(fromDigits:)`'s call, not a second copy of it here:
+    /// this string sits next to the timeline entry built from the same `pubDate`,
+    /// and the two must not read one number two ways. Digits that are not a date
+    /// pass through like any other string this does not understand.
     static func displayDate(from pubDate: String?) -> String? {
-        guard let raw = pubDate?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else {
+        // The same trim as `ReleaseDate.parse`. With `.whitespaces` here and
+        // `.whitespacesAndNewlines` there, a pubDate carrying a newline was a date
+        // to the timeline and a raw string to the rail — the exact disagreement
+        // the shared reading below exists to prevent.
+        guard let raw = pubDate?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             return nil
         }
-        if let epoch = TimeInterval(raw) {
-            let date = Date(timeIntervalSince1970: epoch)
+        if let date = ReleaseDate.date(fromDigits: raw) {
             return epochFormatter.string(from: date)
         }
         return raw

@@ -33,6 +33,35 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     #expect(apps.map(\.name) == ["Real"])  // helper excluded
 }
 
+/// Issue #287: `buildVersion` used to be read with a bare `as? String`, no
+/// emptiness check at all — the one gap `shortVersion` five lines above it
+/// didn't have. A bundle whose `CFBundleVersion` is `""` or all-whitespace must
+/// come out of the scan as `buildVersion == nil`, not as a "readable" blank
+/// string that then tokenizes the same as `"0"` inside `VersionComparator`.
+@Test func scannerReadsABlankBuildVersionAsNilNotEmptyString() throws {
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    _ = try makeApp(at: tmp, name: "EmptyBuild", info: [
+        "CFBundleIdentifier": "com.example.emptybuild",
+        "CFBundleShortVersionString": "1.0",
+        "CFBundleVersion": "",
+    ])
+    _ = try makeApp(at: tmp, name: "WhitespaceBuild", info: [
+        "CFBundleIdentifier": "com.example.whitespacebuild",
+        "CFBundleShortVersionString": "1.0",
+        "CFBundleVersion": "   ",
+    ])
+
+    let apps = AppScanner(locations: [tmp]).scan()
+    let byName = Dictionary(uniqueKeysWithValues: apps.map { ($0.name, $0) })
+    #expect(byName["EmptyBuild"]?.buildVersion == nil)
+    #expect(byName["WhitespaceBuild"]?.buildVersion == nil)
+    #expect(byName["EmptyBuild"]?.versionSide.build == nil)
+}
+
 @Test func scannerStripsInvisibleBidiMarksFromDisplayName() throws {
     // WhatsApp ships CFBundleDisplayName "\u{200E}WhatsApp" (a leading LEFT-TO-RIGHT
     // MARK). That invisible mark made the canonical name "\u{200E}WhatsApp", which
@@ -60,6 +89,60 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     #expect(AppScanner.stripInvisibleMarks("\u{200E}A\u{200B}B\u{FEFF}") == "AB")
     #expect(AppScanner.stripInvisibleMarks("man\u{200D}woman") == "man\u{200D}woman")
     #expect(AppScanner.stripInvisibleMarks("  Plain  ") == "Plain")
+}
+
+@Test func scannerFallsThroughAnEmptyDisplayName() throws {
+    // Eudic (欧路词典) ships `CFBundleDisplayName` = "" — the key is present and the
+    // value is an empty string, because every real name lives in a localized
+    // `InfoPlist.strings` (欧路词典 / EuDic). The old `??` chain only stepped past a
+    // MISSING key, so the row rendered with no name at all while `CFBundleName`
+    // ("Eudic") sat unread right behind it.
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    _ = try makeApp(at: tmp, name: "Eudic", info: [
+        "CFBundleIdentifier": "com.eusoft.eudic",
+        "CFBundleShortVersionString": "26.9.0",
+        "CFBundleVersion": "1229",
+        "CFBundleDisplayName": "",
+        "CFBundleName": "Eudic",
+    ])
+
+    let apps = AppScanner(locations: [tmp]).scan()
+    #expect(apps.map(\.name) == ["Eudic"])
+}
+
+@Test func scannerFallsBackToTheBundleFilenameWhenBothNamesAreBlank() throws {
+    // Both name keys present and useless — whitespace and a lone bidi mark, which
+    // `stripInvisibleMarks` reduces to "". The emptiness test therefore has to run
+    // on the STRIPPED candidate, not on the raw plist value, or this lands back on
+    // a blank row.
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    _ = try makeApp(at: tmp, name: "Nameless", info: [
+        "CFBundleIdentifier": "com.example.nameless",
+        "CFBundleShortVersionString": "1.0",
+        "CFBundleDisplayName": "   ",
+        "CFBundleName": "\u{200E}",
+    ])
+
+    let apps = AppScanner(locations: [tmp]).scan()
+    #expect(apps.map(\.name) == ["Nameless"])  // the bundle's own filename
+}
+
+@Test func firstUsableNameSkipsBlankCandidatesInOrder() {
+    #expect(AppScanner.firstUsableName("", "Eudic", "EudicFile") == "Eudic")
+    #expect(AppScanner.firstUsableName(nil, nil, "EudicFile") == "EudicFile")
+    #expect(AppScanner.firstUsableName("  ", "\u{200E}", "Fallback") == "Fallback")
+    // A usable first candidate still wins, marks stripped (the WhatsApp case).
+    #expect(AppScanner.firstUsableName("\u{200E}WhatsApp", "Other", "File") == "WhatsApp")
+    // Nothing readable anywhere: an empty name is the honest answer, not a crash.
+    #expect(AppScanner.firstUsableName(nil, "", "  ") == "")
 }
 
 @Test func twoBundlesSharingABundleIDGetDistinctIDs() throws {
@@ -259,4 +342,63 @@ private func makeWrappedIOSApp(at dir: URL, name: String, info: [String: Any]) t
     #expect(deduped.count == 4)
     #expect(deduped.map(\.path.path).contains("/Applications/Firefox.app"))
     #expect(!deduped.map(\.path.path).contains("/Users/me/Applications/Firefox.app"))
+}
+
+@Test func scopedScanAppliesTheSameEntryRulesAsTheFullScan() throws {
+    // The per-entry rules — sidecar names, symlinks into /System, dedupe on the
+    // resolved path, non-`.app` entries — are one function shared by `scan()` and
+    // `scan(bundlesAt:)`. This pins that sharing: hand the scoped scan every entry
+    // of a directory the full scan would reject most of, and expect the same
+    // single survivor. The row-for-row test in `AppScannerTests` cannot see these
+    // rules, because no real row is ever a sidecar or a /System symlink.
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("scan-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tmp) }
+
+    let real = try makeApp(at: tmp, name: "DuoPaste", info: [
+        "CFBundleIdentifier": "io.duopaste.daemon",
+        "CFBundleShortVersionString": "0.1.1270",
+        "CFBundleVersion": "1271",
+    ])
+    let sidecar = try makeApp(at: tmp, name: "DuoPaste.backup-20260716-183428", info: [
+        "CFBundleIdentifier": "io.duopaste.daemon",
+        "CFBundleShortVersionString": "0.1.1269",
+        "CFBundleVersion": "1269",
+    ])
+    // A symlink to the real bundle resolves to the same path, so it must fold into
+    // the one row rather than produce a second.
+    let alias = tmp.appendingPathComponent("DuoPaste Alias.app")
+    try FileManager.default.createSymbolicLink(atPath: alias.path, withDestinationPath: real.path)
+    let systemLink = tmp.appendingPathComponent("Feedback Assistant.app")
+    try? FileManager.default.createSymbolicLink(
+        atPath: systemLink.path,
+        withDestinationPath: "/System/Library/CoreServices/Applications/Feedback Assistant.app")
+    let notAnApp = tmp.appendingPathComponent("notes.txt")
+
+    let scanner = AppScanner(locations: [tmp])
+    let full = scanner.scan()
+    let scoped = scanner.scan(bundlesAt: [sidecar, alias, systemLink, notAnApp, real])
+    #expect(full.count == 1)
+    // Whole-value equality, so the URL shape counts too: a directory listing yields
+    // `…/DuoPaste.app/` and `makeApp` built `…/DuoPaste.app`; the scoped scan must
+    // hand back the former, or a hand-built URL produces a row that is `!=` the
+    // full scan's for the same bundle.
+    #expect(scoped == full)
+    #expect(scoped.first?.path.path == real.path)
+
+    // `dedupeIdenticalInstalls` too: a byte-identical clone (same id, channel and
+    // version) in a folder the scanner does not list folds into the first row in
+    // list order, exactly as `/Applications` beats `~/Applications` in a full scan.
+    // Kept out of `tmp` so the full scan above has one deterministic winner.
+    let elsewhere = tmp.appendingPathComponent("elsewhere", isDirectory: true)
+    try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+    let clone = try makeApp(at: elsewhere, name: "DuoPaste", info: [
+        "CFBundleIdentifier": "io.duopaste.daemon",
+        "CFBundleShortVersionString": "0.1.1270",
+        "CFBundleVersion": "1271",
+    ])
+    let withClone = scanner.scan(bundlesAt: [real, clone])
+    #expect(withClone.count == 1)
+    #expect(withClone.first?.path.path == real.path)
 }

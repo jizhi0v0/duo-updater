@@ -288,6 +288,47 @@
         }
       }
     },
+    "%@ didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde nicht beendet – es hat ein Fenster offen, das auf dich wartet (eine Sicherungsabfrage, ein Anmeldefenster, ein Dialog). Wechsle dorthin, erledige dieses Fenster und beende die App dann selbst oder klicke erneut auf „Neu starten“. Es wurde nichts verändert, und die neue Version ist bereits installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no se cerró: tiene una ventana esperándote (un aviso para guardar, una hoja de inicio de sesión, un diálogo). Ve a la app, resuelve esa ventana y luego ciérrala o vuelve a pulsar «Reabrir». No se ha cambiado nada y la versión nueva ya está instalada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas quitté — une fenêtre y attend ta réponse (une demande d’enregistrement, une feuille de connexion, une boîte de dialogue). Passe à l’app, règle cette fenêtre, puis quitte-la ou reclique sur « Relancer ». Rien n’a été modifié et la nouvelle version est déjà installée."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は終了しませんでした。操作を待っているウインドウがあります（保存の確認、サインインのシート、ダイアログなど）。アプリに切り替えてそのウインドウを片付けてから、自分で終了するか、もう一度「再起動」をクリックしてください。何も変更しておらず、新しいバージョンはすでにインストール済みです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не закрылось — в нём открыто окно, которое ждёт вас (запрос на сохранение, форма входа, диалог). Переключитесь на приложение, разберитесь с этим окном, а затем закройте его сами или нажмите «Перезапустить» ещё раз. Ничего не изменено, новая версия уже установлена."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 没有退出 —— 它有一个窗口在等你处理（保存提示、登录框、对话框之类）。切过去把那个窗口处理掉，然后自己退出它，或者再点一次「重新启动」。什么都没有改动，新版本已经装好了。"
+          }
+        }
+      }
+    },
     "%@ doesn’t publish a changelog we can read.": {
       "extractionState": "manual",
       "localizations": {
@@ -899,6 +940,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 已更新至 %@"
+          }
+        }
+      }
+    },
+    "%@ — click for details": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ – für Details klicken"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: haz clic para ver los detalles"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — cliquez pour les détails"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — クリックで詳細"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — нажмите для подробностей"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ —— 点击查看详情"
           }
         }
       }
@@ -3199,6 +3281,88 @@
         }
       }
     },
+    "A Java app, shipping the runtime it needs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Java-App, die ihre eigene Laufzeitumgebung mitbringt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app Java que incluye el entorno de ejecución que necesita."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une app Java, livrée avec l’environnement d’exécution dont elle a besoin."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Java アプリ — 必要なランタイムを同梱しています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Java-приложение со встроенной средой выполнения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Java 应用，自带所需的运行时。"
+          }
+        }
+      }
+    },
+    "A native Mac app — built straight on Apple's frameworks, not a cross-platform runtime.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine native Mac-App – direkt auf Apples Frameworks gebaut, nicht auf einer plattformübergreifenden Laufzeitumgebung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app nativa de Mac: hecha directamente sobre los frameworks de Apple, no sobre un entorno multiplataforma."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une app Mac native — conçue directement sur les frameworks d’Apple, pas sur un environnement multiplateforme."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ネイティブの Mac アプリ — クロスプラットフォームのランタイムではなく、Apple のフレームワーク上に直接作られています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нативное приложение для Mac — построено прямо на фреймворках Apple, а не на кроссплатформенной среде."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原生 Mac 应用 —— 直接构建在 Apple 的框架上，而不是跨平台运行时。"
+          }
+        }
+      }
+    },
     "A recipe is flagged when it fetched successfully but couldn’t read a version — often a sign the vendor changed their page. Cleared automatically on the next successful check.": {
       "extractionState": "manual",
       "localizations": {
@@ -4240,6 +4404,88 @@
         }
       }
     },
+    "An iPad app brought to the Mac with Mac Catalyst.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine iPad-App, die mit Mac Catalyst auf den Mac gebracht wurde."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app de iPad llevada al Mac con Mac Catalyst."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une app iPad portée sur le Mac avec Mac Catalyst."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac Catalyst で Mac に移植された iPad アプリです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение для iPad, перенесённое на Mac с помощью Mac Catalyst."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Mac Catalyst 移植到 Mac 的 iPad 应用。"
+          }
+        }
+      }
+    },
+    "An iPhone or iPad app running on Apple silicon.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine iPhone- oder iPad-App, die auf Apple Silicon läuft."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app de iPhone o iPad ejecutándose en Apple silicon."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une app iPhone ou iPad exécutée sur Apple silicon."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple シリコン上で動く iPhone / iPad アプリです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение для iPhone или iPad, работающее на Apple silicon."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Apple 芯片上运行的 iPhone / iPad 应用。"
+          }
+        }
+      }
+    },
     "Another update is being installed right now — by Duo Updater or by `duo` in a terminal. Try again once it finishes.": {
       "extractionState": "manual",
       "localizations": {
@@ -4937,6 +5183,211 @@
         }
       }
     },
+    "Built on Chromium.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf Chromium aufgebaut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basada en Chromium."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basée sur Chromium."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chromium ベースです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Основано на Chromium."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基于 Chromium。"
+          }
+        }
+      }
+    },
+    "Built with Electron — it bundles its own copy of Chromium.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Electron gebaut – bringt eine eigene Chromium-Kopie mit."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con Electron: incluye su propia copia de Chromium."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec Electron — elle embarque sa propre copie de Chromium."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Electron 製 — Chromium を丸ごと同梱しています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на Electron — приложение несёт собственную копию Chromium."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Electron 构建 —— 自带一份 Chromium。"
+          }
+        }
+      }
+    },
+    "Built with Flutter.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Flutter gebaut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con Flutter."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec Flutter."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flutter 製です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на Flutter."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Flutter 构建。"
+          }
+        }
+      }
+    },
+    "Built with Qt.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Qt gebaut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con Qt."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec Qt."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qt 製です。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на Qt."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Qt 构建。"
+          }
+        }
+      }
+    },
+    "Built with Tauri — a Rust app drawing into the system WebView.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Tauri gebaut – eine Rust-App, die die System-WebView nutzt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con Tauri: una app en Rust que dibuja en el WebView del sistema."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec Tauri — une app Rust qui dessine dans la WebView du système."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tauri 製 — システムの WebView に描画する Rust アプリです。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на Tauri — приложение на Rust, рисующее в системном WebView."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Tauri 构建 —— 把界面画在系统 WebView 里的 Rust 程序。"
+          }
+        }
+      }
+    },
     "Built-in locations — these are always included and can’t be removed.": {
       "extractionState": "manual",
       "localizations": {
@@ -5056,6 +5507,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "更改"
+          }
+        }
+      }
+    },
+    "Check Again": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut prüfen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobar de nuevo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier à nouveau"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再確認"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить снова"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新检查"
           }
         }
       }
@@ -8849,6 +9341,47 @@
         }
       }
     },
+    "Ignored (row status)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignoriert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignorado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignoré"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無視中"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Игнорируется"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已忽略"
+          }
+        }
+      }
+    },
     "Ignored apps": {
       "extractionState": "manual",
       "localizations": {
@@ -9296,6 +9829,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在安装…"
+          }
+        }
+      }
+    },
+    "iOS App": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS-App"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App de iOS"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App iOS"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOSアプリ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS-приложение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS 应用"
           }
         }
       }
@@ -9833,6 +10407,47 @@
         }
       }
     },
+    "Links %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwendet %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enlaza con %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utilise %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@をリンクしています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использует %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链接了 %@。"
+          }
+        }
+      }
+    },
     "Lower this on a slow connection; raise it to check a large library faster.": {
       "extractionState": "manual",
       "localizations": {
@@ -10280,6 +10895,88 @@
           "stringUnit": {
             "state": "translated",
             "value": "较多"
+          }
+        }
+      }
+    },
+    "Native": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nativ"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nativa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Natif"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ネイティブ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нативное"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原生"
+          }
+        }
+      }
+    },
+    "New": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nuevo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新着"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новое"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增"
           }
         }
       }
@@ -12264,6 +12961,53 @@
         }
       }
     },
+    "Published on %@ — the vendor gave only a date, not a time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Veröffentlicht am %@ – der Anbieter nannte nur ein Datum, keine Uhrzeit."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Published on %@ — the vendor gave only a date, not a time."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publicado el %@: el proveedor solo indicó una fecha, no una hora."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publié le %@ — l’éditeur n’a indiqué qu’une date, pas d’heure."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に公開 — ベンダーは日付のみを示し、時刻は示していません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Опубликовано %@ — поставщик указал только дату, без времени."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发布于 %@ —— 厂商只给了日期，没有给时间。"
+          }
+        }
+      }
+    },
     "Queued": {
       "extractionState": "manual",
       "localizations": {
@@ -12387,47 +13131,6 @@
         }
       }
     },
-    "Quit the app to finish installing the update, then reopen it": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App beenden, um die Update-Installation abzuschließen, dann erneut öffnen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cierra la app para terminar de instalar la actualización y vuelve a abrirla"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quittez l'application pour terminer l'installation de la mise à jour, puis rouvrez-la"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アプリを終了して更新のインストールを完了し、再度開いてください"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Закройте приложение, чтобы завершить установку обновления, затем откройте его снова"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "退出该应用以完成更新安装，然后重新打开"
-          }
-        }
-      }
-    },
     "Rate-limited": {
       "extractionState": "manual",
       "localizations": {
@@ -12458,7 +13161,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ограничение частоты запросов"
+            "value": "Лимит запросов"
           }
         },
         "zh-Hans": {
@@ -14660,6 +15363,47 @@
         }
       }
     },
+    "Settings — something new in here": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen – hier gibt es Neues"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes: aquí hay algo nuevo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages — il y a du nouveau ici"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定 — 新しい項目があります"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки — здесь появилось новое"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置 —— 这里有新东西"
+          }
+        }
+      }
+    },
     "Settings…": {
       "extractionState": "manual",
       "localizations": {
@@ -14779,6 +15523,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "显示令牌"
+          }
+        }
+      }
+    },
+    "Show what each app is built with": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anzeigen, womit jede App gebaut ist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar con qué está hecha cada app"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher avec quoi chaque app est conçue"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "各アプリの実装技術を表示"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать, на чём написано приложение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示每个 App 用什么技术构建"
           }
         }
       }
@@ -14912,7 +15697,7 @@
         }
       }
     },
-    "Skipped": {
+    "Skipped (row status)": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -14930,7 +15715,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ignoré (version)"
+            "value": "Version ignorée"
           }
         },
         "ja": {
@@ -18964,6 +19749,293 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Can’t show this page safely": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Seite kann nicht sicher angezeigt werden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede mostrar esta página de forma segura"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d'afficher cette page en toute sécurité"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このページを安全に表示できません"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Невозможно безопасно показать эту страницу"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法安全显示此页面"
+          }
+        }
+      }
+    },
+    "This link isn’t secure (it doesn’t use https).": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Link ist nicht sicher (verwendet kein https)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este enlace no es seguro (no usa https)."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien n'est pas sécurisé (il n'utilise pas https)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリンクは安全ではありません（httpsを使用していません）。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта ссылка небезопасна (не использует https)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此链接不安全（未使用 https）。"
+          }
+        }
+      }
+    },
+    "This link includes a login that can’t be shown safely.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Link enthält Anmeldedaten, die nicht sicher angezeigt werden können."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este enlace incluye credenciales que no se pueden mostrar de forma segura."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien contient des identifiants qui ne peuvent pas être affichés en toute sécurité."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリンクにはログイン情報が含まれており、安全に表示できません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта ссылка содержит учётные данные, которые нельзя показать безопасно."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此链接包含登录信息，无法安全显示。"
+          }
+        }
+      }
+    },
+    "This link has no address to load.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Link hat keine Adresse zum Laden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este enlace no tiene ninguna dirección que cargar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien n'a pas d'adresse à charger."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリンクには読み込むアドレスがありません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У этой ссылки нет адреса для загрузки."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此链接没有可加载的地址。"
+          }
+        }
+      }
+    },
+    "This link points at a raw network address instead of a name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Link verweist auf eine rohe Netzwerkadresse statt auf einen Namen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este enlace apunta a una dirección de red sin procesar en lugar de un nombre."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien pointe vers une adresse réseau brute plutôt qu'un nom."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリンクは、名前ではなく生のネットワークアドレスを指しています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта ссылка указывает на необработанный сетевой адрес, а не на имя."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此链接指向的是原始网络地址，而不是名称。"
+          }
+        }
+      }
+    },
+    "This link points at a local-only name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Link verweist auf einen lokal reservierten Namen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este enlace apunta a un nombre exclusivamente local."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien pointe vers un nom réservé au réseau local."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリンクはローカル専用の名前を指しています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта ссылка указывает на локальное имя."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此链接指向一个仅限本地使用的名称。"
+          }
+        }
+      }
+    },
+    "This link uses a non-standard port.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Link verwendet einen nicht standardmäßigen Port."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este enlace usa un puerto no estándar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien utilise un port non standard."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリンクは標準以外のポートを使用しています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта ссылка использует нестандартный порт."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此链接使用了非标准端口。"
           }
         }
       }

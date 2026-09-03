@@ -210,10 +210,12 @@ public enum StructuredChangelogDecoder {
     private struct WeChatDevToolsLog: Decodable {
         let version: String?
         let updateTime: String?
+        let summary: String?
         let categories: [WeChatDevToolsCategory]?
         enum CodingKeys: String, CodingKey {
             case version
             case updateTime = "update_time"
+            case summary = "desc"
             case categories
         }
     }
@@ -244,6 +246,16 @@ public enum StructuredChangelogDecoder {
                 blocks.append(.note(line))
                 items.append(line)
             }
+        }
+        // Nightly builds can be published before Tencent has any categorized change
+        // lines ready (`categories: []`). The same document still carries its channel
+        // description in `desc`; keep that truthful vendor-authored context as the
+        // release's fallback instead of treating a valid per-version document as a
+        // broken recipe. Detailed categories continue to win whenever they exist.
+        if blocks.isEmpty,
+           let summary = log.summary.flatMap({ bulletItems(from: $0).first }) {
+            blocks.append(.note(summary))
+            items.append(summary)
         }
         guard !blocks.isEmpty else { return nil }
         return Changelog(entries: [.init(

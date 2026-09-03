@@ -29,8 +29,12 @@ if [ ! -f App/DuoUpdater.xcodeproj/project.pbxproj ] \
   xcodegen generate --spec App/project.yml --project App >/dev/null
 fi
 
-LOG="$DD/app-tests.log"
+# Per PROCESS, not just per checkout. Two runs in one checkout (a `make test`
+# alongside a manual invocation) would otherwise truncate and append to one
+# file, and the gates below read it: one run's count answering for another, or a
+# false "ran nothing" because the other run truncated it mid-grep.
 mkdir -p "$DD"
+LOG="$DD/app-tests-$$.log"
 set +e
 xcodebuild -project App/DuoUpdater.xcodeproj \
            -scheme DuoUpdaterAppTests -configuration Debug \
@@ -46,7 +50,12 @@ set -e
 # SUCCESS path the moment Xcode rewords its console summary, turning a green run
 # into a build failure with no message at all.
 if [ $STATUS -ne 0 ]; then
-  grep -E "error:|✘|recorded an issue|Test Case .* failed" "$LOG" | head -40 || true
+  # A crash or timeout prints "** TEST EXECUTE FAILED **" and "Restarting after
+  # unexpected exit"; a missing xcodebuild prints neither, nor anything else this
+  # matched before. Without those patterns the failure path printed the log path
+  # and nothing else.
+  grep -E "error:|✘|recorded an issue|Test Case .* failed|\*\* TEST|Testing failed" \
+    "$LOG" | head -40 || true
   echo "✗ App tests failed — full log: $LOG"
   exit $STATUS
 fi
@@ -55,11 +64,35 @@ fi
 # that stops matching, would otherwise leave `make test` green forever while
 # nothing at all executes — the vacuity that `make gallery`'s blank-tile gate and
 # the repo's "计时测试要防空过" rule both exist to catch.
-RAN="$(grep -oE "Test run with ([0-9]+) test" "$LOG" | grep -oE "[0-9]+" | tail -1 || true)"
-if [ -z "$RAN" ] || [ "$RAN" -eq 0 ]; then
-  echo "✗ App tests reported no executed tests — the bundle ran nothing."
-  echo "  Either App/Tests stopped being compiled into DuoUpdaterAppTests, or"
-  echo "  xcodebuild changed the summary line this gate reads. Log: $LOG"
+# Counted from the PER-CASE lines, not from the run summary. Measured: with a
+# case marked `.disabled()`, swift-testing's summary still reads "Test run with
+# 9 tests" — it counts what it knows about, not what it ran — so a summary-based
+# gate passes while a case sits switched off. Only cases that actually executed
+# get a "Test x() passed" line.
+#
+# Occurrences, NOT lines, and no `^` anchor. swift-testing runs cases in
+# parallel and its writes interleave, so a case's line routinely lands appended
+# to another's; anchored `grep -c` undercounted by one on a measured run (8 cases
+# executed, 7 counted) and would eventually fail a green build.
+RAN="$(grep -oE "Test [A-Za-z0-9_]+\(\) passed" "$LOG" | wc -l | tr -d ' ')"
+# The floor is DERIVED from the sources, not written down here: a hand-kept
+# number is a number that drifts, and a gate on "more than zero" would pass with
+# eight of nine cases silently not running — `.disabled()`, a rename, a `sources:`
+# entry that stops matching. `-lt` rather than `-ne` so a parameterized case,
+# which runs more times than it is declared, does not read as a failure.
+# `@Test.*func` rather than `@Test func`, so a case wearing a trait — including
+# `.disabled(…)`, the exact thing this gate is here to notice — still counts as
+# declared. Matching the bare form let a disabled case shrink BOTH sides at once.
+DECLARED="$(grep -rhoE "@Test.*func " App/Tests | wc -l | tr -d ' ')"
+if [ -z "$RAN" ]; then
+  echo "✗ App tests: no executed cases found in the log."
+  echo "  Either nothing ran, or swift-testing changed the per-case line this"
+  echo "  gate counts (\"✔ Test x() passed\"). Log: $LOG"
+  exit 1
+fi
+if [ "$RAN" -lt "$DECLARED" ]; then
+  echo "✗ App tests ran $RAN of the $DECLARED cases declared in App/Tests."
+  echo "  A case that stops running is a case that stops guarding. Log: $LOG"
   exit 1
 fi
 echo "✓ App tests — $RAN executed"

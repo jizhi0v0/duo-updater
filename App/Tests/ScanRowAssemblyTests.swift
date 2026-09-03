@@ -171,9 +171,11 @@ struct ScanRowAssemblyTests {
     /// that the channel survived, and **deleting the whole Toolbox branch left
     /// all eight tests green** — the fixture made `evaluateToolbox`, `evaluate`
     /// and `was.status` agree, so the assertion was `f(X) == f(X)` for the half
-    /// that matters. Here they disagree: the marketing versions differ (so
-    /// `evaluate` says an update is available) while the Toolbox builds have
-    /// caught up (so `evaluateToolbox` settles the row).
+    /// that matters. Here the CORRECT answer differs from every wrong one: the
+    /// marketing versions differ, so `evaluate` and the carried `was.status`
+    /// both say an update is available (they agree with each other, and that is
+    /// fine), while the Toolbox builds have caught up, so `evaluateToolbox`
+    /// settles the row to `.upToDate` and nothing else does.
     ///
     /// Mutations: delete the `if remote.sourceName == "Toolbox"` branch; or
     /// rebuild its return with `UpdateResult(app:remote:status:)`.

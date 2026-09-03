@@ -234,9 +234,14 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
 规矩:
 
 - **它覆盖的是「纯的那一半」,接线仍然只有复审看着。** `ScanRowAssembly` 被执行了,但
-  「哪份快照喂给哪个调用」还在 `AppListModel` 里、还在 target 之外——而 #314 那 4 条缺陷
-  恰恰是这类。把 `proofs` 和 `provenNow` 对调、或者给 `merged` 传一份过期的 `prior`,
-  今天照样编译通过、照样全绿。别把这一节读成「App 层的行组装现在有覆盖了」。
+  「哪份快照在什么时候取」还在 `AppListModel` 里、还在 target 之外——而 #314 那 4 条缺陷
+  恰恰是这类。可以真的试一下:把 `performRefresh` 里的
+  `let provenNow = ResolvedChannelStore.Snapshot()` 挪到 `await checker.check(checkable)`
+  **之前**,它就违反了紧挨着的那句注释("Read after the check, not before"),而**编译通过、
+  9 条测试全绿**。给 `merged` 传一份过期的 `prior` 同理。别把这一节读成「App 层的行组装
+  现在有覆盖了」。
+  (⚠️ 第一版这里写的是「把 `proofs` 和 `provenNow` 对调」——那两个变量在**两个不同的函数**里,
+  从来不同时在作用域内,照着做会发现根本改不了。举例的变异必须是真能做出来的那一个。)
 - **这个 target 只编译被点名的文件,不是整个 `Sources`。** 这不是为了省时间:
   `AppListModel.swift` 引用 `SettingsView`,会把整棵 SwiftUI 拉进来;而
   `AppListModel.init` 会注册通知、装两个 FSEvent 流、KVO 观察全机进程、起周期检查循环
@@ -263,6 +268,22 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
   `f(X)==f(X)`。现在两条用例各自断言 status,并且 fixture 刻意让三者**互不相同**。
   加用例时先问:**有没有一份输入能让"正确实现"和"删掉这段"给出不同答案?** 造不出来
   就说明这条用例没在量这段代码。
+  ⚠️ 准确的说法是「**正确答案与每一个错答案都不同**」,不是「三个候选互不相同」——实测这两份
+  fixture 里 `evaluate` 和 `was.status` 恰好相等,闸照样成立,但照着"三者互不相同"去推下一份
+  fixture 会瞄错属性。
+- ⚠️ **防空过闸不能读运行摘要,而且 grep 不能锚 `^`。** 两个都是实测踩出来的:
+  (1) 某条用例标了 `.disabled()` 时,swift-testing 的摘要**仍然**是
+  `Test run with 9 tests` —— 它数的是它知道的、不是它跑过的,所以基于摘要的闸会在用例被
+  关掉时放行;要数**逐条**的 `Test x() passed`。
+  (2) swift-testing 并行跑用例、输出会交织,某条的行经常被追加到另一条后面 —— 用
+  `grep -c "^✔ Test …"` 实测把 8 条执行数成了 7 条(会让全绿的构建偶发变红)。
+  要数**出现次数**(`grep -o … | wc -l`)且不要 `^`。
+  同理,数「声明了几条」要用 `@Test.*func` 而不是 `@Test func`,否则一条 `.disabled()`
+  会把两边同时减一、闸自己抵消掉。
+- ⚠️ **「用例是否真的在跑」这件事目前只有 `app-tests.sh` 那条闸在管;「用例是否真的在量代码」
+  只有这份文件的一段话在管。** 没有任何挂进 `make test` 的东西会去跑变异——
+  `make gallery` 的 `mayLookAlike`/`mayBeBlank` 是这个仓库把同类规矩变成构建失败的先例,
+  这里还没有等价物。所以上面那两条是**约定**,不是闸。
 - ⚠️ **fixture 不能比生产的判据宽。** `Proofs` 第一版按路径答,而真正的
   `provenChannelSnapshot` 要求 path + `shortVersion` + `buildVersion` 三者全中——于是一条
   用例断言了**生产代码根本产生不出来的结果**。fixture 现在按「一份拷贝的一个版本」作键。

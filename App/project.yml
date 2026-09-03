@@ -61,7 +61,8 @@ targets:
       base:
         CODE_SIGNING_ALLOWED: NO
         GENERATE_INFOPLIST_FILE: YES
-        # Pinned like the other targets. Without it the one app source file here
+        # Pinned like the four shipping targets (RowStateGallery, also a dev
+        # tool, has none either). Without it the one app source file here
         # would compile under xcodebuild's default language mode while the app
         # target builds it under Swift 6 — so "the App tests pass" would stop
         # being evidence that the file builds the way the app builds it.

@@ -29,18 +29,37 @@ if [ ! -f App/DuoUpdater.xcodeproj/project.pbxproj ] \
   xcodegen generate --spec App/project.yml --project App >/dev/null
 fi
 
+LOG="$DD/app-tests.log"
+mkdir -p "$DD"
 set +e
-OUT="$(xcodebuild -project App/DuoUpdater.xcodeproj \
-                  -scheme DuoUpdaterAppTests -configuration Debug \
-                  -derivedDataPath "$DD" \
-                  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-                  test 2>&1)"
+xcodebuild -project App/DuoUpdater.xcodeproj \
+           -scheme DuoUpdaterAppTests -configuration Debug \
+           -derivedDataPath "$DD" \
+           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+           test > "$LOG" 2>&1
 STATUS=$?
 set -e
+
+# `|| true` on every filter below, deliberately. `set -o pipefail` is on, so a
+# grep that matches nothing returns 1 and — with errexit restored — would abort
+# the script mid-report: on the failure path before it can print why, and on the
+# SUCCESS path the moment Xcode rewords its console summary, turning a green run
+# into a build failure with no message at all.
 if [ $STATUS -ne 0 ]; then
-  echo "$OUT" | grep -E "error:|failed|✘|Test Case .* failed" | head -40
-  echo "✗ App tests failed (full log: rerun scripts/app-tests.sh)"
+  grep -E "error:|✘|recorded an issue|Test Case .* failed" "$LOG" | head -40 || true
+  echo "✗ App tests failed — full log: $LOG"
   exit $STATUS
 fi
-echo "$OUT" | grep -E "Test run with|Executed .* tests" | tail -2
-echo "✓ App tests"
+
+# A bundle that runs NO tests exits 0. Renaming App/Tests, or a sources entry
+# that stops matching, would otherwise leave `make test` green forever while
+# nothing at all executes — the vacuity that `make gallery`'s blank-tile gate and
+# the repo's "计时测试要防空过" rule both exist to catch.
+RAN="$(grep -oE "Test run with ([0-9]+) test" "$LOG" | grep -oE "[0-9]+" | tail -1 || true)"
+if [ -z "$RAN" ] || [ "$RAN" -eq 0 ]; then
+  echo "✗ App tests reported no executed tests — the bundle ran nothing."
+  echo "  Either App/Tests stopped being compiled into DuoUpdaterAppTests, or"
+  echo "  xcodebuild changed the summary line this gate reads. Log: $LOG"
+  exit 1
+fi
+echo "✓ App tests — $RAN executed"

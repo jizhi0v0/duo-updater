@@ -16,9 +16,18 @@ struct ScanRowAssemblyTests {
     /// Proofs as a plain dictionary. `ResolvedChannelStore.Snapshot` drops every
     /// entry whose path is not on disk, so using the real type here would mean
     /// minting bundles in the filesystem to test an in-memory decision.
+    /// Keyed by path AND both version strings, because that is the contract the
+    /// only real conformer enforces: `provenChannelSnapshot` requires
+    /// `shortVersion` and `buildVersion` to match too, so a proof is about one
+    /// copy at one version rather than about a path. A fixture that answered on
+    /// the path alone would let a test assert an outcome the shipping code cannot
+    /// produce — and this one did, until a review caught it.
     private struct Proofs: ChannelProofSource {
-        var byPath: [String: ReleaseChannel] = [:]
-        func provenChannel(for app: InstalledApp) -> ReleaseChannel? { byPath[app.id] }
+        var byCopy: [String: ReleaseChannel] = [:]
+        static func key(_ app: InstalledApp) -> String {
+            "\(app.id)|\(app.shortVersion ?? "")|\(app.buildVersion ?? "")"
+        }
+        func provenChannel(for app: InstalledApp) -> ReleaseChannel? { byCopy[Self.key(app)] }
     }
 
     private static let betaPath = "/Applications/UTM.app"
@@ -32,14 +41,18 @@ struct ScanRowAssemblyTests {
     }
 
     private func remote(
-        _ version: String, channel: ReleaseChannel?, source: String = "GitHub"
+        _ version: String, channel: ReleaseChannel?, source: String = "GitHub",
+        build: String? = nil
     ) -> RemoteVersion {
         RemoteVersion(
-            shortVersion: version, version: nil, downloadURL: nil, sourceName: source,
+            shortVersion: version, version: build, downloadURL: nil, sourceName: source,
             releaseChannel: channel)
     }
 
-    private var provenBeta: Proofs { Proofs(byPath: [Self.betaPath: .beta]) }
+    /// A proof about exactly the copy passed in — nothing else.
+    private func proven(_ channel: ReleaseChannel, for app: InstalledApp) -> Proofs {
+        Proofs(byCopy: [Proofs.key(app): channel])
+    }
     private var noProofs: Proofs { Proofs() }
 
     // MARK: unchecked rows
@@ -52,7 +65,8 @@ struct ScanRowAssemblyTests {
     /// Mutation: drop `provenChannel:` from `ScanRowAssembly.unchecked` (it has a
     /// default — that is exactly why the omission used to compile).
     @Test func anUncheckedRowTakesItsChannelFromTheStore() {
-        let rows = ScanRowAssembly.unchecked([utm("5.0.5", build: "124")], proofs: provenBeta)
+        let app = utm("5.0.5", build: "124")
+        let rows = ScanRowAssembly.unchecked([app], proofs: proven(.beta, for: app))
 
         #expect(rows.count == 1)
         #expect(rows[0].effectiveReleaseChannel == .beta)
@@ -79,8 +93,8 @@ struct ScanRowAssemblyTests {
     /// Mutation: `guard let was = byID[app.id] else { return UpdateResult(app: app,
     /// remote: nil, status: .unknown) }`.
     @Test func anAppWithNoPriorRowStillTakesItsProvenChannel() {
-        let rows = ScanRowAssembly.merged(
-            [utm("5.0.5", build: "124")], prior: [], proofs: provenBeta)
+        let app = utm("5.0.5", build: "124")
+        let rows = ScanRowAssembly.merged([app], prior: [], proofs: proven(.beta, for: app))
 
         #expect(rows[0].effectiveReleaseChannel == .beta)
     }
@@ -100,7 +114,7 @@ struct ScanRowAssemblyTests {
     /// was.status)` in place of `carrying(nil, was.status)`.
     @Test func aFailedCheckKeepsItsChannelAcrossARescan() {
         let app = utm("5.0.5", build: "124")
-        let prior = ScanRowAssembly.unchecked([app], proofs: provenBeta)
+        let prior = ScanRowAssembly.unchecked([app], proofs: proven(.beta, for: app))
 
         let rows = ScanRowAssembly.merged([app], prior: prior, proofs: noProofs)
 
@@ -147,35 +161,86 @@ struct ScanRowAssemblyTests {
         #expect(rows[0].effectiveReleaseChannel == .stable)
     }
 
-    /// Toolbox and TestFlight rows return early from the merge, each through its
-    /// own `return`, which is precisely how the carry got dropped on one branch
-    /// while the others kept it.
+    /// Toolbox rows return early because their verdict is a Toolbox build
+    /// compare, not a compare against `shortVersion` — Toolbox installs the
+    /// update itself between our checks, and the cached "update available" would
+    /// otherwise stand beside the freshly rescanned version reading
+    /// "262.132.21 → 262.132.21".
     ///
-    /// Mutation: either early return rebuilt with `UpdateResult(app:remote:status:)`.
-    @Test func theEarlyReturningSourcesCarryTheChannelToo() {
-        for source in ["Toolbox", "TestFlight"] {
-            let app = utm("5.0.5", build: "124")
-            let prior = [UpdateResult(
-                app: app, remote: remote("5.0.5", channel: nil, source: source),
-                status: .upToDate, provenChannel: .beta)]
+    /// The status assertion is the point. A first version of this asserted only
+    /// that the channel survived, and **deleting the whole Toolbox branch left
+    /// all eight tests green** — the fixture made `evaluateToolbox`, `evaluate`
+    /// and `was.status` agree, so the assertion was `f(X) == f(X)` for the half
+    /// that matters. Here they disagree: the marketing versions differ (so
+    /// `evaluate` says an update is available) while the Toolbox builds have
+    /// caught up (so `evaluateToolbox` settles the row).
+    ///
+    /// Mutations: delete the `if remote.sourceName == "Toolbox"` branch; or
+    /// rebuild its return with `UpdateResult(app:remote:status:)`.
+    @Test func aToolboxRowSettlesOnItsOwnBuildCompareAndKeepsItsChannel() {
+        let app = InstalledApp(
+            name: "IDE", bundleID: "com.jetbrains.ide",
+            shortVersion: "262.132.20", buildVersion: "262.132.20",
+            path: URL(fileURLWithPath: Self.betaPath),
+            isMASApp: false, isToolboxManaged: true, sparkleFeedURL: nil,
+            toolboxInstalledBuild: "262.132.21")
+        let cached = remote("262.132.21", channel: nil, source: "Toolbox", build: "262.132.21")
+        let prior = [UpdateResult(
+            app: app, remote: cached, status: .updateAvailable(latest: "262.132.21"),
+            provenChannel: .beta)]
 
-            let rows = ScanRowAssembly.merged([app], prior: prior, proofs: noProofs)
+        let rows = ScanRowAssembly.merged([app], prior: prior, proofs: noProofs)
 
-            #expect(rows[0].effectiveReleaseChannel == .beta, "\(source) dropped the channel")
-        }
+        #expect(rows[0].status == .upToDate)
+        #expect(rows[0].effectiveReleaseChannel == .beta)
+    }
+
+    /// TestFlight owns its betas' status — it comes from TestFlight's own cache,
+    /// not from a version compare — and the row's label carries the build,
+    /// because TF betas keep one marketing string across builds
+    /// (`UpdateChecker` builds "1.2 (345)" for exactly that reason). Re-deriving
+    /// it here would rewrite that label to a bare "1.2" on every FS-watcher
+    /// rescan.
+    ///
+    /// Mutations: delete the `guard remote.sourceName != "TestFlight"`; or
+    /// rebuild its return with `UpdateResult(app:remote:status:)`.
+    @Test func aTestFlightRowKeepsItsOwnStatusAndItsChannel() {
+        let app = InstalledApp(
+            name: "Beta", bundleID: "com.example.beta",
+            shortVersion: "1.2", buildVersion: "344",
+            path: URL(fileURLWithPath: Self.betaPath),
+            isMASApp: false, isToolboxManaged: false, isTestFlightApp: true,
+            sparkleFeedURL: nil)
+        let cached = remote("1.2", channel: nil, source: "TestFlight", build: "345")
+        let prior = [UpdateResult(
+            app: app, remote: cached, status: .updateAvailable(latest: "1.2 (345)"),
+            provenChannel: .beta)]
+
+        let rows = ScanRowAssembly.merged([app], prior: prior, proofs: noProofs)
+
+        #expect(rows[0].status == .updateAvailable(latest: "1.2 (345)"))
+        #expect(rows[0].effectiveReleaseChannel == .beta)
     }
 
     /// The ordinary path — a GitHub row whose verdict is re-derived against the
     /// freshly scanned bundle — must still settle its status, not just its
     /// identity. Without this the merge could satisfy every case above by never
     /// re-evaluating anything.
+    ///
+    /// The proof is keyed to the copy now on disk, not to the one the prior row
+    /// described: the store was written by the check that just proved 5.0.5, and
+    /// its entry for 5.0.4 does not answer for 5.0.5.
+    ///
+    /// Mutation: `return carrying(remote, was.status)` in place of the
+    /// `UpdateChecker.evaluate(...)` call.
     @Test func anOrdinaryRowIsReEvaluatedAgainstTheNewBundle() {
+        let scanned = utm("5.0.5", build: "124")
         let prior = [UpdateResult(
             app: utm("5.0.4", build: "123"), remote: remote("5.0.5", channel: .beta),
             status: .updateAvailable(latest: "5.0.5"), provenChannel: .beta)]
 
         let rows = ScanRowAssembly.merged(
-            [utm("5.0.5", build: "124")], prior: prior, proofs: provenBeta)
+            [scanned], prior: prior, proofs: proven(.beta, for: scanned))
 
         #expect(rows[0].status == .upToDate)
         #expect(rows[0].effectiveReleaseChannel == .beta)

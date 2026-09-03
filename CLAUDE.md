@@ -233,6 +233,10 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
 
 规矩:
 
+- **它覆盖的是「纯的那一半」,接线仍然只有复审看着。** `ScanRowAssembly` 被执行了,但
+  「哪份快照喂给哪个调用」还在 `AppListModel` 里、还在 target 之外——而 #314 那 4 条缺陷
+  恰恰是这类。把 `proofs` 和 `provenNow` 对调、或者给 `merged` 传一份过期的 `prior`,
+  今天照样编译通过、照样全绿。别把这一节读成「App 层的行组装现在有覆盖了」。
 - **这个 target 只编译被点名的文件,不是整个 `Sources`。** 这不是为了省时间:
   `AppListModel.swift` 引用 `SettingsView`,会把整棵 SwiftUI 拉进来;而
   `AppListModel.init` 会注册通知、装两个 FSEvent 流、KVO 观察全机进程、起周期检查循环
@@ -250,8 +254,27 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
   固定路径会精确复刻 `/tmp/duo-loc-check` 那个多 worktree 撞锁的坑,而这次的症状是
   **测试随机失败**,比"构建变慢"更容易被误读成真回归。
 - **每条用例都要写清它对应哪一行变异**,并且合并前真的跑一遍那个变异确认它变红。
-  `ScanRowAssemblyTests` 的 8 条各自附了变异,8 条变异全部编译通过且只打中该打中的用例。
-  没有对应变异的用例(`anUnprovenCopyFallsBackToItsBundle` 是 fixture 守卫)要在注释里说明。
+  `ScanRowAssemblyTests` 现在是 9 条用例 / 10 个变异,10 个全部**编译通过**(不是靠编译
+  错误变红)且只打中该打中的用例。没有对应变异的用例(`anUnprovenCopyFallsBackToItsBundle`
+  是 fixture 守卫)要在注释里说明。
+- ⚠️ **「这个分支的 carry 没丢」不等于「这个分支还在」。** 第一版把 Toolbox 和 TestFlight
+  两个早返回合成一条用例、只断言 channel 活着,于是**把这两个分支整个删掉,8 条测试全绿**
+  ——那份 fixture 让 `evaluateToolbox`、`evaluate`、`was.status` 三者答案相同,状态那一半是
+  `f(X)==f(X)`。现在两条用例各自断言 status,并且 fixture 刻意让三者**互不相同**。
+  加用例时先问:**有没有一份输入能让"正确实现"和"删掉这段"给出不同答案?** 造不出来
+  就说明这条用例没在量这段代码。
+- ⚠️ **fixture 不能比生产的判据宽。** `Proofs` 第一版按路径答,而真正的
+  `provenChannelSnapshot` 要求 path + `shortVersion` + `buildVersion` 三者全中——于是一条
+  用例断言了**生产代码根本产生不出来的结果**。fixture 现在按「一份拷贝的一个版本」作键。
+- **harness 自己也要有防空过闸,而且这条闸也要变异验证。** `app-tests.sh` 会在
+  「执行了 0 个用例」时失败(target 不再编译 `App/Tests`、或 xcodebuild 改了摘要行),
+  实测:把 `- path: Tests` 从 target 里拿掉,它红;拿回来,9 executed。没有这条闸的话,
+  `App/Tests` 被改名之后 `make test` 会永远绿着什么都不跑。
+- ⚠️ **`set -o pipefail` 会让「grep 没匹配到」变成脚本失败。** 第一版在 `set -e` 恢复之后
+  用 `... | grep ... | head` 输出结果,于是**成功路径上**只要 xcodebuild 改了摘要措辞,
+  一次全绿的运行就会以无任何信息的失败告终。现在每个过滤都带 `|| true`,完整日志落盘到
+  `$DD/app-tests.log` 并在失败信息里报出路径(第一版让人「重跑一遍看完整日志」,而重跑
+  给出的是同样被过滤的 40 行——那条提示是假的)。
 
 ## 供应商 recipe 的失效是常态
 

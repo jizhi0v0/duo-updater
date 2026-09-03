@@ -26,8 +26,7 @@ public enum InstalledBuild {
               let object = try? PropertyListSerialization.propertyList(
                   from: data, format: nil),
               let fields = object as? [String: Any],
-              let build = fields["CFBundleVersion"] as? String,
-              !build.isEmpty
+              let build = VersionSide.plistVersionField(fields["CFBundleVersion"])
         else { return nil }
         return build
     }

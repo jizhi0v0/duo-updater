@@ -96,6 +96,152 @@ struct SparkleChannelTests {
         #expect(SparkleAppcastSource.channel(ofInstalled: app(short: "1.5", build: "x"), in: items) == nil)
     }
 
+    @Test func equivalentBuildSpellingStillPreservesTheInstalledChannel() {
+        let collidingMarketing = [
+            SparkleAppcastItem(shortVersionString: "1.0", version: "101"),
+            SparkleAppcastItem(
+                shortVersionString: "1.0", version: "v100", channel: "beta"),
+        ]
+
+        #expect(SparkleAppcastSource.channel(
+            ofInstalled: app(short: "1.0", build: "100"),
+            in: collidingMarketing) == "beta",
+            "the semantically identical build must win before marketing fallback")
+    }
+
+    @Test func exactBuildSpellingBeatsAnEarlierEquivalentBuild() {
+        let duplicateSpellings = [
+            SparkleAppcastItem(
+                shortVersionString: "1.0", version: "1.0.0", channel: "tip"),
+            SparkleAppcastItem(
+                shortVersionString: "1.0", version: "1.0", channel: "beta"),
+        ]
+
+        #expect(SparkleAppcastSource.channel(
+            ofInstalled: app(short: "1.0", build: "1.0"),
+            in: duplicateSpellings) == "beta")
+    }
+
+    /// TypeWhisper's real appcast, 2026-08-31: three trains on one bundle id,
+    /// and the `release-candidate` build ships the SAME
+    /// `CFBundleShortVersionString` (`1.6.0`) as the stable item that sits
+    /// AHEAD of it in the feed. The fixture above can't catch this — its two
+    /// keys never disagree about which item they pick.
+    ///
+    /// "Build first, then short" has to mean "build across every item, then
+    /// short across every item". Matching per-item instead let the stable
+    /// entry's short string win before the rc entry's exact build was ever
+    /// compared, so the rc install read as stable and its own train vanished
+    /// from `usableItems`. Verified against the real rc2 bundle before the fix.
+    ///
+    /// Note what this does NOT change: with the bug the rc user was still
+    /// offered 1091, because the default channel is allowed to everyone and
+    /// stable was the newer of the two that day. The damage only lands when
+    /// the rc train moves ahead — covered by the second half of the test.
+    private var typeWhisperItems: [SparkleAppcastItem] {
+        SparkleAppcastParser.parse(Data("""
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+          <channel>
+            <item>
+              <title>1.7.0-daily.20260830</title>
+              <sparkle:version>1161</sparkle:version>
+              <sparkle:shortVersionString>1.7.0-daily.20260830</sparkle:shortVersionString>
+              <sparkle:channel>daily</sparkle:channel>
+              <enclosure url="https://example.com/daily.zip" sparkle:edSignature="sig" length="1" type="application/octet-stream" />
+            </item>
+            <item>
+              <title>1.6.0</title>
+              <sparkle:version>1091</sparkle:version>
+              <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
+              <enclosure url="https://example.com/1.6.0.zip" sparkle:edSignature="sig" length="1" type="application/octet-stream" />
+            </item>
+            <item>
+              <title>1.6.0-rc2</title>
+              <sparkle:version>1083</sparkle:version>
+              <sparkle:shortVersionString>1.6.0-rc2</sparkle:shortVersionString>
+              <sparkle:channel>release-candidate</sparkle:channel>
+              <enclosure url="https://example.com/rc2.zip" sparkle:edSignature="sig" length="1" type="application/octet-stream" />
+            </item>
+          </channel>
+        </rss>
+        """.utf8))
+    }
+
+    @Test func anExactBuildMatchBeatsAnEarlierItemSharingTheShortVersion() {
+        // The rc bundle: short `1.6.0` (collides with the stable item), build 1083.
+        let rc = InstalledApp(
+            name: "TypeWhisper", bundleID: "com.typewhisper.mac",
+            shortVersion: "1.6.0", buildVersion: "1083",
+            path: URL(fileURLWithPath: "/Applications/TypeWhisper.app"),
+            isMASApp: false,
+            sparkleFeedURL: URL(string: "https://example.com/appcast.xml"),
+            sparkleEdPublicKey: "key")
+        #expect(SparkleAppcastSource.channel(ofInstalled: rc, in: typeWhisperItems) == "release-candidate")
+
+        // The user's own train is visible again: its entry survives the gate,
+        // which is what feeds the notes and the release history.
+        let usable = SparkleAppcastSource.usableItems(
+            for: rc, from: typeWhisperItems, osVersion: "26.0.0")
+        #expect(usable.contains { $0.version == "1083" })
+
+        // And once the rc train moves ahead of stable, the rc user is actually
+        // offered it — the case the gate was silently answering "no" to.
+        let withNewerRC = typeWhisperItems + SparkleAppcastParser.parse(Data("""
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+          <channel>
+            <item>
+              <title>1.6.1-rc1</title>
+              <sparkle:version>1095</sparkle:version>
+              <sparkle:shortVersionString>1.6.1-rc1</sparkle:shortVersionString>
+              <sparkle:channel>release-candidate</sparkle:channel>
+              <enclosure url="https://example.com/rc3.zip" sparkle:edSignature="sig" length="1" type="application/octet-stream" />
+            </item>
+          </channel>
+        </rss>
+        """.utf8))
+        let best = SparkleAppcastSource.bestItem(for: rc, from: withNewerRC, osVersion: "26.0.0")
+        #expect(best?.version == "1095")
+        #expect(best?.channel == "release-candidate")
+    }
+
+    /// Supacode's shape, same date and same failure: the `tip` build
+    /// (`1787740786`) is item #10 while item #0 is the default `0.10.8` — and
+    /// tip carries that identical short string. Kept alongside the TypeWhisper
+    /// case because the two differ in where the colliding item sits, and a fix
+    /// that only sorted the feed would pass one and fail the other.
+    @Test func aTipBuildIsNotStolenByTheDefaultItemAheadOfIt() {
+        let items = SparkleAppcastParser.parse(Data("""
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+          <channel>
+            <item>
+              <title>0.10.8</title>
+              <sparkle:version>1785775286</sparkle:version>
+              <sparkle:shortVersionString>0.10.8</sparkle:shortVersionString>
+              <enclosure url="https://example.com/default.zip" sparkle:edSignature="sig" length="1" type="application/octet-stream" />
+            </item>
+            <item>
+              <title>0.10.8 tip</title>
+              <sparkle:version>1787740786</sparkle:version>
+              <sparkle:shortVersionString>0.10.8</sparkle:shortVersionString>
+              <sparkle:channel>tip</sparkle:channel>
+              <enclosure url="https://example.com/tip.zip" sparkle:edSignature="sig" length="1" type="application/octet-stream" />
+            </item>
+          </channel>
+        </rss>
+        """.utf8))
+        let tip = InstalledApp(
+            name: "supacode", bundleID: "app.supabit.supacode",
+            shortVersion: "0.10.8", buildVersion: "1787740786",
+            path: URL(fileURLWithPath: "/Applications/supacode.app"),
+            isMASApp: false,
+            sparkleFeedURL: URL(string: "https://example.com/appcast.xml"),
+            sparkleEdPublicKey: "key")
+        #expect(SparkleAppcastSource.channel(ofInstalled: tip, in: items) == "tip")
+    }
+
     /// An app whose channel preference says "beta" but is still on a stable build
     /// (no beta newer yet). Build-inference would call it stable and miss the
     /// beta line; the authoritative channel from `ChannelBinding` catches it.

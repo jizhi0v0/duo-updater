@@ -84,6 +84,24 @@ private func event(_ day: Int, _ hour: Int, version: String) -> ReleaseEvent {
     #expect(stats.byHour[9] == 0)        // the estimate's hour is not plotted
 }
 
+/// #239: a `vendorDay` event is real vendor information (unlike the
+/// detection-only estimate above), but still carries no time of day — plotting
+/// it would mean inventing an hour, and possibly a weekday, the vendor never
+/// stated. Must be excluded exactly like the estimated tier.
+@Test func vendorDayEventsAreExcludedEvenThoughTheyAreNotDetectionOnly() {
+    let published = event(24, 17, version: "1")
+    let dayOnly = ReleaseEvent(
+        version: "2",
+        vendorDay: utc.date(from: DateComponents(year: 2026, month: 6, day: 24, hour: 9))!,
+        detectedAt: utc.date(from: DateComponents(year: 2026, month: 6, day: 24, hour: 9))!,
+        sourceName: "Sparkle")
+    #expect(dayOnly.isApproximate == false, "a vendor-stated day is not a detection guess")
+    let stats = ReleaseStats(events: [published, dayOnly], calendar: utc)
+    #expect(stats.total == 1)            // only the minute-precise one counts
+    #expect(stats.byHour[17] == 1)       // Wed 17:00 (published)
+    #expect(stats.byHour[9] == 0)        // the vendor day's arbitrary hour is not plotted
+}
+
 @Test func timeZoneShiftsTheBucket() {
     // 23:00 UTC on Wed the 24th is 08:00 the next day (Thu) in UTC+9.
     var jst = Calendar(identifier: .gregorian)

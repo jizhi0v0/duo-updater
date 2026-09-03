@@ -311,6 +311,42 @@ extension UpdateRoute {
 
 /// Everything the ladder reads about one row, gathered by the caller so the
 /// decision itself stays pure and testable.
+/// The per-row state a UI layer keeps outside `UpdateResult`, keyed by row id.
+///
+/// Exists so that filling `RowActionFacts` — deciding which table answers which
+/// fact, and under which key — is testable. That wiring used to sit in
+/// `AppListModel`, where nothing executes it, and it is the kind of code that
+/// fails by looking right: a fact fed from the neighbouring table, or looked up
+/// under `bundleID` where the tables are keyed by install path, compiles and
+/// renders a plausible row.
+public struct RowStateTables: Sendable {
+    public var installing: [String: InstallStage]
+    public var needsRestart: Set<String>
+    public var pendingBatchRestart: [String: String]
+    public var pendingSelfUpdate: [String: StagedSelfUpdate]
+    public var relaunching: Set<String>
+    public var awaitingQuitConfirm: [String: String]
+    public var justUpdated: Set<String>
+
+    public init(
+        installing: [String: InstallStage] = [:],
+        needsRestart: Set<String> = [],
+        pendingBatchRestart: [String: String] = [:],
+        pendingSelfUpdate: [String: StagedSelfUpdate] = [:],
+        relaunching: Set<String> = [],
+        awaitingQuitConfirm: [String: String] = [:],
+        justUpdated: Set<String> = []
+    ) {
+        self.installing = installing
+        self.needsRestart = needsRestart
+        self.pendingBatchRestart = pendingBatchRestart
+        self.pendingSelfUpdate = pendingSelfUpdate
+        self.relaunching = relaunching
+        self.awaitingQuitConfirm = awaitingQuitConfirm
+        self.justUpdated = justUpdated
+    }
+}
+
 public struct RowActionFacts {
     public var status: UpdateStatus
     public var awaitingQuitConfirm: String?
@@ -417,5 +453,44 @@ public enum RowAction {
             if facts.isTestFlightApp { return .upToDate(channel: .testFlight) }
             return .upToDate(channel: .none)
         }
+    }
+}
+
+extension RowActionFacts {
+    /// Fill the facts for one row from the tables a UI layer holds.
+    ///
+    /// Every table is looked up under `result.id`, which is the install PATH —
+    /// two copies of one app share a bundle id and must not share a row's
+    /// install stage or relaunch flag.
+    ///
+    /// `route` stays an `@autoclosure` all the way through: only the
+    /// `.updateAvailable` rung reads it, and computing it is the expensive part
+    /// of assembling facts (it rebuilds an `InstallEnvironment`, and stats the
+    /// disk for pkg rows). This function must not call it — `routeIsDeferred`
+    /// counts the calls.
+    public static func assemble(
+        for result: UpdateResult,
+        tables: RowStateTables,
+        isIgnored: Bool,
+        isVersionSkipped: Bool,
+        route: @escaping @autoclosure () -> UpdateRoute
+    ) -> RowActionFacts {
+        let staged = UpdatePolicy.actionableStaged(
+            result, staged: tables.pendingSelfUpdate[result.id])
+        return RowActionFacts(
+            status: result.status,
+            awaitingQuitConfirm: tables.awaitingQuitConfirm[result.id],
+            isRelaunching: tables.relaunching.contains(result.id),
+            hasPendingBatchRestart: tables.pendingBatchRestart[result.id] != nil,
+            justUpdated: tables.justUpdated.contains(result.id),
+            installStage: tables.installing[result.id],
+            isIgnored: isIgnored,
+            isVersionSkipped: isVersionSkipped,
+            stagedRelaunchTarget: staged.map { result.stagedRelaunchLine($0).to },
+            needsRestart: tables.needsRestart.contains(result.id),
+            isMASApp: result.app.isMASApp,
+            isTestFlightApp: result.app.isTestFlightApp,
+            hasSparkleFeed: result.app.sparkleFeedURL != nil,
+            route: route())
     }
 }

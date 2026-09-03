@@ -663,6 +663,73 @@ public enum UpdatePolicy {
     /// the Ignored tag: hidden in the app, still nagging in Notification Center.
     /// Ignore and skip both mean "stop telling me about this", so both are gates
     /// here, not just on the updates-available path.
+    /// A pending update the user hasn't ignored or skipped — what the badge counts
+    /// and what "Update All" acts on.
+    public static func isActionableUpdate(
+        _ result: UpdateResult,
+        isIgnored: Bool,
+        isVersionSkipped: (VersionSide?) -> Bool
+    ) -> Bool {
+        guard result.hasUpdate else { return false }
+        if isIgnored { return false }
+        if isVersionSkipped(result.remote?.versionSide) { return false }
+        return true
+    }
+
+    /// A row that still has something for the user to do: a pending update, or a
+    /// relaunch that finishes one already on disk.
+    ///
+    /// The badge counts these, not the actionable updates alone. The
+    /// version-comparison half of `needsRestart` is only reached when the row has
+    /// nothing newer to install (a row with an update shows Update instead), so
+    /// counting updates alone put the menu bar at "no updates" while the list
+    /// underneath showed apps running old code with a Relaunch button each.
+    ///
+    /// **The ignored check is deliberately NOT first.** An actionable update wins
+    /// over it — `isActionableUpdate` has already applied ignore and skip itself,
+    /// so reaching the guard means the row has no offerable update, and only then
+    /// does hiding the app suppress its relaunch and staged-nudge terms. Hoisting
+    /// the guard above the first line changes nothing today for the same reason,
+    /// which is exactly why it is worth pinning: the two orders are only equivalent
+    /// while `isActionableUpdate` keeps applying both preferences.
+    ///
+    /// `staged` is the RAW per-row entry and is checked for nil before
+    /// `nudgeableStaged` is consulted. ⚠️ **That check is behaviour-neutral here,
+    /// and no test pins it** — `nudgeableStaged(_:staged:isIgnored:…)` reaches
+    /// `actionableStaged`, which returns nil for a nil entry without touching a
+    /// preference. It is kept as a cheap call-avoidance on a path that runs per
+    /// row on every render, nothing more.
+    ///
+    /// It is written down because the version this replaced needed it for a
+    /// stronger reason that no longer applies: in `AppListModel` the call was
+    /// `nudgeableStaged(result)`, which computed `prefs.isIgnored(result.app)`
+    /// itself — building a sanitised preference key out of the full bundle path
+    /// before it could answer "nothing is staged". Here the caller has already
+    /// resolved `isIgnored` to a `Bool`, so that cost is gone. Do not restore the
+    /// old justification if you touch this.
+    ///
+    /// An uninstalled app cannot strand the badge even though a package-restart
+    /// entry can be carried across a blind pass indefinitely: the caller filters
+    /// its own rows, and a deleted app has none.
+    public static func needsAction(
+        _ result: UpdateResult,
+        isIgnored: Bool,
+        isVersionSkipped: (VersionSide?) -> Bool,
+        needsRestart: Bool,
+        hasPendingBatchRestart: Bool,
+        staged: StagedSelfUpdate?
+    ) -> Bool {
+        if isActionableUpdate(result, isIgnored: isIgnored, isVersionSkipped: isVersionSkipped) {
+            return true
+        }
+        guard !isIgnored else { return false }
+        return needsRestart
+            || hasPendingBatchRestart
+            || (staged != nil && nudgeableStaged(
+                result, staged: staged, isIgnored: isIgnored,
+                isVersionSkipped: { isVersionSkipped($0) }) != nil)
+    }
+
     public static func nudgeableStaged(
         _ result: UpdateResult,
         staged: StagedSelfUpdate?,

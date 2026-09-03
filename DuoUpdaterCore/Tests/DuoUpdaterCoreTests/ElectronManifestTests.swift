@@ -245,6 +245,94 @@ struct ElectronManifestSourceTests {
         #expect(entry?.isHealthy == true)
     }
 
+    // MARK: - #291: end-to-end coverage for real vendor shapes, without the
+    // arm64-mac.yml sibling routing #280 removed. These two used to be named
+    // `aRealCanvaShapedManifestIsUnaffectedByItsForbiddenSibling` and
+    // `aNativeArm64FilesEntryIsUnaffectedBySiblingProbeOutcome` — they carried
+    // "sibling" in their names because they were originally written to prove
+    // a real vendor's behavior was UNCHANGED by a sibling probe outcome. #280
+    // deleted the sibling probe itself and took these two down with it on the
+    // theory that "sibling" in the name meant they tested sibling-probing
+    // machinery. They didn't: what they actually exercise is the full
+    // `latestVersion(for:)` pipeline (URL resolution, SHA512 extraction,
+    // RecipeHealth) against a real vendor body — coverage the surviving
+    // `fallsBackToTheUniversalArtifactWhenNoArchIsNamed` and
+    // `picksTheArm64ArtifactOverTheOneTheManifestCallsPrimary` above do NOT
+    // provide, since those two call `ElectronManifest.parse` and
+    // `artifact(forArch:)` directly and never touch `latestVersion(for:)`,
+    // `resolvedDownloadURL`, or `RecipeHealth` at all.
+
+    @Test func aRealCanvaShapedManifestResolvesEndToEnd() async throws {
+        // Canva's ACTUAL shape, end to end (2026-09-01, real body): its default
+        // manifest names a `universal` artifact, which `artifact(forArch:)`
+        // picks before ever considering the top-level `path` fallback branch.
+        let domain = "https://desktop-release.canva.com"
+        FixtureProtocol.requestedURLs = []
+        FixtureProtocol.routes = [
+            "\(domain)/latest-mac.yml": .init(status: 200, body: """
+                version: 1.124.1
+                files:
+                  - url: Canva-1.124.1-universal-mac.zip
+                    sha512: ZIPSHA==
+                    size: 220714081
+                  - url: Canva-1.124.1-universal.dmg
+                    sha512: DMGSHA==
+                    size: 229488791
+                path: Canva-1.124.1-universal-mac.zip
+                sha512: ZIPSHA==
+                """, transportFailure: false),
+        ]
+        let bundleID = "com.duoupdater.test.electron.canvaReal"
+        let source = ElectronManifestSource(session: fixtureSession())
+
+        let remote = try #require(await source.latestVersion(
+            for: electronApp(bundleID: bundleID, domain: domain)))
+        #expect(remote.shortVersion == "1.124.1")
+        #expect(remote.downloadURL == URL(string: "\(domain)/Canva-1.124.1-universal-mac.zip"))
+        #expect(remote.vendorInstallerKind == .zip)
+        #expect(remote.expectedSHA512 == "ZIPSHA==")
+        #expect(FixtureProtocol.requestedURLs == ["\(domain)/latest-mac.yml"])
+
+        let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
+        #expect(entry?.isHealthy == true)
+    }
+
+    @Test func aNativeArm64FilesEntryResolvesEndToEnd() async throws {
+        // ChatWise 26.8.0's shape (2026-09-01, real body): `files:` already
+        // carries a native arm64 entry, and the top-level `path` names x64.
+        // `artifact(forArch:)` picks the native entry before ever reaching the
+        // `path` fallback branch.
+        let domain = "https://cdn-chatwise.example.test"
+        FixtureProtocol.requestedURLs = []
+        FixtureProtocol.routes = [
+            "\(domain)/latest-mac.yml": .init(status: 200, body: """
+                version: 26.8.0
+                files:
+                  - url: ChatWise-26.8.0-x64.zip
+                    sha512: X64SHA==
+                    size: 100
+                  - url: ChatWise-26.8.0-arm64.zip
+                    sha512: ARM64SHA==
+                    size: 99
+                path: ChatWise-26.8.0-x64.zip
+                sha512: X64SHA==
+                """, transportFailure: false),
+        ]
+        let bundleID = "com.duoupdater.test.electron.nativeArm64Entry"
+        let source = ElectronManifestSource(session: fixtureSession())
+
+        let remote = try #require(await source.latestVersion(
+            for: electronApp(bundleID: bundleID, domain: domain)))
+        #expect(remote.shortVersion == "26.8.0")
+        #expect(remote.downloadURL == URL(string: "\(domain)/ChatWise-26.8.0-arm64.zip"))
+        #expect(remote.vendorInstallerKind == .zip)
+        #expect(remote.expectedSHA512 == "ARM64SHA==")
+        #expect(FixtureProtocol.requestedURLs == ["\(domain)/latest-mac.yml"])
+
+        let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
+        #expect(entry?.isHealthy == true)
+    }
+
     @Test func aNon200ManifestRecordsAMiss() async throws {
         let domain = "https://cdn-404.example.test"
         FixtureProtocol.requestedURLs = []

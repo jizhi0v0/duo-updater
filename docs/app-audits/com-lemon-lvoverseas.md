@@ -232,6 +232,60 @@ stable 字段在**所有能应答的取值下都是 9.3.0**，所以只有 beta 
 一个「未来/内部」桶而不是普通客户端桶，任何以后想从这个响应里多读字段的改动，都必须
 重新核对该字段在真实 version_code 下是否一致。
 
+### 第四个坑：端点会以 200 回自己的错误信封（2026-09-01 补）
+
+厂商后端偶发内部超时，**HTTP 200**，body 是 392 字节的错误信封而不是 ~436 KB 的答案：
+
+```json
+{"data": {},"message": "ExecBizCode error: GetPyCodeSettings error: GetSettingsFromPython
+ error, err = remote or network error[remote]: error_code=1204
+ cds_key=THRIFT_EGRESS|toutiao.settings.settings:sg:sg1:|…|GetBizSettingsJson|prod|
+ reason=request timeout connect_timeout=100ms(from cp) request_timeout=500ms(from cp)
+ real_time=501018us fault_delay=0ms"}
+```
+
+`request_timeout=500ms` vs `real_time=501018us` —— ByteDance 内部 RPC 踩线超时，边缘节点
+把失败当成功发了出来。
+
+**频率（实测 2026-09-01）**：并发 24 连打两轮，第一轮 1 次、第二轮 0 次（≈1/48）；顺序
+12 次全绿。同一晚上 app 侧真实撞上两次，17:54（403 字节）和 17:55（391 字节）。
+
+**为什么它以前是个 bug**：响应里没有任何东西说"服务端错了"，pattern 匹配不到 →
+`versionPatternNoMatch`，而那条的含义是**「配方坏了，得有人来修」**。用户看到的是
+菜单栏一条红的「1 app could not be checked — no match in 391-byte body」，而配方两次
+都是好的、下一轮就自己好了；夜里 `duo verify` 撞上还会给一条健康的配方开 issue。
+
+**现在**：两条配方都带 `transientBodyPattern: ^\s*\{\s*"data"\s*:\s*\{\s*\}`，
+`versionFeedData` 按 gateway 5xx 的同一条路重试一次（**只在 2xx 上**：空 body 在 429/500
+上更常见，而那两个状态是明确不许重试的），仍是信封才报
+`ProbeFailure.vendorErrorEnvelope` → `.infra`。
+
+**`.infra` 不等于永远不报**：`duo verify` 会在 sweep 内再重试，`Baseline.isInfraReportable`
+在它连续持续 `infraWindow`（5 天）后仍然会开 issue。所以判据万一写宽了，代价是「晚 5 天、
+而且标题会说成端点不可达」，不是永久隐身——但也正因为如此，判据必须窄。
+
+判据锚在**顶层 `data` 为空**，不锚 message 文本——那是内部堆栈，下次就换词了。四份**真实
+抓下来的 body** 逐一跑过这条正则（2026-09-01）：
+
+| body | 大小 | 匹配信封 | 说明 |
+|---|---|---|---|
+| 健康响应 (`version_code=9.99`) | 435,426 B | ✗ | 全文空 `data` 对象出现 0 次 |
+| `version_code=99.9.9` | 647,199 B | ✗ | 真实的「掉出窗口」：有 data、无 `update_reminder` |
+| `version_code=9` | 379,393 B | ✗ | 同上 |
+| 错误信封 | 392 B | ✓ | 唯一匹配的 |
+
+中间两条正是**必须继续是响亮配方失败**的那种响应（见上面第 3 坑）：厂商拒绝回答时**仍然
+会填 data**，这一点只能靠抓包确认，不能靠想。
+
+**顺带纠正一条 2026-08-27 的表**：`version_code=10.0.0` 当时记为「没有 `update_reminder`」，
+2026-09-01 复测**有**（389,696 B，带 `update_reminder`）。厂商的桶边界会动，钉 `9.99` 的
+理由不变，但那张表是快照不是规格。
+
+**缓存不会吃掉这次重试（实测，别再怀疑一遍）**：端点回
+`cache-control: max-age=0, no-cache, no-store`，且**没有** `ETag` / `Last-Modified`。
+`versionFeedCachePolicy` 是 revalidate，没有校验器就没有条件请求，也就不存在「重试被
+304 打回同一份信封」这条路。
+
 ### 版本方案：两轨字段是反的
 
 ```

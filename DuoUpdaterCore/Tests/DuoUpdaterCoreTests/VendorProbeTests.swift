@@ -839,6 +839,70 @@ private func verdict(
     #expect(remote.publishedAt == parsed)
 }
 
+@Test func anUnreadableCapturedPublishDateIsWarnedAbout() async throws {
+    let body = #"{"version":"3.1.0","published":"sometime yesterday"}"#
+    let server = try RecipeVerificationTests.StubServer(body: body)
+    defer { server.stop() }
+    let recipe = VendorProbeRecipe(
+        bundleID: "com.example.unreadable-date", url: server.url,
+        mode: .responseBody,
+        versionPattern: #""version":"([^"]+)""#,
+        publishedAtPattern: #""published":"([^"]+)""#)
+
+    let outcome = await VendorProbeSource().probeDiagnostic(recipe)
+
+    #expect(outcome.remote?.shortVersion == "3.1.0",
+            "an optional date must not turn a good version into a probe failure")
+    #expect(outcome.remote?.publishedAt == nil)
+    #expect(outcome.failure == nil)
+    #expect(outcome.warnings == [.publishedAtUnreadable("sometime yesterday")])
+    #expect(outcome.warnings.first?.kind == "publishedAtUnreadable")
+    #expect(outcome.warnings.first?.display
+        == "publishedAtUnreadable: captured value did not parse: sometime yesterday")
+}
+
+@Test func aReadableCapturedPublishDateStaysQuiet() async throws {
+    let body = #"{"version":"3.1.0","published":"2026-09-02T06:00:00Z"}"#
+    let server = try RecipeVerificationTests.StubServer(body: body)
+    defer { server.stop() }
+    let recipe = VendorProbeRecipe(
+        bundleID: "com.example.readable-date", url: server.url,
+        mode: .responseBody,
+        versionPattern: #""version":"([^"]+)""#,
+        publishedAtPattern: #""published":"([^"]+)""#)
+
+    let outcome = await VendorProbeSource().probeDiagnostic(recipe)
+
+    #expect(outcome.remote?.publishedAt != nil)
+    #expect(outcome.warnings.isEmpty)
+}
+
+// A `publishedAtPattern` that matches nothing at all must not be silently
+// indistinguishable from a recipe that never declared one — issue #288.
+// Before this warning existed, both produced the same `nil` `publishedAt`
+// and an empty `outcome.warnings`, so `duo verify` had nothing to say about a
+// recipe that lost its date field entirely.
+@Test func aPublishedAtPatternThatMatchesNothingIsWarnedAbout() async throws {
+    let body = #"{"version":"3.1.0","published_wrong_key":"2026-09-02T06:00:00Z"}"#
+    let server = try RecipeVerificationTests.StubServer(body: body)
+    defer { server.stop() }
+    let recipe = VendorProbeRecipe(
+        bundleID: "com.example.no-publish-match", url: server.url,
+        mode: .responseBody,
+        versionPattern: #""version":"([^"]+)""#,
+        publishedAtPattern: #""published":"([^"]+)""#)
+
+    let outcome = await VendorProbeSource().probeDiagnostic(recipe)
+
+    #expect(outcome.remote?.shortVersion == "3.1.0",
+            "a publishedAtPattern miss must not turn a good version into a probe failure")
+    #expect(outcome.remote?.publishedAt == nil)
+    #expect(outcome.failure == nil)
+    #expect(outcome.warnings == [.publishedAtPatternNoMatch])
+    #expect(outcome.warnings.first?.kind == "publishedAtPatternNoMatch")
+    #expect(outcome.warnings.first?.display == "publishedAtPatternNoMatch")
+}
+
 // Recipes without a publishedAtPattern must stay absent rather than inventing a
 // time — the timeline then shows its estimated "≈" window instead.
 @Test func probeWithoutPublishedAtPatternLeavesReleaseTimeUnset() {

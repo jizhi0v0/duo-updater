@@ -5,6 +5,124 @@ reads the section matching the version being shipped and embeds it in the GitHub
 release and the Sparkle appcast, so this file is the single source of truth for
 "what's new" — keep each version's prose written for users, not commit-speak.
 
+**Write what the reader gets, not how it was found.** One bold sentence naming the
+benefit, and at most one more saying what used to happen instead. Nobody reading a
+release note is debugging our code:
+
+- No investigation narrative — what was measured, which comment was wrong, how many
+  call sites there were, what a reviewer caught.
+- No numbers from a developer's machine, no file or symbol names, no issue numbers.
+- Changes a user cannot perceive (refactors, internal hardening, most performance
+  work) go in a single closing "Under the hood:" line, or nowhere. A speed-up
+  belongs on its own only if someone would actually feel it.
+- Ordered by how much the reader cares, not by when it was merged.
+
+Versions before 0.3.80 are the old long-form style; leave them as shipped.
+
+## 0.3.81
+
+**Word, Excel, PowerPoint, Outlook and OneNote now notice when their update has landed.** These five kept offering to re-open the installer you had already finished with, and never moved on to offering the restart — waiting or re-checking could not have shaken it loose.
+
+**A row waiting to relaunch explains itself again, in both windows.** When an app was both ahead of what its vendor publishes and waiting on a relaunch, the line above the button described something else entirely; the window and the menu also disagreed about rows waiting on an Update All restart.
+
+**Row tags no longer crowd out the app name in Russian.** A few tags were borrowing wording from unrelated strings in every translated language, too.
+
+**Release notes now appear for apps whose vendor dates a release without timing it.** Those releases used to leave no trace anywhere.
+
+**A release-notes page we refuse to open now says why.** It went blank before, which looked exactly like an app that publishes no notes at all.
+
+**WeChat DevTools nightly release notes are no longer empty.**
+
+**Under the hood.** Version and release-date handling were consolidated so a build number can never be read as a marketing version, and the release timeline no longer invents a time of day the vendor never gave.
+
+## 0.3.80
+
+**Failed checks are visible in the window now.** The window drew nothing for a row whose check had failed — or one you ignored, one you skipped, or one the App Store, Toolbox or TestFlight manages — which looked exactly like "up to date". The two windows now say the same thing about the same app, and the retry button is in both.
+
+**"Check Again" on any row asks about just that app.** It also re-reads which apps are running, so it is the quick way to correct a green dot that looks wrong.
+
+**Skipping and ignoring now work from the window's right-click menu.** Both rows told you to right-click to undo, in a window whose menu had no such thing.
+
+**The background check no longer takes away release notes you are reading.** The hourly check threw away every note it had already loaded, so an open Release Notes pane blinked back to a spinner. Only a refresh you asked for starts them over now.
+
+**Interrupted downloads are checked before they are called complete.** A server that resent the whole file, or stopped short, was taken on trust, and the trouble surfaced one step later as an install that failed on a broken archive. Downloads behind a proxy that used to fail permanently work now.
+
+**Updating one app no longer rescans every app on your disk.** Each click did two full sweeps of all your applications to look at the one you asked about.
+
+**Chrome's release notes cannot freeze any more.** A routine restyle of Google's blog was enough to stall them for minutes; they now load promptly whatever the page looks like.
+
+**A downloaded installer is no longer discarded and fetched again.** When a vendor spelled the same release two ways (`v1.2.3` and `1.2.3`), the waiting package went unrecognised and Relaunch could keep waiting on a swap that had already happened.
+
+**A failed administrator install is no longer mistaken for you pressing Cancel.** There was no error shown, and that app quietly stopped offering one-click updates until you asked for administrator access again from its row menu.
+
+**The green "running" dot notices every app now.** macOS never announces some apps opening or closing, and their dot stayed wrong until something unrelated refreshed it.
+
+**"Update All" no longer flashes in and out during a refresh**, and an app you update mid-refresh is not reset to offering the update it already installed.
+
+**A check that fails as you press Update says so**, instead of being filed as "nothing to do".
+
+**Under the hood.** Release dates written in unusual formats are read correctly, the address check on release-notes pages covers every equivalent spelling, and routine bookkeeping no longer touches the disk each time any app on your Mac opens or quits.
+
+## 0.3.79
+
+**Docker's mark now describes Docker's interface instead of its daemon.** The row said "native"; Docker Desktop is an Electron app. The mark is read from the app's bundle, and Docker's bundle is a wrapper: the program it names is a background service written in Go, it carries no framework of its own, and the actual window-drawing app sits one level inside it. Everything was being read correctly out of the wrong file. Duo Updater now looks in the nested app when — and only when — the outer one brings nothing itself and contains exactly one such app that proves what it is built with, so a helper process shipped alongside a real interface still cannot lend its identity to its host. Docker reads as Electron 42.5.0, and of the hundred and forty-six apps in the list on the machine this was written on, it is the only row that changes.
+
+**CleanShot X's release notes are readable again — including 5.0's.** CleanShot shipped its biggest release in years and rebuilt its changelog page along with it: the date moved above the version number, two new layers appeared around it, and a feature release now puts an introduction and two video links between the version and its list of changes. The reader Duo Updater used stopped matching any of it. What made this worse than an empty pane is that it did not look empty: the notes it had already saved for the previous release stayed on screen under the new version's heading, so the pane said "5.0" over 4.8.10's changes and nothing anywhere said otherwise.
+
+**Notes saved before a release was published are now re-read instead of trusted forever.** That is the other half of the same story. Duo Updater knew 5.0 existed six minutes before CleanShot published what was in it, saved the page as it stood, and filed it under 5.0 — and from then on every check found something already saved and never looked again. Saved notes are now confirmed against the vendor once per session before they are treated as final, so a version whose notes arrive late fills itself in on the next visit rather than staying wrong.
+
+**Anything you open from the menu bar now opens on the first click.** Choosing Changelog on a row — or Settings, or the release log — did nothing at all the first time, and worked from the second click on. Reopening the menu made every attempt the first one again, so for people who open the menu, click once, and expect a window, it never worked at all. The first click inside the menu was being spent bringing Duo Updater to the front rather than doing what it was aimed at. The window it opens is also held in front now: it was being ordered up and pushed back down again in the same moment, which is the other way this looked like a click that did nothing.
+
+## 0.3.78
+
+**An app that leaves its own name blank now gets one anyway.** Eudic (欧路词典) sat in the list with an icon, a version, and nothing at all where the name goes. Its bundle does declare a display name — and leaves it empty, because the real names live in the app's translations — and Duo Updater treated that empty answer as the answer instead of asking the next question. It now falls through to the app's other name, and to the name of the app file after that, so a row is never nameless. One app in a hundred and fifty here was affected; the point is that the information was already there and was being skipped.
+
+**Relaunch now tells you when the app refused to quit, instead of looking like a click that did nothing.** If an app has a window waiting for you — a save prompt, a sign-in sheet, some dialog — macOS will not let it quit, and there is nothing this side can do about that: it is the app's window. Duo Updater used to spin for thirty seconds and then put the same button back with no explanation, which reads exactly like a button that is broken, so people press it again. The row now says what happened and points you at the app to deal with that window. Nothing was changed and the new version is already installed, so the relaunch really is all that is left — and if you simply quit the app yourself in the next ten minutes, Duo Updater notices and brings it back on the new version without you clicking anything.
+
+**欧路词典's release notes are one release again, not sixteen years of them.** The app publishes its entire history — every version back to 2.5.0 — inside the notes for whichever release is newest, so the detail pane showed all of it under the heading "26.9.0" and you had to scroll past a decade to find what had just changed. Each version now gets its own entry in the list, the way every other app's does.
+
+**The mark that says what an app is built with now needs proof for Tauri, not a resemblance.** Tauri leaves nothing in a bundle to find — no framework, no folder of its own — so that one mark was worked out from how the app was packaged plus the fact that it links Apple's web view. Longbridge matches all of that and is not Tauri: it draws its own windows with the same renderer Zed uses, and embeds a web view for one corner of its interface. Duo Updater now reads Tauri's own fingerprint out of the binary before claiming it, so an app is called Tauri when it is one — and Longbridge reads as the native Mac app it is.
+
+**CapCut no longer turns red because ByteDance's servers had a bad half-second.** The endpoint Duo Updater asks for CapCut's version answers with a success code and then, about one time in fifty, an error object instead of the answer — an internal timeout inside ByteDance's own infrastructure, roughly 390 bytes where 436 kilobytes were expected. Nothing on this side could tell that apart from CapCut having changed the shape of its answer, so the row said the check had failed, which reads as "this is broken and someone has to fix it" for something that fixes itself on the next try. That specific shape is now recognised for what it is: the request is retried immediately, and it is only ever reported as a real problem if it keeps happening for five days.
+
+## 0.3.77
+
+**Every app in the list now says what it is built with.** A row for an App Store app has always carried the store's badge, and every other row looked alike — a Sparkle app, an Electron app and a native one were indistinguishable. Each name now carries the technology's own mark — click it for a word and a sentence, or hover for the tooltip: Electron, Tauri, Flutter, Qt, Java, Chromium, Mac Catalyst, an iPhone app on Apple silicon, or a native Mac app — with the runtime's version where that can be read as a fact (Electron 42.4.1, Qt 6.2, the Chromium an app embeds, the Tauri it was built with). It is read from the bundle itself — the framework a packager had to ship, the runtime a launcher needs, the libraries the binary links — so it is a fact about what is installed rather than a guess from the app's name. Where a long name leaves no room, the symbol steps aside rather than pushing the name onto a second line: the name is the row. Turn the whole thing off in Settings → General.
+
+**LibreOffice no longer claims a downgrade to the version you already have.** Its download index lists three-part versions (`26.8.0`) while the installed copy reports four (`26.8.0.3`), and filling the missing part with a zero made the installed copy look newer — so the row offered a muted "the vendor is behind you" note about an app that was exactly current. A source that publishes fewer parts than the app reports is now read as describing the same release, not an older one; a genuine rollback still says so.
+
+**A setting added by an update now points at itself once.** A new preference that lands in the middle of the Settings window is a preference nobody finds. The menu bar's gear carries a blue dot after an update that added one, the page it lives on carries one in the sidebar, and the control itself carries one until you have looked at it. Only for people who actually updated into it — a fresh install is not greeted with dots on features that are simply part of the app it just met.
+
+## 0.3.76
+
+**The Electron-manifest apps added last release can actually be updated now.** 0.3.75 taught Duo Updater to read the file those apps carry inside themselves, and it did read it — it worked out the new version, the right download for your Mac, and the checksum to verify it against, and then had nowhere to send any of that. The install button never appeared, and `duo install` explained the refusal with a reason that was not the real one. The install path is connected this release. In practice you may see no difference at all: this reader sits behind every hand-written rule, so it only speaks for an app nothing else covers — which today, on the machine this was built on, is none of them. It matters for the app you install tomorrow that nobody has written a rule for.
+
+**A download that would take you off a native build is now refused.** Apple silicon can still run Intel apps through translation, which meant an Intel-only download passed the "will this run on your Mac?" check and installed cleanly — leaving you on a translated copy of an app that had been running natively, quietly, and with every future update doing the same thing again. Every in-place install now compares what you have against what arrived and refuses that swap. Going the other way, or from a universal build down to an Apple-silicon one, is normal and still allowed.
+
+**When it cannot prove which architecture a download is, it now declines rather than guesses.** Some vendors publish an Apple-silicon build alongside their default one, and the only way to tell the default is the Intel build is to notice the other exists. If that second check does not come back cleanly — the vendor's server refuses it, the connection drops, or the two disagree about which version they are — Duo Updater no longer treats that silence as an answer. It tells you the version and offers no install, which is the honest outcome.
+
+**A broken rule can no longer disappear from Diagnostics.** For apps covered both by a hand-written rule and by the new manifest reader — which is most of them, deliberately — a failure of the rule was being cancelled out by the reader succeeding straight afterwards, so an app whose rule had actually broken went on reading as healthy. The two are recorded separately now. The manifest reader also reports its own failures for the first time; three apps on the development machine turned out to be pointing at addresses that have been returning "not found" for some time, which nothing would previously have said out loud.
+
+**Rows that can see an update but cannot install one now offer the same thing in both places.** The menu bar showed a button labelled "Open" that opened the Finder, and the window showed nothing at all for the identical row.
+
+## 0.3.75
+
+**Apps built on Electron are now recognised without anyone writing them down first.** A great many Mac apps ship a small file inside themselves saying where their updates live. Until now Duo Updater only knew the ones someone had hand-written a rule for — every other one sat in your list with no version next to it and no way to tell you a new build had shipped. It now reads that file directly, the same way it has always read Sparkle's, so an app like that is covered the day you install it rather than the day someone gets around to it.
+
+Apps that already had a hand-written rule are untouched. The new reader sits behind them, so it can only fill a gap — never take over something that was already working.
+
+Two details decide whether the download it offers is the right one, and both were settled by checking real apps rather than assuming. Some vendors mark an Intel build as their "primary" download even while publishing an Apple-silicon one beside it; others give the Apple-silicon build a filename that looks no different from the Intel one, so nothing about the name gives it away. Duo Updater picks by architecture, and where it cannot be sure a download will run on your Mac it tells you the version and declines to offer the install — rather than handing you something that installs cleanly and then won't open.
+
+## 0.3.74
+
+**If you run an app's beta, release-candidate or nightly build, Duo Updater was quietly watching the wrong track.** It works out which track you are on by finding your build in the vendor's own release list — but when a prerelease keeps the same public version number as the stable release it came from, which is the normal thing for a prerelease to do, it was matching the stable entry instead. The effect was silent: nothing wrong ever appeared on screen, you simply never heard about the next build on your own track, and the release notes you were shown belonged to the stable line. Found by installing the actual prerelease builds of Supacode and TypeWhisper and watching what happened; both now follow the track they are really on.
+
+**CapCut's beta showed a version you don't have.** The row read "9.3.4545 → 9.4.0-beta6" while CapCut itself, Finder and every other updater called your copy 9.4.0-beta5. Some apps put their real version in a different field than most, and Duo Updater was reading the tidier-looking one on your side of the arrow while reading the real one on the vendor's side. The update it offered was always the right one — only the label was wrong. Both halves of the row now come from the same place, for CapCut and for the seven other apps built this way.
+
+**MacWhisper, GitHub Copilot for Xcode, TypeWhisper and OpenUsage show their release notes now.** All four had an empty notes panel: their update feeds carry no notes at all, which was not noticed until each one was checked against what the vendor actually publishes. Duo Updater now reads MacWhisper's own release-notes page, Copilot's changelog file, TypeWhisper's changelog site, and points OpenUsage at its release list.
+
+**Helium updates through its own update service now, which brings its beta channel and much smaller downloads.** It was being tracked through its public release list, which only ever shows stable builds — so anyone on Helium's beta was being handed the stable one. Its own service also publishes patches, so a routine update is roughly 40 MB instead of a 124 MB re-download. Verified against both a stable and a beta build, and the download is checked against the signing key inside your installed copy before anything is replaced.
+
 ## 0.3.73
 
 **Firefox and Thunderbird's beta, developer and nightly releases are tracked properly now — until today not one of those five tracks had ever reported a single update.** They were being read from Mozilla's public version file, which publishes only the version you are shown, and installing a beta strips the "b5" off it: a Firefox beta calls itself 155.0 for the whole cycle, so the only question being asked was "is 155.0b5 newer than 155.0?", and the answer is no. Nightly was worse — Mozilla ships one every day and every one of them is called 157.0a1, so a four-week cycle produced exactly nothing. Duo Updater now asks Mozilla's own update service, the same address Firefox's built-in updater uses and that the app names inside itself, and compares the build identifier both sides carry. Checked against the real downloads for all five tracks before shipping: the identifier that service reports is byte-for-byte the one inside the app you have; a beta one build behind now shows its update, and so does a nightly built earlier the same day. The stable and ESR releases were never affected and are untouched. One limit worth stating plainly: that service publishes no release date, so for these five tracks the release log still records when Duo Updater first saw a build rather than when Mozilla shipped it.

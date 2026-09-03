@@ -206,6 +206,27 @@ private func storeAvailability(
             settings: defaultSettings(), environment: environment(),
             expected: true
         ),
+        // Electron: an electron-builder manifest, gated exactly like Vendor/GitHub
+        // (see #192 — `VendorInstaller.download()` already vetted this source,
+        // the policy switches just hadn't caught up).
+        (
+            name: "electron manifest with a resolved installer archive is auto-installable",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .zip),
+            settings: defaultSettings(), environment: environment(),
+            expected: true
+        ),
+        (
+            name: "electron manifest with no resolved artifact (detection-only) is not auto-installable",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: nil),
+            settings: defaultSettings(), environment: environment(),
+            expected: false
+        ),
+        (
+            name: "electron manifest with requiresManualInstaller is not auto-installable",
+            result: fixtureResult(source: "Electron", requiresManualInstaller: true, vendorInstallerKind: .zip),
+            settings: defaultSettings(), environment: environment(),
+            expected: false
+        ),
         // App Store: needs availability info, and the route gate (full → helper).
         (
             name: "app store with full strategy and helper approved is auto-installable",
@@ -364,6 +385,21 @@ private func storeAvailability(
             expected: true
         ),
         (
+            // electron-builder can publish a `.pkg` alongside its Squirrel `.zip` —
+            // `ElectronManifestSource.kind(of:)` recognises the extension — so this
+            // needs the same system-installer route as Vendor/GitHub (see #192).
+            name: "electron pkg needs the system installer",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .pkg),
+            settings: defaultSettings(), environment: environment(),
+            expected: true
+        ),
+        (
+            name: "electron zip does not need the system installer",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .zip),
+            settings: defaultSettings(), environment: environment(),
+            expected: false
+        ),
+        (
             name: "sparkle archive does not route to the system installer",
             result: fixtureResult(
                 source: "Sparkle", downloadURL: URL(string: "https://example.com/fixture.dmg"),
@@ -439,6 +475,24 @@ private func storeAvailability(
         (
             name: "GitHub source still installs under alwaysOverwrite",
             result: fixtureResult(source: "GitHub", vendorInstallerKind: .dmg),
+            settings: defaultSettings(policy: .alwaysOverwrite),
+            environment: environment(running: [fixturePath]),
+            expected: false
+        ),
+        // Electron: apps built with electron-builder embed electron-updater
+        // (Squirrel.Mac on macOS), so they are self-updating the same way GitHub-
+        // sourced apps are treated above — see #192 for the incident that made
+        // omitting a source here a user-visible bug, not a cosmetic gap.
+        (
+            name: "electron source defers while running — electron-updater/Squirrel.Mac self-updates too",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .zip),
+            settings: defaultSettings(policy: .deferWhenRunning),
+            environment: environment(running: [fixturePath]),
+            expected: true
+        ),
+        (
+            name: "electron source still installs under alwaysOverwrite",
+            result: fixtureResult(source: "Electron", vendorInstallerKind: .zip),
             settings: defaultSettings(policy: .alwaysOverwrite),
             environment: environment(running: [fixturePath]),
             expected: false
@@ -524,6 +578,84 @@ private func storeAvailability(
         let actual = UpdatePolicy.defersToSelfUpdater(c.result, settings: c.settings, environment: c.environment)
         #expect(actual == c.expected, "\(c.name): expected \(c.expected), got \(actual)")
     }
+}
+
+// MARK: - stagedBlocksInstall (Electron)
+
+/// `stagedBlocksInstall`'s own route list lives in `StagedBlocksInstallTests.swift`
+/// (out of scope for #192's lane); this pins the one row that changed there —
+/// Electron moving from the unlisted default (`nil`, unprotected) to the
+/// protected list alongside Vendor/GitHub/Sparkle. electron-updater/Squirrel.Mac
+/// parks its own staged build exactly like Sparkle's ShipIt does, so a stale
+/// staging directory here is the same collision this function exists to catch,
+/// not a leftover from a mechanism we don't swap ourselves.
+@Test func electronStagedBuildBlocksInstall() {
+    let result = fixtureResult(source: "Electron", vendorInstallerKind: .zip)
+    let blocking = UpdatePolicy.stagedBlocksInstall(
+        result, staged: staged("9.9.9"))
+    #expect(blocking != nil)
+}
+
+@Test func electronWithNoStagedBuildIsNotBlocked() {
+    let result = fixtureResult(source: "Electron", vendorInstallerKind: .zip)
+    #expect(UpdatePolicy.stagedBlocksInstall(result, staged: nil) == nil)
+}
+
+// MARK: - isRecognizedInstallSource
+
+/// Backs `duo install`'s refusal text (#193): a source the policy has a case
+/// for, versus one that always falls to `default: false` in
+/// `canAutoInstall`/`requiresInstaller` and so has no install path even in
+/// principle.
+///
+/// Derived from `SourceStack.make(githubToken:)` — the actual production
+/// registry — rather than a hand-written name list, per the rule against
+/// lists that drift (CLAUDE.md: "用例要从 registry 推导、覆盖全部 channel").
+/// A hand-written list caught nothing when Electron itself was added to the
+/// stack without a matching decision in `UpdatePolicy`, which is exactly the
+/// bug #192/#193 were about; this shape makes the next one fail loudly
+/// instead. Every name the stack can produce must be EITHER recognized by
+/// `isRecognizedInstallSource` OR listed in `deliberatelyUnwired` with a
+/// reason — no third option, no silent gap.
+///
+/// `Toolbox` and `TestFlight` never appear in `SourceStack`: `UpdateChecker`
+/// answers them before the stack runs at all (store/Toolbox management is
+/// detected up front, not through an `UpdateSource`). They're supplied here
+/// by hand for exactly that reason, not discovered — and are as much a part
+/// of "every source `duo install` can see a result from" as anything the
+/// stack assembles.
+@Test func isRecognizedInstallSourceCoversEveryProductionSourceOrExplainsWhyNot() {
+    let sourcesOutsideTheStack = ["Toolbox", "TestFlight"]
+
+    let deliberatelyUnwired: [String: String] = [
+        // XcodeReleasesSource never resolves an installable artifact — Apple
+        // gates every Xcode download behind an Apple ID and its own installer
+        // UI, so this source is always detection-only by construction.
+        "Xcode Releases": "always detection-only — no installable artifact exists to vet",
+        // JetBrains Toolbox owns the install; there is no bundle of ours to swap.
+        "Toolbox": "Toolbox manages the app itself",
+        // Apple's TestFlight app owns the install.
+        "TestFlight": "TestFlight manages the app itself",
+    ]
+
+    let stackNames = Set(SourceStack.make(githubToken: nil).map(\.name))
+    let allProductionNames = stackNames.union(sourcesOutsideTheStack)
+    #expect(!allProductionNames.isEmpty)  // guards against an empty stack passing vacuously
+
+    for name in allProductionNames {
+        if UpdatePolicy.isRecognizedInstallSource(name) {
+            #expect(deliberatelyUnwired[name] == nil,
+                "\(name) is claimed by isRecognizedInstallSource AND listed as deliberately unwired — pick one")
+        } else {
+            #expect(deliberatelyUnwired[name] != nil,
+                "\(name) is a real production source with no UpdatePolicy decision recorded — either give it a case in canAutoInstall/requiresInstaller, or add it to deliberatelyUnwired here with a reason")
+        }
+    }
+
+    // And the converse: nothing claims to be recognized that production can't
+    // actually produce, and nil is never mistaken for a real source.
+    #expect(!UpdatePolicy.isRecognizedInstallSource(nil))
+    #expect(!UpdatePolicy.isRecognizedInstallSource("SomeFutureSource"))
 }
 
 // MARK: - isRunning
@@ -790,6 +922,36 @@ struct LaggingRemoteVersionTests {
             remoteBuild: "27A5237l")) == nil)
     }
 
+    /// LibreOffice: its download index lists three-segment folders while the
+    /// installed bundle reports four, so padding the missing component with zero
+    /// read the installed copy as ahead and the row announced a downgrade to the
+    /// release it already had.
+    @Test func aSourcePublishingFewerComponentsIsNotBehind() {
+        #expect(VersionComparator.isNewer("26.8.0.3", than: "26.8.0"),
+                "precondition: padding is why the plain comparison says 'ahead'")
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "26.8.0.3",
+            installedBuild: nil,
+            remoteShort: "26.8.0",
+            remoteBuild: nil)) == nil)
+    }
+
+    /// The prefix rule is a prefix rule, not a "fewer components" rule: a real
+    /// rollback still reports, and a shorter string that is not a truncation of the
+    /// installed one is not treated as the same release.
+    @Test func aShorterRemoteThatIsNotATruncationStillReports() {
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "4.8.8",
+            installedBuild: nil,
+            remoteShort: "3.7.1",
+            remoteBuild: nil)) == "3.7.1")
+        #expect(UpdatePolicy.laggingRemoteVersion(xcode(
+            installedShort: "26.80.1",
+            installedBuild: nil,
+            remoteShort: "26.8",
+            remoteBuild: nil)) == "26.8")
+    }
+
     /// A genuinely lagging feed still says so — the fix must not silence the note
     /// it exists for.
     @Test func anOlderRemoteBuildIsStillReported() {
@@ -958,12 +1120,42 @@ struct LaggingRemoteVersionTests {
              stderr: "0:0: execution error: User canceled. (-128)", expected: true),
             (name: "a localized cancellation still carries the code",
              stderr: "0:0: execution error: 使用者已取消。 (-128)", expected: true),
-            (name: "an English cancellation without the code",
-             stderr: "User canceled.", expected: true),
+            // Real osascript output is LF-terminated — measured, 45 bytes for the
+            // English line. The fixture is a *localized* cancel on purpose: with an
+            // English one, deleting the trim still passes, because the old English
+            // substring clause rescued it. This case is what makes the trim
+            // load-bearing in the table as well as in production.
+            (name: "osascript ends the line with a newline, which must not defeat the anchor",
+             stderr: "0:17: execution error: Von Benutzer:in abgebrochen. (-128)\n", expected: true),
+            // The English text is not a signal. It is absent on en-GB ("User
+            // cancelled."), and present in failures that are nobody's decision —
+            // see the `User Canceled.app` case below.
+            (name: "an English cancellation without the code is not one",
+             stderr: "User canceled.", expected: false),
             (name: "a genuine failure must not be mistaken for a refusal",
              stderr: "mv: rename /Applications/Fixture.app: Operation not permitted", expected: false),
             (name: "empty stderr is not a refusal",
              stderr: "", expected: false),
+            // The code is the *trailing* parenthesised token and nothing else. Every
+            // other place `-128` can appear is a different fact: part of a longer
+            // code, part of a path or file name the failing command echoed, or —
+            // per TN2065 — the shell's own stderr, which osascript adopts as the
+            // message while the exit status becomes the number.
+            (name: "-128 inside a path in a real error (the issue's own counter-example)",
+             stderr: "6:43: execution error: /Applications/Foo-128.app not found (-10006)", expected: false),
+            (name: "-128 as the prefix of a longer code",
+             stderr: "osascript: error -12805 while staging", expected: false),
+            (name: "a bare longer code",
+             stderr: "-1280", expected: false),
+            (name: "a version-like file name",
+             stderr: "App-128.dmg", expected: false),
+            (name: "a real failure under a path that names the English phrase",
+             stderr: "0:42: execution error: mv: rename /Users/x/User Canceled.app: Operation not permitted (1)",
+             expected: false),
+            (name: "a shell failure whose stderr names a -128 path; the status is the code",
+             stderr: "0:42: execution error: mv: rename /Applications/Foo-128.app: Operation not permitted (1)", expected: false),
+            (name: "a shell that printed (-128) itself still failed with its own status",
+             stderr: "0:42: execution error: rsync: (-128) (3)", expected: false),
         ]
         for c in cases {
             #expect(InPlaceSwap.isAuthorizationDeclined(c.stderr) == c.expected, "\(c.name)")
@@ -1059,6 +1251,12 @@ struct LaggingRemoteVersionTests {
         // the input-method rule and not a missing field.
         ("a Homebrew cask", fixtureResult(source: "Homebrew", sourceIdentifier: "fixture", app: app)),
         ("a detection-only vendor recipe", fixtureResult(source: "Vendor", app: app)),
+        // Electron is deliberately NOT in `isContentsRotatable`'s switch (#192):
+        // unlike Vendor, we have no vetted registry over what an arbitrary
+        // electron-builder manifest ships, so an Electron-packaged input method
+        // stays closed even with a well-formed zip archive — the safe default,
+        // not an oversight.
+        ("an electron zip", fixtureResult(source: "Electron", vendorInstallerKind: .zip, app: app)),
     ]
     for (what, result) in refused {
         #expect(!UpdatePolicy.canAutoInstall(

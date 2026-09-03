@@ -492,6 +492,19 @@ import DuoUpdaterCore
         #expect(onlyTransient.signature == "unknown")
     }
 
+    // NOTE this is NOT a test of `ProbeWarning.publishedAtUnreadable`'s own
+    // `oneLine`/160-character truncation (added alongside the case itself):
+    // both captured values below are short, whitespace-free, and well under
+    // that 160-character window, so that logic never engages here — deleting
+    // it entirely leaves this test green. What actually keeps the two
+    // signatures equal is `Finding.signature`'s OWN, older `prefix(40)`
+    // window (`Baseline.swift`), which is shorter than the fixed
+    // `"publishedAtUnreadable: captured value did not parse: "` preamble
+    // (53 characters) and so cuts every `publishedAtUnreadable` warning
+    // before any captured text — however that text was formatted — ever
+    // enters the signature. This test demonstrates the CLI's stability
+    // survives even without `.display`'s own truncation, not that the
+    // truncation is what does the work.
     @Test func aChangingUnreadablePublishDateDoesNotMoveTheSignature() {
         func finding(_ captured: String) -> Finding {
             Finding(

@@ -207,6 +207,25 @@ public enum ProbeWarning: Sendable, Equatable {
     /// value jump from `155.0b5` to `20260826090609` — an increase, and the only
     /// history check there is looks for a version moving BACKWARDS.
     case displayPatternNoMatch
+    /// `publishedAtPattern` is set but matched nothing, so the release timeline
+    /// loses its exact event and falls back to its estimated "≈" window, and
+    /// `duo verify`'s age-gated phantom-update check is disabled — the same
+    /// consequence as `publishedAtUnreadable`, reached a different way.
+    ///
+    /// The same shape as `checksumPatternNoMatch` / `entryPatternNoMatch` /
+    /// `displayPatternNoMatch`: a pattern the recipe author wrote down, found
+    /// nothing, and nothing failed — the version keeps resolving, so a sweep
+    /// with no warnings check would call this recipe healthy.
+    ///
+    /// Deliberately NOT `publishedAtUnreadable`. That one means the pattern DID
+    /// fire and `ReleaseDate` rejected the captured text — there is a value to
+    /// show and a date spelling to add support for. This one means the pattern
+    /// never matched at all, so there is nothing captured to show; the fix is
+    /// to go re-derive the pattern against the vendor's current response, same
+    /// as `displayPatternNoMatch`. A recipe missing `publishedAtPattern`
+    /// entirely stays quiet — that is the normal, supported "no publish time"
+    /// shape and not a degradation of anything the recipe author declared.
+    case publishedAtPatternNoMatch
     /// `publishedAtPattern` captured a value, but `ReleaseDate` could not parse
     /// it. The version remains usable, but the release timeline loses its exact
     /// event and `duo verify`'s age-gated phantom-update check is disabled.
@@ -262,6 +281,7 @@ public enum ProbeWarning: Sendable, Equatable {
         case .checksumPatternNoMatch: return "checksumPatternNoMatch"
         case .entryPatternNoMatch: return "entryPatternNoMatch"
         case .displayPatternNoMatch: return "displayPatternNoMatch"
+        case .publishedAtPatternNoMatch: return "publishedAtPatternNoMatch"
         case .publishedAtUnreadable: return "publishedAtUnreadable"
         }
     }

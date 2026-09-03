@@ -118,13 +118,7 @@ public enum Verify {
         if options.registries.contains(.changelog) {
             // Fall back to the installed copy's version for templated recipes
             // when no version source ran this sweep (`--changelog` on its own).
-            var versions = knownVersions
-            for (key, value) in installed {
-                let bundleID = String(key.dropFirst("vendor:".count).prefix { $0 != ":" })
-                if versions[bundleID] == nil, let marketing = value.marketing {
-                    versions[bundleID] = marketing
-                }
-            }
+            let versions = changelogVersions(known: knownVersions, installed: installed)
             findings += await sweepChangelog(changelog, options: options, versions: versions)
         }
 
@@ -168,6 +162,39 @@ public enum Verify {
                 || ($0.status == .broken && baseline.isReportable($0.recipeID))
                 || ($0.status == .infra && baseline.isInfraReportable($0.recipeID))
         }) ? 1 : 0
+    }
+
+    /// Merge the local-scan fallback into the versions a live source resolved.
+    /// Installed apps are indexed as `vendor:<bundle-id>:<channel>`; keep that
+    /// channel in the changelog key so `--changelog` never templates an RC or
+    /// Nightly URL with the installed Stable version. The bare bundle id remains
+    /// for ordinary single-channel recipes whose `channel` is nil.
+    static func changelogVersions(
+        known: [String: String], installed: [String: InstalledVersion]
+    ) -> [String: String] {
+        var versions = known
+        let prefix = "vendor:"
+        for (key, value) in installed {
+            guard key.hasPrefix(prefix), let marketing = value.marketing else { continue }
+            let channelKey = String(key.dropFirst(prefix.count))
+            if versions[channelKey] == nil { versions[channelKey] = marketing }
+
+            guard let channelSeparator = channelKey.lastIndex(of: ":") else { continue }
+            let bundleID = String(channelKey[..<channelSeparator])
+            if versions[bundleID] == nil { versions[bundleID] = marketing }
+        }
+        return versions
+    }
+
+    /// A channel-scoped recipe may only use that channel's version. Falling back
+    /// to the bare bundle-id value here turns a changelog-only Stable install into
+    /// bogus RC/Nightly requests. Bare keys are exclusively for recipes whose
+    /// channel is nil.
+    static func changelogVersion(
+        for recipe: ChangelogRecipe, versions: [String: String]
+    ) -> String? {
+        guard let channel = recipe.channel else { return versions[recipe.bundleID] }
+        return versions["\(recipe.bundleID):\(channel.rawValue)"]
     }
 
     private static func filtered<T>(
@@ -522,8 +549,7 @@ public enum Verify {
             // Templated recipes need a concrete version to resolve their URL —
             // use the one this run's probe just read, so the sweep checks the
             // page the app would actually open.
-            let version = recipe.channel.flatMap { versions["\(recipe.bundleID):\($0.rawValue)"] }
-                ?? versions[recipe.bundleID]
+            let version = changelogVersion(for: recipe, versions: versions)
             // With no version at all, `resolvedSource` silently falls back to the
             // untemplated `source` — which for these vendors is a generic landing
             // page that has never parsed. Reporting that as breakage would be a

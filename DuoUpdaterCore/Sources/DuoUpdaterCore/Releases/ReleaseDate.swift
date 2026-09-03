@@ -5,22 +5,29 @@ import Foundation
 ///
 /// This is deliberately separate from `AppcastMarkdownParser.displayDate`, which
 /// only produces a *display string* and passes most inputs through verbatim. The
-/// release timeline needs an actual `Date` so it can sort and dedupe. Timestamps
-/// preserve their time of day; date-only feeds resolve to midnight UTC. Four wire
+/// release timeline needs an actual `Date` so it can sort and dedupe. Three wire
 /// formats cover the sources we feed from here (Sparkle `<pubDate>`,
 /// GitHub/Alcove `published_at`):
 ///   - RFC822, e.g. "Wed, 24 Jun 2026 17:07:24 +0000" (RSS standard)
 ///   - ISO8601, e.g. "2026-06-24T17:07:24Z" (GitHub, Alcove), with or without
 ///     fractional seconds
-///   - a dashed calendar date, e.g. "2026-06-24"
 ///   - a bare digit run: a Unix epoch in seconds, e.g. "1750785600" (Surge's
 ///     appcast does this), in milliseconds, or a `yyyyMMdd` calendar date — told
 ///     apart by `date(fromDigits:)`, whose rules are documented there
+///
+/// Some feeds only ever publish a bare calendar day (`"2026-08-31"`, no time).
+/// `parse` returns nil for those rather than fabricating a midnight moment the
+/// vendor never stated — the release timeline only plots a `publishedAt` it can
+/// trust to the minute (see `ReleaseTimelineStore`). Use ``parseWithPrecision(_:)``
+/// when the caller has somewhere honest to put a day-only value (`vendorDay`,
+/// not `publishedAt`).
 public enum ReleaseDate {
 
-    /// Convert a raw feed date string to a `Date`, or nil when it's empty or in a
-    /// format we don't recognize. Never throws — an unparseable date just means
-    /// "no authoritative release time", which the timeline records as absent.
+    /// Convert a raw feed date string to a `Date`, or nil when it's empty, in a
+    /// format we don't recognize, or states only a calendar day with no time of
+    /// day (see ``parseWithPrecision(_:)`` for that case). Never throws — an
+    /// unparseable date just means "no authoritative release time", which the
+    /// timeline records as absent.
     public static func parse(_ raw: String?) -> Date? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }
@@ -31,11 +38,6 @@ public enum ReleaseDate {
         // which also accepts "nan", "infinity", "1e9", "0x1p60" and a sign, and
         // read every one of them as epoch seconds.
         if isNumericRun(trimmed) { return date(fromDigits: trimmed) }
-
-        // Some RSS and JSON feeds publish only a calendar day. Keep this branch
-        // shape-gated: DateFormatter otherwise accepts prefixes and non-ASCII
-        // digits that are not the yyyy-MM-dd wire format we mean to support.
-        if let date = date(fromDashedCalendarDay: trimmed) { return date }
 
         // ISO8601 with fractional seconds (e.g. "...:24.123Z"), then without.
         if let date = isoWithFraction.date(from: trimmed) { return date }
@@ -153,6 +155,17 @@ public enum ReleaseDate {
         return f
     }()
 
+    /// A dashed calendar day, `yyyy-MM-dd` — the shape a Sparkle `<pubDate>` or a
+    /// JSON `pub_date`/`releaseDate` field uses when the vendor names only a day
+    /// (Eudic's appcast, Kiro's and Shottr's own version endpoints all do this).
+    /// Only ``parseWithPrecision(_:)`` calls this — `parse` never does, because
+    /// the `Date` this returns is midnight UTC, and handing that back from `parse`
+    /// would let every existing caller mistake a day for a to-the-minute moment.
+    ///
+    /// Shape-gated deliberately: `DateFormatter` otherwise accepts prefixes and
+    /// non-ASCII digits that are not the wire format we mean to support here
+    /// ("2026-8-31", "26-08-31", full-width digits — verified against a real
+    /// `NSDateFormatter` with `isLenient = false`, which accepts all three).
     private static func date(fromDashedCalendarDay value: String) -> Date? {
         let parts = value.split(separator: "-", omittingEmptySubsequences: false)
         guard parts.count == 3,
@@ -209,4 +222,85 @@ public enum ReleaseDate {
             return f
         }
     }()
+}
+
+// MARK: - Precision-aware parsing
+
+extension ReleaseDate {
+    /// What a parsed vendor timestamp actually pins down. `parse(_:)` collapses
+    /// this distinction away (it only ever hands back a to-the-minute moment, or
+    /// nil); ``parseWithPrecision(_:)`` is for callers with somewhere honest to
+    /// put the coarser tier instead of discarding it.
+    public enum Precision: Sendable, Equatable {
+        /// The vendor stated a real time of day — ISO8601 or RFC822, with hours
+        /// and minutes. This is the only precision `ReleaseTimeline.publishedAt`
+        /// may hold; it is what lets the release-habit heatmap trust the hour.
+        case minute
+        /// The vendor stated only a calendar day (`"2026-08-31"`). Real
+        /// information, but any hour we assigned it would be invented — we don't
+        /// even know what time zone the vendor meant. Must flow only as
+        /// `ReleaseTimeline.vendorDay`, never as `publishedAt`.
+        case day
+    }
+
+    /// A feed date parsed alongside the precision it was actually stated at.
+    public struct Parsed: Sendable, Equatable {
+        /// The instant this string names. For `.day` precision this is the start
+        /// of that calendar day in UTC — a real value (useful for display and for
+        /// sorting release history), but not a claim about the time of day.
+        public let date: Date
+        public let precision: Precision
+
+        public init(date: Date, precision: Precision) {
+            self.date = date
+            self.precision = precision
+        }
+    }
+
+    /// Like `parse(_:)`, but keeps the day-only shapes `parse` discards instead of
+    /// collapsing every result to "trustworthy to the minute". Shares every
+    /// formatter and gate `parse` uses — same acceptance, same rejections — so the
+    /// two can never answer "is this parseable?" differently; only what happens to
+    /// a bare calendar day changes.
+    ///
+    /// Nil under the exact conditions `parse` returns nil: empty, unparseable, or
+    /// (unlike `parse`) never for a *bare-digit* `yyyyMMdd` — that shape still
+    /// goes through `date(fromDigits:)` at `.day` precision here too, since it is
+    /// exactly as day-only as the dashed spelling; `parse` keeps returning that one
+    /// as a plain `Date` (pre-existing behavior, unchanged by this type).
+    public static func parseWithPrecision(_ raw: String?) -> Parsed? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+
+        if isNumericRun(trimmed) {
+            guard let value = date(fromDigits: trimmed) else { return nil }
+            let isBareCalendarDay = trimmed.utf8.count == 8 && isDigitRun(trimmed)
+            return Parsed(date: value, precision: isBareCalendarDay ? .day : .minute)
+        }
+
+        if let value = date(fromDashedCalendarDay: trimmed) {
+            return Parsed(date: value, precision: .day)
+        }
+
+        if let value = isoWithFraction.date(from: trimmed) {
+            return Parsed(date: value, precision: .minute)
+        }
+        if let value = isoPlain.date(from: trimmed) {
+            return Parsed(date: value, precision: .minute)
+        }
+
+        for formatter in zonelessISOFormatters {
+            if let value = formatter.date(from: trimmed) {
+                return Parsed(date: value, precision: .minute)
+            }
+        }
+
+        for formatter in rfc822Formatters {
+            if let value = formatter.date(from: trimmed) {
+                return Parsed(date: value, precision: .minute)
+            }
+        }
+
+        return nil
+    }
 }

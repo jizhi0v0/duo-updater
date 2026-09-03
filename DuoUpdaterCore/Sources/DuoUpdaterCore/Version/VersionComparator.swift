@@ -92,6 +92,27 @@ public enum VersionComparator {
         return comparable.allSatisfy { compare($0.0, $0.1) == .orderedSame }
     }
 
+    /// Same as `isSame(_:as:)`, but for a `lhs` whose `build` may not describe
+    /// `rhs`'s namespace at all — `AppScanner.buildVersionIsOverridden`'s apps
+    /// (Xcode, 豆包输入法) store a vendor build id in that field, not
+    /// `CFBundleVersion`, so comparing it against a package/feed build is
+    /// comparing two unrelated counters. When `buildIsDerived` is true, `lhs`'s
+    /// build is discarded before the comparison, so agreement falls back to
+    /// marketing alone — the only namespace both sides are known to share.
+    ///
+    /// Every caller that reads a scanner-derived build and compares it against
+    /// an offer's `VersionSide` needs this, not just `PackageRestartState`: a
+    /// plain `isSame` call requires ALL fields both sides carry to agree, so a
+    /// landed derived-build app (matching marketing, incomparable build) reads
+    /// as "not landed" — the same false negative `PackageRestartState` used to
+    /// produce before it gained this guard (see #236 / #251).
+    public static func isSame(
+        _ lhs: VersionSide, as rhs: VersionSide, buildIsDerived: Bool
+    ) -> Bool {
+        guard buildIsDerived else { return isSame(lhs, as: rhs) }
+        return isSame(VersionSide(marketing: lhs.marketing), as: rhs)
+    }
+
     /// True when `disk` has reached `target` — the landing test for a swap we are
     /// waiting on. Same build, or a newer one (an app may have moved past the
     /// build we were expecting while we waited).

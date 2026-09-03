@@ -246,6 +246,31 @@ struct EventStoreTests {
         #expect(await store.events(EventQuery(limit: 10)).isEmpty)
     }
 
+    /// The write-ahead log carries the same rows as the database and must be no
+    /// more readable than it is.
+    ///
+    /// Pinned because I got this wrong from a single observation: 0600 on one
+    /// machine led me to write that SQLite copies the main file's mode, and a
+    /// fresh install on a second machine created them 0644.
+    @Test("The database and both its sidecars are owner-only")
+    func sidecarFilesAreNotWorldReadable() async {
+        let (store, url) = Self.store(flushEventCount: 1)
+        defer { Self.remove(url) }
+        for index in 0..<50 { await store.append(Self.event(path: "/\(index)")) }
+        await store.flush()
+
+        var checked = 0
+        for suffix in ["", "-wal", "-shm"] {
+            let path = url.path + suffix
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            checked += 1
+            let mode = (try? FileManager.default.attributesOfItem(atPath: path)[.posixPermissions])
+                as? NSNumber
+            #expect(mode?.intValue == 0o600, "\(suffix.isEmpty ? "database" : suffix) is \(mode.map { String($0.intValue, radix: 8) } ?? "?")")
+        }
+        #expect(checked >= 2, "no sidecar was present; the case proves nothing")
+    }
+
     // MARK: - Retention
 
     @Test("Age retention drops events past the window and keeps the ones inside it")

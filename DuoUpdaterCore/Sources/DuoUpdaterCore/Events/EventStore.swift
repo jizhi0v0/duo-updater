@@ -909,18 +909,24 @@ public actor EventStore {
         // commit, and WAL's NORMAL only risks the last transactions on power loss.
         exec(db, "PRAGMA synchronous=NORMAL;")
         createSchema(db)
-        // 0600 on every open, not only at creation. Measured: SQLite gives the
-        // `-wal` and `-shm` files the same mode as the main database, so this one
-        // call covers all three — which matters, because the write-ahead log holds
-        // the same rows.
+        // 0600 on every open, and on all three files.
+        //
+        // The sidecars are not optional: `-wal` holds the same rows as the
+        // database, and SQLite does **not** reliably give them the main file's
+        // mode. I claimed it did after seeing 0600 on one machine; a second
+        // machine created them 0644 on a fresh install. Two observations, one
+        // conclusion each, and the first one was wrong — so this sets all three
+        // rather than trusting the copy.
         //
         // The directory is asked for as 0700 above, but `createDirectory` does
-        // nothing to one that already exists, so on every upgrade it stays as the
-        // older build left it (measured: 0755 on both machines here). That is not
-        // worth chmod-ing under the user: `~/Library/Application Support` is itself
-        // 0700, and the files are 0600 regardless.
-        try? FileManager.default.setAttributes(
-            [.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+        // nothing to one that already exists, so on an upgrade it stays as the
+        // older build left it (measured: 0755 on both machines). Not worth
+        // chmod-ing under the user — `~/Library/Application Support` is itself
+        // 0700 — but it is why the files carry the protection themselves.
+        for suffix in ["", "-wal", "-shm"] {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: fileURL.path + suffix)
+        }
         connection = Connection(db)
         return db
     }

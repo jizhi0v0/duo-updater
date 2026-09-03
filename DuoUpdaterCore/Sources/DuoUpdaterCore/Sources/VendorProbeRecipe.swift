@@ -3887,6 +3887,14 @@ public enum VendorProbeRegistry {
         // Anchor to `"package"` (leading quote) so it never matches `"betaPackage"`
         // — a stable install is never handed the EAP pkg. (Shottr self-updates via
         // its own .pkg updater; this is the fallback behind the same-Team gate.)
+        //
+        // No `publishedAtPattern`: the same body also carries `"releaseDate":
+        // "2025-12-17"` (fetched 2026-08-31) — a bare day, which `ReleaseDate.parse`
+        // does not read (it wants a time), so a pattern here would still be
+        // silently inert. #239 gave that shape somewhere honest to go
+        // (`ReleaseDate.parseWithPrecision` → `RemoteVersion.vendorDay`), but
+        // `VendorProbeSource` itself is not wired to that tier yet — left for the
+        // PR that connects it, not this comment update.
         VendorProbeRecipe(
             bundleID: "cc.ffitch.shottr",
             url: URL(string: "https://shottr.cc/api/version.json")!,
@@ -4517,8 +4525,13 @@ public enum VendorProbeRegistry {
         //
         // The metadata offers a zip where the page offers a dmg; the zip is the
         // same release and unpacks straight into the swap, so it is the better of
-        // the two. `pub_date` is a bare `2026-08-13`, which `ReleaseDate` does not
-        // parse (it wants a time), so no `publishedAtPattern` here.
+        // the two. `pub_date` is a bare `2026-08-13`, which `ReleaseDate.parse`
+        // still does not read (it wants a time) — that contract is unchanged by
+        // #239. A `publishedAtPattern` here would therefore still be silently
+        // inert today: `VendorProbeSource` feeds it through `parse`, not the new
+        // `ReleaseDate.parseWithPrecision`/`RemoteVersion.vendorDay` day tier, so
+        // wiring one up is left for the PR that connects `VendorProbeSource` to
+        // that tier, not this recipe change.
         //
         // Verified 2026-08-16 on the downloaded artifact: Kiro.app 1.0.309,
         // dev.kiro.desktop, Developer ID `AMZN Mobile LLC (94KV3E626L)`, notarized

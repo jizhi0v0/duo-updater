@@ -448,9 +448,11 @@ public struct GitHubReleasesSource: UpdateSource {
     /// explains why confining it was wrong).
     ///
     /// If the exact tag disappears, is a draft, or the response no longer carries
-    /// the release-state fields at all, return nil so the caller declines rather
-    /// than manufacturing a channel from a nearby release — and forget any stored
-    /// proof, so a channel cannot outlive the evidence for it.
+    /// the release-state fields at all, this claims NO channel and answers on the
+    /// stable rule — losing the copy its badge, not its row (see the long note at
+    /// the fallback itself for why the row matters) — and forgets any stored
+    /// proof, so a channel cannot outlive the evidence for it. It never
+    /// manufactures a channel from a nearby release.
     private func ruleFromInstalledRelease(
         for app: InstalledApp, candidates: [GitHubReleaseRule]
     ) async throws -> GitHubReleaseRule? {
@@ -465,6 +467,9 @@ public struct GitHubReleasesSource: UpdateSource {
         guard discoverable.count == 1, let rule = discoverable.first,
               let prefix = rule.installedTagPrefix
         else {
+            // Reachable only via the registry invariant being broken. Note this
+            // returns the locally detected rule, which for every caller of this
+            // function is the stable one — no path out of here is nil.
             Log.source.error(
                 "GitHub \(app.bundleID ?? "?", privacy: .public): \(discoverable.count, privacy: .public) discoverable rules, expected exactly 1 — falling back to the locally detected channel")
             return candidates.first { $0.channel == app.releaseChannel }
@@ -512,6 +517,11 @@ public struct GitHubReleasesSource: UpdateSource {
         }
 
         let tag = prefix + installed
+        // nil here is any of: the 404 `fetchReleases` translates for an exact-tag
+        // lookup, an unbuildable URL, a non-HTTP response, or a 200 whose body did
+        // not decode to a release. They differ in cause and not in consequence —
+        // none of them proves a channel — and a status worth retrying (403, 5xx)
+        // never reaches this line: it throws.
         guard let release = try await fetchReleases(rule, list: false, tag: tag)?.first,
               // An explicit `false` and a response that stopped carrying the field
               // are different answers; only the first one means "stable".
@@ -778,7 +788,12 @@ public struct GitHubReleasesSource: UpdateSource {
         var newestInLine: String?
         var newestStable: String?
         for release in releases {
-            guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: pattern)
+            // Drafts are filtered before this runs; refusing them here too means
+            // the ceiling cannot be an unpublished build if those two steps are
+            // ever reordered, and lets the property be asserted against THIS
+            // function instead of against the order of its callers.
+            guard !release.isDraft,
+                  let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: pattern)
             else { continue }
             if VersionComparator.majorComponent(v) == installedMajor,
                newestInLine.map({ VersionComparator.isNewer(v, than: $0) }) ?? true {

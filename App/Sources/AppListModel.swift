@@ -1981,8 +1981,20 @@ final class AppListModel {
         let ignored = found.filter { !prefs.deservesCheck($0) }
         Log.app.info(
             "refresh: checking \(checkable.count, privacy: .public) apps, skipping \(ignored.count, privacy: .public) ignored")
+        // Ignored rows are never checked, so nothing downstream will ever put a
+        // proven channel back on them — rebuilding them bare here is not a blank
+        // that the next check repairs, it is permanent until the user un-ignores.
+        // And they are not inert: `prewarmChangelogs` below runs over `checked`
+        // unfiltered, so a UTM Beta row that lost its channel here would go and
+        // cache the STABLE changelog against itself.
+        let priorChannels = Dictionary(
+            roundBaseline.map { ($0.id, $0.provenChannel) }, uniquingKeysWith: { a, _ in a })
         let checked = await checker.check(checkable)
-            + ignored.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
+            + ignored.map {
+                UpdateResult(
+                    app: $0, remote: nil, status: .unknown,
+                    provenChannel: priorChannels[$0.id] ?? nil)
+            }
         results = sorted(CheckRoundWriteBack.publishing(
             checked, changedSince: roundBaseline, live: results))
         // Pre-warm the disk changelog cache for anything pending, so opening its
@@ -2467,10 +2479,20 @@ final class AppListModel {
             // exactly the failure the store exists to prevent, reintroduced one
             // layer up. Same shape as the `RowActions.live` rule in CLAUDE.md:
             // the safe default is what makes the omission compile.
+            //
+            // Scoped to the version, exactly as `ResolvedChannelStore.channel(for:)`
+            // is: the proof is about one copy at one version, and this rescan is
+            // the path that exists BECAUSE an app may have updated itself
+            // underneath us. Carrying it unconditionally would keep a Beta badge
+            // on a copy that has just been replaced by a Stable build, and send
+            // its changelog prewarm to the wrong recipe, until the next network
+            // check landed.
+            let sameCopyAsProven = was.app.shortVersion == app.shortVersion
+                && was.app.buildVersion == app.buildVersion
             func carrying(_ remote: RemoteVersion?, _ status: UpdateStatus) -> UpdateResult {
                 UpdateResult(
                     app: app, remote: remote, status: status,
-                    provenChannel: was.provenChannel)
+                    provenChannel: sameCopyAsProven ? was.provenChannel : nil)
             }
             // Re-derive status from the cached remote against the fresh on-disk
             // version. With no remote (App Store / Toolbox / unknown) keep what we

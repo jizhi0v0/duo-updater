@@ -4,7 +4,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 ## 0.3.83
 
-**UTM-Vorschauversionen erhalten jetzt eigene Updates, lassen sich mit einem Klick installieren und zeigen die passenden Versionshinweise.** UTM veröffentlicht Vorschau- und finale Versionen unter derselben App-Identität und mit reinen Versionsnummern; deshalb wurde eine Vorschauversion bisher am finalen Zweig gemessen und stillschweigend als aktuell gemeldet. Sie folgt nun ihrem eigenen Zweig — einschließlich der Version, die dieser Zweig schließlich als finale Fassung veröffentlicht — und zeigt die zugehörigen Hinweise.
+**UTM-Vorschauversionen erhalten jetzt eigene Updates, lassen sich mit einem Klick installieren und zeigen die passenden Versionshinweise.** UTM veröffentlicht Vorschau- und finale Versionen unter derselben App-Identität und mit reinen Versionsnummern; deshalb wurde eine Vorschauversion bisher am finalen Zweig gemessen und stillschweigend als aktuell gemeldet. Sie folgt nun ihrem eigenen Zweig — einschließlich der Version, die dieser Zweig schließlich als finale Fassung veröffentlicht — und zeigt die zugehörigen Hinweise. Eine Vorschauversion, die die finale Fassung ihres Zweigs übernimmt, wechselt zurück auf den finalen Zweig; installieren Sie eine neuere Vorschau, um wieder Vorschauversionen zu folgen.
 
 ## 0.3.82
 

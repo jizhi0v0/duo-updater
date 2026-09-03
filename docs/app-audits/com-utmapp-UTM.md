@@ -140,8 +140,11 @@ Homebrew 同时发布 `utm` 与 `utm@beta`，二者安装成同一个 `UTM.app` 
 ## 已知限制
 
 - 首次判轨需要网络访问 GitHub exact-release API；之后按路径 + 版本缓存，版本不变不再重探。
-- 自编译、改写版本号或上游已删除 exact tag 的构建无法证明渠道，会安全地不响应，不会猜轨。
-  这类版本在构造 tag **之前**就被 `versionPattern` 挡掉，不会每轮浪费一个必然 404 的请求。
+- 自编译、改写版本号或上游已删除 exact tag 的构建无法证明渠道，此时**不声称渠道、退回 stable
+  rule**（见上文「Channel 详情」下的说明），不会猜轨，也不会让整行消失。
+  分两种：版本串根本形不成合法 tag 的（`v2.0b7` / `v1.0-rc6` 这类）在构造 tag **之前**就被
+  `versionPattern` 挡掉，一个请求都不花；版本串合法但上游 tag 已删的（`v3.1.3` / `v3.0.4`
+  已重打成 `-2` 后缀）每轮仍会花一个必然 404 的请求 —— 这类拷贝极少，没有为它加负缓存。
 - GitHub 的 `prerelease` 位是判轨依据；上游若重新标记一条既有 release，DuoUpdater 会按上游
   当前声明处理。注意判轨结果按"路径 + 版本"缓存且**不设过期**，所以重新标记要到该拷贝版本变化
   时才会被重新读取。
@@ -168,4 +171,7 @@ Homebrew 同时发布 `utm` 与 `utm@beta`，二者安装成同一个 `UTM.app` 
   各自安装路径分别落盘，互不覆盖。
 - 真实 v5.0.5 DMG 已完成摘要、bundle 身份、Team 与 Gatekeeper 验证。
 - 候选算法另有直接单元测试（`LineAnchoredCeilingTests`），把装机版本放在历史中的任意位置 ——
-  sweep 只能锚在"本机装的那份或最新 tag"上，够不到这些位置。
+  sweep 只能锚在"本机装的那份或最新 tag"上，够不到这些位置。⚠️ 这也意味着 sweep 的
+  `lastGoodVersion` 依赖跑 sweep 那台机器装了哪个版本；今天两种锚都给出 5.0.5，所以
+  `verify/baseline.json` 不会因换机器而打架，但换机器后若出现 `version went BACKWARDS`
+  的 finding，先查这一条再怀疑上游。

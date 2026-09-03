@@ -84,11 +84,18 @@ public actor ResolvedChannelStore {
     /// once per app, and re-encoding the whole file each time would be a full
     /// write per row for information that rarely changes.
     public func record(_ channel: ReleaseChannel, for app: InstalledApp) {
-        let entry = Entry(
+        // Compared on what the entry ASSERTS, not on the whole value: `provenAt`
+        // is fresh on every call, so an equality check against the new entry
+        // could never short-circuit anything.
+        if let existing = entries[app.id],
+           existing.shortVersion == app.shortVersion,
+           existing.buildVersion == app.buildVersion,
+           existing.channel == channel.rawValue {
+            return
+        }
+        entries[app.id] = Entry(
             shortVersion: app.shortVersion, buildVersion: app.buildVersion,
             channel: channel.rawValue, provenAt: Date())
-        guard entries[app.id] != entry else { return }
-        entries[app.id] = entry
         dirty = true
     }
 

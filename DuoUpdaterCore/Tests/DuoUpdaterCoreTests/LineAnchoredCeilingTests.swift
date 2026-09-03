@@ -77,13 +77,14 @@ struct LineAnchoredCeilingTests {
                 "a preview install follows its major's newest preview line; minor-line anchoring would hold it at 4.7.5")
     }
 
+    /// A draft is the newest thing in its line, so it would BE the ceiling if
+    /// this function did not refuse it. Asserted against the function itself
+    /// rather than against the caller's filter: the first version of this test
+    /// filtered drafts out of both inputs and compared them, which is `f(X) == f(X)`
+    /// and stayed green with every guard deleted.
     @Test func aDraftIsNeverTheCeiling() {
-        // The caller filters drafts before this runs; assert the pairing holds so
-        // reordering those two steps cannot quietly offer an unpublished build.
-        let published = releases.filter { !$0.isDraft }
         let withDraft = [release("v5.1.0", prerelease: true, draft: true)] + releases
-        #expect(ceiling(installed: "5.0.0", in: withDraft.filter { !$0.isDraft })
-                == ceiling(installed: "5.0.0", in: published))
+        #expect(ceiling(installed: "5.0.0", in: withDraft) == "5.0.5")
     }
 
     @Test func aVersionWithNoMajorComponentYieldsNoCeiling() {

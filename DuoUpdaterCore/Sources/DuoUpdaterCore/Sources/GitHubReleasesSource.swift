@@ -540,10 +540,19 @@ public struct GitHubReleasesSource: UpdateSource {
         // visible release history into the timeline at no extra network cost (these
         // are the same releases we already fetched). A single-`latest` fetch yields
         // just one entry; a prerelease-channel list yields the whole page.
+        //
+        // #300: GitHub's `published_at` is normally a full ISO8601 timestamp, so
+        // this almost always resolves to `.minute` in practice — but routing it
+        // through `publishedFields` rather than the old `ReleaseDate.parse` means
+        // a release that only carried a bare calendar day would still get a
+        // history entry (as `vendorDay`) instead of being silently dropped, same
+        // as `SparkleAppcastSource.releaseHistory` already does.
         let history: [ReleaseHistoryEntry] = releases.compactMap { release in
-            guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern),
-                  let date = ReleaseDate.parse(release.publishedAt) else { return nil }
-            return ReleaseHistoryEntry(version: v, publishedAt: date)
+            guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern)
+            else { return nil }
+            let fields = ReleaseDate.publishedFields(from: release.publishedAt)
+            guard fields.publishedAt != nil || fields.vendorDay != nil else { return nil }
+            return ReleaseHistoryEntry(version: v, publishedAt: fields.publishedAt, vendorDay: fields.vendorDay)
         }
         var skippedForMissingAsset: [String] = []
         var archIncompatible = false
@@ -581,6 +590,11 @@ public struct GitHubReleasesSource: UpdateSource {
                 let structured = body.flatMap {
                     GitHubMarkdownParser.parse(body: $0, version: version, date: release.publishedAt)
                 }
+                // #300: same day/minute split as the history backfill above —
+                // `release.publishedAt` is normally a full ISO8601 timestamp,
+                // but a bare calendar day now lands honestly in `vendorDay`
+                // instead of being dropped by the old `ReleaseDate.parse`.
+                let publishedFields = ReleaseDate.publishedFields(from: release.publishedAt)
 
                 // When the rule names an installable asset and this release ships
                 // a matching one, offer a one-click in-place install (the Team-ID
@@ -608,7 +622,8 @@ public struct GitHubReleasesSource: UpdateSource {
                     releaseNotesHTML: structured == nil ? body : nil,
                     structuredChangelog: structured,
                     changelogURL: page,
-                    publishedAt: ReleaseDate.parse(release.publishedAt),
+                    publishedAt: publishedFields.publishedAt,
+                    vendorDay: publishedFields.vendorDay,
                     releaseHistory: history
                 ), tags: releases.map(\.tag), archIncompatible: false)
             }
@@ -744,6 +759,73 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^jan-mac-universal-[0-9.]+\.zip$"#,
             installerKind: .zip),
 
+        // AgentsView — browser for past AI coding sessions, no SUFeedURL,
+        // GitHub v-tags. Two of the last forty releases shipped no mac dmg at
+        // all (v0.41.0 and v0.33.1 were tar.gz-only) — the release walk skips
+        // them and one-click lands on the newest dmg-bearing release, same
+        // semantics the cask livecheck encodes. The aarch64 dmg is arm64-only
+        // (AgentsView_{v}_x64.dmg is the Intel twin); Team 2YMZH84KR8,
+        // notarized. Mounted v0.41.1: io.agentsview.desktop, short == build.
+        GitHubReleaseRule(
+            bundleID: "io.agentsview.desktop",
+            owner: "kenn-io", repo: "agentsview",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^AgentsView_[0-9.]+_aarch64\.dmg$"#,
+            installerKind: .dmg),
+
+        // GitHub Copilot — the native client from github/app. No SUFeedURL,
+        // cask `auto_updates`, so the row was unknown. Stable tags `vX.Y.Z`
+        // only; the anchored pattern keeps a future prerelease from reading as
+        // stable under the list fallback. One-click pins the arm64 dmg — each
+        // release also ships darwin-x64.dmg, .zip and .tar.gz (+ .sig) beside
+        // it, and Windows/Linux artifacts. Mounted v1.1.14 dmg:
+        // com.github.githubapp, short == build == 1.1.14, arm64-only, Team
+        // VEKTX9H2N7, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.github.githubapp",
+            owner: "github", repo: "app",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^GitHub-Copilot-darwin-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // FluidVoice — on-device dictation. Homebrew cask `fluidvoice` is
+        // `auto_updates`, no `SUFeedURL`, so the row was unknown. Tags are
+        // `vX.Y.Z`; the same repo also ships `vX.Y.Z-beta.N` macOS prereleases
+        // and `windows-vX.Y.Z` Windows builds, so the pattern is anchored on
+        // both ends rather than stripping a `v` off whatever comes first.
+        //
+        // ⚠️ Renamed altic-dev/Fluid-oss → altic-dev/FluidVoice. The old slug
+        // 301s onto this one (`full_name` is FluidVoice). Pin the canonical
+        // name: URLSession drops `Authorization` while following GitHub's 301,
+        // and the fetch that actually returns the releases would come back
+        // anonymous. See #135.
+        //
+        // One-click: each stable release ships `Fluid-oss-<ver>.dmg` beside a
+        // zip of the same build. Mounted 1.6.9 dmg: com.FluidApp.app, short
+        // `1.6.9` == tag (CFBundleVersion is a small counter `20`, not compared),
+        // universal x86_64+arm64, Team V4J43B279J, notarized + stapled. The
+        // filename keeps the old product token; the zip and the Windows
+        // `FluidVoice_*_x64-setup.exe` share the release and must not match.
+        GitHubReleaseRule(
+            bundleID: "com.FluidApp.app",
+            owner: "altic-dev", repo: "FluidVoice",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Fluid-oss-[0-9.]+\.dmg$"#,
+            installerKind: .dmg),
+
+        // Helium — Chromium-based AI browser (imputnet/helium-macos). Bare tags
+        // (`0.16.2.1`, no v), and the repo DOES cut prerelease releases with
+        // the same all-digit tag shape (`0.16.1.1`) — /releases/latest excludes
+        // prereleases, so the stable rule never sees them. One-click pins the
+        // arm64 dmg; the x86_64 dmg ships beside it. Mounted 0.16.2.1:
+        // net.imput.helium, short == build == tag, Team S4Q33XPHB4, notarized.
+        GitHubReleaseRule(
+            bundleID: "net.imput.helium",
+            owner: "imputnet", repo: "helium-macos",
+            versionPattern: #"^([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^helium_[0-9.]+_arm64-macos\.dmg$"#,
+            installerKind: .dmg),
+
         // Zed Stable — same repo, but stable ships as non-prerelease tags
         // (`vX.Y.Z`, no `-pre`). `usePrereleases: false` (default) reads
         // `/releases/latest`, which GitHub computes excluding prereleases, so it
@@ -799,6 +881,96 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.alienator88.Pearcleaner",
             owner: "alienator88", repo: "Pearcleaner",
             installAssetPattern: #"^Pearcleaner\.dmg$"#,
+            installerKind: .dmg),
+
+        // Kun — local-first AI agent workspace (KunAgent). No SUFeedURL;
+        // v-tags, each release ships mac-arm64/mac-x64 dmgs plus zips and
+        // Linux deb/AppImage siblings. One-click pins the arm64 dmg. Mounted
+        // v0.3.7: com.xingyuzhong.deepseekgui, short == build == tag, Team
+        // YBR76S5LNP, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.xingyuzhong.deepseekgui",
+            owner: "KunAgent", repo: "Kun",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Kun-[0-9.]+-mac-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // DSH Desktop — the DeepSeek Harness desktop client (anywhere-labs).
+        // No SUFeedURL; v-tags, one universal dmg per release beside a Windows
+        // setup.exe. Mounted v2.0.4: ai.deepseek.dsh.desktop, short == build
+        // == tag, Team UM3Z9G5DNH, notarized.
+        GitHubReleaseRule(
+            bundleID: "ai.deepseek.dsh.desktop",
+            owner: "anywhere-labs", repo: "dsh-desktop",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^DSH\.Desktop-[0-9.]+-universal\.dmg$"#,
+            installerKind: .dmg),
+
+        // Meetily — local-first AI meeting transcription (Tauri). No SUFeedURL
+        // (the release's `latest.json` is Tauri-updater state, not a feed we
+        // read). v-tags with one legacy bare tag (`0.1.1`) deep in history —
+        // /releases/latest returns the newest stable v-tag regardless. One
+        // -click pins the aarch64 dmg (arm64-only; the x64 setup.exe/msi
+        // siblings are Windows). Mounted v0.4.0: com.meetily.ai, short ==
+        // build == tag, Team 554AZZ38TB, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.meetily.ai",
+            owner: "Zackriya-Solutions", repo: "meetily",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^meetily_[0-9.]+_aarch64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Paseo — self-hosted daemon/desktop for AI coding agents. Stable v-tags
+        // plus a beta train cut as prerelease releases (`v0.7.0-beta.2`, assets
+        // `beta-mac.yml` + dmg) — the anchored stable pattern rejects the beta
+        // suffix and /releases/latest excludes prereleases anyway, so the stable
+        // rule never serves a beta. One-click pins the arm64 dmg (the deb/
+        // AppImage siblings are Linux). Mounted v0.6.1: sh.paseo.desktop, short
+        // == build == tag, Team 99ZMJMKU9Y, notarized.
+        GitHubReleaseRule(
+            bundleID: "sh.paseo.desktop",
+            owner: "getpaseo", repo: "paseo",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^Paseo-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // OpenSuperWhisper — bare tags (no `v`), and the dmg asset name is
+        // versionless (`OpenSuperWhisper.dmg` on every release), so the version
+        // pattern must anchor `$` and the asset pattern must be the literal
+        // filename. All releases are stable so far; `$` keeps a future
+        // `0.2.0-beta.1` from reading as stable. arm64-only dmg (the cask is
+        // `depends_on arch: :arm64`), Team 8LLDD7HWZK, notarized. Mounted
+        // 0.1.0: ru.starmel.OpenSuperWhisper, short == tag, build 13.
+        GitHubReleaseRule(
+            bundleID: "ru.starmel.OpenSuperWhisper",
+            owner: "starmel", repo: "OpenSuperWhisper",
+            versionPattern: #"^([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^OpenSuperWhisper\.dmg$"#,
+            installerKind: .dmg),
+
+        // claude-devtools — visualiser/analyser for Claude Code sessions.
+        // v-tags, and each release ships both an arm64 dmg and an x64 dmg plus
+        // zip/blockmap siblings (the cask itself is x86_64-gated, but the repo
+        // has shipped arm64 dmgs all along). Mounted v0.5.0:
+        // com.claudecode.context, short == build == tag, Team 55PSHY2MW6,
+        // notarized.
+        GitHubReleaseRule(
+            bundleID: "com.claudecode.context",
+            owner: "matt1398", repo: "claude-devtools",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^claude-devtools-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg),
+
+        // Claude Status Bar — menu-bar quota indicator for Claude Code. v-tags,
+        // and the dmg asset name is versionless (ClaudeStatusBar.dmg on every
+        // release), so the asset pattern is the literal filename. Mounted
+        // v0.4.4: com.local.claudestatusbar, short == build == tag, Team
+        // W9JZ4932LA, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.local.claudestatusbar",
+            owner: "m1ckc3s", repo: "claude-status-bar",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^ClaudeStatusBar\.dmg$"#,
             installerKind: .dmg),
 
         // RustDesk — tags have no `v` prefix. One-click installs the arm64 dmg
@@ -1060,6 +1232,51 @@ public enum GitHubReleaseRegistry {
             owner: "usebruno", repo: "bruno",
             installAssetPattern: #"^bruno_[0-9.]+_arm64_mac\.dmg$"#,
             installerKind: .dmg),
+
+        // Vorssaint — Homebrew marks the cask `auto_updates true`, so the generic
+        // Homebrew source intentionally skips it. Stable and Beta share both the
+        // bundle id and app name; the installed beta's real short version carries
+        // `-beta.<N>`, which ReleaseChannel uses to select this pair safely.
+        //
+        // Detection-only — but NOT because the artifacts are unsound. Re-measured
+        // 2026-09-03 on macOS 27.0 (26A5425a): the apps inside both the stable
+        // 3.3.2 and the 3.3.3-beta.3 dmg pass `codesign --verify --deep --strict`
+        // ("valid on disk", "satisfies its Designated Requirement") and
+        // `spctl -a -t execute` ("accepted", "Notarized Developer ID", ticket
+        // stapled, Team 3D485NHW29). The earlier reading of "invalid signature"
+        // did not reproduce; it coincided with spctl returning a Code Signing
+        // subsystem internal error on the same machine, which points at a
+        // transient system state rather than the artifact.
+        //
+        // What IS unsigned is the dmg CONTAINER ("code object is not signed at
+        // all") — and that is not what the install path checks: `SignatureVerifier`
+        // gates on the extracted `.app`. So one-click is feasible here; it is
+        // simply not verified end to end yet, and the beta half would first need a
+        // `ChannelProofRegistry` entry (its asset name carries `-beta.`).
+        GitHubReleaseRule(
+            bundleID: "com.vorssaint.utils",
+            owner: "vorssaintapp", repo: "vorssaint-utils",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
+        GitHubReleaseRule(
+            bundleID: "com.vorssaint.utils",
+            owner: "vorssaintapp", repo: "vorssaint-utils",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
+            channel: .beta),
+
+        // OpenLogi — fast-moving native Logitech utility. The real 0.8.1 bundle
+        // is `org.openlogi.openlogi` and carries neither Sparkle nor another
+        // standard update feed in Info.plist; its Homebrew cask is
+        // `auto_updates: true`, so Homebrew correctly defers to the app updater.
+        // That updater's compiled-in stable manifest and release workflow both
+        // point at AprilNEA/OpenLogi, where stable tags are exactly `vX.Y.Z` and
+        // publishing is gated on both macOS DMGs existing. The anchored pattern
+        // rejects prerelease suffixes rather than truncating one onto stable.
+        // Detection-only until one-click is approved and separately verified.
+        GitHubReleaseRule(
+            bundleID: "org.openlogi.openlogi",
+            owner: "AprilNEA", repo: "OpenLogi",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
 
         // LocalSend — the reason `installAssetPattern` doubles as the macOS-release
         // gate. Upstream builds Windows/Linux/Android on CI but the dmg by hand

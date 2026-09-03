@@ -46,12 +46,25 @@ public struct AppStoreAvailability: Sendable, Hashable {
 /// it was published. Sources that hand back a multi-entry feed (a Sparkle appcast,
 /// a GitHub releases list) carry these so the release timeline can backfill an
 /// app's history in one shot, instead of only ever learning the latest.
+///
+/// `publishedAt` and `vendorDay` are the same two tiers `RemoteVersion` and
+/// `ReleaseEvent` carry (see `ReleaseTimelineStore`'s three-tier design):
+/// exactly one is set for an entry that came from a source that could date the
+/// release at all, and both are nil for none of the entries a compliant source
+/// produces (an unparseable date simply isn't turned into an entry).
 public struct ReleaseHistoryEntry: Sendable, Hashable {
     public let version: String
-    public let publishedAt: Date
-    public init(version: String, publishedAt: Date) {
+    /// The vendor's release moment, to the minute. nil when the source could
+    /// only supply a day (see ``vendorDay``).
+    public let publishedAt: Date?
+    /// The vendor's calendar day (UTC start-of-day) for this release, when the
+    /// source stated a day but no time of day. nil when ``publishedAt`` is set.
+    public let vendorDay: Date?
+
+    public init(version: String, publishedAt: Date? = nil, vendorDay: Date? = nil) {
         self.version = version
         self.publishedAt = publishedAt
+        self.vendorDay = vendorDay
     }
 }
 
@@ -188,12 +201,25 @@ public struct RemoteVersion: Sendable, Hashable {
     public let changelogURL: URL?
 
     /// When the vendor *published* this release, parsed from the feed's own
-    /// timestamp (Sparkle `<pubDate>`, GitHub/Alcove `published_at`). This is the
-    /// authoritative release moment — to the minute — that the release timeline
-    /// records. Nil for sources that publish no trustworthy date (most vendor
-    /// probes, MAS, Homebrew); those are never plotted as "when it was released",
-    /// only ever as "when we noticed". See `ReleaseTimelineStore`.
+    /// timestamp (Sparkle `<pubDate>`, GitHub/Alcove `published_at`), when that
+    /// timestamp names a real time of day. This is the authoritative release
+    /// moment — to the minute — that the release timeline records. Nil for
+    /// sources that publish no trustworthy time (most vendor probes, MAS,
+    /// Homebrew, and any feed that names only a day — see ``vendorDay``); those
+    /// are never plotted as "when it was released", only ever as "when we
+    /// noticed" (or, for `vendorDay`, "what day it was"). See `ReleaseTimelineStore`.
     public let publishedAt: Date?
+
+    /// When the vendor published this release, to the DAY only — set when the
+    /// feed's own timestamp names a calendar day but no time (e.g. a bare
+    /// `"2026-08-31"` `<pubDate>`). A real vendor-stated fact, but never eligible
+    /// to stand in for ``publishedAt``: we don't know the hour, and often not
+    /// even the vendor's time zone, so inventing either would be a fabrication.
+    /// The release timeline records this at its own tier — shown as a date only,
+    /// never plotted on the release-habits heatmap. Mutually exclusive with
+    /// ``publishedAt``: a source sets at most one of the two per release. See
+    /// `ReleaseDate.parseWithPrecision` and `ReleaseTimelineStore`.
+    public let vendorDay: Date?
 
     /// Past releases the source surfaced alongside the latest — every dated entry
     /// in a Sparkle appcast / GitHub releases list, so the timeline can backfill
@@ -230,6 +256,7 @@ public struct RemoteVersion: Sendable, Hashable {
         structuredChangelog: Changelog? = nil,
         changelogURL: URL? = nil,
         publishedAt: Date? = nil,
+        vendorDay: Date? = nil,
         releaseHistory: [ReleaseHistoryEntry] = [],
         deltas: [DeltaPatch] = []
     ) {
@@ -255,6 +282,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.structuredChangelog = structuredChangelog
         self.changelogURL = changelogURL
         self.publishedAt = publishedAt
+        self.vendorDay = vendorDay
         self.releaseHistory = releaseHistory
         self.deltas = deltas
     }
@@ -285,7 +313,34 @@ extension UpdateResult {
     /// beta that is exists nowhere in it. Lives here rather than in the app so the
     /// CLI and the menu bar cannot describe the same install differently.
     public var installedDisplay: String? {
-        remote?.installedDisplayVersion ?? app.shortVersion
+        if let named = remote?.installedDisplayVersion { return named }
+        // When the source's own label IS a build, the installed side has to be
+        // named out of the SAME namespace, or the row draws its arrow between two
+        // different version systems and the left half matches nothing the user can
+        // see anywhere else.
+        //
+        // CapCut's beta track is the case that exposed it. That bundle carries
+        // `CFBundleShortVersionString` 9.3.4545 and `CFBundleVersion`
+        // 9.4.0-beta5 — the vendor versions the beta line in the BUILD field, which
+        // is why its recipe is `versionIsBuild` — so the row read
+        // "9.3.4545 → 9.4.0-beta6" while the app itself, Finder, and every other
+        // updater called the installed copy 9.4.0-beta5. Nothing was miscompared
+        // (`evaluate` was on builds throughout, 9.4.0-beta5 → 9.4.0-beta6); only
+        // the label was, which is the kind of wrong that gets reported as "it says
+        // I have a version I don't have".
+        //
+        // Keyed on the REMOTE's own shape rather than on `recipe.versionIsBuild`,
+        // so it cannot drift from what the other half of the row prints:
+        // `RemoteVersion.displayVersion` is `shortVersion ?? version`, so
+        // `shortVersion == nil` is exactly "the string beside the arrow is a
+        // build". A `versionIsBuild` recipe that supplies a `displayVersionPattern`
+        // puts a marketing string in `shortVersion` on purpose (Android Studio's
+        // "2025.2.3 → 2026.1.2 RC 1") and is deliberately untouched here.
+        if let remote, remote.shortVersion == nil, remote.version != nil,
+           let build = app.buildVersion(in: remote.buildNamespace) {
+            return build
+        }
+        return app.shortVersion
     }
 
     /// Drop a leading product-code run like "IU-"/"AI-" from a build number; plain
@@ -438,7 +493,7 @@ public enum UpdateStatus: Sendable, Equatable {
 }
 
 /// The outcome of checking one installed app for updates.
-public struct UpdateResult: Sendable, Identifiable {
+public struct UpdateResult: Sendable, Identifiable, Equatable {
     public let app: InstalledApp
     public let remote: RemoteVersion?
     public let status: UpdateStatus
@@ -465,6 +520,15 @@ public struct UpdateResult: Sendable, Identifiable {
     /// Deliberately excludes "Homebrew" (some casks wrap paid apps) and a Sparkle
     /// feed that merely set no `minimumAutoupdateVersion` (a paid app may simply
     /// omit it), both of which keep the warning — the conservative direction.
+    ///
+    /// Also deliberately excludes "Electron" (#192): an electron-builder manifest
+    /// can belong to a commercial app we've done no license review of, unlike
+    /// Vendor (our own hand-curated, vetted registry) or GitHub (open-source
+    /// feeds) — so a major-version jump arriving through this source still
+    /// raises the "may need a new license" warning. Same conservative treatment
+    /// as Homebrew, not an oversight. `UpdatePolicy.canAutoInstall`'s
+    /// `"Vendor", "GitHub", "Electron"` case (Engine/UpdatePolicy.swift) points
+    /// back here rather than repeating this.
     private static let licenseNeutralSources: Set<String> = ["Vendor", "GitHub", "App Store"]
 
     /// True when the available update is a notable/major upgrade — the signal we

@@ -119,21 +119,41 @@ public enum ChannelSwitchDetector {
         return next
     }
 
-    /// Whether an app launching or quitting is worth resolving channels for.
+    /// Whether a change in the set of running bundle identifiers is worth
+    /// resolving channels for.
     ///
-    /// `NSWorkspace`'s launch/terminate notifications fire for EVERY process on
-    /// the machine — helpers, menu-bar utilities, anything the user opens all day
-    /// — while the pass behind them reads one vendor preference per bound app, and
-    /// Surge's resolver reads a plist off disk. Without this gate that ran on every
-    /// such event; with it, it runs on the nine apps whose channel can actually
-    /// change.
+    /// The running-apps monitor fires for EVERY process on the machine — helpers,
+    /// menu-bar utilities, anything the user opens all day — while the pass behind
+    /// it reads one vendor preference per bound app, and Surge's resolver reads a
+    /// plist off disk. Without this gate that ran on every such event; with it, it
+    /// runs when one of the nine apps whose channel can actually change appeared
+    /// or disappeared.
     ///
-    /// A nil id — the notification arrived without a bundle identifier — returns
-    /// true. Fail toward doing the work: a wasted pass costs a few preference
-    /// reads, a skipped one leaves a stale verdict on screen, which is the bug
-    /// this whole detector exists to fix.
-    public static func isWorthRecheckingAfterLaunchOrQuit(of bundleID: String?) -> Bool {
-        guard let bundleID else { return true }
-        return ChannelBinding.boundBundleIDs.contains(bundleID.lowercased())
+    /// **Two snapshots, not one identifier.** The monitor's primary source is KVO
+    /// on `NSWorkspace.runningApplications`, which reports the array, not "who
+    /// changed" — and the array is the better witness anyway: one event routinely
+    /// covers several processes (UURemote takes UURemoteServer with it), which a
+    /// single identifier cannot express.
+    ///
+    /// **What this deliberately does not cover:** a *second* process of an app
+    /// that was already running, and the reverse — one of two processes quitting.
+    /// Neither changes the identifier set, so neither is reported here. That is
+    /// not a gap in channel detection: the app was running across the whole event,
+    /// so a toggle flipped inside it is caught by the preference watcher
+    /// (`ChannelBinding.preferenceWatchPaths`), which is the path the ordinary
+    /// "flip it and leave the app open" flow already relies on.
+    ///
+    /// An empty change set returns false: the monitor also fires for changes that
+    /// move no identifier at all (a second copy of an app already running), and
+    /// there is nothing there for a channel to have switched behind.
+    public static func isWorthRechecking(
+        runningBundleIDsChangedFrom previous: Set<String>,
+        to current: Set<String>
+    ) -> Bool {
+        // Bundle ids are case-insensitive, and TablePlus really does ship
+        // `com.tinyapp.TablePlus` while its prefs live under the lowercased
+        // domain — a case-sensitive gate would silently skip it.
+        previous.symmetricDifference(current)
+            .contains { ChannelBinding.boundBundleIDs.contains($0.lowercased()) }
     }
 }

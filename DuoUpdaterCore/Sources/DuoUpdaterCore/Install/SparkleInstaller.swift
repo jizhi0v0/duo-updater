@@ -256,6 +256,21 @@ public actor SparkleInstaller {
         // by filename, which cannot see inside a Mach-O; this reads the real
         // slices, so a mis-named artifact is refused instead of installed.
         try SignatureVerifier.verifyRunnableArchitecture(appAt: newApp)
+        // Gate 5b — and it is not a WORSE build than what's already here. Must run
+        // AFTER gate 5, not before: a package that is both unrunnable and a
+        // downgrade (arm64 host, no Rosetta, Intel-only download) has to fail
+        // with gate 5's "cannot launch" message, the true and more severe
+        // problem — gate 5b's "this would run translated" is only correct once
+        // gate 5 has already confirmed the download CAN launch here. `newApp`
+        // here is either the unpacked archive or `DeltaApplier.reconstruct`'s
+        // output (step 3 above merges both into one URL), and this runs on
+        // both identically — the patch route's doc comment states its output
+        // "goes through exactly the same gates a downloaded archive does", and
+        // nothing here assumes a patch's architecture set matches the baseline's.
+        try SignatureVerifier.verifyNoArchitectureDowngrade(
+            installedApp: result.app.path,
+            downloadedApp: newApp
+        )
         // Gate 6 — and this Mac is not below the OS floor the bundle declares.
         // Same shape of claim as gate 5 and the same blind spot behind it: the
         // download was selected from what a source published, and most sources

@@ -17,6 +17,29 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.82</title>
+            <pubDate>Thu, 03 Sep 2026 15:48:04 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.82</link>
+            <sparkle:version>91</sparkle:version>
+            <sparkle:shortVersionString>0.3.82</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Fifteen more apps are watched for updates, and all but one install in a single click.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code — on both its alpha and nightly tracks — and Vorssaint. ChatGPT Classic is the exception: it is checked for you, but it ships an installer that updates the app itself, so that one stays yours to run.
+
+**Eight apps now show their release notes inside Duo Updater instead of sending you to a web page.** Xcode, Antigravity, Antigravity IDE, AnyDesk, AnythingLLM, Chatbox, Headlamp and Helium. Three of them had nothing to send you to in the first place: AnyDesk's page answers a bot challenge, Helium's makers publish no notes page at all, and Antigravity IDE had no link of any kind.
+
+**Xcode betas say what changed in each beta.** The row used to offer a build number and a link; it now lists Apple's notes for the beta you are on and every beta before it in that release.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.82/DuoUpdater-0.3.82-macos.zip" length="12212865" type="application/octet-stream" sparkle:edSignature="VIuqOIWCqfcs4IlxuY913xSt0dtsROLZ1KqEsrJS2ah6LN3Cf1ledL9rpj93zSU4dncVLLKyR6alm6AR6SmBAg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.82/DuoUpdater91-90.delta" sparkle:deltaFrom="90" length="457698" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="QcaxJJGkyQDIsdVNC2koxj8kYS/3N/gO6wdetfu/1cQssdF4N6AC2uw9ZEXa2l+S5VClpdatd80bL5URlHvvCQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.82/DuoUpdater91-89.delta" sparkle:deltaFrom="89" length="794814" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="oiJpPss+Mlwo8PO9uPtHe+DLgMpul/TLnMEMdX32Nseo2jKW2T/jn2x86Up4kiZdu2+423CmMwfscujf1o4cDA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.82/DuoUpdater91-88.delta" sparkle:deltaFrom="88" length="986090" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="18iO6UrrHh+JcbOuNXo5GN6yuk6rPJaEoijDjIYYrcNYE7sR/PbcC+hyB4sUNsaLB5m8pLVUXO7VXa0JqzdDDQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.82/DuoUpdater91-87.delta" sparkle:deltaFrom="87" length="1024894" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="m1xkqIYbFrJ0I+K7yy4sMwz+AJ3beQlOgk+9K48nBbEEd8rehvH3DC846jxkafZ2ONaPCmT1Hp9aZsrADTfFDQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.82/DuoUpdater91-86.delta" sparkle:deltaFrom="86" length="1051206" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="ZYcmMRixdwQL6u3J6kdyVsoQgQWS7w2EpDEwmlO4vM9C3S5gbLNOFLPLIzOEEHmBuBJPWlJlJ3O7hQjB5iX9DA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.81</title>
             <pubDate>Thu, 03 Sep 2026 11:54:49 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.81</link>
@@ -24,20 +47,6 @@
             <sparkle:shortVersionString>0.3.81</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Word, Excel, PowerPoint, Outlook and OneNote now notice when their update has landed.** These five kept offering to re-open the installer you had already finished with, and never moved on to offering the restart — waiting or re-checking could not have shaken it loose.
-
-**A row waiting to relaunch explains itself again, in both windows.** When an app was both ahead of what its vendor publishes and waiting on a relaunch, the line above the button described something else entirely; the window and the menu also disagreed about rows waiting on an Update All restart.
-
-**Row tags no longer crowd out the app name in Russian.** A few tags were borrowing wording from unrelated strings in every translated language, too.
-
-**Release notes now appear for apps whose vendor dates a release without timing it.** Those releases used to leave no trace anywhere.
-
-**A release-notes page we refuse to open now says why.** It went blank before, which looked exactly like an app that publishes no notes at all.
-
-**WeChat DevTools nightly release notes are no longer empty.**
-
-Under the hood: version and release-date handling were consolidated so a build number can never be read as a marketing version, and the release timeline no longer invents a time of day the vendor never gave.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.81/DuoUpdater-0.3.81-macos.zip" length="12188459" type="application/octet-stream" sparkle:edSignature="EctyyQ1jvCMivYwtaUhdaR+uP1kWkBr39NoNhdD2Q7upu2gRE5DCSAP4luCUhBrhVACyWkKgF/KADXMLJQWtDg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.81/DuoUpdater90-89.delta" sparkle:deltaFrom="89" length="699114" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="CEH5NOJ/ZxAHckO4D/9gkUZFkm28Cx0MtY6xmOsVidXOxEAq60RvrPcLwktPhjs2jvFVDj69HvqbInteo696DA=="/>
@@ -72,14 +81,6 @@ Under the hood: version and release-date handling were consolidated so a build n
             <sparkle:shortVersionString>0.3.79</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Docker's mark now describes Docker's interface instead of its daemon.** The row said "native"; Docker Desktop is an Electron app. The mark is read from the app's bundle, and Docker's bundle is a wrapper: the program it names is a background service written in Go, it carries no framework of its own, and the actual window-drawing app sits one level inside it. Everything was being read correctly out of the wrong file. Duo Updater now looks in the nested app when — and only when — the outer one brings nothing itself and contains exactly one such app that proves what it is built with, so a helper process shipped alongside a real interface still cannot lend its identity to its host. Docker reads as Electron 42.5.0, and of the hundred and forty-six apps in the list on the machine this was written on, it is the only row that changes.
-
-**CleanShot X's release notes are readable again — including 5.0's.** CleanShot shipped its biggest release in years and rebuilt its changelog page along with it: the date moved above the version number, two new layers appeared around it, and a feature release now puts an introduction and two video links between the version and its list of changes. The reader Duo Updater used stopped matching any of it. What made this worse than an empty pane is that it did not look empty: the notes it had already saved for the previous release stayed on screen under the new version's heading, so the pane said "5.0" over 4.8.10's changes and nothing anywhere said otherwise.
-
-**Notes saved before a release was published are now re-read instead of trusted forever.** That is the other half of the same story. Duo Updater knew 5.0 existed six minutes before CleanShot published what was in it, saved the page as it stood, and filed it under 5.0 — and from then on every check found something already saved and never looked again. Saved notes are now confirmed against the vendor once per session before they are treated as final, so a version whose notes arrive late fills itself in on the next visit rather than staying wrong.
-
-**Anything you open from the menu bar now opens on the first click.** Choosing Changelog on a row — or Settings, or the release log — did nothing at all the first time, and worked from the second click on. Reopening the menu made every attempt the first one again, so for people who open the menu, click once, and expect a window, it never worked at all. The first click inside the menu was being spent bringing Duo Updater to the front rather than doing what it was aimed at. The window it opens is also held in front now: it was being ordered up and pushed back down again in the same moment, which is the other way this looked like a click that did nothing.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.79/DuoUpdater-0.3.79-macos.zip" length="12081773" type="application/octet-stream" sparkle:edSignature="Mk5h5ehgxrGCiiM37lb7It4J4GuBS63GqthF0YWhCNX8hgGlS5RtvAUUz7qr/TrPXYR25RGAoLO1SSbVyFU1Bw=="/>
         </item>
         <item>
@@ -97,23 +98,6 @@ Under the hood: version and release-date handling were consolidated so a build n
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.78/DuoUpdater87-84.delta" sparkle:deltaFrom="84" length="799842" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="bfMpmcpy1/ziLPm+6K0mY2iDHzLbLnF+7T77yBF6fuWgc99HqHGAf2aIChAKz0dDqBExeuB8YO1I0E2cAhe0Cg=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.78/DuoUpdater87-83.delta" sparkle:deltaFrom="83" length="832078" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="E2YWLb3iIaxFzCaKzgrdawICnlit8lPLiQ6YV2tujEtCkYlQUDMm9tFK4+Zzd34HOKPORG4DpNu7/UKlmcbHCQ=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.78/DuoUpdater87-82.delta" sparkle:deltaFrom="82" length="868646" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="BE+4gxNhdxv5rzjy7mQoUk/dIiNgGPJcelgGmzBzsDJ9uc+KRWHxg0GFuz92YJQhkxKasD3ifwRZnhtVYR8zDQ=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.77</title>
-            <pubDate>Tue, 01 Sep 2026 16:15:32 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.77</link>
-            <sparkle:version>86</sparkle:version>
-            <sparkle:shortVersionString>0.3.77</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.77/DuoUpdater-0.3.77-macos.zip" length="12061702" type="application/octet-stream" sparkle:edSignature="0C4lE8ZLAN46plql8kv1hs0fJxm3TwJllH578TIXcCVpFodq3j70GvaWkrk/yvec2HAPmrVL9O8KGrXffkABBA=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.77/DuoUpdater86-85.delta" sparkle:deltaFrom="85" length="710726" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="NulVxRJsSoqmZM7XwP/Sbk805h1wUR0/7xqJDuFvSibB4Yaom0mHNaDdXW279KY+cVYw05r2S7Ntt8TjJ/G8Cw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.77/DuoUpdater86-84.delta" sparkle:deltaFrom="84" length="746558" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="FaWtpOp0tdX0gyyK2HgnM2iZsKOSqshJ/WnXrzaHaR3NMg7iZbP9nUW44cBe5Vb3cBQmtxdXD1z06EtLKrOwBg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.77/DuoUpdater86-83.delta" sparkle:deltaFrom="83" length="791258" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="JFFTKPNxD3SL17bMM5zpPQsRT8JQ+luVgqYDDA+nW19nEHc+7B6tlJKJWzwCkrVp47T9aRMCXW01Gk7aK9qiCA=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.77/DuoUpdater86-82.delta" sparkle:deltaFrom="82" length="817398" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="sPKJ9EhpyvlqkFADTF5CP9TWSmIDVWihy34SExtZ6JNgrDC9soaDaI+4WNnaggdvGFX3A7S1CJaCVh7SVPgVAA=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.77/DuoUpdater86-81.delta" sparkle:deltaFrom="81" length="898922" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="g5I4JitT9J9OyoI9buGF86y5lEz1UyQnos6LjivB8vRjVLsC4KOZCzMbIxG2e6/SXwaRZYfdWWhiu6CQMNtjAQ=="/>
             </sparkle:deltas>
         </item>
     </channel>

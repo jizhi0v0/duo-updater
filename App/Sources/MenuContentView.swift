@@ -801,7 +801,7 @@ private struct AppRow: View {
             attributes: [.font: NSFont.preferredFont(forTextStyle: .body)]
         ).size().width
         if model.isRunning(result) { width += 6 + 6 }   // dot + HStack spacing
-        let tag = ChannelTag.measuredWidth(for: result.app.releaseChannel)
+        let tag = ChannelTag.measuredWidth(for: result.effectiveReleaseChannel)
         if tag > 0 { width += tag + 6 }
         return width
     }
@@ -837,7 +837,7 @@ private struct AppRow: View {
             if model.isRunning(result) {
                 RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
             }
-            ChannelTag(channel: result.app.releaseChannel)
+            ChannelTag(channel: result.effectiveReleaseChannel)
             // No optical nudge here: this mark is nearly cap-height, so it is judged
             // by its edges rather than its centre. See `RunningIndicator.opticalNudge`.
             if let runtime {

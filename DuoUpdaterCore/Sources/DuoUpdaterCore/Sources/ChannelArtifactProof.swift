@@ -269,12 +269,14 @@ public enum ChannelProofRegistry {
     /// non-stable channel would have no discriminator at all, and nothing
     /// anywhere would say so.
     ///
-    /// Verified against the live Releases API 2026-08-28. All three are provable
-    /// from the URL because GitHub builds an asset URL as
+    /// Verified against the live Releases API, most recently 2026-09-03. Most are
+    /// provable from the URL because GitHub builds an asset URL as
     /// `…/releases/download/<tag>/<name>` — the tag the `versionPattern` matched
     /// is IN the path, so an `.artifact` proof here asserts the same thing the
     /// version pattern does, but against what was actually resolved rather than
-    /// against what someone meant to write.
+    /// against what someone meant to write. UTM is the exception: neither its tag
+    /// nor its asset names a channel, so its proof is the candidate-selection
+    /// field instead — see the entry itself for what that does and does not cover.
     public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] = [
         // `Zed-aarch64.dmg` is byte-identical in name to stable's — the tag is
         // the only discriminator, and it is in the path:
@@ -332,6 +334,24 @@ public enum ChannelProofRegistry {
         // that tells them apart after the fact.
         ChannelProofKey("com.vorssaint.utils", .beta):
             .artifact(#"/download/v[0-9.]+-beta\."#),
+        // UTM's tag and asset name carry no channel token at all (`v5.0.5` /
+        // `UTM.dmg`), and — unlike every other key here — its Beta artifact is not
+        // even meant to be a different artifact forever: UTM's previews graduate
+        // into the same numbering, so a Beta install is legitimately offered a
+        // release GitHub marks stable (see `GitHubCandidateScope`). The thing that
+        // must not drift is therefore not "which train the file came from" but
+        // WHICH ALGORITHM chose it, and that is what this anchors: the rule must
+        // keep asking for the line-anchored candidate.
+        //
+        // Be clear about the reach of that, because the previous version of this
+        // comment overstated it: a `.recipeAnchor` reflects the REGISTRY's field
+        // values, so it fails when someone edits this rule back to `.newest`, and
+        // it cannot see anything about the code in `resolve` that reads the field.
+        // `UTMGitHubChannelTests.aPreviewInstallWhoseLineGraduatedIsOfferedThatGraduation`
+        // is what covers the code: delete the ceiling and it offers a v5 preview
+        // to a 4.7 install.
+        ChannelProofKey("com.utmapp.UTM", .beta):
+            .recipeAnchor(#"^installedMajorLineOrNewestStable$"#, in: ["candidateScope"]),
     ]
 
     /// Every `(bundleID, channel)` in the GitHub registry that carries an install

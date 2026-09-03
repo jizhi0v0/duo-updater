@@ -2,6 +2,10 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.3.83
+
+**UTM のプレビュー版が独自の更新を受け取れるようになり、ワンクリックでインストールでき、対応するリリースノートも表示されます。** これまでプレビュー版は正式版と比較され、何も告げずに「最新です」と表示されていました。今は自分の系列を追い、その系列の正式版を受け取った時点で正式トラックに戻ります。
+
 ## 0.3.82
 
 **さらに 15 個のアプリを更新チェックの対象にしました。1 つを除いてワンクリックで更新できます。** AgentsView、AnythingLLM、Chatbox、ChatGPT Classic、DSH Desktop、FluidVoice、GitHub Copilot、Kun、Meetily、Microsoft 365 Copilot、OpenLogi、OpenSuperWhisper、Paseo、T3 Code（alpha と nightly の両方）、Vorssaint です。例外は ChatGPT Classic で、更新の有無は確認しますが、アプリ自身を更新するインストーラが同梱されているため、その 1 つだけはご自身で実行していただく形になります。

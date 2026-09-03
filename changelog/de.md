@@ -2,6 +2,10 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.83
+
+**UTM-Vorschauversionen erhalten jetzt eigene Updates, lassen sich mit einem Klick installieren und zeigen die passenden Versionshinweise.** Bisher wurde eine Vorschauversion am finalen Zweig gemessen und stillschweigend als aktuell gemeldet; sie folgt nun ihrem eigenen Zweig und wechselt zurück auf den finalen Zweig, sobald sie dessen finale Fassung übernimmt.
+
 ## 0.3.82
 
 **Fünfzehn weitere Apps werden auf Updates überwacht, und alle bis auf eine lassen sich mit einem Klick installieren.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code — auf beiden Kanälen, Alpha und Nightly — und Vorssaint. Die Ausnahme ist ChatGPT Classic: Geprüft wird es für Sie, aber es bringt ein Installationsprogramm mit, das die App selbst aktualisiert — dieses eine Update bleibt Ihre Sache.

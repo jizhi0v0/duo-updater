@@ -1261,7 +1261,9 @@ final class AppListModel {
     /// and the App Store source re-reads the signed-in storefront region.
     private func makeSources(token: String?) -> [any UpdateSource] {
         hasGitHubToken = (token != nil)
-        return SourceStack.make(githubToken: token, alcove: alcoveCredentials())
+        return SourceStack.make(
+            githubToken: token, alcove: alcoveCredentials(),
+            channelStore: ResolvedChannelStore.shared)
     }
 
     /// Alcove's licensed-update credentials, or nil if either secret is missing
@@ -1467,7 +1469,7 @@ final class AppListModel {
     private func applicableRecipe(for result: UpdateResult) -> ChangelogRecipe? {
         guard result.remote?.appStore == nil else { return nil }
         return ChangelogRecipeRegistry.recipe(
-            forBundleID: result.app.bundleID, channel: result.app.releaseChannel,
+            forBundleID: result.app.bundleID, channel: result.effectiveReleaseChannel,
             version: changelogTargetVersion(for: result))
     }
 
@@ -1493,7 +1495,7 @@ final class AppListModel {
               let recipe = applicableRecipe(for: result) else { return }
         let targetVersion = changelogTargetVersion(for: result)
         let key = ChangelogCacheKey(
-            bundleID: bundleID, channel: result.app.releaseChannel, version: targetVersion)
+            bundleID: bundleID, channel: result.effectiveReleaseChannel, version: targetVersion)
         // A `.loaded` that was only ever painted from the disk cache is not done:
         // it still owes one network read, because the entry filed under this
         // version's key may have been fetched before the vendor published that
@@ -1551,7 +1553,7 @@ final class AppListModel {
         else { return nil }
         return ChangelogCacheKey(
             bundleID: bundleID,
-            channel: result.app.releaseChannel,
+            channel: result.effectiveReleaseChannel,
             version: changelogTargetVersion(for: result))
     }
 
@@ -1920,9 +1922,19 @@ final class AppListModel {
         // check lands a few seconds later. Carry the prior status/remote forward
         // (re-evaluated against the fresh on-disk version) so the list stays put and
         // the menu bar's data shows immediately; the check then overwrites it.
+        // Cold start has no prior row to carry, but the store still knows what was
+        // proven about these copies, so a Beta row is a Beta row from the first
+        // paint rather than only after the first check lands. `Snapshot` is one
+        // file read for the whole list — that is what it exists for, and the
+        // first draft of this had it inside the loop, i.e. once per installed app.
+        let proofs = ResolvedChannelStore.Snapshot()
         results = results.isEmpty
-            ? found.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
-            : sorted(mergeScanned(found))
+            ? found.map {
+                UpdateResult(
+                    app: $0, remote: nil, status: .unknown,
+                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: $0, in: proofs))
+            }
+            : sorted(mergeScanned(found, proofs: proofs))
         lastScan = .now
         isScanning = false
 
@@ -1964,7 +1976,8 @@ final class AppListModel {
             sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
-            testflight: testflight)
+            testflight: testflight,
+            channelStore: ResolvedChannelStore.shared)
         // Ignored apps are not asked after. Nothing would be said about the answer,
         // so the request is pure cost — and against an unauthenticated GitHub hour
         // it is cost that crowds out the apps the user does watch.
@@ -1978,8 +1991,28 @@ final class AppListModel {
         let ignored = found.filter { !prefs.deservesCheck($0) }
         Log.app.info(
             "refresh: checking \(checkable.count, privacy: .public) apps, skipping \(ignored.count, privacy: .public) ignored")
-        let checked = await checker.check(checkable)
-            + ignored.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
+        // Ignored rows are never checked, so nothing downstream will ever put a
+        // proven channel back on them — rebuilding them bare is not a blank that
+        // the next check repairs, it is permanent until the user un-ignores. And
+        // they are not inert: `prewarmChangelogs` below runs over `checked`
+        // unfiltered, so a UTM Beta row that lost its channel here would go and
+        // cache the FINAL track's changelog against itself.
+        //
+        // Read from the store, not from the row we were just holding: on the path
+        // that actually matters — the app was already ignored when DuoUpdater
+        // launched — there is no prior row to read, because nothing ever checked
+        // it. The store is the only thing that survives a restart.
+        let checkedRows = await checker.check(checkable)
+        // Read after the check, not before: the round just flushed whatever it
+        // proved, and a copy that was un-ignored and re-ignored between passes
+        // should pick that up. A second read of a small file, once per round.
+        let provenNow = ResolvedChannelStore.Snapshot()
+        let checked = checkedRows
+            + ignored.map {
+                UpdateResult(
+                    app: $0, remote: nil, status: .unknown,
+                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: $0, in: provenNow))
+            }
         results = sorted(CheckRoundWriteBack.publishing(
             checked, changedSince: roundBaseline, live: results))
         // Pre-warm the disk changelog cache for anything pending, so opening its
@@ -2448,17 +2481,41 @@ final class AppListModel {
     /// network-free rescan) and the in-flight `performRefresh` (so the sidebar holds
     /// the menu bar's data instead of flashing `.unknown` rows during a re-check).
     /// Apps new since the last scan come in as `.unknown`.
-    private func mergeScanned(_ found: [InstalledApp]) -> [UpdateResult] {
+    private func mergeScanned(
+        _ found: [InstalledApp],
+        proofs: ResolvedChannelStore.Snapshot = ResolvedChannelStore.Snapshot()
+    ) -> [UpdateResult] {
         let prior = Dictionary(results.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         return found.map { app -> UpdateResult in
             guard let was = prior[app.id] else {
                 return UpdateResult(app: app, remote: nil, status: .unknown)
             }
+            // A rescan re-derives the row's VERDICT. It must not re-derive the
+            // row's IDENTITY — and `UpdateResult(app:remote:status:)` silently
+            // does, because `provenChannel` has a default. For an app whose
+            // bundle cannot name its own channel (UTM) that field is the only
+            // thing holding the row's channel once a check has failed, so
+            // rebuilding without it repaints a Beta row as Stable on the next
+            // FS-watcher rescan and files its notes under the wrong cache key —
+            // exactly the failure the store exists to prevent, reintroduced one
+            // layer up. Same shape as the `RowActions.live` rule in CLAUDE.md:
+            // the safe default is what makes the omission compile.
+            //
+            // `carriedForward` is in Core and has tests; a version gate written
+            // here covered `provenChannel` and missed that the same claim also
+            // rides on the carried `remote`. `App/project.yml` has no test target,
+            // so a rule that has already been got wrong twice does not belong in
+            // this file.
+            func carrying(_ remote: RemoteVersion?, _ status: UpdateStatus) -> UpdateResult {
+                was.carriedForward(
+                    onto: app, remote: remote, status: status,
+                    proven: ResolvedChannelStore.provenChannelSnapshot(for: app, in: proofs))
+            }
             // Re-derive status from the cached remote against the fresh on-disk
             // version. With no remote (App Store / Toolbox / unknown) keep what we
             // had, just refreshed to the new bundle info.
             guard let remote = was.remote else {
-                return UpdateResult(app: app, remote: nil, status: was.status)
+                return carrying(nil, was.status)
             }
             // A Toolbox row can't be re-run through `evaluate` (its verdict is a
             // Toolbox build compare, not a compare against `shortVersion`), but it
@@ -2466,19 +2523,15 @@ final class AppListModel {
             // checks — otherwise the cached "update available" stands beside the
             // freshly-rescanned version, reading "262.132.21 → 262.132.21".
             if remote.sourceName == "Toolbox" {
-                return UpdateResult(
-                    app: app, remote: remote,
-                    status: UpdateChecker.evaluateToolbox(
-                        cached: was.status, installed: app, remote: remote))
+                return carrying(remote, UpdateChecker.evaluateToolbox(
+                    cached: was.status, installed: app, remote: remote))
             }
             // TestFlight owns its betas' status (its own cache, not a version
             // compare) — keep it; don't re-evaluate.
             guard remote.sourceName != "TestFlight" else {
-                return UpdateResult(app: app, remote: remote, status: was.status)
+                return carrying(remote, was.status)
             }
-            return UpdateResult(
-                app: app, remote: remote,
-                status: UpdateChecker.evaluate(installed: app, remote: remote))
+            return carrying(remote, UpdateChecker.evaluate(installed: app, remote: remote))
         }
     }
 
@@ -5853,7 +5906,8 @@ final class AppListModel {
             sources: makeSources(token: githubToken),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
-            testflight: testflight)
+            testflight: testflight,
+            channelStore: ResolvedChannelStore.shared)
         return await checker.check(fresh)
     }
 

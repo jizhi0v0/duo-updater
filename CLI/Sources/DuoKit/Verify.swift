@@ -445,9 +445,14 @@ public enum Verify {
             // the request quietly loses its token. See ``GitHubEndpointAudit``.
             let audit = GitHubEndpointAudit.Ledger()
             var attempt = 0
+            // The copy on this machine, when there is one, is a far better anchor
+            // for a line-anchored rule than "the newest tag" — the latter makes
+            // the ceiling trivially the top of the list and measures nothing. See
+            // `resolveDiagnostic(_:anchoredTo:)`.
+            let anchor = installed["vendor:\(rule.bundleID):\(rule.channel.rawValue)"]?.marketing
             var outcome = await GitHubEndpointAudit.$ledger.withValue(audit) {
                 await GatewayRetry.$tally.withValue(tally) {
-                    await source.resolveDiagnostic(rule)
+                    await source.resolveDiagnostic(rule, anchoredTo: anchor)
                 }
             }
             while attempt < options.infraRetries,
@@ -456,7 +461,7 @@ public enum Verify {
                 try? await Task.sleep(for: .seconds(attempt))
                 outcome = await GitHubEndpointAudit.$ledger.withValue(audit) {
                     await GatewayRetry.$tally.withValue(tally) {
-                        await source.resolveDiagnostic(rule)
+                        await source.resolveDiagnostic(rule, anchoredTo: anchor)
                     }
                 }
             }
@@ -919,14 +924,29 @@ public enum Verify {
     static func installedVersions() async -> [String: InstalledVersion] {
         let box = ScanBox()
         let done = DispatchSemaphore(value: 0)
+        let proofs = ResolvedChannelStore.Snapshot()
         let worker = Thread {
             var out: [String: InstalledVersion] = [:]
             for app in AppScanner().scan() {
                 guard let bundleID = app.bundleID else { continue }
-                out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] =
-                    InstalledVersion(
-                        marketing: app.shortVersion, build: app.buildVersion,
-                        vendorBuild: app.vendorBuildVersion)
+                // An app whose bundle cannot name its own channel scans as
+                // `.stable` no matter which train it is really on, so a copy of
+                // UTM Beta would file itself under the stable rule's key — where
+                // it is the wrong yardstick — and leave the beta rule with no
+                // cross-check at all. Where a check has PROVEN the channel, that
+                // is the honest key.
+                //
+                // Decided before writing, not by writing then correcting: two
+                // copies of one app can be installed on different channels, and a
+                // write-then-delete would let whichever came second erase the
+                // other's entry.
+                let channel = (app.channelIsAuthoritative
+                    ? nil
+                    : ResolvedChannelStore.provenChannelSnapshot(for: app, in: proofs))
+                    ?? app.releaseChannel
+                out["vendor:\(bundleID):\(channel.rawValue)"] = InstalledVersion(
+                    marketing: app.shortVersion, build: app.buildVersion,
+                    vendorBuild: app.vendorBuildVersion)
             }
             box.set(out)
             done.signal()

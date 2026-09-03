@@ -429,7 +429,7 @@ public enum UpdatePolicy {
     /// release-versus-prerelease ordering. Comparing those two strings therefore
     /// announced a downgrade for a copy sitting on the very same build.
     public static func laggingRemoteVersion(_ result: UpdateResult) -> String? {
-        guard result.app.releaseChannel == .stable, !result.hasUpdate else { return nil }
+        guard result.effectiveReleaseChannel == .stable, !result.hasUpdate else { return nil }
         guard !result.app.isMASApp, !result.app.isTestFlightApp, !result.app.isToolboxManaged
         else { return nil }
         // Same build on both sides is the same release, whatever the labels read.

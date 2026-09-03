@@ -406,6 +406,46 @@ private let anythingLLMVersionTxtFixture = "1.16.1"
     #expect(url.absoluteString == "https://tclementdev.com/timemachineeditor/TimeMachineEditor.pkg")
 }
 
+// MARK: - 2026-08-30 Microsoft 365 Copilot
+
+/// The fwlink 302s to a versioned pkg on the Office CDN; the filename carries
+/// the BUILD (`1.2608.0301` == the expanded app's CFBundleVersion verbatim,
+/// while its short is `1.2608`) — so versionIsBuild routes the comparison and
+/// no segment surgery is needed (unlike OneDrive's path-component pattern).
+@Test func m365CopilotReadsTheBuildFromTheRedirectedPkgFilename() throws {
+    let recipe = try #require(batchRecipe("com.microsoft.m365copilot"))
+    #expect(recipe.followRedirects == false)
+    #expect(recipe.versionIsBuild)
+    let url = "https://res.cdn.office.net/mro1cdnstorage/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_365_Copilot_universal_1.2608.0301_Installer.pkg"
+    #expect(
+        VendorProbeRecipe.extractVersion(from: url, pattern: recipe.versionPattern)
+            == "1.2608.0301")
+}
+
+/// The pkg installs Microsoft AutoUpdate as a sibling (verified by expanding
+/// the real pkg 2026-08-30), so the install must go through the system
+/// installer via the canonical fwlink — a bundle-only unpack would leave the
+/// app next to a stale MAU.
+@Test func m365CopilotInstallsViaTheFwlinkPkg() throws {
+    let recipe = try #require(batchRecipe("com.microsoft.m365copilot"))
+    let install = try #require(recipe.install)
+    #expect(install.kind == .pkg)
+    guard case .redirect(let url) = install.urlSource else {
+        Issue.record("expected a redirect install URL"); return
+    }
+    #expect(url.absoluteString == "https://go.microsoft.com/fwlink/?linkid=2325438")
+}
+
+/// The fwlink is a two-hop chain (fwlink → aka.ms → CDN); probing the fwlink
+/// with redirects disabled would read the bare aka.ms alias as the "version".
+/// The probe must therefore point at the aka.ms alias directly, whose single
+/// Location header is the versioned CDN pkg URL.
+@Test func m365CopilotProbesTheSingleHopAkaMsAlias() throws {
+    let recipe = try #require(batchRecipe("com.microsoft.m365copilot"))
+    #expect(recipe.url.absoluteString == "https://aka.ms/M365CopilotForMac")
+    #expect(recipe.followRedirects == false)
+}
+
 // MARK: - 2026-08-30 Chatbox
 
 /// Verbatim body of `https://download.chatboxai.app/releases/latest-mac.yml`,

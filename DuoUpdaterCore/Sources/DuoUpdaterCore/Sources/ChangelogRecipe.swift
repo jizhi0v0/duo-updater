@@ -1191,6 +1191,32 @@ public enum ChangelogRecipeRegistry {
             channel: .stable,
             structuredFormat: .zedGitHubReleases),
 
+        // UTM Stable and Beta publish in one GitHub repository with plain numeric
+        // tags and the same `UTM.dmg` asset name. The release record's
+        // `prerelease` bit is the only channel split, matching the corresponding
+        // GitHubReleaseRule. Two channel-keyed recipes over the same JSON keep the
+        // histories separate: Stable never sees the cumulative v5 Beta notes, and
+        // Beta never falls back to v4.7.5's stable history. The app bundle itself
+        // cannot name the channel; `RemoteVersion.releaseChannel`, proven from the
+        // exact installed tag, is what routes the UI to the correct recipe.
+        ChangelogRecipe(
+            bundleID: "com.utmapp.UTM",
+            source: URL(
+                string: "https://api.github.com/repos/utmapp/UTM/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .stable,
+            structuredFormat: .gitHubReleases),
+
+        ChangelogRecipe(
+            bundleID: "com.utmapp.UTM",
+            source: URL(
+                string: "https://api.github.com/repos/utmapp/UTM/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .beta,
+            structuredFormat: .gitHubReleases),
+
         // OrbStack — VitePress docs at docs.orbstack.dev/release-notes. The page
         // is server-side rendered with the full changelog inline. Each version is
         // an <h2 id="v{major}-{minor}-{patch}-{month}-{day}"> whose visible text

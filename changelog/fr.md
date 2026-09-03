@@ -2,6 +2,10 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.83
+
+**UTM Beta suit désormais le canal Beta, installe les mises à jour en un clic et affiche les notes Beta.** Stable et Beta utilisent la même identité d'application et des numéros de version simples : les copies Beta interrogeaient donc auparavant le canal Stable et manquaient silencieusement les nouvelles préversions ; chaque canal conserve maintenant son propre historique et ses propres notes.
+
 ## 0.3.82
 
 **Quinze applications de plus sont surveillées, et toutes sauf une s'installent en un clic.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code — sur ses deux canaux, alpha et nightly — et Vorssaint. L'exception est ChatGPT Classic : la vérification est faite pour vous, mais l'app fournit un programme d'installation qui la met à jour lui-même ; cette mise à jour reste donc la vôtre à lancer.

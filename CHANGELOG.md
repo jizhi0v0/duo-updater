@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.83
+
+**UTM Beta now follows the Beta track, installs updates with one click, and shows Beta release notes.** Stable and Beta use the same app identity and plain version numbers, so Beta copies previously looked up the Stable track and silently missed newer previews; each track now keeps its own update history and notes.
+
 ## 0.3.82
 
 **Fifteen more apps are watched for updates, and all but one install in a single click.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code — on both its alpha and nightly tracks — and Vorssaint. ChatGPT Classic is the exception: it is checked for you, but it ships an installer that updates the app itself, so that one stays yours to run.

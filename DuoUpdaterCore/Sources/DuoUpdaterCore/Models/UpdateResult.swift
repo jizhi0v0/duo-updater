@@ -227,6 +227,12 @@ public struct RemoteVersion: Sendable, Hashable {
     /// store dedupes by version). Empty for sources that only resolve one release.
     public let releaseHistory: [ReleaseHistoryEntry]
 
+    /// The release channel proven by the source when it is stronger than the
+    /// bundle's local signals. Nil for the normal case. GitHub uses this for UTM,
+    /// whose installed app cannot distinguish Stable from Beta but whose exact
+    /// release record carries GitHub's authoritative `prerelease` bit.
+    public let releaseChannel: ReleaseChannel?
+
     /// Binary patches this release publishes, one per build it can upgrade from.
     /// Empty for every source that doesn't publish them — which is most: of the
     /// eleven Sparkle feeds readable on this machine only Keka's carried patches
@@ -258,7 +264,8 @@ public struct RemoteVersion: Sendable, Hashable {
         publishedAt: Date? = nil,
         vendorDay: Date? = nil,
         releaseHistory: [ReleaseHistoryEntry] = [],
-        deltas: [DeltaPatch] = []
+        deltas: [DeltaPatch] = [],
+        releaseChannel: ReleaseChannel? = nil
     ) {
         self.shortVersion = shortVersion
         self.version = version
@@ -285,6 +292,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.vendorDay = vendorDay
         self.releaseHistory = releaseHistory
         self.deltas = deltas
+        self.releaseChannel = releaseChannel
     }
 
     /// Best version string to show the user.
@@ -304,6 +312,13 @@ public struct RemoteVersion: Sendable, Hashable {
 }
 
 extension UpdateResult {
+    /// The channel to present and use for channel-specific notes. Normally the
+    /// installed bundle already knows it; a source may override only when it has
+    /// stronger evidence tied to that exact installed release.
+    public var effectiveReleaseChannel: ReleaseChannel {
+        remote?.releaseChannel ?? app.releaseChannel
+    }
+
     /// What to call the INSTALLED build in any UI — the menu bar, the workbench row,
     /// `duo check`.
     ///

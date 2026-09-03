@@ -450,18 +450,34 @@ private func matches(
         from: assetList(["App-2.0-linux.tar.gz"]), matching: pattern))
 }
 
-@Test func utmRuleStaysOnTheStableTrain() {
-    #expect(extract("v4.7.5", "com.utmapp.UTM") == "4.7.5")
-    // v5.x exists but only as prereleases: reading `/releases/latest` is what keeps
-    // a 4.x install from being offered a v5 preview.
-    #expect(rule("com.utmapp.UTM").usePrereleases == false)
-    #expect(rule("com.utmapp.UTM").channel == .stable)
-    #expect(matches("UTM.dmg", "com.utmapp.UTM"))
+@Test func utmRulesSplitPlainNumericTagsByGitHubReleaseKind() {
+    let bundleID = "com.utmapp.UTM"
+    let stable = rule(bundleID, channel: .stable)
+    let beta = rule(bundleID, channel: .beta)
+
+    #expect(extract("v4.7.5", bundleID, channel: .stable) == "4.7.5")
+    #expect(!stable.usePrereleases)
+    #expect(stable.releaseKind == .any)
+    #expect(stable.installedTagPrefix == nil)
+
+    // UTM's beta tag is a bare `v5.0.5`, with no suffix for a regex to anchor.
+    // The exact installed tag lookup and GitHub's prerelease bit are therefore
+    // both load-bearing parts of the channel gate.
+    #expect(extract("v5.0.5", bundleID, channel: .beta) == "5.0.5")
+    #expect(beta.usePrereleases)
+    #expect(beta.releaseKind == .prerelease)
+    #expect(beta.installedTagPrefix == "v")
+    #expect(beta.channel == .beta)
+
+    #expect(matches("UTM.dmg", bundleID, channel: .stable))
+    #expect(matches("UTM.dmg", bundleID, channel: .beta))
     // Real siblings in the same release: the iOS/visionOS builds and the Debian
     // package. UTM SE ships only as .ipa, so the `.dmg` anchor already excludes it.
-    #expect(!matches("UTM.ipa", "com.utmapp.UTM"))
-    #expect(!matches("UTM-SE.ipa", "com.utmapp.UTM"))
-    #expect(!matches("UTM.deb", "com.utmapp.UTM"))
+    for channel in [ReleaseChannel.stable, .beta] {
+        #expect(!matches("UTM.ipa", bundleID, channel: channel))
+        #expect(!matches("UTM-SE.ipa", bundleID, channel: channel))
+        #expect(!matches("UTM.deb", bundleID, channel: channel))
+    }
 }
 
 @Test func kittyRuleMatchesVersionedDmgOnly() {

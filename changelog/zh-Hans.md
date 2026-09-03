@@ -2,6 +2,10 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.3.83
+
+**UTM Beta 现在会跟随 Beta 渠道、一键安装更新，并显示 Beta 更新说明。** Stable 和 Beta 使用相同的应用身份与纯数字版本号，所以 Beta 副本以前会查询 Stable 渠道，静默错过新的预览版；现在两个渠道各自维护更新历史与说明，不再串轨。
+
 ## 0.3.82
 
 **又有十五个 app 纳入更新检查，除一个之外都支持一键更新。** AgentsView、AnythingLLM、Chatbox、ChatGPT Classic、DSH Desktop、FluidVoice、GitHub Copilot、Kun、Meetily、Microsoft 365 Copilot、OpenLogi、OpenSuperWhisper、Paseo、T3 Code（alpha 与 nightly 两条线）以及 Vorssaint。例外是 ChatGPT Classic：更新检查照做，但它自带一个会自己更新应用的安装程序，所以这一个仍需你亲自运行。

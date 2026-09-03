@@ -422,6 +422,22 @@
       "lastGoodVersion" : "1.7.0-daily.20260902",
       "sweepsSinceComment" : 0
     },
+    "changelog:com.utmapp.UTM:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-09-03T08:39:29Z",
+      "lastGoodVersion" : "5.0.5",
+      "sweepsSinceComment" : 0
+    },
+    "changelog:com.utmapp.UTM:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-09-03T08:39:29Z",
+      "lastGoodVersion" : "4.7.5",
+      "sweepsSinceComment" : 0
+    },
     "changelog:com.workbuddy.workbuddy-ai:-" : {
       "closedAt" : "2026-08-27T20:21:43Z",
       "consecutiveActionable" : 0,
@@ -1281,11 +1297,19 @@
       "lastGoodVersion" : "4.1.0",
       "sweepsSinceComment" : 0
     },
+    "github:utmapp\/UTM:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-09-03T08:39:29Z",
+      "lastGoodVersion" : "5.0.5",
+      "sweepsSinceComment" : 0
+    },
     "github:utmapp\/UTM:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-09-03T08:22:54Z",
+      "lastGoodAt" : "2026-09-03T08:39:29Z",
       "lastGoodVersion" : "4.7.5",
       "sweepsSinceComment" : 0
     },
@@ -2562,5 +2586,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-09-03T08:22:55Z"
+  "updatedAt" : "2026-09-03T08:39:29Z"
 }

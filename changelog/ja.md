@@ -2,6 +2,10 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.3.83
+
+**UTM Beta が Beta トラックを追跡し、ワンクリックで更新をインストールして、Beta のリリースノートを表示するようになりました。** Stable と Beta は同じアプリ識別情報と単純なバージョン番号を使うため、以前の Beta は Stable トラックを参照して新しいプレビューを知らせずに見逃していました。今は各トラックが独自の更新履歴とノートを保持します。
+
 ## 0.3.82
 
 **さらに 15 個のアプリを更新チェックの対象にしました。1 つを除いてワンクリックで更新できます。** AgentsView、AnythingLLM、Chatbox、ChatGPT Classic、DSH Desktop、FluidVoice、GitHub Copilot、Kun、Meetily、Microsoft 365 Copilot、OpenLogi、OpenSuperWhisper、Paseo、T3 Code（alpha と nightly の両方）、Vorssaint です。例外は ChatGPT Classic で、更新の有無は確認しますが、アプリ自身を更新するインストーラが同梱されているため、その 1 つだけはご自身で実行していただく形になります。

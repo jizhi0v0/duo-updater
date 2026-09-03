@@ -1,5 +1,14 @@
 import Foundation
 
+/// Which GitHub release records a rule is allowed to consume after fetching the
+/// releases list. Most rules rely on `/releases/latest` or a tag suffix and need
+/// no extra filter; apps such as UTM publish Beta under plain numeric tags, so
+/// GitHub's own `prerelease` bit is the only authoritative channel marker.
+public enum GitHubReleaseKind: String, Sendable, Equatable {
+    case any
+    case prerelease
+}
+
 /// One app's mapping to a GitHub repository whose Releases drive its version.
 public struct GitHubReleaseRule: Sendable {
     /// `CFBundleIdentifier` of the installed app.
@@ -15,6 +24,18 @@ public struct GitHubReleaseRule: Sendable {
     /// Regex applied to a release's `tag_name`; capture group 1 is the version
     /// (e.g. strip a leading `v`, or a `.stable_00` suffix).
     public let versionPattern: String
+
+    /// Additional filter over the GitHub release record itself. `.prerelease`
+    /// is for a channel whose tags and asset names carry no channel token: the
+    /// rule accepts only records GitHub explicitly marks as prereleases.
+    public let releaseKind: GitHubReleaseKind
+
+    /// Prefix that turns the installed marketing version into its exact GitHub
+    /// tag (`"v"` + `5.0.5` → `v5.0.5`). Non-nil only when stable and prerelease
+    /// builds share every local identity signal. The source looks up that exact
+    /// release and uses GitHub's `prerelease` bit to select the channel rule.
+    /// A missing/unmatched release fails closed instead of guessing Stable.
+    public let installedTagPrefix: String?
 
     /// The release channel this rule's endpoint serves. The source refuses to
     /// apply the rule unless the installed app is on the SAME channel, so a
@@ -39,6 +60,8 @@ public struct GitHubReleaseRule: Sendable {
         repo: String,
         usePrereleases: Bool = false,
         versionPattern: String = #"v?([0-9]+(?:\.[0-9]+)+)"#,
+        releaseKind: GitHubReleaseKind = .any,
+        installedTagPrefix: String? = nil,
         installAssetPattern: String? = nil,
         installerKind: VendorInstallerKind? = nil,
         channel: ReleaseChannel = .stable
@@ -49,6 +72,8 @@ public struct GitHubReleaseRule: Sendable {
         self.repo = repo
         self.usePrereleases = usePrereleases
         self.versionPattern = versionPattern
+        self.releaseKind = releaseKind
+        self.installedTagPrefix = installedTagPrefix
         self.installAssetPattern = installAssetPattern
         self.installerKind = installerKind
     }
@@ -346,15 +371,75 @@ public struct GitHubReleasesSource: UpdateSource {
         // the right endpoint; when only a stable rule exists, a detected
         // nightly/beta install finds no match and is skipped rather than offered
         // a cross-channel build.
-        guard let rule = candidates.first(where: { $0.channel == app.releaseChannel }) else {
+        guard let detectedRule = candidates.first(where: { $0.channel == app.releaseChannel }) else {
             Log.source.info(
                 "GitHub skip \(bundleID, privacy: .public): no rule for app channel \(app.releaseChannel.rawValue, privacy: .public)")
             return nil
+        }
+        let rule: GitHubReleaseRule
+        if detectedRule.channel == .stable, !app.channelIsAuthoritative,
+           candidates.contains(where: {
+               $0.channel != .stable
+                   && $0.releaseKind == .prerelease
+                   && $0.installedTagPrefix != nil
+           }) {
+            guard let discovered = try await ruleFromInstalledRelease(
+                for: app, candidates: candidates)
+            else { return nil }
+            rule = discovered
+        } else {
+            rule = detectedRule
         }
         // A rule exists: let a fetch failure throw, so the checker turns it into
         // a retryable `.error` row rather than swallowing it into a nil that's
         // indistinguishable from "no source for this app".
         return try await resolve(rule).remote
+    }
+
+    /// Resolve an otherwise-undetectable channel from the exact release that
+    /// produced the installed version. UTM is the motivating case: Stable and
+    /// Beta have one bundle id, one app name, plain numeric versions, and the
+    /// same `UTM.dmg` asset name. The package cannot name its train, but the
+    /// exact GitHub release for tag `v<installed version>` does.
+    ///
+    /// Only one non-stable rule may opt into this mechanism for a bundle id. If
+    /// the exact tag disappears, is a draft, or no longer extracts to the
+    /// installed version, return nil so the caller keeps the conservative local
+    /// classification instead of manufacturing a channel from a nearby release.
+    private func ruleFromInstalledRelease(
+        for app: InstalledApp, candidates: [GitHubReleaseRule]
+    ) async throws -> GitHubReleaseRule? {
+        let discoverable = candidates.filter {
+            $0.channel != .stable
+                && $0.releaseKind == .prerelease
+                && $0.installedTagPrefix != nil
+        }
+        guard discoverable.count == 1,
+              let rule = discoverable.first,
+              let prefix = rule.installedTagPrefix,
+              let installed = app.shortVersion?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !installed.isEmpty
+        else { return nil }
+
+        let tag = prefix + installed
+        guard let release = try await fetchReleases(rule, list: false, tag: tag)?.first,
+              release.hasExplicitReleaseState,
+              !release.isDraft,
+              let extracted = VendorProbeRecipe.extractVersion(
+                from: release.tag, pattern: rule.versionPattern),
+              VersionComparator.compare(extracted, installed) == .orderedSame
+        else {
+            Log.source.info(
+                "GitHub skip \(app.bundleID ?? "?", privacy: .public): exact installed release \(tag, privacy: .public) could not prove a channel")
+            return nil
+        }
+
+        if release.isPrerelease {
+            Log.source.info(
+                "GitHub \(app.bundleID ?? "?", privacy: .public): installed tag \(tag, privacy: .public) is a prerelease → \(rule.channel.rawValue, privacy: .public)")
+            return rule
+        }
+        return candidates.first { $0.channel == .stable }
     }
 
     /// Run one rule and report everything that happened — the counterpart to
@@ -438,14 +523,25 @@ public struct GitHubReleasesSource: UpdateSource {
     static let maxReleasesWithoutMacOSAsset = 5
 
     /// One GitHub Releases fetch, decoded. nil means the endpoint URL was
-    /// unbuildable or the response wasn't HTTP; a bad status throws so the row
-    /// surfaces a retryable error rather than a dead "unknown".
+    /// unbuildable, the response wasn't HTTP, or an exact-tag discovery got a
+    /// 404; other bad statuses throw so the row surfaces a retryable error rather
+    /// than a dead "unknown".
     private func fetchReleases(
-        _ rule: GitHubReleaseRule, list: Bool
+        _ rule: GitHubReleaseRule, list: Bool, tag: String? = nil
     ) async throws -> [Release]? {
-        let endpoint = list
-            ? "https://api.github.com/repos/\(rule.slug)/releases?per_page=20"
-            : "https://api.github.com/repos/\(rule.slug)/releases/latest"
+        let endpoint: String
+        if let tag {
+            var allowed = CharacterSet.urlPathAllowed
+            allowed.remove(charactersIn: "/")
+            guard let escaped = tag.addingPercentEncoding(withAllowedCharacters: allowed) else {
+                return nil
+            }
+            endpoint = "https://api.github.com/repos/\(rule.slug)/releases/tags/\(escaped)"
+        } else {
+            endpoint = list
+                ? "https://api.github.com/repos/\(rule.slug)/releases?per_page=20"
+                : "https://api.github.com/repos/\(rule.slug)/releases/latest"
+        }
         guard let url = URL(string: endpoint) else { return nil }
 
         var request = URLRequest(url: url)
@@ -473,6 +569,11 @@ public struct GitHubReleasesSource: UpdateSource {
             GitHubEndpointAudit.record(
                 requestedSlug: rule.slug, requestedURL: url, response: http,
                 firstReleaseHTMLURL: nil, sentToken: token != nil)
+            // An exact-tag lookup is channel discovery, not the update probe
+            // itself. A custom/local build or a release whose tag was removed
+            // simply cannot prove its channel; decline this source instead of
+            // turning that expected miss into a retryable app error.
+            if tag != nil, http.statusCode == 404 { return nil }
             throw GitHubError.badStatus(http.statusCode)
         }
         // Walk releases in document order (GitHub returns newest first) and take
@@ -503,6 +604,14 @@ public struct GitHubReleasesSource: UpdateSource {
     ) async throws -> Resolution {
         guard var releases = try await fetchReleases(rule, list: rule.usePrereleases) else {
             return Resolution(remote: nil, tags: [], archIncompatible: false)
+        }
+
+        // UTM's beta tags (`v5.0.5`) are indistinguishable from stable tags by
+        // text and its asset is the same literal `UTM.dmg`. GitHub's prerelease
+        // bit is therefore the channel boundary, not a naming convention. Drafts
+        // are never releases, even when an authenticated token can see them.
+        if rule.releaseKind == .prerelease {
+            releases = releases.filter { $0.isPrerelease && !$0.isDraft }
         }
 
         // A rule that names a macOS installer asks a stricter question than "what
@@ -624,7 +733,8 @@ public struct GitHubReleasesSource: UpdateSource {
                     changelogURL: page,
                     publishedAt: publishedFields.publishedAt,
                     vendorDay: publishedFields.vendorDay,
-                    releaseHistory: history
+                    releaseHistory: history,
+                    releaseChannel: rule.channel
                 ), tags: releases.map(\.tag), archIncompatible: false)
             }
         }
@@ -673,11 +783,15 @@ public struct GitHubReleasesSource: UpdateSource {
         let htmlURL: URL?
         let publishedAt: String?
         let assets: [(name: String, url: URL, size: Int64?)]
-        /// Only ever consulted on the list endpoint. `/releases/latest` is
-        /// computed by GitHub with prereleases excluded, which is precisely why
-        /// stable rules use it — see the fallback in `resolve`.
+        /// Consulted on list endpoints and exact-tag channel discovery.
+        /// `/releases/latest` is computed by GitHub with prereleases excluded,
+        /// which is precisely why stable rules use it — see `resolve`.
         let isPrerelease: Bool
         let isDraft: Bool
+        /// Exact-tag discovery must distinguish an explicit `false` from a
+        /// response whose schema stopped carrying the two release-state fields.
+        /// List filtering keeps its historic missing-means-stable behavior.
+        let hasExplicitReleaseState: Bool
     }
 
     /// What the list endpoint may contribute to a *stable* rule. Split out from
@@ -714,7 +828,8 @@ public struct GitHubReleasesSource: UpdateSource {
                 publishedAt: obj["published_at"] as? String,
                 assets: assets,
                 isPrerelease: (obj["prerelease"] as? Bool) ?? false,
-                isDraft: (obj["draft"] as? Bool) ?? false
+                isDraft: (obj["draft"] as? Bool) ?? false,
+                hasExplicitReleaseState: obj["prerelease"] is Bool && obj["draft"] is Bool
             )
         }
     }
@@ -1406,16 +1521,37 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^XQuartz-[0-9.]+\.pkg$"#,
             installerKind: .pkg),
 
-        // UTM — virtualiser. The repo publishes v5.x as PRERELEASES while stable
-        // sits at v4.7.5, so `usePrereleases` stays false: `/releases/latest` is
-        // exactly the stable train, and a v5 prerelease can never be pushed at a
-        // stable install. The asset name is constant (`UTM.dmg`, universal).
-        // One-click: com.utmapp.UTM, Team WDNLXAD4W8, notarized.
+        // UTM — virtualiser. Stable and Beta share EVERYTHING visible locally:
+        // bundle id, app name, plain numeric marketing/build versions, Team ID,
+        // and the literal `UTM.dmg` asset name. The tag is plain numeric too
+        // (`v5.0.5`), so no suffix can gate the beta rule. Instead, the source
+        // looks up the exact tag for the installed version and reads GitHub's own
+        // authoritative `prerelease` bit; the beta rule then filters the releases
+        // list on that same bit. If the installed tag cannot be proven, it fails
+        // closed rather than guessing Stable. This covers direct-GitHub installs
+        // without the temporary and unsafe "major 5 means beta" shortcut.
+        //
+        // Real v5.0.5 DMG verified 2026-09-03: 302,621,893 bytes, SHA-256
+        // 713afe73c711f01344b8766654be531cd391ed2e30931206f43b5159f143764f;
+        // com.utmapp.UTM 5.0.5 (124), Team WDNLXAD4W8, strict deep signature
+        // valid, Gatekeeper `accepted, source=Notarized Developer ID`.
         GitHubReleaseRule(
             bundleID: "com.utmapp.UTM",
             owner: "utmapp", repo: "UTM",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^UTM\.dmg$"#,
             installerKind: .dmg),
+
+        GitHubReleaseRule(
+            bundleID: "com.utmapp.UTM",
+            owner: "utmapp", repo: "UTM",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            releaseKind: .prerelease,
+            installedTagPrefix: "v",
+            installAssetPattern: #"^UTM\.dmg$"#,
+            installerKind: .dmg,
+            channel: .beta),
 
         // kitty — terminal. The repo carries a rolling `nightly` prerelease tag, so
         // again `/releases/latest` (not the list) is what keeps a stable install on

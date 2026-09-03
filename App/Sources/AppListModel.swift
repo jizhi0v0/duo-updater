@@ -1467,7 +1467,7 @@ final class AppListModel {
     private func applicableRecipe(for result: UpdateResult) -> ChangelogRecipe? {
         guard result.remote?.appStore == nil else { return nil }
         return ChangelogRecipeRegistry.recipe(
-            forBundleID: result.app.bundleID, channel: result.app.releaseChannel,
+            forBundleID: result.app.bundleID, channel: result.effectiveReleaseChannel,
             version: changelogTargetVersion(for: result))
     }
 
@@ -1493,7 +1493,7 @@ final class AppListModel {
               let recipe = applicableRecipe(for: result) else { return }
         let targetVersion = changelogTargetVersion(for: result)
         let key = ChangelogCacheKey(
-            bundleID: bundleID, channel: result.app.releaseChannel, version: targetVersion)
+            bundleID: bundleID, channel: result.effectiveReleaseChannel, version: targetVersion)
         // A `.loaded` that was only ever painted from the disk cache is not done:
         // it still owes one network read, because the entry filed under this
         // version's key may have been fetched before the vendor published that
@@ -1551,7 +1551,7 @@ final class AppListModel {
         else { return nil }
         return ChangelogCacheKey(
             bundleID: bundleID,
-            channel: result.app.releaseChannel,
+            channel: result.effectiveReleaseChannel,
             version: changelogTargetVersion(for: result))
     }
 

@@ -269,12 +269,13 @@ public enum ChannelProofRegistry {
     /// non-stable channel would have no discriminator at all, and nothing
     /// anywhere would say so.
     ///
-    /// Verified against the live Releases API 2026-08-28. All three are provable
-    /// from the URL because GitHub builds an asset URL as
+    /// Verified against the live Releases API, most recently 2026-09-03. Most are
+    /// provable from the URL because GitHub builds an asset URL as
     /// `…/releases/download/<tag>/<name>` — the tag the `versionPattern` matched
     /// is IN the path, so an `.artifact` proof here asserts the same thing the
     /// version pattern does, but against what was actually resolved rather than
-    /// against what someone meant to write.
+    /// against what someone meant to write. UTM is the exception: its proof is
+    /// GitHub's release-kind field because neither its tag nor asset names a channel.
     public static let githubProofs: [ChannelProofKey: ChannelArtifactProof] = [
         // `Zed-aarch64.dmg` is byte-identical in name to stable's — the tag is
         // the only discriminator, and it is in the path:
@@ -332,6 +333,13 @@ public enum ChannelProofRegistry {
         // that tells them apart after the fact.
         ChannelProofKey("com.vorssaint.utils", .beta):
             .artifact(#"/download/v[0-9.]+-beta\."#),
+        // UTM's tag and asset name carry no channel token at all (`v5.0.5` /
+        // `UTM.dmg`). The GitHub release record itself is the discriminator: the
+        // beta rule accepts only `prerelease: true`. Anchor that field so deleting
+        // or loosening the filter makes the exhaustiveness suite fail instead of
+        // silently handing Stable's identically named DMG to a Beta install.
+        ChannelProofKey("com.utmapp.UTM", .beta):
+            .recipeAnchor(#"^prerelease$"#, in: ["releaseKind"]),
     ]
 
     /// Every `(bundleID, channel)` in the GitHub registry that carries an install

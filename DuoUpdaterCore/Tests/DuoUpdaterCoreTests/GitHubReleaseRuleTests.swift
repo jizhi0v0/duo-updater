@@ -48,6 +48,18 @@ private func extract(
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func meetilyRulePinsTheAarch64Dmg() {
+    #expect(extract("v0.4.0", "com.meetily.ai") == "0.4.0")
+    // The legacy bare tag deep in history must not read through the v-anchor.
+    #expect(extract("0.1.1", "com.meetily.ai") == nil)
+    let pattern = try! #require(rule("com.meetily.ai").installAssetPattern)
+    #expect("meetily_0.4.0_aarch64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("meetily_0.4.0_x64-setup.exe".range(of: pattern, options: .regularExpression) == nil)
+    #expect("latest.json".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("com.meetily.ai").slug == "Zackriya-Solutions/meetily")
+    #expect(rule("com.meetily.ai").installerKind == .dmg)
+}
+
 @Test func paseoRuleKeepsTheStableTrackOffTheBetaSuffix() {
     #expect(extract("v0.6.1", "sh.paseo.desktop") == "0.6.1")
     // The beta train is prerelease releases with a suffix tag — the anchored

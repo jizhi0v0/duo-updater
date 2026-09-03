@@ -56,8 +56,17 @@ MARKETING_FIRST = re.compile(
 # `RemoteVersion.displayVersion` already hides that fallback one level down, so
 # passing it into `VersionSide(marketing:)` is the same bug without a literal
 # `??` for the rule above to see.
+# `[\w.?]*` (not `[\w.]*`) because `result.remote?.displayVersion` is the
+# standard way this file reaches a `RemoteVersion?` — the `?` of optional
+# chaining is the natural spelling of the very site this rule exists to catch,
+# and a class that excludes it lets that spelling straight through (#286).
+# Known blind spot, not fixable with more character-class: `marketing:
+# version` where `version` was assigned from `displayVersion` on an earlier
+# line (the #235 bug's exact shape on main before it was fixed) is invisible
+# to a single-line/single-statement regex — it needs cross-statement data
+# flow, which is a job for a real dataflow check, not this lint.
 DISPLAY_VERSION_AS_MARKETING = re.compile(
-    r"VersionSide\s*\([^)]*marketing:\s*[\w.]*displayVersion", re.DOTALL)
+    r"VersionSide\s*\([^)]*marketing:\s*[\w.?]*displayVersion", re.DOTALL)
 # A site where marketing-first IS correct because BOTH sides are marketing by
 # construction opts out by name, on the line or anywhere in the comment block
 # directly above it. A marker beats

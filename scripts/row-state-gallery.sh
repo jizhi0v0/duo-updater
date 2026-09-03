@@ -7,7 +7,9 @@
 # can see — fails the run.
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DD="${GALLERY_DD:-/tmp/duo-gallery}"
+# Per checkout, and the dead ones reclaimed — see scripts/derived_data_path.py
+# for why a fixed path is a trap here. `GALLERY_DD` still overrides.
+DD="${GALLERY_DD:-$(python3 "$REPO/scripts/derived_data_path.py" gallery "$REPO")}"
 
 # Must be exported before xcodegen, exactly as install.sh/notarize.sh do it: the
 # spec reads $DUO_TEAM_ID for DEVELOPMENT_TEAM, and regenerating without it writes

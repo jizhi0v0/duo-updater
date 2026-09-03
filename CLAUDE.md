@@ -160,7 +160,20 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
 
 - **合并前独立复算。** 凡是正确性落在一条**规则**上的(正则、版本比较、条目选择),把规则移植到 Python 打真实响应体,而不是重读 Swift。#76 靠这个确认了 feed 是发布时间序、以及新加的"winner 条目只能含一次匹配"不会误伤 671 条里的任何一条。两个独立证人胜过一个。
 
-顺带:`make test` 会跑 `scripts/check_localizable_keys.py`,它用固定路径 `/tmp/duo-loc-check` 做构建缓存,**两个 worktree 同时跑会锁冲突**。看到 `database is locked` 先查是不是自己撞自己(`ps` 要 grep `xcodebuild`,不只是 `swift-test`),别当成真失败。
+顺带:**构建缓存路径一律经 `scripts/derived_data_path.py` 取,别写死。** 它按 checkout 派生
+(`/tmp/duo-<用途>-<hash8>`)并顺手回收已经不存在的 checkout 留下的那些。
+`check_localizable_keys.py`(在 `make test` 里)、`row-state-gallery.sh`、`app-tests.sh` 都走它。
+
+以前 loc-check 用死路径 `/tmp/duo-loc-check`,**两个 worktree 同时 `make test` 会撞
+xcodebuild 的 SQLite 锁**,症状是 `database is locked` 或者干脆卡住——而这两种都长得像真失败。
+现在这个前提没了(实测 28 个 worktree 算出 28 个不同路径)。如果**还是**看到
+`database is locked`,先查是不是自己撞自己(`ps` 要 grep `xcodebuild`,不只是 `swift-test`),
+再看是不是同一个 checkout 里跑了两遍——**同 checkout 并发是唯一剩下的碰撞面**,没修。
+
+⚠️ **回收是刻意 fail-closed 的**:只删同时满足「名字是 `duo-<用途>-<8 位 hex>`」和「带 `origin`
+标记且标记指向的 checkout 已经没了」的目录。手工造的那些(`/tmp/duo-dd-292`、`/tmp/duo-pr240-dd`
+之类)一律不碰——2026-09-04 量的时候 `/tmp` 里有 **19G** 这类缓存、每份约 450M,而磁盘只剩
+38G。**给每个 checkout 发一个独立路径而不回收,等于把一个会误判的失败换成一块满了的盘。**
 
 ## 断言「没有 X」「到处都 Y」之前，先量一遍
 
@@ -255,9 +268,9 @@ App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 
 - **只在 `project.yml` 比 `project.pbxproj` 新的时候才重新生成。** 无条件生成会重写
   `project.pbxproj`,让紧随其后的 `check_localizable_keys.py` 的增量构建每次失效,
   `make test` 从此每次全量重编整个 app。
-- **derived data 路径按 checkout 派生**(`/tmp/duo-app-tests-<hash>`),`APP_TESTS_DD` 可覆盖。
-  固定路径会精确复刻 `/tmp/duo-loc-check` 那个多 worktree 撞锁的坑,而这次的症状是
-  **测试随机失败**,比"构建变慢"更容易被误读成真回归。
+- **derived data 路径走 `scripts/derived_data_path.py`**(见上),`APP_TESTS_DD` 可覆盖。
+  写死路径会复刻多 worktree 撞锁的坑,而这里的症状是**测试随机失败**,
+  比"构建变慢"更容易被误读成真回归。
 - **每条用例都要写清它对应哪一行变异**,并且合并前真的跑一遍那个变异确认它变红。
   `ScanRowAssemblyTests` 现在是 9 条用例 / 10 个变异,10 个全部**编译通过**(不是靠编译
   错误变红)且只打中该打中的用例。没有对应变异的用例(`anUnprovenCopyFallsBackToItsBundle`

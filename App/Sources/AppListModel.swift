@@ -1929,11 +1929,7 @@ final class AppListModel {
         // first draft of this had it inside the loop, i.e. once per installed app.
         let proofs = ResolvedChannelStore.Snapshot()
         results = results.isEmpty
-            ? found.map {
-                UpdateResult(
-                    app: $0, remote: nil, status: .unknown,
-                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: $0, in: proofs))
-            }
+            ? ScanRowAssembly.unchecked(found, proofs: proofs)
             : sorted(mergeScanned(found, proofs: proofs))
         lastScan = .now
         isScanning = false
@@ -2007,12 +2003,7 @@ final class AppListModel {
         // proved, and a copy that was un-ignored and re-ignored between passes
         // should pick that up. A second read of a small file, once per round.
         let provenNow = ResolvedChannelStore.Snapshot()
-        let checked = checkedRows
-            + ignored.map {
-                UpdateResult(
-                    app: $0, remote: nil, status: .unknown,
-                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: $0, in: provenNow))
-            }
+        let checked = checkedRows + ScanRowAssembly.unchecked(ignored, proofs: provenNow)
         results = sorted(CheckRoundWriteBack.publishing(
             checked, changedSince: roundBaseline, live: results))
         // Pre-warm the disk changelog cache for anything pending, so opening its
@@ -2475,64 +2466,14 @@ final class AppListModel {
         }
     }
 
-    /// Merge a fresh disk scan onto the current rows, carrying each app's prior
-    /// status/remote forward (re-evaluated against the new on-disk version) so a
-    /// rescan doesn't blank out what we already knew. Shared by `refreshLocal` (the
-    /// network-free rescan) and the in-flight `performRefresh` (so the sidebar holds
-    /// the menu bar's data instead of flashing `.unknown` rows during a re-check).
-    /// Apps new since the last scan come in as `.unknown`.
+    /// Merge a fresh disk scan onto the current rows. The assembly itself is in
+    /// `ScanRowAssembly` so it can be tested; this is the wiring that hands it
+    /// the rows currently on screen.
     private func mergeScanned(
         _ found: [InstalledApp],
         proofs: ResolvedChannelStore.Snapshot = ResolvedChannelStore.Snapshot()
     ) -> [UpdateResult] {
-        let prior = Dictionary(results.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        return found.map { app -> UpdateResult in
-            guard let was = prior[app.id] else {
-                return UpdateResult(app: app, remote: nil, status: .unknown)
-            }
-            // A rescan re-derives the row's VERDICT. It must not re-derive the
-            // row's IDENTITY — and `UpdateResult(app:remote:status:)` silently
-            // does, because `provenChannel` has a default. For an app whose
-            // bundle cannot name its own channel (UTM) that field is the only
-            // thing holding the row's channel once a check has failed, so
-            // rebuilding without it repaints a Beta row as Stable on the next
-            // FS-watcher rescan and files its notes under the wrong cache key —
-            // exactly the failure the store exists to prevent, reintroduced one
-            // layer up. Same shape as the `RowActions.live` rule in CLAUDE.md:
-            // the safe default is what makes the omission compile.
-            //
-            // `carriedForward` is in Core and has tests; a version gate written
-            // here covered `provenChannel` and missed that the same claim also
-            // rides on the carried `remote`. `App/project.yml` has no test target,
-            // so a rule that has already been got wrong twice does not belong in
-            // this file.
-            func carrying(_ remote: RemoteVersion?, _ status: UpdateStatus) -> UpdateResult {
-                was.carriedForward(
-                    onto: app, remote: remote, status: status,
-                    proven: ResolvedChannelStore.provenChannelSnapshot(for: app, in: proofs))
-            }
-            // Re-derive status from the cached remote against the fresh on-disk
-            // version. With no remote (App Store / Toolbox / unknown) keep what we
-            // had, just refreshed to the new bundle info.
-            guard let remote = was.remote else {
-                return carrying(nil, was.status)
-            }
-            // A Toolbox row can't be re-run through `evaluate` (its verdict is a
-            // Toolbox build compare, not a compare against `shortVersion`), but it
-            // must still settle when Toolbox installs the update itself between our
-            // checks — otherwise the cached "update available" stands beside the
-            // freshly-rescanned version, reading "262.132.21 → 262.132.21".
-            if remote.sourceName == "Toolbox" {
-                return carrying(remote, UpdateChecker.evaluateToolbox(
-                    cached: was.status, installed: app, remote: remote))
-            }
-            // TestFlight owns its betas' status (its own cache, not a version
-            // compare) — keep it; don't re-evaluate.
-            guard remote.sourceName != "TestFlight" else {
-                return carrying(remote, was.status)
-            }
-            return carrying(remote, UpdateChecker.evaluate(installed: app, remote: remote))
-        }
+        ScanRowAssembly.merged(found, prior: results, proofs: proofs)
     }
 
     /// Update one app's install stage, coalescing download progress to whole

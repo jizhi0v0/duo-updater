@@ -392,13 +392,10 @@ final class AppListModel {
     /// or it is the build over again), which is exactly the case where the target's
     /// build has to stay for the two sides to be comparable at all.
     func restartFromSide(_ id: String) -> UpdateResult.VersionSide? {
-        guard let runningBuild = runningVersionByID[id] else { return nil }
-        let build = UpdateResult.strippingBuildPrefix(runningBuild)
-        // Prefer the rollback backup's marketing (authoritative, written when *we*
-        // installed); fall back to the build→marketing history recovered for apps
-        // that self-updated outside us.
-        let marketing = backupVersions[id] ?? recoveredRestartMarketing[id]
-        return .init(marketing: marketing == build ? nil : marketing, build: build)
+        RestartLine.fromSide(
+            runningBuild: runningVersionByID[id],
+            backupMarketing: backupVersions[id],
+            recoveredMarketing: recoveredRestartMarketing[id])
     }
 
     /// The raw staged self-update for a row, if its own updater has downloaded a
@@ -3371,74 +3368,41 @@ final class AppListModel {
     /// Rebuilds `packageRestartPending` from scratch each pass; the caller unions it
     /// into `needsRestart`. Must run before `computeRestartInfo` finalizes that set.
     private func reconcilePackageRestarts() {
-        guard !stagedPackages.isEmpty else {
-            packageRestartPending.removeAll()
-            notifiedPackageRestart.removeAll()
-            return
-        }
-        let launchDates = runningLaunchDatesByPath()
-        let onDiskByID = Dictionary(
-            results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a })
+        // The decision is `PackageRestartReconciler` in Core, where its
+        // one-line rules — decide nothing from a blind pass, carry a lit badge
+        // through a momentary old read, release the notify-once guard only on a
+        // real resolution — are executed. This is the effects half.
+        let outcome = PackageRestartReconciler.reconcile(
+            staged: stagedPackages.mapValues {
+                StagedPackageFacts(versionSide: $0.versionSide, stagedAt: $0.stagedAt)
+            },
+            onDisk: Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a }),
+            launchDates: runningLaunchDatesByPath(),
+            previouslyPending: packageRestartPending,
+            previouslyNotified: notifiedPackageRestart)
 
-        var pending: Set<String> = []
-        var settledIDs: [String] = []
-        for (id, staged) in stagedPackages {
-            guard let app = onDiskByID[id] else {
-                // The row is missing from THIS scan — the bundle can be briefly
-                // unreadable while Installer swaps it. Decide nothing from a blind
-                // pass: carry a restart that was already pending forward so one
-                // missed scan can't drop the badge (or let `pruneStagedPackages`
-                // reclaim the entry). A genuinely deleted app is reclaimed later by
-                // the file-existence backstop in prune.
-                if packageRestartPending.contains(id) { pending.insert(id) }
-                continue
+        packageRestartPending = outcome.pending
+        notifiedPackageRestart = outcome.notified
+        for id in outcome.settled { stagedPackages[id] = nil }
+
+        for id in outcome.toNotify {
+            guard let app = results.first(where: { $0.id == id })?.app else { continue }
+            let version = app.shortVersion
+            // Badge always; banner only if the user keeps update notifications on
+            // — the pkg lands out of a rescan, not a click, so this is an
+            // unsolicited background event like the "new update" nudge.
+            if prefs.notifyOnUpdates {
+                UpdateNotifier.readyToRestart(
+                    app: app.name, version: version, appID: app.bundleID)
             }
-            let key = app.path.resolvingSymlinksInPath().path
-            let state = PackageRestartState.resolve(
-                onDiskVersion: app.versionSide,
-                stagedVersion: staged.versionSide,
-                stagedAt: staged.stagedAt,
-                runningLaunchDates: launchDates[key] ?? [],
-                buildIsDerived: AppScanner.buildVersionIsOverridden(
-                    bundleID: app.bundleID))
-            switch state {
-            case .pending:
-                // Not landed. Normally there's no badge yet; but if one was already
-                // lit (landed earlier) and the version momentarily reads old — a
-                // partial `package.json` read mid-swap — carry it rather than
-                // flickering the badge off and re-notifying on the next good pass.
-                if packageRestartPending.contains(id) { pending.insert(id) }
-            case .readyToRestart:
-                pending.insert(id)
-                if notifiedPackageRestart.insert(id).inserted {
-                    let version = app.shortVersion
-                    // Badge always; banner only if the user keeps update notifications
-                    // on — the pkg lands out of a rescan, not a click, so this is an
-                    // unsolicited background event like the "new update" nudge.
-                    if prefs.notifyOnUpdates {
-                        UpdateNotifier.readyToRestart(
-                            app: app.name, version: version, appID: app.bundleID)
-                    }
-                    Log.install.info("package landed, awaiting restart: \(app.name, privacy: .public) \(version ?? "?", privacy: .public)")
-                }
-            case .settled:
-                // Landed with nothing stale running (never open, or already
-                // relaunched). The install is fully done — drop the re-open entry.
-                settledIDs.append(id)
-            }
+            Log.install.info("package landed, awaiting restart: \(app.name, privacy: .public) \(version ?? "?", privacy: .public)")
         }
-        packageRestartPending = pending
-        for id in settledIDs { stagedPackages[id] = nil }
-        // Clear the notify-once guard ONLY when a restart genuinely resolves (settled,
-        // or its staged entry is gone) — never merely because the id fell out of
-        // `pending` for one pass, which would let the same landing re-notify. (A
-        // DuoUpdater relaunch, which doesn't persist this set, can still re-remind
-        // once for a restart that was already pending — acceptable, it's real.)
-        notifiedPackageRestart.formIntersection(Set(stagedPackages.keys))
-        if !settledIDs.isEmpty {
+
+        if !outcome.settled.isEmpty {
             persistStagedPackages()
         }
     }
+
 
     /// The restart happened (or the app was already gone), so a landed pkg has
     /// nothing left to restart: drop its pending state, the one-time-notify guard,

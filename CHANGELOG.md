@@ -19,6 +19,22 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.81
+
+**Word, Excel, PowerPoint, Outlook and OneNote now notice when their update has landed.** These five kept offering to re-open the installer you had already finished with, and never moved on to offering the restart — waiting or re-checking could not have shaken it loose.
+
+**A row waiting to relaunch explains itself again, in both windows.** When an app was both ahead of what its vendor publishes and waiting on a relaunch, the line above the button described something else entirely; the window and the menu also disagreed about rows waiting on an Update All restart.
+
+**Row tags no longer crowd out the app name in Russian.** A few tags were borrowing wording from unrelated strings in every translated language, too.
+
+**Release notes now appear for apps whose vendor dates a release without timing it.** Those releases used to leave no trace anywhere.
+
+**A release-notes page we refuse to open now says why.** It went blank before, which looked exactly like an app that publishes no notes at all.
+
+**WeChat DevTools nightly release notes are no longer empty.**
+
+Under the hood: version and release-date handling were consolidated so a build number can never be read as a marketing version, and the release timeline no longer invents a time of day the vendor never gave.
+
 ## 0.3.80
 
 **Failed checks are visible in the window now.** The window drew nothing for a row whose check had failed — or one you ignored, one you skipped, or one the App Store, Toolbox or TestFlight manages — which looked exactly like "up to date". The two windows now say the same thing about the same app, and the retry button is in both.

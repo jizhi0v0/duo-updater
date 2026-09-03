@@ -120,6 +120,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**OpenCode Desktop**](ai-opencode-desktop.md) · `ai.opencode.desktop` — G C (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**OpenChamber**](dev-openchamber-desktop.md) · `dev.openchamber.desktop` — G (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**Jan**](jan-ai-app.md) · `jan.ai.app` — G (one-click universal zip) · real app verified ✓ · 2026-08-17
+- [x] [**ChatGPT Classic**](com-openai-chat.md) · `com.openai.chat` — P (**detection-only**) · 真包 1.2026.184 挂载验证 ✓ · 一键**撤销**：vendor pkg 不声明任何 `.app` 目的地，`PackageInstaller` 的目的地闸 fail-closed 必拒；且其 postinstall 会把 app 搬到 `/Applications/ChatGPT Classic.app` 并自行重启 · 2026-09-03
 - [x] [**Microsoft 365 Copilot**](com-microsoft-m365copilot.md) · `com.microsoft.m365copilot` — P (one-click pkg, versionIsBuild) · 真包 pkg 展开验证 ✓ · 2026-08-30
 - [x] [**Chatbox**](xyz-chatboxapp-app.md) · `xyz.chatboxapp.app` — P (one-click arm64 dmg + feed sha512) · 真包 1.22.6 挂载验证 ✓ · 2026-08-30
 - [x] [**AnythingLLM**](com-anythingllm.md) · `com.anythingllm` — P (one-click arm64 dmg) · 真包 1.16.1 挂载验证 ✓ · 2026-08-30

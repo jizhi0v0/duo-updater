@@ -406,6 +406,76 @@ private let anythingLLMVersionTxtFixture = "1.16.1"
     #expect(url.absoluteString == "https://tclementdev.com/timemachineeditor/TimeMachineEditor.pkg")
 }
 
+// MARK: - 2026-08-30 ChatGPT Classic
+
+/// Verbatim body of
+/// `https://persistent.oaistatic.com/sidekick/public/sparkle_public_appcast.xml`,
+/// fetched 2026-08-30 (description elided; the version fields and enclosure are
+/// verbatim).
+private let chatGPTClassicAppcastFixture = #"""
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>ChatGPT Classic</title>
+        <item>
+            <title>1.2026.184</title>
+            <pubDate>Wed, 15 Jul 2026 13:50:00 +0000</pubDate>
+            <sparkle:version>1784145287</sparkle:version>
+            <sparkle:shortVersionString>1.2026.184</sparkle:shortVersionString>
+            <sparkle:minimumAutoupdateVersion>1784145287</sparkle:minimumAutoupdateVersion>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://persistent.oaistatic.com/sidekick/public/ChatGPT_Classic.pkg" length="78412259" type="application/octet-stream" sparkle:installationType="package" sparkle:edSignature="fRwKbzOkVRrTkvIJd12bw8Lx2SGXX9JJKeId9rcrimBd3KoUZ6VoL5far+MpMffVMNtjoacSuQMHzS3xg44FAg=="/>
+        </item>
+    </channel>
+</rss>
+"""#
+
+/// The bundle has no SUFeedURL (verified against the mounted dmg), so this
+/// probe is the only source able to answer for `com.openai.chat` — the appcast
+/// Homebrew's own `chatgpt-classic` livecheck reads. The version must come
+/// from the item's shortVersionString (marketing field), not the build.
+@Test func chatGPTClassicReadsTheVersionFromTheAppcast() {
+    #expect(batchVersion("com.openai.chat", in: chatGPTClassicAppcastFixture) == "1.2026.184")
+}
+
+/// Detection-only on purpose, and this pins the reason so a later reader does
+/// not "fix" it by adding an install spec.
+///
+/// The vendor pkg declares no destinations at all — `PackageInfo` has an empty
+/// `<bundle-version/>` and no `<bundle path=…>`, and the Bom's only `.app`-bearing
+/// entry is `ChatGPT Classic.app.zip`, whose components never end in `.app`. Both
+/// readers `PackageInstaller.verifyOpenable` consults therefore return the empty
+/// set, and that gate is fail-closed: an install would download 78 MB and throw
+/// `packageDestinationsUnreadable` every single time. (Real metadata, 2026-09-03.)
+@Test func chatGPTClassicStaysDetectionOnlyBecauseThePkgDeclaresNoDestination() throws {
+    let recipe = try #require(batchRecipe("com.openai.chat"))
+    #expect(recipe.install == nil)
+
+    let packageInfo = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <pkg-info overwrite-permissions="true" relocatable="false" \
+    identifier="com.openai.chat.classic-update" postinstall-action="none" \
+    version="1784145287" format-version="2" install-location="/" auth="root">
+        <payload numberOfFiles="6" installKBytes="76981"/>
+        <bundle-version/>
+        <upgrade-bundle/>
+    </pkg-info>
+    """
+    let bom = """
+    .
+    ./Library
+    ./Library/Application Support
+    ./Library/Application Support/OpenAI
+    ./Library/Application Support/OpenAI/ChatGPT Classic Update
+    ./Library/Application Support/OpenAI/ChatGPT Classic Update/ChatGPT Classic.app.zip
+    """
+    let location = PackageInstaller.installLocation(inPackageInfo: packageInfo)
+    let declared = PackageInstaller.destinations(inPackageInfo: packageInfo)
+        .union(PackageInstaller.destinations(inBomListing: bom, installLocation: location))
+    #expect(declared.isEmpty)
+}
+
 // MARK: - 2026-08-30 Microsoft 365 Copilot
 
 /// The fwlink 302s to a versioned pkg on the Office CDN; the filename carries

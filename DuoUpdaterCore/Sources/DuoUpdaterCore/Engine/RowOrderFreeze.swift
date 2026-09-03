@@ -13,6 +13,13 @@ public enum RowOrderFreeze {
 
     /// Why the order must stay frozen, or nil when it may be released.
     ///
+    /// Answers *may the freeze lift*, not *is there a freeze*. The caller still
+    /// owns its own `pinnedOrder.isEmpty` early return, and that one is
+    /// load-bearing: without it a settle point would re-sort a list that was
+    /// never frozen — the exact reordering freezing exists to prevent — and log
+    /// a release that never happened. Now that the ladder lives here, that guard
+    /// reads like part of this condition. It is not.
+    ///
     /// The string is the log line, and it is part of the answer rather than a
     /// side effect: it is the only thing that distinguishes the two
     /// indistinguishable states above in a live-log session, so which condition

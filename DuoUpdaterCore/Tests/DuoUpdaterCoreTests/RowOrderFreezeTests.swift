@@ -62,12 +62,18 @@ struct RowOrderFreezeTests {
         #expect(hold(relaunches: 1, justUpdated: 1) == "relaunching (1)")
     }
 
-    /// A zero count is not a condition. Guards the counted terms against being
-    /// written as `installCount >= 0` or as a plain optional test.
+    /// A zero count must not be mistaken for a condition — and specifically must
+    /// not SHADOW a later term that is true, which is the only thing this can add
+    /// over the idle case above. Written as `hold(installs: 0, relaunches: 0,
+    /// justUpdated: 0)` it was the same call as `hold()` after defaults, so it
+    /// killed nothing the first case had not already killed.
     ///
-    /// Mutation: `installCount >= 0`, or `relaunchCount != 1`.
-    @Test func zeroCountsDoNotHoldTheFreeze() {
-        #expect(hold(installs: 0, relaunches: 0, justUpdated: 0) == nil)
+    /// Mutation: `installCount >= 0` (or any counted term testing for presence
+    /// rather than for a positive count).
+    @Test func aZeroCountDoesNotShadowALaterCondition() {
+        #expect(hold(installs: 0, batch: true) == "batch install")
+        #expect(hold(installs: 0, relaunches: 1) == "relaunching (1)")
+        #expect(hold(relaunches: 0, justUpdated: 1) == "just-updated confirmation")
     }
 }
 
@@ -100,7 +106,12 @@ struct InstallProgressCoalescingTests {
 
     /// …but crossing into the next percent is written.
     ///
-    /// Mutation: compare the raw fractions.
+    /// What this actually kills is the skip swallowing EVERY download tick — the
+    /// raw-fraction mutation it used to name is killed by the two cases around
+    /// it, not by this one, since `0.5 != 0.51` under either rule.
+    ///
+    /// Mutation: `if case .downloading = incoming, case .downloading? = current`
+    /// with no percent test; or returning `current` instead of `incoming`.
     @Test func aDownloadTickThatCrossesAPercentIsWritten() {
         #expect(InstallProgressCoalescing.fold(
             current: .downloading(fraction: 0.5),
@@ -115,6 +126,11 @@ struct InstallProgressCoalescingTests {
     ///
     /// The earlier fixtures could not see this: 0.5 → 0.5049 and 0.5 → 0.51 give
     /// the same answer under either rule.
+    ///
+    /// ⚠️ These two literals are load-bearing. As doubles the products are
+    /// 50.3999999999999985… and 50.6000000000000014…, so they truncate to the
+    /// same 50 and round to 50 and 51. Tidying them to rounder numbers silently
+    /// retires the case.
     ///
     /// Mutation: `(fraction * 100).rounded() == (previous * 100).rounded()`.
     @Test func thePercentIsTruncatedNotRounded() {
@@ -137,12 +153,34 @@ struct InstallProgressCoalescingTests {
             == .downloading(fraction: 0.5))
     }
 
+    /// The coalescing is percent-based AND download-only: an identical
+    /// non-download stage still writes. `.runningCommand` is the only stage
+    /// carrying a payload, and Homebrew repeats output lines verbatim, so it is
+    /// the case a "let us just dedupe identical stages" edit would break.
+    ///
+    /// Writing the same value again is close to unobservable on screen, so this
+    /// is hardening rather than a live defect — but the widened dedupe survived
+    /// every other case here, and this is `.runningCommand`'s only appearance in
+    /// the suite.
+    ///
+    /// Mutation: `if current == incoming { return nil }`.
+    @Test func anIdenticalNonDownloadStageIsStillWritten() {
+        #expect(InstallProgressCoalescing.fold(
+            current: .runningCommand("==> Downloading"),
+            incoming: .runningCommand("==> Downloading"))
+            == .runningCommand("==> Downloading"))
+    }
+
     /// The percent test needs BOTH sides to be downloads. Arriving at a download
     /// from any other stage must write, or the first progress tick of every
     /// install would be swallowed.
     ///
     /// Mutation: drop the `case .downloading(let previous)? = current` pattern
     /// so the incoming fraction is compared against a default.
+    /// ⚠️ `0.0` is load-bearing: it is the only fraction for which "compare the
+    /// incoming percent against a default of zero" — the mutation below — gives
+    /// the same answer as the real rule for the wrong reason. With 0.5 here the
+    /// case stops killing it.
     @Test func theFirstDownloadTickAfterAnotherStageIsWritten() {
         for stage in [InstallStage.queued, .checking, .installing, .extracting] {
             #expect(InstallProgressCoalescing.fold(

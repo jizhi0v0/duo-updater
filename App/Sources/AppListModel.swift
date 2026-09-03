@@ -426,9 +426,12 @@ final class AppListModel {
         UpdatePolicy.laggingRemoteVersion(result)
     }
 
-    /// The one version-line fact the row should explain. The precedence lives in
-    /// Core so a relaunch and a lagging-feed note cannot silently swap places in a
-    /// view with no test target (#210).
+    /// The one version-line fact the row should explain, read by both windows. The
+    /// precedence lives in Core so a relaunch and a lagging-feed note cannot
+    /// silently swap places in a view with no test target (#210) — and so the two
+    /// windows can't each grow their own ladder with different coverage (#289: the
+    /// workbench used to run two, neither with a downgrade or pending-batch-restart
+    /// branch, so a row's version line could disagree with its own action button).
     func versionLineState(for result: UpdateResult) -> RowVersionLineState {
         RowVersionLine.state(
             staged: actionableStaged(result),

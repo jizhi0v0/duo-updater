@@ -47,6 +47,15 @@ scripts/icon/out/
 # on. The rest of /docs/ stays out: it IS the inventory.
 !/docs/app-audits/
 
+# …and this one cross-cutting note, which is about the update FAMILIES rather
+# than about any machine: which of Sparkle / electron-updater / Squirrel.Mac can
+# be covered by a generic source, which cannot and why, and what the discovery
+# experiment actually returned. It is deliberately written without any inventory
+# — no bundle counts, no list of what is installed, no record of which channel a
+# machine runs an app on — which is the one property the rule above exists to
+# protect. Keep it that way if you edit it.
+!/docs/update-manifest-families.md
+
 # Recipe-verify run artifacts. The baseline IS committed (it carries failure
 # streaks and issue numbers); the per-run report is not.
 verify/report.json

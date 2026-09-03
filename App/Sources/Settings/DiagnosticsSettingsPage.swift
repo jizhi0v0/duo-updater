@@ -105,7 +105,13 @@ struct DiagnosticsSettingsPage: View {
                     .foregroundStyle(.secondary)
                     .settingsRow()
             } else {
-                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                // `.key`, not `.id`: the same bundle id can now appear under two
+                // different `source`s (e.g. a Vendor recipe and an Electron
+                // manifest read both tracking Notion) since `RecipeHealth` keys
+                // its entries on `(id, source)`. `.id` alone is a display key and
+                // is no longer guaranteed unique across `entries` — see
+                // `RecipeHealth.Entry.key`.
+                ForEach(Array(entries.enumerated()), id: \.element.key) { index, entry in
                     if index > 0 { SettingsDivider() }
                     recipeRow(entry)
                 }

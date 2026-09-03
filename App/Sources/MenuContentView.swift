@@ -2,43 +2,6 @@ import SwiftUI
 import AppKit
 import DuoUpdaterCore
 
-/// Caches app icons by path. `NSWorkspace.icon(forFile:)` hits the disk, and rows
-/// re-render on every install-progress tick — without a cache that's one icon
-/// lookup per row per tick, a real source of stutter while downloads run.
-@MainActor
-enum AppIconCache {
-    // NSCache (vs a plain dict): it evicts under memory pressure on its own, so a
-    // large library's worth of cached icons can't grow unbounded.
-    private static let cache: NSCache<NSString, NSImage> = {
-        let cache = NSCache<NSString, NSImage>()
-        cache.countLimit = 512
-        return cache
-    }()
-
-    static func icon(for path: String) -> NSImage {
-        if let cached = cache.object(forKey: path as NSString) { return cached }
-        // Cache miss = a synchronous disk hit on the main actor. Time it: if app
-        // switches stutter, a slow icon read here is one suspect.
-        let start = Date()
-        let image = NSWorkspace.shared.icon(forFile: path)
-        let ms = Date().timeIntervalSince(start) * 1000
-        if ms > 2 {
-            Log.app.info("perf icon miss: \(ms, format: .fixed(precision: 1), privacy: .public)ms for \((path as NSString).lastPathComponent, privacy: .public)")
-        }
-        cache.setObject(image, forKey: path as NSString)
-        return image
-    }
-
-    /// Drop the cached icon for a path so the next lookup re-reads from disk.
-    /// Called after an in-place install: the bundle is replaced but its path is
-    /// unchanged, so the stale icon would otherwise persist until app restart.
-    static func invalidate(_ path: String) { cache.removeObject(forKey: path as NSString) }
-
-    /// The real App Store.app icon, used as the source tag for store-managed apps.
-    /// Resolved once (the path is fixed) and shared through the same icon cache.
-    static let appStore = icon(for: "/System/Applications/App Store.app")
-}
-
 /// Carries the measured height of the popover's update list up to the frame, so it
 /// can hug its content instead of guessing a per-row height.
 private struct ListHeightKey: PreferenceKey {
@@ -145,6 +108,31 @@ struct MenuContentView: View {
         }
         .frame(width: MenuLayoutMetrics.width)
         .task {
+            // Take activation the moment the popover appears, because otherwise the
+            // user's first click inside it is spent doing exactly that.
+            //
+            // A MenuBarExtra popover opens WITHOUT its app becoming active —
+            // measured: the panel is on screen at layer 101 while
+            // `frontmostApplication` still reads the app the user came from. The
+            // first interaction then goes into activating us instead of doing what
+            // it was aimed at, and the row menu it opened is dismissed with the
+            // action never running. From the second interaction on everything works,
+            // which is the whole shape of the bug that was reported: the first
+            // Changelog does nothing, a second click on any row opens it, and
+            // reopening the popover makes every attempt "the first" again. It also
+            // explains why having any window already open hid it — with a window up
+            // the app is already active, so no click is spent on activation.
+            //
+            // The cost, accepted deliberately: clicking the menu bar icon now takes
+            // focus from whatever you were in, and if a Duo Updater window is parked
+            // on another Space, macOS may follow it there — so a peek at the popover
+            // from a fullscreen app can leave fullscreen. The alternative, deferring
+            // activation until the first interaction, is the bug above wearing a
+            // different hat: that interaction is the one that gets eaten. Fullscreen
+            // plus a window on another Space is a narrower case than "the first
+            // click never works", which was every click.
+            NSApp.activate(ignoringOtherApps: true)
+
             model.refreshPermissionStatus()
             // One-time wiring: arm the background-check loop and teach the
             // notification's "View" action how to open the window.
@@ -170,7 +158,11 @@ struct MenuContentView: View {
     @ViewBuilder
     private var content: some View {
         if model.results.isEmpty {
-            let emptyTitle = model.isScanning
+            // `isRoundInFlight`, not `isScanning`: a user-present refresh clears the
+            // saved release notes BEFORE it raises `isScanning`, and that await lets
+            // a cold launch paint here with no rows yet — which read "No apps yet"
+            // over a scan that was about to start (#253's gap, one surface over).
+            let emptyTitle = model.listActivity.isRoundInFlight
                 ? String(localized: "Scanning…")
                 : String(localized: "No apps yet")
             ContentUnavailableView(
@@ -445,7 +437,7 @@ struct MenuContentView: View {
                     } label: {
                         // Keep both refresh states in the same 16pt layout box.
                         Group {
-                            if model.isScanning || model.isChecking {
+                            if model.listActivity.isRoundInFlight {
                                 ProgressView()
                                     .controlSize(.small)
                                     .scaleEffect(0.72)
@@ -466,9 +458,20 @@ struct MenuContentView: View {
                     } label: {
                         Image(systemName: "gearshape")
                             .padding(.top, 5)
+                            // A setting added by an update the user has just taken.
+                            // The dot lives on the way IN to Settings, because a
+                            // dot only on the control itself would be behind a
+                            // window nobody has a reason to open.
+                            .overlay(alignment: .topTrailing) {
+                                if !model.prefs.pendingSpotlights.isEmpty {
+                                    SpotlightDot(size: 5).offset(x: 3, y: 3)
+                                }
+                            }
                     }
                     .buttonStyle(.borderless)
-                    .help("Settings")
+                    .help(model.prefs.pendingSpotlights.isEmpty
+                          ? String(localized: "Settings")
+                          : String(localized: "Settings — something new in here"))
                 }
                 .font(.system(size: 13))
                 .offset(y: -1)
@@ -772,60 +775,10 @@ struct MenuContentView: View {
     }
 }
 
-/// The readouts a downloading row can wear, widest first — `AppRow` walks them
-/// in this order and takes the first one the app's name leaves room for.
-///
-/// The widths are what the group actually lays out to: the indicator, the 4pt
-/// HStack spacing, and the percentage's fixed 32pt slot.
-private enum DownloadReadout: CaseIterable {
-    case barAndPercent      // 86pt
-    case ringAndPercent     // 51pt
-    case ringOnly           // 15pt
-
-    static let bar: CGFloat = 50
-    static let ring: CGFloat = 15
-    static let spinner: CGFloat = 16
-    static let percent: CGFloat = 32
-
-    var contentWidth: CGFloat {
-        switch self {
-        case .barAndPercent: Self.bar + 4 + Self.percent
-        case .ringAndPercent: Self.ring + 4 + Self.percent
-        case .ringOnly: Self.ring
-        }
-    }
-}
-
-/// A determinate progress ring, 15pt across — the compact stand-in for the
-/// bar-plus-percentage readout on rows whose name needs the horizontal space.
-///
-/// Drawn rather than borrowed from `ProgressView(value:).progressViewStyle(.circular)`
-/// so the diameter and the tint are ours to fix at the size the row can afford.
-/// The floor on `trim` keeps a just-started download visibly a ring rather than
-/// a bare grey circle.
-private struct ProgressRing: View {
-    let value: Double
-
-    var body: some View {
-        ZStack {
-            Circle().stroke(Color.secondary.opacity(0.25), lineWidth: 2.5)
-            Circle()
-                .trim(from: 0, to: max(0.02, min(1, value)))
-                .stroke(.tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }
-        .frame(width: 15, height: 15)
-        .animation(.easeOut(duration: 0.2), value: value)
-    }
-}
-
 private struct AppRow: View {
     let result: UpdateResult
     @Bindable var model: AppListModel
     @Environment(\.openWindow) private var openWindow
-    @State private var showRegionHint = false
-    @State private var showMajorWarning = false
-    @State private var showMacCompatHint = false
 
     private var stage: InstallStage? { model.installing[result.id] }
     private var installError: String? { model.installErrors[result.id] }
@@ -835,6 +788,13 @@ private struct AppRow: View {
     /// left to `ViewThatFits`: the progress control is inflexible, so an HStack
     /// hands it its ideal width and it never feels the pressure a long name is
     /// under. Measuring is the only way to see the collision coming.
+    ///
+    /// The runtime symbol is deliberately **not** counted here. It is the one thing
+    /// on this line that yields rather than pushes: `ViewThatFits` drops it before
+    /// the name gives up a line. Budgeting for it would spend width on something
+    /// that may not be drawn — and spend it in the worst place, pushing rows from
+    /// the progress bar down to a bare ring during a download, which is exactly
+    /// when the row has the most to say.
     private var nameLineWidth: CGFloat {
         var width = NSAttributedString(
             string: result.app.name,
@@ -844,6 +804,47 @@ private struct AppRow: View {
         let tag = ChannelTag.measuredWidth(for: result.app.releaseChannel)
         if tag > 0 { width += tag + 6 }
         return width
+    }
+
+    /// The name, its running dot, its channel chip — and the runtime symbol, if the
+    /// row can afford it.
+    ///
+    /// The choice is handed to `ViewThatFits` rather than made by arithmetic here,
+    /// and that is a correction rather than a shortcut. Measuring it by hand needs
+    /// the width of the trailing control, and this row does not know it: the slot is
+    /// a 64pt *minimum* and the real control runs far past it ("Reveal in Finder" is
+    /// nearly twice that, and every label is localized). Budgeting against the
+    /// minimum said the symbol fit where it did not, and wrapped "Postman Collection
+    /// Runner" onto a second line — a name losing a line to a decorative glyph,
+    /// which is exactly what must not happen. `ViewThatFits` is asked at layout
+    /// time, when the true remaining width is known, and its second candidate is the
+    /// line as it looked before this feature.
+    @ViewBuilder
+    private var nameLine: some View {
+        if model.prefs.showRuntimeTags, let runtime = result.app.runtime {
+            ViewThatFits(in: .horizontal) {
+                nameLine(tagged: runtime)
+                nameLine(tagged: nil)
+            }
+        } else {
+            nameLine(tagged: nil)
+        }
+    }
+
+    private func nameLine(tagged runtime: AppRuntime?) -> some View {
+        HStack(spacing: 6) {
+            Text(result.app.name).font(.body)
+            if model.isRunning(result) {
+                RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
+            }
+            ChannelTag(channel: result.app.releaseChannel)
+            // No optical nudge here: this mark is nearly cap-height, so it is judged
+            // by its edges rather than its centre. See `RunningIndicator.opticalNudge`.
+            if let runtime {
+                RuntimeTag(runtime: runtime, bundle: result.app.path,
+                           frameworks: result.app.linkedFrameworks)
+            }
+        }
     }
 
     /// What the version line under the name wants out of the same column.
@@ -905,7 +906,7 @@ private struct AppRow: View {
     /// "Extracting", and that difference decides the case for a long name.
     private func showsStageLabel(_ stage: InstallStage) -> Bool {
         let label = NSAttributedString(
-            string: stageLabel(stage),
+            string: installStageLabel(stage),
             attributes: [.font: NSFont.preferredFont(forTextStyle: .caption2)]
         ).size().width
         return nameFits(besideReadout: max(64, DownloadReadout.spinner + 4 + label))
@@ -943,11 +944,7 @@ private struct AppRow: View {
                     .frame(width: 30, height: 30)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 6) {
-                        Text(result.app.name).font(.body)
-                        if model.isRunning(result) { RunningIndicator(size: 6) }
-                        ChannelTag(channel: result.app.releaseChannel)
-                    }
+                    nameLine
                     versionLine
                 }
                 Spacer()
@@ -963,7 +960,23 @@ private struct AppRow: View {
                 // the ring saves, and the name would wrap anyway. 24pt still keeps
                 // the name off the control, and trailing alignment means the ring
                 // ends on the same edge every other control does.
-                trailing
+                PopoverRowAction(
+                    state: model.rowState(for: result),
+                    result: result,
+                    actions: RowActions.live(
+                        install: { Task { await model.install(result) } },
+                        openStagedPackage: { Task { await model.openStagedPackage(result) } },
+                        retry: { Task { await model.retry(result) } },
+                        restart: { Task { await model.restart(result) } },
+                        relaunchStaged: { Task { await model.relaunchStagedUpdate(result) } },
+                        confirmQuit: { model.confirmQuit(result.id, proceed: true) },
+                        openSelfUpdater: { model.openSelfUpdater(result) },
+                        openToolbox: { model.openToolbox() },
+                        openTestFlight: { model.openTestFlight() }),
+                    runningVersion: model.runningVersion(result.id),
+                    helperEnabled: model.helperEnabled,
+                    downloadReadout: downloadReadout,
+                    showsStageLabel: showsStageLabel)
                     .frame(minWidth: trailingSlot, alignment: .trailing)
             }
             if let installError {
@@ -1020,6 +1033,12 @@ private struct AppRow: View {
         // the main thread until the app has finished launching.
         Button("Open") { Task { await AppRestarter.launchApp(result.app.path) } }
         Button("Changelog") { openChangelog() }
+        // Ask about this one app. Same entry point as the retry on a failed row —
+        // one question, one answer — and the cheap way to correct a row whose
+        // running dot has gone stale (issue #247). Disabled while the row is busy,
+        // which is also what `retry` itself refuses on.
+        Button("Check Again") { Task { await model.retry(result) } }
+            .disabled(stage != nil)
         Divider()
         if result.hasUpdate {
             let offered = result.remote?.displayVersion ?? String(localized: "this version")
@@ -1066,7 +1085,7 @@ private struct AppRow: View {
                 // TestFlight has no working per-app deep link on macOS (the iOS
                 // `itms-beta://…/v1/app/<id>` form just opens the app list), so this
                 // only launches TestFlight — labelled plainly to not over-promise.
-                Button("Open TestFlight") { openTestFlight() }
+                Button("Open TestFlight") { model.openTestFlight() }
             }
         }
     }
@@ -1095,30 +1114,25 @@ private struct AppRow: View {
 
     @ViewBuilder
     private var versionLine: some View {
-        if let staged = model.actionableStaged(result) {
+        switch model.versionLineState(for: result) {
+        case .stagedRelaunch(let staged):
             // Relaunch applies this staged build, which `actionableStaged` guarantees
             // is the latest — so the line is a plain installed → staged. (A staged
             // build that trails the latest isn't shown as Relaunch; it goes through
             // the normal updateAvailable line/Update button below.)
             stagedVersionLine(staged)
-        } else if let older = model.downgradeNote(result) {
-            // Vendor's latest is *older* than what's installed — show it muted with a
-            // down-arrow (only reachable under "Show all", since the row is upToDate).
-            downgradeVersionLine(older)
-        } else if let from = model.pendingBatchRestart[result.id] {
+        case .restart(let from):
             // Update All has landed the new bundle but intentionally postpones its
-            // process-version sweep/restarts until every installer is finished.
-            // Keep the row concrete instead of flashing a false completion.
-            restartVersionLine(from: .init(marketing: from))
-        } else if model.needsRestart.contains(result.id),
-                  let from = model.restartFromSide(result.id) {
-            // Self-updated on disk, restart pending. Show the running version → the
-            // installed version so the row reads as a real change, not a static
-            // "v1.6.1". `lsappinfo` only exposes the running *build*; `restartFromVersion`
-            // recovers the marketing version from the rollback backup when it can, so
-            // the from side reads "26.609.71450 (3965)" rather than a bare "3965".
+            // process-version sweep/restarts until every installer is finished; a
+            // normal pending restart reaches the same line with the recovered
+            // running version/build. Either one outranks an action-less downgrade
+            // note because this line explains the Relaunch button (#210).
             restartVersionLine(from: from)
-        } else {
+        case .downgrade(let older):
+            // Vendor's latest is *older* than what's installed — show it muted with a
+            // down-arrow only when no pending relaunch has a more important fact.
+            downgradeVersionLine(older)
+        case .status:
             switch result.status {
             case .updateAvailable(let latest):
             HStack(spacing: 4) {
@@ -1237,617 +1251,6 @@ private struct AppRow: View {
         }
     }
 
-    @ViewBuilder
-    private var trailing: some View {
-        if let appName = model.awaitingQuitConfirm[result.id] {
-            // An incremental App Store update finished downloading but the app is
-            // running, so App Store is asking to quit it. We paused rather than
-            // quitting the user's app mid-work — tapping this presses Continue (and
-            // we reopen the app once the new build lands).
-            quitToFinishButton(appName)
-        } else if model.relaunching.contains(result.id) {
-            // Mid-relaunch: the app is quit and we're waiting for the swap to land —
-            // either its own ShipIt (staged self-update) or storedownloadd after we
-            // pressed App Store's Continue. A spinner here both signals progress and
-            // (because it replaces the button) prevents a second click firing again.
-            relaunchingIndicator
-        } else if model.pendingBatchRestart[result.id] != nil {
-            pendingBatchRestartButton
-        } else if model.justUpdated.contains(result.id) {
-            // Just landed and fully in effect — a brief confirmation so the row reads
-            // as "done", not as a progress bar that vanished. It clears itself after a
-            // couple of seconds, then the up-to-date row filters out.
-            updatedIndicator
-        } else if let stage {
-            installProgress(stage)
-        } else if model.prefs.isIgnored(result.app) {
-            // Surfaced only under "Show all" — a muted tag with manage actions in
-            // the context menu, so an ignored app never offers an Update button.
-            ignoredTag
-        } else if result.hasUpdate
-            && model.prefs.isVersionSkipped(result.app, version: result.remote?.versionSide) {
-            skippedTag
-        } else if let staged = model.actionableStaged(result) {
-            // The app's own updater already downloaded *the latest* and is waiting to
-            // swap it in on the next quit ("Relaunch to update"). Offer the relaunch
-            // — never our own Update — so we don't re-download the same bytes or
-            // collide with the pending swap. Only when the staged build IS the latest:
-            // a staged build that trails a newer release falls through to Update (a
-            // direct jump), since relaunching to it wouldn't get you current.
-            relaunchToUpdateButton(staged)
-        } else if model.needsRestart.contains(result.id) && !result.hasUpdate {
-            // Restart is derived from disk-vs-running version, not the remote
-            // check — so surface it directly off `needsRestart` rather than from
-            // inside the status switch. That keeps the button steady across a
-            // refresh's transient `.unknown`/`.checking` statuses, instead of
-            // briefly flashing the source hint ("—") until the check finishes.
-            restartButton
-        } else {
-            switch result.status {
-            case .updateAvailable:
-                if result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged {
-                    // Toolbox owns the install. Either Toolbox's own cache detected
-                    // it, or we borrowed a vendor probe to read the version reliably
-                    // (Android Studio previews — see `prefersVendorProbeOverToolbox`);
-                    // either way the action is "open Toolbox", never an in-place swap.
-                    toolboxButton
-                } else if result.remote?.sourceName == "TestFlight" {
-                    // Detected via TestFlight's cache — it installs, we just route.
-                    testFlightButton
-                } else if model.defersToSelfUpdater(result) {
-                    // Running self-updating app + "defer while running" policy:
-                    // open its own update path instead of swapping under it.
-                    openSelfUpdaterButton
-                } else if result.isMajorUpgrade && (model.canAutoInstall(result) || model.requiresInstaller(result)) {
-                    majorUpgradeBadge
-                } else if model.canAutoInstall(result) {
-                    autoUpdateButton
-                } else if model.requiresInstaller(result) {
-                    installerButton
-                } else if let info = result.remote?.appStore {
-                    appStoreTrailing(info)
-                } else {
-                    openButton
-                }
-            case .error:
-                errorBadge
-            case .unknown:
-                Text(sourceHint).font(.caption2).foregroundStyle(.tertiary)
-            case .appStoreManaged:
-                appStoreManagedLabel
-            case .toolboxManaged:
-                toolboxButton
-            case .testFlightManaged:
-                testFlightManagedLabel
-            case .upToDate:
-                // needsRestart is handled above, before the status switch.
-                if result.app.isMASApp {
-                    // We checked it against the store and it's current — but keep
-                    // the "App Store" signal so a managed app never looks like an
-                    // app we can update ourselves (a bare ✅ reads the same as
-                    // Sparkle/brew). Same label as `.appStoreManaged`.
-                    appStoreManagedLabel
-                } else if result.app.isTestFlightApp {
-                    // Current on TestFlight — keep the channel tag rather than a
-                    // bare check, so it never reads like a self-updatable app.
-                    testFlightManagedLabel
-                } else {
-                    Image(systemName: "checkmark").foregroundStyle(.secondary).font(.caption)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func installProgress(_ stage: InstallStage) -> some View {
-        if case .downloading(let f) = stage {
-            downloadProgress(f)
-        } else {
-            stageProgress(stage)
-        }
-    }
-
-    /// The download readout, as wide as the name can afford. Every variant ends
-    /// on the row's trailing edge and carries the percentage where there's room
-    /// for it — losing the bar costs nothing you can't read off the number, but
-    /// losing the number leaves the row saying only "something is happening".
-    @ViewBuilder
-    private func downloadProgress(_ f: Double) -> some View {
-        switch downloadReadout {
-        case .barAndPercent:
-            HStack(spacing: 4) {
-                ProgressView(value: f).frame(width: 50).controlSize(.small)
-                percentLabel(f)
-            }
-            // Centre the bar+label as a tight group in the same minimum-width slot
-            // the buttons use, so it lines up down the list. It has to be a
-            // *minimum*: the bar plus the percentage is wider than 64pt, and a hard
-            // width made the number overflow past the row's trailing edge. The
-            // percentage's own fixed width keeps the row from reflowing as it
-            // counts up.
-            .frame(minWidth: 64, alignment: .center)
-        case .ringAndPercent:
-            HStack(spacing: 4) {
-                ProgressRing(value: f)
-                percentLabel(f)
-            }
-        case .ringOnly:
-            // Only for a name long enough that even 32pt of digits would wrap it.
-            ProgressRing(value: f)
-                .help("Downloading \(result.app.name) — \(Int(f * 100))%")
-        }
-    }
-
-    /// Fixed-width, right-aligned, monospaced digits: "2%" and "100%" both end at
-    /// the same edge, so neither the bar nor the row moves as it counts up.
-    /// "100%" at caption2 with monospaced digits measures 28.6pt, so the old 29pt
-    /// slot left 0.4pt of slack and SwiftUI wrapped it to "100" over "%". 32pt
-    /// gives it real room, and lineLimit+fixedSize make a wrap impossible however
-    /// the metrics land.
-    private func percentLabel(_ f: Double) -> some View {
-        Text("\(Int(f * 100))%")
-            .font(.caption2).foregroundStyle(.secondary)
-            .monospacedDigit()
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(width: 32, alignment: .trailing)
-    }
-
-    /// The non-download stages: a spinner, named where the name column can spare
-    /// the width. When it can't, the stage moves into the tooltip.
-    @ViewBuilder
-    private func stageProgress(_ stage: InstallStage) -> some View {
-        if showsStageLabel(stage) {
-            HStack(spacing: 4) {
-                ProgressView().controlSize(.small)
-                Text(stageLabel(stage))
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            .frame(minWidth: 64, alignment: .center)
-        } else {
-            ProgressView().controlSize(.small)
-                .help("\(stageLabel(stage)) \(result.app.name)")
-        }
-    }
-
-    private func stageLabel(_ stage: InstallStage) -> String {
-        switch stage {
-        case .queued: return String(localized: "Queued")
-        case .checking: return String(localized: "Checking")
-        case .downloading(let f): return String(localized: "\(Int(f * 100))%")
-        case .verifyingSignature, .verifyingCodeSignature: return String(localized: "Verifying")
-        case .extracting: return String(localized: "Extracting")
-        case .installing: return String(localized: "Installing")
-        case .runningCommand: return String(localized: "Installing")
-        case .done: return String(localized: "Installed")
-        }
-    }
-
-    private var autoUpdateButton: some View {
-        Button("Update") { Task { await model.install(result) } }
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .controlSize(.small)
-            .buttonStyle(.borderedProminent)
-    }
-
-    /// Muted tag for an app the user has chosen to ignore — right-click to manage.
-    private var ignoredTag: some View {
-        Text("Ignored").font(.caption2).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.7)
-            .help("Hidden from update checks — right-click to stop ignoring")
-    }
-
-    /// Muted tag for an update whose offered version the user skipped.
-    private var skippedTag: some View {
-        Text("Skipped").font(.caption2).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.7)
-            .help("You skipped this version — right-click to un-skip")
-    }
-
-    /// On disk it's current, but the running instance is older — offer a
-    /// relaunch so the update actually takes effect.
-    private var restartButton: some View {
-        Button("Relaunch") { Task { await model.restart(result) } }
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .tint(.orange)
-            .help(restartHelp)
-    }
-
-    /// The bundle is current, but Update All is still busy with other apps and has
-    /// not reached its deferred restart phase. Keep an explicit action available so
-    /// a slow unrelated installer never makes this completed download look lost.
-    private var pendingBatchRestartButton: some View {
-        Button("Relaunch now") { Task { await model.restart(result) } }
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .tint(.orange)
-            .help("Installed \(result.app.shortVersion ?? String(localized: "the new version")) — waiting for Update All to finish before relaunching; click to relaunch now")
-    }
-
-    /// The app self-downloaded a newer build (Squirrel/ShipIt staged it); a
-    /// relaunch swaps it in. Unlike `restartButton` this routes to
-    /// `relaunchStagedUpdate`, which quits the app and lets *its own* ShipIt do the
-    /// swap+relaunch (reopening it ourselves makes ShipIt abort). No extra download
-    /// — the bytes are already staged on disk.
-    private func relaunchToUpdateButton(_ staged: StagedSelfUpdate) -> some View {
-        Button("Relaunch") { Task { await model.relaunchStagedUpdate(result) } }
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .tint(.orange)
-            .help("\(result.app.name) already downloaded \(result.stagedRelaunchLine(staged).to) — relaunch to apply it (no extra download; a large app may take a minute to swap & reopen)")
-    }
-
-    /// An incremental App Store update is downloaded but the app is running, so the
-    /// store wants to quit it to install. Tapping presses the store's Continue (via
-    /// the AX installer's awaited `confirmQuit`); the app quits, the update lands,
-    /// and we reopen it. Labelled "Relaunch" like every other quit-to-apply action.
-    private func quitToFinishButton(_ appName: String) -> some View {
-        Button("Relaunch") { model.confirmQuit(result.id, proceed: true) }
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .tint(.orange)
-            .help("\(appName.isEmpty ? result.app.name : appName) must quit to finish updating — click to quit it, install, and reopen")
-    }
-
-    /// Shown while a staged relaunch is in flight: the app is quit and its own
-    /// ShipIt is swapping the bundle. Matches the install spinner's footprint.
-    private var relaunchingIndicator: some View {
-        HStack(spacing: 6) {
-            ProgressView().controlSize(.small)
-            Text("Relaunching…")
-                .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-        }
-        .frame(minWidth: 64, alignment: .center)
-        .help("Quit \(result.app.name) — waiting for it to swap in the new version and reopen")
-    }
-
-    private var updatedIndicator: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-            Text("Updated")
-                .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-        }
-        .frame(minWidth: 64, alignment: .center)
-        .help("\(result.app.name) updated to \(result.app.shortVersion ?? String(localized: "the latest version"))")
-    }
-
-    private var restartHelp: String {
-        let disk = result.app.shortVersion ?? String(localized: "the new version")
-        if let running = model.runningVersion(result.id) {
-            return String(localized: "Running \(running) but \(disk) is installed — relaunch to apply it")
-        }
-        return String(localized: "You’re running an older version — relaunch to finish updating")
-    }
-
-    /// pkg cask: download the official installer and open it (system installer
-    /// asks for admin). Not an in-place swap, so it's a plain bordered button.
-    @ViewBuilder
-    private var installerButton: some View {
-        if let staged = model.stagedPackage(for: result) {
-            // Already downloaded and handed to macOS's installer. Re-opening costs
-            // nothing (and re-uses the installer window if it's still open), so don't
-            // make the user pull hundreds of megabytes down a second time because
-            // they dismissed it.
-            Button("Install") { Task { await model.openStagedPackage(result) } }
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .controlSize(.small)
-                .buttonStyle(.borderedProminent)
-                .help("\(staged.url.lastPathComponent) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
-        } else {
-            Button("Update") { Task { await model.install(result) } }
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .controlSize(.small)
-                .buttonStyle(.bordered)
-                .help("Downloads the official installer and opens it (asks for admin)")
-        }
-    }
-
-    /// Major version bumps may cross a paid app's license boundary. Like the
-    /// region-lock case, we don't offer a one-click button — an amber badge
-    /// opens a popover that explains the risk before any install.
-    private var majorUpgradeBadge: some View {
-        Button { showMajorWarning = true } label: {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-        }
-        .buttonStyle(.borderless)
-        .help("Major version upgrade — click before updating")
-        .popover(isPresented: $showMajorWarning, arrowEdge: .bottom) {
-            majorUpgradePopover
-        }
-    }
-
-    private var majorUpgradePopover: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Major version upgrade", systemImage: "exclamationmark.triangle.fill")
-                .font(.headline)
-            Text("\(result.app.name) \(result.app.shortVersion ?? "?") → \(result.remote?.displayVersion ?? "?") is a major new version. If this is a commercial app, it may need a new license — with an expired subscription the update can drop into a limited/trial mode.")
-                .font(.callout)
-            Text("Continue only if it’s free or your license covers the new version. Your current version is moved to the Trash, so you can restore it.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Button("Update anyway") {
-                showMajorWarning = false
-                Task { await model.install(result) }
-            }
-            .controlSize(.small)
-        }
-        .padding(12)
-        .frame(width: 290)
-    }
-
-    /// Fallback for updates we can detect but not install in place (GitHub
-    /// releases, self-updating apps like Chrome). Opens the official download /
-    /// releases page in the browser so the user can grab it through the app's own
-    /// channel; only reveals in Finder if there's no URL to open.
-    private var openButton: some View {
-        Button("Open") { openAction() }
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .help(openHelp)
-    }
-
-    /// Shown for a running self-updating app under the "defer while running"
-    /// policy: open the app's own update path rather than installing over it.
-    private var openSelfUpdaterButton: some View {
-        Button("Open") { model.openSelfUpdater(result) }
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .help("\(result.app.name) is running — open it and let its own updater apply \(result.remote?.displayVersion ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly.")
-    }
-
-    private func openAction() {
-        guard let url = result.remote?.pageURL else {
-            NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
-            return
-        }
-        if let scheme = url.scheme, scheme != "http", scheme != "https" {
-            // App-internal deep link (e.g. chrome://settings/help). Hand it to the
-            // app itself so it acts through its own update channel — for Chrome,
-            // opening that page triggers a Keystone update check + download.
-            let config = NSWorkspace.OpenConfiguration()
-            NSWorkspace.shared.open([url], withApplicationAt: result.app.path, configuration: config)
-        } else {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    /// JetBrains Toolbox manages this app's updates. Toolbox registers no URL
-    /// scheme, so there's no per-tool deep link — we just open the Toolbox window,
-    /// where the user updates it through its own channel.
-    private var toolboxButton: some View {
-        Button("Toolbox") { openToolbox() }
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .help("Managed by JetBrains Toolbox — open Toolbox to update \(result.app.name)")
-    }
-
-    private func openToolbox() {
-        if let url = NSWorkspace.shared.urlForApplication(
-            withBundleIdentifier: "com.jetbrains.toolbox") {
-            NSWorkspace.shared.openApplication(at: url, configuration: .init())
-        }
-    }
-
-    /// TestFlight manages this beta's updates. There's no per-app deep link we can
-    /// rely on, so we just open TestFlight, where the user installs the update
-    /// through its own channel.
-    private var testFlightButton: some View {
-        Button("TestFlight") { openTestFlight() }
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .help("Managed by TestFlight — open TestFlight to update \(result.app.name)")
-    }
-
-    private func openTestFlight() {
-        if let url = NSWorkspace.shared.urlForApplication(
-            withBundleIdentifier: "com.apple.TestFlight") {
-            NSWorkspace.shared.openApplication(at: url, configuration: .init())
-        }
-    }
-
-    private var openHelp: String {
-        guard let url = result.remote?.pageURL else { return String(localized: "Reveal in Finder") }
-        if let scheme = url.scheme, scheme != "http", scheme != "https" {
-            return String(localized: "Open \(result.app.name)’s built-in updater (it updates itself)")
-        }
-        return String(localized: "Open the official download page")
-    }
-
-    /// App Store apps: when the app is in the signed-in region, a Get button
-    /// deep-links to the product page; when it isn't, a globe badge opens a
-    /// popover explaining the region lock (the store would just say "App Not
-    /// Available").
-    @ViewBuilder
-    private func appStoreTrailing(_ info: AppStoreAvailability) -> some View {
-        if info.isLatestMacIncompatible {
-            // A newer build exists but Apple has marked it as no longer running on
-            // Macs — installing it here is impossible, so flag it rather than
-            // offering a "Get" the store would reject.
-            Button { showMacCompatHint = true } label: {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-            }
-            .buttonStyle(.borderless)
-            .help("The latest version no longer supports this Mac — click for details")
-            .popover(isPresented: $showMacCompatHint, arrowEdge: .bottom) {
-                macCompatHintPopover(info)
-            }
-        } else if info.isRegionMismatch {
-            Button { showRegionHint = true } label: {
-                Image(systemName: "globe.badge.chevron.backward")
-                    .foregroundStyle(.orange)
-            }
-            .buttonStyle(.borderless)
-            .help("Not available in your App Store region — click for details")
-            .popover(isPresented: $showRegionHint, arrowEdge: .bottom) {
-                regionHintPopover(info)
-            }
-        } else if result.app.isiOSAppOnMac, model.appStoreStrategyIsFullDownload {
-            // Wrapped iPhone/iPad app on the mas route: mas has no Mac-store entry
-            // for it, so a one-click here would always fail. Send the user to its
-            // product page, where an available update shows an "Update" button.
-            //
-            // Conditioned on the route rather than inferred from it: this branch is
-            // reached whenever `canAutoInstall` is false, which has causes other than
-            // the strategy — a declined elevation most of all, and every wrapped app
-            // qualifies for one (they sit in a root-owned `/Applications`). Without
-            // the check, the button and its "can’t be updated from here" help text
-            // would say that on a route where they can.
-            Button("App Store") { openInAppStore(info) }
-                .controlSize(.small)
-                .buttonStyle(.bordered)
-                .help("Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
-        } else {
-            // A redirect, not a one-click — the App Store route needs the privileged
-            // helper approved (`UpdatePolicy.canAutoInstall`, case "App Store"). But
-            // the row IS an installed app with a pending update, which the store
-            // itself calls **Update**; "Get" reads as "not installed yet", and no row
-            // that reaches here ever is. The help text carries the real reason.
-            Button("Update") { openInAppStore(info) }
-                .controlSize(.small)
-                .buttonStyle(.bordered)
-                .help(appStoreRedirectHelp)
-        }
-    }
-
-    /// Why this row hands off to the App Store instead of installing in place.
-    /// Approving the helper is the one lever the user actually has, so name it when
-    /// that's what's missing — otherwise the button just looks like something we
-    /// decline to do, with nothing to act on.
-    private var appStoreRedirectHelp: String {
-        if !model.helperEnabled {
-            return String(localized: "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click.")
-        }
-        return String(localized: "Update \(result.app.name) in the App Store")
-    }
-
-    private func openInAppStore(_ info: AppStoreAvailability) {
-        if let url = info.deepLink ?? result.remote?.pageURL {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    private func regionHintPopover(_ info: AppStoreAvailability) -> some View {
-        let here = info.homeRegion.map(Self.regionName) ?? String(localized: "your region")
-        let there = Self.regionName(info.availableRegion)
-        return VStack(alignment: .leading, spacing: 8) {
-            Label("Region-locked", systemImage: "globe.badge.chevron.backward")
-                .font(.headline)
-            Text("\(result.app.name) isn’t in your App Store region (\(here)). It’s listed in \(there)\(result.remote?.displayVersion.map { String(localized: " — latest \($0)") } ?? "").")
-                .font(.callout)
-            // The region lock blocks a *fresh install* (the product page is "App Not
-            // Available" under a \(here) account), but it does NOT block updating an
-            // app you already have: an installed region-locked app still shows up in
-            // App Store's own Updates list, and DuoUpdater can drive that update
-            // entirely in the background. The catch is timing — the store surfaces
-            // these into its Updates list on its own schedule.
-            Text("You already have it installed, so it can still be updated — DuoUpdater drives the App Store’s Updates list in the background (a fresh install would need a \(there) account). It only works once the App Store has listed this update; if it hasn’t yet, try again later.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack {
-                Button("Update in background") {
-                    showRegionHint = false
-                    Task { await model.install(result) }
-                }
-                .controlSize(.small)
-                .buttonStyle(.borderedProminent)
-                Button("Open App Store") { openInAppStore(info) }
-                    .controlSize(.small)
-            }
-        }
-        .padding(12)
-        .frame(width: 300)
-    }
-
-    private func macCompatHintPopover(_ info: AppStoreAvailability) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Not supported on this Mac", systemImage: "exclamationmark.triangle.fill")
-                .font(.headline)
-            Text("\(result.app.name) is an iPhone/iPad app running on Apple Silicon. Its latest version\(result.remote?.displayVersion.map { " (\($0))" } ?? "") no longer supports Mac, so the App Store won't install it on this device.")
-                .font(.callout)
-            Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))). Updating isn't possible until the developer ships a Mac-compatible build again — it's the vendor's choice, not a refresh problem.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Button("Open App Store anyway") { openInAppStore(info) }
-                .controlSize(.small)
-        }
-        .padding(12)
-        .frame(width: 290)
-    }
-
-    private static func regionName(_ code: String) -> String {
-        Locale.current.localizedString(forRegionCode: code.uppercased()) ?? code.uppercased()
-    }
-
-    /// The "App Store" tag shown for any store-managed app — whether it's up to
-    /// date or the lookup returned nothing. Either way, updates are the store's
-    /// job, so the row never offers an action we can't perform.
-    private var appStoreManagedLabel: some View {
-        Image(nsImage: AppIconCache.appStore)
-            .resizable()
-            .frame(width: 16, height: 16)
-            .help("Managed by the App Store — it handles this app's updates")
-    }
-
-    /// The "TestFlight" tag shown for a TestFlight-managed app that's current (or
-    /// whose cache returned nothing). Updates are TestFlight's job, so the row
-    /// shows the channel rather than an action we can't perform here.
-    private var testFlightManagedLabel: some View {
-        Text("TestFlight").font(.caption2).foregroundStyle(.tertiary)
-            .help("Managed by TestFlight — it handles this beta's updates")
-    }
-
-    /// A source was tried and failed — most often a transient GitHub rate-limit.
-    /// Unlike `.unknown`'s dead "—", this state is retryable, so it's a button:
-    /// one click re-checks just this app. The tooltip carries the failure reason.
-    private var errorBadge: some View {
-        HStack(spacing: 6) {
-            // Name the failure inline so a wall of orange retry buttons isn't
-            // indistinguishable — a rate-limit (the common no-token case) reads
-            // differently from a one-off network error without needing a hover.
-            let statusLabel = result.status.isRateLimitError
-                ? String(localized: "Rate-limited")
-                : String(localized: "Failed")
-            Text(statusLabel)
-                .font(.caption2)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .foregroundStyle(result.status.isRateLimitError ? Color.orange : Color.secondary)
-            Button { Task { await model.retry(result) } } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .tint(.orange)
-            .help(errorText.isEmpty
-                ? String(localized: "Update check failed — click to retry")
-                : String(localized: "\(errorText) — click to retry"))
-        }
-    }
-
-    private var errorText: String {
-        if case .error(let e) = result.status { return e }
-        return ""
-    }
-
-    private var sourceHint: String {
-        if result.app.isMASApp { return String(localized: "App Store") }
-        if result.app.sparkleFeedURL != nil { return String(localized: "Sparkle") }
-        return "—"
-    }
 }
 
 // MARK: - Shared version-line formatting

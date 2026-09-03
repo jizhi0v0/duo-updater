@@ -89,17 +89,37 @@ GitHub 两轨的端点和 tag 提取由上面的 `duo verify` 独立验证。
 
 ## 一键安装
 
-**未启用。** stable 与 beta DMG 中对应 `Vorssaint.app` 的 Team ID 一致，但
-`codesign --verify --deep --strict` 对两个真实 app 均报告：
+**未启用 —— 但不是因为包有问题。**
+
+> ⚠️ 2026-08-30 首次审计时记录为：`codesign --verify --deep --strict` 对两个真实 app
+> 均报 `invalid signature (code or signature have been modified)`，同时 `spctl` 返回
+> Code Signing subsystem internal error。**这条结论 2026-09-03 复测未能复现，见下。**
+
+2026-09-03 在同一台机器、同一个 OS build（macOS 27.0 / 26A5425a）上重新下载
+`Vorssaint-3.3.2.dmg` 与 `Vorssaint-3.3.3-beta.3.dmg` 并挂载复测：
 
 ```text
-invalid signature (code or signature have been modified)
+$ codesign --verify --deep --strict --verbose=2 /Volumes/…/Vorssaint.app
+…/Vorssaint.app: valid on disk
+…/Vorssaint.app: satisfies its Designated Requirement      # exit 0
+
+$ spctl -a -vvv -t execute /Volumes/…/Vorssaint.app
+…/Vorssaint.app: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: Pedro Gomes (3D485NHW29)
 ```
 
-`codesign -dvvv` 同时能看到 hardened runtime 与 stapled notarization ticket，
-`spctl` 在当前 macOS 27 beta 上返回 Code Signing subsystem internal error。无论这是
-上游签名问题还是 beta 系统回归，都不足以通过 DuoUpdater 的替换闸，所以保持
-detection-only；不会把未经验证的 DMG 暴露为一键更新。
+两个 app 都带 hardened runtime、stapled ticket、Team ID 一致（`3D485NHW29`）。
+首次那次的 spctl "internal error" 与 codesign "modified" 同时出现，更像是当时
+**code signing 子系统处于瞬时故障状态**，而不是包本身的属性。
+
+真正没签名的是 **DMG 容器**（`codesign --verify` 报 `code object is not signed at all`，
+`spctl` 报 `no usable signature`）——而这不是安装路径检查的东西：`SignatureVerifier`
+的闸开在解出来的 `.app` 上，不在容器上。
+
+结论：**一键在技术上可行，只是还没有端到端验过**。要启用需要两步：(1) 走一遍真实
+安装验收；(2) beta 那条属于非 stable 渠道，必须先在 `ChannelProofRegistry` 登记
+proof（其资产名带 `-beta.`，可以用 `.artifact`）。在这之前保持 detection-only。
 
 ## 结论
 

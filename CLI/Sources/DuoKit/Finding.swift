@@ -64,9 +64,15 @@ public struct Finding: Codable, Sendable {
     /// `infraRetries` probes plus any gateway retry inside them. A request count,
     /// not a probe count, so it cannot understate what an endpoint cost.
     public let attempts: Int
-    /// How many of `attempts` were `URLSession.versionFeedData`'s single retry on a
-    /// 502/503/504. Non-zero on an otherwise `ok` finding is the signal worth
-    /// having: the endpoint flapped and recovered, which no other field records.
+    /// How many of `attempts` were `URLSession.versionFeedData`'s single retry —
+    /// on a 502/503/504, or on a 2xx whose body the recipe declares as the
+    /// vendor's error envelope (`VendorProbeRecipe.transientBodyPattern`).
+    /// Non-zero on an otherwise `ok` finding is the signal worth having: the
+    /// endpoint flapped and recovered, which no other field records.
+    ///
+    /// The name outlived its one cause — kept so a `report.json` written before
+    /// the second one existed still decodes, and because a reader who wants to
+    /// know WHICH flap has the recipe id and the endpoint on the same line.
     ///
     /// Optional so a `report.json` written before this existed still decodes — nil
     /// means "not recorded", which is not the same claim as zero.

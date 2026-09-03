@@ -361,6 +361,86 @@ struct CapCutProbeRecipeTests {
         }
     }
 
+    // MARK: - the vendor's own error envelope
+
+    /// Verbatim, 2026-09-01: one of 24 parallel requests came back with this
+    /// instead of the ~436 KB answer, **HTTP 200**. ByteDance's internal RPC
+    /// overran its own 500 ms budget (`request_timeout=500ms`, `real_time=501018us`)
+    /// and the edge served the failure as a success. The shipping app hit it twice
+    /// in two minutes the same evening.
+    private static let errorEnvelope = """
+        {"data": {},"message": "ExecBizCode error: GetPyCodeSettings error: \
+        GetSettingsFromPython error, err = remote or network error[remote]: \
+        error_code=1204 cds_key=THRIFT_EGRESS|toutiao.settings.settings:sg:sg1:| \
+        GetBizSettingsJson|prod| reason=request timeout connect_timeout=100ms(from cp) \
+        request_timeout=500ms(from cp) real_time=501018us fault_delay=0ms"}
+        """
+
+    /// The half that made this look like a broken recipe: no pattern matches, so
+    /// without the declaration below the probe reports `versionPatternNoMatch` —
+    /// "go fix this recipe" — for a vendor having a bad half-second.
+    @Test func theErrorEnvelopeCarriesNoVersionForEitherTrack() throws {
+        for recipe in Self.recipes {
+            #expect(Self.version(recipe, in: Self.errorEnvelope) == nil)
+            #expect(try Self.installURL(recipe.channel, in: Self.errorEnvelope) == nil)
+        }
+    }
+
+    /// Both tracks recognise it, since both read the same endpoint.
+    @Test func bothTracksRecogniseTheErrorEnvelope() {
+        for recipe in Self.recipes {
+            #expect(recipe.transientBodyPattern != nil,
+                    "\(recipe.recipeID) no longer declares the vendor's error envelope")
+            #expect(recipe.matchesTransientBody(Self.errorEnvelope))
+        }
+    }
+
+    /// The direction that matters more: the pattern must never fire on an answer.
+    /// It wins over `versionPatternNoMatch`, so one that over-matches converts a
+    /// genuinely broken recipe into "the vendor is having a bad day" forever, and
+    /// `duo verify` stops filing it.
+    ///
+    /// The third body is the one that could plausibly be confused: a real answer
+    /// whose `update_reminder` is MISSING, which is what the endpoint returns when
+    /// the pinned `version_code` falls out of the vendor's rollout window. That is
+    /// a loud recipe failure by design (see `aResponseWithoutUpdateReminderResolvesNothing`)
+    /// and must stay one — its `data` is populated, the envelope's is empty.
+    @Test func theEnvelopePatternNeverFiresOnAnAnswer() throws {
+        // Verbatim opening of the REAL out-of-window response — captured
+        // 2026-09-01 at `version_code=99.9.9`, 647,199 bytes, no
+        // `update_reminder` anywhere in it. A hand-written approximation would
+        // have been proving the shape someone imagined; what makes this body
+        // safe is that the vendor still fills `data` when it declines to answer,
+        // and only a capture can say that. (The full body is not kept: the
+        // pattern is anchored to the document start, so its opening IS the part
+        // under test. Checked whole once, along with the 435,426-byte healthy
+        // body and the 379,393-byte `version_code=9` response — none matches.)
+        let withoutUpdateReminder = """
+            {"data":{"__logid":"20260901182107D626FCBA7EEEAE142266",\
+            "settings_time":1788085267,"settings":{"lip_sync_ab_test": {"enable": true}, \
+            "veabtest_enable_decoder_d3d11_sync_opt": false}}}
+            """
+        // An empty `data` nested somewhere inside a real answer — the shape an
+        // unanchored pattern would trip on. (Measured: the real 436 KB body has
+        // no empty `data` object anywhere in it, so this is a guard against the
+        // body they serve next year, not against today's.)
+        let nestedEmptyData = """
+            {"data":{"settings":{"some_feature": {"data": {}},"update_reminder": \
+            {"lastest_url": "https://sf16-web-tos-buz.capcutstatic.com/obj/\
+            capcut-web-buz-sg/packages/CapCut_9_4_0-beta4_4531_capcutpc_beta_creatortool.dmg"}}},\
+            "message": "success"}
+            """
+        for recipe in Self.recipes {
+            #expect(!recipe.matchesTransientBody(Self.body))
+            #expect(!recipe.matchesTransientBody(withoutUpdateReminder))
+            #expect(!recipe.matchesTransientBody(nestedEmptyData))
+        }
+        // …and the nested-empty-data body is still a body a recipe can read, so
+        // the assertion above is about the envelope pattern and not about a body
+        // nothing could parse.
+        #expect(Self.version(try Self.recipe(.beta), in: nestedEmptyData) == "9.4.0-beta4")
+    }
+
     /// A beta build published without a `-betaN` suffix still resolves — the
     /// suffix is optional — and still cannot be confused with a stable artifact.
     @Test func aSuffixLessBetaBuildStillResolves() throws {

@@ -22,9 +22,13 @@ public enum StructuredChangelogDecoder {
 
     /// Dispatch on the recipe's structured format. nil when the body can't be parsed
     /// into at least one entry for the requested channel.
+    /// - includesPromotedStable: for `.gitHubReleases` on a non-stable channel,
+    ///   also keep the releases GitHub marks stable. See
+    ///   `ChangelogRecipe.includesPromotedStable`.
     public static func decode(
         _ body: String, format: ChangelogRecipe.StructuredFormat,
-        channel: ReleaseChannel?, maxEntries: Int?, skipSections: [String] = []
+        channel: ReleaseChannel?, maxEntries: Int?, skipSections: [String] = [],
+        includesPromotedStable: Bool = false
     ) -> Changelog? {
         switch format {
         case .warpChannelVersions:
@@ -49,7 +53,8 @@ public enum StructuredChangelogDecoder {
                 skipSections: skipSections)
         case .gitHubReleases:
             return decodeGitHubReleases(
-                body, channel: channel, maxEntries: maxEntries, skipSections: skipSections)
+                body, channel: channel, maxEntries: maxEntries, skipSections: skipSections,
+                includesPromotedStable: includesPromotedStable)
         case .alcoveChangelog:
             return decodeAlcoveChangelog(body, maxEntries: maxEntries)
         case .notionPageChunk:
@@ -610,15 +615,22 @@ public enum StructuredChangelogDecoder {
     /// sentences is NOT, since the parser's prose pass covers those.
     static func decodeGitHubReleases(
         _ body: String, channel: ReleaseChannel? = nil, maxEntries: Int?,
-        skipSections: [String] = []
+        skipSections: [String] = [], includesPromotedStable: Bool = false
     ) -> Changelog? {
         guard let data = body.data(using: .utf8),
               let releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
         else { return nil }
 
         let wantsPrerelease = channel != nil && channel != .stable
+        // A stable channel never sees previews. A non-stable one sees previews,
+        // plus — where the vendor's previews graduate into the same numbering
+        // rather than running a parallel train — the releases that graduated.
+        func wanted(_ release: GitHubRelease) -> Bool {
+            if release.prerelease == wantsPrerelease { return true }
+            return wantsPrerelease && includesPromotedStable && !release.prerelease
+        }
         var entries: [Changelog.Entry] = []
-        for release in releases where release.prerelease == wantsPrerelease && !release.draft {
+        for release in releases where wanted(release) && !release.draft {
             guard let raw = release.body, !raw.isEmpty else { continue }
             let version = stripLeadingV(release.tagName)
             guard !version.isEmpty else { continue }

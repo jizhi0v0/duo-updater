@@ -49,12 +49,17 @@ struct UTMChangelogRecipeTests {
             channel: stableRecipe.channel, maxEntries: stableRecipe.maxEntries)
         let betaDecoded = StructuredChangelogDecoder.decode(
             fixture, format: .gitHubReleases,
-            channel: betaRecipe.channel, maxEntries: betaRecipe.maxEntries)
+            channel: betaRecipe.channel, maxEntries: betaRecipe.maxEntries,
+            includesPromotedStable: betaRecipe.includesPromotedStable)
         let stable = try #require(stableDecoded)
         let beta = try #require(betaDecoded)
 
         #expect(stable.entries.map(\.version) == ["4.7.5"])
-        #expect(beta.entries.map(\.version) == ["5.0.5"])
+        // Not the mirror image, deliberately: a preview install is offered the
+        // release its own line graduated to, and that release is not a
+        // prerelease — a prerelease-only history would render its notes as an
+        // empty panel. See `ChangelogRecipe.includesPromotedStable`.
+        #expect(beta.entries.map(\.version) == ["5.0.5", "4.7.5"])
         #expect(stable.entries.flatMap(\.items).contains {
             $0.contains("Stable-only QEMU update")
         })
@@ -64,8 +69,13 @@ struct UTMChangelogRecipeTests {
         #expect(beta.entries.flatMap(\.items).contains {
             $0.contains("Beta-only DirectX update")
         })
-        #expect(!beta.entries.flatMap(\.items).contains {
-            $0.contains("Stable-only")
+        #expect(beta.entries.flatMap(\.items).contains {
+            $0.contains("Stable-only QEMU update")
         })
+        #expect(stableRecipe.includesPromotedStable == false,
+                "the stable history must never show a preview")
+        #expect(betaRecipe.includesPromotedStable)
+        // The draft is not published on either side.
+        #expect(!beta.entries.map(\.version).contains("5.0.6"))
     }
 }

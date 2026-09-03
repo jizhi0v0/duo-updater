@@ -29,7 +29,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**CleanShot X**](pl-maketheweb-cleanshotx.md) · `pl.maketheweb.cleanshotx` — C B(license feed) · license-keyed Sparkle feed · **stable 本机验证 ✓**（legit feed head=4.8.8=installed）· 2026-06-04
 - [x] [**CapCut**](com-lemon-lvoverseas.md) · `com.lemon.lvoverseas` — P(stable/beta) B · 2 channels, shared ID + ChannelBinding（`joinBeta` 在容器外的 INI）· **全 channel 一键 ✓**（Team 22MMUN2RN5，两轨真实 dmg 挂载核对）· **两轨版本字段是反的**（beta 的 short=`9.3.4531` / version=`9.4.0-beta4`，故 beta `versionIsBuild:true`）· 同 id 有 MAS 副本（19.2.0），靠 `_MASReceipt` 分流 · 2026-08-27
 - [x] [**Termius**](com-termius-dmg-mac.md) · 三个独立 bundle id：`com.termius.mac`（MAS，`MacAppStoreSource` 通用覆盖，无 registry）/ `com.termius-dmg.mac`（官网 dmg，P stable，既有）/ `com.termius-beta.mac`（P beta，本次新增）— **全 channel 一键 ✓**（beta 用 universal dmg，Team 6KN952WR85）· stable 既有 recipe 的 arm64-only 一键是刻意的 arm64-pin（DuoUpdater 自身 arm64-only），不是 bug；真正待修的是 `changelogURL` 404，已拆分为独立任务 · issue #91、#102 · 2026-08-27
-- [x] [**UTM**](com-utmapp-UTM.md) · `com.utmapp.UTM` — G(stable+beta，一键) C + MAS/TestFlight 通用托管 · 包内无 channel 标记；用观测版本的 exact GitHub release `prerelease` 位安全判轨，双渠道 changelog 隔离 · 真实 v5.0.5 DMG 签名/公证验证 ✓ · 2026-09-03
+- [x] [**UTM**](com-utmapp-UTM.md) · `com.utmapp.UTM` — G(stable+beta，一键) C + MAS/TestFlight 通用托管 · 包内无 channel 标记；用观测版本的 exact GitHub release `prerelease` 位判轨（判"这份拷贝是什么"），候选则按 `max(装机大版本线, 最新正式版)` 取 —— **UTM 的预览是每条线的前半段、会转正，不是平行轨** · 双渠道 changelog 隔离，beta 侧含转正条目 · 真实 v5.0.5 DMG 签名/公证验证 ✓ · 2026-09-03
 
 ## Microsoft Office family
 

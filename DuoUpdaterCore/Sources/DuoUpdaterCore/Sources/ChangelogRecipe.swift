@@ -160,6 +160,17 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// every channel exactly as before.
     public let channel: ReleaseChannel?
 
+    /// For a non-stable recipe over a feed that splits by GitHub's `prerelease`
+    /// bit: also keep the releases that bit calls stable.
+    ///
+    /// Set only where the vendor's preview builds GRADUATE into the same
+    /// numbering rather than running as a parallel train. UTM is the case: a copy
+    /// on `v4.7.3 (Beta)` is offered `v4.7.5`, which is not a prerelease, so a
+    /// prerelease-only history would render that update's notes as nothing at all.
+    /// Keep it false for a true parallel channel (Zed Preview), where stable
+    /// entries belong to the OTHER train and would be noise.
+    public let includesPromotedStable: Bool
+
     /// Optional regex run over each entry's `body` to pull illustration image URLs
     /// (capture group 1, or the named `image` group). Every match becomes one image,
     /// rendered after the change lines. nil = no images (the common case). Only
@@ -450,6 +461,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         minItemLength: Int = 1,
         indexLinkPattern: String? = nil,
         channel: ReleaseChannel? = nil,
+        includesPromotedStable: Bool = false,
         sourceTemplate: String? = nil,
         newestLast: Bool = false,
         imagePattern: String? = nil,
@@ -475,6 +487,7 @@ public struct ChangelogRecipe: Codable, Sendable {
         self.minItemLength = minItemLength
         self.indexLinkPattern = indexLinkPattern
         self.channel = channel
+        self.includesPromotedStable = includesPromotedStable
         self.sourceTemplate = sourceTemplate
         self.newestLast = newestLast
         self.imagePattern = imagePattern
@@ -588,6 +601,8 @@ public struct ChangelogRecipe: Codable, Sendable {
         minItemLength = try c.decodeIfPresent(Int.self, forKey: .minItemLength) ?? 1
         indexLinkPattern = try c.decodeIfPresent(String.self, forKey: .indexLinkPattern)
         channel = try c.decodeIfPresent(ReleaseChannel.self, forKey: .channel)
+        includesPromotedStable = try c.decodeIfPresent(
+            Bool.self, forKey: .includesPromotedStable) ?? false
         sourceTemplate = try c.decodeIfPresent(String.self, forKey: .sourceTemplate)
         newestLast = try c.decodeIfPresent(Bool.self, forKey: .newestLast) ?? false
         imagePattern = try c.decodeIfPresent(String.self, forKey: .imagePattern)
@@ -1193,12 +1208,16 @@ public enum ChangelogRecipeRegistry {
 
         // UTM Stable and Beta publish in one GitHub repository with plain numeric
         // tags and the same `UTM.dmg` asset name. The release record's
-        // `prerelease` bit is the only channel split, matching the corresponding
+        // `prerelease` bit is the only split, matching the corresponding
         // GitHubReleaseRule. Two channel-keyed recipes over the same JSON keep the
-        // histories separate: Stable never sees the cumulative v5 Beta notes, and
-        // Beta never falls back to v4.7.5's stable history. The app bundle itself
-        // cannot name the channel; `RemoteVersion.releaseChannel`, proven from the
-        // exact installed tag, is what routes the UI to the correct recipe.
+        // histories apart: Stable never shows the v5 previews.
+        //
+        // The Beta recipe is NOT the mirror image, and that asymmetry is the
+        // point: UTM's previews graduate into the same numbering (`v4.7.0…v4.7.3`
+        // are "(Beta)", `v4.7.4`/`v4.7.5` are not), so a preview install is
+        // legitimately offered a release the `prerelease` bit calls stable — and
+        // `includesPromotedStable` is what stops that update's notes from
+        // rendering as an empty panel. See `GitHubCandidateScope`.
         ChangelogRecipe(
             bundleID: "com.utmapp.UTM",
             source: URL(
@@ -1215,6 +1234,7 @@ public enum ChangelogRecipeRegistry {
             mode: .json,
             maxEntries: 20,
             channel: .beta,
+            includesPromotedStable: true,
             structuredFormat: .gitHubReleases),
 
         // OrbStack — VitePress docs at docs.orbstack.dev/release-notes. The page

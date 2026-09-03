@@ -1261,7 +1261,9 @@ final class AppListModel {
     /// and the App Store source re-reads the signed-in storefront region.
     private func makeSources(token: String?) -> [any UpdateSource] {
         hasGitHubToken = (token != nil)
-        return SourceStack.make(githubToken: token, alcove: alcoveCredentials())
+        return SourceStack.make(
+            githubToken: token, alcove: alcoveCredentials(),
+            channelStore: ResolvedChannelStore.shared)
     }
 
     /// Alcove's licensed-update credentials, or nil if either secret is missing
@@ -1964,7 +1966,8 @@ final class AppListModel {
             sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
-            testflight: testflight)
+            testflight: testflight,
+            channelStore: ResolvedChannelStore.shared)
         // Ignored apps are not asked after. Nothing would be said about the answer,
         // so the request is pure cost — and against an unauthenticated GitHub hour
         // it is cost that crowds out the apps the user does watch.
@@ -5853,7 +5856,8 @@ final class AppListModel {
             sources: makeSources(token: githubToken),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
-            testflight: testflight)
+            testflight: testflight,
+            channelStore: ResolvedChannelStore.shared)
         return await checker.check(fresh)
     }
 

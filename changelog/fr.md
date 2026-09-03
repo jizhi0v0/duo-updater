@@ -4,7 +4,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.3.83
 
-**UTM Beta suit désormais le canal Beta, installe les mises à jour en un clic et affiche les notes Beta.** Stable et Beta utilisent la même identité d'application et des numéros de version simples : les copies Beta interrogeaient donc auparavant le canal Stable et manquaient silencieusement les nouvelles préversions ; chaque canal conserve maintenant son propre historique et ses propres notes.
+**Les préversions d'UTM reçoivent désormais leurs propres mises à jour, s'installent en un clic et affichent les notes correspondantes.** UTM publie préversions et versions finales sous la même identité d'application et avec des numéros de version simples : une copie en préversion était donc comparée au canal final et déclarée à jour sans autre explication. Elle suit maintenant sa propre lignée — y compris la version que cette lignée finit par publier en version finale — et affiche les notes qui vont avec.
 
 ## 0.3.82
 

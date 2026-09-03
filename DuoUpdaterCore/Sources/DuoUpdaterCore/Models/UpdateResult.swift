@@ -315,8 +315,13 @@ extension UpdateResult {
     /// The channel to present and use for channel-specific notes. Normally the
     /// installed bundle already knows it; a source may override only when it has
     /// stronger evidence tied to that exact installed release.
+    ///
+    /// Order matters: this check's own evidence, then what an earlier check
+    /// proved about the same copy (see `provenChannel` — without it a failed
+    /// check would silently repaint a Beta row as Stable), then the bundle's own
+    /// signals.
     public var effectiveReleaseChannel: ReleaseChannel {
-        remote?.releaseChannel ?? app.releaseChannel
+        remote?.releaseChannel ?? provenChannel ?? app.releaseChannel
     }
 
     /// What to call the INSTALLED build in any UI — the menu bar, the workbench row,
@@ -513,12 +518,25 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     public let remote: RemoteVersion?
     public let status: UpdateStatus
 
+    /// What a source proved about this copy's channel on some earlier, successful
+    /// check — read back from `ResolvedChannelStore` by `UpdateChecker`.
+    ///
+    /// `remote` is nil for `.error` and `.unknown`, so an app whose channel can
+    /// only be proven remotely (UTM) would otherwise lose its identity on any
+    /// failed check: the Beta badge would vanish and the changelog cache key
+    /// would flip to `:stable`. This field is what a failed row falls back to.
+    public var provenChannel: ReleaseChannel?
+
     public var id: String { app.id }
 
-    public init(app: InstalledApp, remote: RemoteVersion?, status: UpdateStatus) {
+    public init(
+        app: InstalledApp, remote: RemoteVersion?, status: UpdateStatus,
+        provenChannel: ReleaseChannel? = nil
+    ) {
         self.app = app
         self.remote = remote
         self.status = status
+        self.provenChannel = provenChannel
     }
 
     public var hasUpdate: Bool {

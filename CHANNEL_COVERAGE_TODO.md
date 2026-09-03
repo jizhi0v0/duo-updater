@@ -277,7 +277,7 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 | **Freelens nightly** | 同 id `2.0.0-0-nightly-2026-08-26` | 同 | **版本串带 `nightly`** | Team `TFR6NT55MB` 公证 | 可接，但要给 `detect()` 加规则 |
 | **VLC nightly** | 同 id `4.0.0-dev` | 同 | 版本串带 `-dev` | **未签名**（`TeamIdentifier=not set`）| 检测可做，**一键不可**（Team 闸必拒）→ 立项 #95，`docs/app-audits/org-videolan-vlc.md` |
 | **KeePassXC snapshot** | 同 id `2.8.0-snapshot` | 同 | 版本串带 `-snapshot` | **无可用签名** | 同上；且该 URL 只有 x86_64（已核实无 arm64 替代路径）→ 立项 #95，`docs/app-audits/org-keepassxc-keepassxc.md` |
-| **UTM beta** | 同 id 5.0.5 / build 124 | 同 | **本地无**；已安装版本的 exact GitHub release 有权威 `prerelease` 位 | Team `WDNLXAD4W8` 公证 | **已接**：远端判轨 + beta 一键 + 分轨 changelog |
+| **UTM beta** | 同 id 5.0.5 / build 124 | 同 | **本地无**；已安装版本的 exact GitHub release 有权威 `prerelease` 位 | Team `WDNLXAD4W8` 公证 | **已接**：远端判轨 + 线锚定候选 + 一键 + 分轨 changelog |
 | **kitty nightly** | 同 id 0.48.2 | 同 | **无，版本与 stable 完全相同** | Team `NTY7FVCEKP` 公证 | **D** |
 | **Postman Canary** | — | — | — | — | **死轨**：cask `disabled: true`，版本停在 `11.2.14-canary240621-0734`（2024-06），stable 已 12.25.6 |
 
@@ -305,8 +305,14 @@ VSCodium Insiders 混。两者 cask 分别是 `visual-studio-code@insiders` 和 
    要加规则才判得出来。
 4. **什么都不带**（kitty）—— 真 Pattern D。UTM 曾归在这里，但 2026-09-03 找到一个不靠
    版本号猜测的远端证据：用已安装的纯数字版本查 exact GitHub release，再读上游权威
-   `prerelease` 位。exact tag 不存在或不吻合就 fail closed；判成 beta 后，最新版本、DMG 和
-   changelog 都只从 `prerelease: true` 的记录取。未来正式 5.x 因此仍会被正确判作 stable。
+   `prerelease` 位。exact tag 不存在或应答不再带该字段就 fail closed。
+
+   ⚠️ **但 `prerelease` 位只用来判"这份拷贝是什么"，不能用来决定"该给它什么"。** UTM 的
+   预览不是平行轨，是每条线的前半段：131 条 release 里 78 条是 prerelease，`v4.7.0…v4.7.3`
+   是 Beta 而 `v4.7.4`/`v4.7.5` 转正。把预览装机限制成"只收 prerelease"会在每次转正时静默
+   断供 —— 按真实历史复算出现过 **14 次**，最长约 7.5 个月、错过 4 个正式版；而"取全局最新"
+   又会把 `v4.7.3` 的用户推到还没转正的 `v5.0.5`。正确的候选是
+   `max(装机大版本线的最新 release, 全局最新正式版)`。细节见 `docs/app-audits/com-utmapp-UTM.md`。
 
 还有一条和一键有关：**公证与否和渠道无关，必须逐包验**。同样是 nightly，Freelens/kitty/
 DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** —— 后两者就算接了检测，
@@ -325,7 +331,7 @@ DB Browser 是 Developer ID 公证的，VLC 和 KeePassXC **完全没签名** �
    已有自己的 step 0.6，见上）。
 3. **Freelens / VLC / KeePassXC** —— `detect()` 的版本串规则已加（issue #93 已解决）；
    VLC/KeePassXC 尚未接 recipe，且后两者只能检测不能一键（未签名，见 issue #95）。
-4. **UTM** —— 已接（2026-09-03）：exact-release 远端判轨、stable/beta 一键和分轨 changelog。
+4. **UTM** —— 已接（2026-09-03）：exact-release 远端判轨、线锚定候选、stable/beta 一键和分轨 changelog。
    **kitty** 仍归入 §3 死轨，本地无信号，也没有可按已安装版本反查的固定 nightly release。
 
 ---

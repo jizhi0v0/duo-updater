@@ -38,10 +38,12 @@ public enum Inventory {
     public static func checker(_ settings: Settings) -> UpdateChecker {
         UpdateChecker(
             sources: SourceStack.make(
-                githubToken: settings.githubToken, alcove: settings.alcove),
+                githubToken: settings.githubToken, alcove: settings.alcove,
+                channelStore: ResolvedChannelStore.shared),
             maxConcurrency: settings.maxConcurrency,
             toolbox: ToolboxSource(inventory: ToolboxInventory()),
-            testflight: TestFlightInventory())
+            testflight: TestFlightInventory(),
+            channelStore: ResolvedChannelStore.shared)
     }
 
     /// Why an app argument could not be turned into exactly one install.

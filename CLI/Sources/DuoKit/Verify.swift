@@ -923,10 +923,23 @@ public enum Verify {
             var out: [String: InstalledVersion] = [:]
             for app in AppScanner().scan() {
                 guard let bundleID = app.bundleID else { continue }
-                out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] =
-                    InstalledVersion(
-                        marketing: app.shortVersion, build: app.buildVersion,
-                        vendorBuild: app.vendorBuildVersion)
+                let version = InstalledVersion(
+                    marketing: app.shortVersion, build: app.buildVersion,
+                    vendorBuild: app.vendorBuildVersion)
+                out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] = version
+                // An app whose bundle cannot name its own channel scans as
+                // `.stable` no matter which train it is really on, so a copy of
+                // UTM Beta would file itself under the stable rule's key — where
+                // it is the wrong yardstick — and leave the beta rule with no
+                // cross-check at all. The channel a check PROVED is the honest
+                // key for those; it is only ever an addition, so an app with a
+                // real local signal is untouched.
+                if !app.channelIsAuthoritative,
+                   let proven = ResolvedChannelStore.provenChannelSnapshot(for: app),
+                   proven != app.releaseChannel {
+                    out["vendor:\(bundleID):\(app.releaseChannel.rawValue)"] = nil
+                    out["vendor:\(bundleID):\(proven.rawValue)"] = version
+                }
             }
             box.set(out)
             done.signal()

@@ -21,7 +21,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.83
 
-**UTM Beta now follows the Beta track, installs updates with one click, and shows Beta release notes.** Stable and Beta use the same app identity and plain version numbers, so Beta copies previously looked up the Stable track and silently missed newer previews; each track now keeps its own update history and notes.
+**UTM preview builds now get their own updates, install with one click, and show the matching release notes.** UTM ships previews and final builds under the same app identity and plain version numbers, so a preview copy used to be measured against the final track and silently told it was up to date. It now follows its own line — including the release that line eventually ships as final — and shows the notes that go with it.
 
 ## 0.3.82
 

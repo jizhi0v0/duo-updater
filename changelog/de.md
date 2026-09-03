@@ -4,7 +4,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 ## 0.3.83
 
-**UTM Beta folgt jetzt der Beta-Spur, installiert Updates mit einem Klick und zeigt die Beta-Versionshinweise.** Stable und Beta verwenden dieselbe App-Identität und reine Versionsnummern; deshalb suchten Beta-Installationen bisher auf der Stable-Spur und verpassten neue Vorabversionen stillschweigend. Beide Spuren führen nun ihre eigene Update-Historie und ihre eigenen Hinweise.
+**UTM-Vorschauversionen erhalten jetzt eigene Updates, lassen sich mit einem Klick installieren und zeigen die passenden Versionshinweise.** UTM veröffentlicht Vorschau- und finale Versionen unter derselben App-Identität und mit reinen Versionsnummern; deshalb wurde eine Vorschauversion bisher am finalen Zweig gemessen und stillschweigend als aktuell gemeldet. Sie folgt nun ihrem eigenen Zweig — einschließlich der Version, die dieser Zweig schließlich als finale Fassung veröffentlicht — und zeigt die zugehörigen Hinweise.
 
 ## 0.3.82
 

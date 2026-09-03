@@ -450,22 +450,24 @@ private func matches(
         from: assetList(["App-2.0-linux.tar.gz"]), matching: pattern))
 }
 
-@Test func utmRulesSplitPlainNumericTagsByGitHubReleaseKind() {
+@Test func utmRulesSplitPlainNumericTagsByCandidateScope() {
     let bundleID = "com.utmapp.UTM"
     let stable = rule(bundleID, channel: .stable)
     let beta = rule(bundleID, channel: .beta)
 
     #expect(extract("v4.7.5", bundleID, channel: .stable) == "4.7.5")
     #expect(!stable.usePrereleases)
-    #expect(stable.releaseKind == .any)
+    #expect(stable.candidateScope == .newest)
     #expect(stable.installedTagPrefix == nil)
 
-    // UTM's beta tag is a bare `v5.0.5`, with no suffix for a regex to anchor.
-    // The exact installed tag lookup and GitHub's prerelease bit are therefore
-    // both load-bearing parts of the channel gate.
+    // UTM's beta tag is a bare `v5.0.5`, with no suffix for a regex to anchor,
+    // so the exact-tag lookup is what identifies an install. What that install
+    // may then be OFFERED is a separate question with a separate answer: its
+    // previews graduate into the same numbering, so the rule is line-anchored
+    // rather than confined to prereleases. See `GitHubCandidateScope`.
     #expect(extract("v5.0.5", bundleID, channel: .beta) == "5.0.5")
     #expect(beta.usePrereleases)
-    #expect(beta.releaseKind == .prerelease)
+    #expect(beta.candidateScope == .installedMajorLineOrNewestStable)
     #expect(beta.installedTagPrefix == "v")
     #expect(beta.channel == .beta)
 
@@ -1135,4 +1137,32 @@ private func matches(
     let json = #"[{"tag_name":"v1.0.0","assets":[]}]"#.data(using: .utf8)!
     let all = GitHubReleasesSource.releases(from: json, list: true)
     #expect(GitHubReleasesSource.stableOnly(all).map(\.tag) == ["v1.0.0"])
+}
+
+/// Discovery has no principled tiebreak between two candidate rules, and the
+/// runtime path degrades to the locally detected channel rather than dropping
+/// the app — so this is where a second one has to be caught.
+@Test func atMostOneDiscoverableRulePerBundleID() {
+    let byBundle = Dictionary(grouping: GitHubReleaseRegistry.rules, by: \.bundleID)
+    for (bundleID, rules) in byBundle {
+        let discoverable = rules.filter { $0.installedTagPrefix != nil }
+        #expect(discoverable.count <= 1,
+                "\(bundleID) has \(discoverable.count) rules setting installedTagPrefix; exact-tag discovery can only follow one")
+    }
+}
+
+/// A line-anchored rule cannot work without the exact-tag lookup that tells it
+/// which line the install is on, and a lookup with nothing to anchor would be a
+/// request bought for nothing. Neither half is useful alone.
+@Test func lineAnchoredRulesAndExactTagDiscoveryComeAsAPair() {
+    for rule in GitHubReleaseRegistry.rules {
+        if rule.candidateScope == .installedMajorLineOrNewestStable {
+            #expect(rule.installedTagPrefix != nil,
+                    "\(rule.bundleID) [\(rule.channel.rawValue)] is line-anchored but nothing identifies the installed line")
+        }
+        if rule.installedTagPrefix != nil {
+            #expect(rule.usePrereleases,
+                    "\(rule.bundleID) [\(rule.channel.rawValue)] identifies installs by exact tag, but reads /releases/latest — where the releases it exists to see are invisible")
+        }
+    }
 }

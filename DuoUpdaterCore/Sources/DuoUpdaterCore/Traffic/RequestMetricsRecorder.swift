@@ -49,14 +49,14 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
     ) {
         let events = Self.events(from: metrics, task: task, purpose: purpose)
         guard !events.isEmpty else { return }
-        let store = self.store
-        Task {
-            for event in events {
-                await store.append(DuoEvent(
-                    date: event.responseEnd ?? event.fetchStart ?? Date(),
-                    payload: .request(event)))
-            }
-        }
+        // Synchronous hand-off, not `Task { await store.append(…) }`. This
+        // callback is delivered before the fetch's continuation resumes, so
+        // staging here means the events are recorded and `hasRecorded` is set by
+        // the time the caller gets its bytes back — which is what lets `duo`
+        // check that flag and exit without losing the last request of a run.
+        store.stage(events.map {
+            DuoEvent(date: $0.responseEnd ?? $0.fetchStart ?? Date(), payload: .request($0))
+        })
     }
 
     /// One event per transaction — i.e. per redirect hop, since `URLSession`

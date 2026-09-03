@@ -125,7 +125,7 @@ private final class SelfUpdateInstaller: NSObject, SPUUpdaterDelegate {
             responseBodyBytes: Int64(item.contentLength),
             responseBodyBytesAfterDecoding: Int64(item.contentLength),
             byteSource: .declared, fetchStart: now, responseEnd: now)
-        Task { await EventStore.shared.append(DuoEvent(date: now, payload: .request(event))) }
+        EventStore.shared.stage([DuoEvent(date: now, payload: .request(event))])
     }
 
     private func installIfIdle() {

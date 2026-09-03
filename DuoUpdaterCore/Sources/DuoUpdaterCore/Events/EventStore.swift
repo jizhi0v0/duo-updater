@@ -86,6 +86,11 @@ public actor EventStore {
     /// applied to the process that actually writes most of the events. Hourly is
     /// far cheaper than the fan-out that fills it and still bounds the file.
     private let pruneInterval: Duration
+    /// How long a writer waits for the other one's lock. **Not the default 0**:
+    /// two processes share this file and a writer holding the lock for the length
+    /// of one batch is normal, not an error. A seam so a test can force the
+    /// contention rather than hope for it.
+    private let busyTimeoutMilliseconds: Int
     private var buffer: [DuoEvent] = []
     private var pendingFlush: Task<Void, Never>?
 
@@ -95,6 +100,32 @@ public actor EventStore {
     private let now: @Sendable () -> Date
     private var connection: Connection?
     private var lastPrune: Date?
+
+    /// Events handed over by a delegate callback, before the actor has seen them.
+    ///
+    /// The metrics callback runs on the session's delegate queue and cannot
+    /// `await`, so the obvious shape is `Task { await store.append(…) }` — and
+    /// that loses events. `duo` evaluates `EventStore.hasRecorded` and exits the
+    /// moment its command returns; a Task created but not yet run means the flag
+    /// reads false, the flush is skipped, and the request is never recorded. Even
+    /// with the flag already true, the in-flight tail is dropped.
+    ///
+    /// Staging closes the window: ``stage(_:)`` is synchronous, so by the time
+    /// `data(for:delegate:)` resumes, the events are held here and the flag is
+    /// set. The actor moves them out on its own schedule, and `flush()` drains
+    /// this first so nothing can be left behind.
+    private let staging = Staging()
+
+    private final class Staging: @unchecked Sendable {
+        private let lock = NSLock()
+        private var events: [DuoEvent] = []
+
+        func add(_ incoming: [DuoEvent]) { lock.withLock { events += incoming } }
+
+        func drain() -> [DuoEvent] {
+            lock.withLock { defer { events = [] }; return events }
+        }
+    }
 
     /// Owns the sqlite handle so ARC closes it.
     ///
@@ -123,6 +154,7 @@ public actor EventStore {
         flushEventCount: Int = 64,
         flushDelay: Duration = .seconds(3),
         pruneInterval: Duration = .seconds(3600),
+        busyTimeoutMilliseconds: Int = 5000,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.fileURL = fileURL ?? Self.defaultFileURL()
@@ -131,6 +163,7 @@ public actor EventStore {
         self.flushEventCount = flushEventCount
         self.flushDelay = flushDelay
         self.pruneInterval = pruneInterval
+        self.busyTimeoutMilliseconds = busyTimeoutMilliseconds
         self.now = now
     }
 
@@ -146,6 +179,23 @@ public actor EventStore {
     }
 
     // MARK: - Writing
+
+    /// Hand events over from a context that cannot `await` — a `URLSession`
+    /// delegate callback.
+    ///
+    /// Synchronous on purpose: see ``staging``. Returns once the events are
+    /// safely held and ``hasRecorded`` is set, so a caller that exits
+    /// immediately afterwards still flushes them.
+    public nonisolated func stage(_ events: [DuoEvent]) {
+        guard !events.isEmpty else { return }
+        staging.add(events)
+        Self.markRecorded()
+        Task { await self.absorbStaged() }
+    }
+
+    private func absorbStaged() {
+        for event in staging.drain() { append(event) }
+    }
 
     /// Record one event. Buffered; committed by ``flush()`` or the coalescing
     /// timer, whichever comes first.
@@ -173,7 +223,12 @@ public actor EventStore {
 
     /// Commit now, and wait for it. For the CLI, which exits before the
     /// coalescing timer would fire, and for tests.
+    ///
+    /// Drains ``staging`` first: an event handed over by a delegate callback may
+    /// not have reached the actor yet, and a flush that skipped it would lose
+    /// exactly the last request of a run.
     public func flush() {
+        absorbStaged()
         pendingFlush?.cancel()
         pendingFlush = nil
         commitBuffer()
@@ -189,7 +244,34 @@ public actor EventStore {
         pendingFlush = nil
         buffer = []
         guard let db = open() else { return }
-        exec(db, "DELETE FROM events; DELETE FROM totals; PRAGMA incremental_vacuum;")
+        // One transaction, because the doc comment above promises the two are
+        // cleared together: as three autocommitted statements, a failure between
+        // them leaves totals reporting traffic the events deny — the exact state
+        // this method exists to prevent.
+        //
+        // ⚠️ Not covered by a test, and deliberately not faked: reaching the bad
+        // state needs a crash between two DELETEs. Correct and free, but nothing
+        // will tell you if someone flattens it back into one `exec`.
+        guard exec(db, "BEGIN IMMEDIATE;") else { return }
+        exec(db, "DELETE FROM events;")
+        exec(db, "DELETE FROM totals;")
+        guard exec(db, "COMMIT;") else { exec(db, "ROLLBACK;"); return }
+        exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
+        exec(db, "PRAGMA incremental_vacuum;")
+        lastPrune = nil
+    }
+
+    /// The most events held in memory while commits keep failing. A database
+    /// that stays unwritable must not turn a diagnostic log into a memory leak;
+    /// the oldest go first, and loudly, because silently discarding them is what
+    /// this whole change is meant to stop happening.
+    static let maxBufferedEvents = 10_000
+
+    private func trimBufferIfRunaway() {
+        guard buffer.count > Self.maxBufferedEvents else { return }
+        let dropped = buffer.count - Self.maxBufferedEvents
+        buffer.removeFirst(dropped)
+        Log.app.error("events: database unwritable; dropped \(dropped, privacy: .public) buffered events")
     }
 
     private func scheduleFlush() {
@@ -208,10 +290,22 @@ public actor EventStore {
 
     private func commitBuffer() {
         guard !buffer.isEmpty, let db = open() else { return }
+
+        // The transaction opens *before* the buffer is taken, and the buffer is
+        // only cleared once it has. Written the other way round, a `BEGIN` that
+        // lost the race for the write lock — the other writer holding it past
+        // `busy_timeout`, which a `duo verify` sweep really can do — left the
+        // events nowhere: already dropped from the buffer, never committed. Worse,
+        // the inserts then ran in autocommit, one statement at a time, so an event
+        // could land without its rollup. That is precisely the disagreement the
+        // single transaction exists to rule out.
+        guard exec(db, "BEGIN IMMEDIATE;") else {
+            trimBufferIfRunaway()
+            return   // keep the events; the next flush tries again
+        }
         let batch = buffer
         buffer = []
 
-        exec(db, "BEGIN IMMEDIATE;")
         for event in batch {
             insert(event, into: db)
             // The rollup rides along in the same transaction as the row it
@@ -222,7 +316,12 @@ public actor EventStore {
                 upsertTotal(request, client: event.client, into: db)
             }
         }
-        exec(db, "COMMIT;")
+        guard exec(db, "COMMIT;") else {
+            exec(db, "ROLLBACK;")
+            buffer.insert(contentsOf: batch, at: 0)
+            trimBufferIfRunaway()
+            return
+        }
 
         // After a commit, never inside one, and at most once per `pruneInterval`.
         // A short-lived `duo` therefore sweeps exactly once; a menu-bar app that
@@ -347,9 +446,14 @@ public actor EventStore {
                 step(db, statement)
                 sqlite3_finalize(statement)
             }
+            // Checkpoint before vacuuming: in WAL mode the freed pages sit in the
+            // log until a checkpoint moves them, so without this the file size
+            // this loop is steering by would not move and it would keep deleting.
+            exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
             exec(db, "PRAGMA incremental_vacuum;")
             if changes(db) == 0 { break }   // nothing left to give up
         }
+        exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
         exec(db, "PRAGMA incremental_vacuum;")
     }
 
@@ -364,9 +468,20 @@ public actor EventStore {
         return Int(sqlite3_column_int64(statement, 0))
     }
 
+    /// The whole on-disk footprint, **including the write-ahead log**.
+    ///
+    /// The main file alone under-reports: measured here at 2.6 MB of database
+    /// against 0.95 MB of `-wal`, i.e. 36% low. Enforcing the budget against the
+    /// smaller half means the ceiling that is supposed to stand between a
+    /// diagnostic log and a gigabyte is not the ceiling anyone thinks it is, and
+    /// `duo events --status` would report a size the user could contradict with
+    /// `du`.
     private func fileBytes() -> Int64 {
-        let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
-        return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+        ["", "-wal", "-shm"].reduce(Int64(0)) { total, suffix in
+            let path = fileURL.path + suffix
+            let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+            return total + ((attributes?[.size] as? NSNumber)?.int64Value ?? 0)
+        }
     }
 
     // MARK: - Reading
@@ -514,10 +629,7 @@ public actor EventStore {
         // it has to precede the schema. See the type's doc comment.
         exec(db, "PRAGMA auto_vacuum=INCREMENTAL;")
         exec(db, "PRAGMA journal_mode=WAL;")
-        // Not the default 0. Two processes share this file, and a writer holding
-        // the lock for the length of one batch is normal, not an error — without
-        // a timeout the other side gets SQLITE_BUSY immediately and drops events.
-        exec(db, "PRAGMA busy_timeout=5000;")
+        exec(db, "PRAGMA busy_timeout=\(busyTimeoutMilliseconds);")
         // NORMAL rather than FULL: a diagnostic log is not worth an fsync per
         // commit, and WAL's NORMAL only risks the last transactions on power loss.
         exec(db, "PRAGMA synchronous=NORMAL;")
@@ -650,10 +762,40 @@ public actor EventStore {
         return object is [String: Any]
     }
 
+    /// Where ``shared`` writes.
+    ///
+    /// `DUO_STATE_DIR` wins, as it does for every other store. With no override
+    /// **and a test process**, this goes to a scratch directory rather than to
+    /// Application Support — and that is a fix for something that actually
+    /// happened, not a precaution: after one `make test` the developer's real
+    /// store held 1643 `cli` events, including 252 to `127.0.0.1` from the
+    /// suites' loopback servers and 48 to `example.com`, a host nothing ever
+    /// contacted. Those rows also land in `totals`, which is never pruned, so
+    /// they inflate every later `duo requests` figure permanently — in a log
+    /// whose entire claim is that it records what really happened.
+    ///
+    /// Unlike the other stores, this one is written by *any* code path that makes
+    /// a request, which is most of the suite; that is why the guard lives here
+    /// and not in ``DuoStateDirectory``, whose fallback several tests assert.
     public static func defaultFileURL() -> URL {
-        DuoStateDirectory.base
+        let base = isTestProcess && ProcessInfo.processInfo.environment["DUO_STATE_DIR"] == nil
+            ? FileManager.default.temporaryDirectory
+                .appendingPathComponent("duo-events-tests", isDirectory: true)
+            : DuoStateDirectory.base
+        return base
             .appendingPathComponent("com.duoupdater.app", isDirectory: true)
             .appendingPathComponent("events.sqlite")
+    }
+
+    /// Whether this is a test host. Both runners are named because they differ:
+    /// SwiftPM runs the suite as `swiftpm-testing-helper` with no XCTest
+    /// environment at all (measured), while Xcode uses `xctest` and an
+    /// `.xctest` bundle.
+    static var isTestProcess: Bool {
+        let name = ProcessInfo.processInfo.processName
+        return name == "swiftpm-testing-helper" || name == "xctest"
+            || Bundle.main.bundleURL.pathExtension == "xctest"
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 }
 

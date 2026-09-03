@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Network
+import SQLite3
 @testable import DuoUpdaterCore
 
 /// The event store: what it keeps, what it refuses to conflate, what it throws
@@ -578,6 +579,121 @@ struct EventStoreTests {
             #expect(blob.range(of: Data("SUPERSECRET".utf8)) == nil,
                     "a query string reached the database file")
         }
+    }
+
+    /// The fix for events lost at process exit, pinned at the point that made
+    /// them recoverable.
+    ///
+    /// `duo` reads `EventStore.hasRecorded` the instant its command returns and
+    /// exits. When the delegate callback filed events with `Task { await … }`,
+    /// that flag could still be false — the Task created, not yet run — so the
+    /// flush was skipped and the request was never recorded. Nothing failed and
+    /// nothing logged; the count was simply low.
+    @Test("Events are recorded before the fetch that produced them returns")
+    func eventsAreStagedBeforeTheFetchResumes() async throws {
+        let server = try Server(redirectFirst: false)
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+
+        let session = URLSession(configuration: .ephemeral)
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/feed.xml")!)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        _ = try await session.countedData(for: request, purpose: .versionCheck, store: store)
+
+        // No polling and no sleeping: this is exactly what `duo` gets to see at
+        // exit, so anything asynchronous here is the bug.
+        await store.flush()
+        #expect(await store.coverage().count == 1)
+        #expect(EventStore.hasRecorded)
+    }
+
+    /// A commit that cannot open its transaction must keep the events, not drop
+    /// them — and must not fall back to writing them one autocommitted statement
+    /// at a time, which is how an event lands without its rollup.
+    @Test("A busy database defers the batch instead of losing it")
+    func aBusyDatabaseDefersTheBatch() async throws {
+        let (store, url) = Self.store(flushEventCount: 1)
+        defer { Self.remove(url) }
+
+        // The first append creates the schema, so the blocker below contends with
+        // a real database rather than a missing one.
+        await store.append(Self.event(host: "first.example.com"))
+        await store.flush()
+
+        // A second connection holding the write lock, exactly as a concurrent
+        // `duo verify` sweep would.
+        var blocker: OpaquePointer?
+        #expect(sqlite3_open_v2(url.path, &blocker, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK)
+        defer { sqlite3_close_v2(blocker) }
+        sqlite3_exec(blocker, "PRAGMA busy_timeout=0;", nil, nil, nil)
+        #expect(sqlite3_exec(blocker, "BEGIN IMMEDIATE;", nil, nil, nil) == SQLITE_OK)
+
+        let contended = EventStore(fileURL: url, flushEventCount: 1,
+                                   flushDelay: .milliseconds(10), busyTimeoutMilliseconds: 50)
+        await contended.append(Self.event(host: "deferred.example.com"))
+        await contended.flush()
+        // Nothing landed while the lock was held…
+        #expect(await contended.coverage().count == 1)
+
+        sqlite3_exec(blocker, "ROLLBACK;", nil, nil, nil)
+
+        // …and the event was still there to be written once it was released.
+        await contended.flush()
+        let hosts = await contended.events(EventQuery(limit: 10)).compactMap(\.request?.host)
+        #expect(hosts.contains("deferred.example.com"),
+                "the batch was dropped rather than deferred")
+    }
+
+    /// The test suite must not write into the developer's own store.
+    ///
+    /// It did: after one `make test` the real database held 1643 `cli` events,
+    /// 252 of them to `127.0.0.1` and 48 to `example.com` — a host nothing ever
+    /// contacted — and those rows are in the never-pruned totals for good.
+    @Test("A test process never writes to the real event store")
+    func testProcessesGetTheirOwnStore() {
+        let previous = ProcessInfo.processInfo.environment["DUO_STATE_DIR"]
+        unsetenv("DUO_STATE_DIR")
+        defer { if let previous { setenv("DUO_STATE_DIR", previous, 1) } }
+
+        #expect(EventStore.isTestProcess, "this suite is running in one")
+        let path = EventStore.defaultFileURL().path
+        #expect(!path.contains("Application Support"),
+                "the suite would write into the user's own store at \(path)")
+        // An explicit override still wins — the escape hatch every other store
+        // honours must not be shadowed by the test-process guard.
+        setenv("DUO_STATE_DIR", "/tmp/duo-state-test", 1)
+        #expect(EventStore.defaultFileURL().path
+                == "/tmp/duo-state-test/com.duoupdater.app/events.sqlite")
+    }
+
+    /// The retention ceiling and the reported size must mean the on-disk
+    /// footprint, which in WAL mode is three files.
+    ///
+    /// Measured on the real store while writing this: 2 686 976 bytes of database
+    /// against 951 752 bytes of `-wal`, i.e. the main file alone is 36% low. A
+    /// budget enforced against the smaller half is not the budget the doc comment
+    /// claims, and `duo events --status` would print a size `du` contradicts.
+    @Test("The reported size counts the write-ahead log, not just the database")
+    func sizeIncludesTheWriteAheadLog() async {
+        let (store, url) = Self.store(flushEventCount: 5000, pruneInterval: .seconds(3600))
+        defer { Self.remove(url) }
+        // Two rounds. The first commit is also this process's one prune, which
+        // checkpoints and empties the log; the pages that matter are the ones
+        // written after it, while no further prune is due.
+        await store.append(Self.event(path: "/warmup"))
+        await store.flush()
+        for index in 0..<2000 { await store.append(Self.event(path: "/\(index)")) }
+        await store.flush()
+
+        func bytes(_ suffix: String) -> Int64 {
+            let path = url.deletingLastPathComponent()
+                .appendingPathComponent(url.lastPathComponent + suffix).path
+            let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+            return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+        }
+        let wal = bytes("-wal")
+        #expect(wal > 0, "no write-ahead log to speak of; the case proves nothing")
+        #expect(await store.databaseBytes() >= bytes("") + wal)
     }
 
     /// Metrics are delivered on the session's delegate queue and filed from a

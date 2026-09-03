@@ -53,12 +53,20 @@ public enum Requests {
                 : printSummary(snapshot, client: client, allClients: options.allClients,
                                coverage: coverage)
         case .recent(let limit):
-            let rows = await store.events(
-                EventQuery(kind: "request", client: client, limit: limit))
-            let requests = rows.compactMap { event in event.request.map { (event, $0) } }
-            options.json
-                ? printJSON(requests.map(\.1))
-                : printRecent(requests)
+            let query = EventQuery(kind: "request", client: client, limit: limit)
+            if options.json {
+                // The stored rows, not a re-encode. Sending `RequestEvent` back
+                // through `printJSON` rendered all eleven phase timestamps as
+                // whole-second ISO-8601 — measured: `fetchStart`,
+                // `domainLookupStart` and `connectStart` all printed as the same
+                // instant, so every interval a consumer computed was zero. It also
+                // made this command and `duo events` disagree about the same
+                // event. One shape, straight from the database.
+                print("[" + (await store.rawRows(query)).map(\.json).joined(separator: ",\n") + "]")
+            } else {
+                let rows = await store.events(query)
+                printRecent(rows.compactMap { event in event.request.map { (event, $0) } })
+            }
         case .reset:
             break   // handled above
         }

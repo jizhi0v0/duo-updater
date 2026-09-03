@@ -180,14 +180,9 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         let events = RequestMetricsRecorder.events(
             from: metrics, task: task, purpose: ledgerPurpose)
         guard !events.isEmpty else { return }
-        let store = self.store
-        Task {
-            for event in events {
-                await store.append(DuoEvent(
-                    date: event.responseEnd ?? event.fetchStart ?? Date(),
-                    payload: .request(event)))
-            }
-        }
+        store.stage(events.map {
+            DuoEvent(date: $0.responseEnd ?? $0.fetchStart ?? Date(), payload: .request($0))
+        })
     }
 
     /// Download `url`, returning the location of the downloaded file on disk.

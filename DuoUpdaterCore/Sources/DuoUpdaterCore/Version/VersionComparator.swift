@@ -65,6 +65,21 @@ public enum VersionComparator {
     ///
     /// This is `RestartStandoff.decide`'s rule, which was the one place in the
     /// codebase that had it right, lifted so everything else can share it.
+    ///
+    /// "Agree" means `compare` calls them equal, not that the strings match. The
+    /// two sides of a comparison are read at different moments, and often from
+    /// different places — a feed and an `Info.plist`, a persisted offer and the
+    /// current one — and a vendor who respells a release between them (`v1.2.3`
+    /// then `1.2.3`, `1.0` then `1.0.0`, `1.02` then `1.2`) makes the pair differ
+    /// as strings while naming one version. Under raw `==` such a pair was "not
+    /// newer" and "not the same" at once, and `hasReached` — the disjunction of
+    /// the two — could stay false for a swap that had plainly landed.
+    ///
+    /// The tokenizer's separator class is wide: `.` `-` `_` `+` space and
+    /// parentheses are one separator, so `1.0 (123)` and `1.0.123` are the same
+    /// build here. That is deliberate — macOS writes builds both ways — but it is
+    /// the widest thing this call now accepts, so it is pinned in the tests
+    /// rather than left for someone to discover.
     public static func isSame(_ lhs: VersionSide, as rhs: VersionSide) -> Bool {
         let comparable: [(String, String)] = [
             (lhs.marketing, rhs.marketing),
@@ -74,7 +89,28 @@ public enum VersionComparator {
             return (mine, theirs)
         }
         guard !comparable.isEmpty else { return false }
-        return comparable.allSatisfy { $0.0 == $0.1 }
+        return comparable.allSatisfy { compare($0.0, $0.1) == .orderedSame }
+    }
+
+    /// Same as `isSame(_:as:)`, but for a `lhs` whose `build` may not describe
+    /// `rhs`'s namespace at all — `AppScanner.buildVersionIsOverridden`'s apps
+    /// (Xcode, 豆包输入法) store a vendor build id in that field, not
+    /// `CFBundleVersion`, so comparing it against a package/feed build is
+    /// comparing two unrelated counters. When `buildIsDerived` is true, `lhs`'s
+    /// build is discarded before the comparison, so agreement falls back to
+    /// marketing alone — the only namespace both sides are known to share.
+    ///
+    /// Every caller that reads a scanner-derived build and compares it against
+    /// an offer's `VersionSide` needs this, not just `PackageRestartState`: a
+    /// plain `isSame` call requires ALL fields both sides carry to agree, so a
+    /// landed derived-build app (matching marketing, incomparable build) reads
+    /// as "not landed" — the same false negative `PackageRestartState` used to
+    /// produce before it gained this guard (see #236 / #251).
+    public static func isSame(
+        _ lhs: VersionSide, as rhs: VersionSide, buildIsDerived: Bool
+    ) -> Bool {
+        guard buildIsDerived else { return isSame(lhs, as: rhs) }
+        return isSame(VersionSide(marketing: lhs.marketing), as: rhs)
     }
 
     /// True when `disk` has reached `target` — the landing test for a swap we are

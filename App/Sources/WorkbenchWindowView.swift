@@ -502,10 +502,18 @@ struct WorkbenchWindowView: View {
             ForEach(filteredApps) { result in
                 WorkbenchSidebarRow(
                     result: result,
+                    checkAgain: { Task { await model.retry(result) } },
+                    isChecking: model.installing[result.id] != nil,
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
-                    needsRestart: model.needsRestart.contains(result.id),
-                    runningVersion: model.restartFromSide(result.id))
+                    versionLineState: model.versionLineState(for: result),
+                    showsRuntime: model.prefs.showRuntimeTags,
+                    isIgnored: model.prefs.isIgnored(result.app),
+                    isVersionSkipped: model.prefs.isVersionSkipped(
+                        result.app, version: result.remote?.versionSide),
+                    toggleIgnore: { model.toggleIgnore(result) },
+                    skipVersion: { model.skipThisVersion(result) },
+                    clearSkip: { model.prefs.clearSkip(result.app) })
                     .tag(result.id)
             }
         }
@@ -525,10 +533,18 @@ struct WorkbenchWindowView: View {
             ForEach(brewCasks) { result in
                 WorkbenchSidebarRow(
                     result: result,
+                    checkAgain: { Task { await model.retry(result) } },
+                    isChecking: model.installing[result.id] != nil,
                     isSelected: result.id == selection,
                     isRunning: model.isRunning(result),
-                    needsRestart: model.needsRestart.contains(result.id),
-                    runningVersion: model.restartFromSide(result.id))
+                    versionLineState: model.versionLineState(for: result),
+                    showsRuntime: model.prefs.showRuntimeTags,
+                    isIgnored: model.prefs.isIgnored(result.app),
+                    isVersionSkipped: model.prefs.isVersionSkipped(
+                        result.app, version: result.remote?.versionSide),
+                    toggleIgnore: { model.toggleIgnore(result) },
+                    skipVersion: { model.skipThisVersion(result) },
+                    clearSkip: { model.prefs.clearSkip(result.app) })
                     .tag(result.id)
             }
             ForEach(model.brewFormulae) { formula in
@@ -549,155 +565,6 @@ struct WorkbenchWindowView: View {
             ReleaseNotesPane(result: result, model: model)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-}
-
-// MARK: - Workbench action
-
-/// The selected app's primary action, surfaced in the workbench detail header so a
-/// user reading an update's release notes can act on it right there — instead of
-/// having to reopen the menu-bar popover. A deliberately focused mirror of the
-/// popover's `trailing`: it covers the common, safe one-click states (install
-/// progress, Update, Relaunch) and otherwise stays out of the way, leaving
-/// the gated cases (major upgrades, region locks) to the popover's richer affordances.
-private struct WorkbenchActionView: View {
-    let result: UpdateResult
-    @Bindable var model: AppListModel
-
-    private var stage: InstallStage? { model.installing[result.id] }
-
-    var body: some View {
-        if let stage {
-            installProgress(stage)
-        } else if model.relaunching.contains(result.id) {
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text("Relaunching…").font(.callout).foregroundStyle(.secondary)
-            }
-        } else if model.awaitingQuitConfirm[result.id] != nil {
-            Button("Relaunch") { model.confirmQuit(result.id, proceed: true) }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
-                .help("Quit the app to finish installing the update, then reopen it")
-        } else if model.pendingBatchRestart[result.id] != nil {
-            Button("Relaunch now") { Task { await model.restart(result) } }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-                .help("The update is installed; Update All is waiting to relaunch apps until the batch finishes")
-        } else if let staged = model.actionableStaged(result) {
-            Button("Relaunch") { Task { await model.relaunchStagedUpdate(result) } }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-                .help("\(result.app.name) already downloaded \(result.stagedRelaunchLine(staged).to) — relaunch to apply it")
-        } else if model.needsRestart.contains(result.id) && !result.hasUpdate {
-            Button("Relaunch") { Task { await model.restart(result) } }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-                .help("Running an older build — relaunch to apply the installed update")
-        } else if model.isActionableUpdate(result) {
-            updateAction
-        }
-    }
-
-    /// The install action for an actionable update, mirroring the popover's routing
-    /// for the one-click-safe cases. Major upgrades and region/compat-gated App Store
-    /// apps are intentionally NOT one-click here — they keep their explanatory
-    /// popover affordances in the menu bar — so we show a hint that points there.
-    @ViewBuilder
-    private var updateAction: some View {
-        if model.defersToSelfUpdater(result) {
-            // Running self-updating app + "defer while running" policy: open
-            // its own update path rather than swapping the bundle under it.
-            Button("Open") { model.openSelfUpdater(result) }
-                .buttonStyle(.bordered)
-                .help("\(result.app.name) is running — open it so its own updater applies the update. Quit it, or pick “Always replace” in Settings, to install directly.")
-        } else if result.isMajorUpgrade {
-            // License-boundary warning lives in the popover; don't one-click it here.
-            Label("Major update", systemImage: "exclamationmark.triangle.fill")
-                .font(.callout).foregroundStyle(.orange)
-                .help("Major version upgrade — review and install it from the menu-bar popover")
-        } else if model.canAutoInstall(result) {
-            Button("Update \(result.remote?.displayVersion ?? "")") { Task { await model.install(result) } }
-                .buttonStyle(.borderedProminent)
-                .help("Download and install \(result.app.name) \(result.remote?.displayVersion ?? "")")
-        } else if model.requiresInstaller(result) {
-            // Already downloaded → "Install" re-opens that exact package instead of
-            // fetching it again. See `AppListModel.stagedPackage(for:)`.
-            if let staged = model.stagedPackage(for: result) {
-                Button("Install") { Task { await model.openStagedPackage(result) } }
-                    .buttonStyle(.borderedProminent)
-                    .help("\(staged.url.lastPathComponent) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
-            } else {
-                Button("Update") { Task { await model.install(result) } }
-                    .buttonStyle(.bordered)
-                    .help("Downloads the official installer and opens it (asks for admin)")
-            }
-        } else if let info = result.remote?.appStore, !info.isRegionMismatch, !info.isLatestMacIncompatible {
-            // A wrapped iPhone/iPad app on the mas route: mas has no Mac-store entry
-            // for it, so this is a redirect rather than a one-click. Conditioned on
-            // the route, not inferred from it — this branch is reached whenever
-            // `canAutoInstall` is false, which has other causes (a declined
-            // elevation), and on the incremental route these do install from here.
-            // A Mac App Store app lands here when the privileged helper isn't
-            // approved yet — still an installed app with a pending update, so it
-            // says **Update** (what the store calls it), never "Get".
-            Button(storeManagedHere ? String(localized: "App Store") : String(localized: "Update")) {
-                if let url = info.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
-            }
-            .buttonStyle(.bordered)
-            .help(storeManagedHere
-                  ? String(localized: "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
-                  : appStoreRedirectHelp)
-        } else if let url = result.remote?.pageURL {
-            Button("Open page") { NSWorkspace.shared.open(url) }
-                .buttonStyle(.bordered)
-                .help("Open the official download page")
-        }
-    }
-
-    /// Why this row hands off to the App Store instead of installing in place —
-    /// same reasoning as the popover's: approving the helper is the one lever the
-    /// user has, so say so when that's what's missing.
-    /// This row hands off to the App Store because the store app is the only
-    /// thing that can update it — as opposed to handing off because a permission
-    /// is missing, which is what every other path through this branch means.
-    private var storeManagedHere: Bool {
-        result.app.isiOSAppOnMac && model.appStoreStrategyIsFullDownload
-    }
-
-    private var appStoreRedirectHelp: String {
-        if !model.helperEnabled {
-            return String(localized: "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click.")
-        }
-        return String(localized: "Update \(result.app.name) in the App Store")
-    }
-
-    @ViewBuilder
-    private func installProgress(_ stage: InstallStage) -> some View {
-        HStack(spacing: 8) {
-            if case .downloading(let f) = stage {
-                ProgressView(value: f).frame(width: 80).controlSize(.small)
-                Text("\(Int(f * 100))%")
-                    .font(.callout).foregroundStyle(.secondary)
-                    .monospacedDigit().frame(width: 40, alignment: .trailing)
-            } else {
-                ProgressView().controlSize(.small)
-                Text(stageLabel(stage)).font(.callout).foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func stageLabel(_ stage: InstallStage) -> String {
-        switch stage {
-        case .queued: return String(localized: "Queued")
-        case .checking: return String(localized: "Checking")
-        case .downloading(let f): return String(localized: "\(Int(f * 100))%")
-        case .verifyingSignature, .verifyingCodeSignature: return String(localized: "Verifying")
-        case .extracting: return String(localized: "Extracting")
-        case .installing: return String(localized: "Installing")
-        case .runningCommand: return String(localized: "Installing")
-        case .done: return String(localized: "Installed")
-        }
     }
 }
 
@@ -743,6 +610,12 @@ private struct SplitViewAutosave: NSViewRepresentable {
 
 private struct WorkbenchSidebarRow: View {
     let result: UpdateResult
+    /// Re-check just this app, and whether it is busy already. Passed in as a
+    /// closure and a flag rather than the model itself: this row is deliberately
+    /// value-typed — every one of ~145 of them re-renders on any model change if
+    /// it observes one — and these are the only two things the menu needs.
+    let checkAgain: () -> Void
+    let isChecking: Bool
     /// Whether this row is the selected one. The selection highlight is blue, and so
     /// is the update tint — so a selected update row was blue-on-blue (unreadable).
     /// When selected we render the version line in the emphasized foreground (white
@@ -750,14 +623,50 @@ private struct WorkbenchSidebarRow: View {
     let isSelected: Bool
     /// Whether the app currently has a running process — shows the green live dot.
     let isRunning: Bool
-    /// Self-updated on disk, waiting for a relaunch to take effect (the "Relaunch"
-    /// state). When set, the subtitle shows running → installed instead of a bare
-    /// version, so the row says what the restart will land.
-    let needsRestart: Bool
-    /// The running side of a relaunch line, still in parts so it can be formatted
-    /// against the on-disk side rather than in isolation. nil when not lagging an
-    /// on-disk build.
-    let runningVersion: UpdateResult.VersionSide?
+    /// The one version-line fact this row should explain, in the same priority
+    /// order the popover reads (`AppListModel.versionLineState(for:)` /
+    /// `RowVersionLine`): a staged self-update relaunch, a pending restart (either
+    /// confirmed or still awaiting the batch's post-install sweep), a lagging-feed
+    /// downgrade note, or the plain status line. Passed in rather than recomputed
+    /// from `needsRestart`/`pendingBatchRestart` here so this row can't drift into
+    /// its own ladder again (#289) — it stays exactly what the popover and the
+    /// action button already agreed on.
+    let versionLineState: RowVersionLineState
+    /// Whether to show the runtime chip (Electron / Tauri / native / …).
+    let showsRuntime: Bool
+    /// The user's two verdicts, and the ways back out of them. Passed in rather
+    /// than read from a model for the same reason everything else here is: this row
+    /// stays renderable without one.
+    let isIgnored: Bool
+    let isVersionSkipped: Bool
+    let toggleIgnore: () -> Void
+    let skipVersion: () -> Void
+    let clearSkip: () -> Void
+
+    /// Whether the sidebar row has room for the runtime symbol.
+    ///
+    /// Measured against the sidebar's **narrowest** setting (260pt, the minimum
+    /// `navigationSplitViewColumnWidth` allows) rather than its current one. The
+    /// column is user-resizable and the name already truncates at one line, so a
+    /// symbol sized to a wide sidebar would silently start eating names the moment
+    /// someone dragged the divider left — a fixed floor cannot. `ViewThatFits`
+    /// is no help here for the same reason: a truncating `Text` reports a tiny
+    /// minimum width, so every candidate "fits".
+    private var runtimeTag: AppRuntime? {
+        guard showsRuntime, let runtime = result.app.runtime else { return nil }
+        var used = NSAttributedString(
+            string: result.app.name,
+            attributes: [.font: NSFont.preferredFont(forTextStyle: .body)]
+        ).size().width
+        if isRunning { used += 5 + 6 }
+        let channel = ChannelTag.measuredWidth(for: result.app.releaseChannel)
+        if channel > 0 { used += channel + 6 }
+        return used + RuntimeTag.width() + 6 <= Self.narrowestNameColumn ? runtime : nil
+    }
+
+    /// 260pt minimum column, less the list's own insets (8 + 8), the 22pt icon and
+    /// the 8pt gap after it.
+    private static let narrowestNameColumn: CGFloat = 260 - 16 - 22 - 8
 
     var body: some View {
         HStack(spacing: 8) {
@@ -766,8 +675,14 @@ private struct WorkbenchSidebarRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(result.app.name).font(.body).lineLimit(1)
-                    if isRunning { RunningIndicator(size: 5) }
+                    if isRunning {
+                        RunningIndicator(size: 5).offset(y: RunningIndicator.opticalNudge)
+                    }
                     ChannelTag(channel: result.app.releaseChannel)
+                    if let runtimeTag {
+                        RuntimeTag(runtime: runtimeTag, frameworks: result.app.linkedFrameworks,
+                                   overHighlight: isSelected, interactive: false)
+                    }
                 }
                 subtitle
             }
@@ -784,38 +699,91 @@ private struct WorkbenchSidebarRow: View {
             // reason: the latter blocks the main thread until the app has finished
             // launching.
             Button("Open") { Task { await AppRestarter.launchApp(result.app.path) } }
+            // Ask about this one app, through the same entry point as the retry on
+            // a failed row in the popover. Besides re-asking the source it re-reads
+            // the app from disk, which is what corrects a stale running dot — some
+            // apps never post one of the NSWorkspace notifications that set is
+            // built from (issue #247).
+            Button("Check Again", action: checkAgain).disabled(isChecking)
+            // Skip and Ignore are here because this window SAYS they are: a skipped
+            // or ignored row draws "Skipped"/"Ignored" with the popover's own help
+            // text, which tells the user to right-click to undo it. That menu did
+            // not exist here, so the instruction was dead in all seven languages and
+            // the only way out was to reopen the menu bar. Same actions, same
+            // wording, same model calls as the popover's row menu.
+            Divider()
+            if result.hasUpdate {
+                let offered = result.remote?.displayVersion ?? String(localized: "this version")
+                if isVersionSkipped {
+                    Button("Don’t skip \(offered)", action: clearSkip)
+                } else {
+                    Button("Skip \(offered)", action: skipVersion)
+                }
+            }
+            Button(isIgnored
+                   ? String(localized: "Stop ignoring \(result.app.name)")
+                   : String(localized: "Ignore \(result.app.name)"),
+                   action: toggleIgnore)
         }
     }
 
     @ViewBuilder
     private var subtitle: some View {
-        if case .updateAvailable(let latest) = result.status {
-            // Same-marketing build bump (JetBrains EAP, Surge): show the builds so it
-            // doesn't read as a no-op "2026.2 → 2026.2".
-            let bump = result.buildBump(latest: latest)
-            let from = bump.map { "\(result.installedDisplay ?? "?") (\($0.installed))" }
-                ?? (result.installedDisplay ?? "?")
-            let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
-            Text("\(from) → \(to)")
+        switch versionLineState {
+        case .stagedRelaunch(let staged):
+            // The app's own updater already has the latest downloaded; Relaunch
+            // just swaps to it. `actionableStaged` (upstream of this state)
+            // guarantees the staged build is current, so there's nothing newer to
+            // note here — mirrors the popover's `stagedVersionLine`.
+            let line = result.stagedRelaunchLine(staged)
+            Text("\(line.from) → \(line.to)")
                 .font(.caption)
-                // White over the blue highlight when selected; blue tint otherwise.
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
                 .lineLimit(1)
-        } else if needsRestart, let running = runningVersion {
+                .minimumScaleFactor(0.75)
+        case .restart(let from):
             // Self-updated on disk: show running version → the version on disk, so
             // "Relaunch" reads as a real change. Formatted as a pair by
             // `relaunchLine`, which keeps the build numbers only when the marketing
             // versions cannot tell the two apart — the same rule the update subtitle
-            // above gets from `buildBump`.
-            let line = UpdateResult.relaunchLine(from: running, to: result.relaunchTargetSide)
+            // below gets from `buildBump`. `from` covers both a confirmed restart
+            // and a batch install still awaiting the post-install process sweep
+            // (#289) — either way the Restart button below needs this line to
+            // agree with it instead of falling back to a bare "v<version>".
+            let line = UpdateResult.relaunchLine(from: from, to: result.relaunchTargetSide)
             Text("\(line.from) → \(line.to)")
                 .font(.caption)
                 .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-        } else {
-            Text("v\(result.installedDisplay ?? "?")")
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        case .downgrade(let older):
+            // Vendor's latest is *older* than what's installed — action-less, so
+            // muted like the popover's `downgradeVersionLine`. No pending relaunch
+            // outranks it here, or `versionLineState` would have returned one of
+            // the cases above instead.
+            let installed = result.app.shortVersion ?? "?"
+            Text("\(installed) ↓ \(older)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        case .status:
+            if case .updateAvailable(let latest) = result.status {
+                // Same-marketing build bump (JetBrains EAP, Surge): show the builds so it
+                // doesn't read as a no-op "2026.2 → 2026.2".
+                let bump = result.buildBump(latest: latest)
+                let from = bump.map { "\(result.installedDisplay ?? "?") (\($0.installed))" }
+                    ?? (result.installedDisplay ?? "?")
+                let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
+                Text("\(from) → \(to)")
+                    .font(.caption)
+                    // White over the blue highlight when selected; blue tint otherwise.
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
+                    .lineLimit(1)
+            } else {
+                Text("v\(result.installedDisplay ?? "?")")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
         }
     }
 }
@@ -1045,6 +1013,13 @@ private struct DetailHeader: View {
                         Text(result.app.name).font(.title2).bold()
                         if model.isRunning(result) { RunningIndicator(size: 7) }
                         ChannelTag(channel: result.app.releaseChannel)
+                        // Sized up to sit beside a `.title2` name rather than a
+                        // list row's body text — the marks are drawn in a unit box,
+                        // so they scale without losing their stroke ratio.
+                        if model.prefs.showRuntimeTags, let runtime = result.app.runtime {
+                            RuntimeTag(runtime: runtime, bundle: result.app.path,
+                                       frameworks: result.app.linkedFrameworks, size: 18)
+                        }
                     }
                     versionLine
                 }
@@ -1052,7 +1027,20 @@ private struct DetailHeader: View {
                 // The contextual primary action (Update / Relaunch / Get),
                 // so an update can be acted on right here while its notes are open —
                 // no trip back to the menu-bar popover.
-                WorkbenchActionView(result: result, model: model)
+                WorkbenchRowAction(
+                    state: model.rowState(for: result),
+                    result: result,
+                    actions: RowActions.live(
+                        install: { Task { await model.install(result) } },
+                        openStagedPackage: { Task { await model.openStagedPackage(result) } },
+                        retry: { Task { await model.retry(result) } },
+                        restart: { Task { await model.restart(result) } },
+                        relaunchStaged: { Task { await model.relaunchStagedUpdate(result) } },
+                        confirmQuit: { model.confirmQuit(result.id, proceed: true) },
+                        openSelfUpdater: { model.openSelfUpdater(result) },
+                        openToolbox: { model.openToolbox() },
+                        openTestFlight: { model.openTestFlight() }),
+                    helperEnabled: model.helperEnabled)
                 if let url = changelogURL {
                     Link(destination: url) {
                         Label("Open page", systemImage: "safari")
@@ -1106,16 +1094,39 @@ private struct DetailHeader: View {
 
     @ViewBuilder
     private var versionLine: some View {
-        if case .updateAvailable(let latest) = result.status {
-            let bump = result.buildBump(latest: latest)
-            let from = bump.map { "\(result.installedDisplay ?? "?") (\($0.installed))" }
-                ?? (result.installedDisplay ?? "?")
-            let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
-            Text("\(from)  →  \(to)")
+        // Same fact, same priority order as the popover and the sidebar row
+        // (`AppListModel.versionLineState(for:)` / `RowVersionLine`) — this pane
+        // used to run its own two-branch ladder with no downgrade note and no
+        // pending-batch-restart branch, so it could show "up to date" on a row the
+        // action button beside it already offered Restart for (#289).
+        switch model.versionLineState(for: result) {
+        case .stagedRelaunch(let staged):
+            let line = result.stagedRelaunchLine(staged)
+            Text("\(line.from)  →  \(line.to)")
                 .font(.callout).foregroundStyle(.tint)
-        } else {
-            Text("v\(result.installedDisplay ?? "?") · up to date")
+                .lineLimit(1).minimumScaleFactor(0.75)
+        case .restart(let from):
+            let line = UpdateResult.relaunchLine(from: from, to: result.relaunchTargetSide)
+            Text("\(line.from)  →  \(line.to)")
+                .font(.callout).foregroundStyle(.orange)
+                .lineLimit(1).minimumScaleFactor(0.75)
+        case .downgrade(let older):
+            let installed = result.app.shortVersion ?? "?"
+            Text("\(installed)  ↓  \(older)")
                 .font(.callout).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.75)
+        case .status:
+            if case .updateAvailable(let latest) = result.status {
+                let bump = result.buildBump(latest: latest)
+                let from = bump.map { "\(result.installedDisplay ?? "?") (\($0.installed))" }
+                    ?? (result.installedDisplay ?? "?")
+                let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
+                Text("\(from)  →  \(to)")
+                    .font(.callout).foregroundStyle(.tint)
+            } else {
+                Text("v\(result.installedDisplay ?? "?") · up to date")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -1936,6 +1947,17 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     /// taps) should not be able to point it anywhere it likes.
     private let originHost: String?
 
+    /// Whether this pane has ever finished a navigation successfully. #292: a
+    /// rejection that happens before the very first load ever commits leaves a
+    /// permanently blank pane, indistinguishable from "this app has no notes" —
+    /// that is the case `reject(_:url:reason:isMainFrame:)` shows a message for.
+    /// A rejection that happens later, after the reader has already shown real
+    /// content (a page that redirects itself mid-session), leaves that content
+    /// alone instead: replacing something the user is reading with an error
+    /// panel over one blocked navigation would be a worse outcome than the
+    /// rejection itself.
+    private var hasCommittedFirstLoad = false
+
     init(origin: URL) {
         self.originHost = origin.host
         super.init()
@@ -1947,26 +1969,45 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
         // Only a link the *user* clicked in the *main* frame is redirected. Everything
-        // else is left alone on purpose:
+        // else is left alone by the outbound-link rule:
         //   • sub-frames — `decidePolicyFor` fires for iframes too, and a changelog
         //     page that embeds a video or a third-party widget would otherwise have
         //     every frame cancelled and thrown at the browser, one window each;
         //   • server-side redirects and SPA routing — a vendor moving
-        //     docs.x.com → x.com/docs is normal, and cancelling it just blanks the
-        //     pane. The URL we start from comes from our own recipe registry, not
-        //     from the page, so this is a usability boundary, not a trust boundary.
-        // One thing here IS a trust boundary: the scheme. `ChangelogURLPolicy` only
-        // vets the URL we start from, and a vendor page that redirects itself to
-        // `http://` would land cleartext content in this in-process web view
-        // anyway — which is the whole thing that policy exists to stop. Cross-host
-        // https redirects stay allowed; only the downgrade is refused.
+        //     docs.x.com → x.com/docs is normal, so cross-host HTTPS redirects stay
+        //     allowed when the destination passes `ChangelogURLPolicy`.
+        //
+        // The policy IS reapplied to every main-frame navigation, including a
+        // server redirect. Vetting only the recipe's starting URL let an accepted
+        // vendor URL redirect to an IP literal or a reserved local hostname and
+        // load an origin the policy would have refused at the door. This remains
+        // a structural gate — it cannot see which address an ordinary DNS name
+        // resolves to — but the URL the user lands on now gets the same check as
+        // the URL we start from.
+        let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+
         if let url = navigationAction.request.url,
            url.scheme?.lowercased() == "http" {
+            // Same category `ChangelogURLPolicy.rejectionReason` would report for
+            // this URL (`.notHTTPS`) — reused rather than given its own case so
+            // there is exactly one place that owns the log/display text for "this
+            // navigation isn't https". This check exists as its own branch
+            // because it is broader than the policy check below: it also catches
+            // a sub-frame loading http (mixed content), where `isMainFrame` would
+            // otherwise let it through.
+            reject(webView, url: url, reason: .notHTTPS, isMainFrame: isMainFrame)
+            decisionHandler(.cancel); return
+        }
+
+        if isMainFrame,
+           let url = navigationAction.request.url,
+           let reason = ChangelogURLPolicy.rejectionReason(url) {
+            reject(webView, url: url, reason: reason, isMainFrame: isMainFrame)
             decisionHandler(.cancel); return
         }
 
         guard navigationAction.navigationType == .linkActivated,
-              navigationAction.targetFrame?.isMainFrame ?? true,
+              isMainFrame,
               let url = navigationAction.request.url,
               url.host != originHost,
               url.scheme == "https" || url.scheme == "http"
@@ -1983,6 +2024,75 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     func cancel() {
         watchdog?.cancel()
         watchdog = nil
+    }
+
+    /// #292: `decidePolicyFor` used to cancel a rejected navigation with nothing
+    /// else — no log line, and if the rejection landed on the pane's very first
+    /// (still-uncommitted) navigation, a permanently blank pane that reads exactly
+    /// like "this app has no changelog". Every rejection is now logged with the
+    /// URL and the reason, and — only in that blank-forever case — the pane shows
+    /// the reason instead of staying blank.
+    ///
+    /// `.error`, not `.info`: per `Log`'s own doc comment, `.info` is memory-only
+    /// for a third-party subsystem and would be gone by the time anyone went
+    /// looking for why a changelog pane went dark.
+    private func reject(_ webView: WKWebView, url: URL, reason: ChangelogURLPolicy.RejectionReason, isMainFrame: Bool) {
+        Log.changelog.error("webview navigation blocked (\(reason.logToken, privacy: .public)) mainFrame=\(isMainFrame ? "yes" : "no", privacy: .public) url=\(Redactor.url(url), privacy: .public) origin=\(self.originHost ?? "?", privacy: .public)")
+        guard isMainFrame, !hasCommittedFirstLoad else { return }
+        showBlockedNotice(webView, reason: reason)
+    }
+
+    /// Puts `reason` on screen in place of a blank pane. `WorkbenchWindowView`'s
+    /// SwiftUI layer already has a `ContentUnavailableView` for "nothing to show"
+    /// (`ReleaseNotesPane.emptyNotes`, `FormulaDetail.noNotes`), but this
+    /// `WKWebView` is owned by `WebViewCache` and mounted through a plain
+    /// `NSViewRepresentable` that only ever creates it — there is no channel from
+    /// here back to that SwiftUI state without threading a binding through the
+    /// cache for every call site that can hand out a cached view. Loading a small
+    /// HTML page directly into the same pane keeps the fix self-contained to this
+    /// type, at the cost of a hand-rolled (not SwiftUI) message.
+    ///
+    /// #299: both strings below now go through `String(localized:)` — the title
+    /// here, and `reason.localizedDescription` in `ChangelogURLPolicy`. Neither
+    /// ever carries interpolated URL content (see `RejectionReason`'s doc
+    /// comment), but a *translation* of a fixed category can still contain `&`,
+    /// `<`, `>`, or a quote mark — French and German punctuation both do — so the
+    /// escaping below now covers all five HTML-significant characters, not just
+    /// the two an English-only literal happened to need.
+    ///
+    /// `check_localizable_keys.py` cannot see either string: it diffs
+    /// `Localizable.xcstrings` against the keys `SWIFT_EMIT_LOC_STRINGS` recorded
+    /// for `String(localized:)` call sites, and both calls here are ordinary call
+    /// sites like any other — so this is not a blind spot in that checker, it
+    /// would have caught the original English literal too had it gone through
+    /// `String(localized:)` in the first place. The actual blind spot was this
+    /// function loading a *hand-built HTML string* instead of calling
+    /// `String(localized:)` at all; nothing short of grepping `WKWebView`-bound
+    /// strings for the absence of `String(localized:)` would catch a *future*
+    /// literal slipped in here the same way, and that is a much noisier check to
+    /// add than the value of catching one call site.
+    private func showBlockedNotice(_ webView: WKWebView, reason: ChangelogURLPolicy.RejectionReason) {
+        let title = ChangelogURLPolicy.htmlEscaped(String(localized: "Can’t show this page safely"))
+        let body = ChangelogURLPolicy.htmlEscaped(reason.localizedDescription)
+        let html = """
+        <!doctype html><html><head><meta charset="utf-8">
+        <style>
+          :root { color-scheme: light dark; }
+          body {
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; text-align: center;
+            font-family: -apple-system, sans-serif;
+            background: Canvas; color: GrayText;
+          }
+          .box { max-width: 320px; padding: 24px; }
+          .title { color: CanvasText; font-weight: 600; margin-bottom: 6px; }
+        </style></head>
+        <body><div class="box">
+          <div class="title">\(title)</div>
+          <div>\(body)</div>
+        </div></body></html>
+        """
+        webView.loadHTMLString(html, baseURL: nil)
     }
 
     private func armWatchdog(_ webView: WKWebView) {
@@ -2013,6 +2123,7 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         cancel()
         autoReloads = 0   // a clean load earns back the reload budget
+        hasCommittedFirstLoad = true
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

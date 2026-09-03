@@ -52,6 +52,30 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
 - Intel: manifest 虽提供 `macos-x86_64.dmg`，当前 VendorInstallSpec 不支持按运行架构
   分支选择 URL，因此本次不宣称 Intel 一键安装覆盖。
 
+## 运行时（GPUI，不是 Tauri）
+
+Longbridge 桌面端用 **GPUI** 画界面 —— 和 Zed 同一套渲染框架，直接从 Zed 仓库拉：
+
+```
+~/.cargo/git/checkouts/zed-a70e2ad075855582/6ae5231
+~/.cargo/git/checkouts/gpui-component-95ce574d8a0da8b8/20a1bb4   # github.com/longbridge/gpui-component
+```
+
+`gpui-component`（那套 UI 组件库）是长桥自己维护的开源项目。
+
+**它同时内嵌了一个改名的 wry 分叉**，只用于承载局部网页内容，不是主界面：
+
+```
+~/.cargo/registry/src/rsproxy.cn-…/lb-wry-0.53.3/src/wkwebview/…
+```
+
+`0.19.1` 实包里 `strings` 计数：`gpui` 2140 处、`zed` 1238 处、**`tauri` 0 处**。
+
+这正是 issue #206 的根因。旧的 Tauri 判据是「cargo-bundle 的 plist 指纹 +
+链了 WebKit」，Longbridge 三条全中却不是 Tauri —— Zed 和 Warp 只是碰巧没内嵌
+WebView 才逃过。判据现在改成正面证据（二进制里必须有 `tauri-<semver>` crate 路径），
+Longbridge 归到 `native`。见 `AppRuntimeDetector`。
+
 ## 已知问题
 - preview 渠道已经停止更新；保留为明确的死轨记录，不添加旧 endpoint recipe。
 - 官方 manifest 发布十六进制 SHA-256，而 VendorInstallSpec 的内联 checksum 闸当前只支持

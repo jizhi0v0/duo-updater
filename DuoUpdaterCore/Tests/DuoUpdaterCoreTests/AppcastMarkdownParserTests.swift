@@ -43,6 +43,23 @@ final class AppcastMarkdownParserTests: XCTestCase {
         XCTAssertEqual(AppcastMarkdownParser.displayDate(from: "March 2026"), "March 2026")
     }
 
+    /// `displayDate` shared `TimeInterval(String)`'s over-acceptance with
+    /// `ReleaseDate.parse`: a `yyyyMMdd` pubDate displayed as 1970-08-23, a
+    /// millisecond epoch as the year 57450, and "nan" as whatever the formatter
+    /// makes of a non-finite Date. It now reads digit runs through the same
+    /// helper `ReleaseDate` uses, and passes anything that is not a date through.
+    func testDigitRunsAreReadAsDatesOnlyWhenPlausible() {
+        XCTAssertEqual(AppcastMarkdownParser.displayDate(from: "20260614"), "2026-06-14")
+        XCTAssertEqual(AppcastMarkdownParser.displayDate(from: "1750785600000"), "2025-06-24")
+        XCTAssertEqual(AppcastMarkdownParser.displayDate(from: "1780324303"), "2026-06-01")
+        // Not dates: shown as written, never as an epoch reading.
+        XCTAssertEqual(AppcastMarkdownParser.displayDate(from: "2026"), "2026")
+        XCTAssertEqual(AppcastMarkdownParser.displayDate(from: "nan"), "nan")
+        XCTAssertEqual(AppcastMarkdownParser.displayDate(from: "infinity"), "infinity")
+        XCTAssertEqual(AppcastMarkdownParser.displayDate(from: "1e9"), "1e9")
+        XCTAssertEqual(AppcastMarkdownParser.displayDate(from: "99999999"), "99999999")
+    }
+
     /// End-to-end against a real Surge appcast: markdownDescription items become a
     /// multi-version structured changelog instead of a web-view fallback.
     func testSurgeAppcastProducesStructuredChangelog() throws {

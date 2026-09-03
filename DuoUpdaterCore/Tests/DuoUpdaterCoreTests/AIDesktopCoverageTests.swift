@@ -64,6 +64,9 @@ private func aiGitHubRule(_ bundleID: String) throws -> GitHubReleaseRule {
          ["OpenChamber-1.18.4-mac-arm64.zip", "OpenChamber-1.18.4-win-arm64.exe"]),
         ("jan.ai.app", "v0.8.4", "jan-mac-universal-0.8.4.zip",
          ["Jan_0.8.4_universal.dmg", "Jan_0.8.4_amd64.AppImage"]),
+        ("com.FluidApp.app", "v1.6.9", "Fluid-oss-1.6.9.dmg",
+         ["Fluid-oss-1.6.9.zip", "Fluid-oss-1.5.11-beta.3.dmg",
+          "FluidVoice_0.0.9_x64-setup.exe"]),
     ]
 
     for (bundleID, tag, wanted, rejected) in cases {

@@ -5,16 +5,18 @@ import DuoUpdaterCore
 // classified onto the channel its VendorProbe recipe expects, and that the probe
 // actually answers for that (bundleID, channel) pair.
 //
-// It runs the PRODUCTION code paths (`ReleaseChannel.detect`, `VendorProbeSource`)
-// against a real Info.plist, so a green run is evidence — not a claim — that a
-// recipe will fire for that install. Accepts either an installed `.app` or a
-// `.dmg` (mounted read-only, inspected, then detached — verify without installing).
+// It runs the PRODUCTION code paths (`ReleaseChannel.detect`, `VendorProbeSource`,
+// and the whole `UpdateChecker` source chain) against a real Info.plist, so a
+// green run is evidence — not a claim — that a recipe will fire for that install.
+// Accepts either an installed `.app` or a `.dmg` (mounted read-only, inspected,
+// then detached — verify without installing).
 //
 // Usage:
 //   swift run --package-path application-test channel-verify <path-to-.app-or-.dmg> [--expect <channel>]
 //
-// Exit codes: 0 = detection matched --expect (or none given); 1 = mismatch /
-// probe miss; 2 = bad input.
+// Exit codes: 0 = detection matched --expect (or none given); 1 = mismatch, a
+// miss by a recipe that IS registered, or a chain that answered nothing at all;
+// 2 = bad input. A bundle with no vendor recipe is not a miss — see below.
 
 // MARK: - shell helper
 
@@ -326,6 +328,15 @@ let app = InstalledApp(
 let probe = VendorProbeSource()
 let remote = try? await probe.latestVersion(for: app)
 
+/// Whether the vendor registry has any recipe keyed to this bundle at all.
+/// Without this, "no version" reads the same for a recipe that broke and for an
+/// app that was never meant to have one — and the second is the common case now
+/// that path mode runs the whole chain (most apps resolve through Sparkle,
+/// GitHub or the App Store and have no vendor recipe by design).
+let hasVendorRecipe = VendorProbeRegistry.recipes.contains {
+    $0.bundleID.caseInsensitiveCompare(bundleID ?? "") == .orderedSame
+}
+
 print("  ─────────────────────────────────────────────")
 if let remote {
     let latest = remote.displayVersion ?? "<nil>"
@@ -363,15 +374,111 @@ if let remote {
     case let other:
         print("    verdict       \(other)")
     }
-} else {
+} else if hasVendorRecipe {
     print("""
   VendorProbe       ✗ no version
-    → either no recipe is keyed to bundle '\(bundleID ?? "?")' on channel
+    → a recipe IS keyed to bundle '\(bundleID ?? "?")', but not for channel
       '\(detected.rawValue)', or the probe missed (network / pattern). This is the
       failure the channel gate produces when a recipe's bundleID/channel is wrong.
 """)
     if expected != nil { exitCode = 1 }
+} else {
+    print("""
+  VendorProbe       — no recipe registered for '\(bundleID ?? "?")'
+    → expected for an app covered by Sparkle / GitHub / the App Store. The full
+      chain below is the one that answers for those.
+""")
 }
+
+// MARK: - run the FULL PRODUCTION source chain
+
+// The same source list `--check` wires, so a downloaded bundle can be verified
+// without installing it. Path mode used to stop at VendorProbe, which meant it
+// could not answer for the apps that resolve through any OTHER source: it built
+// its `InstalledApp` with `sparkleFeedURL: nil` and asked only the vendor
+// registry, so a Sparkle-covered app printed "VendorProbe ✗ no version" — which
+// reads as a broken recipe and is really the wrong question. `--check` did run
+// the whole chain, but starts from `AppScanner.scan()` and so requires the app
+// to be INSTALLED. The pair left one combination unreachable — "not installed,
+// covered by Sparkle" — which is the exact shape of every Sparkle-only audit;
+// re-verifying the 2026-08-31 batch of 13 hit it on all 13.
+//
+// The feed URL is read from the bundle's own `SUFeedURL`, the single key
+// `AppScanner` reads for it, with `ChannelBinding`'s override applied on top the
+// same way production does.
+//
+// Still NOT identical to `--check`: `AppScanner` also decides MAS-vs-not from the
+// receipt, Toolbox management, and the build-key overrides. An app whose answer
+// comes from the App Store or Toolbox still has to be installed and checked with
+// `--check`.
+// Mirror `AppScanner`'s feed resolution EXACTLY, in its order: the bundle's own
+// `SUFeedURL`, else `SparkleFeedCatalog` for an app that keeps the address in
+// code, and a `ChannelBinding.feedOverride` on top of either. Reading only the
+// Info.plist key made this harness answer "GitHub" for an installed Helium while
+// `--check` — the same machine, the same production chain — answered "Sparkle".
+// A harness that disagrees with production about which source wins is worse than
+// no harness.
+var chainFeedURL = (info["SUFeedURL"] as? String)
+    .flatMap { URL(string: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+if chainFeedURL == nil { chainFeedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
+if let override = bound?.feedOverride { chainFeedURL = override }
+
+let chainApp = InstalledApp(
+    name: displayName,
+    bundleID: bundleID,
+    shortVersion: shortVersion,
+    buildVersion: buildVersion,
+    vendorBuildVersion: mozillaINI.buildID,
+    path: appPath,
+    isMASApp: false,
+    sparkleFeedURL: chainFeedURL,
+    sparkleFeedHeaders: bound?.feedHTTPHeaders ?? [:],
+    sparkleChannelNames: bound?.sparkleChannelNames ?? [],
+    sparkleEdPublicKey: (info["SUPublicEDKey"] as? String)?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+    hasSparkleUpdater: FileManager.default.fileExists(
+        atPath: appPath.appendingPathComponent("Contents/Frameworks/Sparkle.framework").path),
+    releaseChannel: detected,
+    channelIsAuthoritative: bound != nil || weChatDevTools != nil)
+
+let checker = UpdateChecker(
+    sources: [
+        MacAppStoreSource(),
+        SparkleAppcastSource(),
+        HomebrewCaskSource(),
+        GitHubReleasesSource(token: GitHubToken.resolve()),
+        VendorProbeSource()
+    ],
+    toolbox: ToolboxSource())
+let chained = await checker.check(chainApp)
+
+let chainStatus: String
+switch chained.status {
+case .upToDate: chainStatus = "up to date"
+case .updateAvailable(let v): chainStatus = "UPDATE → \(v)"
+case .unknown: chainStatus = "unknown (no source answered)"
+case .appStoreManaged: chainStatus = "App Store managed"
+case .toolboxManaged: chainStatus = "Toolbox managed"
+case .testFlightManaged: chainStatus = "TestFlight managed"
+case .error(let e): chainStatus = "error: \(e)"
+}
+
+print("""
+  ─────────────────────────────────────────────
+  UpdateChecker.check() — full production source chain
+    SUFeedURL       \(chainApp.sparkleFeedURL?.absoluteString ?? "<none>")\(info["SUFeedURL"] == nil && chainApp.sparkleFeedURL != nil ? "  (SparkleFeedCatalog — not in Info.plist)" : "")
+    winning source  \(chained.remote?.sourceName ?? "<none>")
+    latest          \(chained.remote?.displayVersion ?? "<none>")
+    download        \(chained.remote?.downloadURL?.absoluteString ?? "<nil>")
+    release notes   \(chained.remote?.releaseNotesHTML?.count ?? 0) chars inline, changelogURL \(chained.remote?.changelogURL?.absoluteString ?? "<nil>")
+    release history \(chained.remote?.releaseHistory.count ?? 0) entries
+    deltas          \(chained.remote?.deltas.count ?? 0)
+    status          \(chainStatus)
+""")
+
+// A chain that cannot answer at all is a failure worth an exit code, the same
+// way `--check` treats it — but only when the caller asked for an assertion.
+if expected != nil, case .unknown = chained.status { exitCode = 1 }
 
 cleanup()
 exit(exitCode)

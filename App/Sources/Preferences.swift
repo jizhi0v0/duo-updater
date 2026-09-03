@@ -91,6 +91,9 @@ final class Preferences {
         static let notificationBaselineSeeded = "NotificationBaselineSeeded"
         static let marketingByBuild = "MarketingVersionByBuild"
         static let stagedPackages = "StagedPackages"
+        static let showRuntimeTags = "ShowRuntimeTags"
+        static let acknowledgedSpotlights = "AcknowledgedSettingsSpotlights"
+        static let lastRunSelfVersion = "LastRunSelfVersion"
     }
 
     private let defaults: UserDefaults
@@ -205,6 +208,36 @@ final class Preferences {
             DockIcon.apply(hidden: hideDockIcon)
         }
     }
+
+    /// Show a small chip beside each app's name naming what it is built with —
+    /// Electron, Tauri, Qt, native, … See `AppRuntime`.
+    ///
+    /// Default ON, because it explains rows that otherwise look alike: an app the
+    /// App Store manages already says so on the right-hand side, while everything
+    /// else was indistinguishable.
+    ///
+    /// This gates the *display* only. The scan works the runtime out either way —
+    /// the workbench's own filters read it — so turning this off hides the mark
+    /// without saving the work behind it. Worth knowing because that work is no
+    /// longer nothing: since #206, proving an app is Tauri means reading its
+    /// executable through. It is confined to the bundles a cheap plist-and-link
+    /// filter admits, six of about a hundred and fifty here.
+    var showRuntimeTags: Bool {
+        didSet { defaults.set(showRuntimeTags, forKey: Key.showRuntimeTags) }
+    }
+
+    /// Settings whose "new" dot the user has already seen. See `SettingsSpotlight`.
+    private(set) var acknowledgedSpotlights: Set<String> {
+        didSet { defaults.set(Array(acknowledgedSpotlights), forKey: Key.acknowledgedSpotlights) }
+    }
+
+    /// Spotlights still owed to this user, decided once at launch.
+    ///
+    /// Held rather than recomputed because the deciding input — the version that
+    /// ran last — is overwritten by this very launch. Reading it later would say
+    /// "you already ran this version", and every dot would vanish before it was
+    /// ever drawn.
+    private(set) var pendingSpotlights: Set<String> = []
 
     /// Which route to use for Mac App Store updates. See `AppStoreUpdateStrategy`.
     var appStoreUpdateStrategy: AppStoreUpdateStrategy {
@@ -363,6 +396,14 @@ final class Preferences {
     /// exactly what they did when they were written.
     static let stagedPackageBuildField = "build"
 
+    /// The marketing half of the source's comparable version pair. The empty
+    /// string records an explicitly-absent marketing version; a missing field is
+    /// an older entry and is decoded with the legacy `version` value instead.
+    /// Keeping those two cases distinct matters for `versionIsBuild` sources:
+    /// their display version is a build, but it must never be compared against an
+    /// installed marketing version.
+    static let stagedPackageMarketingField = "marketing"
+
     /// Overwrite the staged-package map (the model recomputes it each rescan).
     func setStagedPackages(_ map: [String: [String: String]]) {
         stagedPackages = map
@@ -397,6 +438,8 @@ final class Preferences {
         self.notifyOnUpdates = defaults.object(forKey: Key.notifyOnUpdates) as? Bool ?? true
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
+        self.showRuntimeTags = defaults.object(forKey: Key.showRuntimeTags) as? Bool ?? true
+        self.acknowledgedSpotlights = Set(defaults.stringArray(forKey: Key.acknowledgedSpotlights) ?? [])
         // `.incremental` is not offered in Settings (see `visibleCases`), but it is
         // honoured when set by hand:
         //
@@ -435,6 +478,59 @@ final class Preferences {
         // package — the launch path is precisely the one that has no environment
         // and no `gh` to fall back on.
         ChangelogService.setExplicitGitHubToken(self.githubToken)
+        resolveSpotlights()
+    }
+
+    // MARK: - What's new in Settings
+
+    /// Work out which "new setting" dots this launch owes the user, then record
+    /// that this version has now run.
+    ///
+    /// Ordering matters and is the whole subtlety: the decision reads the version
+    /// that ran *last*, and the write below destroys it. Both happen once, here, at
+    /// the earliest point a launch can be observed — deferring either would leave a
+    /// window in which some other code path could ask and get the wrong answer.
+    private func resolveSpotlights() {
+        let previous = defaults.string(forKey: Key.lastRunSelfVersion)
+        // Separates "first ever launch" from "upgraded from a build with no
+        // ledger". Any of these three keys means this install has a past: the last
+        // check, the release notes they have seen, the notification baseline.
+        let hasPriorHistory = defaults.object(forKey: Key.lastCheckDate) != nil
+            || defaults.object(forKey: Key.lastSeenSelfVersion) != nil
+            || defaults.object(forKey: Key.notificationBaselineSeeded) != nil
+
+        pendingSpotlights = SettingsSpotlightLedger.pending(
+            catalog: SettingsSpotlights.all,
+            currentVersion: Self.currentVersion,
+            previousVersion: previous,
+            hasPriorHistory: hasPriorHistory,
+            acknowledged: acknowledgedSpotlights)
+
+        if previous != Self.currentVersion {
+            defaults.set(Self.currentVersion, forKey: Key.lastRunSelfVersion)
+        }
+    }
+
+    /// This build's marketing version — the namespace `SettingsSpotlight` states
+    /// its versions in. Marketing-only is correct here and only here: this is our
+    /// own app, and every release bumps this string.
+    // version-lint:allow-marketing-first — our own release version, never a vendor's
+    static var currentVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+    }
+
+    /// Retire the dots for a Settings page the user has now looked at.
+    func acknowledgeSpotlights(in section: SettingsSection) {
+        let ids = pendingSpotlights.filter { SettingsSpotlights.section(for: $0) == section }
+        guard !ids.isEmpty else { return }
+        acknowledgedSpotlights.formUnion(ids)
+        pendingSpotlights.subtract(ids)
+    }
+
+    /// Whether a page — or the Settings window as a whole — still has something to
+    /// point at.
+    func hasPendingSpotlight(in section: SettingsSection) -> Bool {
+        pendingSpotlights.contains { SettingsSpotlights.section(for: $0) == section }
     }
 
     // MARK: - Cross-process changes

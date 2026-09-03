@@ -122,6 +122,13 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// auto-update framework. This is our highest-signal update source.
     public let sparkleFeedURL: URL?
 
+    /// The electron-builder update configuration from
+    /// `Contents/Resources/app-update.yml`, when the bundle carries one. The
+    /// electron counterpart of ``sparkleFeedURL``: read from a file the build
+    /// system generates, so it is a fact about the bundle rather than a guess
+    /// about it. See `ElectronUpdateConfig`.
+    public let electronUpdate: ElectronUpdateConfig?
+
     /// Extra HTTP headers to send when fetching `sparkleFeedURL`. Non-empty only
     /// for "header-keyed" apps (TablePlus) where the appcast URL is shared across
     /// channels and a request header selects which builds the server returns. Set
@@ -160,6 +167,34 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// be visible so the row can offer Relaunch instead of re-downloading bytes
     /// already sitting in the cache. See `SelfUpdaterStaging`.
     public let hasSparkleUpdater: Bool
+
+    /// What the app is built with — Electron, Tauri, Qt, a native AppKit/SwiftUI
+    /// binary, … Nil when the bundle carries no evidence either way, which the UI
+    /// must render as "no badge" rather than as "native".
+    ///
+    /// Purely descriptive: nothing in the update engine reads it. Mostly it is a
+    /// fact read from the directory listing and Info.plist the scan is already
+    /// paying for — with one exception that stopped being free in #206: proving an
+    /// app is Tauri means reading its executable through, which the scan does for
+    /// the handful of bundles the cheap markers admit (six of about a hundred and
+    /// fifty here, half a second between them, remembered per binary afterwards).
+    /// See `AppRuntimeDetector`.
+    public let runtime: AppRuntime?
+
+    /// Which of Apple's UI frameworks the executable links, and whether Swift is
+    /// in there. Empty when the binary could not be read.
+    ///
+    /// The executable of whichever bundle `runtime` describes — normally this app's
+    /// own, and for a wrapper the nested bundle's, because a label and the link list
+    /// under it have to be facts about one binary. Docker's are two different ones:
+    /// its launcher is a Go daemon that links AppKit, its Electron stub links only
+    /// the framework. See `AppRuntimeDetector.interfaceBundle(at:)`.
+    ///
+    /// Separate from `runtime` because it answers a different question and cannot
+    /// be collapsed into one: an app that links both AppKit and SwiftUI — half of
+    /// the native apps on a normal machine — has no single true label. See
+    /// `LinkedFrameworks`.
+    public let linkedFrameworks: LinkedFrameworks
 
     /// The release channel this install is on (Stable, Beta, Canary, …),
     /// detected at scan time. A source is only allowed to update this app from a
@@ -238,6 +273,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         isToolboxManaged: Bool = false,
         isTestFlightApp: Bool = false,
         sparkleFeedURL: URL?,
+        electronUpdate: ElectronUpdateConfig? = nil,
         sparkleFeedHeaders: [String: String] = [:],
         sparkleChannelNames: Set<String> = [],
         sparkleEdPublicKey: String? = nil,
@@ -246,7 +282,9 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         releaseChannel: ReleaseChannel = .stable,
         channelIsAuthoritative: Bool = false,
         toolboxInstalledBuild: String? = nil,
-        appStoreAdamID: Int? = nil
+        appStoreAdamID: Int? = nil,
+        runtime: AppRuntime? = nil,
+        linkedFrameworks: LinkedFrameworks = []
     ) {
         self.name = name
         self.bundleID = bundleID
@@ -259,6 +297,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.isToolboxManaged = isToolboxManaged
         self.isTestFlightApp = isTestFlightApp
         self.sparkleFeedURL = sparkleFeedURL
+        self.electronUpdate = electronUpdate
         self.sparkleFeedHeaders = sparkleFeedHeaders
         self.sparkleChannelNames = sparkleChannelNames
         self.sparkleEdPublicKey = sparkleEdPublicKey
@@ -268,5 +307,7 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.channelIsAuthoritative = channelIsAuthoritative
         self.toolboxInstalledBuild = toolboxInstalledBuild
         self.appStoreAdamID = appStoreAdamID
+        self.runtime = runtime
+        self.linkedFrameworks = linkedFrameworks
     }
 }

@@ -256,8 +256,12 @@ public actor EventStore {
         exec(db, "DELETE FROM events;")
         exec(db, "DELETE FROM totals;")
         guard exec(db, "COMMIT;") else { exec(db, "ROLLBACK;"); return }
-        exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
+        // Vacuum then checkpoint, for the reason spelled out in `prune`: the
+        // other order leaves the freed pages in the log and the file as large as
+        // it ever was, which is how a `reset` that really did empty the store
+        // still left 14 MB on disk.
         exec(db, "PRAGMA incremental_vacuum;")
+        exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
         lastPrune = nil
     }
 
@@ -446,15 +450,22 @@ public actor EventStore {
                 step(db, statement)
                 sqlite3_finalize(statement)
             }
-            // Checkpoint before vacuuming: in WAL mode the freed pages sit in the
-            // log until a checkpoint moves them, so without this the file size
-            // this loop is steering by would not move and it would keep deleting.
-            exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
+            let deleted = changes(db)
+            // Vacuum, *then* checkpoint — in that order, and it is not cosmetic.
+            // `incremental_vacuum` truncates the file, but in WAL mode that
+            // truncation is written to the log and only reaches the database when
+            // something checkpoints. Done the other way round the vacuum's result
+            // is stranded: measured on the real store, an emptied database still
+            // occupied 14 897 152 bytes on disk with a `page_count` of 126 — 516 KB
+            // of content — and one checkpoint brought the file down to exactly
+            // that. Since this loop steers by the file size, the stale figure also
+            // made it keep deleting rows it did not need to.
             exec(db, "PRAGMA incremental_vacuum;")
-            if changes(db) == 0 { break }   // nothing left to give up
+            exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
+            if deleted == 0 { break }   // nothing left to give up
         }
-        exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
         exec(db, "PRAGMA incremental_vacuum;")
+        exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
     }
 
     /// The fewest events retention will leave behind, whatever the budget says.

@@ -350,6 +350,33 @@ struct EventStoreTests {
         #expect(await store.events(EventQuery(limit: 10)).isEmpty)
     }
 
+    /// Emptying the store has to give the space back to the filesystem, not just
+    /// to SQLite's free list.
+    ///
+    /// Found by running `duo requests reset` for real: it cleared every row, and
+    /// the file stayed at 14 897 152 bytes with a `page_count` of 126 — 516 KB of
+    /// actual content. `incremental_vacuum` had done its job and the truncation
+    /// was sitting in the write-ahead log, because the checkpoint ran before it
+    /// instead of after. One checkpoint afterwards brought the file to exactly
+    /// 516 096 bytes.
+    @Test("Reset returns the space to the filesystem, not just to the free list")
+    func resetShrinksTheFileOnDisk() async {
+        let (store, url) = Self.store(flushEventCount: 5000)
+        defer { Self.remove(url) }
+
+        for index in 0..<3000 { await store.append(Self.event(path: "/\(index)")) }
+        await store.flush()
+        let grown = await store.databaseBytes()
+        #expect(grown > 1_000_000, "the store did not grow enough for this to prove anything")
+
+        await store.reset()
+
+        #expect(await store.coverage().count == 0)
+        let shrunk = await store.databaseBytes()
+        #expect(shrunk < grown / 4,
+                "emptied the store but kept \(shrunk) of \(grown) bytes on disk")
+    }
+
     // MARK: - Querying
 
     @Test("Filters narrow in SQL, and the tail is the newest matches in order")

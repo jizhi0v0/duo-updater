@@ -11,14 +11,24 @@ import Testing
 /// Each case names the single-line mutation it must fail under.
 struct PackageRestartReconcilerTests {
 
+    /// `/Applications`, deliberately not a temp directory. `reconcile` keys
+    /// `launchDates` by `path.resolvingSymlinksInPath()`, which really does touch
+    /// the filesystem: on macOS `/tmp` and `/var` are symlinks, so a fixture
+    /// under either is rewritten to `/private/…`, stops matching the key this
+    /// suite builds, and every landed case silently reads as `.settled` — which
+    /// still "passes" for the cases that expect settling.
     private static let path = "/Applications/Example.app"
+    private static let otherPath = "/Applications/Other.app"
     private static let stagedAt = Date(timeIntervalSince1970: 1_000)
 
-    private func app(_ short: String, build: String? = nil) -> InstalledApp {
+    private func app(
+        _ short: String, build: String? = nil,
+        bundleID: String = "com.example.app", path: String = Self.path
+    ) -> InstalledApp {
         InstalledApp(
-            name: "Example", bundleID: "com.example.app",
+            name: "Example", bundleID: bundleID,
             shortVersion: short, buildVersion: build,
-            path: URL(fileURLWithPath: Self.path),
+            path: URL(fileURLWithPath: path),
             isMASApp: false, isToolboxManaged: false, sparkleFeedURL: nil)
     }
 
@@ -37,12 +47,13 @@ struct PackageRestartReconcilerTests {
         staged stagedMap: [String: StagedPackageFacts],
         onDisk: [String: InstalledApp],
         launches: [Date] = [],
+        launchesByPath: [String: [Date]]? = nil,
         pending: Set<String> = [],
         notified: Set<String> = []
     ) -> PackageRestartReconciliation {
         PackageRestartReconciler.reconcile(
             staged: stagedMap, onDisk: onDisk,
-            launchDates: launches.isEmpty ? [:] : [Self.path: launches],
+            launchDates: launchesByPath ?? (launches.isEmpty ? [:] : [Self.path: launches]),
             previouslyPending: pending, previouslyNotified: notified)
     }
 
@@ -172,6 +183,93 @@ struct PackageRestartReconcilerTests {
             notified: [Self.path])
         #expect(done.settled == [Self.path])
         #expect(done.notified.isEmpty)
+    }
+
+    /// The guard is released for an app whose staged entry is simply GONE, not
+    /// just for one that settled. `pruneStagedPackages` drops entries in the same
+    /// post-rescan pass without touching this set, so without the intersection an
+    /// app whose entry was swept keeps its guard forever — and the next time it
+    /// stages a package and lands, the badge never announces it again.
+    ///
+    /// Mutation: `notified.subtract(settled)` in place of
+    /// `notified.formIntersection(Set(staged.keys).subtracting(settled))`.
+    @Test func theGuardIsAlsoReleasedWhenTheStagedEntryIsSweptAway() {
+        let out = reconcile(
+            staged: [Self.path: staged("2.0")],
+            onDisk: [Self.path: app("2.0")],
+            launches: Self.staleLaunch,
+            notified: [Self.path, Self.otherPath])
+
+        #expect(out.notified == [Self.path], "the swept id keeps no guard")
+    }
+
+    /// Apps whose stored build is NOT their `CFBundleVersion` — Xcode, 豆包输入法
+    /// — have to be compared on marketing alone, or a landed package reads as
+    /// still pending: its marketing matches while the two builds are in different
+    /// namespaces and can never be equal. The badge would never light and the
+    /// staged entry would never settle.
+    ///
+    /// The rule itself is pinned by `PackageRestartStateTests`; what is pinned
+    /// here is the PLUMBING, which is what this move touched. Every other case in
+    /// this suite uses a bundle id for which the flag is constantly false, so a
+    /// hardcoded `false` passed all of them.
+    ///
+    /// Mutation: `buildIsDerived: false` instead of
+    /// `AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)`.
+    @Test func anAppWhoseStoredBuildIsDerivedIsJudgedOnMarketingAlone() {
+        let out = reconcile(
+            staged: [Self.path: staged("27.0", build: "27A5237l")],
+            onDisk: [Self.path: app(
+                "27.0", build: "27A5300x", bundleID: AppScanner.xcodeBundleID)],
+            launches: Self.staleLaunch)
+
+        #expect(out.pending == [Self.path], "landed: the builds are not comparable")
+        #expect(out.toNotify == [Self.path])
+    }
+
+    /// A mixed pass: one row blind, two landing with a stale copy running, two
+    /// landing with nothing stale. Every other case here has a single staged
+    /// entry, which makes `insert`/`append` indistinguishable from assignment and
+    /// leaves the one genuinely cross-id statement — the guard intersection —
+    /// with nothing to do.
+    ///
+    /// The ids are chosen so that each accumulating write happens BEFORE a later
+    /// row writes the same collection: iteration is sorted, so Alpha (blind) is
+    /// visited before Beta, and Echo before Gamma. A first version of this case
+    /// had the landing row sort first, and `pending = [id]` survived it — the
+    /// blind row's `insert` afterwards put the wiped id back.
+    ///
+    /// Mutations: `pending = [id]`, `toNotify = [id]`, `settled = [id]` in place
+    /// of the inserts and appends.
+    @Test func aMixedPassKeepsEveryRowsOwnOutcome() {
+        let alpha = "/Applications/Alpha.app"   // blind, already pending
+        let beta = "/Applications/Beta.app"     // lands, stale copy running
+        let delta = "/Applications/Delta.app"   // lands, stale copy running
+        let echo = "/Applications/Echo.app"     // lands, nothing stale
+        let gamma = "/Applications/Gamma.app"   // lands, nothing stale
+
+        let out = reconcile(
+            staged: [
+                alpha: staged("2.0"), beta: staged("2.0"), delta: staged("2.0"),
+                echo: staged("2.0"), gamma: staged("2.0"),
+            ],
+            onDisk: [
+                beta: app("2.0", path: beta), delta: app("2.0", path: delta),
+                echo: app("2.0", path: echo), gamma: app("2.0", path: gamma),
+            ],
+            launchesByPath: [
+                beta: Self.staleLaunch, delta: Self.staleLaunch,
+                echo: Self.freshLaunch, gamma: Self.freshLaunch,
+            ],
+            pending: [alpha],
+            notified: [alpha])
+
+        #expect(out.pending == [alpha, beta, delta])
+        #expect(out.toNotify == [beta, delta])
+        #expect(out.settled == [echo, gamma])
+        // alpha's entry is still staged, so its guard survives; beta and delta
+        // just earned theirs; echo and gamma settled and hold none.
+        #expect(out.notified == [alpha, beta, delta])
     }
 
     /// An empty queue clears both sets outright rather than intersecting, so a

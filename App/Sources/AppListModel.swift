@@ -3372,11 +3372,19 @@ final class AppListModel {
         // one-line rules — decide nothing from a blind pass, carry a lit badge
         // through a momentary old read, release the notify-once guard only on a
         // real resolution — are executed. This is the effects half.
+        // One dictionary, used for the decision AND for the announcements below.
+        // Looking the app up a second way would put "recorded as notified" and
+        // "actually notified" on two different sources: `outcome.notified` is
+        // assigned unconditionally, so a lookup that missed would leave the id in
+        // the notify-once guard with no banner ever posted — silent, and
+        // permanent. The old code could not diverge because both lived in one
+        // branch holding one `app`.
+        let onDisk = Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a })
         let outcome = PackageRestartReconciler.reconcile(
             staged: stagedPackages.mapValues {
                 StagedPackageFacts(versionSide: $0.versionSide, stagedAt: $0.stagedAt)
             },
-            onDisk: Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a }),
+            onDisk: onDisk,
             launchDates: runningLaunchDatesByPath(),
             previouslyPending: packageRestartPending,
             previouslyNotified: notifiedPackageRestart)
@@ -3386,7 +3394,14 @@ final class AppListModel {
         for id in outcome.settled { stagedPackages[id] = nil }
 
         for id in outcome.toNotify {
-            guard let app = results.first(where: { $0.id == id })?.app else { continue }
+            // `toNotify` only ever holds ids the reconciler resolved through
+            // `onDisk`, so a miss here is impossible rather than merely unlikely.
+            // Logged instead of skipped silently: the guard is already set, so a
+            // swallowed announcement never comes back.
+            guard let app = onDisk[id] else {
+                Log.install.error("no row for a package restart to announce: \(id, privacy: .public)")
+                continue
+            }
             let version = app.shortVersion
             // Badge always; banner only if the user keeps update notifications on
             // — the pkg lands out of a rescan, not a click, so this is an

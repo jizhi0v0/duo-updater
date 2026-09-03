@@ -48,6 +48,15 @@ private func extract(
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func dshDesktopRulePinsTheUniversalDmg() {
+    #expect(extract("v2.0.4", "ai.deepseek.dsh.desktop") == "2.0.4")
+    let pattern = try! #require(rule("ai.deepseek.dsh.desktop").installAssetPattern)
+    #expect("DSH.Desktop-2.0.4-universal.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("DSH-Desktop-2.0.4-x64-Setup.exe".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("ai.deepseek.dsh.desktop").slug == "anywhere-labs/dsh-desktop")
+    #expect(rule("ai.deepseek.dsh.desktop").installerKind == .dmg)
+}
+
 @Test func meetilyRulePinsTheAarch64Dmg() {
     #expect(extract("v0.4.0", "com.meetily.ai") == "0.4.0")
     // The legacy bare tag deep in history must not read through the v-anchor.

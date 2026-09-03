@@ -42,6 +42,13 @@ public enum SourceStack {
         // Last resort: bespoke per-vendor version endpoints. Only fires when
         // the earlier sources all miss and a recipe exists.
         sources.append(VendorProbeSource())
+        // AFTER the bespoke recipes, not before. Eight of the nine Electron apps
+        // on the development machine already have a recipe whose install spec
+        // picks a particular asset, and moving this ahead of them would swap the
+        // artifact those installs fetch without anyone deciding to. Last, it can
+        // only ADD coverage where nothing else answered; a recipe is retired by
+        // deleting it once this source is shown to resolve that app.
+        sources.append(ElectronManifestSource())
         return sources
     }
 }

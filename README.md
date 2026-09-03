@@ -114,7 +114,8 @@ release.
 </p>
 
 The interesting part is what it refuses to claim. A release time is only exact
-when the vendor's own feed timestamps it — Sparkle, GitHub and Alcove do. Every
+when the vendor's own feed timestamps it — Sparkle, GitHub, Alcove and
+electron-builder manifests do. Every
 other source tells us a version exists but not when it appeared, so all we
 honestly know is that it happened between the last check that saw the old version
 and the first that saw the new one. Those are shown as a window with a `≈`, and a

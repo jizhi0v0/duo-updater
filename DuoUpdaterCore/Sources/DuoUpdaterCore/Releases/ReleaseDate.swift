@@ -5,28 +5,56 @@ import Foundation
 ///
 /// This is deliberately separate from `AppcastMarkdownParser.displayDate`, which
 /// only produces a *display string* and passes most inputs through verbatim. The
-/// release timeline needs an actual `Date` so it can sort, dedupe, and (later)
-/// answer "what time of day does this vendor ship?" — a question that dies the
-/// moment we round to a bare day. Three wire formats cover every source we feed
-/// from here (Sparkle `<pubDate>`, GitHub/Alcove `published_at`):
+/// release timeline needs an actual `Date` so it can sort and dedupe. Three wire
+/// formats cover the sources we feed from here (Sparkle `<pubDate>`,
+/// GitHub/Alcove `published_at`):
 ///   - RFC822, e.g. "Wed, 24 Jun 2026 17:07:24 +0000" (RSS standard)
 ///   - ISO8601, e.g. "2026-06-24T17:07:24Z" (GitHub, Alcove), with or without
 ///     fractional seconds
-///   - a bare Unix epoch, e.g. "1750785600" (Surge's appcast does this)
+///   - a bare digit run: a Unix epoch in seconds, e.g. "1750785600" (Surge's
+///     appcast does this), in milliseconds, or a `yyyyMMdd` calendar date — told
+///     apart by `date(fromDigits:)`, whose rules are documented there
+///
+/// Some feeds only ever publish a bare calendar day, no time — most commonly
+/// dashed (`"2026-08-31"`). `parse` returns nil for that spelling rather than
+/// fabricating a midnight moment the vendor never stated — the release timeline
+/// only plots a `publishedAt` it can trust to the minute (see
+/// `ReleaseTimelineStore`). Use ``parseWithPrecision(_:)`` (or the even more
+/// convenient ``publishedFields(from:)``) when the caller has somewhere honest
+/// to put a day-only value (`vendorDay`, not `publishedAt`).
+///
+/// #300: every production caller now goes through ``publishedFields(from:)``
+/// (`AlcoveUpdateSource`, `ElectronManifestSource`, `GitHubReleasesSource`,
+/// `SparkleAppcastSource`, `VendorProbeSource`) rather than `parse` directly, so
+/// `parse` itself is `internal`, not `public` — there is no external caller left
+/// to preserve source compatibility for. It stays as the implementation `parse`
+/// always was (unlike `parseWithPrecision`, it still reads a bare 8-digit
+/// `"20260831"` as a plain `Date` rather than tagging it `.day` — pre-existing
+/// #222 behavior), kept because `ReleaseDateTests.swift` uses it to pin the
+/// numeric-window and formatter logic `parseWithPrecision` shares with it, one
+/// layer below the day/minute split.
 public enum ReleaseDate {
 
     /// Convert a raw feed date string to a `Date`, or nil when it's empty or in a
     /// format we don't recognize. Never throws — an unparseable date just means
     /// "no authoritative release time", which the timeline records as absent.
-    public static func parse(_ raw: String?) -> Date? {
+    ///
+    /// Returns nil for a *dashed* date-only day (`"2026-08-31"`) — see
+    /// ``parseWithPrecision(_:)`` for that case — but NOT for a *bare-digit*
+    /// date-only day (`"20260831"`): that one still comes back as a plain `Date`,
+    /// unchanged pre-existing behavior explained on ``ReleaseDate`` above. Moot
+    /// for every production caller since #300 (none call `parse` any more), but
+    /// still exercised directly by `ReleaseDateTests.swift`.
+    static func parse(_ raw: String?) -> Date? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }
 
-        // A bare number is a Unix epoch (seconds). Check this first: "1750785600"
-        // would otherwise fall through every textual formatter and return nil.
-        if let epoch = TimeInterval(trimmed) {
-            return Date(timeIntervalSince1970: epoch)
-        }
+        // A bare number is decided here and never handed on: none of the textual
+        // formatters below accepts one, and a number that is not a date must come
+        // back nil rather than as a guess. This used to be `TimeInterval(trimmed)`,
+        // which also accepts "nan", "infinity", "1e9", "0x1p60" and a sign, and
+        // read every one of them as epoch seconds.
+        if isNumericRun(trimmed) { return date(fromDigits: trimmed) }
 
         // ISO8601 with fractional seconds (e.g. "...:24.123Z"), then without.
         if let date = isoWithFraction.date(from: trimmed) { return date }
@@ -50,6 +78,120 @@ public enum ReleaseDate {
         }
 
         return nil
+    }
+
+    // MARK: - Bare numbers
+
+    /// True when `s` is one or more ASCII digits and nothing else.
+    public static func isDigitRun(_ s: String) -> Bool {
+        !s.isEmpty && s.utf8.allSatisfy { $0 >= UInt8(ascii: "0") && $0 <= UInt8(ascii: "9") }
+    }
+
+    /// True when `s` is a bare non-negative decimal: ASCII digits, optionally one
+    /// `.` with more ASCII digits after it. This — not "does `Double` accept it" —
+    /// is what makes a feed value numeric. No sign, no exponent, no hex, no
+    /// "nan"/"inf", no digits in another script.
+    ///
+    /// The fractional part is here because a clock read as a float prints one:
+    /// Python's `time.time()` gives `1750785600.0`, and a backend that forgets
+    /// `.isoformat()` sends exactly that. `Double(_: String)` used to read it
+    /// correctly, and it is the only shape this rewrite would otherwise have made
+    /// worse — everything else `Double` accepted was garbage.
+    public static func isNumericRun(_ s: String) -> Bool {
+        let parts = s.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count <= 2 else { return false }
+        return parts.allSatisfy { isDigitRun(String($0)) }
+    }
+
+    /// The one reading of a bare number, shared by `parse` and by
+    /// `AppcastMarkdownParser.displayDate` so the release timeline and the
+    /// changelog rail cannot disagree about what a number means. The policy:
+    ///
+    ///   - Only `isNumericRun` is numeric. No sign, no exponent, no hex, no
+    ///     "nan"/"inf": those return nil here and, from `parse`, fall through to
+    ///     the textual formatters, which reject them.
+    ///   - Exactly 8 digits is a bare calendar date, `yyyyMMdd` (UTC, en_US_POSIX,
+    ///     non-lenient) — never an epoch. "20260614" is 2026-06-14, and eight
+    ///     digits that are not a date ("99999999", "20260230") are nil.
+    ///   - Whole part inside [1990-01-01, 2100-01-01) read as **seconds** is
+    ///     seconds, and a fractional part rides along as sub-second precision.
+    ///   - A whole number inside the same window read as **milliseconds** (×1000,
+    ///     i.e. 12–13 digits) is milliseconds. A fraction of a millisecond is not
+    ///     a shape anything emits, so a fractional value is only ever seconds.
+    ///   - Anything else numeric is nil. Never 1970, never the year 57450, and
+    ///     never a non-finite `Date`: the value goes through `UInt64` (so more
+    ///     than 20 digits is already nil) and the window caps the magnitude.
+    ///
+    /// The two windows do not overlap and neither overlaps 8 digits, so no number
+    /// has two readings.
+    ///
+    /// The `isNumericRun` guard is not redundant with `parse`'s: `displayDate`
+    /// calls straight in, and the 8-digit branch counts *bytes*, which four
+    /// Arabic-Indic digits also fill.
+    public static func date(fromDigits digits: String) -> Date? {
+        guard isNumericRun(digits) else { return nil }
+        if digits.utf8.count == 8, isDigitRun(digits) { return yyyyMMdd.date(from: digits) }
+        let whole = digits.prefix { $0 != "." }
+        guard let value = UInt64(whole) else { return nil }
+        if secondsWindow.contains(value) {
+            // `Double(digits)` cannot fail after `isNumericRun`, and cannot be
+            // non-finite inside the window; the fallback is belt-and-braces.
+            return Date(timeIntervalSince1970: Double(digits) ?? TimeInterval(value))
+        }
+        if isDigitRun(digits), millisecondsWindow.contains(value) {
+            return Date(timeIntervalSince1970: TimeInterval(value) / 1000)
+        }
+        return nil
+    }
+
+    /// 1990-01-01T00:00:00Z ..< 2100-01-01T00:00:00Z, in seconds. Wide enough for
+    /// any release a feed could truthfully describe, narrow enough that no
+    /// `yyyyMMdd` (≤ 99 999 999) or millisecond value (≥ 631 152 000 000) lands in it.
+    private static let secondsWindow: Range<UInt64> = 631_152_000 ..< 4_102_444_800
+    /// The same window in milliseconds.
+    private static let millisecondsWindow: Range<UInt64> =
+        631_152_000_000 ..< 4_102_444_800_000
+
+    private static let yyyyMMdd: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.isLenient = false
+        f.dateFormat = "yyyyMMdd"
+        return f
+    }()
+
+    private static let yyyyDashMMdd: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.isLenient = false
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    /// A dashed calendar day, `yyyy-MM-dd` — the shape a Sparkle `<pubDate>` or a
+    /// JSON `pub_date`/`releaseDate` field uses when the vendor names only a day
+    /// (Eudic's appcast, Kiro's and Shottr's own version endpoints all do this).
+    /// Only ``parseWithPrecision(_:)`` calls this — `parse` never does, because
+    /// the `Date` this returns is midnight UTC, and handing that back from `parse`
+    /// would let every existing caller mistake a day for a to-the-minute moment.
+    ///
+    /// Shape-gated deliberately: `DateFormatter` otherwise accepts prefixes and
+    /// non-ASCII digits that are not the wire format we mean to support here
+    /// ("2026-8-31", "26-08-31", full-width digits — verified against a real
+    /// `NSDateFormatter` with `isLenient = false`, which accepts all three).
+    private static func date(fromDashedCalendarDay value: String) -> Date? {
+        let parts = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].utf8.count == 4,
+              parts[1].utf8.count == 2,
+              parts[2].utf8.count == 2,
+              parts.allSatisfy({ isDigitRun(String($0)) })
+        else { return nil }
+        return yyyyDashMMdd.date(from: value)
     }
 
     // MARK: - Formatters
@@ -97,4 +239,107 @@ public enum ReleaseDate {
             return f
         }
     }()
+}
+
+// MARK: - Precision-aware parsing
+
+extension ReleaseDate {
+    /// What a parsed vendor timestamp actually pins down. `parse(_:)` collapses
+    /// this distinction away (it only ever hands back a to-the-minute moment, or
+    /// nil); ``parseWithPrecision(_:)`` is for callers with somewhere honest to
+    /// put the coarser tier instead of discarding it.
+    public enum Precision: Sendable, Equatable {
+        /// The vendor stated a real time of day — ISO8601 or RFC822, with hours
+        /// and minutes. This is the only precision `ReleaseTimeline.publishedAt`
+        /// may hold; it is what lets the release-habit heatmap trust the hour.
+        case minute
+        /// The vendor stated only a calendar day (`"2026-08-31"`). Real
+        /// information, but any hour we assigned it would be invented — we don't
+        /// even know what time zone the vendor meant. Must flow only as
+        /// `ReleaseTimeline.vendorDay`, never as `publishedAt`.
+        case day
+    }
+
+    /// A feed date parsed alongside the precision it was actually stated at.
+    public struct Parsed: Sendable, Equatable {
+        /// The instant this string names. For `.day` precision this is the start
+        /// of that calendar day in UTC — a real value (useful for display and for
+        /// sorting release history), but not a claim about the time of day.
+        public let date: Date
+        public let precision: Precision
+
+        public init(date: Date, precision: Precision) {
+            self.date = date
+            self.precision = precision
+        }
+    }
+
+    /// Like `parse(_:)`, but keeps the day-only shapes `parse` discards instead of
+    /// collapsing every result to "trustworthy to the minute". Shares every
+    /// formatter and gate `parse` uses — same acceptance, same rejections — so the
+    /// two can never answer "is this parseable?" differently; only what happens to
+    /// a bare calendar day changes.
+    ///
+    /// Nil under the exact conditions `parse` returns nil: empty, unparseable, or
+    /// (unlike `parse`) never for a *bare-digit* `yyyyMMdd` — that shape still
+    /// goes through `date(fromDigits:)` at `.day` precision here too, since it is
+    /// exactly as day-only as the dashed spelling; `parse` keeps returning that one
+    /// as a plain `Date` (pre-existing behavior, unchanged by this type).
+    public static func parseWithPrecision(_ raw: String?) -> Parsed? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+
+        if isNumericRun(trimmed) {
+            guard let value = date(fromDigits: trimmed) else { return nil }
+            let isBareCalendarDay = trimmed.utf8.count == 8 && isDigitRun(trimmed)
+            return Parsed(date: value, precision: isBareCalendarDay ? .day : .minute)
+        }
+
+        if let value = date(fromDashedCalendarDay: trimmed) {
+            return Parsed(date: value, precision: .day)
+        }
+
+        if let value = isoWithFraction.date(from: trimmed) {
+            return Parsed(date: value, precision: .minute)
+        }
+        if let value = isoPlain.date(from: trimmed) {
+            return Parsed(date: value, precision: .minute)
+        }
+
+        for formatter in zonelessISOFormatters {
+            if let value = formatter.date(from: trimmed) {
+                return Parsed(date: value, precision: .minute)
+            }
+        }
+
+        for formatter in rfc822Formatters {
+            if let value = formatter.date(from: trimmed) {
+                return Parsed(date: value, precision: .minute)
+            }
+        }
+
+        return nil
+    }
+
+    /// Split a raw feed date string into the one field it may honestly fill,
+    /// per ``Precision``: a real time of day becomes `publishedAt` — the only
+    /// tier `ReleaseTimeline.publishedAt`/`ReleaseTimelineStore` may plot to the
+    /// minute — while a bare calendar day becomes `vendorDay` instead of a
+    /// fabricated midnight moment the vendor never stated. Never both.
+    ///
+    /// #300: this is the one place that routing happens, shared by every
+    /// `UpdateSource` that reads a vendor timestamp (`AlcoveUpdateSource`,
+    /// `ElectronManifestSource`, `GitHubReleasesSource`, `SparkleAppcastSource`,
+    /// `VendorProbeSource`) — previously `SparkleAppcastSource` carried its own
+    /// copy of exactly this switch while the other four sources called `parse`
+    /// directly and so had no `vendorDay` tier at all. One routing function
+    /// means the "day precision never reaches `publishedAt`" invariant only
+    /// has to be true in one place for it to be true everywhere.
+    public static func publishedFields(from raw: String?) -> (publishedAt: Date?, vendorDay: Date?) {
+        guard let parsed = parseWithPrecision(raw) else { return (nil, nil) }
+        switch parsed.precision {
+        case .minute: return (parsed.date, nil)
+        case .day: return (nil, parsed.date)
+        }
+    }
 }

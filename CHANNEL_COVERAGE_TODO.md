@@ -196,6 +196,13 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
       按 bundle id 限定的 step 0.8。两 channel 均仅检测，未接一键（装机带特权
       helper/LaunchDaemon/XPC，一键是独立范围决策）。
 
+- [ ] **Docker Desktop — nightly** · `com.docker.docker` — UI 的更新设置代码里存在受
+      feature flag 控制的 `useNightlyBuildUpdates`；观测 stable bundle 只给出 `channelID=main`，
+      backend 使用 `desktop.docker.com/mac/main/arm64/appcast.json`。尚未取得真实 nightly
+      构件，也未验证开关落盘后的本地信号和 endpoint，故暂不登记为 detectable。不要从嵌套
+      `Docker Desktop.app` 的 Squirrel 推断渠道：实际更新器是外层
+      `com.docker.backend.updater`（见 `docs/app-audits/com-docker-docker.md`）。
+
 ---
 
 ## §2c 扫描 2026-08-27（CapCut 落地后复扫）

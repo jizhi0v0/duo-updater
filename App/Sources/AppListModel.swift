@@ -9,6 +9,13 @@ enum ChangelogLoadState {
     case loading
     case loaded(Changelog)
     case failed
+
+    /// The one state a scheduled refresh is allowed to drop — see
+    /// `RefreshIntent.dropsChangelogEntry(failed:)`.
+    var isFailed: Bool {
+        if case .failed = self { return true }
+        return false
+    }
 }
 
 /// Identity for one rendered changelog in the workbench. Some apps share a
@@ -86,11 +93,15 @@ final class AppListModel {
     private(set) var isScanning = false
     private(set) var isChecking = false
     /// True for the whole of `performRefresh`, unlike `isScanning`/`isChecking`
-    /// which each cover only one leg of it. Between them sits the TestFlight read
-    /// (up to 2s on a user-present refresh), during which BOTH are false while
-    /// `results` still carries the previous round's `.error` rows — long enough for
-    /// a failure banner keyed on those to flash in and back out on every refresh.
-    /// Surfaces that must stay quiet for a whole round read this instead.
+    /// which each cover only one leg of it. A user-present refresh suspends TWICE
+    /// with both of those false: at `ChangelogCache.invalidateAll()` before the scan,
+    /// and at the TestFlight read between the legs (up to 2s). SwiftUI renders at
+    /// both. `results` still carries the previous round's `.error` rows there — long
+    /// enough for a failure banner keyed on those to flash in and back out — and
+    /// every whole-list control read as enabled (#253).
+    ///
+    /// Surfaces that must stay quiet for a whole round read this instead, via
+    /// `listActivity`.
     private(set) var isRefreshing = false
     private(set) var lastScan: Date?
 
@@ -266,6 +277,22 @@ final class AppListModel {
     /// was added to prevent. Comparing against what we wrote cannot drift,
     /// because whoever overwrote the note also invalidated the comparison.
     @ObservationIgnored private var restartHoldBackNotes: [String: String] = [:]
+    /// id → the "it wouldn't quit" text this model last wrote into `installNotes`,
+    /// under exactly the discipline `restartHoldBackNotes` documents above.
+    ///
+    /// Written by `restart`'s `.stillRunning` bail, which until now said nothing to
+    /// the user at all: the spinner ran the full 30s `AppRestarter` allows for a
+    /// graceful quit, the button came back unchanged, and the only trace was an
+    /// `os_log` line. Measured on Eudic (欧路词典) 2026-09-01 — its login sheet was
+    /// up, so AppKit refused the quit — and the two clicks 52 seconds apart in that
+    /// user's log are what a silent bail buys you.
+    ///
+    /// Not registered in `inFlightNotes` for the same reason the hold-back text
+    /// isn't: the row already has the new build on disk, so it reads `.upToDate`
+    /// for the whole time this note is up and the settle rule would take it down on
+    /// the next rescan with nothing changed. What ends this one is the app finally
+    /// quitting, which `settleQuitHandoffs` observes directly.
+    @ObservationIgnored private var restartWontQuitNotes: [String: String] = [:]
     /// id → the "App Store can't replace this while it's open" text this model wrote
     /// into `installNotes`, so the install can retract exactly its own note when it
     /// finishes. Same discipline as `restartHoldBackNotes`, and for the same reason:
@@ -313,9 +340,9 @@ final class AppListModel {
     /// "previous"), and comparing against it is what hid the Rollback row.
     private(set) var backupSides: [String: VersionSide] = [:]
     /// Bundle *paths* of apps with at least one live process right now. Kept current
-    /// by `NSWorkspace`'s launch/terminate notifications, so a row's running dot
-    /// lights up/clears the moment the user opens or quits the app — no refresh
-    /// needed. Keyed by path, NOT bundle id: the same app can be installed twice
+    /// by `armRunningAppsMonitor` (KVO on `NSWorkspace.runningApplications`), so a
+    /// row's running dot lights up/clears the moment the user opens or quits the
+    /// app — no refresh needed. Keyed by path, NOT bundle id: the same app can be installed twice
     /// (e.g. two Android Studio versions side by side) sharing one bundle id, and
     /// only the install whose bundle is actually executing should light up.
     private(set) var runningAppPaths: Set<String> = []
@@ -399,6 +426,118 @@ final class AppListModel {
         UpdatePolicy.laggingRemoteVersion(result)
     }
 
+    /// The one version-line fact the row should explain, read by both windows. The
+    /// precedence lives in Core so a relaunch and a lagging-feed note cannot
+    /// silently swap places in a view with no test target (#210) — and so the two
+    /// windows can't each grow their own ladder with different coverage (#289: the
+    /// workbench used to run two, neither with a downgrade or pending-batch-restart
+    /// branch, so a row's version line could disagree with its own action button).
+    func versionLineState(for result: UpdateResult) -> RowVersionLineState {
+        RowVersionLine.state(
+            staged: actionableStaged(result),
+            pendingBatchRestartMarketing: pendingBatchRestart[result.id],
+            restartFrom: needsRestart.contains(result.id) ? restartFromSide(result.id) : nil,
+            downgradeVersion: downgradeNote(result))
+    }
+
+    /// Bring JetBrains Toolbox forward — the action for every Toolbox-managed row,
+    /// in both windows. On the model rather than duplicated per view, for the same
+    /// reason `rowState` is: one row, one behaviour.
+    func openToolbox() {
+        if let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.jetbrains.toolbox") {
+            NSWorkspace.shared.openApplication(at: url, configuration: .init())
+        }
+    }
+
+    /// Bring TestFlight forward — the action for every TestFlight-managed row, in
+    /// both windows and in the row menu. On the model for the same reason
+    /// `openToolbox` is: one row, one behaviour.
+    func openTestFlight() {
+        if let url = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.apple.TestFlight") {
+            NSWorkspace.shared.openApplication(at: url, configuration: .init())
+        }
+    }
+
+    /// The single answer both the popover and the workbench render.
+    ///
+    /// `ui = f(state)`: the two surfaces used to each carry their own ladder of
+    /// `if`/`else if`, in different orders and with different coverage, so the same
+    /// row could read differently in the two windows — and did (see
+    /// `RowActionState`). They now ask this and decide only how to *draw* the
+    /// answer, never what the answer is.
+    ///
+    /// Presentation may still differ where it is a deliberate product decision: the
+    /// workbench does not one-click a major upgrade, because the licence-boundary
+    /// warning that makes that safe lives in the popover. What it may not do is
+    /// render a state as nothing.
+    func rowState(for result: UpdateResult) -> RowActionState {
+        RowAction.state(for: RowActionFacts(
+            status: result.status,
+            awaitingQuitConfirm: awaitingQuitConfirm[result.id],
+            isRelaunching: relaunching.contains(result.id),
+            hasPendingBatchRestart: pendingBatchRestart[result.id] != nil,
+            justUpdated: justUpdated.contains(result.id),
+            installStage: installing[result.id],
+            isIgnored: prefs.isIgnored(result.app),
+            isVersionSkipped: prefs.isVersionSkipped(result.app, version: result.remote?.versionSide),
+            stagedRelaunchTarget: actionableStaged(result).map { result.stagedRelaunchLine($0).to },
+            needsRestart: needsRestart.contains(result.id),
+            // Feeds the `.unknown` / `.upToDate` rungs' source-hint and channel
+            // priority — moved here from the popover's own `isMASApp` /
+            // `isTestFlightApp` / `sparkleFeedURL` reads (issue #260), so the
+            // priority between them lives in `RowAction.state` rather than a view.
+            isMASApp: result.app.isMASApp,
+            isTestFlightApp: result.app.isTestFlightApp,
+            hasSparkleFeed: result.app.sparkleFeedURL != nil,
+            // `self.` because the route is an `@autoclosure` the facts hold rather
+            // than a value they copy — see `RowActionFacts.route`. The capture is
+            // safe: the struct is built and consumed in this one expression, and
+            // the closure is called (at most once) before it returns.
+            route: self.rowRoute(for: result)))
+    }
+
+    /// How an available update would be applied. Resolved here rather than in each
+    /// view so both windows agree on whether a row is one-click at all — the
+    /// invariant that matters, since one window offering Update while the other
+    /// does not is the same row telling two stories.
+    ///
+    /// The decision itself is `UpdateRoute.resolve(_:)` in Core (issue #261) — this
+    /// is only the wiring that fills `RouteInputs`. It stays a method the caller
+    /// invokes lazily (`rowState(for:)` passes `self.rowRoute(for: result)` into an
+    /// `@autoclosure` parameter) rather than a stored value, so building
+    /// `RouteInputs` — which calls `canAutoInstall` / `requiresInstaller` /
+    /// `defersToSelfUpdater` unconditionally and, when `requiresInstaller` is
+    /// true, reads `stagedPackage(for:)` too — only happens for a row that
+    /// actually reaches `.updateAvailable`. See `RowActionFacts.route`'s doc
+    /// comment, and the note below on what changed inside that boundary.
+    private func rowRoute(for result: UpdateResult) -> UpdateRoute {
+        // `requiresInstaller` is read twice below (the gate, and the installer
+        // rung itself); computed once here rather than reasked. This does NOT
+        // narrow when `stagedPackage(for:)` runs — with the ladder collapsed into
+        // one struct, it runs whenever `requiresInstaller` is true, including rows
+        // that go on to resolve as `.majorUpgrade`, `.selfUpdater`, `.toolbox` or
+        // `.testFlight`, none of which reached it in the old short-circuiting
+        // `if`/`else if` chain. It stays cheap for a different reason:
+        // `stagedPackage(for:)` guards on the `stagedPackages[result.id]`
+        // dictionary lookup FIRST, and that is nil for nearly every row (a staged
+        // package is rare), so the `fileExists` stat behind it is skipped before
+        // it runs, not because this call site is skipped.
+        let requiresInstaller = requiresInstaller(result)
+        return UpdateRoute.resolve(RouteInputs(
+            isToolboxManaged: result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged,
+            isTestFlight: result.remote?.sourceName == "TestFlight",
+            defersToSelfUpdater: defersToSelfUpdater(result),
+            isMajorUpgrade: result.isMajorUpgrade,
+            canAutoInstall: canAutoInstall(result),
+            requiresInstaller: requiresInstaller,
+            stagedFileName: requiresInstaller ? stagedPackage(for: result)?.url.lastPathComponent : nil,
+            hasAppStoreAvailability: result.remote?.appStore != nil,
+            appStoreManagedHere: result.app.isiOSAppOnMac && appStoreStrategyIsFullDownload,
+            appStoreGate: AppStoreGate.resolve(result.remote?.appStore)))
+    }
+
     /// A pending update the user hasn't ignored or skipped — what the badge counts
     /// and what "Update All" acts on.
     func isActionableUpdate(_ result: UpdateResult) -> Bool {
@@ -427,8 +566,8 @@ final class AppListModel {
     /// The three relaunch terms are gated on the user's verdict, which
     /// `isActionableUpdate` applies for itself and they do not carry: an ignored
     /// row stays in `results` with `remote: nil` and renders as a muted "Ignored"
-    /// tag with no button at all (`MenuContentView.trailing` puts that branch ahead
-    /// of both relaunch branches). Counting one would light the badge with nothing
+    /// tag with no button at all (`RowAction.state` puts the ignore rung ahead
+    /// of both relaunch rungs, for both windows). Counting one would light the badge with nothing
     /// on the other end of the click, forever — the same "hidden in the app, still
     /// nagging" shape `UpdatePolicy.nudgeableStaged` exists to prevent, which is
     /// also why the staged term goes through `nudgeableStaged` rather than raw
@@ -457,11 +596,21 @@ final class AppListModel {
     /// install", which is what the diagnostic log wants.
     var actionCount: Int { results.filter(needsAction).count }
 
+    /// What is in flight across the whole list right now. The whole-list actions
+    /// below all gate on this one value rather than re-listing the flags, which is
+    /// what let them disagree about the mid-refresh gap (#253).
+    var listActivity: ListActivity {
+        ListActivity(
+            isRefreshing: isRefreshing,
+            isScanning: isScanning,
+            isChecking: isChecking,
+            isInstallingAll: isInstallingAll,
+            rowInstallCount: installing.count)
+    }
+
     /// A full networked refresh rewrites the whole result list. Keep it out of
     /// the way while installs are mutating individual rows and replacing bundles.
-    var canRefresh: Bool {
-        !isScanning && !isChecking && installing.isEmpty && !isInstallingAll
-    }
+    var canRefresh: Bool { listActivity.canRefresh }
 
     /// The count shown on the menu-bar badge. A full refresh briefly blanks every
     /// row to `.unknown` (so `actionCount` dips to 0) before the check repopulates
@@ -577,6 +726,30 @@ final class AppListModel {
     /// which only exist after a check has run `makeSources` and set this).
     private(set) var hasGitHubToken = false
 
+    /// The most recent GitHub token resolution: the token (nil when none was
+    /// found) and the explicit Settings value it was resolved under.
+    ///
+    /// Per-app rechecks reuse this rather than resolving again. With no explicit
+    /// token and no env var — the zero-config `gh` login case, which is the common
+    /// one — `GitHubToken.resolve` shells out to `gh auth token`, and one Update
+    /// click runs two rechecks (the pre-install guard and the post-install
+    /// re-read): two subprocesses per click for an answer the full check a minute
+    /// earlier already had (issue #226).
+    ///
+    /// Invalidation is by comparison, not by event: a recheck reuses the entry only
+    /// while `explicit` still equals what Settings holds, so a token pasted or
+    /// cleared there takes effect on the very next recheck, and every full refresh
+    /// re-resolves regardless and overwrites this. The one change this cannot see
+    /// is the `gh` CLI's own login moving underneath us — `gh auth login` after
+    /// launch reaches the next full check, not the next install; until then a
+    /// recheck runs unauthenticated, exactly as a full check would have before the
+    /// login. Not read by the UI; the banner reads `hasGitHubToken`.
+    private struct ResolvedGitHubToken {
+        let explicit: String?
+        let token: String?
+    }
+    @ObservationIgnored private var resolvedGitHubToken: ResolvedGitHubToken?
+
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
 
@@ -616,10 +789,22 @@ final class AppListModel {
     /// lingering until the next slow backstop tick.
     @ObservationIgnored private var localRescanDeferred = false
 
-    /// `NSWorkspace` launch/terminate observers that keep `runningBundleIDs` live.
-    /// Retained for the app's lifetime (the single model never deallocates), so they
-    /// stay registered without explicit teardown.
+    /// `NSWorkspace` launch/terminate observers, the *backup* source for
+    /// `runningBundleIDs` (see `armRunningAppsMonitor`). Retained for the app's
+    /// lifetime (the single model never deallocates), so they stay registered
+    /// without explicit teardown.
     @ObservationIgnored private var runningAppObservers: [NSObjectProtocol] = []
+    /// KVO on `NSWorkspace.runningApplications` — the primary source. Held because
+    /// an `NSKeyValueObservation` unregisters itself when it is released, so
+    /// dropping this handle would silently switch the running dot back to the
+    /// unreliable notifications and nothing would look broken until an app's dot
+    /// went stale.
+    @ObservationIgnored private var runningAppsObservation: NSKeyValueObservation?
+    /// Symlink-resolved bundle path per running process, remembered across
+    /// running-apps events so `refreshRunningApps` resolves only the bundle
+    /// that just appeared instead of every running one (see the type's doc for
+    /// the measurement). Not observed: it is a memo, `runningAppPaths` is the fact.
+    @ObservationIgnored private var runningBundlePaths = RunningBundlePathCache()
     /// Coalesces the terminate+launch burst a manual app restart emits into a single
     /// restart-info recompute (see `handleRunningAppsChange`). Cancel-and-reschedule,
     /// so a flurry of process events collapses to one `lsappinfo` read.
@@ -731,15 +916,171 @@ final class AppListModel {
     /// Matches on the SwiftUI window identifier, whose rawValue embeds the scene id
     /// (e.g. "settings-AppWindow-1"). Runs on the next runloop so the window exists
     /// for a fresh open, and after `windowAppeared`'s `activate` so our order wins.
+    ///
+    /// Then it **asks the window server whether that actually worked, and asks
+    /// again if it did not**, which is the whole of this change. Ordering a window
+    /// front is a request, and one assertion is not enough — from the popover's row
+    /// menu with the Dock icon hidden (`.accessory`, the default), the first
+    /// assertion left the window not in front every single time. Four consecutive
+    /// opens, logged from the shipped app:
+    ///
+    ///     surface[1] workbench visible=true key=true front=false  policy=accessory
+    ///     surface[2] workbench visible=true key=true front=true   policy=accessory
+    ///
+    /// `visible=true key=true front=false` is the shape of the bug: the window is
+    /// open, and it is even this app's key window, and it is still not the frontmost
+    /// window on screen. AppKit's own state cannot see that — `isVisible` and
+    /// `isKeyWindow` both say yes — which is why this asks CoreGraphics instead. The
+    /// second attempt, ~110 ms later, was in front on all four. The version that
+    /// asserted once and returned failed all four, and to the user that is a menu
+    /// item that does nothing.
+    ///
+    /// Three costs worth knowing before tuning any of the numbers. A window that is
+    /// in front on the first look still needs `settledChecks` confirmations, so the
+    /// cheapest path is three window-list reads over ~0.2 s — not one, and not free.
+    /// A window that never gets there is chased for the full 1.2 s. And once it HAS
+    /// been in front, the budget shortens to `holdAfterFront`, because past that
+    /// point every re-assertion is as likely to be fighting the user who moved on as
+    /// it is to be fixing the popover pushing our window back down.
+    ///
+    /// One loop at a time, across every scene: opening Settings and then the
+    /// workbench within the same second used to leave two loops each insisting on a
+    /// different window, trading places until both expired.
     func surfaceWindow(sceneID: String) {
-        DispatchQueue.main.async {
+        // Reaching the front once is not the same as being there when the user
+        // looks. Logged from the shipped app, five consecutive opens all reported
+        // `front on attempt 2` — and the user still saw the window fail to appear on
+        // some of them. What the one-shot check cannot see is what happens *after*
+        // it returns: the popover dismisses, the app stops being active, and the
+        // window it just ordered up goes back down behind whatever was in front.
+        //
+        // So this holds the order rather than asserting it: keep checking until the
+        // window has been in front for `settledChecks` checks in a row, re-asserting
+        // whenever it is not, and give up at the deadline either way.
+        // A monotonic clock, not `Date`: a wall-clock step (an NTP correction on a
+        // machine that just woke, which is exactly when a menu-bar app gets clicked)
+        // would either end the loop on its first tick or keep it re-ordering the
+        // window for the length of the step.
+        var deadline = ContinuousClock.now.advanced(by: .milliseconds(1200))
+        let holdAfterFront = Duration.milliseconds(400)
+        let settledChecks = 3          // ~0.3 s of staying put
+        var attempts = 0
+        var consecutiveFront = 0
+        var everFront = false
+
+        surfaceGeneration &+= 1
+        let generation = surfaceGeneration
+
+        func tick() {
+            // Superseded by a later surface request — for this scene or another one.
+            guard generation == surfaceGeneration else { return }
+            attempts += 1
             guard let window = NSApp.windows.first(where: {
                 ($0.identifier?.rawValue.contains(sceneID) ?? false) && $0.isVisible
-            }) else { return }
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
+            }) else {
+                // Not visible *yet* is a state to wait through rather than give up
+                // on: `openWindow` took 150–480 ms to return in the traces.
+                if ContinuousClock.now < deadline { retry() } else {
+                    Log.app.notice("surface: \(sceneID, privacy: .public) never became visible")
+                }
+                return
+            }
+            let front = Self.isFrontmostOnScreen(window)
+            if front {
+                if !everFront {
+                    everFront = true
+                    // It arrived. From here we are only guarding against being
+                    // pushed back down, which happens within a few hundred ms; a
+                    // full second of insisting past that just takes the front away
+                    // from a user who has already moved to another app.
+                    deadline = min(deadline, .now.advanced(by: holdAfterFront))
+                }
+                consecutiveFront += 1
+                if consecutiveFront >= settledChecks {
+                    // `isFrontmostOnScreen` answers true when it cannot read the
+                    // window list at all, which is the right way to stop spinning
+                    // and the wrong thing to call "settled": this log line is the
+                    // only evidence this code leaves, and it must not claim a window
+                    // is in front when nothing was able to look.
+                    Log.app.notice("""
+                        surface: \(sceneID, privacy: .public) \
+                        \(Self.canReadWindowList() ? "settled in front" : "stopped — window list unreadable") \
+                        after \(attempts, privacy: .public) checks
+                        """)
+                    return
+                }
+            } else if everFront, !NSApp.isActive {
+                // The window arrived, the user saw it, and then activated something
+                // else. That is not the popover pushing our window down — it is the
+                // user, and the front belongs to whoever they just switched to.
+                // Without this the loop drags them back for the rest of its budget:
+                // reported from use, "if you switch away quickly it pulls you back".
+                //
+                // Safe as the stopping rule only because the popover now takes
+                // activation when it opens (see MenuContentView), so we stay active
+                // through its dismissal — the moment this guard exists to survive.
+                Log.app.notice("""
+                    surface: \(sceneID, privacy: .public) stopped after \
+                    \(attempts, privacy: .public) checks — the user activated another app
+                    """)
+                return
+            } else {
+                // Either it never got there, or it got there and was pushed back
+                // while we are still the active app — the second is the case the
+                // one-shot version could not see.
+                if consecutiveFront > 0 { consecutiveFront = 0 }
+                NSApp.activate(ignoringOtherApps: true)
+                window.makeKeyAndOrderFront(nil)
+                window.orderFrontRegardless()
+            }
+            if ContinuousClock.now < deadline {
+                retry()
+            } else {
+                Log.app.notice("""
+                    surface: \(sceneID, privacy: .public) gave up after \
+                    \(attempts, privacy: .public) checks, everFront=\(everFront, privacy: .public)
+                    """)
+            }
         }
+        func retry() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: tick) }
+        DispatchQueue.main.async(execute: tick)
+    }
+
+    /// Which surfacing loop is the live one. Bumped by every `surfaceWindow` call
+    /// so an older loop — for this scene or a different one — stops on its next
+    /// tick instead of fighting the newer request for the front.
+    @ObservationIgnored private var surfaceGeneration = 0
+
+    /// Whether the window server answered at all. Separates "this window is in
+    /// front" from "nothing could be read", which `isFrontmostOnScreen` deliberately
+    /// collapses so the caller stops retrying.
+    private static func canReadWindowList() -> Bool {
+        CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                   kCGNullWindowID) as? [[String: Any]] != nil
+    }
+
+    /// Whether the window server has this window in front of every other ordinary
+    /// on-screen window. The rule itself is `WindowOrder.isFrontmost`, in Core where
+    /// it can be tested; this only reads the list.
+    private static func isFrontmostOnScreen(_ window: NSWindow) -> Bool {
+        // `.optionOnScreenOnly`, NOT `.optionAll`: only the on-screen list is
+        // ordered front-to-back. Measured with Claude frontmost —
+        //   .optionAll         : Excel > Messages > Finder > Zed > Claude > …
+        //   .optionOnScreenOnly: Claude > Excel > App Store > …
+        // — so reading `.optionAll` as a z-order is reading a list that isn't one,
+        // and this check would answer about window creation order instead. A window
+        // that is not on screen is simply absent from the list, which is the right
+        // answer here: not visible is not in front.
+        guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                   kCGNullWindowID) as? [[String: Any]]
+        else { return true }   // can't tell → don't spin
+        let windows = raw.map {
+            WindowInfo(
+                number: $0[kCGWindowNumber as String] as? Int ?? -1,
+                layer: $0[kCGWindowLayer as String] as? Int ?? -1,
+                isOnScreen: $0[kCGWindowIsOnscreen as String] as? Bool ?? false)
+        }
+        return WindowOrder.isFrontmost(window.windowNumber, in: windows)
     }
 
     // MARK: - Accessibility trust polling
@@ -868,7 +1209,7 @@ final class AppListModel {
         // flips the Restart badge without waiting for a menu open or networked check.
         armLocalRescan()
         // Track which apps are running so each row can show a live "running" dot,
-        // kept current by NSWorkspace launch/terminate notifications.
+        // kept current by KVO on `NSWorkspace.runningApplications`.
         armRunningAppsMonitor()
         // Did we swap ourselves out from under the user since they last read the
         // notes? Resolved once here: the running version can't change inside a
@@ -889,6 +1230,10 @@ final class AppListModel {
     private static func resolveGitHubToken(
         explicit: String?, timeout: Duration = .seconds(2)
     ) async -> String? {
+        // Logged so a resolve is visible in `log stream`: without an explicit or env
+        // token each one is a `gh auth token` subprocess, and this line is how to
+        // count them per action (one per full check; none per Update click).
+        Log.app.info("GitHub token: resolving (explicit=\(explicit != nil, privacy: .public))")
         let loader = Task.detached(priority: .utility) {
             GitHubToken.resolve(explicit: explicit)
         }
@@ -897,6 +1242,19 @@ final class AppListModel {
         }
         Log.app.error("GitHub token resolve timed out — continuing without a token")
         return nil
+    }
+
+    /// The token for a per-app recheck: the most recent resolution, unless the
+    /// explicit Settings value has changed since — then a fresh resolve, remembered
+    /// in turn. See `resolvedGitHubToken` for what this can and cannot notice.
+    private func githubTokenForRecheck() async -> String? {
+        let explicit = explicitGitHubToken()
+        if let cached = resolvedGitHubToken, cached.explicit == explicit {
+            return cached.token
+        }
+        let token = await Self.resolveGitHubToken(explicit: explicit)
+        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicit, token: token)
+        return token
     }
 
     /// The ordered source stack, rebuilt per check so it picks up a token change
@@ -986,23 +1344,25 @@ final class AppListModel {
     }
 
     /// Log every release in `checked` that arrived with a trustworthy vendor
-    /// timestamp into the release timeline, then refresh the UI snapshot. The
-    /// store dedupes by (app, version), so re-checks are cheap; only a genuinely
-    /// new release or changed display metadata writes the timeline file. Results
-    /// without a `publishedAt` (vendor probes, MAS, Homebrew) use the observation
-    /// path below rather than this exact-timestamp path.
+    /// date into the release timeline, then refresh the UI snapshot. The store
+    /// dedupes by (app, version), so re-checks are cheap; only a genuinely new
+    /// release or changed display metadata writes the timeline file. Results
+    /// with neither a `publishedAt` nor a `vendorDay` (vendor probes, MAS,
+    /// Homebrew) use the observation path below rather than this path.
     private func recordReleaseTimeline(for checked: [UpdateResult]) async {
         for result in checked {
             guard let remote = result.remote else { continue }
-            // The latest release (when it carries a date)…
-            if remote.publishedAt != nil {
+            // The latest release (when it carries a date, at either the minute
+            // or the day tier — see `ReleaseTimeline`'s three-tier doc)…
+            if remote.publishedAt != nil || remote.vendorDay != nil {
                 await releaseTimelineStore.record(
                     appID: result.app.id,
                     appName: result.app.name,
                     bundleID: result.app.bundleID,
                     version: remote.displayVersion,
                     sourceName: remote.sourceName,
-                    publishedAt: remote.publishedAt
+                    publishedAt: remote.publishedAt,
+                    vendorDay: remote.vendorDay
                 )
             }
             // …plus any prior releases the source surfaced (Sparkle appcast items,
@@ -1015,22 +1375,23 @@ final class AppListModel {
                     bundleID: result.app.bundleID,
                     version: entry.version,
                     sourceName: remote.sourceName,
-                    publishedAt: entry.publishedAt
+                    publishedAt: entry.publishedAt,
+                    vendorDay: entry.vendorDay
                 )
             }
             // Detection-only sources (a vendor probe, a Homebrew cask, the App
-            // Store) report a version but no date. We can't know when they shipped,
-            // only that a version *change* happened between two checks — so track
-            // the reported version and, on a change, log an estimated window.
-            // Build-aware, so a vendor that ships many builds under one marketing
-            // name records one event per RELEASE rather than one for the whole
-            // name. Amp published ten builds as "1.0" in a day; keyed on the
+            // Store) report a version but no date at all. We can't know when they
+            // shipped, only that a version *change* happened between two checks —
+            // so track the reported version and, on a change, log an estimated
+            // window. Build-aware, so a vendor that ships many builds under one
+            // marketing name records one event per RELEASE rather than one for the
+            // whole name. Amp published ten builds as "1.0" in a day; keyed on the
             // marketing string the timeline logged exactly one of them.
             //
             // Events written by earlier builds keep their marketing-only key and
             // are deliberately not rewritten: the history they under-counted
             // cannot be recovered, and re-deriving it would invent dates.
-            if remote.publishedAt == nil, remote.releaseHistory.isEmpty,
+            if remote.publishedAt == nil, remote.vendorDay == nil, remote.releaseHistory.isEmpty,
                case let side = remote.versionSide, !side.isEmpty,
                case let v = side.text(withBuild: true), !v.isEmpty {
                 await releaseTimelineStore.observeForChange(
@@ -1069,6 +1430,21 @@ final class AppListModel {
     /// it — the fetch finishes in the background and caches, so coming back is
     /// instant instead of restarting from scratch.
     @ObservationIgnored private var changelogTasks: [ChangelogCacheKey: Task<Void, Never>] = [:]
+
+    /// Keys whose notes have been fetched over the network *this session*, as
+    /// opposed to painted from the cross-launch disk cache.
+    ///
+    /// The disk cache is keyed by the version the notes are being shown for, and
+    /// `prewarmChangelogs` treats a hit as final because a released version's notes
+    /// are immutable. They are — but the entry under that key need not be the
+    /// notes for that version at all. CleanShot's 5.0 was offered by the appcast
+    /// six minutes before the vendor published its notes, so the fetch stored the
+    /// 4.8.10-and-older page under the key `5.0`, and from then on: prewarm hit the
+    /// disk, marked the state `.loaded`, and `ensureChangelogLoading` returned at
+    /// its first line every time the user opened the app. The pane showed "5.0" over
+    /// 4.8.10's notes, permanently, with nothing to re-read it. This set is what
+    /// makes a disk hit provisional until the network has confirmed it once.
+    @ObservationIgnored private var changelogRevalidated: Set<ChangelogCacheKey> = []
 
     /// The current state of an app's changelog, if it's recipe-backed. `nil` means
     /// the app has no recipe (the workbench then renders inline/structured/web
@@ -1118,11 +1494,19 @@ final class AppListModel {
         let targetVersion = changelogTargetVersion(for: result)
         let key = ChangelogCacheKey(
             bundleID: bundleID, channel: result.app.releaseChannel, version: targetVersion)
+        // A `.loaded` that was only ever painted from the disk cache is not done:
+        // it still owes one network read, because the entry filed under this
+        // version's key may have been fetched before the vendor published that
+        // version's notes (see `changelogRevalidated`). Confirmed once, it is done.
+        var alreadyPainted = false
         switch changelogState[key] {
-        case .loaded, .loading: return          // already done / in flight
-        case .failed, .none: break              // (re)start
+        case .loading: return                        // in flight
+        case .loaded:
+            if changelogRevalidated.contains(key) { return }
+            alreadyPainted = true                    // keep it on screen while re-reading
+        case .failed, .none: break                   // (re)start
         }
-        changelogState[key] = .loading
+        if !alreadyPainted { changelogState[key] = .loading }
         // The version whose notes to show: the offered update if any, else the
         // installed build. Templated recipes (Thunderbird) fetch exactly that
         // version's page so the rendered notes match what the user sees.
@@ -1146,6 +1530,11 @@ final class AppListModel {
             guard let self else { return }
             self.changelogTasks[key] = nil
             if let fresh {
+                // Only a fetch that came back confirms the cached notes. Marking the
+                // key on the attempt would pin whatever is on screen for the rest of
+                // the session the first time the network is down — which is this
+                // change's own bug, reintroduced for the offline case.
+                self.changelogRevalidated.insert(key)
                 self.changelogState[key] = .loaded(fresh)
             } else if case .loaded = self.changelogState[key] {
                 // Network revalidation failed but we already painted cached notes —
@@ -1181,6 +1570,7 @@ final class AppListModel {
         for key in changelogState.keys.filter({ $0.bundleID == bundleID }) {
             changelogState[key] = nil
         }
+        changelogRevalidated = changelogRevalidated.filter { $0.bundleID != bundleID }
         // Clear the network cache for every channel variant (Stable & ESR share this
         // bundle id but have different sources; Warp's three channels share one
         // endpoint but get distinct channel-fragmented cache slots), since we don't
@@ -1218,6 +1608,7 @@ final class AppListModel {
             changelogState[key] = .loading
             changelogTasks[key] = Task { [weak self] in
                 var changelog = await ChangelogService.diskCached(recipe, version: targetVersion)
+                var fetched = false
                 if changelog == nil {
                     // Cap concurrent network prewarms: a cold cache would otherwise
                     // fan out one fetch per recipe-backed app at once. Disk hits above
@@ -1225,10 +1616,15 @@ final class AppListModel {
                     await Self.prewarmNetworkGate.wait()
                     changelog = await ChangelogService.load(recipe, version: targetVersion)
                     await Self.prewarmNetworkGate.signal()
+                    fetched = changelog != nil
                 }
                 if Task.isCancelled { return }
                 guard let self else { return }
                 self.changelogTasks[key] = nil
+                // A disk hit is provisional; only a fetch that came back discharges
+                // the debt. A failed one leaves the key owing a read, and the open
+                // path will take it.
+                if fetched { self.changelogRevalidated.insert(key) }
                 if let changelog {
                     self.changelogState[key] = .loaded(changelog)
                     self.prewarmImages(in: changelog)
@@ -1238,7 +1634,9 @@ final class AppListModel {
                     // (`changelogState(for:)` maps a *missing* key back to `.loading`,
                     // and the view's `.onAppear` fires once per appearance — so clearing
                     // the key would leave an in-flight-looking spinner that never
-                    // re-triggers a fetch. The next refresh re-prewarms and can recover.)
+                    // re-triggers a fetch. The next refresh of either kind drops
+                    // `.failed` entries before re-prewarming — see `performRefresh` —
+                    // which is the only retry a failed prewarm gets.)
                     self.changelogState[key] = .failed
                 }
             }
@@ -1276,11 +1674,12 @@ final class AppListModel {
     /// network check — which is exactly how an "up to date" snapshot could clobber
     /// a check that had found updates.
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    /// Whether the in-flight `refreshTask` was started with TestFlight reads enabled.
-    /// A user-present caller (`allowTestFlight: true`) that coalesces onto a silent
-    /// background refresh (`false`) would otherwise return with TestFlight tags never
-    /// applied — so we check this and run one follow-up that does the TestFlight read.
-    @ObservationIgnored private var refreshTaskAllowedTestFlight = false
+    /// What the in-flight `refreshTask` was started for. A user-present caller that
+    /// coalesces onto a silent scheduled refresh would otherwise return with neither
+    /// of its consequences delivered — TestFlight tags never applied, release notes
+    /// left as they were — so `refresh` checks this and runs one user-present
+    /// follow-up (`RefreshIntent.owesFollowUp`).
+    @ObservationIgnored private var refreshTaskIntent: RefreshIntent?
 
     /// The Toolbox inventory to use for a scan: the real one (reads `state.json`)
     /// when JetBrains Toolbox is actually installed, an EMPTY one when it isn't.
@@ -1301,27 +1700,31 @@ final class AppListModel {
     /// Single-flight entry point. If a refresh is already running, await it and
     /// return instead of starting a second one.
     ///
-    /// `allowTestFlight` gates the one read that triggers the "access data from
-    /// other apps" TCC prompt: user-present callers (menu/window open, the manual
-    /// button) pass `true`; the silent background scheduler passes `false` so a
-    /// cold launch never prompts unprompted.
-    func refresh(allowTestFlight: Bool = true) async {
+    /// `intent` says who asked, and `RefreshIntent` spells out what follows from
+    /// it: a user-present refresh (menu/window open, the manual button, a re-check
+    /// after a permission grant) may take the TestFlight read that triggers the
+    /// "access data from other apps" TCC prompt, and starts the release notes over;
+    /// the silent scheduler's tick does neither, so a cold launch never prompts
+    /// unprompted and an hourly check never blanks the notes being read.
+    func refresh(intent: RefreshIntent = .userPresent) async {
         if let existing = refreshTask {
-            // A `true` caller that lands on a silent (`false`) refresh would otherwise
-            // return without ever doing the TestFlight read — its tags stay missing
-            // until the next refresh. Note the in-flight grant *before* awaiting, since
-            // the owning call clears `refreshTask`/`refreshTaskAllowedTestFlight` once
-            // it returns.
-            let needTestFlightFollowUp = allowTestFlight && !refreshTaskAllowedTestFlight
+            // A user-present caller that lands on a scheduled refresh would otherwise
+            // return with neither of its consequences delivered — TestFlight tags
+            // missing until the next refresh, notes untouched. Note the in-flight
+            // intent *before* awaiting, since the owning call clears `refreshTask` /
+            // `refreshTaskIntent` once it returns.
+            let needFollowUp = refreshTaskIntent.map(intent.owesFollowUp(afterCoalescingOnto:)) ?? false
             Log.app.info("refresh: already in flight — coalescing onto it")
             await existing.value
-            // Run one fresh refresh with TestFlight enabled. This recurses at most
-            // once: that refresh starts with `allowTestFlight == true`, so it can't
-            // re-trigger this branch and loop. (`reapplyTestFlightWhenGranted` also
-            // folds in, so no duplicate prompt.)
-            if needTestFlightFollowUp {
-                Log.app.info("refresh: coalesced onto a silent refresh — running TestFlight follow-up")
-                await refresh(allowTestFlight: true)
+            // Run one fresh user-present refresh. This recurses at most once: that
+            // refresh starts as `.userPresent`, so it can't re-trigger this branch
+            // and loop. (`reapplyTestFlightWhenGranted` also folds in, so no
+            // duplicate prompt.) It is also what makes "refresh" mean fresh notes
+            // when the click landed mid-tick: the scheduled pass that just finished
+            // left them alone, and this one restarts them.
+            if needFollowUp {
+                Log.app.info("refresh: coalesced onto a scheduled refresh — running user-present follow-up")
+                await refresh(intent: .userPresent)
             }
             return
         }
@@ -1331,18 +1734,18 @@ final class AppListModel {
         }
         // Only this path ever assigns `refreshTask`; coalescing callers above just
         // await it. Clear ownership *inside* the task — before `task.value` resolves
-        // — so a `true` caller that coalesced onto a silent refresh resumes to find
-        // `refreshTask` already nil. Clearing it *after* `await task.value` (out here)
-        // left a window where that caller re-entered the TestFlight follow-up branch
-        // above against the same just-finished silent task and recursed on
-        // `refresh(allowTestFlight: true)` forever — a main-thread livelock (ANR).
+        // — so a user-present caller that coalesced onto a scheduled refresh resumes
+        // to find `refreshTask` already nil. Clearing it *after* `await task.value`
+        // (out here) left a window where that caller re-entered the follow-up branch
+        // above against the same just-finished scheduled task and recursed on
+        // `refresh(intent: .userPresent)` forever — a main-thread livelock (ANR).
         let task = Task {
-            await self.performRefresh(allowTestFlight: allowTestFlight)
+            await self.performRefresh(intent: intent)
             self.refreshTask = nil
-            self.refreshTaskAllowedTestFlight = false
+            self.refreshTaskIntent = nil
         }
         refreshTask = task
-        refreshTaskAllowedTestFlight = allowTestFlight
+        refreshTaskIntent = intent
         await task.value
     }
 
@@ -1439,8 +1842,9 @@ final class AppListModel {
         }
     }
 
-    private func performRefresh(allowTestFlight: Bool = true) async {
-        Log.app.info("refresh: start (scan + network check, testflight=\(allowTestFlight, privacy: .public))")
+    private func performRefresh(intent: RefreshIntent) async {
+        let allowTestFlight = intent.readsTestFlight
+        Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public))")
         isRefreshing = true
         defer { isRefreshing = false }
         // Once per session, before the scan: recover any app left at
@@ -1456,13 +1860,29 @@ final class AppListModel {
         // Snapshot the current count before we blank the rows below, so the menu-bar
         // badge holds it steady through the scan/check instead of flickering to 0.
         heldBadgeCount = actionCount
-        // Expire all cached changelog pages so the detail window re-fetches
-        // after a manual refresh — the user expects fresh release notes. Drop the
-        // parsed-changelog cache too, so the workbench re-loads fresh notes.
-        await ChangelogCache.shared.invalidateAll()
-        changelogState = [:]
-        changelogTasks.values.forEach { $0.cancel() }
-        changelogTasks = [:]
+        // Release notes. A user-present refresh starts them over — expire the
+        // network-level cache so the next read reaches the vendor, drop every entry
+        // and in-flight load so the prewarm below re-reads them, and forget which
+        // entries the network had confirmed (`changelogRevalidated`): that memo
+        // described states that no longer exist, and a disk hit painted after the
+        // user asked for fresh notes owes its confirmation again. The scheduled
+        // tick does none of that — until #228 it did, hourly, and the workbench pane
+        // the user was reading blinked to a spinner and reloaded — it drops only
+        // `.failed` entries, so a prewarm that lost the network gets retried on the
+        // next tick (nothing else retries one: `prewarmChangelogs` skips keys with a
+        // state, and the pane renders `.failed` as the web fallback without asking
+        // for a reload). `.loaded` and `.loading` survive untouched, and a new
+        // version discovered by the check lives under a new key anyway.
+        if intent.restartsChangelogs {
+            await ChangelogCache.shared.invalidateAll()
+            changelogRevalidated = []
+        }
+        for (key, state) in changelogState
+        where intent.dropsChangelogEntry(failed: state.isFailed) {
+            changelogTasks[key]?.cancel()
+            changelogTasks[key] = nil
+            changelogState[key] = nil
+        }
         isScanning = true
         // The Toolbox inventory and the on-disk scan are local and fast. The
         // TestFlight inventory is the one TCC-gated read — another app's sandbox
@@ -1488,7 +1908,8 @@ final class AppListModel {
         let extraScan = prefs.customScanLocations
         // Start token resolution early and off-main so a slow `gh` CLI overlaps the
         // local scan instead of freezing the UI or delaying the whole refresh later.
-        async let githubToken = Self.resolveGitHubToken(explicit: explicitGitHubToken())
+        let explicitToken = explicitGitHubToken()
+        async let githubToken = Self.resolveGitHubToken(explicit: explicitToken)
         var found = await Task.detached(priority: .userInitiated) {
             AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: initialTF).scan()
         }.value
@@ -1526,9 +1947,21 @@ final class AppListModel {
             }
         }
 
+        // The round's snapshot is accurate as of right here: the scan has been
+        // published and TestFlight retagging (if any) has landed. The check below
+        // takes minutes, during which the list does NOT hold still — a row install,
+        // an app's own updater, a staged relaunch, a quit-handoff swap, a channel
+        // switch. Whatever differs from this baseline when the round publishes
+        // changed underneath it and must not be reverted to the snapshot (#255).
+        let roundBaseline = results
         isChecking = true
+        // Remember what resolved, and under which Settings value, so the per-app
+        // rechecks that follow this round's rows reuse it instead of asking `gh`
+        // again (see `resolvedGitHubToken`).
+        let token = await githubToken
+        resolvedGitHubToken = ResolvedGitHubToken(explicit: explicitToken, token: token)
         let checker = UpdateChecker(
-            sources: makeSources(token: await githubToken),
+            sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)
@@ -1547,13 +1980,31 @@ final class AppListModel {
             "refresh: checking \(checkable.count, privacy: .public) apps, skipping \(ignored.count, privacy: .public) ignored")
         let checked = await checker.check(checkable)
             + ignored.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
-        results = sorted(checked)
+        results = sorted(CheckRoundWriteBack.publishing(
+            checked, changedSince: roundBaseline, live: results))
         // Pre-warm the disk changelog cache for anything pending, so opening its
         // notes is instant (and a no-op network-wise for versions already cached).
         prewarmChangelogs(for: checked)
         // Log any newly-seen releases (those carrying a real vendor timestamp)
         // into the persistent release timeline.
         await recordReleaseTimeline(for: checked)
+        // Reconcile the running set once per completed round. The live monitor is
+        // KVO on `runningApplications` and is measured to be prompt and complete
+        // (issue #247), but this round just spent minutes on the network, and every
+        // verdict below reads `isRunning` — `computeRestartInfo` decides which rows
+        // say "Relaunch", `defersToSelfUpdater` decides whether an app is handed to
+        // its own updater. A floor under the live path costs one snapshot and a
+        // memoized resolve (0.095 ms warm) per round.
+        //
+        // Through the full handler, not a bare `refreshRunningApps()`. A bare
+        // refresh would *absorb* whatever the live path missed — the set would
+        // quietly become correct, and the next real event, diffing against the
+        // already-corrected set, would see nothing changed and skip the channel
+        // recheck that the missed quit was supposed to trigger. Reconciling through
+        // the handler means a change this call discovers is still reacted to. Its
+        // restart branch is inert here (`isChecking` is still true) and
+        // `computeRestartInfo` runs immediately below anyway.
+        handleRunningAppsChange()
         await computeRestartInfo()
         await computeSelfUpdateStaging()
         if prefs.pruneOrphanBackups {
@@ -1739,14 +2190,11 @@ final class AppListModel {
     private func performLocalRescan() async {
         localRescanDeferred = false
         // Re-derive which apps are running. `armRunningAppsMonitor` keeps this live
-        // off NSWorkspace's launch/terminate notifications, but the LAUNCH one is
-        // not reliably posted — measured on this machine: LocalSend never posts it
-        // (2/2), while its terminate posts every time and Calculator's launch posts
-        // normally. The set is a whole recompute rather than a diff, so a missed
-        // notification did self-heal — but only when some *unrelated* app happened
-        // to launch or quit, which is an unbounded wait for a row to admit the app
-        // beside it is open. This bounds it to the rescan cadence, and puts it on
-        // the path the menu itself takes when it opens.
+        // off KVO on `runningApplications`, which is measured to catch what the
+        // launch/terminate notifications miss (issue #247) — but a rescan re-reads
+        // everything else from disk anyway, and this set is one snapshot plus a
+        // memoized resolve (0.095 ms warm). Keeping it is a floor under the live
+        // path, not a substitute for it.
         refreshRunningApps()
         let extraScan = prefs.customScanLocations
         let found = await Task.detached(priority: .userInitiated) {
@@ -2251,10 +2699,31 @@ final class AppListModel {
         installing[id] = .checking
         let result = await recheck(result)
         replaceRow(result)
-        guard result.hasUpdate else {
-            // Already current on disk — but the running instance may predate
-            // that update, so recompute whether a restart is needed.
-            Log.install.info("install skipped: \(result.app.name, privacy: .public) already current on disk")
+        // Only `.updateAvailable` installs. The other endings all stop here, but
+        // they are NOT the same ending, and this used to report them as if they
+        // were: a source that timed out while you clicked Update was logged as
+        // "already current on disk", which reads as a fact about the bundle and
+        // sends the next person to the wrong place. See `PreInstallGate`.
+        let decision = PreInstallGate.decision(for: result.status)
+        if decision != .proceed {
+            switch decision {
+            case .alreadyCurrent:
+                Log.install.info(
+                    "install skipped: \(result.app.name, privacy: .public) already current on disk")
+            case .managedElsewhere:
+                Log.install.info(
+                    "install skipped: \(result.app.name, privacy: .public) is managed elsewhere — nothing to install here")
+            case .cannotConfirm(let message):
+                // Not a verdict about the app: we never found out. Retryable, and
+                // said so, rather than filed as "nothing to do".
+                Log.install.error(
+                    "install aborted: \(result.app.name, privacy: .public) — the pre-install re-check could not confirm an update: \(message ?? "no source covers this app", privacy: .public)")
+            case .proceed:
+                break  // unreachable: guarded above
+            }
+            // Unchanged for every ending: the bundle on disk may still be newer than
+            // the running process (a manual install, a self-updater), so the restart
+            // state is recomputed either way.
             await computeRestartInfo()
             installing[id] = nil
             return false
@@ -2263,11 +2732,15 @@ final class AppListModel {
         // Install policy: a running self-updating app is handed to its own
         // updater rather than swapped under it — unless the user chose to always
         // overwrite. (Re-checked here, not just in the UI, so any caller honors it.)
-        // Re-derive the live running set first: `runningAppPaths` is only updated by
-        // NSWorkspace launch/terminate notifications, which aren't delivered while
-        // this menu-bar app is App-Napped — so a quit that happened during a nap can
+        // Re-derive the live running set first: `runningAppPaths` is updated by the
+        // running-apps monitor, whose events aren't delivered while this menu-bar
+        // app is App-Napped — so a quit that happened during a nap can
         // leave the set stale and make `isRunning` (and thus this defer) lie. This is
-        // a consequential decision, so base it on the live process list, not a cache.
+        // a consequential decision, so take a fresh `runningApplications` snapshot
+        // for it. (`refreshRunningApps` memoizes each path's *resolved form* through
+        // `RunningBundlePathCache`, but membership always comes from the live
+        // snapshot and a path that has left it is dropped — so what this call is
+        // here for is exactly what it still does.)
         refreshRunningApps()
         let wasRunningBeforeInstall = isRunning(result)
         if defersToSelfUpdater(result) {
@@ -2695,7 +3168,7 @@ final class AppListModel {
                 if notify { UpdateNotifier.updated(app: updated.app.name, version: version) }
                 // The swap is fully in effect and nothing is left to do, so this row is
                 // about to filter out of the list. Hold it briefly with an "Updated ✓"
-                // confirmation (see `visible`/`trailing`) so completion is legible
+                // confirmation (see `visible` and `RowAction.state`) so completion is legible
                 // instead of the row just disappearing mid-progress.
                 markJustUpdated(id)
             }
@@ -2923,7 +3396,9 @@ final class AppListModel {
                 onDiskVersion: app.versionSide,
                 stagedVersion: staged.versionSide,
                 stagedAt: staged.stagedAt,
-                runningLaunchDates: launchDates[key] ?? [])
+                runningLaunchDates: launchDates[key] ?? [],
+                buildIsDerived: AppScanner.buildVersionIsOverridden(
+                    bundleID: app.bundleID))
             switch state {
             case .pending:
                 // Not landed. Normally there's no badge yet; but if one was already
@@ -2990,7 +3465,15 @@ final class AppListModel {
             // Match on the resolved bundle path, not bundle id: a row whose exact
             // .app isn't running must not pick up a channel sibling's running
             // version (Android Studio Preview vs Stable share one bundle id).
-            let runKey = result.app.path.resolvingSymlinksInPath().path
+            // `running` (below) is keyed with `UpdatePolicy.runtimeBundlePath`, not
+            // bare `resolvingSymlinksInPath()` — this has to match it exactly, or a
+            // path that legitimately carries a `.duoupdater-staged-`/`-old`/`-new`
+            // component would look up under the wrong key. For every path without
+            // one of those components `runtimeBundlePath` returns the identical
+            // resolved string, so this is a no-op change for the paths `AppScanner`
+            // can currently produce (it skips hidden entries and requires
+            // `pathExtension == "app"`, so those components never reach here today).
+            let runKey = UpdatePolicy.runtimeBundlePath(result.app.path)
             // Remember the marketing version this on-disk build carries, so that
             // AFTER a future self-update — when only the build survives in the running
             // process (via `lsappinfo`) — we can still name the version it launched
@@ -3143,23 +3626,17 @@ final class AppListModel {
     // MARK: - Staged installer packages
 
     /// An installer package already downloaded for this row and handed to macOS's
-    /// installer. `version` is the version that package installs, so a newer release
-    /// invalidates it rather than silently re-opening a stale installer.
+    /// installer. `version` is its display label; `versionSide` identifies the build
+    /// it installs, so a newer release invalidates it rather than silently re-opening
+    /// a stale installer.
     struct StagedPackage: Sendable, Equatable {
         let version: String
-        /// The build the package installs, when the source reported one. Absent on
-        /// entries persisted before this field existed, and for sources that report
-        /// no build at all — in both cases the pair below degrades to marketing
-        /// only, which is what this always was.
-        let buildVersion: String?
-
         /// The comparable pair. Everything asking "is this the version on offer"
-        /// or "has it landed" uses this: `version` alone is a marketing string,
-        /// equal release after release for a vendor that freezes it, which made
-        /// those questions answer "yes" before the installer had run.
-        var versionSide: VersionSide {
-            VersionSide(marketing: version, build: buildVersion)
-        }
+        /// or "has it landed" uses this. It is copied from the source rather than
+        /// rebuilt from `version`, because `version` is marketing-first DISPLAY:
+        /// for a `versionIsBuild` source it contains a build string, and putting
+        /// that into `marketing` would compare two different namespaces.
+        let versionSide: VersionSide
         let url: URL
         /// When the package was handed to macOS's installer. Used to tell a copy
         /// running the OLD code (launched before this) from one the vendor's own
@@ -3184,9 +3661,21 @@ final class AppListModel {
             let stagedAt = fields[Preferences.stagedPackageStagedAtField]
                 .flatMap(TimeInterval.init).map(Date.init(timeIntervalSince1970:))
                 ?? .distantPast
+            // New entries persist the source's marketing half explicitly, using
+            // an empty string for "the source reported none". A missing field is a
+            // pre-migration entry whose `version` historically served as marketing;
+            // preserve that comparison rather than invalidating an in-flight pkg.
+            let marketing: String?
+            if let stored = fields[Preferences.stagedPackageMarketingField] {
+                marketing = stored.isEmpty ? nil : stored
+            } else {
+                marketing = version
+            }
             restored[id] = StagedPackage(
                 version: version,
-                buildVersion: fields[Preferences.stagedPackageBuildField],
+                versionSide: VersionSide(
+                    marketing: marketing,
+                    build: fields[Preferences.stagedPackageBuildField]),
                 url: URL(fileURLWithPath: path), stagedAt: stagedAt)
         }
         stagedPackages = restored
@@ -3194,9 +3683,9 @@ final class AppListModel {
     }
 
     private func recordStagedPackage(_ result: UpdateResult, packageURL: URL) {
-        guard let version = result.remote?.displayVersion else { return }
+        guard let remote = result.remote, let version = remote.displayVersion else { return }
         stagedPackages[result.id] = StagedPackage(
-            version: version, buildVersion: result.remote?.version,
+            version: version, versionSide: remote.versionSide,
             url: packageURL, stagedAt: Date())
         persistStagedPackages()
         Log.install.info("package staged: \(result.app.name, privacy: .public) \(version, privacy: .public) → \(packageURL.lastPathComponent, privacy: .public)")
@@ -3325,7 +3814,11 @@ final class AppListModel {
                 Preferences.stagedPackagePathField: $0.url.path,
                 Preferences.stagedPackageStagedAtField:
                     String($0.stagedAt.timeIntervalSince1970),
-            ].merging($0.buildVersion.map {
+                // Presence distinguishes a new entry whose source has no
+                // marketing version (empty) from a legacy entry (missing).
+                Preferences.stagedPackageMarketingField:
+                    $0.versionSide.marketing ?? "",
+            ].merging($0.versionSide.build.map {
                 [Preferences.stagedPackageBuildField: $0]
             } ?? [:], uniquingKeysWith: { a, _ in a })
         })
@@ -3376,7 +3869,12 @@ final class AppListModel {
             // Landed (the app now IS the staged version): keep so restart tracking
             // survives a one-scan flicker of the launch-time signal, even if the
             // download was swept. Reconcile settles it once the copy is fresh/gone.
-            if VersionComparator.isSame(app.versionSide, as: staged.versionSide) { return true }
+            // `buildIsDerived` matches the guard `reconcilePackageRestarts` passes
+            // to `PackageRestartState.resolve` — same two inputs, same namespace
+            // problem for `AppScanner.buildVersionIsOverridden` apps (#285).
+            if VersionComparator.isSame(app.versionSide, as: staged.versionSide,
+                buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)
+            ) { return true }
             // Otherwise it's only usable while still on offer and re-openable.
             return offered[id].map {
                 VersionComparator.isSame($0, as: staged.versionSide)
@@ -3594,6 +4092,15 @@ final class AppListModel {
         return String(rest[..<end])
     }
 
+    /// Take down a note one of the restart paths wrote — and only if it is still
+    /// the text on screen. Shared by the two stores that follow the discipline
+    /// `restartHoldBackNotes` documents: if someone replaced the note in between
+    /// (`backupCurrent`'s "applied without a rollback point", say), theirs stands.
+    private func retractRestartNote(_ id: String, from store: inout [String: String]) {
+        guard let mine = store.removeValue(forKey: id), installNotes[id] == mine else { return }
+        installNotes[id] = nil
+    }
+
     /// Quit the stale running instance and relaunch it so the new version takes
     /// effect. Graceful only — if it won't quit (unsaved work), we leave it and
     /// keep the Restart prompt for the user to retry. An app that isn't running
@@ -3625,6 +4132,10 @@ final class AppListModel {
         // to perform, relaunching the app straight into the installer we were
         // trying not to disturb.
         quitHandoffs[result.id] = nil
+        // …and supersedes what that bail put on screen. The note names a quit the
+        // user was asked to unblock; this click IS them coming back to it, so it
+        // must not still be sitting there while the retry runs.
+        retractRestartNote(result.id, from: &restartWontQuitNotes)
         // Is anyone else waiting for this app to quit? Sparkle parks an installer
         // on exactly that signal, so a restart meant to put OUR build into effect
         // can instead apply THEIRS — see `RestartStandoff` for the timeline. Only
@@ -3664,10 +4175,7 @@ final class AppListModel {
         // it is still the one showing, and nothing else. If someone replaced the
         // note in between — `backupCurrent`'s "no rollback point", say — theirs
         // stands.
-        if let mine = restartHoldBackNotes.removeValue(forKey: result.id),
-           installNotes[result.id] == mine {
-            installNotes[result.id] = nil
-        }
+        retractRestartNote(result.id, from: &restartHoldBackNotes)
         switch await AppRestarter.restart(result.app) {
         case .noBundleID, .notRunning:
             needsRestart.remove(result.id)
@@ -3691,6 +4199,17 @@ final class AppListModel {
                     || AppRestarter.isFrontmost(AppRestarter.runningInstances(of: result.app)),
                 armedAt: Date())
             Log.app.info("relaunch-handoff: armed for \(result.app.name, privacy: .public) (won't quit — relaunch if it does)")
+            // Say so. Without this the row is indistinguishable from a click that
+            // did nothing: 30 seconds of spinner, then the same button back. The
+            // sentence has to send the user to the app rather than back to this
+            // button, because nothing here can clear the thing that is blocking
+            // the quit — AppKit refuses to honour it while a modal window or sheet
+            // is up, and that window is the app's, not ours. "A window waiting for
+            // you" rather than "unsaved work": the case in hand was Eudic's login
+            // sheet, which has nothing to save.
+            let note = String(localized: "\(result.app.name) didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.")
+            installNotes[result.id] = note
+            restartWontQuitNotes[result.id] = note
         case .relaunched(let relaunched):
             needsRestart.remove(result.id)
             pendingBatchRestart[result.id] = nil
@@ -3741,8 +4260,18 @@ final class AppListModel {
         relaunching.insert(result.id)
         pinRowOrder()
         defer { relaunching.remove(result.id); releaseRowOrder() }
-        // A fresh attempt supersedes whatever a previous bail left armed.
+        // A fresh attempt supersedes whatever a previous bail left armed — and the
+        // note that bail wrote, which has to go with the marker rather than after
+        // it. `settleQuitHandoffs` is the only thing that retracts that note and it
+        // iterates `quitHandoffs`, so dropping the marker alone strands the
+        // sentence: the row would still say "it didn't quit — deal with that
+        // window" after this relaunch had quit it and ShipIt had swapped. Reachable
+        // because the two buttons live on one row: a `.stillRunning` bail here
+        // leaves the note up, and the moment the app's own updater stages a build
+        // (`actionableStaged`) the row switches from Relaunch-to-restart to
+        // Relaunch-to-apply, which is this function.
         quitHandoffs[result.id] = nil
+        retractRestartNote(result.id, from: &restartWontQuitNotes)
         let running = AppRestarter.runningInstances(of: result.app)
         guard !running.isEmpty else {
             // Not running: the staged swap applies on the app's own next quit, not
@@ -3871,6 +4400,11 @@ final class AppListModel {
                   AppRestarter.runningInstances(of: handoff.result.app).isEmpty
             else { continue }
             quitHandoffs[id] = nil
+            // The app is gone, so the note asking the user to unblock its quit has
+            // nothing left to describe. Before the expiry check, not after: an
+            // expired marker means we won't relaunch it, not that the sentence
+            // about a window blocking the quit is still true.
+            retractRestartNote(id, from: &restartWontQuitNotes)
             guard Date().timeIntervalSince(handoff.armedAt) < Self.quitHandoffMaxAge else {
                 // Too long since the bail: this quit is the user closing the app,
                 // not a late answer to that dialog. ShipIt still swaps — we just
@@ -3996,8 +4530,8 @@ final class AppListModel {
               let dict = (try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil)) as? [String: Any]
         else { return (nil, nil) }
-        return (dict["CFBundleShortVersionString"] as? String,
-                dict["CFBundleVersion"] as? String)
+        return (VersionSide.plistVersionField(dict["CFBundleShortVersionString"]),
+                VersionSide.plistVersionField(dict["CFBundleVersion"]))
     }
 
     /// Open System Settings → Privacy & Security → App Management and float the
@@ -4508,13 +5042,38 @@ final class AppListModel {
     }
 
     /// Only independent archive/appcast installs run in parallel, and only once
-    /// App Management is known granted. Package installers, Homebrew, and App Store
-    /// all involve shared system UI/tools, so they stay serial.
+    /// App Management is known granted.
+    ///
+    /// The switch below is reached ONLY by results `installAllTargets()` already
+    /// passed through `canAutoInstall(result) || requiresInstaller(result)` — so
+    /// a source `UpdatePolicy` has no case for at all (Xcode Releases, Toolbox,
+    /// TestFlight: always `default: false` on both) never reaches `targets` to
+    /// begin with, let alone this function. It isn't mis-scheduled here; it's
+    /// simply not a candidate. `requiresInstaller` results are peeled off first
+    /// by the guard above (a Vendor/GitHub/Electron `.pkg`, a signed Sparkle
+    /// `.pkg`, a Homebrew cask needing the manual installer) — those go through
+    /// the system installer, the batch's phase 3, never this switch.
+    ///
+    /// What can still reach `default: false` here, given the above, is exactly
+    /// two sources: Homebrew (shells out to the `brew` CLI, one shared process
+    /// per invocation) and App Store (drives `mas` or App Store.app's own UI
+    /// automation) — both share a system-level resource a second simultaneous
+    /// install would contend with, so they stay serial. Sparkle/Vendor/GitHub/
+    /// Electron are independent in-place archive swaps (`InPlaceSwap`) with no
+    /// such shared resource, so they run in the bounded parallel window —
+    /// Electron joined this list in #192's follow-up: it goes through the exact
+    /// same `VendorInstaller`+`InPlaceSwap` pipeline as Vendor/GitHub, so by
+    /// this function's own criterion it belongs here, not in `default`. (Whether
+    /// parallelizing could race an electron-builder app's own self-updater is a
+    /// question this switch was never answering: `defersToSelfUpdater` already
+    /// excluded a running one from `targets`, and `UpdatePolicy
+    /// .stagedBlocksInstall` is enforced inside `runInstall` itself, which the
+    /// parallel and serial paths both call — identically either way.)
     private func canBatchInstallInParallel(_ result: UpdateResult) -> Bool {
         guard !requiresInstaller(result) else { return false }
         guard appManagementStatus == .granted else { return false }
         switch result.remote?.sourceName {
-        case "Sparkle", "Vendor", "GitHub":
+        case "Sparkle", "Vendor", "GitHub", "Electron":
             return true
         default:
             return false
@@ -4572,7 +5131,14 @@ final class AppListModel {
     /// installer window that interrupts the user. The shared restart/staging/backup
     /// sweep runs once after the whole batch has settled.
     func installAll() async {
-        guard !isInstallingAll, !isScanning, !isChecking, installing.isEmpty else { return }
+        // Say WHY, like `refresh` and `refreshLocal` do. A notification banner's
+        // "Update All" routes straight here, so a tap that lands while a check or a
+        // refresh is running is otherwise a banner that dismisses with nothing
+        // installed and nothing logged.
+        guard listActivity.canInstallAll else {
+            Log.app.info("update all: skipped — \(String(describing: self.listActivity), privacy: .public)")
+            return
+        }
         refreshPermissionStatus()
         // The filter below consults `defersToSelfUpdater`, which reads the running
         // set. That set is only maintained by NSWorkspace launch/terminate
@@ -4691,14 +5257,10 @@ final class AppListModel {
         }
     }
 
-    /// True when there's more than one app "Update All" would act on — used to
-    /// decide whether to show the batch button.
-    ///
-    /// More than one, not at least one: with a single target the row's own
-    /// "Update" button is already right there, and a batch button beside it is a
-    /// second control for exactly the same action.
+    /// Whether to show the batch button: nothing in flight, and more than one app
+    /// it would act on. Both halves live in `ListActivity.canOfferUpdateAll`.
     var canUpdateAll: Bool {
-        !isInstallingAll && !isScanning && !isChecking && installing.isEmpty && installAllTargets().count > 1
+        listActivity.canOfferUpdateAll(targetCount: installAllTargets().count)
     }
 
     // MARK: - Ignore / skip
@@ -4897,11 +5459,12 @@ final class AppListModel {
 
     /// A scheduled check. Notifications are emitted by `notifyNewUpdates` at the
     /// end of every refresh (manual or background), so this just runs the check —
-    /// skipping the TestFlight container read so a silent scheduled check (notably
-    /// the one a cold launch fires immediately) can't surface the "access data from
-    /// other apps" prompt unprompted.
+    /// as `.scheduled`, which skips the TestFlight container read so a silent check
+    /// (notably the one a cold launch fires immediately) can't surface the "access
+    /// data from other apps" prompt unprompted, and leaves the release notes the
+    /// user may be reading in place (`RefreshIntent`).
     private func backgroundRefresh() async {
-        await refresh(allowTestFlight: false)
+        await refresh(intent: .scheduled)
     }
 
     /// Arm the filesystem watcher and the slow periodic backstop that keep the
@@ -5046,23 +5609,61 @@ final class AppListModel {
         await performLocalRescan()
     }
 
-    /// Seed `runningAppPaths` from the current process list and keep it live via
-    /// NSWorkspace's launch/terminate notifications. These fire on the main thread
-    /// the instant an app opens or quits, so a row's running dot updates without
-    /// waiting for the next scan. We recompute the whole set on each event (cheap —
-    /// it's a single in-memory array walk) rather than diffing, so a missed/coalesced
-    /// notification can't leave the set wrong.
+    /// Seed `runningAppPaths` from the current process list and keep it live.
+    ///
+    /// **The source of truth is KVO on `NSWorkspace.runningApplications`**, which
+    /// AppKit's own header prescribes: "Instead of polling, use key-value observing
+    /// to be notified of changes to this array property" (`NSRunningApplication.h`).
+    /// The launch/terminate notifications are kept as a second, independent
+    /// delivery path — they cost one no-op recompute each when both fire.
+    ///
+    /// **Why not the notifications alone** (issue #247). They are posted per app by
+    /// LaunchServices and are, measured on this machine, simply missing for some
+    /// apps in both directions, while the array — which cannot fail to lose an
+    /// entry when a process exits — always moved. One process, all four observers
+    /// plus a 200 ms poll as ground truth, 2026-09-02:
+    ///
+    ///     Alcove, 4 quits + 4 relaunches   notifications 0/8   KVO 8/8
+    ///     UURemote quit (+UURemoteServer)  no didTerminate     KVO caught both
+    ///     AppCleaner (control)             both fire           KVO 512 ms earlier
+    ///
+    /// KVO also beat the 200 ms poll by 26–180 ms on every transition, so the
+    /// ~2 s reconcile timer the issue proposed is not needed: there is nothing for
+    /// it to catch that this misses sooner.
+    ///
+    /// **What it does not change.** The property "will only change when the main
+    /// run loop is run in a common mode" (same header) — exactly the condition the
+    /// notifications already needed, and the reason a snapshot taken without a live
+    /// run loop is stale either way.
+    ///
+    /// What one event costs, on the main thread: one `runningApplications`
+    /// snapshot (~140 entries, ~130 with a bundle URL and ~105 of those distinct),
+    /// a bundle-id set, and a `realpath` for each bundle path *not seen in the
+    /// previous snapshot* — for most events, none; for a launch, the app and
+    /// whatever XPC services came up with it. `RunningBundlePathCache` is what
+    /// keeps it to that: this used to resolve every running bundle's symlinks on
+    /// every event, measured at 1.16 ms against 0.10 ms now (release build, live
+    /// snapshot), per launch/quit anywhere on the machine, all day, under a
+    /// comment that called it an in-memory walk.
     private func armRunningAppsMonitor() {
+        // Seed before observing rather than passing `.initial`: the seed must set
+        // the baseline the first real change is diffed against, without running the
+        // change handler's side effects (a channel pass over every bound app) at
+        // launch.
         refreshRunningApps()
+        // Not `[.new]`: the handler re-reads the property itself, and asking KVO to
+        // carry a ~140-element array on every process event anywhere on the machine
+        // buys nothing.
+        runningAppsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
+            // The property mutates on the main run loop, but KVO delivers on
+            // whatever thread stores the value; hop rather than assume.
+            Task { @MainActor in self?.handleRunningAppsChange() }
+        }
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didLaunchApplicationNotification,
                      NSWorkspace.didTerminateApplicationNotification] {
-            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
-                // Which app launched/quit, so the channel-switch pass below can skip
-                // the overwhelming majority of these events without doing any I/O.
-                let changed = (note.userInfo?[NSWorkspace.applicationUserInfoKey]
-                    as? NSRunningApplication)?.bundleIdentifier?.lowercased()
-                Task { @MainActor in self?.handleRunningAppsChange(changedBundleID: changed) }
+            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.handleRunningAppsChange() }
             }
             runningAppObservers.append(observer)
         }
@@ -5075,11 +5676,27 @@ final class AppListModel {
     /// never touches the .app on disk: its bundle was already swapped ahead of the
     /// still-running old process, so relaunching changes only which build is executing.
     /// The FS watcher sees no bundle write and no networked check fires, so this
-    /// notification is the only live event that marks it. Without recomputing here the
+    /// event is the only live one that marks it. Without recomputing here the
     /// "Relaunch" badge lingered until the 180s backstop (or the user reopening the
     /// popover) — the "I restarted it myself but it still shows Relaunch" report.
-    private func handleRunningAppsChange(changedBundleID: String? = nil) {
+    private func handleRunningAppsChange() {
+        // Both snapshots, so the channel gate below can tell which identifiers
+        // actually appeared or disappeared. Taken here rather than inside
+        // `refreshRunningApps` because the install paths call that one too, and
+        // they have no event to gate.
+        let before = runningBundleIDs
         refreshRunningApps()
+        // Off by default (debug level), and the one thing that makes this monitor
+        // debuggable at all: issue #247 was a *missing* event, which leaves no
+        // trace anywhere. `log stream --debug --predicate 'subsystem == "..."'`
+        // while opening and quitting an app answers "did the event reach us" in
+        // one step, instead of another standalone observer process.
+        if before != runningBundleIDs {
+            let appeared = runningBundleIDs.subtracting(before).sorted()
+            let left = before.subtracting(runningBundleIDs).sorted()
+            Log.app.debug(
+                "running apps: +[\(appeared.joined(separator: " "), privacy: .public)] -[\(left.joined(separator: " "), privacy: .public)]")
+        }
         // Before the needs-restart early-out below: a quit hand-off fires exactly
         // on a terminate event, and usually with `needsRestart` empty.
         settleQuitHandoffs()
@@ -5089,14 +5706,15 @@ final class AppListModel {
         // flow. Independent of the needs-restart early-out below: a channel switch
         // has nothing to do with a pending restart.
         //
-        // Gated on the app that actually changed. This notification fires for EVERY
-        // app on the machine — every helper, every menu-bar utility, all day — and
-        // the pass behind it reads one vendor preference per bound app (Surge's is a
+        // Gated on the identifiers that actually changed. This fires for EVERY app
+        // on the machine — every helper, every menu-bar utility, all day — and the
+        // pass behind it reads one vendor preference per bound app (Surge's is a
         // plist read off disk). Nine of those on every launch/quit event on the
-        // system is not what "free unless something changed" meant. A nil id (the
-        // notification arrived without one) still runs the pass rather than
-        // silently skipping a real switch.
-        if ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: changedBundleID) {
+        // system is not what "free unless something changed" meant. The gate also
+        // absorbs the duplicate when KVO and a notification both report one event:
+        // whichever arrives second sees an unchanged set and does no work.
+        if ChannelSwitchDetector.isWorthRechecking(
+            runningBundleIDsChangedFrom: before, to: runningBundleIDs) {
             Task { await recheckChannelSwitches(trigger: "running-apps-change") }
         }
         // Nothing pending → nothing a relaunch could clear. A launch can't *create* a
@@ -5121,13 +5739,14 @@ final class AppListModel {
     /// Recompute the set of running bundle paths from the live process list. We use
     /// each process's `bundleURL` (the .app it launched from), symlink-resolved to
     /// match how `AppScanner` records `InstalledApp.path` (it resolves symlinks too),
-    /// so the comparison in `isRunning` lines up.
+    /// so the comparison in `isRunning` lines up. The resolution is a `realpath`
+    /// per bundle, so it goes through `runningBundlePaths`, which only pays it for
+    /// paths that were not in the previous snapshot.
     private func refreshRunningApps() {
         // One snapshot, both readings: a second `runningApplications` call could
         // straddle an app launching or quitting and leave the two disagreeing.
         let running = NSWorkspace.shared.runningApplications
-        runningAppPaths = Set(
-            running.compactMap { $0.bundleURL.map(UpdatePolicy.runtimeBundlePath) })
+        runningAppPaths = runningBundlePaths.update(with: running.compactMap(\.bundleURL))
         runningBundleIDs = Set(running.compactMap(\.bundleIdentifier))
     }
 
@@ -5196,10 +5815,19 @@ final class AppListModel {
         await recheckMany([result]).first ?? result
     }
 
-    /// The batch form: one disk scan and one `UpdateChecker` for the whole set,
+    /// The batch form: one disk read and one `UpdateChecker` for the whole set,
     /// rather than `recheck` per row. `retryFailedChecks` can hand this a hundred
-    /// rows after an outage, and per-row it would mean a hundred full `AppScanner`
-    /// sweeps and a hundred GitHub-token resolves for one answer each.
+    /// rows after an outage, and per-row it would mean a hundred reads and a hundred
+    /// GitHub-token resolves for one answer each.
+    ///
+    /// The read is scoped to the rows' own bundles (`AppScanner.scan(bundlesAt:)`),
+    /// not a sweep of every location: a recheck is only ever asked about rows it
+    /// already holds, and sweeping ~145 apps to re-read one was the bulk of an
+    /// Update click's disk work — twice per click, before and after the install
+    /// (issue #226). Anything a sweep would find that this cannot — an app installed
+    /// since, a clone that would now dedupe differently, a row whose custom folder
+    /// was removed in Settings — is the next full scan's job. The token comes from
+    /// `githubTokenForRecheck` for the same reason.
     ///
     /// Rows that no longer scan (uninstalled between the failure and the retry)
     /// simply come back missing, which is why callers keep their own copy.
@@ -5211,15 +5839,18 @@ final class AppListModel {
         // TestFlight tagging, so a single-app recheck just scans without it.
         let testflight = TestFlightInventory(macRows: [], accessible: false)
         let toolbox = await Task.detached(priority: .userInitiated) { Self.toolboxInventory() }.value
-        async let githubToken = Self.resolveGitHubToken(explicit: explicitGitHubToken())
-        let extraScan = prefs.customScanLocations
+        let githubToken = await githubTokenForRecheck()
+        let bundles = targets.map(\.app.path)
         let apps = await Task.detached(priority: .userInitiated) {
-            AppScanner(extraLocations: extraScan, toolbox: toolbox, testflight: testflight).scan()
+            AppScanner(toolbox: toolbox, testflight: testflight).scan(bundlesAt: bundles)
         }.value
+        // Identity is the resolved path, which is what a row already carries, so
+        // this normally admits everything. Kept as the guard it always was: a bundle
+        // that now resolves elsewhere reads as gone, not as a row under another id.
         let fresh = apps.filter { ids.contains($0.id) }
         guard !fresh.isEmpty else { return [] }
         let checker = UpdateChecker(
-            sources: makeSources(token: await githubToken),
+            sources: makeSources(token: githubToken),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight)
@@ -5246,12 +5877,12 @@ final class AppListModel {
     /// by `UpdateResult.id` (the install path). In memory only — a fresh launch
     /// starts everyone at zero, which is the right bias: after a relaunch we have no
     /// evidence a failure is chronic and should say so once more.
+    ///
+    /// This is the ONLY place a chronic streak is tracked. `RowAction.state(for:)`
+    /// — the ladder both the popover and the workbench draw a row from — has no
+    /// notion of it and is not meant to: see `failedCheckResults` below and
+    /// `CheckFailureRules` for why (issue #264).
     @ObservationIgnored private var consecutiveCheckFailures: [String: Int] = [:]
-
-    /// Rows this many rounds deep stop driving the banner and the header count.
-    /// Three rounds of a check interval (an hour by default) is long past the point
-    /// where "retry" is the useful advice.
-    private static let chronicFailureThreshold = 3
 
     /// Update the streaks from one completed round, and drop rows that are gone.
     /// Called only from `performRefresh` — deliberately NOT from `retryFailedChecks`,
@@ -5265,7 +5896,7 @@ final class AppListModel {
             }
         }
         let newlyChronic = next.filter {
-            $0.value == Self.chronicFailureThreshold
+            $0.value == CheckFailureRules.chronicThreshold
         }.keys.sorted()
         if !newlyChronic.isEmpty {
             Log.app.info(
@@ -5274,16 +5905,30 @@ final class AppListModel {
         consecutiveCheckFailures = next
     }
 
+    /// Rows this many rounds deep stop driving the *aggregate* surfaces below —
+    /// the banner, the header's "N not checked" line, and the bulk-retry target
+    /// list. They do NOT stop being `.checkFailed` rows: `RowAction.state(for:)`
+    /// never reads `consecutiveCheckFailures` (it has no parameter for it), so a
+    /// chronic row keeps its own orange Failed badge — with its own per-row
+    /// Retry, which re-checks only this app rather than every failed row the way
+    /// the banner's Retry does — for as long as it keeps failing.
+    ///
+    /// That split is deliberate, not an oversight (issue #264): the banner is one
+    /// global claim ("your checks are healthy") that becomes false advice once a
+    /// failure is permanent — a vendor that retired its feed fails identically
+    /// forever, and Alfred's appcast did exactly that for weeks. Left counted, it
+    /// pins the banner up with a Retry that just re-runs the same 404, and stops
+    /// the header from ever reading "up to date" again. A row's own badge makes
+    /// no such claim; it states one fact about one app, and that fact stays true.
+    /// Silencing it would blank the row in the workbench, which shows every
+    /// result unconditionally (no "Show all" gate) — and a blank row there reads
+    /// as "up to date", which is the specific failure mode `RowActionState`
+    /// exists to rule out for every non-quiet state. See `CheckFailureRules`.
     var failedCheckResults: [UpdateResult] {
         results.filter {
             guard case .error = $0.status else { return false }
-            // A vendor that retired its feed fails identically forever — Alfred's
-            // appcast 404'd for weeks. Left in, that pins the banner permanently with
-            // a Retry button that re-runs the same 404, and stops the header from
-            // ever reading "up to date" again. Those rows fall back to the old
-            // behaviour: visible under "Show all", reported by `RecipeHealth` and
-            // `duo verify`, and silent here.
-            return (consecutiveCheckFailures[$0.id] ?? 0) < Self.chronicFailureThreshold
+            return !CheckFailureRules.isChronic(
+                consecutiveFailures: consecutiveCheckFailures[$0.id] ?? 0)
         }
     }
 
@@ -5325,7 +5970,8 @@ final class AppListModel {
         // `refreshLocal` and `installAll` all read `installing.isEmpty` — so claiming
         // 120 rows after an outage would make Update All *vanish* from the header and
         // grey out Refresh for minutes with nothing on screen saying why (the header
-        // spinner keys off `isScanning || isChecking`, which those claims never set).
+        // spinner keys off `listActivity.isRoundInFlight`, which those claims never
+        // set — but `isChecking` does, so the spinner runs for this too).
         // `isChecking` disables the same controls for the same duration, but it is
         // what a check in flight actually is, and it shows the spinner while it runs.
         // It also keeps the failed rows out of `visible`, which claims would have
@@ -5531,14 +6177,29 @@ final class AppListModel {
         syncDockBadge()
     }
 
-    /// Re-run the update check for one app whose source errored — the retry
-    /// affordance on an `.error` row (e.g. a transient GitHub rate-limit). Reuses
-    /// the install-stage spinner to show "Checking" on just that row, and bails
-    /// if the row is already busy (installing or mid-recheck).
+    /// Re-run the update check for one app. Two affordances share this, and
+    /// deliberately so — they ask the same question and must answer it the same
+    /// way: the retry on an `.error` row (a transient GitHub rate-limit, say), and
+    /// "Check Again" in the row's context menu, which is how a user asks about one
+    /// app without paying for a whole sweep.
+    ///
+    /// It re-derives the running set first, so it also corrects a row whose
+    /// *running* state has gone stale. `NSWorkspace`'s launch/terminate
+    /// notifications are the only thing maintaining that set, and some apps never
+    /// post one of them — measured: Alcove posts no `didLaunch`, UURemote no
+    /// `didTerminate` (issue #247) — which leaves the dot lit for an app that has
+    /// quit, or dark for one that is open. That recompute is whole-set and, since
+    /// the resolutions are memoized, 0.095 ms; it happens before the network check
+    /// rather than after, so the dot is right the moment the row starts checking
+    /// instead of when the source answers.
+    ///
+    /// Reuses the install-stage spinner to show "Checking" on just that row, and
+    /// bails if the row is already busy (installing or mid-recheck).
     func retry(_ result: UpdateResult) async {
         let id = result.id
         guard installing[id] == nil else { return }
         Log.app.info("retry: re-checking \(result.app.name, privacy: .public)")
+        refreshRunningApps()
         installing[id] = .checking
         let updated = await recheck(result)
         installing[id] = nil

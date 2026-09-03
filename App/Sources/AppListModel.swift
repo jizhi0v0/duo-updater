@@ -1341,23 +1341,25 @@ final class AppListModel {
     }
 
     /// Log every release in `checked` that arrived with a trustworthy vendor
-    /// timestamp into the release timeline, then refresh the UI snapshot. The
-    /// store dedupes by (app, version), so re-checks are cheap; only a genuinely
-    /// new release or changed display metadata writes the timeline file. Results
-    /// without a `publishedAt` (vendor probes, MAS, Homebrew) use the observation
-    /// path below rather than this exact-timestamp path.
+    /// date into the release timeline, then refresh the UI snapshot. The store
+    /// dedupes by (app, version), so re-checks are cheap; only a genuinely new
+    /// release or changed display metadata writes the timeline file. Results
+    /// with neither a `publishedAt` nor a `vendorDay` (vendor probes, MAS,
+    /// Homebrew) use the observation path below rather than this path.
     private func recordReleaseTimeline(for checked: [UpdateResult]) async {
         for result in checked {
             guard let remote = result.remote else { continue }
-            // The latest release (when it carries a date)…
-            if remote.publishedAt != nil {
+            // The latest release (when it carries a date, at either the minute
+            // or the day tier — see `ReleaseTimeline`'s three-tier doc)…
+            if remote.publishedAt != nil || remote.vendorDay != nil {
                 await releaseTimelineStore.record(
                     appID: result.app.id,
                     appName: result.app.name,
                     bundleID: result.app.bundleID,
                     version: remote.displayVersion,
                     sourceName: remote.sourceName,
-                    publishedAt: remote.publishedAt
+                    publishedAt: remote.publishedAt,
+                    vendorDay: remote.vendorDay
                 )
             }
             // …plus any prior releases the source surfaced (Sparkle appcast items,
@@ -1370,22 +1372,23 @@ final class AppListModel {
                     bundleID: result.app.bundleID,
                     version: entry.version,
                     sourceName: remote.sourceName,
-                    publishedAt: entry.publishedAt
+                    publishedAt: entry.publishedAt,
+                    vendorDay: entry.vendorDay
                 )
             }
             // Detection-only sources (a vendor probe, a Homebrew cask, the App
-            // Store) report a version but no date. We can't know when they shipped,
-            // only that a version *change* happened between two checks — so track
-            // the reported version and, on a change, log an estimated window.
-            // Build-aware, so a vendor that ships many builds under one marketing
-            // name records one event per RELEASE rather than one for the whole
-            // name. Amp published ten builds as "1.0" in a day; keyed on the
+            // Store) report a version but no date at all. We can't know when they
+            // shipped, only that a version *change* happened between two checks —
+            // so track the reported version and, on a change, log an estimated
+            // window. Build-aware, so a vendor that ships many builds under one
+            // marketing name records one event per RELEASE rather than one for the
+            // whole name. Amp published ten builds as "1.0" in a day; keyed on the
             // marketing string the timeline logged exactly one of them.
             //
             // Events written by earlier builds keep their marketing-only key and
             // are deliberately not rewritten: the history they under-counted
             // cannot be recovered, and re-deriving it would invent dates.
-            if remote.publishedAt == nil, remote.releaseHistory.isEmpty,
+            if remote.publishedAt == nil, remote.vendorDay == nil, remote.releaseHistory.isEmpty,
                case let side = remote.versionSide, !side.isEmpty,
                case let v = side.text(withBuild: true), !v.isEmpty {
                 await releaseTimelineStore.observeForChange(

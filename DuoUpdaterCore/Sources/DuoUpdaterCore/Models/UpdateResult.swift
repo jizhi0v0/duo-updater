@@ -46,12 +46,25 @@ public struct AppStoreAvailability: Sendable, Hashable {
 /// it was published. Sources that hand back a multi-entry feed (a Sparkle appcast,
 /// a GitHub releases list) carry these so the release timeline can backfill an
 /// app's history in one shot, instead of only ever learning the latest.
+///
+/// `publishedAt` and `vendorDay` are the same two tiers `RemoteVersion` and
+/// `ReleaseEvent` carry (see `ReleaseTimelineStore`'s three-tier design):
+/// exactly one is set for an entry that came from a source that could date the
+/// release at all, and both are nil for none of the entries a compliant source
+/// produces (an unparseable date simply isn't turned into an entry).
 public struct ReleaseHistoryEntry: Sendable, Hashable {
     public let version: String
-    public let publishedAt: Date
-    public init(version: String, publishedAt: Date) {
+    /// The vendor's release moment, to the minute. nil when the source could
+    /// only supply a day (see ``vendorDay``).
+    public let publishedAt: Date?
+    /// The vendor's calendar day (UTC start-of-day) for this release, when the
+    /// source stated a day but no time of day. nil when ``publishedAt`` is set.
+    public let vendorDay: Date?
+
+    public init(version: String, publishedAt: Date? = nil, vendorDay: Date? = nil) {
         self.version = version
         self.publishedAt = publishedAt
+        self.vendorDay = vendorDay
     }
 }
 
@@ -188,12 +201,25 @@ public struct RemoteVersion: Sendable, Hashable {
     public let changelogURL: URL?
 
     /// When the vendor *published* this release, parsed from the feed's own
-    /// timestamp (Sparkle `<pubDate>`, GitHub/Alcove `published_at`). This is the
-    /// authoritative release moment — to the minute — that the release timeline
-    /// records. Nil for sources that publish no trustworthy date (most vendor
-    /// probes, MAS, Homebrew); those are never plotted as "when it was released",
-    /// only ever as "when we noticed". See `ReleaseTimelineStore`.
+    /// timestamp (Sparkle `<pubDate>`, GitHub/Alcove `published_at`), when that
+    /// timestamp names a real time of day. This is the authoritative release
+    /// moment — to the minute — that the release timeline records. Nil for
+    /// sources that publish no trustworthy time (most vendor probes, MAS,
+    /// Homebrew, and any feed that names only a day — see ``vendorDay``); those
+    /// are never plotted as "when it was released", only ever as "when we
+    /// noticed" (or, for `vendorDay`, "what day it was"). See `ReleaseTimelineStore`.
     public let publishedAt: Date?
+
+    /// When the vendor published this release, to the DAY only — set when the
+    /// feed's own timestamp names a calendar day but no time (e.g. a bare
+    /// `"2026-08-31"` `<pubDate>`). A real vendor-stated fact, but never eligible
+    /// to stand in for ``publishedAt``: we don't know the hour, and often not
+    /// even the vendor's time zone, so inventing either would be a fabrication.
+    /// The release timeline records this at its own tier — shown as a date only,
+    /// never plotted on the release-habits heatmap. Mutually exclusive with
+    /// ``publishedAt``: a source sets at most one of the two per release. See
+    /// `ReleaseDate.parseWithPrecision` and `ReleaseTimelineStore`.
+    public let vendorDay: Date?
 
     /// Past releases the source surfaced alongside the latest — every dated entry
     /// in a Sparkle appcast / GitHub releases list, so the timeline can backfill
@@ -230,6 +256,7 @@ public struct RemoteVersion: Sendable, Hashable {
         structuredChangelog: Changelog? = nil,
         changelogURL: URL? = nil,
         publishedAt: Date? = nil,
+        vendorDay: Date? = nil,
         releaseHistory: [ReleaseHistoryEntry] = [],
         deltas: [DeltaPatch] = []
     ) {
@@ -255,6 +282,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.structuredChangelog = structuredChangelog
         self.changelogURL = changelogURL
         self.publishedAt = publishedAt
+        self.vendorDay = vendorDay
         self.releaseHistory = releaseHistory
         self.deltas = deltas
     }

@@ -104,4 +104,25 @@ struct PackageRestartStateTests {
             runningLaunchDates: [handOff.addingTimeInterval(-3600)]) == .readyToRestart,
             "the build arrived, and a copy from before the hand-off is still up")
     }
+
+    /// `AppScanner` substitutes a vendor-facing build for a small set of apps.
+    /// A package feed's build is not thereby in that namespace, so disagreement
+    /// between those strings cannot veto marketing evidence that the target landed.
+    @Test func aDerivedOnDiskBuildFallsBackToMarketing() {
+        let staged = VersionSide(marketing: "1.1", build: "bundle-build-11")
+
+        #expect(PackageRestartState.resolve(
+            onDiskVersion: VersionSide(marketing: "1.1", build: "vendor-code-1100"),
+            stagedVersion: staged, stagedAt: handOff,
+            runningLaunchDates: [handOff.addingTimeInterval(-60)],
+            buildIsDerived: true) == .readyToRestart,
+            "matching marketing is the only shared namespace")
+
+        #expect(PackageRestartState.resolve(
+            onDiskVersion: VersionSide(marketing: "1.0", build: "vendor-code-1000"),
+            stagedVersion: staged, stagedAt: handOff,
+            runningLaunchDates: [handOff.addingTimeInterval(-60)],
+            buildIsDerived: true) == .pending,
+            "dropping an incomparable build must not make every package landed")
+    }
 }

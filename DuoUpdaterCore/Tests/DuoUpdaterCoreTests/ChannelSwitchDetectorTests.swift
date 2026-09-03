@@ -105,23 +105,43 @@ import Foundation
 }
 
 /// The launch/terminate gate. Derived from the registry, not a hand-written list,
-/// so a tenth bound app is covered the day it is added.
+/// so a tenth bound app is covered the day it is added — and exercised in BOTH
+/// directions, since the gate now reads two snapshots rather than one identifier.
 @Test func onlyBoundAppsAreWorthRecheckingOnLaunchOrQuit() {
+    let bystanders: Set<String> = ["com.apple.finder", "com.apple.Safari", "com.googlecode.iterm2"]
     for id in ChannelBinding.boundBundleIDs {
-        #expect(ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: id))
+        // Launched: absent before, present now.
+        #expect(ChannelSwitchDetector.isWorthRechecking(
+            runningBundleIDsChangedFrom: bystanders, to: bystanders.union([id])))
+        // Quit: present before, gone now.
+        #expect(ChannelSwitchDetector.isWorthRechecking(
+            runningBundleIDsChangedFrom: bystanders.union([id]), to: bystanders))
         // Bundle ids are case-insensitive, and TablePlus really does ship
         // `com.tinyapp.TablePlus` while its prefs live under the lowercased
         // domain — a case-sensitive gate would silently skip it.
-        #expect(ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: id.uppercased()))
+        #expect(ChannelSwitchDetector.isWorthRechecking(
+            runningBundleIDsChangedFrom: [], to: [id.uppercased()]))
     }
-    // The overwhelming majority of these notifications: some other app entirely.
-    for other in ["com.apple.finder", "com.apple.Safari", "com.googlecode.iterm2"] {
-        #expect(!ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: other),
+    // The overwhelming majority of these events: some other app entirely.
+    for other in bystanders {
+        #expect(!ChannelSwitchDetector.isWorthRechecking(
+            runningBundleIDsChangedFrom: [], to: [other]),
                 "\(other) has no channel binding — resolving nine prefs for it is waste")
     }
-    // Fail toward doing the work when the notification carries no id: a wasted
-    // pass is cheap, a missed switch is the bug this detector exists to fix.
-    #expect(ChannelSwitchDetector.isWorthRecheckingAfterLaunchOrQuit(of: nil))
+    // The monitor also fires for changes that move no identifier at all — a second
+    // process of an app already running. Nothing appeared or disappeared, so there
+    // is nothing for a channel to have switched behind.
+    let unchanged = bystanders.union(ChannelBinding.boundBundleIDs)
+    #expect(!ChannelSwitchDetector.isWorthRechecking(
+        runningBundleIDsChangedFrom: unchanged, to: unchanged),
+            "an event that moves no identifier must not cost a nine-app preference pass")
+    // A bound app changing state in the same event as unrelated apps still counts:
+    // a login brings a hundred processes up at once.
+    if let bound = ChannelBinding.boundBundleIDs.first {
+        #expect(ChannelSwitchDetector.isWorthRechecking(
+            runningBundleIDsChangedFrom: ["com.apple.finder"],
+            to: ["com.apple.Safari", "com.googlecode.iterm2", bound]))
+    }
 }
 
 /// The detector only ever runs when something calls it, and until 2026-08-23 the

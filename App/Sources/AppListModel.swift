@@ -2488,18 +2488,12 @@ final class AppListModel {
     /// cuts that churn by ~50× and removes the visible jitter when several apps
     /// download at once.
     private func setStage(_ id: String, _ stage: InstallStage) {
-        // Progress callbacks dispatch un-awaited onto the main actor, so a late tick
-        // can land after the install finished and cleared `installing[id]`. Resurrecting
-        // a stale stage here would re-show a phantom row and wedge the re-entrancy
-        // guard (`installing[id] == nil`). Every real stage is preceded by a direct
-        // `installing[id] = …` assignment, so a nil here means the install is over.
-        guard installing[id] != nil else { return }
-        if case .downloading(let f) = stage,
-           case .downloading(let prev)? = installing[id],
-           Int(f * 100) == Int(prev * 100) {
-            return  // same whole percent — nothing the user can see changed
-        }
-        installing[id] = stage
+        // Both rules — never resurrect a finished install, and skip a tick that
+        // does not move the whole percent — are `InstallProgressCoalescing` in
+        // Core, where they are executed.
+        guard let folded = InstallProgressCoalescing.fold(
+            current: installing[id], incoming: stage) else { return }
+        installing[id] = folded
     }
 
     /// Flash an "Updated ✓" confirmation on a just-completed row, then let it go.
@@ -6238,12 +6232,13 @@ final class AppListModel {
     /// Safe to call from every settle point; it no-ops until the last one.
     private func releaseRowOrder() {
         guard !pinnedOrder.isEmpty else { return }
-        guard installing.isEmpty, !isInstallingAll, relaunching.isEmpty, justUpdated.isEmpty
-        else {
-            let holding = !installing.isEmpty ? "installing (\(installing.count))"
-                : isInstallingAll ? "batch install"
-                : !relaunching.isEmpty ? "relaunching (\(relaunching.count))"
-                : "just-updated confirmation"
+        // The condition — and which reason gets logged — is `RowOrderFreeze` in
+        // Core, where it is executed. A release term missing here produces a
+        // permanently frozen list, which from outside is indistinguishable from
+        // a freeze that never engaged.
+        if let holding = RowOrderFreeze.holdReason(
+            installCount: installing.count, isInstallingAll: isInstallingAll,
+            relaunchCount: relaunching.count, justUpdatedCount: justUpdated.count) {
             Log.app.debug("row order: still frozen — \(holding, privacy: .public)")
             return
         }

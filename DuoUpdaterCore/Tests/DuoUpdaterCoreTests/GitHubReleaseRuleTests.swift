@@ -48,6 +48,19 @@ private func extract(
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func openSuperWhisperRuleReadsBareTagsAndTheVersionlessDmg() {
+    #expect(extract("0.1.0", "ru.starmel.OpenSuperWhisper") == "0.1.0")
+    // Bare tags only — a future prerelease must not read as stable.
+    #expect(extract("0.2.0-beta.1", "ru.starmel.OpenSuperWhisper") == nil)
+    #expect(extract("v0.1.0", "ru.starmel.OpenSuperWhisper") == nil)
+    // The dmg filename carries no version; the literal pattern admits exactly it.
+    let pattern = try! #require(rule("ru.starmel.OpenSuperWhisper").installAssetPattern)
+    #expect("OpenSuperWhisper.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("OpenSuperWhisper.app.dSYM.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("ru.starmel.OpenSuperWhisper").slug == "starmel/OpenSuperWhisper")
+    #expect(rule("ru.starmel.OpenSuperWhisper").installerKind == .dmg)
+}
+
 @Test func agentsViewRulePinsTheAarch64Dmg() {
     #expect(extract("v0.41.1", "io.agentsview.desktop") == "0.41.1")
     let pattern = try! #require(rule("io.agentsview.desktop").installAssetPattern)

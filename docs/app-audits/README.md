@@ -120,6 +120,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**OpenCode Desktop**](ai-opencode-desktop.md) · `ai.opencode.desktop` — G C (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**OpenChamber**](dev-openchamber-desktop.md) · `dev.openchamber.desktop` — G (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**Jan**](jan-ai-app.md) · `jan.ai.app` — G (one-click universal zip) · real app verified ✓ · 2026-08-17
+- [x] [**OpenSuperWhisper**](ru-starmel-OpenSuperWhisper.md) · `ru.starmel.OpenSuperWhisper` — G (one-click arm64 dmg) · 真包 0.1.0 挂载验证 ✓ · 2026-08-30
 - [x] [**AgentsView**](io-agentsview-desktop.md) · `io.agentsview.desktop` — G (one-click arm64 dmg) · 真包 v0.41.1 挂载验证 ✓ · 2026-08-30
 - [x] [**GitHub Copilot**](com-github-githubapp.md) · `com.github.githubapp` — G (one-click arm64 dmg) · 真包 v1.1.14 挂载验证 ✓ · 2026-08-30
 - [x] [**FluidVoice**](com-FluidApp-app.md) · `com.FluidApp.app` — G (one-click universal dmg) · 真包 v1.6.9 挂载验证 ✓ · 2026-08-30

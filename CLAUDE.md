@@ -144,9 +144,11 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   文案"会单独报 `TOOLTIP EXTRACTOR FOUND NOTHING` 而不是静默放行。剩下十对的注释写的是
   **故意画成一样**(不是靠 tooltip 区分),没有被这条检查覆盖,也不该被覆盖。
 
-顺带:`App/project.yml` 仍然没有测试 target,所以 `App/Sources` 里的判断没人执行。
-`RowActionStateTests`(Core)钉的是**哪个条件赢**,gallery 钉的是**画出来长什么样**,
-两者都不能替代对方。
+顺带:`App/Sources` 现在有一个**很窄的**测试 target(见下面「App 层的测试 target」),
+它只编译被点名的文件,gallery 覆盖的这几个视图**不在里面**。所以对行的画法而言,
+下面这三者仍然各管各的、都不能替代对方:`RowActionStateTests`(Core)钉的是
+**哪个条件赢**,gallery 钉的是**画出来长什么样**,`DuoUpdaterAppTests` 钉的是
+**App 这一侧有没有按 state 去组装行**。
 
 ## 修 issue:三条不能省的
 
@@ -216,9 +218,40 @@ skip 一次把 app **永久静音**、真实更新后 Rollback 行被藏起来�
   —— 备份标签喂给 workbench 过滤器那处就是这样漏的。合法的 marketing-first 比较用
   `version-lint:allow-marketing-first` 加理由豁免,别改规则。
 
-顺带一条会决定你把代码放哪:**`App/Sources` 有一万三千行、`App/project.yml` 里没有测试 target**,
-所以那里的判断没人执行。14 处里 9 处长在那儿,不是巧合。**判断逻辑放 Core**(`RelaunchProgress`、
-`PackageRestartState`、`VisibilityRules` 都是这么落的),App 只留接线。
+顺带一条会决定你把代码放哪:**`App/Sources` 有两万行,其中只有被 `DuoUpdaterAppTests`
+点名的那几个文件在跑**(见下节),其余的判断没人执行。14 处里 9 处长在那儿,不是巧合。
+**判断逻辑放 Core**(`RelaunchProgress`、`PackageRestartState`、`VisibilityRules` 都是这么落的),
+App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 依赖的文件。
+
+## App 层的测试 target
+
+`make test` 里多了一步 `scripts/app-tests.sh`,跑 `DuoUpdaterAppTests`(`App/project.yml`)。
+在它之前,`App/Sources` 那两万行**只被编译、从不被执行**:`make test` 跑的是两个 SwiftPM 包,
+唯一碰到 App 代码的 `check_localizable_keys.py` 只取编译器吐的字符串元数据、不运行任何代码。
+2026-09-03 那批 13 条缺陷里有 4 条长在这儿,条条编译通过、条条 `make test` 全绿,而且
+**其中 3 条是修上一条时新引入的**——反馈回路断了,复审就成了唯一的网。
+
+规矩:
+
+- **这个 target 只编译被点名的文件,不是整个 `Sources`。** 这不是为了省时间:
+  `AppListModel.swift` 引用 `SettingsView`,会把整棵 SwiftUI 拉进来;而
+  `AppListModel.init` 会注册通知、装两个 FSEvent 流、KVO 观察全机进程、起周期检查循环
+  ——**一个构造它的测试 bundle 就是一个会去打厂商端点的测试 bundle**。
+  往 `sources` 里加文件是一个决定:加进去的东西必须不依赖 SwiftUI、不依赖 `AppListModel`,
+  违反了会当场编译失败,**那个失败就是这条规矩本身**。
+- **它是 hostless 的**(没有 `TEST_HOST`),所以不需要 app bundle、不签名、不要
+  `DEVELOPMENT_TEAM`。但 `app-tests.sh` 仍然像 `row-state-gallery.sh` 一样先
+  `export DUO_TEAM_ID` 再 `xcodegen generate`——理由同那边:生成时缺 team 会把
+  `DEVELOPMENT_TEAM` 写空,炸的是下一次 `make install`。
+- **只在 `project.yml` 比 `project.pbxproj` 新的时候才重新生成。** 无条件生成会重写
+  `project.pbxproj`,让紧随其后的 `check_localizable_keys.py` 的增量构建每次失效,
+  `make test` 从此每次全量重编整个 app。
+- **derived data 路径按 checkout 派生**(`/tmp/duo-app-tests-<hash>`),`APP_TESTS_DD` 可覆盖。
+  固定路径会精确复刻 `/tmp/duo-loc-check` 那个多 worktree 撞锁的坑,而这次的症状是
+  **测试随机失败**,比"构建变慢"更容易被误读成真回归。
+- **每条用例都要写清它对应哪一行变异**,并且合并前真的跑一遍那个变异确认它变红。
+  `ScanRowAssemblyTests` 的 8 条各自附了变异,8 条变异全部编译通过且只打中该打中的用例。
+  没有对应变异的用例(`anUnprovenCopyFallsBackToItsBundle` 是 fixture 守卫)要在注释里说明。
 
 ## 供应商 recipe 的失效是常态
 

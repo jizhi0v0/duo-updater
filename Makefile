@@ -19,6 +19,7 @@ test:
 	python3 scripts/test_claude_lag_probe.py
 	cd DuoUpdaterCore && swift test
 	swift test --package-path CLI
+	@scripts/app-tests.sh
 	python3 scripts/check_localizable_keys.py
 	python3 scripts/check_staged_version_use.py
 	python3 scripts/test_check_staged_version_use.py

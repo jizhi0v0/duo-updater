@@ -30,6 +30,38 @@ packages:
     exactVersion: 2.9.3
 
 targets:
+  # The first test target over `App/Sources`. Before it, those ~20k lines were
+  # compiled and never executed: `make test` runs the two SwiftPM packages, and
+  # the only thing that touched App code was `check_localizable_keys.py`, which
+  # reads the compiler's string metadata without running anything. Four of the
+  # thirteen defects found reviewing the channel-store change lived here, each
+  # one compiling green.
+  #
+  # It deliberately compiles ONE app source file rather than `Sources`. Not
+  # thrift: `AppListModel.swift` reaches `SettingsView`, which pulls in the whole
+  # SwiftUI tree, and `AppListModel.init` registers for notifications, arms two
+  # FSEvent streams, KVO-observes every running process and starts the periodic
+  # check loop — a test bundle that constructs it is a test bundle that talks to
+  # vendor endpoints. Widening this list is a decision, not a formality: what
+  # goes in must be free of SwiftUI and of `AppListModel`, and the build breaking
+  # when that stops being true is the point.
+  #
+  # Hostless (no TEST_HOST) so it needs no app bundle, no signing and no
+  # `DEVELOPMENT_TEAM`. Driven by `scripts/app-tests.sh`, wired into `make test`.
+  DuoUpdaterAppTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+      - path: Sources/ScanRowAssembly.swift
+    dependencies:
+      - package: DuoUpdaterCore
+        product: DuoUpdaterCore
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: NO
+        GENERATE_INFOPLIST_FILE: YES
+
   # A developer tool, not part of the shipped app: renders every `RowActionState`
   # to `verify/row-states/*.png` so a change to how a row is drawn shows up as an
   # image diff. It exists because there is no test target over `App/Sources` (see

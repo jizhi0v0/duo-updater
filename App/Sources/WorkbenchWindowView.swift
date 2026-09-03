@@ -1897,6 +1897,17 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     /// taps) should not be able to point it anywhere it likes.
     private let originHost: String?
 
+    /// Whether this pane has ever finished a navigation successfully. #292: a
+    /// rejection that happens before the very first load ever commits leaves a
+    /// permanently blank pane, indistinguishable from "this app has no notes" —
+    /// that is the case `reject(_:url:reason:isMainFrame:)` shows a message for.
+    /// A rejection that happens later, after the reader has already shown real
+    /// content (a page that redirects itself mid-session), leaves that content
+    /// alone instead: replacing something the user is reading with an error
+    /// panel over one blocked navigation would be a worse outcome than the
+    /// rejection itself.
+    private var hasCommittedFirstLoad = false
+
     init(origin: URL) {
         self.originHost = origin.host
         super.init()
@@ -1923,15 +1934,18 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
         // a structural gate — it cannot see which address an ordinary DNS name
         // resolves to — but the URL the user lands on now gets the same check as
         // the URL we start from.
+        let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+
         if let url = navigationAction.request.url,
            url.scheme?.lowercased() == "http" {
+            reject(webView, url: url, reason: "cleartext http connection", isMainFrame: isMainFrame)
             decisionHandler(.cancel); return
         }
 
-        let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
         if isMainFrame,
            let url = navigationAction.request.url,
-           !ChangelogURLPolicy.isDisplayable(url) {
+           let reason = ChangelogURLPolicy.rejectionReason(url) {
+            reject(webView, url: url, reason: reason, isMainFrame: isMainFrame)
             decisionHandler(.cancel); return
         }
 
@@ -1953,6 +1967,64 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     func cancel() {
         watchdog?.cancel()
         watchdog = nil
+    }
+
+    /// #292: `decidePolicyFor` used to cancel a rejected navigation with nothing
+    /// else — no log line, and if the rejection landed on the pane's very first
+    /// (still-uncommitted) navigation, a permanently blank pane that reads exactly
+    /// like "this app has no changelog". Every rejection is now logged with the
+    /// URL and the reason, and — only in that blank-forever case — the pane shows
+    /// the reason instead of staying blank.
+    ///
+    /// `.error`, not `.info`: per `Log`'s own doc comment, `.info` is memory-only
+    /// for a third-party subsystem and would be gone by the time anyone went
+    /// looking for why a changelog pane went dark.
+    private func reject(_ webView: WKWebView, url: URL, reason: String, isMainFrame: Bool) {
+        Log.changelog.error("webview navigation blocked (\(reason, privacy: .public)) mainFrame=\(isMainFrame ? "yes" : "no", privacy: .public) url=\(Redactor.url(url), privacy: .public) origin=\(self.originHost ?? "?", privacy: .public)")
+        guard isMainFrame, !hasCommittedFirstLoad else { return }
+        showBlockedNotice(webView, reason: reason)
+    }
+
+    /// Puts `reason` on screen in place of a blank pane. `WorkbenchWindowView`'s
+    /// SwiftUI layer already has a `ContentUnavailableView` for "nothing to show"
+    /// (`ReleaseNotesPane.emptyNotes`, `FormulaDetail.noNotes`), but this
+    /// `WKWebView` is owned by `WebViewCache` and mounted through a plain
+    /// `NSViewRepresentable` that only ever creates it — there is no channel from
+    /// here back to that SwiftUI state without threading a binding through the
+    /// cache for every call site that can hand out a cached view. Loading a small
+    /// HTML page directly into the same pane keeps the fix self-contained to this
+    /// type, at the cost of a hand-rolled (not SwiftUI) message; `reason` is one
+    /// of `WebGuardian`'s or `ChangelogURLPolicy`'s own fixed strings, never
+    /// interpolated URL content, so the light escaping below is defence in depth
+    /// rather than the only thing standing between this and a vendor page.
+    ///
+    /// The title is a plain English literal, not `String(localized:)` — it lives
+    /// inside an HTML string handed to `WKWebView`, outside whatever the
+    /// `Localizable.xcstrings` extraction step scans, and this fix does not touch
+    /// that pipeline. Known gap, not an oversight.
+    private func showBlockedNotice(_ webView: WKWebView, reason: String) {
+        let escaped = reason
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+        let html = """
+        <!doctype html><html><head><meta charset="utf-8">
+        <style>
+          :root { color-scheme: light dark; }
+          body {
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; text-align: center;
+            font-family: -apple-system, sans-serif;
+            background: Canvas; color: GrayText;
+          }
+          .box { max-width: 320px; padding: 24px; }
+          .title { color: CanvasText; font-weight: 600; margin-bottom: 6px; }
+        </style></head>
+        <body><div class="box">
+          <div class="title">Can’t show this page safely</div>
+          <div>\(escaped)</div>
+        </div></body></html>
+        """
+        webView.loadHTMLString(html, baseURL: nil)
     }
 
     private func armWatchdog(_ webView: WKWebView) {
@@ -1983,6 +2055,7 @@ private final class WebGuardian: NSObject, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         cancel()
         autoReloads = 0   // a clean load earns back the reload budget
+        hasCommittedFirstLoad = true
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

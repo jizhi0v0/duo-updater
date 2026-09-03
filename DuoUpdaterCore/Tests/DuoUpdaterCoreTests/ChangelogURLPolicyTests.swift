@@ -47,6 +47,29 @@ struct ChangelogURLPolicyTests {
         }
     }
 
+    /// #292: the bare single-label `local` (no dot, nothing below it) had no
+    /// test of its own — deleting that disjunct out of `isLocalHostname` left
+    /// every other test in this file green. RFC 6762 §3 only ever discusses
+    /// multi-label `single-dns-label.local.` names, so this half of the check
+    /// doesn't rest on that citation; it rests on there being no public CA that
+    /// issues an https certificate for an unqualified single-label name, which
+    /// makes `https://local/` unreachable from anywhere legitimate regardless.
+    @Test func bareLocalIsRejected() {
+        for s in ["https://local/notes", "https://LOCAL./notes"] {
+            #expect(!ChangelogURLPolicy.isDisplayable(url(s)), "\(s) should be refused")
+        }
+    }
+
+    @Test func rejectionReasonNamesTheFailingGuard() {
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://example.com/notes")) == nil)
+        #expect(ChangelogURLPolicy.rejectionReason(url("http://example.com/notes")) != nil)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://user:pw@example.com/notes")) != nil)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://192.168.1.10/notes")) != nil)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://local/notes")) != nil)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://macbook.local/notes")) != nil)
+        #expect(ChangelogURLPolicy.rejectionReason(url("https://example.com:8443/notes")) != nil)
+    }
+
     @Test func localWordsInsideOrdinaryDomainsStillPass() {
         for s in [
             "https://localhost.example.com/notes",

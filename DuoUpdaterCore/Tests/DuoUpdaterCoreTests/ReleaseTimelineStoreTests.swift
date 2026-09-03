@@ -218,6 +218,44 @@ private let d3 = Date(timeIntervalSince1970: 1_720_000_000)
     #expect(await store.totalEvents() == 0)
 }
 
+// MARK: - Vendor-day tier (day precision, no time of day)
+
+@Test func recordsAReleaseWithOnlyAVendorDay() async {
+    // Eudic's shape (#239): the feed states a calendar day, not a time.
+    let store = ReleaseTimelineStore(fileURL: tempFileURL())
+    let added = await store.record(
+        appID: "/Applications/Eudic.app", appName: "Eudic", bundleID: "com.eusoft.eudic",
+        version: "26.9.0", sourceName: "Sparkle", publishedAt: nil, vendorDay: d1)
+    #expect(added)
+    let e = await store.timeline(forAppID: "/Applications/Eudic.app")?.events.first
+    #expect(e?.version == "26.9.0")
+    #expect(e?.publishedAt == nil)
+    #expect(e?.vendorDay == d1)
+    // A vendor-stated day is real vendor information, not a detection guess.
+    #expect(e?.isApproximate == false)
+    #expect(e?.timestamp == d1)
+}
+
+@Test func vendorDayAloneIsEnoughToRecordAndPublishedAtAloneStillIs() async {
+    let store = ReleaseTimelineStore(fileURL: tempFileURL())
+    // Neither date at all → still skipped, exactly as before this tier existed.
+    let skipped = await store.record(appID: "/n.app", appName: "N", bundleID: nil,
+        version: "1", sourceName: "Vendor", publishedAt: nil, vendorDay: nil)
+    #expect(!skipped)
+    #expect(await store.totalEvents() == 0)
+}
+
+/// `publishedAt`, when present, is still what `timestamp` sorts and plots by —
+/// a real time of day outranks a same-release day-only stamp from a different
+/// field on the same call (this shouldn't happen in practice; the sources that
+/// populate `vendorDay` only do so when `publishedAt` is nil, but the store's
+/// own ordering rule should not depend on callers upholding that).
+@Test func publishedAtOutranksVendorDayInTimestampWhenBothAreSomehowSet() {
+    let event = ReleaseEvent(
+        version: "1", publishedAt: d2, vendorDay: d1, detectedAt: d3, sourceName: "Sparkle")
+    #expect(event.timestamp == d2)
+}
+
 @Test func estimatedBaselinePersistsAcrossReload() async {
     let url = tempFileURL()
     let store = ReleaseTimelineStore(fileURL: url)

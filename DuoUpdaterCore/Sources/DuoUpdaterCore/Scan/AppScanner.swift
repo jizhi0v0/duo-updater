@@ -79,6 +79,36 @@ public struct AppScanner: Sendable {
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The first of these name candidates that survives `stripInvisibleMarks` as
+    /// something a user can read, in the caller's order of preference.
+    ///
+    /// The fallback chain used to be `??`, which only steps past a key that is
+    /// **missing** — an *empty* `CFBundleDisplayName` is a perfectly good `String`
+    /// and stopped the chain dead. Eudic (欧路词典) ships exactly that: its
+    /// top-level `CFBundleDisplayName` is `""` because every real name lives in a
+    /// localized `InfoPlist.strings` (`欧路词典` / `EuDic`), so the row rendered
+    /// with a blank name while `CFBundleName` ("Eudic") sat right behind it,
+    /// unread. `stripInvisibleMarks` can empty a candidate too — a name made only
+    /// of bidi marks — so the emptiness test has to be on its *output*, not on the
+    /// raw plist value.
+    ///
+    /// We deliberately do not consult the localized `InfoPlist.strings`: every name
+    /// in this app comes from the unlocalized plist (WeChat is "WeChat", not
+    /// "微信"), and the AX/App Store matching that `stripInvisibleMarks` exists for
+    /// compares against those same strings.
+    ///
+    /// The last candidate is the caller's non-optional backstop (the bundle's
+    /// filename); if even that is blank the name is genuinely unknowable and an
+    /// empty string is the honest answer.
+    static func firstUsableName(_ candidates: String?...) -> String {
+        for candidate in candidates {
+            guard let candidate else { continue }
+            let cleaned = stripInvisibleMarks(candidate)
+            if !cleaned.isEmpty { return cleaned }
+        }
+        return ""
+    }
+
     /// The Mac App Store receipt environment for a bundle, from Spotlight metadata
     /// (`kMDItemAppStoreReceiptType`): "Production" for a store purchase,
     /// "ProductionSandbox" for a TestFlight build. Returns nil when Spotlight has
@@ -204,6 +234,7 @@ public struct AppScanner: Sendable {
                 isToolboxManaged: app.isToolboxManaged,
                 isTestFlightApp: true,
                 sparkleFeedURL: app.sparkleFeedURL,
+                electronUpdate: app.electronUpdate,
                 sparkleFeedHeaders: app.sparkleFeedHeaders,
                 sparkleChannelNames: app.sparkleChannelNames,
                 sparkleEdPublicKey: app.sparkleEdPublicKey,
@@ -214,7 +245,9 @@ public struct AppScanner: Sendable {
                 toolboxInstalledBuild: app.toolboxInstalledBuild,
                 // A receipt-backed app already paid this Spotlight read in the first
                 // scan. The fallback covers a DB-matched bundle with no receipt.
-                appStoreAdamID: app.appStoreAdamID ?? appStoreAdamID(app.path)
+                appStoreAdamID: app.appStoreAdamID ?? appStoreAdamID(app.path),
+                runtime: app.runtime,
+                linkedFrameworks: app.linkedFrameworks
             )
         }
     }
@@ -222,9 +255,8 @@ public struct AppScanner: Sendable {
     /// Scan all configured locations and return the apps found, sorted by name.
     public func scan() -> [InstalledApp] {
         let fm = FileManager.default
-        var seen = Set<String>()
+        var pass = EntryPass()
         var apps: [InstalledApp] = []
-        var skippedSidecars = 0
 
         for dir in locations {
             guard let entries = try? fm.contentsOfDirectory(
@@ -233,33 +265,95 @@ public struct AppScanner: Sendable {
                 options: [.skipsHiddenFiles]
             ) else { continue }
 
-            for entry in entries where entry.pathExtension == "app" {
-                // A backup/duplicate bundle parked next to the real app — same id,
-                // same everything, just a dead path. Checked on the ORIGINAL entry
-                // name (pre-symlink-resolution): that's the name that marks it.
-                if Self.isSidecarCopy(entry) {
-                    skippedSidecars += 1
-                    continue
-                }
-                // Resolve symlinks: /Applications/Utilities often links Apple
-                // system apps out of /System (e.g. Feedback Assistant). Those are
-                // OS-managed by Software Update, not us — skip them, and dedupe on
-                // the real path so a symlink can't smuggle one back in.
-                let resolved = entry.resolvingSymlinksInPath()
-                if resolved.path.hasPrefix("/System/") { continue }
-                guard seen.insert(resolved.path).inserted else { continue }
-                if let app = readApp(at: resolved) {
+            for entry in entries {
+                if let app = admit(entry, pass: &pass) {
                     apps.append(app)
                 }
             }
         }
 
-        apps = Self.dedupeIdenticalInstalls(apps)
-        if skippedSidecars > 0 {
-            Log.scan.info("skipped \(skippedSidecars, privacy: .public) sidecar backup/duplicate bundle(s)")
-        }
+        apps = finish(apps, pass: pass)
         Log.scan.info("scanned \(self.locations.count, privacy: .public) locations → \(apps.count, privacy: .public) apps")
-        return apps.sorted {
+        return apps
+    }
+
+    /// Re-read a known set of bundles — the per-row form of `scan()`, for a
+    /// recheck of one app (or a handful) that should not pay for a sweep of every
+    /// location on the machine (issue #226). Each URL goes through exactly the
+    /// entry rules a directory listing goes through (`admit`), then the same
+    /// dedupe and sort (`finish`), so the row that comes back is the row the full
+    /// scan would have produced for that bundle. `locations` is not consulted.
+    ///
+    /// A bundle that is gone yields nothing: `readApp` finds no Info.plist and the
+    /// URL simply contributes no row. Callers rely on that — "missing from the
+    /// result" is how `recheckMany` reports "uninstalled since the last scan".
+    ///
+    /// On `dedupeIdenticalInstalls`: a row the caller holds already survived the
+    /// dedupe of the full scan it came from, and the clone it would have folded
+    /// into (or that folded into it) sits at a different path that is not in this
+    /// list — so re-reading the row alone returns the row. The dedupe still runs
+    /// here so a caller that does hand over two clones gets the full scan's
+    /// first-wins answer in list order, not two rows.
+    ///
+    /// One rule a directory listing applies that this cannot: `.skipsHiddenFiles`.
+    /// A dot-prefixed bundle passed here explicitly is read. No row can come from
+    /// one, so the App's recheck never meets the difference.
+    public func scan(bundlesAt bundles: [URL]) -> [InstalledApp] {
+        var pass = EntryPass()
+        var apps: [InstalledApp] = []
+        for bundle in bundles {
+            // A directory listing hands `admit` directory URLs (trailing slash), and
+            // that URL becomes `InstalledApp.path` — the row's `Hashable` identity.
+            // A caller building the URL by hand gets the same value only if it is
+            // shaped the same way; `path` strips the slash, so the difference is
+            // invisible in logs and in `id`, and visible only to `==`.
+            let asDirectory = URL(fileURLWithPath: bundle.path, isDirectory: true)
+            if let app = admit(asDirectory, pass: &pass) {
+                apps.append(app)
+            }
+        }
+        apps = finish(apps, pass: pass)
+        Log.scan.info("re-read \(bundles.count, privacy: .public) bundle(s) → \(apps.count, privacy: .public) apps")
+        return apps
+    }
+
+    /// Bookkeeping that spans one pass of `admit` calls: the resolved paths already
+    /// taken, and how many sidecar bundles were turned away (logged once).
+    private struct EntryPass {
+        var seen = Set<String>()
+        var skippedSidecars = 0
+    }
+
+    /// The per-entry rules, in one place so `scan()` and `scan(bundlesAt:)` cannot
+    /// drift: `.app` only, sidecar names turned away, symlinks resolved, anything
+    /// under `/System/` skipped, one row per resolved path, then `readApp`.
+    private func admit(_ entry: URL, pass: inout EntryPass) -> InstalledApp? {
+        guard entry.pathExtension == "app" else { return nil }
+        // A backup/duplicate bundle parked next to the real app — same id,
+        // same everything, just a dead path. Checked on the ORIGINAL entry
+        // name (pre-symlink-resolution): that's the name that marks it.
+        if Self.isSidecarCopy(entry) {
+            pass.skippedSidecars += 1
+            return nil
+        }
+        // Resolve symlinks: /Applications/Utilities often links Apple
+        // system apps out of /System (e.g. Feedback Assistant). Those are
+        // OS-managed by Software Update, not us — skip them, and dedupe on
+        // the real path so a symlink can't smuggle one back in.
+        let resolved = entry.resolvingSymlinksInPath()
+        if resolved.path.hasPrefix("/System/") { return nil }
+        guard pass.seen.insert(resolved.path).inserted else { return nil }
+        return readApp(at: resolved)
+    }
+
+    /// The whole-pass rules that follow `admit`: collapse identical installs,
+    /// report the sidecars turned away, sort by name.
+    private func finish(_ apps: [InstalledApp], pass: EntryPass) -> [InstalledApp] {
+        let deduped = Self.dedupeIdenticalInstalls(apps)
+        if pass.skippedSidecars > 0 {
+            Log.scan.info("skipped \(pass.skippedSidecars, privacy: .public) sidecar backup/duplicate bundle(s)")
+        }
+        return deduped.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
@@ -288,9 +382,8 @@ public struct AppScanner: Sendable {
         // An app with no marketing version can't be update-checked — these are
         // helper/background bundles (URL handlers, login items) that would only
         // ever show as permanent "unknown" noise. Exclude them.
-        guard let rawShortVersion = (plist["CFBundleShortVersionString"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-              !rawShortVersion.isEmpty
+        guard let rawShortVersion = VersionSide.plistVersionField(
+            plist["CFBundleShortVersionString"])
         else { return nil }
         var shortVersion = rawShortVersion
 
@@ -301,10 +394,10 @@ public struct AppScanner: Sendable {
         // literal comparison against text rendered *without* them — most visibly the
         // App Store AX updater's `heroOwns`/row matching, which then "can't find the
         // update button". Strip them so the canonical name matches everywhere.
-        let displayName = Self.stripInvisibleMarks(
-            (plist["CFBundleDisplayName"] as? String)
-            ?? (plist["CFBundleName"] as? String)
-            ?? bundleURL.deletingPathExtension().lastPathComponent
+        let displayName = Self.firstUsableName(
+            plist["CFBundleDisplayName"] as? String,
+            plist["CFBundleName"] as? String,
+            bundleURL.deletingPathExtension().lastPathComponent
         )
 
         // Wrapped iOS apps can only come from the Mac App Store; native Mac apps
@@ -317,7 +410,7 @@ public struct AppScanner: Sendable {
         var bundleID = plist["CFBundleIdentifier"] as? String
         /// Set only for WeChat DevTools, from its `package.json` (see below).
         var weChatDevToolsChannel: ReleaseChannel?
-        let buildVersion = plist["CFBundleVersion"] as? String
+        let buildVersion = VersionSide.plistVersionField(plist["CFBundleVersion"])
         if bundleID == Self.duoUpdaterBundleID { return nil }
 
         // WeChat DevTools (微信开发者工具) keeps its real identity OUT of Info.plist.
@@ -366,6 +459,27 @@ public struct AppScanner: Sendable {
         if let feed = plist["SUFeedURL"] as? String {
             feedURL = URL(string: feed.trimmingCharacters(in: .whitespacesAndNewlines))
         }
+        // An app can ship Sparkle and set its feed up in code, which this read
+        // cannot see. `SparkleFeedCatalog` supplies the address for those, and
+        // ONLY when the bundle named none itself — it is a missing-address
+        // fill-in, not a redirect. Crucially it does NOT make the channel
+        // authoritative the way `ChannelBinding` below does, so the channel is
+        // still inferred from the feed's own items. See the type's doc comment.
+        if feedURL == nil { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
+
+        // Update ownership deliberately stays with the scanned install bundle.
+        // `AppRuntimeDetector.interfaceBundle` may descend into a nested GUI to
+        // describe its runtime, but that GUI cannot lend updater metadata to its
+        // wrapper. Docker is the concrete trap: Docker Desktop.app embeds a dormant
+        // Squirrel framework, while com.docker.backend.updater owns the real update
+        // flow and reads Docker's appcast.json. There is no Docker ShipIt cache.
+        // Borrowing the nested marker would opt the outer com.docker.docker bundle
+        // into generic ShipIt staging/download probes for a state that cannot exist.
+        // Keep electron config, Squirrel, Sparkle and feed facts on `bundleURL`.
+
+        // The electron-builder equivalent, read the same way and for the same
+        // reason: it is a file the packager wrote, not something inferred.
+        let electronUpdate = ElectronUpdateConfig.read(fromBundleAt: bundleURL)
 
         // Electron apps that ship Squirrel manage their own updates; flag them
         // so we defer to that channel instead of a (often staler) Homebrew cask.
@@ -489,6 +603,11 @@ public struct AppScanner: Sendable {
             feedChannelNames = bound.sparkleChannelNames
         }
 
+        // One pass over the executable answers both "what is this built with" and
+        // "which of Apple's frameworks does it link".
+        let runtimeReading = AppRuntimeDetector.read(
+            bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist)
+
         return InstalledApp(
             name: displayName,
             bundleID: bundleID,
@@ -501,6 +620,7 @@ public struct AppScanner: Sendable {
             isToolboxManaged: toolbox.isManaged(appPath: bundleURL),
             isTestFlightApp: isTestFlight,
             sparkleFeedURL: feedURL,
+            electronUpdate: electronUpdate,
             sparkleFeedHeaders: feedHeaders,
             sparkleChannelNames: feedChannelNames,
             sparkleEdPublicKey: (plist["SUPublicEDKey"] as? String)?
@@ -514,7 +634,12 @@ public struct AppScanner: Sendable {
             },
             // Only store-installed bundles carry an adamID; skip the metadata
             // read for everything else.
-            appStoreAdamID: (isMAS || isTestFlight) ? Self.appStoreAdamID(bundleURL) : nil
+            appStoreAdamID: (isMAS || isTestFlight) ? Self.appStoreAdamID(bundleURL) : nil,
+            // Descriptive only — no source, policy or install path reads this. Read
+            // here for the same reason the Squirrel/Sparkle probes are: the scan is
+            // already stat-ing this bundle and holding its Info.plist.
+            runtime: runtimeReading.runtime,
+            linkedFrameworks: runtimeReading.frameworks
         )
     }
 

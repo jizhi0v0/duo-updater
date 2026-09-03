@@ -111,10 +111,10 @@ public actor InstallCoordinator {
     public static func route(for result: UpdateResult, requiresInstaller: Bool) -> Route {
         if requiresInstaller { return .installer }
         switch result.remote?.sourceName {
-        case "Homebrew":          return .homebrew
-        case "Vendor", "GitHub":  return .vendor
-        case "App Store":         return .appStore
-        default:                  return .sparkle
+        case "Homebrew":                    return .homebrew
+        case "Vendor", "GitHub", "Electron": return .vendor
+        case "App Store":                   return .appStore
+        default:                            return .sparkle
         }
     }
 

@@ -5,12 +5,16 @@ import Foundation
 /// this records what the vendors published — a release history that survives
 /// restarts and, over time, reveals each app's release cadence and habits.
 ///
-/// Only releases that arrive with a trustworthy vendor timestamp are recorded
-/// (Sparkle `<pubDate>`, GitHub/Alcove `published_at`). Sources that can't supply
-/// an honest release date (vendor probes reading a redirect URL, the App Store,
-/// Homebrew) pass `publishedAt == nil` and are silently skipped — far better an
-/// empty timeline than one polluted with our own polling timestamps masquerading
-/// as release moments.
+/// Only releases that arrive with a trustworthy vendor date are recorded, at
+/// whichever of two tiers the vendor actually stated: a real time of day
+/// (`publishedAt` — Sparkle `<pubDate>`, GitHub/Alcove `published_at`) or a bare
+/// calendar day (`vendorDay` — a Sparkle `<pubDate>` or JSON field that names only
+/// a date, no time; see `ReleaseDate.parseWithPrecision`). Sources that can't
+/// supply an honest release date at all (vendor probes reading a redirect URL,
+/// the App Store, Homebrew) pass both as nil and are silently skipped — far
+/// better an empty timeline than one polluted with our own polling timestamps, or
+/// with an hour/weekday `vendorDay` never actually stated, masquerading as
+/// release moments.
 ///
 /// An `actor` so concurrent checks (many apps at once) can record without racing
 /// on the in-memory map or the file write.
@@ -55,11 +59,18 @@ public actor ReleaseTimelineStore {
         self.observations = Self.loadObservations(from: observationsURL)
     }
 
-    /// Record one observed release. No-op when `publishedAt` is nil (the source
-    /// gave no trustworthy date) or when we've already recorded this version for
-    /// this app — each version is logged exactly once, at first sighting, so
-    /// re-checks don't pile up duplicates or drift the recorded `detectedAt`.
-    /// Duplicate sightings may still refresh the timeline's display metadata.
+    /// Record one observed release. No-op when both `publishedAt` and `vendorDay`
+    /// are nil (the source gave no trustworthy date at all) or when we've already
+    /// recorded this version for this app — each version is logged exactly once,
+    /// at first sighting, so re-checks don't pile up duplicates or drift the
+    /// recorded `detectedAt`. Duplicate sightings may still refresh the
+    /// timeline's display metadata.
+    ///
+    /// `publishedAt` and `vendorDay` are alternatives, never both real for the
+    /// same call: a source names one precision for a given release, and passing
+    /// both would leave the stored event claiming two things about the same
+    /// moment. See `ReleaseEvent`'s three-tier doc for why they can't collapse
+    /// into one field.
     ///
     /// - Returns: true if this call added a new event (a release we hadn't seen).
     @discardableResult
@@ -70,9 +81,10 @@ public actor ReleaseTimelineStore {
         version: String?,
         sourceName: String,
         publishedAt: Date?,
+        vendorDay: Date? = nil,
         detectedAt: Date = Date()
     ) -> Bool {
-        guard let publishedAt else { return false }
+        guard publishedAt != nil || vendorDay != nil else { return false }
         guard let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
               !version.isEmpty else { return false }
 
@@ -96,6 +108,7 @@ public actor ReleaseTimelineStore {
         let event = ReleaseEvent(
             version: version,
             publishedAt: publishedAt,
+            vendorDay: vendorDay,
             detectedAt: detectedAt,
             sourceName: sourceName
         )
@@ -104,7 +117,11 @@ public actor ReleaseTimelineStore {
         timelines[appID] = timeline
 
         timelinesDirty = true
-        Log.app.info("release-log: \(appName, privacy: .public) \(version, privacy: .public) published \(publishedAt, privacy: .public) via \(sourceName, privacy: .public)")
+        if let publishedAt {
+            Log.app.info("release-log: \(appName, privacy: .public) \(version, privacy: .public) published \(publishedAt, privacy: .public) via \(sourceName, privacy: .public)")
+        } else if let vendorDay {
+            Log.app.info("release-log: \(appName, privacy: .public) \(version, privacy: .public) published on \(vendorDay, privacy: .public) (day precision, no time-of-day) via \(sourceName, privacy: .public)")
+        }
         return true
     }
 

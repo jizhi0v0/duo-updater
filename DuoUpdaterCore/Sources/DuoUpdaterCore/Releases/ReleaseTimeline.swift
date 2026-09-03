@@ -1,17 +1,29 @@
 import Foundation
 
-/// One observed release of an app, in one of two confidence tiers that must never
-/// be conflated:
+/// One observed release of an app, in one of three confidence tiers that must
+/// never be conflated:
 ///
 ///  - **Published** (`publishedAt` set): the vendor's own release moment, to the
-///    minute, from a feed that timestamps its releases (Sparkle/GitHub/Alcove).
-///    The only tier the release-habits heatmap is allowed to use.
-///  - **Estimated** (`estimatedRange` set, `publishedAt` nil): for sources that
-///    report a version but no date (a vendor probe, a Homebrew cask, the App
-///    Store). We can't know *when* they shipped, only that it happened between the
-///    last check that still saw the old version and the first that saw the new one
-///    — so we record that window. Honest about its imprecision (a wide window =
-///    low confidence) and kept out of the heatmap entirely.
+///    minute, from a feed that timestamps its releases with a real time of day
+///    (Sparkle/GitHub/Alcove). The only tier the release-habits heatmap is
+///    allowed to use — see `ReleaseStats`.
+///  - **Vendor day** (`vendorDay` set): the vendor stated a release date but no
+///    time of day (a Sparkle `<pubDate>` or JSON field holding a bare
+///    `"2026-08-31"`). Real, vendor-sourced information — unlike `estimatedRange`
+///    below, this is not something *we* measured — but any hour or weekday we
+///    assigned it would be invented (we don't even know the vendor's time zone),
+///    so it is kept out of the heatmap exactly like the estimated tier and shown
+///    as a date only, never a time. See `ReleaseDate.parseWithPrecision`.
+///  - **Estimated** (`estimatedRange` set): for sources that report a version but
+///    no date at all (a vendor probe, a Homebrew cask, the App Store). We can't
+///    know *when* they shipped, only that it happened between the last check
+///    that still saw the old version and the first that saw the new one — so we
+///    record that window. Honest about its imprecision (a wide window = low
+///    confidence) and kept out of the heatmap entirely.
+///
+/// At most one of `publishedAt` / `vendorDay` / `estimatedRange` is set on any
+/// one event — the three are alternatives, not layers, and a caller that finds
+/// more than one set should not trust either.
 ///
 /// `detectedAt` — when our check first recorded this version — is always set, but
 /// reflects our polling cadence and the user's machine being awake, so it's never
@@ -21,10 +33,13 @@ public struct ReleaseEvent: Codable, Sendable, Hashable {
     /// dedupe key within an app — we record each version exactly once.
     public let version: String
     /// The vendor's published timestamp, to the minute — set only for the
-    /// trustworthy tier. nil for estimated (detection-only) events.
+    /// trustworthy tier. nil for vendor-day and estimated (detection-only) events.
     public let publishedAt: Date?
+    /// The vendor's calendar day (UTC start-of-day) for this release, when the
+    /// source stated a day but no time — set only for that tier. nil otherwise.
+    public let vendorDay: Date?
     /// For the estimated tier: the window the release must have happened in
-    /// (last-saw-old → first-saw-new). nil for published events.
+    /// (last-saw-old → first-saw-new). nil for published and vendor-day events.
     public let estimatedRange: DateInterval?
     /// When our check first recorded this version (our observation, not the
     /// vendor's release moment).
@@ -35,23 +50,28 @@ public struct ReleaseEvent: Codable, Sendable, Hashable {
     public init(
         version: String,
         publishedAt: Date? = nil,
+        vendorDay: Date? = nil,
         estimatedRange: DateInterval? = nil,
         detectedAt: Date,
         sourceName: String
     ) {
         self.version = version
         self.publishedAt = publishedAt
+        self.vendorDay = vendorDay
         self.estimatedRange = estimatedRange
         self.detectedAt = detectedAt
         self.sourceName = sourceName
     }
 
-    /// True when this is a detection-window estimate, not a vendor-published date.
-    public var isApproximate: Bool { publishedAt == nil }
+    /// True when this is a detection-window estimate — not a date the vendor
+    /// actually stated. A vendor-day event is real vendor information (just
+    /// coarser than `publishedAt`), so it does NOT count as approximate here.
+    public var isApproximate: Bool { estimatedRange != nil }
 
-    /// The single instant to sort and place this event by: the real publish date
-    /// when known, else the end of the estimated window (when we first saw it).
-    public var timestamp: Date { publishedAt ?? estimatedRange?.end ?? detectedAt }
+    /// The single instant to sort and place this event by: the real publish
+    /// moment when known, else the vendor's day, else the end of the estimated
+    /// window (when we first saw it).
+    public var timestamp: Date { publishedAt ?? vendorDay ?? estimatedRange?.end ?? detectedAt }
 }
 
 /// The release history we've accumulated for a single app, newest-published last.

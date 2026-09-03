@@ -13,7 +13,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | (cask `insomnia`) | — | ✓ 检测+一键安装 | — |
-| **beta**     | —       | (cask —) | — | ✗ 受阻（检测层） | — |
+| **beta**     | —       | (cask —) | — | ○ 检测层已就绪，rule 未接 | — |
 | **alpha**    | —       | (cask `insomnia@alpha`) | — | ✗ 受阻（检测层） | — |
 
 当前生效源: **GitHub Releases**（Kong/insomnia monorepo）
@@ -23,7 +23,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable | `com.insomnia.app` | 共享 | 非 prerelease `core@X.Y.Z` | `channel: .stable` + tag `$` 锚 | ✓ |
-| beta   | `com.insomnia.app` | 共享 | 版本后缀 `-beta.N`（**detect() 不识别**） | — | ✗ 受阻 |
+| beta   | `com.insomnia.app` | 共享 | 版本后缀 `-beta.N` | 可用 `.beta` gate | ○ 未接 rule |
 | alpha  | `com.insomnia.app` | 共享 | 版本后缀 `-alpha.N`（**detect() 不识别**） | — | ✗ 受阻 |
 
 **用户的三个问题：**
@@ -45,14 +45,15 @@
 **修复**：pattern 加 `$` 锚 → `core@([0-9]+\.[0-9]+\.[0-9]+)$`，只匹配无后缀的 stable
 tag。回归测试 `insomniaRuleMatchesCoreTagOnly` 已 pin 该 feed。
 
-## 为什么 beta/alpha channel 受阻（检测层）
+## beta/alpha channel 当前状态
 真机验证 2026-06-06（`Insomnia.Core-13.0.0-beta.0.dmg` 挂载只读）：
 - beta 构建 `CFBundleShortVersionString = 13.0.0-beta.0` —— 后缀**保留**（不像 Mozilla 剥离）。
-- 但 `ReleaseChannel.detect()` 对它返回 **`.stable`** —— **不解析版本后缀**。
-- 因此任何 `channel: .beta` 的 GitHub rule 都过不了 channel gate（gate 要求
-  检测渠道 == rule 渠道），永远不会被选中。
-- **前置依赖**：先让 `detect()` 识别 `com.insomnia.app` 的 `-beta.N`/`-alpha.N` 后缀
-  （或一般化版本后缀信号）。GitHub 侧的 tag + `Insomnia.Core-<ver>-beta.N.dmg` 资产已就绪。
+- 当时 `ReleaseChannel.detect()` 对它返回 `.stable`，任何 `.beta` rule 都过不了
+  channel gate。这个历史阻塞已于 2026-08-30 随 Vorssaint 接入解除：通用检测现在
+  严格识别整串以 `-beta.<数字>` 结尾的版本，同时继续排除带 `+sha` 的构建元数据。
+- Insomnia beta 因此已具备接 rule 的检测前提，但本次没有把另一个 app 混进
+  Vorssaint PR；它仍是待接入状态。
+- alpha 的 `-alpha.N` 尚未加入通用检测，仍受检测层阻塞。
 
 ## 更新检测（stable）
 - 源: GitHubReleaseRule（owner `Kong`, repo `insomnia`, `usePrereleases: true` 扫列表跳过 lib@/inso@）
@@ -74,7 +75,7 @@ tag。回归测试 `insomniaRuleMatchesCoreTagOnly` 已 pin 该 feed。
 - Recipe 状态: ✅ 已接入 + 离线 fixture 测试 `extractsInsomniaEntriesFromNextDataJSON`。
 
 ## 一键安装
-- 状态: stable **支持**；beta/alpha 受检测层阻塞。
+- 状态: stable **支持**；beta 检测前提已就绪但 rule 未接；alpha 仍受检测层阻塞。
 - 格式: dmg
 
 ## 真机验证（Phase 3¾）
@@ -82,5 +83,5 @@ tag。回归测试 `insomniaRuleMatchesCoreTagOnly` 已 pin 该 feed。
 
 ## 建议下一步
 1. ✅ stable ChangelogRecipe 已接（见上）。
-2. beta/alpha channel：先扩 `ReleaseChannel.detect()` 识别 `-beta.N`/`-alpha.N` 版本后缀
-   并真机验证，再加 `channel: .beta/.alpha` 的 GitHub rule。
+2. beta channel：检测前提已完成；另开 app PR 真机复验并加 `.beta` GitHub rule。
+3. alpha channel：先扩 `ReleaseChannel.detect()` 识别 `-alpha.N`，再加 `.alpha` rule。

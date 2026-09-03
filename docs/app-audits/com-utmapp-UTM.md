@@ -24,7 +24,8 @@
 
 - Mac App Store 安装：`MacAppStoreSource`
 - TestFlight beta：TestFlight 本地 inventory 的托管路径
-- Homebrew `utm` stable：`HomebrewCaskSource`
+- Homebrew `utm`（4.7.5）/ `utm@beta`（5.0.5）：`HomebrewCaskSource`，仅当该 cask 真的
+  装过（provenance 闸要求它在 Caskroom 里）
 - GitHub 直装 stable：`GitHubReleasesSource` 的 stable rule
 - GitHub 直装及 Homebrew `utm@beta`：`GitHubReleasesSource` 先按观测版本反查 exact release，再选择 beta rule
 
@@ -34,7 +35,7 @@
 |---|---|---|---|---|---|
 | stable | `com.utmapp.UTM` | 共享 | 本地无标记时先视为候选 stable | exact release 为 `prerelease: false`，更新读 GitHub `/releases/latest` | ✓ |
 | beta（TestFlight） | `com.utmapp.UTM` | 共享 | TestFlight receipt / 本地 inventory | TestFlight 托管 | ✓ |
-| beta（GitHub/Homebrew） | `com.utmapp.UTM` | 共享 | 包内无标记；exact tag 对应 release 的 `prerelease: true` | 更新列表再强制只收 `prerelease: true` 且非 draft | ✓ |
+| beta（GitHub/Homebrew） | `com.utmapp.UTM` | 共享 | 包内无标记；exact tag 对应 release 的 `prerelease: true` | 候选取 `max(装机大版本线最新, 全局最新正式版)`，排除 draft —— **不是"只收 prerelease"**，见下 | ✓ |
 
 UTM 的 stable 与 beta bundle ID、app 名、Team ID、资产名都相同，营销版本也是不带后缀的
 纯数字。因此 `ReleaseChannel.detect()` 单靠本地 bundle 无法分轨。做法不是用"5.x 就是 beta"
@@ -43,7 +44,14 @@ GitHub 对该 release 的权威 `prerelease` 位：
 
 - `true`：这份拷贝在预览轨；
 - `false`：这份拷贝在正式轨；
-- exact tag 不存在、是 draft、或应答不再带 `prerelease`/`draft` 字段：fail closed，本源不响应。
+- exact tag 不存在、是 draft、或应答不再带 `prerelease`/`draft` 字段：**不声称任何渠道，退回
+  stable rule**（即这个机制出现之前的行为）。
+
+  注意这里是"丢徽章"而不是"丢整行"。早期做法是判不出就不响应，但 UTM 没有 Sparkle、cask 只在
+  brew 装过时才应答，所以不响应等于这一行掉到 `.unknown`、连本来能给的 4.7.5 都不再提示，而且
+  静默。这不是假设：`v3.1.3` / `v3.0.4` 上游已重打成 `-2` 后缀、原 tag 不存在，`v2.0b7` /
+  `v1.0-rc6` / `v0.2-fakesign` 连 tag 正则都不匹配。退回 stable 在这个方向上是安全的 ——
+  它至多给出最新正式版，比它新的预览装机会走 `laggingRemoteVersion`，不会被当成可安装的降级。
 
 判轨结果写进 `ResolvedChannelStore`（`~/Library/Application Support/com.duoupdater.app/resolved-channels.json`），
 **按安装路径 + 两个版本串**建 key。两点原因：
@@ -135,7 +143,15 @@ Homebrew 同时发布 `utm` 与 `utm@beta`，二者安装成同一个 `UTM.app` 
 - 自编译、改写版本号或上游已删除 exact tag 的构建无法证明渠道，会安全地不响应，不会猜轨。
   这类版本在构造 tag **之前**就被 `versionPattern` 挡掉，不会每轮浪费一个必然 404 的请求。
 - GitHub 的 `prerelease` 位是判轨依据；上游若重新标记一条既有 release，DuoUpdater 会按上游
-  当前声明处理。
+  当前声明处理。注意判轨结果按"路径 + 版本"缓存且**不设过期**，所以重新标记要到该拷贝版本变化
+  时才会被重新读取。
+- **预览轨是单向的**：4.7.3 (Beta) 拿到转正的 4.7.5 之后，下一轮 exact-tag 查出
+  `prerelease: false`，这份拷贝就回到正式轨，不会再收到 v5 预览。这是"prerelease 是阶段不是轨"
+  的直接推论，但用户可能当成 bug —— 想继续跟预览需要自己去装一个预览版。
+- Homebrew 两个 cask 都存在且版本正确（`utm` 4.7.5 / `utm@beta` 5.0.5，2026-09-03 实测），
+  都装到 `/Applications/UTM.app` 且互相冲突。brew 装过的拷贝由 `HomebrewCaskSource` 先应答
+  （它排在 GitHub 之前），此时判轨与 `ResolvedChannelStore` 都不会运行；只有直装的拷贝才走
+  这套机制。
 
 ## 验证
 
@@ -151,3 +167,5 @@ Homebrew 同时发布 `utm` 与 `utm@beta`，二者安装成同一个 `UTM.app` 
 - 真机端到端（同机两份真实安装）：5.0.5 那份判 beta、4.7.5 那份判 stable，两条记录按
   各自安装路径分别落盘，互不覆盖。
 - 真实 v5.0.5 DMG 已完成摘要、bundle 身份、Team 与 Gatekeeper 验证。
+- 候选算法另有直接单元测试（`LineAnchoredCeilingTests`），把装机版本放在历史中的任意位置 ——
+  sweep 只能锚在"本机装的那份或最新 tag"上，够不到这些位置。

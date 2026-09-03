@@ -1232,7 +1232,13 @@ public enum ChangelogRecipeRegistry {
             source: URL(
                 string: "https://api.github.com/repos/utmapp/UTM/releases?per_page=40")!,
             mode: .json,
-            maxEntries: 20,
+            // 40, not stable's 20: this side reads BOTH kinds out of one 40-entry
+            // page, so a 20-entry cap spends part of the window on releases the
+            // preview history is not about. Today's page is 12 previews + 8 final
+            // and `v4.7.5` sits 7th, but every 14 further previews would push it
+            // out — and the entry that falls off is the one a graduating install
+            // needs, which is the whole reason this recipe keeps final releases.
+            maxEntries: 40,
             channel: .beta,
             includesPromotedStable: true,
             structuredFormat: .gitHubReleases),

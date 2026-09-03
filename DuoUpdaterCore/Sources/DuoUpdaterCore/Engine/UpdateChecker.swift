@@ -75,8 +75,10 @@ public struct UpdateChecker: Sendable {
 
         // One write per pass, not one per proof: a pass proves a channel for at
         // most a couple of rows, and each is a line in a file nobody reads until
-        // the next launch. Done here rather than at each caller so `duo check`
-        // and the menu bar cannot differ in whether the proof survives.
+        // the next launch. Note the scope — the single-app `check(_:)` used by a
+        // one-row recheck does NOT flush; its proof lives in the actor and lands
+        // on the next full pass. Losing it means one re-proof after a quit taken
+        // between those two moments, which is cheaper than a file write per row.
         await channelStore?.flush()
 
         return results.compactMap { $0 }

@@ -24,6 +24,17 @@ import Foundation
 /// line, newest stable release)`. Both halves are load-bearing: the first is
 /// what carries a preview install to its own graduation, the second is what
 /// keeps an install on a long-abandoned line from being pinned there forever.
+///
+/// **Major, not minor** — a deliberate choice, and the two differ only in a
+/// shape UTM has never produced. Replaying all 131 releases: a preview line only
+/// ever opens after the previous one graduated, so "newest in major 4" and
+/// "newest in 4.7" have never disagreed. They would if a `v4.8.0 (Beta)` opened
+/// while a `v4.7.3 (Beta)` install was still out there: major carries that
+/// install onto the new preview line, minor holds it at `v4.7.5`. Major is
+/// chosen because a preview install that has not moved to the newer preview line
+/// is the case that goes stale — the "newest stable" half already guarantees it
+/// can never be worse off than a stable install. `ceilingPrefersTheNewerPreviewLineWithinTheMajor`
+/// pins this so it stays a decision rather than an accident.
 public enum GitHubCandidateScope: String, Sendable, Equatable {
     case newest
     case installedMajorLineOrNewestStable
@@ -459,6 +470,26 @@ public struct GitHubReleasesSource: UpdateSource {
             return candidates.first { $0.channel == app.releaseChannel }
         }
 
+        // Not proving a channel must cost the app its BADGE, not its row. An
+        // unprovable copy still has a perfectly good answer available — the newest
+        // stable release, which is what every install got before this mechanism
+        // existed — and returning nil instead drops GitHub as a source entirely:
+        // UTM has no Sparkle feed and its casks only answer when brew installed
+        // them, so the row falls all the way through to `.unknown` and silently
+        // stops offering the update it could have had.
+        //
+        // This is not hypothetical. `v3.1.3` and `v3.0.4` do not exist upstream
+        // (they were re-cut as `v3.1.3-2` / `v3.0.4-2`), and the tags before
+        // `v2.1.0` — `v2.0b7`, `v1.0-rc6`, `v0.2-fakesign` — cannot form a tag
+        // this rule accepts at all. Every one of those installs would have gone
+        // dark.
+        //
+        // Offering stable to a copy that might be a preview is safe in this
+        // direction: it can only ever be the newest stable release, so a preview
+        // install newer than it resolves as lagging (`laggingRemoteVersion`),
+        // never as a downgrade to install.
+        let stableFallback = candidates.first { $0.channel == .stable }
+
         guard let installed = app.shortVersion?.trimmingCharacters(in: .whitespacesAndNewlines),
               !installed.isEmpty,
               // Validate BEFORE spending a request. A hand-built or renamed copy
@@ -466,7 +497,11 @@ public struct GitHubReleasesSource: UpdateSource {
               // otherwise cost one guaranteed 404 on every single check.
               VendorProbeRecipe.extractVersion(from: prefix + installed, pattern: rule.versionPattern)
                 == installed
-        else { return nil }
+        else {
+            Log.source.info(
+                "GitHub \(app.bundleID ?? "?", privacy: .public): installed version cannot form a tag for this rule — answering on the stable rule rather than dropping the row")
+            return stableFallback
+        }
 
         // A proof is about one copy at one version, so a stored one is as good as
         // a fresh lookup until that copy changes — and skipping the lookup is what
@@ -484,9 +519,9 @@ public struct GitHubReleasesSource: UpdateSource {
               !release.isDraft
         else {
             Log.source.info(
-                "GitHub skip \(app.bundleID ?? "?", privacy: .public): exact installed release \(tag, privacy: .public) could not prove a channel")
+                "GitHub \(app.bundleID ?? "?", privacy: .public): exact installed release \(tag, privacy: .public) could not prove a channel — answering on the stable rule rather than dropping the row")
             await channelStore?.forget(app)
-            return nil
+            return stableFallback
         }
 
         let proven: ReleaseChannel = release.isPrerelease ? rule.channel : .stable
@@ -505,9 +540,14 @@ public struct GitHubReleasesSource: UpdateSource {
     /// is the tag list — for a GitHub rule the tags *are* the surface a version
     /// pattern is written against, and they're what you need to repair one.
     /// - anchoredTo: stands in for the installed copy for a line-anchored rule.
-    ///   The sweep passes the version it last recorded as good for this rule, so
-    ///   the diagnostic measures the same algorithm a user runs rather than a
-    ///   `.newest` shadow of it.
+    ///   `duo verify` passes the version of the copy on the sweeping machine when
+    ///   there is one; otherwise this falls back to the newest tag, and the
+    ///   ceiling is then trivially that tag — i.e. **the sweep does not exercise
+    ///   the line-anchoring algorithm**, and is not meant to. What it exercises
+    ///   is the live contract the algorithm depends on: that the exact-tag
+    ///   endpoint still answers and still carries the release-state fields. The
+    ///   algorithm itself is pinned by `lineAnchoredCeiling`'s unit tests, which
+    ///   can put an install anywhere in the history instead of only at the top.
     public func resolveDiagnostic(
         _ rule: GitHubReleaseRule, anchoredTo installedVersion: String? = nil
     ) async -> ProbeOutcome {
@@ -523,18 +563,18 @@ public struct GitHubReleasesSource: UpdateSource {
     /// Deliberately anchored to a tag taken from the LIVE list rather than to a
     /// version written down here: a constant would keep passing after the vendor
     /// moved on, which is the failure this probe exists to prevent.
+    /// Deliberately `throws` rather than catching: a 403 from the shared rate
+    /// limit or a dropped connection is not a broken recipe, and swallowing it
+    /// into `channelDiscoveryBroken` would file an issue against UTM every time
+    /// the hour's budget ran out. Let those reach `resolveDiagnostic`'s existing
+    /// mapping, which already sorts a status code into infra vs recipe. What this
+    /// returns is only the failures that ARE about this mechanism.
     func channelDiscoveryProbe(
         _ rule: GitHubReleaseRule
-    ) async -> (failure: ProbeFailure?, provenVersion: String?, tags: [String]) {
+    ) async throws -> (failure: ProbeFailure?, provenVersion: String?, tags: [String]) {
         guard let prefix = rule.installedTagPrefix else { return (nil, nil, []) }
-        let list: [Release]
-        do {
-            guard let fetched = try await fetchReleases(rule, list: true) else {
-                return (.channelDiscoveryBroken("could not fetch the releases list"), nil, [])
-            }
-            list = fetched
-        } catch {
-            return (.channelDiscoveryBroken("releases list failed: \(error)"), nil, [])
+        guard let list = try await fetchReleases(rule, list: true) else {
+            return (.channelDiscoveryBroken("could not fetch the releases list"), nil, [])
         }
         let tags = list.map(\.tag)
         guard let newest = list.first(where: { release in
@@ -551,27 +591,26 @@ public struct GitHubReleasesSource: UpdateSource {
         }
 
         let tag = prefix + version
-        do {
-            guard let exact = try await fetchReleases(rule, list: false, tag: tag)?.first else {
-                return (.channelDiscoveryBroken(
-                    "exact-tag lookup for \(tag) returned nothing — an install on this version could not be classified"),
-                    nil, tags)
-            }
-            guard exact.hasExplicitReleaseState else {
-                return (.channelDiscoveryBroken(
-                    "\(tag) no longer carries both `prerelease` and `draft`; channel identification reads those fields"),
-                    nil, tags)
-            }
-            guard VendorProbeRecipe.extractVersion(
-                from: exact.tag, pattern: rule.versionPattern) == version
-            else {
-                return (.channelDiscoveryBroken(
-                    "\(tag) resolved to a different tag (\(exact.tag))"), nil, tags)
-            }
-            return (nil, version, tags)
-        } catch {
-            return (.channelDiscoveryBroken("exact-tag lookup for \(tag) failed: \(error)"), nil, tags)
+        guard let exact = try await fetchReleases(rule, list: false, tag: tag)?.first else {
+            // `fetchReleases` turns a 404 on an exact-tag lookup into nil — the
+            // one status that really does mean "this mechanism cannot classify
+            // an install on this version".
+            return (.channelDiscoveryBroken(
+                "exact-tag lookup for \(tag) returned nothing — an install on this version could not be classified"),
+                nil, tags)
         }
+        guard exact.hasExplicitReleaseState else {
+            return (.channelDiscoveryBroken(
+                "\(tag) no longer carries both `prerelease` and `draft`; channel identification reads those fields"),
+                nil, tags)
+        }
+        guard VendorProbeRecipe.extractVersion(
+            from: exact.tag, pattern: rule.versionPattern) == version
+        else {
+            return (.channelDiscoveryBroken(
+                "\(tag) resolved to a different tag (\(exact.tag))"), nil, tags)
+        }
+        return (nil, version, tags)
     }
 
     /// Host parameters are injectable for the architecture-only diagnostic
@@ -607,7 +646,7 @@ public struct GitHubReleasesSource: UpdateSource {
             // the same lookup rather than from a hand-maintained constant.
             var anchor = installedVersion
             if rule.installedTagPrefix != nil {
-                let discovery = await channelDiscoveryProbe(rule)
+                let discovery = try await channelDiscoveryProbe(rule)
                 if let failure = discovery.failure {
                     return outcome(remote: nil, failure: failure, tags: discovery.tags)
                 }

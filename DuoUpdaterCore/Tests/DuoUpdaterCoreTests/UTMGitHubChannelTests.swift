@@ -17,6 +17,10 @@ struct UTMGitHubChannelTests {
         /// Every request path this protocol served, so a test can assert about
         /// requests NOT made — the memoised second check is invisible otherwise.
         nonisolated(unsafe) static var requested: [String] = []
+        /// Forces the exact-tag endpoint to answer 403, the shape GitHub's shared
+        /// rate limit takes. Used to prove the discovery probe does not relabel
+        /// infrastructure as a broken recipe.
+        nonisolated(unsafe) static var rateLimitTagLookups = false
         private static let lock = NSLock()
         static func record(_ path: String) {
             lock.lock(); defer { lock.unlock() }
@@ -39,7 +43,19 @@ struct UTMGitHubChannelTests {
             Self.record(path)
             let body: String
             let status: Int
+            if Self.rateLimitTagLookups, path.contains("/releases/tags/") {
+                let response = HTTPURLResponse(
+                    url: request.url!, statusCode: 403,
+                    httpVersion: "HTTP/1.1", headerFields: nil)!
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: Data(#"{"message":"rate limit exceeded"}"#.utf8))
+                client?.urlProtocolDidFinishLoading(self)
+                return
+            }
             switch path {
+            case "/repos/utmapp/UTM/releases/tags/v5.0.5":
+                status = 200
+                body = Self.release(tag: "v5.0.5", prerelease: true, body: "* Newest preview")
             case "/repos/utmapp/UTM/releases/tags/v5.0.4":
                 status = 200
                 body = Self.release(tag: "v5.0.4", prerelease: true, body: "* Installed Beta")
@@ -128,6 +144,7 @@ struct UTMGitHubChannelTests {
 
     private func source(channelStore: ResolvedChannelStore? = nil) -> GitHubReleasesSource {
         FixtureProtocol.reset()
+        FixtureProtocol.rateLimitTagLookups = false
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FixtureProtocol.self]
         let rules = GitHubReleaseRegistry.rules.filter { $0.bundleID == "com.utmapp.UTM" }
@@ -202,20 +219,71 @@ struct UTMGitHubChannelTests {
         #expect(!items.contains { $0.contains("Beta-only") })
     }
 
-    @Test func anUnknownInstalledTagFailsClosedInsteadOfGuessingStable() async throws {
-        #expect(try await source().latestVersion(for: app(version: "9.9.9-local")) == nil)
+    /// An unprovable copy loses its BADGE, not its row. Returning nil would drop
+    /// GitHub as a source and — UTM having no Sparkle feed — leave the app at
+    /// `.unknown`, silently stopping the update it could still have had. Real
+    /// installs are affected: `v3.1.3` and `v3.0.4` were re-cut upstream as
+    /// `-2` tags and no longer exist.
+    @Test func anUnknownInstalledTagAnswersOnTheStableRuleRatherThanVanishing() async throws {
+        let remote = try #require(try await source().latestVersion(for: app(version: "9.9.9-local")))
+        #expect(remote.displayVersion == "4.7.5")
+        #expect(remote.releaseChannel == .stable)
     }
 
-    @Test func missingReleaseStateFailsClosedInsteadOfMeaningStable() async throws {
-        #expect(try await source().latestVersion(for: app(version: "5.0.3")) == nil)
+    @Test func missingReleaseStateAnswersOnTheStableRuleRatherThanVanishing() async throws {
+        let remote = try #require(try await source().latestVersion(for: app(version: "5.0.3")))
+        #expect(remote.displayVersion == "4.7.5")
     }
 
-    /// A version that could never form a tag this rule accepts must not cost a
-    /// request at all — a hand-built copy is checked as often as any other row.
-    @Test func anUnusableInstalledVersionIsRejectedBeforeSpendingARequest() async throws {
+    /// A version that cannot form a tag must not be proven as anything, even
+    /// though the row still gets a stable answer.
+    @Test func anUnprovableCopyIsNotRecordedAsStable() async throws {
+        let store = tempStore()
+        _ = try await source(channelStore: store).latestVersion(for: app(version: "9.9.9-local"))
+        #expect(await store.channel(for: app(version: "9.9.9-local")) == nil)
+    }
+
+    // MARK: - The sweep's view of the same mechanism
+
+    @Test func theDiscoveryProbePassesWhenTheExactTagEndpointStillAnswers() async throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first {
+            $0.bundleID == "com.utmapp.UTM" && $0.installedTagPrefix != nil
+        })
+        let probe = try await source().channelDiscoveryProbe(rule)
+        #expect(probe.failure == nil)
+        #expect(probe.provenVersion == "5.0.5")
+    }
+
+    /// The probe must not relabel infrastructure as a broken recipe: a 403 is the
+    /// shared GitHub rate limit, which the sweep retries and never files. Letting
+    /// it out as `channelDiscoveryBroken` (classification `.recipe`) would open an
+    /// issue against UTM every time the hour's budget ran out.
+    @Test func theDiscoveryProbeLetsRateLimitsKeepTheirClassification() async throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first {
+            $0.bundleID == "com.utmapp.UTM" && $0.installedTagPrefix != nil
+        })
         let source = self.source()
-        #expect(try await source.latestVersion(for: app(version: "not-a-version")) == nil)
-        #expect(FixtureProtocol.paths().isEmpty)
+        FixtureProtocol.rateLimitTagLookups = true
+        defer { FixtureProtocol.rateLimitTagLookups = false }
+
+        do {
+            _ = try await source.channelDiscoveryProbe(rule)
+            Issue.record("a 403 must reach the caller as an error, not a probe verdict")
+        } catch GitHubReleasesSource.GitHubError.badStatus(let code) {
+            #expect(code == 403)
+        }
+    }
+
+    /// A version that could never form a tag this rule accepts must not cost an
+    /// exact-tag request — a hand-built copy is checked as often as any other row,
+    /// and that lookup could only ever 404.
+    @Test func anUnusableInstalledVersionCostsNoExactTagRequest() async throws {
+        let source = self.source()
+        let remote = try await source.latestVersion(for: app(version: "not-a-version"))
+
+        #expect(!FixtureProtocol.paths().contains { $0.contains("/releases/tags/") })
+        // It still gets the stable answer — it just never claimed to be a preview.
+        #expect(remote?.displayVersion == "4.7.5")
     }
 
     @Test func aProvenChannelIsRememberedInsteadOfReProvedOnEveryCheck() async throws {
@@ -290,7 +358,7 @@ struct UTMGitHubChannelTests {
         let store = tempStore()
         let installed = app(version: "5.0.3")  // the schema-drift fixture
 
-        #expect(try await source(channelStore: store).latestVersion(for: installed) == nil)
+        _ = try await source(channelStore: store).latestVersion(for: installed)
         #expect(await store.channel(for: installed) == nil)
     }
 }

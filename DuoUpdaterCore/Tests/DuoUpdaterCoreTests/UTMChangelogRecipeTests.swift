@@ -78,4 +78,24 @@ struct UTMChangelogRecipeTests {
         // The draft is not published on either side.
         #expect(!beta.entries.map(\.version).contains("5.0.6"))
     }
+
+    /// The registry flag has to reach the decoder through the code the app runs.
+    /// Decoding with the flag passed by hand — which the test above does, to keep
+    /// the two channels comparable — would stay green if `ChangelogService` never
+    /// forwarded it, and then every real 4.7.x preview install would see an empty
+    /// notes panel.
+    @Test func theServiceForwardsIncludesPromotedStableToTheDecoder() throws {
+        let betaRecipe = try #require(ChangelogRecipeRegistry.recipe(
+            forBundleID: "com.utmapp.UTM", channel: .beta))
+        let stableRecipe = try #require(ChangelogRecipeRegistry.recipe(
+            forBundleID: "com.utmapp.UTM", channel: .stable))
+
+        let beta = try #require(ChangelogService.parse(betaRecipe, body: fixture))
+        let stable = try #require(ChangelogService.parse(stableRecipe, body: fixture))
+
+        #expect(beta.entries.map(\.version).contains("4.7.5"),
+                "the graduated release a preview install is offered must carry notes")
+        #expect(beta.entries.map(\.version).contains("5.0.5"))
+        #expect(!stable.entries.map(\.version).contains("5.0.5"))
+    }
 }

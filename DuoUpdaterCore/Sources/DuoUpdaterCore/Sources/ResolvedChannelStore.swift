@@ -48,6 +48,11 @@ public actor ResolvedChannelStore {
         var shortVersion: String?
         var buildVersion: String?
         var channel: String
+        /// Never read — kept because this file is the only place a human can look
+        /// to see what was decided about a copy and when, and a proof with no
+        /// timestamp is not diagnosable. There is deliberately no expiry: the
+        /// entry is scoped to an exact version, so it stops applying the moment
+        /// that copy changes rather than after some interval.
         var provenAt: Date
     }
 
@@ -94,13 +99,21 @@ public actor ResolvedChannelStore {
         dirty = true
     }
 
+    /// Clears `dirty` only once the bytes are on disk: an unwritable directory
+    /// or a full volume would otherwise drop the proof silently AND make the next
+    /// flush a no-op, so the file would stay stale until the app was restarted.
     public func flush() {
         guard dirty else { return }
-        dirty = false
         guard let data = try? JSONEncoder().encode(entries) else { return }
-        try? FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? data.write(to: fileURL, options: .atomic)
+        do {
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: fileURL, options: .atomic)
+            dirty = false
+        } catch {
+            Log.source.error(
+                "resolved-channels: could not write \(self.fileURL.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// A synchronous read of the shared file, for callers that cannot await —
@@ -111,14 +124,23 @@ public actor ResolvedChannelStore {
     /// actor's state, so it can neither race a write nor become a second place
     /// that decides what is stored.
     public nonisolated static func provenChannelSnapshot(
-        for app: InstalledApp, fileURL: URL? = nil
+        for app: InstalledApp, in snapshot: Snapshot
     ) -> ReleaseChannel? {
-        let entries = load(from: fileURL ?? defaultFileURL())
-        guard let entry = entries[app.id],
+        guard let entry = snapshot.entries[app.id],
               entry.shortVersion == app.shortVersion,
               entry.buildVersion == app.buildVersion
         else { return nil }
         return ReleaseChannel(rawValue: entry.channel)
+    }
+
+    /// One read of the file, to be consulted for many apps — `duo verify` asks
+    /// about every installed app in one pass, and re-reading per app would be a
+    /// hundred-odd file reads for a dictionary that cannot change mid-scan.
+    public struct Snapshot: Sendable {
+        fileprivate let entries: [String: Entry]
+        public init(fileURL: URL? = nil) {
+            self.entries = ResolvedChannelStore.load(from: fileURL ?? defaultFileURL())
+        }
     }
 
     static func defaultFileURL() -> URL {
@@ -129,10 +151,14 @@ public actor ResolvedChannelStore {
             .appendingPathComponent("resolved-channels.json")
     }
 
+    /// Drops entries whose bundle is no longer there on the way in, so a file
+    /// shared by every app on the machine cannot grow without bound as copies are
+    /// moved, renamed or deleted. A corrupt or hand-edited file decodes to
+    /// nothing, which costs one re-proof per copy and nothing else.
     private static func load(from url: URL) -> [String: Entry] {
         guard let data = try? Data(contentsOf: url),
               let decoded = try? JSONDecoder().decode([String: Entry].self, from: data)
         else { return [:] }
-        return decoded
+        return decoded.filter { FileManager.default.fileExists(atPath: $0.key) }
     }
 }

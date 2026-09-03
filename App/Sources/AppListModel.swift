@@ -2457,11 +2457,26 @@ final class AppListModel {
             guard let was = prior[app.id] else {
                 return UpdateResult(app: app, remote: nil, status: .unknown)
             }
+            // A rescan re-derives the row's VERDICT. It must not re-derive the
+            // row's IDENTITY — and `UpdateResult(app:remote:status:)` silently
+            // does, because `provenChannel` has a default. For an app whose
+            // bundle cannot name its own channel (UTM) that field is the only
+            // thing holding the row's channel once a check has failed, so
+            // rebuilding without it repaints a Beta row as Stable on the next
+            // FS-watcher rescan and files its notes under the wrong cache key —
+            // exactly the failure the store exists to prevent, reintroduced one
+            // layer up. Same shape as the `RowActions.live` rule in CLAUDE.md:
+            // the safe default is what makes the omission compile.
+            func carrying(_ remote: RemoteVersion?, _ status: UpdateStatus) -> UpdateResult {
+                UpdateResult(
+                    app: app, remote: remote, status: status,
+                    provenChannel: was.provenChannel)
+            }
             // Re-derive status from the cached remote against the fresh on-disk
             // version. With no remote (App Store / Toolbox / unknown) keep what we
             // had, just refreshed to the new bundle info.
             guard let remote = was.remote else {
-                return UpdateResult(app: app, remote: nil, status: was.status)
+                return carrying(nil, was.status)
             }
             // A Toolbox row can't be re-run through `evaluate` (its verdict is a
             // Toolbox build compare, not a compare against `shortVersion`), but it
@@ -2469,19 +2484,15 @@ final class AppListModel {
             // checks — otherwise the cached "update available" stands beside the
             // freshly-rescanned version, reading "262.132.21 → 262.132.21".
             if remote.sourceName == "Toolbox" {
-                return UpdateResult(
-                    app: app, remote: remote,
-                    status: UpdateChecker.evaluateToolbox(
-                        cached: was.status, installed: app, remote: remote))
+                return carrying(remote, UpdateChecker.evaluateToolbox(
+                    cached: was.status, installed: app, remote: remote))
             }
             // TestFlight owns its betas' status (its own cache, not a version
             // compare) — keep it; don't re-evaluate.
             guard remote.sourceName != "TestFlight" else {
-                return UpdateResult(app: app, remote: remote, status: was.status)
+                return carrying(remote, was.status)
             }
-            return UpdateResult(
-                app: app, remote: remote,
-                status: UpdateChecker.evaluate(installed: app, remote: remote))
+            return carrying(remote, UpdateChecker.evaluate(installed: app, remote: remote))
         }
     }
 

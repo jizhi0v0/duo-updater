@@ -2,6 +2,14 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.3.82
+
+**又有十五个 app 纳入更新检查，除一个之外都支持一键更新。** AgentsView、AnythingLLM、Chatbox、ChatGPT Classic、DSH Desktop、FluidVoice、GitHub Copilot、Kun、Meetily、Microsoft 365 Copilot、OpenLogi、OpenSuperWhisper、Paseo、T3 Code（alpha 与 nightly 两条线）以及 Vorssaint。例外是 ChatGPT Classic：更新检查照做，但它自带一个会自己更新应用的安装程序，所以这一个仍需你亲自运行。
+
+**八个 app 的更新说明现在直接在 Duo Updater 里显示，不再把你带去网页。** Xcode、Antigravity、Antigravity IDE、AnyDesk、AnythingLLM、Chatbox、Headlamp 和 Helium。其中三个原本连可去的网页都没有：AnyDesk 的页面返回的是机器人校验，Helium 的开发方根本不发布说明页，而 Antigravity IDE 连链接都没有。
+
+**Xcode 的 beta 版会告诉你每个 beta 改了什么。** 过去这一行只有一个 build 号和一个链接；现在它会列出 Apple 为你所用的这个 beta、以及同一版本此前每个 beta 写的更新说明。
+
 ## 0.3.81
 
 **Word、Excel、PowerPoint、Outlook 和 OneNote 现在知道自己的更新已经装好了。** 这五个应用会一直提示你重新打开那个你早已完成的安装器，永远走不到「重新启动」那一步——等多久、重新检查多少次都没用。

@@ -48,6 +48,11 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// (Opera's `changelog-for-134`). Same reason as `{version}`: a fixed URL
     /// there would silently stop covering the installed build at the next major,
     /// and majors ship every few weeks.
+    ///
+    /// `{appleDocVersion}` is the third, for `developer.apple.com` release notes,
+    /// whose path spells the version its own way (`26.6` → `26_6`, `27.0` → `27`).
+    /// See `appleDocVersionToken(for:)` for why neither of the other two can stand
+    /// in for it.
     public let sourceTemplate: String?
 
 
@@ -366,6 +371,19 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// `requestBody`. See `StructuredChangelogDecoder.decodeNotionPageChunk` for
         /// the response shape and how release order is derived.
         case notionPageChunk
+        /// Apple's own release notes for Xcode, as DocC serves them:
+        /// `developer.apple.com/tutorials/data/documentation/xcode-release-notes/
+        /// xcode-<version>-release-notes.json`. The page a user sees at the
+        /// `/documentation/…` URL is a 17 KB SPA shell — fetched 2026-09-03, it
+        /// contains no note text at all — so this JSON is the only readable form.
+        ///
+        /// Regex is not an option here, which is the whole reason this is a
+        /// decoder: a note's text is an *array* of fragments (`text`, `codeVoice`,
+        /// `strong`, `reference`), and on the live Xcode 27 page 83 of 335 notes
+        /// have more than one. Any pattern that captures "the text" captures the
+        /// first fragment, so a quarter of the notes would be silently truncated
+        /// mid-sentence ("When streaming " — the rest lives past a `codeVoice`).
+        case appleDeveloperReleaseNotes
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -488,7 +506,36 @@ public struct ChangelogRecipe: Codable, Sendable {
             let major = token.split(separator: ".").first.map(String.init) ?? token
             urlString = urlString.replacingOccurrences(of: "{major}", with: major)
         }
+        if urlString.contains("{appleDocVersion}") {
+            urlString = urlString.replacingOccurrences(
+                of: "{appleDocVersion}", with: Self.appleDocVersionToken(for: token))
+        }
         return URL(string: urlString) ?? source
+    }
+
+    /// The version as Apple spells it in a `developer.apple.com` release-notes
+    /// path: dots become underscores, and a `.0` release is named by its major
+    /// alone. `26.6` → `26_6`, `26.0.1` → `26_0_1`, `27.0` → `27` — verified
+    /// against all 30 modern entries in `xcodereleases.com/data.json`, which
+    /// carries the real `links.notes.url` for every one of them.
+    ///
+    /// Neither `{version}` nor `{major}` can express this, and both get it wrong
+    /// in a way that shows the user another release's notes rather than failing:
+    /// `{major}` maps every 26.x to the Xcode 26.0 page, and Apple ships betas for
+    /// nearly every minor (16.1 … 16.4, 26.1 … 26.5 all had them), so that is the
+    /// common case, not the corner.
+    ///
+    /// Only the leading numeric run is read, because the version handed in is the
+    /// row's *display* version and a prerelease carries its track in that string
+    /// ("27.0 beta 6"). Every beta of a release shares that release's page.
+    static func appleDocVersionToken(for version: String) -> String {
+        var parts = version.prefix { $0.isNumber || $0 == "." }
+            .split(separator: ".").map(String.init)
+        guard !parts.isEmpty else { return version }
+        // Trailing `.0` only, and only on a two-part version: `26.0.1` keeps its
+        // zero (`xcode-26_0_1-release-notes` is a real page).
+        if parts.count == 2, parts[1] == "0" { parts.removeLast() }
+        return parts.joined(separator: "_")
     }
 
     /// Map a (possibly suffix-stripped) version string to the token a vendor uses
@@ -2814,6 +2861,39 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"\\r?\\n[0-9a-f]{7,10} (?<item>[^\\]{3,})"#],
             mode: .json,
             maxEntries: 20),
+
+        // Xcode — Apple's own release notes, which `XcodeReleasesSource` already
+        // links per release (`links.notes.url` in `xcodereleases.com/data.json`)
+        // and which the pane could only ever embed: the `/documentation/…` URL
+        // serves a 17 KB SPA shell with no note text in it (fetched 2026-09-03).
+        // The `/tutorials/data/…` twin of that URL is the document the shell
+        // fetches, and it carries everything.
+        //
+        // One page per release train, and every beta of a train shares its page:
+        // the top of `xcode-27-release-notes` IS beta 6's notes, with each earlier
+        // beta below it under `Updates in Xcode 27 Beta N`. So a beta install and a
+        // released install read the same recipe and differ only in the page the
+        // template resolves to — `26.6` → `xcode-26_6`, `27.0 beta 6` → `xcode-27`.
+        // See `appleDocVersionToken(for:)` for why that mapping needs its own token
+        // and what `{major}` would get wrong.
+        //
+        // `source` is only reached when no version is supplied at all (a sweep with
+        // no installed Xcode and no detected version); it names the current train,
+        // and being a year out of date there costs nothing the templated path uses.
+        //
+        // Detection-only app, deliberately (an Apple ID gates every prerelease
+        // download), so these notes are the whole of what the row can offer beyond
+        // a version number.
+        ChangelogRecipe(
+            bundleID: "com.apple.dt.Xcode",
+            source: URL(
+                string: "https://developer.apple.com/tutorials/data/documentation"
+                    + "/xcode-release-notes/xcode-27-release-notes.json")!,
+            mode: .json,
+            maxEntries: 20,
+            sourceTemplate: "https://developer.apple.com/tutorials/data/documentation"
+                + "/xcode-release-notes/xcode-{appleDocVersion}-release-notes.json",
+            structuredFormat: .appleDeveloperReleaseNotes),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

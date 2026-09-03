@@ -1,5 +1,6 @@
 import Foundation
 import DuoKit
+import DuoUpdaterCore
 
 // duo — the command line face of DuoUpdater.
 //
@@ -21,6 +22,10 @@ commands:
   backups       List the rollback points, or put one back.
   doctor        Whether this machine can actually install anything, and what
                 is missing if not.
+  requests      What DuoUpdater itself put on the network: which hosts, what
+                for, and what it cost.
+  events        The same activity as raw NDJSON, one event per line, for piping
+                into jq or anything that draws.
   verify        Sweep the recipes against their live endpoints and report the
                 ones that can no longer do their job.
   triage        Ask a model why the flagged recipes broke, and check its answer
@@ -105,6 +110,39 @@ doctor options:
 
   Exits 3 when App Management is not granted, since that is the permission the
   in-place install routes need and the one nobody guesses.
+
+requests options:
+  [summary]           Totals by purpose and by host. The default.
+  recent [<n>]        The raw tail of the log: time, purpose, status, bytes,
+                      address, host and path. Defaults to 50.
+  reset               Discard the ledger.
+  --all-clients       Also count requests `duo` made. Off by default — a
+                      `duo verify` sweep is ~150 diagnostic requests, and folding
+                      those into the totals misreports what the background
+                      updater actually costs.
+  --json              Machine-readable form.
+  --yes               Don't ask before reset.
+
+  Query strings are never recorded (a vendor activation key rides in one), and
+  neither are headers or bodies. Two things it cannot see: Homebrew and the App
+  Store fetch their own bytes, and our own Sparkle self-update downloads through
+  the framework's session — that one is booked from the appcast's declared size
+  and marked as declared rather than measured.
+
+events options:
+  --since <when>      ISO-8601 instant, or a relative 30m / 6h / 7d. Default 24h.
+  --limit <n>         Newest n events. Default 200.
+  --kind <name>       Only this event kind (today: request).
+  --host <host>       Only this host.
+  --purpose <name>    versioncheck, changelog, changelogimage, catalog, install,
+                      selfupdate, other.
+  --client <app|cli>  Only the menu-bar app's events, or only duo's.
+  --status            Where the store is, how big, what it covers, what it keeps.
+
+  Every filter runs in SQL against an index, so narrowing is cheaper than
+  dumping and filtering afterwards. Rows come out exactly as stored — the
+  payload is not re-encoded through this binary, which matters because duo is
+  installed separately from the app and is often the older of the two.
 
 verify options:
   --only <text>       Restrict to recipes whose bundle id contains <text>.
@@ -255,6 +293,76 @@ case "backups":
         return await Backups.run(options)
     }
 
+case "requests":
+    let operands = args.operands
+    let json = args.has("json")
+    let allClients = args.has("all-clients")
+    let assumeYes = args.has("yes")
+    run = {
+        let operation: Requests.Options.Operation
+        switch operands.first {
+        case "summary", nil:
+            operation = .summary
+        case "recent":
+            // A bare `recent` means the default window; a number after it means
+            // that many. Anything else is a typo, and guessing at one is how a
+            // `duo requests recent 5o` silently becomes the default.
+            if operands.count > 1 {
+                guard let limit = Int(operands[1]), limit > 0 else {
+                    die("requests recent takes a positive count, got '\(operands[1])'", code: 2)
+                }
+                operation = .recent(limit: limit)
+            } else {
+                operation = .recent(limit: 50)
+            }
+        case "reset":
+            operation = .reset
+        case let other?:
+            die("unknown requests operation '\(other)'; expected summary, recent or reset", code: 2)
+        }
+        var options = Requests.Options(operation: operation)
+        options.json = json
+        options.allClients = allClients
+        options.assumeYes = assumeYes
+        return await Requests.run(options)
+    }
+
+case "events":
+    var eventOptions = Events.Options()
+    if let since = args.value("since") {
+        guard let parsed = Events.parseSince(since) else {
+            die("--since takes an ISO-8601 instant or a relative 30m / 6h / 7d, got '\(since)'",
+                code: 2)
+        }
+        eventOptions.query.since = parsed
+    } else {
+        // A default window rather than none: this command exists to be piped, and
+        // an unbounded default turns one screen into the whole retained history
+        // the first time somebody runs it bare.
+        eventOptions.query.since = Date().addingTimeInterval(-24 * 3600)
+    }
+    eventOptions.query.limit = args.int("limit") ?? 200
+    eventOptions.query.kind = args.value("kind")
+    eventOptions.query.host = args.value("host")
+    if let purpose = args.value("purpose") {
+        guard let parsed = RequestPurpose.allCases.first(where: {
+            $0.rawValue.lowercased() == purpose.lowercased()
+        }) else {
+            die("unknown purpose '\(purpose)'; expected one of "
+                + RequestPurpose.allCases.map(\.rawValue).joined(separator: ", "), code: 2)
+        }
+        eventOptions.query.purpose = parsed
+    }
+    if let client = args.value("client") {
+        guard let parsed = RequestClient(rawValue: client.lowercased()) else {
+            die("unknown client '\(client)'; expected app or cli", code: 2)
+        }
+        eventOptions.query.client = parsed
+    }
+    eventOptions.showStatus = args.has("status")
+    let events = eventOptions
+    run = { await Events.run(events) }
+
 case "doctor":
     let json = args.has("json")
     run = { await Doctor.run(json: json) }
@@ -320,4 +428,9 @@ if let problem = args.unrecognised() {
     die("\(problem)\n\ntry `duo \(args.subcommand) --help`", code: 2)
 }
 
-exit(await run())
+let status = await run()
+// The store batches its writes, and a CLI process exits long before the
+// coalescing timer would fire. Only when something was actually recorded: a
+// command that touched no network should not open a database just to close it.
+if EventStore.hasRecorded { await EventStore.shared.flush() }
+exit(status)

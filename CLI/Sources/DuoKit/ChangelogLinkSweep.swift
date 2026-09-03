@@ -168,7 +168,7 @@ enum ChangelogLinkSweep {
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
         let response: URLResponse
-        do { (_, response) = try await session.data(for: request) }
+        do { (_, response) = try await session.countedData(for: request, purpose: .changelog) }
         catch {
             // A host that does not resolve is worth saying out loud rather than
             // filing under "the network was unhappy". Retiring a docs subdomain

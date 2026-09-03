@@ -395,6 +395,24 @@ struct CarriedForwardChannelTests {
         #expect(now.effectiveReleaseChannel == .beta)
     }
 
+    /// The branch the store was built for, and the one every other test here
+    /// leaves free: a FAILED check carries no remote at all, so `provenChannel`
+    /// is the only thing holding the row's identity. Mutation-checked — replacing
+    /// `proven ?? (sameCopy ? provenChannel : nil)` with plain `proven` passes
+    /// every other test in this suite and fails only this one.
+    @Test func anUnchangedCopyWithNoRemoteKeepsItsProvenChannel() {
+        let was = UpdateResult(
+            app: app("5.0.4", build: "123"), remote: nil,
+            status: .error("network"), provenChannel: .beta)
+
+        let now = was.carriedForward(
+            onto: app("5.0.4", build: "123"), remote: nil, status: .error("network"),
+            proven: nil)
+
+        #expect(now.provenChannel == .beta)
+        #expect(now.effectiveReleaseChannel == .beta)
+    }
+
     /// The copy was replaced between checks — the exact case `performLocalRescan`
     /// exists for. Nothing known about the old build describes the new one.
     @Test func aReplacedCopyKeepsNoChannelFromEitherCarrier() {

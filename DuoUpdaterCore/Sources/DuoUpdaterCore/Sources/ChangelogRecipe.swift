@@ -1233,11 +1233,13 @@ public enum ChangelogRecipeRegistry {
                 string: "https://api.github.com/repos/utmapp/UTM/releases?per_page=40")!,
             mode: .json,
             // 40, not stable's 20: this side reads BOTH kinds out of one 40-entry
-            // page, so a 20-entry cap spends part of the window on releases the
-            // preview history is not about. Today's page is 12 previews + 8 final
-            // and `v4.7.5` sits 7th, but every 14 further previews would push it
-            // out — and the entry that falls off is the one a graduating install
-            // needs, which is the whole reason this recipe keeps final releases.
+            // page, so a 20-entry cap would spend part of the window on releases
+            // the preview history is not about — and the entry pushed out first is
+            // the graduated one an install is actually being offered, which is the
+            // whole reason this recipe keeps final releases. Measured on the live
+            // page: within the top 40 there are 24 previews and 16 final releases,
+            // `v4.7.5` sits at index 7, and 33 further releases would have to ship
+            // before it fell out. At the old cap of 20 that margin was 13.
             maxEntries: 40,
             channel: .beta,
             includesPromotedStable: true,

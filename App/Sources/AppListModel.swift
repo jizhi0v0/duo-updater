@@ -1922,17 +1922,19 @@ final class AppListModel {
         // check lands a few seconds later. Carry the prior status/remote forward
         // (re-evaluated against the fresh on-disk version) so the list stays put and
         // the menu bar's data shows immediately; the check then overwrites it.
+        // Cold start has no prior row to carry, but the store still knows what was
+        // proven about these copies, so a Beta row is a Beta row from the first
+        // paint rather than only after the first check lands. `Snapshot` is one
+        // file read for the whole list — that is what it exists for, and the
+        // first draft of this had it inside the loop, i.e. once per installed app.
+        let proofs = ResolvedChannelStore.Snapshot()
         results = results.isEmpty
-            ? found.map { app -> UpdateResult in
-                // Cold start has no prior row to carry, but the store still knows
-                // what was proven about these copies, so a Beta row is a Beta row
-                // from the first paint rather than after the first check lands.
-                let proofs = ResolvedChannelStore.Snapshot()
-                return UpdateResult(
-                    app: app, remote: nil, status: .unknown,
-                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: app, in: proofs))
+            ? found.map {
+                UpdateResult(
+                    app: $0, remote: nil, status: .unknown,
+                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: $0, in: proofs))
             }
-            : sorted(mergeScanned(found))
+            : sorted(mergeScanned(found, proofs: proofs))
         lastScan = .now
         isScanning = false
 
@@ -2000,12 +2002,16 @@ final class AppListModel {
         // that actually matters — the app was already ignored when DuoUpdater
         // launched — there is no prior row to read, because nothing ever checked
         // it. The store is the only thing that survives a restart.
-        let proofs = ResolvedChannelStore.Snapshot()
-        let checked = await checker.check(checkable)
+        let checkedRows = await checker.check(checkable)
+        // Read after the check, not before: the round just flushed whatever it
+        // proved, and a copy that was un-ignored and re-ignored between passes
+        // should pick that up. A second read of a small file, once per round.
+        let provenNow = ResolvedChannelStore.Snapshot()
+        let checked = checkedRows
             + ignored.map {
                 UpdateResult(
                     app: $0, remote: nil, status: .unknown,
-                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: $0, in: proofs))
+                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: $0, in: provenNow))
             }
         results = sorted(CheckRoundWriteBack.publishing(
             checked, changedSince: roundBaseline, live: results))
@@ -2475,9 +2481,11 @@ final class AppListModel {
     /// network-free rescan) and the in-flight `performRefresh` (so the sidebar holds
     /// the menu bar's data instead of flashing `.unknown` rows during a re-check).
     /// Apps new since the last scan come in as `.unknown`.
-    private func mergeScanned(_ found: [InstalledApp]) -> [UpdateResult] {
+    private func mergeScanned(
+        _ found: [InstalledApp],
+        proofs: ResolvedChannelStore.Snapshot = ResolvedChannelStore.Snapshot()
+    ) -> [UpdateResult] {
         let prior = Dictionary(results.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        let proofs = ResolvedChannelStore.Snapshot()
         return found.map { app -> UpdateResult in
             guard let was = prior[app.id] else {
                 return UpdateResult(app: app, remote: nil, status: .unknown)

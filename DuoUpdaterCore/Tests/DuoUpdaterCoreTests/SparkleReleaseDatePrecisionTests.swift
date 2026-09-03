@@ -10,25 +10,29 @@ import Foundation
 /// midnight there is a lie about when the vendor shipped, not merely an
 /// approximation of it.
 ///
-/// `SparkleAppcastSource` is the only source this fix touches — it is the one
-/// with a real fixture proving the date-only shape reaches it. The other four
-/// sources (`AlcoveUpdateSource`, `GitHubReleasesSource`, `ElectronManifestSource`,
-/// `VendorProbeSource`) keep calling `ReleaseDate.parse`, whose contract is
-/// unchanged: nil for a bare calendar day, exactly as before this PR.
+/// `SparkleAppcastSource` was the only source #239 touched — it is the one with
+/// a real fixture proving the date-only shape reaches it. #300 moved the
+/// day/minute routing itself into `ReleaseDate.publishedFields(from:)` and
+/// converted the other four sources (`AlcoveUpdateSource`, `GitHubReleasesSource`,
+/// `ElectronManifestSource`, `VendorProbeSource`) to it as well, so this file
+/// now tests the shared routing function directly rather than a copy that used
+/// to live on `SparkleAppcastSource`; `releaseHistorySplitsEntriesByThePrecisionTheFeedActuallyStated`
+/// below still exercises Sparkle's own `releaseHistory(from:)`, which calls the
+/// same shared function against real parsed XML.
 ///
 /// The invariant under test, twice over — once on the pure routing function and
 /// once through the real XML parser end to end: a day-precision date routes to
 /// `vendorDay` and NEVER to `publishedAt`.
 
 @Test func publishedFieldsRoutesAMinutePreciseDateToPublishedAtOnly() {
-    let fields = SparkleAppcastSource.publishedFields(from: "Wed, 24 Jun 2026 17:07:24 +0000")
+    let fields = ReleaseDate.publishedFields(from: "Wed, 24 Jun 2026 17:07:24 +0000")
     #expect(fields.publishedAt == Date(timeIntervalSince1970: 1_782_320_844))
     #expect(fields.vendorDay == nil)
 }
 
 @Test func publishedFieldsRoutesADayOnlyDateToVendorDayNeverPublishedAt() {
     // The exact shape Eudic's appcast ships.
-    let fields = SparkleAppcastSource.publishedFields(from: "2026-08-31")
+    let fields = ReleaseDate.publishedFields(from: "2026-08-31")
     #expect(
         fields.publishedAt == nil,
         "a day-only pubDate must never reach publishedAt — that would fabricate a midnight the vendor never stated")
@@ -36,10 +40,10 @@ import Foundation
 }
 
 @Test func publishedFieldsIsNilForUnparseableOrMissingDates() {
-    let missing = SparkleAppcastSource.publishedFields(from: nil)
+    let missing = ReleaseDate.publishedFields(from: nil)
     #expect(missing.publishedAt == nil)
     #expect(missing.vendorDay == nil)
-    let garbage = SparkleAppcastSource.publishedFields(from: "not a date")
+    let garbage = ReleaseDate.publishedFields(from: "not a date")
     #expect(garbage.publishedAt == nil)
     #expect(garbage.vendorDay == nil)
 }
@@ -104,7 +108,7 @@ private let mixedPrecisionFeed = """
 /// (`fields.publishedAt == nil` fails) while every other test in this file still
 /// compiles — i.e. the assertion is load-bearing, not decorative.
 @Test func dayPrecisionNeverReachesPublishedAtEvenWhenItIsTheOnlyDateOnTheRelease() {
-    let fields = SparkleAppcastSource.publishedFields(from: "2026-01-01")
+    let fields = ReleaseDate.publishedFields(from: "2026-01-01")
     #expect(fields.publishedAt == nil)
     #expect(fields.vendorDay != nil)
 }

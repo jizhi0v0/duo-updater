@@ -26,13 +26,34 @@ public enum ChangelogURLPolicy {
     /// name to reason about, and no vendor publishes notes at a bare address),
     /// `localhost`/`.localhost` and mDNS `.local` names, and non-standard ports.
     public static func isDisplayable(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "https" else { return false }
-        guard url.user == nil, url.password == nil else { return false }
-        guard let host = url.host, !host.isEmpty else { return false }
-        guard !isIPLiteral(host) else { return false }
-        guard !isLocalHostname(host) else { return false }
-        if let port = url.port, port != 443 { return false }
-        return true
+        rejectionReason(url) == nil
+    }
+
+    /// Which guard `url` fails, or `nil` when it would pass `isDisplayable`.
+    ///
+    /// Exists so a caller that refuses a navigation — `WorkbenchWindowView`'s
+    /// web-view guardian, in particular — can say *why* instead of just
+    /// cancelling. #292: that guardian re-checks every main-frame navigation, not
+    /// only the recipe's starting URL, so it can now discover a rejection well
+    /// after the pane has already been shown; a plain `Bool` had nothing left to
+    /// hand a log line or a user-facing message at that point. Deliberately
+    /// categorical rather than including the attacker/vendor-controlled host or
+    /// port: those already reach the log line through the caller's own URL
+    /// argument (safe there because it goes through a redactor, not straight to
+    /// on-screen HTML), and keeping this string free of interpolated URL content
+    /// means a caller can put it on screen without having to re-derive an
+    /// escaping rule for it.
+    ///
+    /// Checked in the same order as `isDisplayable`, so the reason reported is
+    /// always the same guard that actually rejected the URL.
+    public static func rejectionReason(_ url: URL) -> String? {
+        guard url.scheme?.lowercased() == "https" else { return "not an https URL" }
+        guard url.user == nil, url.password == nil else { return "URL carries credentials" }
+        guard let host = url.host, !host.isEmpty else { return "URL has no host" }
+        guard !isIPLiteral(host) else { return "host is an IP literal, not a name" }
+        guard !isLocalHostname(host) else { return "host is a reserved local-only name" }
+        if let port = url.port, port != 443 { return "non-standard port" }
+        return nil
     }
 
     /// `url` when it passes, `nil` when it does not — so a caller can fall through
@@ -86,9 +107,16 @@ public enum ChangelogURLPolicy {
     }
 
     /// Names whose local destination follows from the name itself, without a DNS
-    /// lookup: RFC 6761 reserves `localhost` and every name below it for loopback;
-    /// RFC 6762 gives `.local` to link-local multicast DNS. A trailing root label
-    /// and case do not change either name. Ordinary domains merely containing
+    /// lookup: RFC 6761 reserves `localhost` and every name below it for loopback.
+    /// RFC 6762 §3 gives `.local.` to link-local multicast DNS, but its own
+    /// wording is about multi-label names of the form `single-dns-label.local.`
+    /// — it never discusses the bare single-label name `local` on its own, so
+    /// citing it for that half of this check overstates what it says. The bare
+    /// name is refused anyway, on different (and simpler) grounds: no public CA
+    /// issues an https certificate for an unqualified single-label name, so
+    /// nothing legitimate can ever be reached at `https://local/`, and refusing
+    /// it costs no real vendor a changelog page. A trailing root label and case
+    /// do not change any of these names. Ordinary domains merely containing
     /// these words (for example `localhost.example.com`) remain displayable.
     static func isLocalHostname(_ host: String) -> Bool {
         let withoutRootLabel = host.count > 1 && host.hasSuffix(".")

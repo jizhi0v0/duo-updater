@@ -58,11 +58,9 @@ public enum PackageRestartState: Sendable, Equatable {
         runningLaunchDates: [Date],
         buildIsDerived: Bool = false
     ) -> Self {
-        guard var onDiskVersion else { return .pending }
-        if buildIsDerived {
-            onDiskVersion = VersionSide(marketing: onDiskVersion.marketing)
-        }
-        guard VersionComparator.isSame(onDiskVersion, as: stagedVersion)
+        guard let onDiskVersion else { return .pending }
+        guard VersionComparator.isSame(
+            onDiskVersion, as: stagedVersion, buildIsDerived: buildIsDerived)
         else { return .pending }
         let staleRunning = runningLaunchDates.contains { $0 < stagedAt }
         return staleRunning ? .readyToRestart : .settled

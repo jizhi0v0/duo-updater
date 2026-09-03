@@ -119,6 +119,17 @@ PACKAGE_RESTART_RESOLVE = re.compile(r"PackageRestartState\.resolve\s*\(")
 DERIVED_BUILD_ARGUMENT = "buildIsDerived:"
 PACKAGE_RESTART_WINDOW = 10
 
+# The second such wiring site (#285): `pruneStagedPackages` compares the same
+# scanner-derived on-disk `VersionSide` (`app.versionSide`) against a staged
+# package's, for the identical reason `PackageRestartState.resolve` needed the
+# flag above — so it needs it too. Scoped to `app.versionSide` specifically:
+# the many other `VersionComparator.isSame(` calls compare two sides that are
+# NOT one scanner value against one package/feed value (e.g. two scanner reads
+# of the same app, which share whatever namespace they're in) and must not be
+# forced to carry an argument that means nothing for them.
+PRUNE_STAGED_ISSAME = re.compile(r"VersionComparator\.isSame\s*\(\s*app\.versionSide")
+PRUNE_STAGED_WINDOW = 6
+
 
 # A *different* type also binds the name `staged`: `stagedPackage(for:)` returns
 # a `StagedPackage` — a downloaded `.pkg` installer, not a self-update staged by
@@ -154,9 +165,11 @@ def main() -> int:
     display_hits, ledger_hits, compare_hits, read_hits = [], [], [], []
     display_marketing_hits = []
     package_restart_hits = []
+    prune_staged_hits = []
     ledger_seen = 0
     marketing_seen = 0
     package_restart_seen = 0
+    prune_staged_seen = 0
     files = list(swift_files())
 
     for path in files:
@@ -192,6 +205,11 @@ def main() -> int:
                 call = "\n".join(lines[n - 1:n - 1 + PACKAGE_RESTART_WINDOW])
                 if DERIVED_BUILD_ARGUMENT not in call:
                     package_restart_hits.append(f"{rel}:{n}: {line.strip()}")
+            if PRUNE_STAGED_ISSAME.search(line):
+                prune_staged_seen += 1
+                call = "\n".join(lines[n - 1:n - 1 + PRUNE_STAGED_WINDOW])
+                if DERIVED_BUILD_ARGUMENT not in call:
+                    prune_staged_hits.append(f"{rel}:{n}: {line.strip()}")
 
     # Vacuity guard. A rule that matches nothing passes forever, which is worse
     # than no rule: it reports success while the thing it was written for has
@@ -212,6 +230,11 @@ def main() -> int:
     if package_restart_seen == 0:
         print("✗ staged-version guard found no PackageRestartState.resolve call. "
               "Either the app wiring moved or this rule now guards nothing.")
+        return 1
+    if prune_staged_seen == 0:
+        print("✗ staged-version guard found no VersionComparator.isSame(app.versionSide "
+              "call in pruneStagedPackages. Either that wiring moved or renamed, or "
+              "this rule now guards nothing.")
         return 1
 
     if display_hits:
@@ -258,8 +281,15 @@ def main() -> int:
               "scanner-substituted build is not compared with a feed build.")
         for hit in package_restart_hits:
             print(f"    {hit}")
+    if prune_staged_hits:
+        print(f"✗ {len(prune_staged_hits)} pruneStagedPackages comparison(s) omit "
+              "the derived-build namespace flag.")
+        print("  Pass buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID:) "
+              "so a scanner-substituted build is not compared with a staged package's.")
+        for hit in prune_staged_hits:
+            print(f"    {hit}")
     if (display_hits or ledger_hits or compare_hits or display_marketing_hits
-            or read_hits or package_restart_hits):
+            or read_hits or package_restart_hits or prune_staged_hits):
         return 1
 
     print(f"✓ version comparisons discriminate — {len(files)} files, "

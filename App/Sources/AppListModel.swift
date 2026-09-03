@@ -3465,7 +3465,15 @@ final class AppListModel {
             // Match on the resolved bundle path, not bundle id: a row whose exact
             // .app isn't running must not pick up a channel sibling's running
             // version (Android Studio Preview vs Stable share one bundle id).
-            let runKey = result.app.path.resolvingSymlinksInPath().path
+            // `running` (below) is keyed with `UpdatePolicy.runtimeBundlePath`, not
+            // bare `resolvingSymlinksInPath()` — this has to match it exactly, or a
+            // path that legitimately carries a `.duoupdater-staged-`/`-old`/`-new`
+            // component would look up under the wrong key. For every path without
+            // one of those components `runtimeBundlePath` returns the identical
+            // resolved string, so this is a no-op change for the paths `AppScanner`
+            // can currently produce (it skips hidden entries and requires
+            // `pathExtension == "app"`, so those components never reach here today).
+            let runKey = UpdatePolicy.runtimeBundlePath(result.app.path)
             // Remember the marketing version this on-disk build carries, so that
             // AFTER a future self-update — when only the build survives in the running
             // process (via `lsappinfo`) — we can still name the version it launched

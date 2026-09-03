@@ -698,17 +698,37 @@ public enum ChangelogRecipeRegistry {
             ],
             maxEntries: 20),
 
-        // CleanShot X — Nuxt page, very regular markup:
-        //   <div class="version"><div class="number">4.8.8</div>
-        //     <div class="date">23 March, 2026</div>
-        //     <ul class="changes"><li class="change">…</li>…</ul></div>
+        // CleanShot X — Nuxt page, very regular markup. Re-derived 2026-09-01, when
+        // the 5.0 release shipped with the page rebuilt around it:
+        //   <div class="version"><div class="date">1 September, 2026</div>
+        //     <div class="content"><div class="topbar">
+        //       <div class="number">5.0</div><div class="text-badge">Major Update</div>
+        //     </div>
+        //     <p class="change-intro">…</p> <a class="video-link">…</a>   ← 5.0 only
+        //     <ul class="changes"><li class="change">…</li>…</ul></div></div>
+        //
+        // Three things moved at once, which is why nothing matched afterwards: the
+        // date now comes *before* the number rather than after it, two wrappers
+        // (`content`, `topbar`) appeared between the version div and the number, and
+        // a feature release puts a paragraph and two video links between the number
+        // and the list. The first two are why the old pattern's `\s*` joints failed;
+        // the third is why the number→list gap has to be permissive.
+        //
+        // That gap is tempered rather than a plain `.*?` so it cannot leave the
+        // block it started in. All 102 blocks on today's page carry a
+        // `ul.changes`, so a lazy `.*?` finds the right one — but the day one of
+        // them doesn't, a lazy gap silently pairs that version with the *next*
+        // one's notes, which is the failure that reads as correct. Costs 0.6 ms
+        // over the whole 183 KB page.
         ChangelogRecipe(
             bundleID: "pl.maketheweb.cleanshotx",
             source: URL(string: "https://cleanshot.com/changelog")!,
             entryPattern:
                 #"<div class="version"[^>]*>\s*"#
-                + #"<div class="number"[^>]*>(?<version>[^<]+)</div>\s*"#
-                + #"(?:<div class="date"[^>]*>(?<date>[^<]*)</div>\s*)?"#
+                + #"<div class="date"[^>]*>(?<date>[^<]*)</div>\s*"#
+                + #"<div class="content"[^>]*>\s*<div class="topbar"[^>]*>\s*"#
+                + #"<div class="number"[^>]*>(?<version>[^<]+)</div>"#
+                + #"(?:(?!<div class="version").)*?"#
                 + #"<ul[^>]*class="changes"[^>]*>(?<body>.*?)</ul>"#,
             itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
 
@@ -1809,11 +1829,42 @@ public enum ChangelogRecipeRegistry {
         ChangelogRecipe(
             bundleID: "com.google.Chrome",
             source: URL(string: "https://chromereleases.googleblog.com/search/label/Stable%20updates")!,
+            // Every gap here is written so that a FAILING match costs one pass, not
+            // a combinatorial search. This pattern used to be four unbounded lazy
+            // gaps (`.*?`) in a row, which is fine while the page still matches and
+            // ruinous the day it stops — and a vendor restyle is exactly "it stops".
+            // Measured against the live 852 KB page (6 posts) with the old form:
+            // renaming the closing `</script>` ran past 150 s, and a page whose
+            // 4-part build numbers went away took 20.6 s, both on a thread the
+            // caller is awaiting. Every gap below is now either
+            //
+            //   • an atomic group `(?>…)` around a gap AND the literal that ends it,
+            //     so once the first publishdate (then the first template opener)
+            //     after the title is found, a later failure cannot send the engine
+            //     back to look for another one; or
+            //   • a lookahead, which is atomic in ICU: the version is located once,
+            //     and a failure downstream cannot retry against the next
+            //     version-shaped number in the body.
+            //
+            // Same seven mutations, new form: worst case 0.074 s, and the pristine
+            // page still yields the identical two entries. `ChromeChangelogPatternTests`
+            // pins that with a generated page (the real one is too big to commit).
+            //
+            // What NOT to reach for here: `(?:…)*+` and `(?>(?:…)*)` over the BODY.
+            // A possessive/atomic run silently stops matching past ~250 000
+            // characters — measured: 100 000 matches, 250 000 does not, and the
+            // failure is a quiet "no match", not an error. Chrome's second post is
+            // a 324 KB body, so that form drops it and the pane loses an entry with
+            // nothing anywhere saying so. The gaps below are atomic only across
+            // spans of a few hundred characters, well under that limit.
             entryPattern:
-                #"title='Stable Channel Update for Desktop'>.*?"#
-                + #"<span class='publishdate'[^>]*>\s*(?<date>[^<]+?)\s*</span>.*?"#
-                + #"<script type='text/template'>\s*"#
-                + #"(?<body>.*?(?<version>\d+\.\d+\.\d+\.\d+).*?)</script>"#,
+                #"title='Stable Channel Update for Desktop'>"#
+                + #"(?>(?:(?!<span class='publishdate').)*?"#
+                + #"<span class='publishdate'[^>]*>\s*(?<date>[^<]+?)\s*</span>)"#
+                + #"(?>(?:(?!<script type='text/template'>).)*?"#
+                + #"<script type='text/template'>\s*)"#
+                + #"(?=(?:(?!</script>).)*?(?<version>\d+\.\d+\.\d+\.\d+))"#
+                + #"(?<body>(?:(?!</script>).)*?)</script>"#,
             itemPatterns: [
                 #"(?<item>CVE-\d{4}-\d+:[^<]*)"#,
                 #"<p[^>]*>(?<item>(?:(?!</p>).)*?(?:promotion of Chrome|been updated to)(?:(?!</p>).)*?)</p>"#,
@@ -2455,6 +2506,133 @@ public enum ChangelogRecipeRegistry {
             itemPatterns: [#"(?:^|\\n)\|?(?<item>(?:[^\\]|\\(?!n))+?)(?=\\n|$)"#],
             mode: .json,
             maxEntries: 1,
+            minItemLength: 2),
+
+        // MacWhisper — its Sparkle appcast carries no `<description>` on any of
+        // its 210 items, only a `sparkle:releaseNotesLink` pointing every release
+        // at ONE shared page. So the source-supplied `changelogURL` renders the
+        // whole history in a web view no matter which version you are on. That
+        // page is plain, hand-written HTML and splits cleanly per version:
+        //
+        //   <h2>14.8</h2>
+        //   <h3>New:</h3>
+        //   <li>Dictation: You can now export …</li>
+        //   <h3>Bugfixes:</h3>
+        //   <li>Fixed: …</li>
+        //
+        // The `<li>`s are NOT wrapped in a `<ul>` — the vendor emits them bare —
+        // so the body is everything up to the next `<h2>`. The `<h3>` group
+        // headings are dropped; the items read fine without them. 121 entries
+        // parse from the live page (2026-08-31), head 14.8.
+        ChangelogRecipe(
+            bundleID: "com.goodsnooze.macwhisper",
+            source: URL(string: "https://macwhisper-site.vercel.app/release_notes.html")!,
+            entryPattern: #"<h2>(?<version>[0-9][^<]*)</h2>(?<body>.*?)(?=<h2>|\z)"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#]),
+
+        // GitHub Copilot for Xcode — the Sparkle feed carries no notes on any of
+        // its 12 items, and the GitHub release bodies are a single sentence
+        // ("Release 0.51.0 of Copilot extension for Xcode"). The real notes are
+        // the repo's Keep-a-Changelog file:
+        //
+        //   ## 0.51.0 - August 12, 2026
+        //   ### Added
+        //   - Support for Kimi K3 through the updated Copilot language server.
+        //
+        // `(?:^|\n)##`, not `^##` and not `\n##`: `ChangelogExtractor` compiles
+        // with `.dotMatchesLineSeparators` but NOT `.anchorsMatchLines`, so `^`
+        // matches ONLY the start of the document — which is why `\n` is needed for
+        // the headings, and why `^` has to stay for the one case `\n` cannot see.
+        // The file opens with a `# Changelog` preamble today, so every `##` does
+        // follow a newline; drop that preamble and a bare `\n##` would silently
+        // lose the FIRST entry — the newest release's notes — while every older
+        // one kept rendering. `markdownSource` because the
+        // items carry inline code (`/v1/messages`) and `[text](url)` links that a
+        // plain renderer would otherwise print as punctuation. The `### Added` /
+        // `### Fixed` group headings are dropped — only the `- ` bullets become
+        // items. 21 entries parse from the live file (2026-08-31), head 0.51.0.
+        ChangelogRecipe(
+            bundleID: "com.github.copilotforxcode",
+            source: URL(string: "https://raw.githubusercontent.com/github/CopilotForXcode/main/CHANGELOG.md")!,
+            entryPattern:
+                #"(?:^|\n)##\s+(?<version>[0-9][^\s]*)\s*-\s*(?<date>[^\n]+)\n(?<body>.*?)(?=\n##\s|\z)"#,
+            itemPatterns: [#"\n-\s+(?<item>[^\n]+)"#],
+            markdownSource: true),
+
+        // TypeWhisper — no notes in the appcast either. The official changelog
+        // page is the vendor's own, and it interleaves **macOS and Windows**
+        // releases in one list (203 mac cards, 167 Windows ones), so the entry
+        // pattern is anchored on the platform badge that precedes the version
+        // heading. Getting that wrong shows Windows notes under a Mac version.
+        //
+        //   …</svg>macOS</span><h3 class="font-display …">v1.7.0-daily.20260826</h3>
+        //   …<p class="mt-1 text-xs text-muted-foreground">August 26, 2026</p>
+        //   <div class="prose …"><h2>Bug Fixes</h2><ul><li>…</li></ul></div>
+        //
+        // The gap between the heading and the date is a TEMPERED lazy scan
+        // (`(?:(?!>macOS</span><h3|>Windows</span><h3).)*?`), not a plain `.*?`:
+        // a handful of old cards carry no prose block, and a plain lazy scan ran
+        // past them into the NEXT card and filed its notes under the wrong
+        // version — two entries did exactly that (0.6.1, 0.5.1) before this was
+        // tempered. With it: 194 entries, none spanning a card boundary.
+        //
+        // Every train lands in one list, so a stable install sees the daily
+        // entries above its own release. That is the vendor's page as published;
+        // each entry is labelled with its version, and the daily notes are
+        // cumulative (successive dailies repeat the same bullets), which is why
+        // `maxEntries` is cut to 20 — 40 would be four weeks of near-duplicates.
+        ChangelogRecipe(
+            bundleID: "com.typewhisper.mac",
+            source: URL(string: "https://www.typewhisper.com/en/changelog/")!,
+            entryPattern:
+                #">macOS</span><h3[^>]*>v?(?<version>[^<]+)</h3>"#
+                + #"(?:(?!>macOS</span><h3|>Windows</span><h3).)*?"#
+                + #"<p class="mt-1 text-xs text-muted-foreground">(?<date>[^<]*)</p>"#
+                + #"<div class="prose[^"]*"[^>]*>(?<body>.*?)</div>"#,
+            itemPatterns: [#"<li[^>]*>(?<item>.*?)</li>"#, #"<p[^>]*>(?<item>.*?)</p>"#],
+            maxEntries: 20),
+        // Eudic (欧路词典) — `source` is its Sparkle 1 appcast, not a web page,
+        // because the appcast IS the changelog: the vendor keeps the app's entire
+        // history inside the NEWEST item's `<description>` CDATA — 10,253
+        // characters, one `<h2>` for the current release and 34 `<h3>` sections
+        // running back to 2.5.0 (measured 2026-09-01). Every older `<item>` in the
+        // feed is a 2010-era stub. So without a recipe the row rendered sixteen
+        // years of notes under the heading "26.9.0".
+        //
+        // It cannot reach the appcast's own structured path either:
+        // `AppcastHTMLChangelogParser.isStructured` requires at least one `<li>`
+        // and this body has ZERO — 29 `<p>` and 154 `<br>` instead — so
+        // `SparkleAppcastSource` leaves `structuredChangelog` nil and the pane fell
+        // to raw-HTML rendering of the whole blob.
+        //
+        // The headings are not a clean version list, which is what rules out
+        // teaching the generic parser this shape:
+        //   * 7 of the 34 are the literal label "更新内容", not a version;
+        //   * several carry a suffix — "3.6.0 改进", and "2.5.2改进" with no space.
+        // So the entry pattern keys on a heading that CONTAINS a dotted number
+        // rather than on the heading tag, and `body` runs to the next such heading
+        // — stepping over the label rows, which is exactly why the lookahead
+        // demands a digit. The CDATA close is the other terminator, so the last
+        // section cannot swallow the 2010 stubs that follow it.
+        //
+        // Items are `- text<br>` lines inside a `<p>`, and the leading dash is
+        // consumed because the renderer draws its own bullet. The capture is
+        // `.*?` to the next `<br>`/`</p>` rather than `[^<]+`: the pre-3.7 sections
+        // wrap whole lines in `<b>`, and a no-tag capture silently dropped every
+        // one of them. Yields 29 entries, validated against the live feed.
+        //
+        // No dates: the per-version sections carry none (the feed's single
+        // `<pubDate>` describes only the newest release), so every entry renders
+        // date-less rather than borrowing a wrong one.
+        ChangelogRecipe(
+            bundleID: "com.eusoft.eudic",
+            source: URL(string: "https://static.eudic.net/pkg/eudic_mac.xml")!,
+            entryPattern:
+                #"<h[23]>[^<]*?(?<version>\d+(?:\.\d+)+)[^<]*</h[23]>"#
+                + #"(?<body>.*?)(?=<h[23]>[^<]*\d|\]\]></description>|\z)"#,
+            itemPatterns: [
+                #"(?:<p[^>]*>|<br\s*/?>)\s*(?:[-–]\s*)?(?<item>.*?)\s*(?=<br\s*/?>|</p>)"#
+            ],
             minItemLength: 2),
     ]
 

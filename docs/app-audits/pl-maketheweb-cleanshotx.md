@@ -26,7 +26,37 @@
 CleanShot 不是真正的多 channel 应用——"channel"是订阅授权校验的副产品，不同 license key 对应不同授权等级，均指向同一 stable 版本。`CleanShotChannel.resolveCurrent()` 读 `activationKey`，拼入 legit appcast feed URL，`feedOverride` 绕过订阅检测死结。全链路不 log key。
 
 ## Changelog
-- ChangelogRecipe ✓（`cleanshot.com/release-notes` 等，bundleID `pl.maketheweb.cleanshotx`）
+- ChangelogRecipe ✓（`cleanshot.com/changelog`，bundleID `pl.maketheweb.cleanshotx`）
+
+### 2026-09-01：5.0 发布，页面结构重建（recipe 已修）
+
+厂商随 5.0 把 changelog 页重排了，旧 pattern **一条都匹配不上**（`duo verify` 报
+`noEntriesExtracted`）。三处同时变了：
+
+| | 旧 | 新 |
+|---|---|---|
+| 日期位置 | 版本号**之后** | 版本号**之前** |
+| 版本号外层 | 直接在 `div.version` 下 | 多了 `div.content` > `div.topbar` |
+| 版本号→列表之间 | 紧邻 | 功能版会插 `p.change-intro` + 两个 `a.video-link` |
+
+现在的结构：
+
+```html
+<div class="version"><div class="date">1 September, 2026</div>
+  <div class="content"><div class="topbar">
+    <div class="number">5.0</div><div class="text-badge">Major Update</div></div>
+    <p class="change-intro">…</p><a class="video-link">…</a>   ← 仅功能版
+    <ul class="changes"><li class="change">…</li>…</ul></div></div>
+```
+
+版本号到列表之间用 tempered gap（`(?:(?!<div class="version").)*?`）而不是 `.*?`：当天页面上
+102 个 block 全都有 `ul.changes`，懒惰匹配也对；但只要有一个 block 没有列表，懒惰匹配会**静默地
+把下一版的更新说明挂到这一版名下**。回归测试见 `CleanShotChangelogRecipeTests`。
+
+**顺带一个不是 bug 的坑**：磁盘缓存按「目标版本」做 key，我们在 `22:40:53` 抓的时候厂商还没发
+（页面 `last-modified` 是 `22:46:36`），于是 4.8.10 的内容被存进了 `5.0` 这个 key；之后重新抓
+又撞上改版失败，而「重新校验失败就保留已画出的缓存」这条规则让它一声不吭——**标题 5.0、列表停在
+4.8.10，看起来完全正常**。装上修复后一次命中就会重抓覆盖、自愈。
 
 ## 一键安装
 - Sparkle 自更新（个性化 feed `<enclosure>` 含下载链接）

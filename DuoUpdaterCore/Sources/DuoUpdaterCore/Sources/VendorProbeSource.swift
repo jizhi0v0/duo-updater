@@ -563,6 +563,36 @@ public struct VendorProbeSource: UpdateSource {
             ? VendorProbeRecipe.highestVersion
             : VendorProbeRecipe.extractVersion
         guard let version = extractor(scope, recipe.versionPattern) else {
+            // Before accusing the recipe: is this the vendor's own error envelope?
+            // A body that says "I could not compute your answer" is not a schema
+            // change, and reporting it as one puts a red Failed row on every
+            // affected Mac and files an issue under a recipe that is fine. Infra
+            // instead — which `duo verify` retries, and only reports once it has
+            // persisted for `Baseline.infraWindow`. Checked against `body.text`
+            // rather than `scope` deliberately: the envelope is a property of the
+            // whole response, and a scoped recipe whose slicing found no winner
+            // has `scope == body.text` anyway.
+            //
+            // Says "in N bytes" and NOT "after a retry", because reaching here
+            // does not prove one happened: `versionFeedData` spends its single
+            // retry on a gateway 5xx first (a 503 whose retry returns the envelope
+            // has seen the envelope exactly once), refuses to repeat a POST at
+            // all, and is not on the `.redirectFilename`/`.zipEntryPlist` paths.
+            // A log line asserting a retry nobody made is the kind of evidence
+            // that sends the next outage's triage the wrong way.
+            //
+            // Only a recipe that declares `transientBodyPattern` can reach this;
+            // for every other one the guard is false and nothing below changes.
+            if recipe.matchesTransientBody(body.text) {
+                // `.notice`, not `.error`: nobody has to go fix anything, but the
+                // line has to survive to disk (`.info` from a third-party subsystem
+                // does not) or a user asking why their row went red finds nothing.
+                Log.source.notice(
+                    "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: vendor error envelope in \(body.text.utf8.count) bytes")
+                return fail(
+                    .vendorErrorEnvelope(sampleBytes: body.text.utf8.count),
+                    status: body.status, sample: sample)
+            }
             // Symmetric with `GitHubReleasesSource`, which has logged its
             // pattern misses since day one. A probe that fetched fine and matched
             // nothing is the exact shape of a vendor rewriting their page, and
@@ -594,13 +624,24 @@ public struct VendorProbeSource: UpdateSource {
             VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
         }
         // Optional authoritative publish time, from the same scope (first match,
-        // so it belongs to the entry `versionPattern` matched). An unparseable or
-        // missing date is not a failure — it just means the Release Log falls back
-        // to its estimated "≈" window, exactly as for recipes with no pattern.
-        let publishedAt = ReleaseDate.parse(
-            recipe.publishedAtPattern.flatMap {
-                VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
-            })
+        // so it belongs to the entry `versionPattern` matched). A recipe that
+        // declares no `publishedAtPattern` at all is not a failure — the
+        // Release Log falls back to its estimated "≈" window, quietly. A
+        // recipe that DOES declare one but gets no match, or a match
+        // `ReleaseDate` can't parse at either tier, hits the same fallback but
+        // warns: both silently disable `duo verify`'s age-gated phantom-update
+        // check, and without the warning a declared-but-dead pattern reads
+        // identically to never having declared one at all (issue #288).
+        //
+        // #300: routed through `publishedFields`, the same day/minute split
+        // every other source uses, so a recipe whose pattern captures a bare
+        // calendar day (Kiro's and Shottr's `publishedAtPattern` candidates,
+        // both `"2025-12-17"`-shaped — see `VendorProbeRecipe`) gets a real
+        // `vendorDay` instead of being warned about as unreadable.
+        let publishedAtValue = recipe.publishedAtPattern.flatMap {
+            VendorProbeRecipe.extractVersion(from: scope, pattern: $0)
+        }
+        let publishedFields = ReleaseDate.publishedFields(from: publishedAtValue)
 
         var warnings: [ProbeWarning] = []
         if scoped.fellBack { warnings.append(.entryPatternNoMatch) }
@@ -609,6 +650,12 @@ public struct VendorProbeSource: UpdateSource {
         // string, a 404 where the release notes were. See `.displayPatternNoMatch`.
         if recipe.displayVersionPattern != nil, display == nil {
             warnings.append(.displayPatternNoMatch)
+        }
+        if recipe.publishedAtPattern != nil, publishedAtValue == nil {
+            warnings.append(.publishedAtPatternNoMatch)
+        } else if let publishedAtValue,
+                  publishedFields.publishedAt == nil, publishedFields.vendorDay == nil {
+            warnings.append(.publishedAtUnreadable(publishedAtValue))
         }
         var remote: RemoteVersion
 
@@ -631,7 +678,7 @@ public struct VendorProbeSource: UpdateSource {
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: spec, plan: plan,
                     resolvedDownload: body.resolvedDownload, display: display,
-                    publishedAt: publishedAt,
+                    publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay,
                     // Deliberately `body.text`, not `scope`: this parses the WHOLE
                     // response as a Sparkle appcast document (`SparkleAppcastParser`)
                     // rather than reading a pattern out of it, so an entry-scoped
@@ -649,7 +696,7 @@ public struct VendorProbeSource: UpdateSource {
                     // (measured 2026-08-30) — but it holds for the reason stated
                     // above, not because nothing here could parse.
                     deltas: VendorAppcastDeltas.patches(
-                        inBody: body.text, forVersion: version))
+                        inBody: body.text, forVersion: version, feedURL: recipe.url))
                 // A recipe that names a checksum pattern but no longer matches one
                 // still installs — unverified. Silent today; flag it.
                 if spec.checksumPattern != nil, plan.checksum == nil {
@@ -690,13 +737,13 @@ public struct VendorProbeSource: UpdateSource {
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: nil, plan: nil,
                     resolvedDownload: body.resolvedDownload, display: display,
-                    publishedAt: publishedAt)
+                    publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay)
             }
         } else {
             remote = Self.makeRemoteVersion(
                 recipe: recipe, version: version, install: nil, plan: nil,
                 resolvedDownload: body.resolvedDownload, display: display,
-                publishedAt: publishedAt)
+                publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay)
         }
 
         return ProbeOutcome(
@@ -841,10 +888,23 @@ public struct VendorProbeSource: UpdateSource {
             // / Location), so widen the accepted range and use the blocking session.
             let activeSession = recipe.followRedirects ? session : Self.noRedirectSession
             let okRange = recipe.followRedirects ? (200..<300) : (200..<400)
+            // A vendor that reports its own outage inside a 200 gets the same one
+            // retry a gateway 5xx gets, through the same helper — so the delay, the
+            // "never retry a POST" guard and the sweep's request tally stay in one
+            // place instead of growing a second copy here. Nil for every recipe that
+            // declares no envelope, which is all of them but CapCut's: the predicate
+            // is not built and `versionFeedData` never consults it.
+            var transientBody: (@Sendable (Data) -> Bool)?
+            if recipe.transientBodyPattern != nil {
+                transientBody = { data in
+                    recipe.matchesTransientBody(String(decoding: data, as: UTF8.self))
+                }
+            }
             let data: Data
             let response: URLResponse
             do { (data, response) = try await activeSession.versionFeedData(
-                for: request, label: "VendorProbe \(recipe.bundleID)") }
+                for: request, label: "VendorProbe \(recipe.bundleID)",
+                retryableBody: transientBody) }
             catch { return .failure(Self.transportFailure(error)) }
             guard let http = response as? HTTPURLResponse else {
                 return .failure(.nonHTTPResponse)
@@ -1035,6 +1095,7 @@ public struct VendorProbeSource: UpdateSource {
         resolvedDownload: URL?,
         display: String? = nil,
         publishedAt: Date? = nil,
+        vendorDay: Date? = nil,
         deltas: [DeltaPatch] = []
     ) -> RemoteVersion {
         // A build-number recipe routes the value into `version` (compared against
@@ -1074,6 +1135,7 @@ public struct VendorProbeSource: UpdateSource {
                 downloadHeaders: spec.requestHeaders,
                 changelogURL: recipe.changelogURL,
                 publishedAt: publishedAt,
+                vendorDay: vendorDay,
                 // Only on the installable branch: a patch is an alternative route
                 // to an artifact we are going to fetch, so it is meaningless on a
                 // detection-only result that has no artifact to begin with.
@@ -1094,7 +1156,8 @@ public struct VendorProbeSource: UpdateSource {
             // No install spec: detection only — the user downloads by hand.
             requiresManualInstaller: true,
             changelogURL: recipe.changelogURL,
-            publishedAt: publishedAt
+            publishedAt: publishedAt,
+            vendorDay: vendorDay
         )
     }
 

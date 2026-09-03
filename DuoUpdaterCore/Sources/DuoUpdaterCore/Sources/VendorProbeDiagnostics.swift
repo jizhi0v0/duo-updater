@@ -48,6 +48,21 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     /// dot-separated numbers their version has — the Zotero `9.0.6` -> `10.0`
     /// shape — and it says both what broke and what the answer is.
     case versionSegmentCountChanged(wouldMatch: String, sampleBytes: Int)
+    /// The endpoint answered with a success status and the vendor's own error
+    /// envelope in the body — their outage, reported inside a 200. Recognised
+    /// only for a recipe that declares the envelope's shape
+    /// (`VendorProbeRecipe.transientBodyPattern`); without that declaration the
+    /// same body is `versionPatternNoMatch`, i.e. an accusation against the
+    /// recipe.
+    ///
+    /// Infra — but "infra" here means *retried, and not reported until it
+    /// persists*, not "ignored": `duo verify` retries it within the sweep and
+    /// `Baseline.isInfraReportable` still surfaces it once it has held for
+    /// `infraWindow` (five days). A vendor that moved its payload out of the key
+    /// the envelope pattern watches would therefore be late, not invisible.
+    /// Usually the fetch has already spent its one retry on this body, but not
+    /// always — see the note at the throw site in `VendorProbeSource`.
+    case vendorErrorEnvelope(sampleBytes: Int)
 
     /// What a sweep should *do* about this failure.
     public enum Classification: String, Sendable {
@@ -63,7 +78,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         switch self {
         case .notApplicable:
             return .notApplicable
-        case .transport, .nonHTTPResponse:
+        case .transport, .nonHTTPResponse, .vendorErrorEnvelope:
             return .infra
         case .httpStatus(let code):
             // 5xx and 429 are the vendor having a bad day; 4xx means the URL we
@@ -89,6 +104,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .plistKeyMissing: return "plistKeyMissing"
         case .versionPatternNoMatch: return "versionPatternNoMatch"
         case .versionSegmentCountChanged: return "versionSegmentCountChanged"
+        case .vendorErrorEnvelope: return "vendorErrorEnvelope"
         }
     }
 
@@ -107,15 +123,21 @@ public enum ProbeFailure: Error, Sendable, Equatable {
             return "no match in \(bytes)-byte body, but the same pattern with a "
                 + "variable segment count matches \(would) — the vendor changed "
                 + "how many numbers are in the version"
+        case .vendorErrorEnvelope(let bytes):
+            // Says whose fault it is, because this text is what the user reads in
+            // the failed-check banner and what `duo verify` puts in a report.
+            return "the vendor answered with an error, not a version "
+                + "(\(bytes)-byte body)"
         }
     }
 }
 
 /// A recipe that still reads a version but has quietly lost part of its job.
 ///
-/// Both of these are invisible today: the probe returns a perfectly good version
-/// and silently drops back to detection-only, or installs without the checksum
-/// the recipe author wrote down. A half-broken recipe reads as healthy.
+/// These are invisible without an explicit warning: the probe returns a perfectly
+/// good version and silently drops back to detection-only, loses release metadata,
+/// or installs without the checksum the recipe author wrote down. A half-broken
+/// recipe reads as healthy.
 public enum ProbeWarning: Sendable, Equatable {
     /// The recipe carries an install spec but the installer URL didn't resolve —
     /// one-click is dead even though detection still works.
@@ -185,6 +207,35 @@ public enum ProbeWarning: Sendable, Equatable {
     /// value jump from `155.0b5` to `20260826090609` — an increase, and the only
     /// history check there is looks for a version moving BACKWARDS.
     case displayPatternNoMatch
+    /// `publishedAtPattern` is set but matched nothing, so the release timeline
+    /// loses its exact event and falls back to its estimated "≈" window, and
+    /// `duo verify`'s age-gated phantom-update check is disabled — the same
+    /// consequence as `publishedAtUnreadable`, reached a different way.
+    ///
+    /// The same shape as `checksumPatternNoMatch` / `entryPatternNoMatch` /
+    /// `displayPatternNoMatch`: a pattern the recipe author wrote down, found
+    /// nothing, and nothing failed — the version keeps resolving, so a sweep
+    /// with no warnings check would call this recipe healthy.
+    ///
+    /// Deliberately NOT `publishedAtUnreadable`. That one means the pattern DID
+    /// fire and `ReleaseDate` rejected the captured text at both tiers — there
+    /// is a value to show and a date spelling to add support for. This one
+    /// means the pattern never matched at all, so there is nothing captured to
+    /// show; the fix is to go re-derive the pattern against the vendor's
+    /// current response, same as `displayPatternNoMatch`. A recipe missing
+    /// `publishedAtPattern` entirely stays quiet — that is the normal,
+    /// supported "no publish time" shape and not a degradation of anything the
+    /// recipe author declared.
+    case publishedAtPatternNoMatch
+    /// `publishedAtPattern` captured a value, but `ReleaseDate.publishedFields`
+    /// could parse it as neither a `.minute`-precise time nor a bare `.day` —
+    /// so it produced neither `publishedAt` nor `vendorDay`. The version
+    /// remains usable, but the release timeline loses this release's event
+    /// entirely and `duo verify`'s age-gated phantom-update check is disabled.
+    /// Carry the captured value so the recipe author can see which date
+    /// spelling needs support without reproducing a response that may already
+    /// have moved.
+    case publishedAtUnreadable(String)
 
     /// The part of a warning that varies, kept OUT of `kind` on purpose.
     ///
@@ -207,6 +258,15 @@ public enum ProbeWarning: Sendable, Equatable {
             return host.map { "\(code) from \($0)" } ?? code
         case .installURLTransient(let status):
             return status.map { "HTTP \($0)" }
+        case .publishedAtUnreadable(let value):
+            // Keep a stable prefix longer than Finding.signature's 40-character
+            // window; the captured value can change every release without making
+            // one persistent parser problem look like a new failure each sweep.
+            let oneLine = value.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            let captured = oneLine.count > 160
+                ? String(oneLine.prefix(160)) + "…"
+                : oneLine
+            return "captured value did not parse: \(captured)"
         default:
             return nil
         }
@@ -225,6 +285,8 @@ public enum ProbeWarning: Sendable, Equatable {
         case .checksumPatternNoMatch: return "checksumPatternNoMatch"
         case .entryPatternNoMatch: return "entryPatternNoMatch"
         case .displayPatternNoMatch: return "displayPatternNoMatch"
+        case .publishedAtPatternNoMatch: return "publishedAtPatternNoMatch"
+        case .publishedAtUnreadable: return "publishedAtUnreadable"
         }
     }
 }

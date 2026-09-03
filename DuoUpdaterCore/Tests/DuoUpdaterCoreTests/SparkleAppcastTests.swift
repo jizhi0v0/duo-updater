@@ -93,3 +93,72 @@ import Foundation
     // different bytes, and verifying one against the other fails closed.
     #expect(from5715.edSignature != item.edSignature)
 }
+
+// MARK: - relative URLs in the appcast
+
+/// Helium's real feed shape (`updates.helium.computer/mac/appcast-arm64.xml`,
+/// 2026-08-31): every URL in it is written relative to the feed. That is a
+/// supported Sparkle appcast — `SUAppcastItem` resolves each URL with
+/// `[NSURL URLWithString:… relativeToURL:appcastURL]` — even though RSS 2.0 says
+/// an enclosure url "must be an http url". Before this, `URL(string:)` with no
+/// base produced a schemeless URL: the item parsed, the row would have looked
+/// fine, and the download was unfetchable.
+private let relativeFeedFixture = """
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+<channel>
+  <title>Helium (arm64)</title>
+  <item>
+    <title>0.16.2.1</title>
+    <pubDate>Sat, 29 Aug 2026 11:21:24 GMT</pubDate>
+    <sparkle:version>0.16.2.1</sparkle:version>
+    <sparkle:shortVersionString>0.16.2.1</sparkle:shortVersionString>
+    <sparkle:releaseNotesLink>notes/0.16.2.1.html</sparkle:releaseNotesLink>
+    <enclosure url="assets/helium_0.16.2.1_arm64-macos.dmg" length="124017808"
+               sparkle:edSignature="sig" type="application/octet-stream"/>
+    <sparkle:deltas>
+      <enclosure url="assets/0.16.2.1-0.16.1.1-arm64.delta" length="40212558"
+                 sparkle:deltaFrom="0.16.1.1" sparkle:edSignature="sig"
+                 type="application/octet-stream"/>
+    </sparkle:deltas>
+  </item>
+</channel>
+</rss>
+"""
+
+@Test func relativeURLsResolveAgainstTheFeedTheyCameFrom() throws {
+    let feed = URL(string: "https://updates.helium.computer/mac/appcast-arm64.xml")!
+    let items = SparkleAppcastParser.parse(Data(relativeFeedFixture.utf8), relativeTo: feed)
+    let item = try #require(items.first)
+
+    #expect(item.enclosureURL?.absoluteString
+        == "https://updates.helium.computer/mac/assets/helium_0.16.2.1_arm64-macos.dmg")
+    #expect(item.releaseNotesLink?.absoluteString
+        == "https://updates.helium.computer/mac/notes/0.16.2.1.html")
+    // Patches too — Sparkle resolves the delta enclosures against the same base,
+    // and a delta we cannot fetch is worse than one we never offered.
+    #expect(item.deltas.count == 1)
+    #expect(item.deltas.first?.url.absoluteString
+        == "https://updates.helium.computer/mac/assets/0.16.2.1-0.16.1.1-arm64.delta")
+
+    // `.absoluteURL`, so nothing downstream carries a base around: a relative
+    // URL prints as "assets/…" in a log, a verify report, or an issue body.
+    #expect(item.enclosureURL?.baseURL == nil)
+}
+
+/// Every feed we read today publishes absolute URLs, and a base must not touch
+/// them — `URL(string:relativeTo:)` ignores the base when the string has its own
+/// scheme, and this pins that so the change stays a no-op for all of them.
+@Test func absoluteURLsAreUnaffectedByTheBase() throws {
+    let xml = relativeFeedFixture
+        .replacingOccurrences(of: "\"assets/", with: "\"https://cdn.example.com/x/")
+        .replacingOccurrences(of: ">notes/", with: ">https://example.com/notes/")
+    let items = SparkleAppcastParser.parse(
+        Data(xml.utf8), relativeTo: URL(string: "https://updates.helium.computer/mac/appcast-arm64.xml")!)
+    let item = try #require(items.first)
+    #expect(item.enclosureURL?.absoluteString
+        == "https://cdn.example.com/x/helium_0.16.2.1_arm64-macos.dmg")
+    #expect(item.releaseNotesLink?.absoluteString == "https://example.com/notes/0.16.2.1.html")
+    #expect(item.deltas.first?.url.absoluteString
+        == "https://cdn.example.com/x/0.16.2.1-0.16.1.1-arm64.delta")
+}

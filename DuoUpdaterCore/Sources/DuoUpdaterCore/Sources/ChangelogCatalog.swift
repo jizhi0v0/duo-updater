@@ -24,6 +24,22 @@ public enum ChangelogCatalog {
         "com.electron.ollama": URL(string: "https://github.com/ollama/ollama/releases")!,
         // CodexBar — plain Homebrew cask (no inline notes); GitHub releases.
         "com.steipete.codexbar": URL(string: "https://github.com/steipete/CodexBar/releases")!,
+        // OpenUsage — resolves through the generic Sparkle source, but not one of
+        // its 51 appcast items carries a `<description>` or a
+        // `sparkle:releaseNotesLink`, so the app had no notes at all. The vendor
+        // writes them on the GitHub releases instead (v0.7.10's body is ~10k
+        // chars). Web fallback rather than a `ChangelogRecipe`: the release page
+        // is the same content the maintainer publishes, and nothing here needs a
+        // per-version parse.
+        "com.robinebers.openusage": URL(string: "https://github.com/robinebers/openusage/releases")!,
+        // Helium — moved from the GitHub source to its own Sparkle feed
+        // (`SparkleFeedCatalog`) for the beta train and the delta patches. That
+        // trade costs the notes: the GitHub release body was carrying them, and
+        // the vendor's appcast has no `<description>` and no
+        // `sparkle:releaseNotesLink` on any of its 9 items. Without this entry
+        // the move would have silently emptied the notes pane, so the fallback
+        // points back at the releases the body lives on.
+        "net.imput.helium": URL(string: "https://github.com/imputnet/helium-macos/releases")!,
         // Surge Mac — official release-notes page; the public changelog site is
         // JS-backed, so we point the fallback web view at the vendor page itself.
         "com.nssurge.surge-mac": URL(string: "https://nssurge.com/support/mac/release-notes")!,

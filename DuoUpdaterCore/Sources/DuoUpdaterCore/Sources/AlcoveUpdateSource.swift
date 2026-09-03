@@ -89,6 +89,12 @@ public struct AlcoveUpdateSource: UpdateSource {
         guard let latest = try? await fetchLatest(token: token, app: app) else { return nil }
 
         let dmg = latest.assets.first { $0.name == "Alcove.dmg" }?.url
+        // #300: route through the same day/minute split every other source
+        // uses — `latest.publishedAt` is Alcove's own JSON `published_at`,
+        // normally a real ISO8601 timestamp, but nothing about the API
+        // guarantees that, and there is no reason to special-case it if a
+        // bare calendar day ever shows up.
+        let fields = ReleaseDate.publishedFields(from: latest.publishedAt)
         return RemoteVersion(
             // tag_name is the marketing version (== CFBundleShortVersionString).
             shortVersion: latest.tagName,
@@ -102,7 +108,8 @@ public struct AlcoveUpdateSource: UpdateSource {
             // The licensed download needs the same Bearer the probe used.
             downloadHeaders: ["Authorization": "Bearer \(token)"],
             structuredChangelog: Self.changelog(from: latest),
-            publishedAt: ReleaseDate.parse(latest.publishedAt)
+            publishedAt: fields.publishedAt,
+            vendorDay: fields.vendorDay
         )
     }
 

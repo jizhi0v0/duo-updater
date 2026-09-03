@@ -427,6 +427,51 @@ public struct VendorProbeRecipe: Sendable {
     /// won't match an unrelated number on the page.
     public let versionPattern: String
 
+    /// Regex that recognises the vendor's own **error envelope** — a body served
+    /// with a success status that carries no answer at all.
+    ///
+    /// Without this, such a body is indistinguishable from a vendor changing
+    /// their schema: `versionPattern` matches nothing, and the probe reports
+    /// `versionPatternNoMatch`, which means "a human must go fix this recipe" —
+    /// a red Failed row on every affected Mac and a GitHub issue filed under a
+    /// recipe that is perfectly fine. Declaring the shape turns that into
+    /// `ProbeFailure.vendorErrorEnvelope`, which is infra: retried once at the
+    /// fetch, retried again by `duo verify`, and reported only once it has
+    /// persisted for `Baseline.infraWindow` (five days) rather than after two
+    /// sweeps.
+    ///
+    /// **Only `.responseBody`, and only without `requestBody`.** The retry rides
+    /// on `URLSession.versionFeedData`, which is wired for this on that mode
+    /// alone and refuses to repeat a POST — so declaring it anywhere else would
+    /// hand a recipe the lenient CLASSIFICATION without the retry that is the
+    /// half the user feels. `transientBodyIsOnlyDeclaredWhereItCanBeHonoured`
+    /// pins that from the registry.
+    ///
+    /// CapCut is the measured case and the only recipe that sets it (2026-09-01).
+    /// Its settings endpoint answers **HTTP 200** with
+    /// `{"data": {},"message": "ExecBizCode error: … reason=request timeout
+    /// request_timeout=500ms real_time=501018us"}` — ByteDance's own internal RPC
+    /// overrunning its 500 ms budget — roughly 390 bytes where the answer is
+    /// ~436 KB. Measured at about 1 request in 48 over two 24-way bursts, and it
+    /// bit the shipping app twice in two minutes on 2026-09-01.
+    ///
+    /// Two rules for anything added here, both learned from that one:
+    ///
+    /// 1. **Anchor it to the document, not to a phrase.** CapCut's pattern is
+    ///    `^\s*\{\s*"data"\s*:\s*\{\s*\}` — a TOP-LEVEL `data` that is empty,
+    ///    which is structurally "no settings were returned". The message text is
+    ///    an internal stack trace and will read differently the next time; an
+    ///    empty top-level object cannot mean anything else. (Checked against the
+    ///    real 436 KB healthy body: zero occurrences of an empty `data` object
+    ///    anywhere in it, so even unanchored it would not have collided — the
+    ///    anchor is what keeps that true for the body they serve next year.)
+    /// 2. **It must not be able to match a healthy answer.** This pattern wins
+    ///    over `versionPatternNoMatch`, so one that over-matches converts a
+    ///    genuinely broken recipe into "the vendor is having a bad day, retry
+    ///    forever" — a real breakage that `duo verify` would then never file.
+    ///    `CapCutProbeRecipeTests` pins both directions against captured bodies.
+    public let transientBodyPattern: String?
+
     /// Where to send the user to download the update by hand. Defaults to `url`.
     /// Probed updates are always manual (no trusted in-place install path), so
     /// this is the link surfaced to the user.
@@ -620,6 +665,7 @@ public struct VendorProbeRecipe: Sendable {
         url: URL,
         mode: Mode,
         versionPattern: String,
+        transientBodyPattern: String? = nil,
         downloadURL: URL? = nil,
         changelogURL: URL? = nil,
         selectHighest: Bool = false,
@@ -649,6 +695,7 @@ public struct VendorProbeRecipe: Sendable {
         self.installedVersionPattern = installedVersionPattern
         self.mode = mode
         self.versionPattern = versionPattern
+        self.transientBodyPattern = transientBodyPattern
         self.downloadURL = downloadURL
         self.changelogURL = changelogURL
         self.selectHighest = selectHighest
@@ -699,6 +746,24 @@ public struct VendorProbeRecipe: Sendable {
         guard let relaxed = segmentCountRelaxed(pattern), relaxed != pattern
         else { return nil }
         return extractVersion(from: body, pattern: relaxed)
+    }
+
+    /// Whether `body` is this vendor's error envelope rather than an answer —
+    /// see ``transientBodyPattern``.
+    ///
+    /// False for a recipe that declares no pattern (the whole registry but one),
+    /// and false for a pattern that does not compile. That second `false` is the
+    /// safe direction — an uncompilable pattern costs the recipe its transient
+    /// handling and it goes back to reporting `versionPatternNoMatch`, which is
+    /// today's behaviour — but it is silent, so
+    /// `transientBodyPatternsInTheRegistryAreValidRegexes` is what catches the
+    /// typo before it ships.
+    func matchesTransientBody(_ body: String) -> Bool {
+        guard let pattern = transientBodyPattern,
+              let regex = try? NSRegularExpression(pattern: pattern)
+        else { return false }
+        return regex.firstMatch(
+            in: body, options: [], range: NSRange(body.startIndex..., in: body)) != nil
     }
 
     public static func extractVersion(from text: String, pattern: String) -> String? {
@@ -948,6 +1013,23 @@ public struct VendorProbeRecipe: Sendable {
 /// releases-list JSON (compared on the `build` field via `versionIsBuild`).
 ///
 /// GitHub-released apps are handled by `GitHubReleasesSource`, not here.
+///
+/// Two more unfeasibles, observed 2026-08-30 and recorded to stop rediscovery:
+/// - **Trae / Trae CN** (`com.trae.app`): the update manifest
+///   (`api.trae.ai/icube/api/v1/native/version/trae/latest`) carries NO version
+///   field — only CDN release-train numbers (`…/releases/stable/2.3.73738/…`)
+///   baked into download URLs, while the installed bundle reports a different
+///   namespace (`CFBundleShortVersionString 3.5.91` for train 2.3.73738).
+///   Homebrew's cask livecheck grabs the train number too, but Homebrew never
+///   compares it to the bundle. No public endpoint yields the app version, so
+///   a probe would compare across namespaces — same class as Brave/Feishu.
+/// - **Hermes (Nous Research desktop)**: the distributed artifact
+///   (`Hermes-Setup.dmg`) is a 0.0.1 bootstrap stub
+///   (`com.nousresearch.hermes.setup`) that downloads the real app elsewhere;
+///   the real bundle id/version cannot be observed without running the
+///   installer. The homepage carries the version (0.20.6, Homebrew's livecheck
+///   scrapes it) but there is no registry key to hang it on until a real
+///   install is observed.
 public enum VendorProbeRegistry {
 
     /// Comet's stable download gateway — the endpoint the probe reads AND the one
@@ -1275,6 +1357,11 @@ public enum VendorProbeRegistry {
         // `.tar.xz` holding `Vivaldi Snapshot.app`, bundle id
         // com.vivaldi.Vivaldi.snapshot, Team 4XF3XNRN6Y, spctl "Notarized Developer
         // ID". `.tarGz` covers xz — see the ImageOptim note.
+        //
+        // DEAD FOR DETECTION, kept as a sweep anchor — same as Bartender and
+        // ImageOptim. Measured on the real 8.2.4133.31 bundle (2026-08-31): it
+        // declares `SUFeedURL = https://update.vivaldi.com/update/1.0/snapshot/mac/
+        // appcast.xml`, this exact address, so Sparkle answers first.
         VendorProbeRecipe(
             bundleID: "com.vivaldi.Vivaldi.snapshot",
             url: URL(string: "https://update.vivaldi.com/update/1.0/snapshot/mac/appcast.xml")!,
@@ -1557,9 +1644,17 @@ public enum VendorProbeRegistry {
                 kind: .pkg)),
 
         // Bartender — Sparkle appcast (ascending, oldest-first). Version lives in
-        // sparkle:shortVersionString on each <item>. Detection-only; if the
-        // installed app has SUFeedURL in Info.plist SparkleAppcastSource takes
-        // priority. selectHighest because the feed lists items oldest-first.
+        // sparkle:shortVersionString on each <item>. selectHighest because the feed
+        // lists items oldest-first.
+        //
+        // DEAD FOR DETECTION, kept as a sweep anchor. The hedge this comment used
+        // to carry ("if the installed app has SUFeedURL … Sparkle takes priority")
+        // was settled on 2026-08-31 by reading the real 6.6.2 bundle: it declares
+        // `SUFeedURL = https://www.macbartender.com/B2/updates/AppcastB6.xml`, the
+        // same address as below, so `SparkleAppcastSource` answers first and this
+        // recipe never runs in production. It stays because `duo verify` sweeps the
+        // recipe registries and nothing sweeps Sparkle feeds — deleting the row
+        // would leave the endpoint unwatched. Do not "fix" this by re-pointing it.
         VendorProbeRecipe(
             bundleID: "com.surteesstudios.Bartender",
             url: URL(string: "https://www.macbartender.com/B2/updates/AppcastB6.xml")!,
@@ -1584,7 +1679,11 @@ public enum VendorProbeRegistry {
 
         // ImageOptim — Sparkle appcast carrying only the latest release
         // (descending, single item). Version in sparkle:shortVersionString.
-        // Detection-only; SparkleAppcastSource takes priority if SUFeedURL present.
+        //
+        // DEAD FOR DETECTION, kept as a sweep anchor — same as Bartender above.
+        // Measured on the real 1.9.3 bundle (2026-08-31): it declares
+        // `SUFeedURL = https://imageoptim.com/appcast.xml`, this exact address, so
+        // Sparkle answers first and this row only keeps the endpoint in the sweep.
         VendorProbeRecipe(
             bundleID: "net.pornel.ImageOptim",
             url: URL(string: "https://imageoptim.com/appcast.xml")!,
@@ -3805,6 +3904,15 @@ public enum VendorProbeRegistry {
         // Anchor to `"package"` (leading quote) so it never matches `"betaPackage"`
         // — a stable install is never handed the EAP pkg. (Shottr self-updates via
         // its own .pkg updater; this is the fallback behind the same-Team gate.)
+        //
+        // No `publishedAtPattern`: the same body also carries `"releaseDate":
+        // "2025-12-17"` (fetched 2026-08-31) — a bare day, no time. #300 wired
+        // `VendorProbeSource` to `ReleaseDate.publishedFields`, so a pattern
+        // here would now land honestly in `RemoteVersion.vendorDay` instead of
+        // being silently inert — the mechanism is ready. Adding the pattern
+        // itself is left for a follow-up: per this repo's fragile-recipe rule,
+        // a recipe change needs the real broken response reproduced and
+        // `duo verify` run against it, not just a mechanism change.
         VendorProbeRecipe(
             bundleID: "cc.ffitch.shottr",
             url: URL(string: "https://shottr.cc/api/version.json")!,
@@ -4435,8 +4543,14 @@ public enum VendorProbeRegistry {
         //
         // The metadata offers a zip where the page offers a dmg; the zip is the
         // same release and unpacks straight into the swap, so it is the better of
-        // the two. `pub_date` is a bare `2026-08-13`, which `ReleaseDate` does not
-        // parse (it wants a time), so no `publishedAtPattern` here.
+        // the two. `pub_date` is a bare `2026-08-13`, no time. #300 wired
+        // `VendorProbeSource` to `ReleaseDate.publishedFields`, so a
+        // `publishedAtPattern` here would now land honestly in
+        // `RemoteVersion.vendorDay` instead of being silently inert — the
+        // mechanism is ready. Adding the pattern itself is left for a
+        // follow-up: per this repo's fragile-recipe rule, a recipe change needs
+        // the real broken response reproduced and `duo verify` run against it,
+        // not just a mechanism change.
         //
         // Verified 2026-08-16 on the downloaded artifact: Kiro.app 1.0.309,
         // dev.kiro.desktop, Developer ID `AMZN Mobile LLC (94KV3E626L)`, notarized
@@ -6179,6 +6293,50 @@ public enum VendorProbeRegistry {
                     base: URL(string: "https://download.chatboxai.app/releases/")!),
                 kind: .dmg,
                 checksumPattern: #"Chatbox-[^\n]+-arm64\.dmg\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#)),
+        // MARK: - 2026-08-30 AnythingLLM
+
+        // AnythingLLM — private desktop AI chat (Electron). No Sparkle: the real
+        // bundle (downloaded and mounted 2026-08-30) carries no `SUFeedURL`, and
+        // its `app-update.yml` points at a leftover electron-vite TEMPLATE repo
+        // (`electron-vite/electron-vite-react/releases/download/v0.9.9/`), not a
+        // working updater. The real distribution surface is the vendor's own CDN,
+        // `cdn.anythingllm.com`:
+        //
+        //   * `latest/version.txt` — a one-line plain-text version body
+        //     (`1.16.1\n`), which is EXACTLY the endpoint Homebrew's own
+        //     `anythingllm` cask names in its `livecheck` block — a third party
+        //     already depends on it for the same purpose, so this is the vendor's
+        //     intended version surface, not a guess. Prefer it over scraping the
+        //     homepage.
+        //   * `latest/AnythingLLMDesktop-Silicon.dmg` — the arm64 build, an
+        //     UNVERSIONED moving pointer (no `1.16.1/…` path exists; 404). The
+        //     pair is published together: on 2026-08-30 both carry the same
+        //     Last-Modified minute (16:34/16:35, 73 s apart), and the mounted
+        //     dmg's `CFBundleShortVersionString` equals version.txt exactly.
+        //     This is the same `/latest/` + livecheck pairing the cask itself
+        //     ships, so the drift risk is shared with Homebrew, not invented
+        //     here. The Intel twin is `latest/AnythingLLMDesktop.dmg` (the cask
+        //     selects by arch); DuoUpdater is arm64-only, so pin Silicon.
+        //
+        // Verified against the real artifact: `com.anythingllm`, short == build
+        // == `1.16.1`, arm64-only, signed "Developer ID Application: Timothy
+        // Carambat (35S2NMU3G4)", notarized. Self-contained bundle (no
+        // LaunchDaemons/Agents, no `Contents/Library`), so `kind: .dmg` is
+        // right — nothing outside the `.app` to go stale.
+        //
+        // Single channel: the vendor ships no beta/nightly surface.
+        //
+        // Delta/binary patch: not a Sparkle app and the CDN carries no
+        // `.delta`/`.patch` artifacts — nothing to consume.
+        VendorProbeRecipe(
+            bundleID: "com.anythingllm",
+            url: URL(string: "https://cdn.anythingllm.com/latest/version.txt")!,
+            mode: .responseBody,
+            versionPattern: #"^([0-9]+(?:\.[0-9]+)+)\s*$"#,
+            install: VendorInstallSpec(
+                urlSource: .fixed(
+                    URL(string: "https://cdn.anythingllm.com/latest/AnythingLLMDesktop-Silicon.dmg")!),
+                kind: .dmg)),
     ]
 
     /// One CapCut track: the `update_reminder` key that names its artifact, plus
@@ -6209,6 +6367,13 @@ public enum VendorProbeRegistry {
             mode: .responseBody,
             versionPattern:
                 #""\#(urlKey)"\s*:\s*"[^"]*/CapCut_([0-9]+)_([0-9]+)_(\#(patchSegment))_[0-9]+_\#(packageToken)_creatortool\.dmg""#,
+            // ByteDance's settings service overrunning its own 500 ms internal RPC
+            // budget: HTTP 200, `{"data": {},"message": "ExecBizCode error: …
+            // request timeout … real_time=501018us"}`, ~390 bytes where the answer
+            // is ~436 KB. An empty TOP-LEVEL `data` is the structural claim "no
+            // settings were returned"; the message text is an internal stack trace
+            // and is not matched on. See `transientBodyPattern`.
+            transientBodyPattern: #"^\s*\{\s*"data"\s*:\s*\{\s*\}"#,
             downloadURL: URL(string: "https://www.capcut.com/tools/desktop-video-editor"),
             versionIsBuild: versionIsBuild,
             install: VendorInstallSpec(

@@ -39,6 +39,47 @@ struct RecipeHealthTests {
         #expect(await health.snapshot().isEmpty)
     }
 
+    /// PR #201 review, blocker #1: keying storage by `id` alone let a bundle id
+    /// tracked under two sources collide. The concrete failure this caused: a
+    /// broken Vendor recipe for a bundle id (e.g. Notion, whose vendor page
+    /// changed) records a miss, `UpdateChecker` falls through to the next source
+    /// on the thrown error, and if THAT source (e.g. `ElectronManifestSource`,
+    /// reading `app-update.yml` for the same bundle id) resolves fine, the old
+    /// single-key storage let that unrelated success overwrite the Vendor miss —
+    /// the broken Vendor recipe vanished from the diagnostics panel entirely.
+    /// Keying on `(id, source)` keeps the two recipes' health independent.
+    @Test func sameIDUnderDifferentSourcesTracksIndependently() async throws {
+        let health = RecipeHealth()
+        await health.recordMiss(id: "notion.id", source: "Vendor", detail: "vendor page changed")
+        await health.recordSuccess(id: "notion.id", source: "Electron")
+
+        let snap = await health.snapshot()
+        #expect(snap.count == 2)
+
+        let vendor = try #require(snap.first { $0.source == "Vendor" })
+        #expect(vendor.isHealthy == false)
+        #expect(vendor.lastMissDetail == "vendor page changed")
+
+        let electron = try #require(snap.first { $0.source == "Electron" })
+        #expect(electron.isHealthy == true)
+
+        // Both share `id` by design — that's the whole point of the scenario —
+        // but a consumer that needs a truly unique identifier (the diagnostics
+        // view's `ForEach`) must not collide on it.
+        #expect(vendor.id == electron.id)
+        #expect(vendor.key != electron.key)
+
+        // And a later Vendor success must not touch the Electron entry, nor vice
+        // versa — the two recipes stay independently trackable indefinitely, not
+        // just across this one miss/success pair.
+        await health.recordSuccess(id: "notion.id", source: "Vendor")
+        let recovered = try #require(await health.snapshot().first { $0.source == "Vendor" })
+        #expect(recovered.isHealthy == true)
+        let electronStillThere = try #require(await health.snapshot().first { $0.source == "Electron" })
+        #expect(electronStillThere.isHealthy == true)
+        #expect(await health.snapshot().count == 2)
+    }
+
     /// The health verdict is a pure date comparison — test it deterministically by
     /// constructing entries with fixed timestamps (no reliance on call timing).
     @Test func healthVerdictComparesByRecency() {

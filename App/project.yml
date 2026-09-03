@@ -30,6 +30,27 @@ packages:
     exactVersion: 2.9.3
 
 targets:
+  # A developer tool, not part of the shipped app: renders every `RowActionState`
+  # to `verify/row-states/*.png` so a change to how a row is drawn shows up as an
+  # image diff. It exists because there is no test target over `App/Sources` (see
+  # below), so nothing else executes the row rendering — and the failure that
+  # created the need was a state drawing NOTHING, which no assertion about the
+  # state itself can catch. Run with `make gallery`.
+  #
+  # The sources it links are deliberately free of `AppListModel`: the views take a
+  # state plus plain closures, so the gallery needs no scanning, no network and no
+  # notification permission to draw them.
+  RowStateGallery:
+    type: tool
+    platform: macOS
+    sources:
+      - RowStateGallery
+      - path: Sources/RowActionViews.swift
+      - path: Sources/AppIconCache.swift
+      - path: Sources/PopoverRowAction.swift
+    dependencies:
+      - package: DuoUpdaterCore
+
   DuoUpdater:
     type: application
     platform: macOS
@@ -98,8 +119,8 @@ targets:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.app
-        MARKETING_VERSION: "0.3.73"
-        CURRENT_PROJECT_VERSION: "82"
+        MARKETING_VERSION: "0.3.81"
+        CURRENT_PROJECT_VERSION: "90"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Info.plist
         # Menu-bar-only app: no Dock icon, no main window.
@@ -211,8 +232,8 @@ targets:
         # plist's BundleProgram points at Contents/MacOS/DuoUpdaterHelper. The bundle
         # *identifier* (for signing / XPC pinning) is com.duoupdater.helper.
         PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.helper
-        MARKETING_VERSION: "0.3.73"
-        CURRENT_PROJECT_VERSION: "82"
+        MARKETING_VERSION: "0.3.81"
+        CURRENT_PROJECT_VERSION: "90"
         SWIFT_VERSION: "6.0"
         # Embed a generated Info.plist into the binary's __TEXT,__info_plist so the
         # helper has a bundle id/version (Bundle.main reads it) without a wrapper.

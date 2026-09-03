@@ -2,6 +2,14 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.3.82
+
+**さらに 15 個のアプリを更新チェックの対象にしました。1 つを除いてワンクリックで更新できます。** AgentsView、AnythingLLM、Chatbox、ChatGPT Classic、DSH Desktop、FluidVoice、GitHub Copilot、Kun、Meetily、Microsoft 365 Copilot、OpenLogi、OpenSuperWhisper、Paseo、T3 Code（alpha と nightly の両方）、Vorssaint です。例外は ChatGPT Classic で、更新の有無は確認しますが、アプリ自身を更新するインストーラが同梱されているため、その 1 つだけはご自身で実行していただく形になります。
+
+**8 個のアプリのリリースノートが、Web ページを開かずに Duo Updater の中で読めるようになりました。** Xcode、Antigravity、Antigravity IDE、AnyDesk、AnythingLLM、Chatbox、Headlamp、Helium です。このうち 3 つは、そもそも開くべきページがありませんでした。AnyDesk のページはボット判定を返し、Helium の開発元はノートのページを公開しておらず、Antigravity IDE にはリンク自体がありませんでした。
+
+**Xcode のベータ版が、各ベータで何が変わったかを示すようになりました。** これまでは行にビルド番号とリンクが出るだけでしたが、いまはお使いのベータと、その同じバージョンのそれ以前のすべてのベータについて、Apple のリリースノートを並べて表示します。
+
 ## 0.3.81
 
 **Word、Excel、PowerPoint、Outlook、OneNote が更新の完了を認識するようになりました。** この 5 つは、すでに終えたインストーラーを開き直すよう促し続け、再起動の案内まで進みませんでした。待っても再チェックしても解消しない状態でした。

@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.82
+
+**Fifteen more apps are watched for updates, and all but one install in a single click.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code — on both its alpha and nightly tracks — and Vorssaint. ChatGPT Classic is the exception: it is checked for you, but it ships an installer that updates the app itself, so that one stays yours to run.
+
+**Eight apps now show their release notes inside Duo Updater instead of sending you to a web page.** Xcode, Antigravity, Antigravity IDE, AnyDesk, AnythingLLM, Chatbox, Headlamp and Helium. Three of them had nothing to send you to in the first place: AnyDesk's page answers a bot challenge, Helium's makers publish no notes page at all, and Antigravity IDE had no link of any kind.
+
+**Xcode betas say what changed in each beta.** The row used to offer a build number and a link; it now lists Apple's notes for the beta you are on and every beta before it in that release.
+
 ## 0.3.81
 
 **Word, Excel, PowerPoint, Outlook and OneNote now notice when their update has landed.** These five kept offering to re-open the installer you had already finished with, and never moved on to offering the restart — waiting or re-checking could not have shaken it loose.

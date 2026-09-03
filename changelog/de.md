@@ -2,6 +2,14 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.82
+
+**Fünfzehn weitere Apps werden auf Updates überwacht, und alle bis auf eine lassen sich mit einem Klick installieren.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code — auf beiden Kanälen, Alpha und Nightly — und Vorssaint. Die Ausnahme ist ChatGPT Classic: Geprüft wird es für Sie, aber es bringt ein Installationsprogramm mit, das die App selbst aktualisiert — dieses eine Update bleibt Ihre Sache.
+
+**Acht Apps zeigen ihre Versionshinweise jetzt in Duo Updater, statt Sie auf eine Webseite zu schicken.** Xcode, Antigravity, Antigravity IDE, AnyDesk, AnythingLLM, Chatbox, Headlamp und Helium. Bei dreien gab es überhaupt nichts, wohin man Sie hätte schicken können: Die Seite von AnyDesk antwortet mit einer Bot-Abfrage, die Macher von Helium veröffentlichen gar keine Hinweisseite, und Antigravity IDE hatte keinerlei Link.
+
+**Xcode-Betas sagen jetzt, was sich in der jeweiligen Beta geändert hat.** Bisher bot die Zeile eine Build-Nummer und einen Link; jetzt listet sie Apples Hinweise zu Ihrer Beta und zu allen vorherigen Betas derselben Version.
+
 ## 0.3.81
 
 **Word, Excel, PowerPoint, Outlook und OneNote merken jetzt, wenn ihr Update angekommen ist.** Diese fünf boten weiterhin an, das längst abgeschlossene Installationsprogramm erneut zu öffnen, und kamen nie beim Neustart an — Warten oder erneutes Prüfen half nicht.

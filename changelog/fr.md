@@ -2,6 +2,22 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.81
+
+**Word, Excel, PowerPoint, Outlook et OneNote voient enfin que leur mise à jour est installée.** Ces cinq applications continuaient à proposer de rouvrir un programme d'installation que vous aviez déjà terminé, sans jamais passer au redémarrage — attendre ou revérifier n'y changeait rien.
+
+**Une ligne en attente de redémarrage s'explique à nouveau, dans les deux fenêtres.** Quand une application devançait ce que publie son éditeur tout en attendant un redémarrage, la ligne au-dessus du bouton décrivait tout autre chose ; pour les lignes en attente d'un redémarrage après « Tout mettre à jour », la fenêtre et le menu se contredisaient aussi.
+
+**Les étiquettes d'état n'écrasent plus le nom de l'application en russe.** Quelques étiquettes empruntaient par ailleurs des formulations à des textes sans rapport, dans toutes les langues traduites.
+
+**Les notes de version apparaissent maintenant pour les applications dont l'éditeur date une version sans l'horodater.** Ces publications ne laissaient auparavant aucune trace.
+
+**Une page de notes de version que nous refusons d'ouvrir en donne maintenant la raison.** Elle restait blanche, ce qui ressemblait exactement à une application ne publiant aucune note.
+
+**Les notes de version Nightly de WeChat DevTools ne sont plus vides.**
+
+**Sous le capot.** Le traitement des versions et des dates de publication a été regroupé, de sorte qu'un numéro de build ne peut plus être lu comme une version commerciale, et la chronologie des publications n'invente plus une heure que l'éditeur n'a jamais donnée.
+
 ## 0.3.80
 
 **Les vérifications en échec sont désormais visibles dans la fenêtre.** La fenêtre n'affichait rien pour une ligne dont la vérification avait échoué — ni pour celles que vous aviez ignorées, celles dont vous aviez passé la version, ni celles gérées par l'App Store, Toolbox ou TestFlight. Cela ressemblait exactement à « à jour ». Les deux fenêtres disent maintenant la même chose de la même application, et le bouton de nouvelle tentative existe des deux côtés.

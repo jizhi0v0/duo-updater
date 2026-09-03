@@ -2,6 +2,22 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.81
+
+**Word, Excel, PowerPoint, Outlook und OneNote merken jetzt, wenn ihr Update angekommen ist.** Diese fünf boten weiterhin an, das längst abgeschlossene Installationsprogramm erneut zu öffnen, und kamen nie beim Neustart an — Warten oder erneutes Prüfen half nicht.
+
+**Eine Zeile, die auf den Neustart wartet, erklärt sich wieder – in beiden Fenstern.** War eine App zugleich neuer als das, was ihr Anbieter veröffentlicht, und wartete auf einen Neustart, beschrieb die Zeile über der Schaltfläche etwas ganz anderes; bei Zeilen, die auf einen Neustart nach „Alle aktualisieren" warteten, widersprachen sich Fenster und Menü zusätzlich.
+
+**Statusetiketten verdrängen den App-Namen im Russischen nicht mehr.** Einige Etiketten hatten außerdem in allen übersetzten Sprachen Formulierungen aus unverwandten Texten übernommen.
+
+**Für Apps, deren Anbieter eine Version nur datiert, ohne sie zu terminieren, erscheinen jetzt Versionshinweise.** Bisher hinterließen solche Veröffentlichungen nirgends eine Spur.
+
+**Eine Seite mit Versionshinweisen, die wir nicht öffnen, nennt jetzt den Grund.** Zuvor blieb sie leer, was genau wie eine App aussah, die gar keine Hinweise veröffentlicht.
+
+**Die Nightly-Versionshinweise der WeChat DevTools sind nicht mehr leer.**
+
+**Unter der Haube.** Versions- und Veröffentlichungsdaten werden an einer Stelle behandelt, sodass eine Build-Nummer nie als Marketing-Version gelesen wird und die Veröffentlichungs-Chronik keine Uhrzeit erfindet, die der Anbieter nie genannt hat.
+
 ## 0.3.80
 
 **Fehlgeschlagene Prüfungen sind jetzt auch im Fenster sichtbar.** Das Fenster zeichnete für eine Zeile, deren Prüfung fehlgeschlagen war, gar nichts — ebenso wenig für ignorierte, übersprungene oder vom App Store, von Toolbox oder TestFlight verwaltete Zeilen. Das sah genauso aus wie „auf dem neuesten Stand". Beide Fenster sagen jetzt dasselbe über dieselbe App, und die Schaltfläche zum erneuten Versuch gibt es in beiden.

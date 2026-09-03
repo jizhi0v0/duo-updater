@@ -60,9 +60,23 @@ private let hbuilderXCodeSpanFixture = #"""
 /// The flag is opt-in: a recipe reading HTML must keep a literal backtick a
 /// vendor typed. Pinning this from the registry rather than a hand-written list
 /// so a future recipe that sets `markdownSource` shows up here.
+///
+/// "Really is Markdown" is checked by where the body comes from, not by what it
+/// looks like, and there are exactly two such places: a `.md` file, and a GitHub
+/// release `body`, which is Markdown by the API's own definition. The second was
+/// added for Headlamp, whose notes are Markdown TABLES that
+/// `GitHubMarkdownParser` refuses (see `HeadlampChangelogRecipeTests`), so its
+/// recipe reads the same JSON with regexes — and inherits the same backticks and
+/// `[text](url)` links the `.md` recipes have to unwrap. Kept as two named shapes
+/// rather than widened to "any JSON": a vendor's own JSON API is not Markdown,
+/// and unwrapping there would eat punctuation the vendor typed.
 @Test func onlyMarkdownSourceRecipesUnwrapCodeSpans() {
+    func bodyIsMarkdown(_ source: URL) -> Bool {
+        if source.path.hasSuffix(".md") { return true }
+        return source.host == "api.github.com" && source.path.hasSuffix("/releases")
+    }
     let flagged = ChangelogRecipeRegistry.recipes.filter(\.markdownSource)
-    #expect(flagged.allSatisfy { $0.source.path.hasSuffix(".md") },
+    #expect(flagged.allSatisfy { bodyIsMarkdown($0.source) },
             "markdownSource belongs on recipes whose body really is Markdown")
     #expect(!flagged.isEmpty, "HBuilderX stable + alpha should be flagged")
 }

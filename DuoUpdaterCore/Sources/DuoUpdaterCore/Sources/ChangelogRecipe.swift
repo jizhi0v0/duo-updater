@@ -2634,6 +2634,186 @@ public enum ChangelogRecipeRegistry {
                 #"(?:<p[^>]*>|<br\s*/?>)\s*(?:[-–]\s*)?(?<item>.*?)\s*(?=<br\s*/?>|</p>)"#
             ],
             minItemLength: 2),
+
+        // AnyDesk — the same plain-text changelog its `VendorProbeRecipe` already
+        // reads for version detection. The vendor's HTML changelog
+        // (`anydesk.com/en/changelog/mac-os`) answers 403 behind a Cloudflare
+        // challenge even under a full Safari UA, so the pane's web-view fallback
+        // renders a challenge page rather than notes; `changelog.txt` answers 200.
+        //
+        // Every platform shares the file, newest first:
+        //
+        //   22.07.2026 - 9.7.3 (macOS)
+        //   ------------------
+        //   New Features:
+        //   - Visibility and online status for AnyDesk One Chat can be set manually
+        //
+        // The `(macOS)` anchor is load-bearing for exactly the reason the probe's
+        // is: Windows runs on a HIGHER number (9.7.15 the day this was written), so
+        // an unanchored pattern lists another platform's releases under this app.
+        // 80 macOS entries on the live file (2026-09-03), newest 9.7.3.
+        //
+        // `[^\n]` in the item pattern, not `.`: every pattern is compiled with
+        // dot-matches-newline, so `^-\s+(?<item>.+)$` would swallow the whole
+        // section as one item. Tags and entities are left alone because the body is
+        // plain text — there is no markup to strip and an `&` is just an `&`.
+        //
+        // The section labels ("New Features:", "Fixed Bugs:", "Other Changes:") are
+        // not captured: items are flat here as everywhere else.
+        ChangelogRecipe(
+            bundleID: "com.philandro.anydesk",
+            source: URL(string: "https://download.anydesk.com/changelog.txt")!,
+            entryPattern:
+                #"(?<date>\d{2}\.\d{2}\.\d{4}) - (?<version>\d+(?:\.\d+)+) \(macOS\)[ \t]*\n-+\n"#
+                + #"(?<body>.*?)(?=\n\d{2}\.\d{2}\.\d{4} - |\z)"#,
+            itemPatterns: [#"(?m)^-\s+(?<item>[^\n]+)"#],
+            stripTags: false,
+            decodeEntities: false),
+
+        // Antigravity — antigravity.google/changelog, which the hub's
+        // `VendorProbeRecipe` already links as its `changelogURL`.
+        //
+        // That recipe's sibling (the IDE) says the page is "JS-rendered — 88 KB
+        // with zero version strings in the served HTML". That reading was of a
+        // *compressed* body: the server answers gzip even for
+        // `Accept-Encoding: identity`, and the 88/99 KB it counted is the gzip
+        // stream. Decoded it is 401 KB of fully server-rendered Astro markup
+        // carrying every release for all four products (2026-09-03) — which is
+        // also why both apps can be covered from the one page.
+        //
+        // One page, four products, one panel each (`data-list-panel`), so the two
+        // recipes must not read each other's releases. They anchor on the release
+        // link instead of the panel wrapper, because the wrapper is an ancestor a
+        // flat regex cannot scope to: every row's version link carries the product
+        // in its own href — `/releases?tab=hub&version=2.12.0`. 18 hub entries and
+        // 30 IDE entries on the live page, versions matching what the two probe
+        // recipes detect (hub 2.12.0, IDE 2.5.5).
+        //
+        // `body` stops at the next row, the next panel, or the section close, so a
+        // row can never absorb the one after it. Items are the lead paragraph
+        // (`div.changes`) followed by every `li.caption` in the "Improvements" /
+        // "Fixes" / "Patches" disclosure groups — the group labels themselves are
+        // dropped, as everywhere else. `<code>/boost</code>` survives as `/boost`
+        // through `stripTags`.
+        ChangelogRecipe(
+            bundleID: "com.google.antigravity",
+            source: URL(string: "https://antigravity.google/changelog")!,
+            entryPattern:
+                #"href="/releases\?tab=hub&amp;version=[^"]*"[^>]*>(?<version>[^<]+)</a>"#
+                + #"<br[^>]*>(?<date>[^<]*)</p>"#
+                + #".*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
+                + #"(?<body>.*?)(?=<div class="section-row-wrapper|<div class="grid-body|</section>)"#,
+            itemPatterns: [
+                #"(?:<div class="changes[^"]*"[^>]*><p>|<li[^>]*class="caption[^"]*"[^>]*>)"#
+                + #"(?<item>.*?)(?:</p>|</li>)"#
+            ],
+            maxEntries: 20),
+
+        // Antigravity IDE — the `ide` panel of the same page, for the second,
+        // separate app (`com.google.antigravity-ide`, a VS Code fork) whose probe
+        // recipe deliberately carried NO `changelogURL` because it could not
+        // confirm the page described the IDE at all. It does: the page's own tab
+        // strip has an "Antigravity IDE" panel, and its newest entry is 2.5.5 —
+        // the exact version that recipe detects. See the hub recipe above for the
+        // shape; this differs only in the `tab=ide` anchor.
+        ChangelogRecipe(
+            bundleID: "com.google.antigravity-ide",
+            source: URL(string: "https://antigravity.google/changelog")!,
+            entryPattern:
+                #"href="/releases\?tab=ide&amp;version=[^"]*"[^>]*>(?<version>[^<]+)</a>"#
+                + #"<br[^>]*>(?<date>[^<]*)</p>"#
+                + #".*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
+                + #"(?<body>.*?)(?=<div class="section-row-wrapper|<div class="grid-body|</section>)"#,
+            itemPatterns: [
+                #"(?:<div class="changes[^"]*"[^>]*><p>|<li[^>]*class="caption[^"]*"[^>]*>)"#
+                + #"(?<item>.*?)(?:</p>|</li>)"#
+            ],
+            maxEntries: 20),
+
+        // Headlamp — its GitHub releases, read with regexes rather than through
+        // `structuredFormat: .gitHubReleases`, because that decoder deliberately
+        // refuses this body: `GitHubMarkdownParser` bails on a Markdown TABLE, and
+        // Headlamp writes its whole changelog as tables (142 table rows in v0.45.0
+        // — its own doc comment names this app as the reason the guard exists). So
+        // the pane had nothing structured to show and fell back to embedding the
+        // releases page.
+        //
+        // Each table is `| change | Thanks to:<br>@who<br>#issue |` under a
+        // section heading, with a two-row preamble per table: an `<img>`-only
+        // header pair (stripped to nothing, then dropped by `minItemLength`) and
+        // the `|:--|--:|` alignment row (dropped by requiring a letter-ish first
+        // character and 15+ characters). Only the first cell is taken — the second
+        // is attribution, not a change.
+        //
+        // The bullet pattern behind it is not redundancy for its own sake: the
+        // table layout starts at 0.42.0, and every release before it (0.30.0 …
+        // 0.41.0, all still on the page) is a plain `- ` list. First-pattern-wins
+        // picks per entry, so both eras render.
+        //
+        // `"prerelease":false` in the entry pattern keeps this to the track the
+        // user is on — the same policy `.gitHubReleases` states — and the `v`
+        // prefix keeps it to the app: the repo interleaves `headlamp-helm-<ver>`
+        // and `headlamp-plugin-*` tags its own `GitHubReleaseRule` already filters.
+        // The gaps between fields refuse to cross a `"tag_name":` so a release with
+        // a null body cannot pair one release's version with the next one's notes.
+        // 18 entries on the live endpoint (2026-09-03), newest 0.45.0.
+        ChangelogRecipe(
+            bundleID: "com.microsoft.Headlamp",
+            source: URL(
+                string:
+                    "https://api.github.com/repos/kubernetes-sigs/headlamp/releases?per_page=40"
+            )!,
+            entryPattern:
+                #""tag_name":"v(?<version>[0-9][^"]*)""#
+                + #"(?:(?!"tag_name":).)*?"prerelease":false,"#
+                + #"(?:(?!"tag_name":).)*?"published_at":"(?<date>[^"T]+)T"#
+                + #"(?:(?!"tag_name":).)*?"body":"(?<body>(?:\\.|[^"\\])*)""#,
+            itemPatterns: [
+                #"\\r?\\n\|\s(?<item>[A-Za-z(`\[][^|]{15,}?)\s\|"#,
+                #"\\r?\\n-\s(?<item>[^\\]{15,})"#,
+            ],
+            mode: .json,
+            markdownSource: true,
+            maxEntries: 20),
+
+        // Helium — its GitHub releases, again with regexes rather than
+        // `.gitHubReleases`: the body is a hash dump followed by two fenced commit
+        // logs, and `GitHubMarkdownParser`'s prose pass would render the md5/sha
+        // lines as "changes" while the fences it skips hold the only real content.
+        //
+        // Nothing else can supply notes. `updates.helium.computer/mac/appcast-arm64.xml`
+        // (the app's own Sparkle feed, and its update source here) carries no
+        // `<description>` and no `<sparkle:releaseNotesLink>` on any item, and
+        // helium.computer publishes no changelog page at all (`/changelog` and
+        // `/releases` both 404) — so the pane fell back to embedding the GitHub
+        // releases page.
+        //
+        // What the vendor does publish is the commit log of the two repos each
+        // build merges — `helium-macos` and `helium-chromium` — as
+        // `<hash> <subject>` lines inside fenced blocks. The hash is consumed
+        // rather than captured: it is a link the pane cannot follow and it pushes
+        // the subject off the row. The `[0-9a-f]{7,10} ` anchor after a newline is
+        // what keeps the hash block out — `md5:`/`sha256:` lines start with
+        // letters and a colon, so no line of them can match at a line start.
+        //
+        // `"prerelease":false` for the same reason as Headlamp above, and it is not
+        // theoretical here: the vendor tags a build as prerelease for a day or two
+        // before the appcast picks it up (0.16.4.1 on 2026-09-03), and listing it
+        // would show notes for a version this app is not being offered. 33 entries
+        // on the live endpoint, newest 0.16.3.1 — the version the appcast serves.
+        ChangelogRecipe(
+            bundleID: "net.imput.helium",
+            source: URL(
+                string: "https://api.github.com/repos/imputnet/helium-macos/releases?per_page=40"
+            )!,
+            entryPattern:
+                #""tag_name":"(?<version>[0-9][^"]*)""#
+                + #"(?:(?!"tag_name":).)*?"prerelease":false,"#
+                + #"(?:(?!"tag_name":).)*?"published_at":"(?<date>[^"T]+)T"#
+                + #"(?:(?!"tag_name":).)*?"body":"(?<body>(?:\\.|[^"\\])*)""#,
+            itemPatterns: [#"\\r?\\n[0-9a-f]{7,10} (?<item>[^\\]{3,})"#],
+            mode: .json,
+            maxEntries: 20),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

@@ -233,8 +233,16 @@ skip 一次把 app **永久静音**、真实更新后 Rollback 行被藏起来�
 
 顺带一条会决定你把代码放哪:**`App/Sources` 有两万行,其中只有被 `DuoUpdaterAppTests`
 点名的那几个文件在跑**(见下节),其余的判断没人执行。14 处里 9 处长在那儿,不是巧合。
-**判断逻辑放 Core**(`RelaunchProgress`、`PackageRestartState`、`VisibilityRules` 都是这么落的),
+**判断逻辑放 Core**(`RelaunchProgress`、`PackageRestartState`、`VisibilityRules`、
+`UpdatePolicy.needsAction`、`BadgeReadout`、`RowActionFacts.assemble` 都是这么落的),
 App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 依赖的文件。
+
+⚠️ **"接线"不等于"必须留在 App"。** 2026-09-04 搬 `needsAction` / `badgeCount` /
+`rowState` 时先量了一遍依赖:那三处引用的 `InstallStage`、`RowActionFacts`、`UpdateRoute`、
+`stagedRelaunchLine` **全都已经在 Core**,`AppListModel` 的七张表也全是
+`[String: X]` / `Set<String>` 这种 Core 看得见的类型。所以它们整块搬进 Core 就行,
+根本不需要用 App 那个窄 target。**动手前先量依赖,别默认"它在 App 里所以只能在 App 测"**
+——`App/Sources` 里剩下的东西有多少是这种情况,没量过。
 
 ## App 层的测试 target
 

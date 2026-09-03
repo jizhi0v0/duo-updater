@@ -473,29 +473,34 @@ final class AppListModel {
     /// warning that makes that safe lives in the popover. What it may not do is
     /// render a state as nothing.
     func rowState(for result: UpdateResult) -> RowActionState {
-        RowAction.state(for: RowActionFacts(
-            status: result.status,
-            awaitingQuitConfirm: awaitingQuitConfirm[result.id],
-            isRelaunching: relaunching.contains(result.id),
-            hasPendingBatchRestart: pendingBatchRestart[result.id] != nil,
-            justUpdated: justUpdated.contains(result.id),
-            installStage: installing[result.id],
+        // The assembly is `RowActionFacts.assemble` in Core, where it can be
+        // tested; this is the wiring that hands it the tables. `self.` on the
+        // route because it is an `@autoclosure` the facts hold rather than a
+        // value they copy — see `RowActionFacts.route`.
+        RowAction.state(for: RowActionFacts.assemble(
+            for: result,
+            tables: rowStateTables,
             isIgnored: prefs.isIgnored(result.app),
-            isVersionSkipped: prefs.isVersionSkipped(result.app, version: result.remote?.versionSide),
-            stagedRelaunchTarget: actionableStaged(result).map { result.stagedRelaunchLine($0).to },
-            needsRestart: needsRestart.contains(result.id),
-            // Feeds the `.unknown` / `.upToDate` rungs' source-hint and channel
-            // priority — moved here from the popover's own `isMASApp` /
-            // `isTestFlightApp` / `sparkleFeedURL` reads (issue #260), so the
-            // priority between them lives in `RowAction.state` rather than a view.
-            isMASApp: result.app.isMASApp,
-            isTestFlightApp: result.app.isTestFlightApp,
-            hasSparkleFeed: result.app.sparkleFeedURL != nil,
-            // `self.` because the route is an `@autoclosure` the facts hold rather
-            // than a value they copy — see `RowActionFacts.route`. The capture is
-            // safe: the struct is built and consumed in this one expression, and
-            // the closure is called (at most once) before it returns.
+            isVersionSkipped: prefs.isVersionSkipped(
+                result.app, version: result.remote?.versionSide),
             route: self.rowRoute(for: result)))
+    }
+
+    /// The per-row tables as Core wants them. Seven copies of a
+    /// copy-on-write collection: retains, no allocation.
+    ///
+    /// `.live` rather than the plain initialiser, which defaults every table:
+    /// this is the one place completeness matters, so an eighth table has to
+    /// break here rather than go quiet. Same rule as `RowActions.live`.
+    private var rowStateTables: RowStateTables {
+        RowStateTables.live(
+            installing: installing,
+            needsRestart: needsRestart,
+            pendingBatchRestart: pendingBatchRestart,
+            pendingSelfUpdate: pendingSelfUpdate,
+            relaunching: relaunching,
+            awaitingQuitConfirm: awaitingQuitConfirm,
+            justUpdated: justUpdated)
     }
 
     /// How an available update would be applied. Resolved here rather than in each
@@ -541,10 +546,10 @@ final class AppListModel {
     /// A pending update the user hasn't ignored or skipped — what the badge counts
     /// and what "Update All" acts on.
     func isActionableUpdate(_ result: UpdateResult) -> Bool {
-        guard result.hasUpdate else { return false }
-        if prefs.isIgnored(result.app) { return false }
-        if prefs.isVersionSkipped(result.app, version: result.remote?.versionSide) { return false }
-        return true
+        UpdatePolicy.isActionableUpdate(
+            result,
+            isIgnored: prefs.isIgnored(result.app),
+            isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) })
     }
 
     var updateCount: Int { results.filter(isActionableUpdate).count }
@@ -578,14 +583,13 @@ final class AppListModel {
     /// blind pass indefinitely: the count filters `results`, and a deleted app has
     /// no row there.
     func needsAction(_ result: UpdateResult) -> Bool {
-        if isActionableUpdate(result) { return true }
-        guard !prefs.isIgnored(result.app) else { return false }
-        return needsRestart.contains(result.id)
-            || pendingBatchRestart[result.id] != nil
-            // Short-circuited on the raw map first: this runs per row on the render
-            // path, and `nudgeableStaged` builds sanitised preference keys out of the
-            // full bundle path before it can answer "nothing is staged".
-            || (pendingSelfUpdate[result.id] != nil && nudgeableStaged(result) != nil)
+        UpdatePolicy.needsAction(
+            result,
+            isIgnored: prefs.isIgnored(result.app),
+            isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) },
+            needsRestart: needsRestart.contains(result.id),
+            hasPendingBatchRestart: pendingBatchRestart[result.id] != nil,
+            staged: pendingSelfUpdate[result.id])
     }
 
     /// How many rows `needsAction` marks — the badge's number, and the popover's
@@ -617,7 +621,11 @@ final class AppListModel {
     /// it — which made the badge flicker to the "no updates" icon and back. While a
     /// scan/check is in flight we hold the last settled count instead; otherwise we
     /// track `actionCount` live (so ignoring/skipping an app updates it at once).
-    var badgeCount: Int { (isScanning || isChecking) ? heldBadgeCount : actionCount }
+    var badgeCount: Int {
+        BadgeReadout.count(
+            live: actionCount, held: heldBadgeCount,
+            isScanning: isScanning, isChecking: isChecking)
+    }
     @ObservationIgnored private var heldBadgeCount = 0
 
     // MARK: - Homebrew formulae (CLI tools)

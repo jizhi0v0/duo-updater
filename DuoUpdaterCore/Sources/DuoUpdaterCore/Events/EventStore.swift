@@ -1,0 +1,713 @@
+import Foundation
+import SQLite3
+
+/// Everything DuoUpdater did, kept as events in a SQLite database.
+///
+/// ## Why events rather than counters
+///
+/// Aggregates answer only the questions you thought to ask when you wrote them.
+/// A counter can say "2.1 MB went to formulae.brew.sh" and can never say "and
+/// every one of those fetches re-resolved DNS", because the summing threw that
+/// away at write time. Keeping the events means a later question — a timeline, a
+/// per-host latency plot, what happened right before a failed install — is a
+/// query rather than a new counter and a month of waiting for it to fill. So the
+/// rule is: **record everything the platform hands us, derive nothing at write
+/// time**, and drop only secrets (see ``RequestEvent/path``).
+///
+/// ## Why SQLite rather than a log file
+///
+/// The menu-bar app and `duo` run as the same user against the same store, and
+/// an append-only text log makes that everyone's problem: interleaved writes,
+/// half-written trailing lines, rotation, per-file size caps so that retention
+/// has something it can delete whole, and a reader that has to count the lines
+/// it could not parse. WAL mode is exactly this case, and it also collapses two
+/// files into one — the ``RequestTotal`` rollups are updated **in the same
+/// transaction as the event that feeds them**, so the raw record and the totals
+/// cannot come to disagree about a transfer.
+///
+/// The trade accepted in exchange: a corrupt database loses everything, where a
+/// corrupt text log loses one line. This is a diagnostic log rather than a
+/// ledger of record — the install history and the download totals live
+/// elsewhere — so that is the cheaper failure.
+///
+/// ## The one pragma that has to be right on day one
+///
+/// `auto_vacuum = INCREMENTAL` **must be set before the first table is created**;
+/// the default is `NONE`, under which `DELETE` frees pages inside the file and
+/// never returns them to the filesystem, so retention would stop the database
+/// growing but never shrink it. Switching afterwards needs a full `VACUUM`,
+/// which rewrites the whole file. Hence ``open`` sets it first, and
+/// ``schemaProblems`` reports it if a database ever turns up without it.
+public actor EventStore {
+
+    /// The process-wide store. Everything on `URLSession.updates`, the installer
+    /// downloader and the self-updater reports here.
+    public static let shared = EventStore()
+
+    // MARK: Policy
+
+    /// Oldest event kept.
+    ///
+    /// Paired with ``retentionBytes`` because which one binds depends entirely on
+    /// a setting the user picks, and neither alone is safe. Measured on this
+    /// machine — 50 000 real request events, payload plus envelope columns plus
+    /// the three indexes — **1504 bytes per event**, against a full sweep of
+    /// roughly 200 hops:
+    ///
+    /// | Check frequency | Per day  | 64 MB holds |
+    /// |-----------------|----------|-------------|
+    /// | Every 6 h (default) | 1.2 MB | ~55 days   |
+    /// | Hourly          | 6.9 MB   | ~9 days     |
+    /// | Every 5 min     | 83 MB    | ~19 hours   |
+    ///
+    /// So on the default the day budget is what binds and the byte budget never
+    /// fires; at five-minute checks the byte budget is the only thing standing
+    /// between a diagnostic log and a gigabyte. Both are real; neither is
+    /// decoration. Recompute this table if the event grows fields — it is a
+    /// measurement, not an estimate, and it should stay one.
+    public let retentionDays: Int
+    /// Ceiling for the database file. **Wins over the day budget** — when the
+    /// file is over it, the oldest events go regardless of age, down to
+    /// ``retentionFloor``. Totals are never pruned and are not counted against
+    /// this.
+    public let retentionBytes: Int64
+
+    // MARK: Buffering
+
+    /// Events are written in batches inside one transaction: a fan-out completes
+    /// requests faster than a commit each is worth, and nothing here is worth an
+    /// fsync per row. The cost of a crash is the last few seconds of a
+    /// diagnostic log.
+    private let flushEventCount: Int
+    private let flushDelay: Duration
+    /// How often retention may run. **Not once per process**: the menu-bar app
+    /// runs for weeks, so a once-at-startup sweep would let the store grow
+    /// unbounded for the entire rest of its life — a `duo`-shaped assumption
+    /// applied to the process that actually writes most of the events. Hourly is
+    /// far cheaper than the fan-out that fills it and still bounds the file.
+    private let pruneInterval: Duration
+    private var buffer: [DuoEvent] = []
+    private var pendingFlush: Task<Void, Never>?
+
+    // MARK: State
+
+    private let fileURL: URL
+    private let now: @Sendable () -> Date
+    private var connection: Connection?
+    private var lastPrune: Date?
+
+    /// Owns the sqlite handle so ARC closes it.
+    ///
+    /// An actor's `deinit` is nonisolated and cannot touch isolated state, so the
+    /// handle cannot be closed there. A box with its own `deinit` can, and it also
+    /// means a store that goes out of scope in a test does not leak a descriptor.
+    private final class Connection: @unchecked Sendable {
+        let db: OpaquePointer
+        init(_ db: OpaquePointer) { self.db = db }
+        deinit { sqlite3_close_v2(db) }
+    }
+
+    /// Events accepted, for tests that need to wait for the writer without
+    /// sleeping a fixed amount.
+    public private(set) var appendedCount = 0
+    /// Events refused because a raw payload could have forged a record.
+    public private(set) var rejectedCount = 0
+    /// How many times retention has run. Pinned by a test — pruning walks the
+    /// table and must not happen on the append path.
+    public private(set) var pruneRunCount = 0
+
+    public init(
+        fileURL: URL? = nil,
+        retentionDays: Int = 30,
+        retentionBytes: Int64 = 64 * 1024 * 1024,
+        flushEventCount: Int = 64,
+        flushDelay: Duration = .seconds(3),
+        pruneInterval: Duration = .seconds(3600),
+        now: @escaping @Sendable () -> Date = Date.init
+    ) {
+        self.fileURL = fileURL ?? Self.defaultFileURL()
+        self.retentionDays = retentionDays
+        self.retentionBytes = retentionBytes
+        self.flushEventCount = flushEventCount
+        self.flushDelay = flushDelay
+        self.pruneInterval = pruneInterval
+        self.now = now
+    }
+
+    /// Whether this process has recorded anything yet.
+    ///
+    /// For `duo`, which exits long before a coalesced write would fire and so has
+    /// to `flush()` — but must not open a database for a command like `list` that
+    /// never touched the network.
+    public private(set) nonisolated(unsafe) static var hasRecorded = false
+    private static let recordedLock = NSLock()
+    private nonisolated static func markRecorded() {
+        recordedLock.lock(); hasRecorded = true; recordedLock.unlock()
+    }
+
+    // MARK: - Writing
+
+    /// Record one event. Buffered; committed by ``flush()`` or the coalescing
+    /// timer, whichever comes first.
+    public func append(_ event: DuoEvent) {
+        // A `.unknown` payload is stored as the JSON it was read as, and is the
+        // one field in the whole model that is not built here. Only a hand-built
+        // value can carry something that is not an object (a decoded one came
+        // from a real row by construction) — which is exactly the case worth
+        // refusing rather than trusting.
+        if case .unknown(_, let json) = event.payload, !Self.isJSONObject(json) {
+            rejectedCount += 1
+            Log.app.error("events: refused an unknown-kind event whose payload is not a JSON object")
+            return
+        }
+        buffer.append(event)
+        appendedCount += 1
+        Self.markRecorded()
+
+        if buffer.count >= flushEventCount {
+            commitBuffer()
+        } else {
+            scheduleFlush()
+        }
+    }
+
+    /// Commit now, and wait for it. For the CLI, which exits before the
+    /// coalescing timer would fire, and for tests.
+    public func flush() {
+        pendingFlush?.cancel()
+        pendingFlush = nil
+        commitBuffer()
+    }
+
+    /// Discard everything — events **and** totals.
+    ///
+    /// Both, deliberately: a reset that cleared the events and left the totals
+    /// would leave `duo requests summary` reporting traffic that `duo requests
+    /// recent` denies ever happened.
+    public func reset() {
+        pendingFlush?.cancel()
+        pendingFlush = nil
+        buffer = []
+        guard let db = open() else { return }
+        exec(db, "DELETE FROM events; DELETE FROM totals; PRAGMA incremental_vacuum;")
+    }
+
+    private func scheduleFlush() {
+        guard pendingFlush == nil else { return }
+        pendingFlush = Task { [weak self, flushDelay] in
+            try? await Task.sleep(for: flushDelay)
+            guard !Task.isCancelled else { return }
+            await self?.flushFromTimer()
+        }
+    }
+
+    private func flushFromTimer() {
+        pendingFlush = nil
+        commitBuffer()
+    }
+
+    private func commitBuffer() {
+        guard !buffer.isEmpty, let db = open() else { return }
+        let batch = buffer
+        buffer = []
+
+        exec(db, "BEGIN IMMEDIATE;")
+        for event in batch {
+            insert(event, into: db)
+            // The rollup rides along in the same transaction as the row it
+            // summarises. That is the whole reason there is no second file: the
+            // two cannot disagree about a transfer, because a crash between them
+            // is not a state the database can be in.
+            if let request = event.request {
+                upsertTotal(request, client: event.client, into: db)
+            }
+        }
+        exec(db, "COMMIT;")
+
+        // After a commit, never inside one, and at most once per `pruneInterval`.
+        // A short-lived `duo` therefore sweeps exactly once; a menu-bar app that
+        // stays up for a month sweeps hourly instead of never again.
+        let elapsed = lastPrune.map { now().timeIntervalSince($0) } ?? .infinity
+        if elapsed >= Double(pruneInterval.components.seconds) {
+            lastPrune = now()
+            prune(db)
+        }
+    }
+
+    private func insert(_ event: DuoEvent, into db: OpaquePointer) {
+        let sql = """
+            INSERT OR REPLACE INTO events
+              (id, at, client, kind, purpose, host, status, bytes_in, bytes_out, payload)
+            VALUES (?,?,?,?,?,?,?,?,?,?);
+            """
+        guard let statement = prepare(db, sql) else { return }
+        defer { sqlite3_finalize(statement) }
+
+        // The envelope columns are denormalised out of the payload so the common
+        // filters (time, kind, host) are index lookups rather than a JSON parse
+        // per row. The payload stays authoritative and complete — these are a
+        // copy for the query planner, never the only place a value lives.
+        bind(statement, 1, event.id.uuidString)
+        sqlite3_bind_int64(statement, 2, Self.micros(event.date))
+        bind(statement, 3, event.client.rawValue)
+        bind(statement, 4, event.kind)
+        if let request = event.request {
+            bind(statement, 5, request.purpose.rawValue)
+            bind(statement, 6, request.host)
+            if let status = request.status {
+                sqlite3_bind_int64(statement, 7, Int64(status))
+            } else {
+                sqlite3_bind_null(statement, 7)
+            }
+            sqlite3_bind_int64(statement, 8, request.bytesReceived)
+            sqlite3_bind_int64(statement, 9, request.bytesSent)
+        } else {
+            for column in Int32(5)...Int32(9) { sqlite3_bind_null(statement, column) }
+        }
+        guard let payload = try? event.payloadJSON() else { return }
+        bind(statement, 10, payload)
+        step(db, statement)
+    }
+
+    private func upsertTotal(
+        _ request: RequestEvent, client: RequestClient, into db: OpaquePointer
+    ) {
+        let sql = """
+            INSERT INTO totals
+              (client, purpose, host, requests, cached, not_modified, failures,
+               bytes_sent, bytes_received, first_seen, last_seen)
+            VALUES (?,?,?,1,?,?,?,?,?,?,?)
+            ON CONFLICT(client, purpose, host) DO UPDATE SET
+              requests      = requests + 1,
+              cached        = cached + excluded.cached,
+              not_modified  = not_modified + excluded.not_modified,
+              failures      = failures + excluded.failures,
+              bytes_sent    = bytes_sent + excluded.bytes_sent,
+              bytes_received= bytes_received + excluded.bytes_received,
+              first_seen    = min(first_seen, excluded.first_seen),
+              last_seen     = max(last_seen, excluded.last_seen);
+            """
+        guard let statement = prepare(db, sql) else { return }
+        defer { sqlite3_finalize(statement) }
+        let when = Self.micros(request.responseEnd ?? request.fetchStart ?? now())
+        bind(statement, 1, client.rawValue)
+        bind(statement, 2, request.purpose.rawValue)
+        bind(statement, 3, request.host)
+        sqlite3_bind_int64(statement, 4, request.fromCache ? 1 : 0)
+        sqlite3_bind_int64(statement, 5, request.isNotModified ? 1 : 0)
+        sqlite3_bind_int64(statement, 6, request.failed ? 1 : 0)
+        sqlite3_bind_int64(statement, 7, request.bytesSent)
+        sqlite3_bind_int64(statement, 8, request.bytesReceived)
+        sqlite3_bind_int64(statement, 9, when)
+        sqlite3_bind_int64(statement, 10, when)
+        step(db, statement)
+    }
+
+    // MARK: - Retention
+
+    /// Age first, then size. The size pass is not optional: at realistic event
+    /// sizes a machine checking hourly outgrows any sensible footprint long
+    /// before the day budget expires.
+    private func prune(_ db: OpaquePointer) {
+        pruneRunCount += 1
+        let cutoff = Self.micros(
+            Calendar.current.date(byAdding: .day, value: -retentionDays, to: now())
+                ?? .distantPast)
+        if let statement = prepare(db, "DELETE FROM events WHERE at < ?;") {
+            sqlite3_bind_int64(statement, 1, cutoff)
+            step(db, statement)
+            sqlite3_finalize(statement)
+        }
+
+        // Trim in blocks rather than one row at a time: the file only shrinks
+        // when freed pages are handed back, and asking after every row would run
+        // the vacuum hundreds of times to learn the same thing. A tenth of what
+        // is left per pass, so it converges near the budget instead of
+        // overshooting to empty on a coarse block size.
+        var guardCount = 0
+        while fileBytes() > retentionBytes, guardCount < 64 {
+            guardCount += 1
+            let remaining = eventCount(db)
+            // Never trim below the floor. A budget too small to meet — one set
+            // absurdly low, or a database whose fixed overhead already exceeds it
+            // — must leave the most recent events rather than silently emptying
+            // the store and reporting that nothing ever happened.
+            guard remaining > Self.retentionFloor else { break }
+            // The floor clamp goes last. Written the other way round —
+            // `max(100, min(remaining - floor, …))` — the 100-row minimum wins
+            // over the clamp on the final pass and steps straight through the
+            // floor it was supposed to stop at.
+            let batch = min(remaining - Self.retentionFloor, max(100, remaining / 10))
+            if let statement = prepare(db, """
+                DELETE FROM events WHERE id IN (
+                  SELECT id FROM events ORDER BY at ASC, rowid ASC LIMIT ?
+                );
+                """) {
+                sqlite3_bind_int64(statement, 1, Int64(batch))
+                step(db, statement)
+                sqlite3_finalize(statement)
+            }
+            exec(db, "PRAGMA incremental_vacuum;")
+            if changes(db) == 0 { break }   // nothing left to give up
+        }
+        exec(db, "PRAGMA incremental_vacuum;")
+    }
+
+    /// The fewest events retention will leave behind, whatever the budget says.
+    static let retentionFloor = 200
+
+    private func eventCount(_ db: OpaquePointer) -> Int {
+        guard let statement = prepare(db, "SELECT count(*) FROM events;"),
+              sqlite3_step(statement) == SQLITE_ROW
+        else { return 0 }
+        defer { sqlite3_finalize(statement) }
+        return Int(sqlite3_column_int64(statement, 0))
+    }
+
+    private func fileBytes() -> Int64 {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
+        return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
+    // MARK: - Reading
+
+    /// Totals for every (client, purpose, host) triple, heaviest first.
+    public func totals() -> RequestTotalsSnapshot {
+        guard let db = open(),
+              let statement = prepare(db, """
+                SELECT client, purpose, host, requests, cached, not_modified,
+                       failures, bytes_sent, bytes_received, first_seen, last_seen
+                FROM totals;
+                """)
+        else { return .empty }
+        defer { sqlite3_finalize(statement) }
+
+        var rows: [RequestTotal] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let client = RequestClient(rawValue: text(statement, 0) ?? ""),
+                  let purpose = RequestPurpose(rawValue: text(statement, 1) ?? "")
+            else { continue }
+            rows.append(RequestTotal(
+                client: client, purpose: purpose, host: text(statement, 2) ?? "",
+                requests: Int(sqlite3_column_int64(statement, 3)),
+                cachedRequests: Int(sqlite3_column_int64(statement, 4)),
+                notModified: Int(sqlite3_column_int64(statement, 5)),
+                failures: Int(sqlite3_column_int64(statement, 6)),
+                bytesSent: sqlite3_column_int64(statement, 7),
+                bytesReceived: sqlite3_column_int64(statement, 8),
+                firstSeen: Self.date(sqlite3_column_int64(statement, 9)),
+                lastSeen: Self.date(sqlite3_column_int64(statement, 10))))
+        }
+        return RequestTotalsSnapshot(totals: rows)
+    }
+
+    /// Events matching `query`, oldest first.
+    public func events(_ query: EventQuery = .init()) -> [DuoEvent] {
+        rawRows(query).compactMap(DuoEvent.init(row:))
+    }
+
+    /// The stored rows themselves — envelope columns plus the payload JSON
+    /// **exactly as written**.
+    ///
+    /// Separate from ``events(_:)`` because a dump must not launder rows through
+    /// this build's `RequestEvent`: a newer writer's extra fields would silently
+    /// vanish on the way out, which is the one thing a raw dump exists not to do.
+    public func rawRows(_ query: EventQuery = .init()) -> [EventRow] {
+        guard let db = open() else { return [] }
+        var conditions: [String] = []
+        if query.since != nil { conditions.append("at >= ?") }
+        if query.until != nil { conditions.append("at <= ?") }
+        if query.kind != nil { conditions.append("kind = ?") }
+        if query.client != nil { conditions.append("client = ?") }
+        if query.host != nil { conditions.append("host = ?") }
+        if query.purpose != nil { conditions.append("purpose = ?") }
+        let whereClause = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
+        // Newest-first with a LIMIT so the tail is an index walk of `limit` rows
+        // rather than a scan of the table, then reversed for display. Doing it
+        // the readable way round (ASC, then take the last n) reads the whole
+        // history to print twenty lines.
+        //
+        // `rowid` breaks ties rather than `id`: the id is a random UUID, so two
+        // events sharing a timestamp would come back in an order that changes
+        // between runs. The rowid is insertion order, across both writers.
+        let sql = """
+            SELECT id, at, client, kind, payload FROM events
+            \(whereClause) ORDER BY at DESC, rowid DESC LIMIT ?;
+            """
+        guard let statement = prepare(db, sql) else { return [] }
+        defer { sqlite3_finalize(statement) }
+
+        var column: Int32 = 1
+        func next() -> Int32 { defer { column += 1 }; return column }
+        if let since = query.since { sqlite3_bind_int64(statement, next(), Self.micros(since)) }
+        if let until = query.until { sqlite3_bind_int64(statement, next(), Self.micros(until)) }
+        if let kind = query.kind { bind(statement, next(), kind) }
+        if let client = query.client { bind(statement, next(), client.rawValue) }
+        if let host = query.host { bind(statement, next(), host) }
+        if let purpose = query.purpose { bind(statement, next(), purpose.rawValue) }
+        sqlite3_bind_int64(statement, next(), Int64(query.limit))
+
+        var rows: [EventRow] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let id = text(statement, 0).flatMap(UUID.init(uuidString:)),
+                  let client = RequestClient(rawValue: text(statement, 2) ?? ""),
+                  let kind = text(statement, 3),
+                  let payload = text(statement, 4)
+            else { continue }
+            rows.append(EventRow(
+                id: id, date: Self.date(sqlite3_column_int64(statement, 1)),
+                client: client, kind: kind, payloadJSON: payload))
+        }
+        return rows.reversed()
+    }
+
+    /// How many events are stored, and the span they cover.
+    public func coverage() -> (count: Int, oldest: Date?, newest: Date?) {
+        guard let db = open(),
+              let statement = prepare(db, "SELECT count(*), min(at), max(at) FROM events;"),
+              sqlite3_step(statement) == SQLITE_ROW
+        else { return (0, nil, nil) }
+        defer { sqlite3_finalize(statement) }
+        let count = Int(sqlite3_column_int64(statement, 0))
+        guard count > 0 else { return (0, nil, nil) }
+        return (count,
+                Self.date(sqlite3_column_int64(statement, 1)),
+                Self.date(sqlite3_column_int64(statement, 2)))
+    }
+
+    /// Size of the database on disk, for `duo doctor` and the retention tests.
+    public func databaseBytes() -> Int64 { fileBytes() }
+
+    /// Anything about an existing database that would quietly misbehave — today,
+    /// only the vacuum mode, which cannot be fixed after the fact without
+    /// rewriting the whole file.
+    public func schemaProblems() -> [String] {
+        guard let db = open() else { return ["database could not be opened"] }
+        var problems: [String] = []
+        if intPragma(db, "auto_vacuum") != 2 {
+            problems.append("auto_vacuum is not INCREMENTAL — deletes will not return space")
+        }
+        if text(pragma: "journal_mode", db) != "wal" {
+            problems.append("journal_mode is not WAL — concurrent readers will block")
+        }
+        return problems
+    }
+
+    // MARK: - SQLite plumbing
+
+    private static let transient = unsafeBitCast(
+        -1, to: sqlite3_destructor_type.self)
+
+    private func open() -> OpaquePointer? {
+        if let connection { return connection.db }
+        try? FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700])
+        var db: OpaquePointer?
+        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
+        guard sqlite3_open_v2(fileURL.path, &db, flags, nil) == SQLITE_OK, let db else {
+            Log.app.error("events: cannot open the store at \(self.fileURL.path, privacy: .public)")
+            if let db { sqlite3_close_v2(db) }
+            return nil
+        }
+        // Order matters: `auto_vacuum` is only settable on an empty database, so
+        // it has to precede the schema. See the type's doc comment.
+        exec(db, "PRAGMA auto_vacuum=INCREMENTAL;")
+        exec(db, "PRAGMA journal_mode=WAL;")
+        // Not the default 0. Two processes share this file, and a writer holding
+        // the lock for the length of one batch is normal, not an error — without
+        // a timeout the other side gets SQLITE_BUSY immediately and drops events.
+        exec(db, "PRAGMA busy_timeout=5000;")
+        // NORMAL rather than FULL: a diagnostic log is not worth an fsync per
+        // commit, and WAL's NORMAL only risks the last transactions on power loss.
+        exec(db, "PRAGMA synchronous=NORMAL;")
+        createSchema(db)
+        // 0600 for the same reason the directory is 0700: Application Support is
+        // readable by anything running as the user and lands in every unencrypted
+        // backup.
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+        connection = Connection(db)
+        return db
+    }
+
+    private func createSchema(_ db: OpaquePointer) {
+        exec(db, """
+            CREATE TABLE IF NOT EXISTS events (
+              id        TEXT PRIMARY KEY,
+              at        INTEGER NOT NULL,
+              client    TEXT    NOT NULL,
+              kind      TEXT    NOT NULL,
+              purpose   TEXT,
+              host      TEXT,
+              status    INTEGER,
+              bytes_in  INTEGER,
+              bytes_out INTEGER,
+              payload   TEXT    NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS events_at        ON events(at);
+            CREATE INDEX IF NOT EXISTS events_kind_at   ON events(kind, at);
+            CREATE INDEX IF NOT EXISTS events_host_at   ON events(host, at);
+
+            CREATE TABLE IF NOT EXISTS totals (
+              client         TEXT    NOT NULL,
+              purpose        TEXT    NOT NULL,
+              host           TEXT    NOT NULL,
+              requests       INTEGER NOT NULL DEFAULT 0,
+              cached         INTEGER NOT NULL DEFAULT 0,
+              not_modified   INTEGER NOT NULL DEFAULT 0,
+              failures       INTEGER NOT NULL DEFAULT 0,
+              bytes_sent     INTEGER NOT NULL DEFAULT 0,
+              bytes_received INTEGER NOT NULL DEFAULT 0,
+              first_seen     INTEGER NOT NULL,
+              last_seen      INTEGER NOT NULL,
+              PRIMARY KEY (client, purpose, host)
+            );
+
+            CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            """)
+        if let statement = prepare(db, "INSERT OR IGNORE INTO meta VALUES ('schema', ?);") {
+            bind(statement, 1, String(DuoEvent.schemaVersion))
+            step(db, statement)
+            sqlite3_finalize(statement)
+        }
+    }
+
+    @discardableResult
+    private func exec(_ db: OpaquePointer, _ sql: String) -> Bool {
+        var error: UnsafeMutablePointer<CChar>?
+        guard sqlite3_exec(db, sql, nil, nil, &error) == SQLITE_OK else {
+            let message = error.map { String(cString: $0) } ?? "unknown"
+            sqlite3_free(error)
+            Log.app.error("events: \(message, privacy: .public)")
+            return false
+        }
+        return true
+    }
+
+    private func prepare(_ db: OpaquePointer, _ sql: String) -> OpaquePointer? {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            Log.app.error("events: \(String(cString: sqlite3_errmsg(db)), privacy: .public)")
+            return nil
+        }
+        return statement
+    }
+
+    private func step(_ db: OpaquePointer, _ statement: OpaquePointer) {
+        let result = sqlite3_step(statement)
+        if result != SQLITE_DONE && result != SQLITE_ROW {
+            Log.app.error("events: \(String(cString: sqlite3_errmsg(db)), privacy: .public)")
+        }
+    }
+
+    private func bind(_ statement: OpaquePointer, _ column: Int32, _ value: String) {
+        sqlite3_bind_text(statement, column, value, -1, Self.transient)
+    }
+
+    private func text(_ statement: OpaquePointer, _ column: Int32) -> String? {
+        guard let raw = sqlite3_column_text(statement, column) else { return nil }
+        return String(cString: raw)
+    }
+
+    private func changes(_ db: OpaquePointer) -> Int { Int(sqlite3_changes(db)) }
+
+    private func intPragma(_ db: OpaquePointer, _ name: String) -> Int? {
+        guard let statement = prepare(db, "PRAGMA \(name);"),
+              sqlite3_step(statement) == SQLITE_ROW
+        else { return nil }
+        defer { sqlite3_finalize(statement) }
+        return Int(sqlite3_column_int64(statement, 0))
+    }
+
+    private func text(pragma name: String, _ db: OpaquePointer) -> String? {
+        guard let statement = prepare(db, "PRAGMA \(name);"),
+              sqlite3_step(statement) == SQLITE_ROW
+        else { return nil }
+        defer { sqlite3_finalize(statement) }
+        return text(statement, 0)
+    }
+
+    /// Microseconds since the epoch. Integers rather than a text timestamp so
+    /// range scans use the index and comparisons cannot depend on a format, and
+    /// **microseconds rather than milliseconds** because a fan-out completes
+    /// several requests inside one millisecond: at that resolution their order
+    /// collapses into whatever the tiebreaker says, and the tiebreaker used to be
+    /// a random UUID. Matches the payload timestamps, so the envelope and the
+    /// event it wraps cannot disagree about which of two events came first.
+    static func micros(_ date: Date) -> Int64 {
+        Int64((date.timeIntervalSince1970 * 1_000_000).rounded())
+    }
+
+    static func date(_ micros: Int64) -> Date {
+        Date(timeIntervalSince1970: Double(micros) / 1_000_000)
+    }
+
+    private static func isJSONObject(_ json: String) -> Bool {
+        guard let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data)
+        else { return false }
+        return object is [String: Any]
+    }
+
+    public static func defaultFileURL() -> URL {
+        DuoStateDirectory.base
+            .appendingPathComponent("com.duoupdater.app", isDirectory: true)
+            .appendingPathComponent("events.sqlite")
+    }
+}
+
+/// What to select. Every field narrows in SQL, against an index — nothing is
+/// filtered after the fact, so a month of history costs the same as a day to
+/// print twenty lines from.
+public struct EventQuery: Sendable {
+    public var since: Date?
+    public var until: Date?
+    public var kind: String?
+    public var client: RequestClient?
+    public var host: String?
+    public var purpose: RequestPurpose?
+    /// Newest `limit` matches. The default is a screenful, not the table.
+    public var limit: Int
+
+    public init(
+        since: Date? = nil, until: Date? = nil, kind: String? = nil,
+        client: RequestClient? = nil, host: String? = nil,
+        purpose: RequestPurpose? = nil, limit: Int = 50
+    ) {
+        self.since = since
+        self.until = until
+        self.kind = kind
+        self.client = client
+        self.host = host
+        self.purpose = purpose
+        self.limit = limit
+    }
+}
+
+/// One stored row, with its payload JSON untouched.
+public struct EventRow: Sendable, Hashable {
+    public let id: UUID
+    public let date: Date
+    public let client: RequestClient
+    public let kind: String
+    public let payloadJSON: String
+
+    public init(id: UUID, date: Date, client: RequestClient, kind: String, payloadJSON: String) {
+        self.id = id
+        self.date = date
+        self.client = client
+        self.kind = kind
+        self.payloadJSON = payloadJSON
+    }
+
+    /// The whole event as one JSON object, envelope included — what a dump emits
+    /// and what a visualiser reads.
+    public var json: String {
+        """
+        {"v":\(DuoEvent.schemaVersion),"id":"\(id.uuidString)",\
+        "at":"\(ISO8601DateFormatter.duoEvent.string(from: date))",\
+        "client":"\(client.rawValue)","kind":"\(kind)","payload":\(payloadJSON)}
+        """
+    }
+}

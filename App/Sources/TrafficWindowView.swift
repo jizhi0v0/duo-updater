@@ -558,7 +558,10 @@ private struct TrafficRow: View {
 /// A row that wraps. Used for the source legend so a narrow window pushes the last
 /// source onto a second line instead of clipping it away — the split has to stay
 /// fully visible to be checkable against the total.
-private struct FlowLayout: Layout {
+///
+/// Shared with the workbench's Network Activity panel, whose purpose legend has
+/// the same requirement for the same reason; hence not `private`.
+struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

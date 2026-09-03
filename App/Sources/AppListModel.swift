@@ -810,6 +810,17 @@ final class AppListModel {
     /// so a flurry of process events collapses to one `lsappinfo` read.
     @ObservationIgnored private var restartRecheckTask: Task<Void, Never>?
 
+    /// What DuoUpdater itself put on the network, as events. The counterpart to
+    /// `trafficStore`: that one records the installer bytes a user asked for, this
+    /// one records every request the updater makes on its own — version checks,
+    /// changelog fetches, the cask catalog, its own self-update.
+    private let eventStore = EventStore.shared
+
+    /// What the workbench's Network Activity panel draws. Derived in Core (see
+    /// ``NetworkActivitySummary``) rather than in the view, because every figure
+    /// on it is a rule and `App/Sources` has no test target.
+    private(set) var networkActivity: NetworkActivitySummary = .empty
+
     /// Per-app download traffic, tracked to the byte and persisted across runs.
     private let trafficStore = TrafficStore()
     /// Snapshot of per-app traffic for the UI, refreshed after each recorded
@@ -1284,6 +1295,38 @@ final class AppListModel {
         let partition = TrafficPartition(stats: snapshot)
         trafficPresent = partition.present
         trafficRemoved = partition.removed
+    }
+
+    /// Re-read the event store for the Network Activity panel.
+    ///
+    /// Pulled on demand rather than kept live: the store is written from a
+    /// delegate queue on every request, and a panel that refreshed on each of them
+    /// would rebuild its rollups a hundred times during one sweep to show numbers
+    /// nobody is watching change. The panel calls this on appear and from its
+    /// Refresh button.
+    ///
+    /// `.app` only — a `duo verify` sweep is ~150 diagnostic requests, and folding
+    /// those into this window would misreport what the background updater costs.
+    func reloadNetworkActivity() async {
+        // Anything still buffered belongs on screen: the last check's requests are
+        // exactly what someone opening this panel wants to see, and they would
+        // otherwise wait out the coalescing timer.
+        await eventStore.flush()
+        let totals = await eventStore.totals()
+        let coverage = await eventStore.coverage()
+        let recent = await eventStore
+            .events(EventQuery(kind: "request", client: .app, limit: 200))
+            .compactMap(\.request)
+        networkActivity = NetworkActivitySummary(
+            totals: totals, recent: recent, retainedEvents: coverage.count,
+            oldestEvent: coverage.oldest, storeBytes: await eventStore.databaseBytes(),
+            client: .app)
+    }
+
+    /// Discard every recorded event and every running total.
+    func resetNetworkActivity() async {
+        await eventStore.reset()
+        await reloadNetworkActivity()
     }
 
     /// Re-read the traffic log from disk. The window calls this on appear: an app

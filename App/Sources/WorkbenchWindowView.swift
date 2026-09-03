@@ -171,6 +171,13 @@ struct WorkbenchWindowView: View {
             } else if let formula = selectedFormula {
                 FormulaDetailPane(formula: formula, model: model)
                     .id("brew:formula:\(formula.name)")
+            } else if detailSelection == NetworkActivityPane.selectionID {
+                NetworkActivityPane(
+                    summary: model.networkActivity,
+                    onAppear: { await model.reloadNetworkActivity() },
+                    onRefresh: { Task { await model.reloadNetworkActivity() } },
+                    onReset: { Task { await model.resetNetworkActivity() } })
+                    .id(NetworkActivityPane.selectionID)
             } else {
                 ContentUnavailableView(
                     "Select an app",
@@ -393,7 +400,43 @@ struct WorkbenchWindowView: View {
                 rollbackHeader
                 if rollbackExpanded { rollbackListView }
             }
+
+            Divider()
+            networkActivityRow
         }
+    }
+
+    /// A single pinned row rather than a collapsible section: it has no children,
+    /// and a chevron that reveals nothing is a promise the tree cannot keep.
+    /// Selecting it swaps the detail pane, the same way a Brew formula row does.
+    private var networkActivityRow: some View {
+        Button {
+            selection = NetworkActivityPane.selectionID
+            detailSelection = NetworkActivityPane.selectionID
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "network")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+                Text("Network Activity")
+                    .font(.headline)
+                    // The section headers above pin their own width for the same
+                    // reason: this is the widest label in the sidebar once
+                    // translated ("Сетевая активность"), and left to compress it
+                    // wraps mid-word instead of truncating.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+            }
+            .foregroundStyle(selection == NetworkActivityPane.selectionID
+                             ? Color.accentColor : Color.primary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .help("What Duo Updater itself put on the network")
     }
 
     private var appsHeader: some View {

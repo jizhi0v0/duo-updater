@@ -48,6 +48,17 @@ private func extract(
     #expect(extract("v5.8.1", "io.beekeeperstudio.desktop") == "5.8.1")
 }
 
+@Test func kunRulePinsTheMacArm64Dmg() {
+    #expect(extract("v0.3.7", "com.xingyuzhong.deepseekgui") == "0.3.7")
+    let pattern = try! #require(rule("com.xingyuzhong.deepseekgui").installAssetPattern)
+    #expect("Kun-0.3.7-mac-arm64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("Kun-0.3.7-mac-x64.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("Kun-0.3.7-mac-arm64.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect("Kun-0.3.7-linux-arm64.AppImage".range(of: pattern, options: .regularExpression) == nil)
+    #expect(rule("com.xingyuzhong.deepseekgui").slug == "KunAgent/Kun")
+    #expect(rule("com.xingyuzhong.deepseekgui").installerKind == .dmg)
+}
+
 @Test func dshDesktopRulePinsTheUniversalDmg() {
     #expect(extract("v2.0.4", "ai.deepseek.dsh.desktop") == "2.0.4")
     let pattern = try! #require(rule("ai.deepseek.dsh.desktop").installAssetPattern)

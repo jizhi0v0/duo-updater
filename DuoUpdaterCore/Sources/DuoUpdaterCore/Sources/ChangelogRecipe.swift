@@ -2869,6 +2869,14 @@ public enum ChangelogRecipeRegistry {
         // The gaps between fields refuse to cross a `"tag_name":` so a release with
         // a null body cannot pair one release's version with the next one's notes.
         // 18 entries on the live endpoint (2026-09-03), newest 0.45.0.
+        //
+        // `\s*` around every colon: this endpoint serves the SAME document compact
+        // (`"tag_name":"v0.45.0"`) and pretty-printed (`"tag_name": "v0.45.0"`),
+        // and which one you get is not the recipe's to choose — it varied by
+        // request on 2026-09-03. A pattern written against either form alone reads
+        // as a clean "the vendor restyled their page" failure against the other.
+        // The registry's other GitHub-API recipes never met this because they go
+        // through `Decodable`, which cannot see whitespace at all.
         ChangelogRecipe(
             bundleID: "com.microsoft.Headlamp",
             source: URL(
@@ -2876,13 +2884,13 @@ public enum ChangelogRecipeRegistry {
                     "https://api.github.com/repos/kubernetes-sigs/headlamp/releases?per_page=40"
             )!,
             entryPattern:
-                #""tag_name":"v(?<version>[0-9][^"]*)""#
-                + #"(?:(?!"tag_name":).)*?"prerelease":false,"#
-                + #"(?:(?!"tag_name":).)*?"published_at":"(?<date>[^"T]+)T"#
-                + #"(?:(?!"tag_name":).)*?"body":"(?<body>(?:\\.|[^"\\])*)""#,
+                #""tag_name"\s*:\s*"v(?<version>[0-9][^"]*)""#
+                + #"(?:(?!"tag_name"\s*:).)*?"prerelease"\s*:\s*false\s*,"#
+                + #"(?:(?!"tag_name"\s*:).)*?"published_at"\s*:\s*"(?<date>[^"T]+)T"#
+                + #"(?:(?!"tag_name"\s*:).)*?"body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
             itemPatterns: [
-                #"\\r?\\n\|\s(?<item>[A-Za-z(`\[][^|]{15,}?)\s\|"#,
-                #"\\r?\\n-\s(?<item>[^\\]{15,})"#,
+                #"\\(?:r\\)?n\|\s(?<item>[A-Za-z(`\[][^|]{15,}?)\s\|"#,
+                #"\\(?:r\\)?n-\s(?<item>[^\\]{15,})"#,
             ],
             mode: .json,
             markdownSource: true,
@@ -2908,22 +2916,35 @@ public enum ChangelogRecipeRegistry {
         // what keeps the hash block out — `md5:`/`sha256:` lines start with
         // letters and a colon, so no line of them can match at a line start.
         //
+        // That newline is `\\(?:r\\)?n`, both spellings, because the vendor uses
+        // both: every stable body sampled ends its lines `\\r\\n` and every
+        // prerelease one `\\n`. A pattern that knows only the first does not fail
+        // on the second — it yields an entry with no changes, which is invisible.
+        //
         // `"prerelease":false` for the same reason as Headlamp above, and it is not
         // theoretical here: the vendor tags a build as prerelease for a day or two
         // before the appcast picks it up (0.16.4.1 on 2026-09-03), and listing it
         // would show notes for a version this app is not being offered. 33 entries
         // on the live endpoint, newest 0.16.3.1 — the version the appcast serves.
+        //
+        // `\s*` around every colon: this endpoint serves the SAME document compact
+        // (`"tag_name":"v0.45.0"`) and pretty-printed (`"tag_name": "v0.45.0"`),
+        // and which one you get is not the recipe's to choose — it varied by
+        // request on 2026-09-03. A pattern written against either form alone reads
+        // as a clean "the vendor restyled their page" failure against the other.
+        // The registry's other GitHub-API recipes never met this because they go
+        // through `Decodable`, which cannot see whitespace at all.
         ChangelogRecipe(
             bundleID: "net.imput.helium",
             source: URL(
                 string: "https://api.github.com/repos/imputnet/helium-macos/releases?per_page=40"
             )!,
             entryPattern:
-                #""tag_name":"(?<version>[0-9][^"]*)""#
-                + #"(?:(?!"tag_name":).)*?"prerelease":false,"#
-                + #"(?:(?!"tag_name":).)*?"published_at":"(?<date>[^"T]+)T"#
-                + #"(?:(?!"tag_name":).)*?"body":"(?<body>(?:\\.|[^"\\])*)""#,
-            itemPatterns: [#"\\r?\\n[0-9a-f]{7,10} (?<item>[^\\]{3,})"#],
+                #""tag_name"\s*:\s*"(?<version>[0-9][^"]*)""#
+                + #"(?:(?!"tag_name"\s*:).)*?"prerelease"\s*:\s*false\s*,"#
+                + #"(?:(?!"tag_name"\s*:).)*?"published_at"\s*:\s*"(?<date>[^"T]+)T"#
+                + #"(?:(?!"tag_name"\s*:).)*?"body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
+            itemPatterns: [#"\\(?:r\\)?n[0-9a-f]{7,10} (?<item>[^\\]{3,})"#],
             mode: .json,
             maxEntries: 20),
 

@@ -76,14 +76,27 @@ stable rule 走 `/releases/latest`（GitHub 定义上排除 prerelease），所�
 | 证据 | 见上方更正 | vendor appcast 每条 5 个 `<sparkle:deltas>`；同一批补丁也作为 release 资产挂在 GitHub 上 | 接上 feed 后 `RemoteVersion.deltas == 5`（真包实测），`DeltaApplier` 按 `deltaFrom == 装机 build` 选补丁 —— 约 40 MB 对全量 124 MB。走 GitHub 时这里是空的：release 资产不说明哪个 `.delta` 从哪个 build 升上来 |
 
 ## Changelog
-- 来源: **`ChangelogCatalog` 兜底页**（github.com/imputnet/helium-macos/releases）
+- 来源: **`ChangelogRecipe`**（2026-09-03 起），读 `imputnet/helium-macos` 的 releases API；
+  `ChangelogCatalog` 那条兜底页仍在，recipe 不出条目时照旧落到它
 - 跟随 channel: 否
-- Recipe 状态: 不需要
+- Recipe 状态: ✓（regex over `.json`，非 `structuredFormat: .gitHubReleases`）
 - ⚠️ 换到 Sparkle 是**拿说明换渠道和 delta**：GitHub release 正文原本能直接当 changelog
   用（`structuredChangelog` 1 条），而 vendor 的 appcast 9 条**没有一条**带
   `<description>` 或 `sparkle:releaseNotesLink`。不补这条 catalog 条目，说明面板会
   静默变空。`SparkleFeedCatalogTests.everyCatalogFeedAppHasAChangelogFallback` 从表里推导，
   以后再有 app 进这张表也会被这条卡住。
+- **为什么不用共用的 `.gitHubReleases` 解码器**：release 正文是「两个 hash 块 + 两段
+  fenced 提交日志」，没有一条 bullet。`GitHubMarkdownParser` 的散文兜底会把
+  `md5:` / `sha256:` 那几行当成"变更"，而它跳过的 fence 里才是唯一的真内容。
+  所以 recipe 直接抓 fence 里的 `<hash> <subject>` 行，hash 被吃掉不显示。
+- **两个已量到的坑**（都由 `duo verify` 打真实端点抓出，fixture 测试当时是绿的）：
+  1. `api.github.com` 同一份文档**既发紧凑也发 pretty-printed**（同一天不同请求两种都见过），
+     所以 key 与冒号之间必须容忍空白；
+  2. 正文换行**两种写法都有**——抽样里每个 stable 版本是 `\r\n`，每个 prerelease 版本是 `\n`。
+     只认前者不会报错，只会让那条 release **没有条目**，静默消失。
+- prerelease 不进列表（与共用解码器同策略）。这里不是理论问题：厂商会先把一个 build 标成
+  prerelease 放一两天，appcast 才跟上（2026-09-03 的 `0.16.4.1` 就是），列出来等于给用户看
+  一个他并没有被推送的版本的说明。
 
 ## 一键安装
 - 状态: **支持**

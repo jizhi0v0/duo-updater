@@ -15,19 +15,34 @@ import Foundation
 ///     appcast does this), in milliseconds, or a `yyyyMMdd` calendar date — told
 ///     apart by `date(fromDigits:)`, whose rules are documented there
 ///
-/// Some feeds only ever publish a bare calendar day (`"2026-08-31"`, no time).
-/// `parse` returns nil for those rather than fabricating a midnight moment the
-/// vendor never stated — the release timeline only plots a `publishedAt` it can
-/// trust to the minute (see `ReleaseTimelineStore`). Use ``parseWithPrecision(_:)``
-/// when the caller has somewhere honest to put a day-only value (`vendorDay`,
-/// not `publishedAt`).
+/// Some feeds only ever publish a bare calendar day, no time — most commonly
+/// dashed (`"2026-08-31"`). `parse` returns nil for that spelling rather than
+/// fabricating a midnight moment the vendor never stated — the release timeline
+/// only plots a `publishedAt` it can trust to the minute (see
+/// `ReleaseTimelineStore`). Use ``parseWithPrecision(_:)`` when the caller has
+/// somewhere honest to put a day-only value (`vendorDay`, not `publishedAt`).
+///
+/// ⚠️ EXCEPTION, not swept up in the above: a bare 8-digit run (`"20260831"`) is
+/// ALSO a calendar day with no time, but `parse` still returns a plain `Date`
+/// for it via the `date(fromDigits:)` branch below — pre-existing behavior from
+/// #222, left unchanged here. Fixing it would touch `parse`'s one return path
+/// shared by every caller (`AlcoveUpdateSource`, `GitHubReleasesSource`,
+/// `ElectronManifestSource`, `VendorProbeSource`, and `SparkleAppcastSource`
+/// before this file's `publishedFields`/`releaseHistory` moved off it), which
+/// needs its own decision per caller, not a change riding along with this one.
+/// `parseWithPrecision` tags this shape `.day` too, for what that is worth: it
+/// changes what a *new* caller of that entry point sees, not what `parse`
+/// itself returns.
 public enum ReleaseDate {
 
-    /// Convert a raw feed date string to a `Date`, or nil when it's empty, in a
-    /// format we don't recognize, or states only a calendar day with no time of
-    /// day (see ``parseWithPrecision(_:)`` for that case). Never throws — an
-    /// unparseable date just means "no authoritative release time", which the
-    /// timeline records as absent.
+    /// Convert a raw feed date string to a `Date`, or nil when it's empty or in a
+    /// format we don't recognize. Never throws — an unparseable date just means
+    /// "no authoritative release time", which the timeline records as absent.
+    ///
+    /// Returns nil for a *dashed* date-only day (`"2026-08-31"`) — see
+    /// ``parseWithPrecision(_:)`` for that case — but NOT for a *bare-digit*
+    /// date-only day (`"20260831"`): that one still comes back as a plain `Date`,
+    /// unchanged pre-existing behavior explained on ``ReleaseDate`` above.
     public static func parse(_ raw: String?) -> Date? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }

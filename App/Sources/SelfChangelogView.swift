@@ -142,7 +142,8 @@ struct SelfChangelogView: View {
         request.cachePolicy = force ? .reloadIgnoringLocalCacheData : URLRequest.versionFeedCachePolicy
         request.timeoutInterval = 15
         do {
-            let (data, response) = try await URLSession.updates.data(for: request)
+            let (data, response) = try await URLSession.updates.countedData(
+                for: request, purpose: .selfUpdate)
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 state = .failed(String(localized: "GitHub answered HTTP \(http.statusCode)."))
                 return
@@ -176,7 +177,8 @@ struct SelfChangelogView: View {
         var request = URLRequest(url: url)
         request.cachePolicy = force ? .reloadIgnoringLocalCacheData : URLRequest.versionFeedCachePolicy
         request.timeoutInterval = 15
-        guard let (data, response) = try? await URLSession.updates.data(for: request),
+        guard let (data, response) = try? await URLSession.updates.countedData(
+            for: request, purpose: .selfUpdate),
               let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode)
         else { return nil }
@@ -205,7 +207,8 @@ struct SelfChangelogView: View {
             request.timeoutInterval = 10
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 
-            guard let (data, response) = try? await URLSession.updates.data(for: request),
+            guard let (data, response) = try? await URLSession.updates.countedData(
+                    for: request, purpose: .selfUpdate),
                   let http = response as? HTTPURLResponse,
                   (200..<300).contains(http.statusCode),
                   let releases = try? JSONDecoder().decode([PublishedRelease].self, from: data),

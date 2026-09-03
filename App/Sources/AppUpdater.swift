@@ -97,6 +97,37 @@ private final class SelfUpdateInstaller: NSObject, SPUUpdaterDelegate {
         return true
     }
 
+    /// Book our own update's download into the request ledger.
+    ///
+    /// Sparkle downloads through its own `URLSession`, inside the framework, so
+    /// none of the metrics instrumentation on `URLSession.updates` or `Downloader`
+    /// can see these bytes — and they are among the largest this app ever spends.
+    /// The appcast's `contentLength` is the only figure available, hence
+    /// ``RequestByteSource/declared``: our own `publish-release.sh` writes it from
+    /// the real archive, so it is accurate, but it is the publisher's word rather
+    /// than a measurement and the ledger says so.
+    ///
+    /// Known gap: Sparkle's periodic *appcast* fetch is invisible the same way and
+    /// has no size to declare, so it is not recorded at all. A few KB every few
+    /// hours against one host — the part of the self-update cost that does not
+    /// matter, which is why this settles for the part that does.
+    func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
+        guard item.contentLength > 0, let host = item.fileURL?.host else { return }
+        let now = Date()
+        let event = RequestEvent(
+            purpose: .selfUpdate, method: "GET", scheme: item.fileURL?.scheme,
+            host: host, port: item.fileURL?.port, path: item.fileURL?.path ?? "",
+            // A synthetic task with a single hop: Sparkle's own redirects are as
+            // invisible to us as its byte counts, and inventing hops we did not
+            // observe would be worse than recording the one we can attest to.
+            taskID: UUID(), hopIndex: 0, redirectCount: 0,
+            status: 200, fetchType: .networkLoad,
+            responseBodyBytes: Int64(item.contentLength),
+            responseBodyBytesAfterDecoding: Int64(item.contentLength),
+            byteSource: .declared, fetchStart: now, responseEnd: now)
+        Task { await EventStore.shared.append(DuoEvent(date: now, payload: .request(event))) }
+    }
+
     private func installIfIdle() {
         guard let installNow else { return }
         guard isIdle?() == true else { return }

@@ -55,7 +55,8 @@ actor ImageStore {
         let task = Task<Data?, Never> { [directory] in
             var request = URLRequest(url: url)
             request.timeoutInterval = 15
-            guard let (data, response) = try? await URLSession.updates.data(for: request),
+            guard let (data, response) = try? await URLSession.updates.countedData(
+                    for: request, purpose: .changelogImage),
                   let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                   NSImage(data: data) != nil   // only cache things that actually decode
             else { return nil }

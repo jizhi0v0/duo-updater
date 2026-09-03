@@ -810,10 +810,13 @@ final class AppListModel {
     /// so a flurry of process events collapses to one `lsappinfo` read.
     @ObservationIgnored private var restartRecheckTask: Task<Void, Never>?
 
-    /// What DuoUpdater itself put on the network, as events. The counterpart to
-    /// `trafficStore`: that one records the installer bytes a user asked for, this
-    /// one records every request the updater makes on its own — version checks,
-    /// changelog fetches, the cask catalog, its own self-update.
+    /// Everything DuoUpdater did, as events: every request it made on its own —
+    /// version checks, changelog fetches, the cask catalog, its own self-update —
+    /// and every app update it downloaded and installed.
+    ///
+    /// The download ledger used to be its own `traffic.json`. It is one store now,
+    /// so the two accounts of one install cannot drift; the legacy file is read
+    /// once at launch and then left untouched as the user's own copy.
     private let eventStore = EventStore.shared
 
     /// What the workbench's Network Activity panel draws. Derived in Core (see
@@ -821,8 +824,6 @@ final class AppListModel {
     /// on it is a rule and `App/Sources` has no test target.
     private(set) var networkActivity: NetworkActivitySummary = .empty
 
-    /// Per-app download traffic, tracked to the byte and persisted across runs.
-    private let trafficStore = TrafficStore()
     /// Snapshot of per-app traffic for the UI, refreshed after each recorded
     /// download. Sorted heaviest-app-first by the store.
     private(set) var trafficStats: [AppTrafficStat] = []
@@ -1211,7 +1212,15 @@ final class AppListModel {
         NotificationController.shared.register(model: self)
         // Load any previously recorded traffic so the stats view isn't empty on
         // launch before the first install of this session.
-        Task { await refreshTrafficStats() }
+        Task {
+            // Move `traffic.json` into the event store, once. Safe on every
+            // launch: it records that it ran, and every migrated event takes an id
+            // derived from its own content, so even a forced repeat replaces its
+            // own rows rather than doubling a lifetime total. The source file is
+            // never touched.
+            await eventStore.importLegacyTraffic()
+            await refreshTrafficStats()
+        }
         // Arm the background auto-check loop at launch — not on first menu open —
         // so a menu-bar app that's never clicked still checks on schedule.
         reschedule()
@@ -1287,8 +1296,8 @@ final class AppListModel {
     /// Pull the latest per-app traffic snapshot out of the store onto the main
     /// actor for the UI.
     private func refreshTrafficStats() async {
-        let snapshot = await trafficStore.snapshot()
-        let total = await trafficStore.totalBytes()
+        let snapshot = await eventStore.appTrafficStats()
+        let total = snapshot.reduce(Int64(0)) { $0 + $1.totalBytes }
         trafficStats = snapshot
         trafficTotalBytes = total
         trafficSummary = TrafficSummary(stats: snapshot)
@@ -1367,22 +1376,28 @@ final class AppListModel {
             onDisk: { InstalledBuild.read(at: result.app.path) },
             declared: declaredBuild)
 
-        await trafficStore.record(
+        // Into the event store, not `traffic.json`. One writer: the legacy file is
+        // left exactly as it was, as the user's own copy of a history this build
+        // has taken over, and is read once at launch to import it. A non-positive
+        // byte count is refused by the store, not here — that is a rule about the
+        // ledger and belongs where something executes it.
+        await eventStore.append(DuoEvent(payload: .install(InstallEvent(
             appID: result.app.id,
             appName: result.app.name,
             bundleID: result.app.bundleID,
             fromVersion: result.app.shortVersion,
             toVersion: result.remote?.displayVersion,
-            sourceName: result.remote?.sourceName,
-            bytes: bytes,
             // Several builds can ship under one marketing version — Surge put four
             // releases out as "6.9.0" — and the row reads "6.9.0 → 6.9.0" without
             // these. Both sides are measured off the same bundle, one before the
             // install and one after.
             fromBuild: fromBuild,
             toBuild: toBuild,
-            downloadKind: usedDelta ? .delta : .full
-        )
+            sourceName: result.remote?.sourceName,
+            bytes: bytes,
+            downloadKind: usedDelta ? .delta : .full,
+            applied: applied))))
+        await eventStore.flush()
         await refreshTrafficStats()
     }
 

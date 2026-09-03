@@ -210,6 +210,14 @@ public actor EventStore {
             Log.app.error("events: refused an unknown-kind event whose payload is not a JSON object")
             return
         }
+        // A download that moved no bytes is not a download. Refused here rather
+        // than at the call site because it is a rule about the ledger — a
+        // zero-byte row would inflate an app's update count with an install that
+        // never happened — and `App/Sources` has no test target to hold it.
+        if let install = event.install, install.bytes <= 0 {
+            rejectedCount += 1
+            return
+        }
         buffer.append(event)
         appendedCount += 1
         Self.markRecorded()
@@ -234,12 +242,21 @@ public actor EventStore {
         commitBuffer()
     }
 
-    /// Discard everything — events **and** totals.
+    /// Discard the recorded network activity: request events **and** the running
+    /// totals they feed.
     ///
-    /// Both, deliberately: a reset that cleared the events and left the totals
-    /// would leave `duo requests summary` reporting traffic that `duo requests
-    /// recent` denies ever happened.
-    public func reset() {
+    /// Both of those, deliberately — a reset that cleared the events and left the
+    /// totals would leave `duo requests summary` reporting traffic that `duo
+    /// requests recent` denies ever happened.
+    ///
+    /// **The install ledger is kept unless `includingInstalls` says otherwise**,
+    /// and that default is the whole point. "Clear the network log" is a routine,
+    /// low-stakes thing to want; the install events are a user's entire download
+    /// history — 115 GB across five years on the machine this was written on — and
+    /// they are not diagnostics that anyone would expect a log reset to take with
+    /// it. Nothing in the app passes true today; the parameter exists so that a
+    /// future caller that means it has to say so.
+    public func reset(includingInstalls: Bool = false) {
         pendingFlush?.cancel()
         pendingFlush = nil
         buffer = []
@@ -253,7 +270,9 @@ public actor EventStore {
         // state needs a crash between two DELETEs. Correct and free, but nothing
         // will tell you if someone flattens it back into one `exec`.
         guard exec(db, "BEGIN IMMEDIATE;") else { return }
-        exec(db, "DELETE FROM events;")
+        exec(db, includingInstalls
+             ? "DELETE FROM events;"
+             : "DELETE FROM events WHERE kind <> 'install';")
         exec(db, "DELETE FROM totals;")
         guard exec(db, "COMMIT;") else { exec(db, "ROLLBACK;"); return }
         // Vacuum then checkpoint, for the reason spelled out in `prune`: the
@@ -340,8 +359,9 @@ public actor EventStore {
     private func insert(_ event: DuoEvent, into db: OpaquePointer) {
         let sql = """
             INSERT OR REPLACE INTO events
-              (id, at, client, kind, purpose, host, status, bytes_in, bytes_out, payload)
-            VALUES (?,?,?,?,?,?,?,?,?,?);
+              (id, at, client, kind, purpose, host, app_id, status,
+               bytes_in, bytes_out, payload)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?);
             """
         guard let statement = prepare(db, sql) else { return }
         defer { sqlite3_finalize(statement) }
@@ -354,21 +374,29 @@ public actor EventStore {
         sqlite3_bind_int64(statement, 2, Self.micros(event.date))
         bind(statement, 3, event.client.rawValue)
         bind(statement, 4, event.kind)
+        for column in Int32(5)...Int32(10) { sqlite3_bind_null(statement, column) }
         if let request = event.request {
             bind(statement, 5, request.purpose.rawValue)
             bind(statement, 6, request.host)
             if let status = request.status {
-                sqlite3_bind_int64(statement, 7, Int64(status))
-            } else {
-                sqlite3_bind_null(statement, 7)
+                sqlite3_bind_int64(statement, 8, Int64(status))
             }
-            sqlite3_bind_int64(statement, 8, request.bytesReceived)
-            sqlite3_bind_int64(statement, 9, request.bytesSent)
-        } else {
-            for column in Int32(5)...Int32(9) { sqlite3_bind_null(statement, column) }
+            sqlite3_bind_int64(statement, 9, request.bytesReceived)
+            sqlite3_bind_int64(statement, 10, request.bytesSent)
+        } else if let install = event.install {
+            // `purpose` is deliberately left null. The installer bytes are already
+            // in the network rollups: `Downloader` files request events with
+            // purpose `.install` for the very same transfer. Stamping this row
+            // with the same purpose would count one download twice on the Network
+            // Activity panel, and would make `--purpose install` return two rows
+            // per download that mean different things — a wire measurement and a
+            // ledger entry. `kind` is the discriminator; `app_id` is what this row
+            // adds.
+            bind(statement, 7, install.appID)
+            sqlite3_bind_int64(statement, 9, install.bytes)
         }
         guard let payload = try? event.payloadJSON() else { return }
-        bind(statement, 10, payload)
+        bind(statement, 11, payload)
         step(db, statement)
     }
 
@@ -411,12 +439,20 @@ public actor EventStore {
     /// Age first, then size. The size pass is not optional: at realistic event
     /// sizes a machine checking hourly outgrows any sensible footprint long
     /// before the day budget expires.
+    ///
+    /// **Install events are exempt from both passes.** Retention exists to bound a
+    /// diagnostic log; an install event is the answer to "what has keeping this
+    /// machine up to date cost me" and has to outlive any window. It can afford to:
+    /// one real machine had 586 of them across the app's whole life, against
+    /// thousands of request events a day.
     private func prune(_ db: OpaquePointer) {
         pruneRunCount += 1
         let cutoff = Self.micros(
             Calendar.current.date(byAdding: .day, value: -retentionDays, to: now())
                 ?? .distantPast)
-        if let statement = prepare(db, "DELETE FROM events WHERE at < ?;") {
+        if let statement = prepare(db, """
+            DELETE FROM events WHERE at < ? AND kind <> 'install';
+            """) {
             sqlite3_bind_int64(statement, 1, cutoff)
             step(db, statement)
             sqlite3_finalize(statement)
@@ -443,7 +479,8 @@ public actor EventStore {
             let batch = min(remaining - Self.retentionFloor, max(100, remaining / 10))
             if let statement = prepare(db, """
                 DELETE FROM events WHERE id IN (
-                  SELECT id FROM events ORDER BY at ASC, rowid ASC LIMIT ?
+                  SELECT id FROM events WHERE kind <> 'install'
+                  ORDER BY at ASC, rowid ASC LIMIT ?
                 );
                 """) {
                 sqlite3_bind_int64(statement, 1, Int64(batch))
@@ -471,8 +508,12 @@ public actor EventStore {
     /// The fewest events retention will leave behind, whatever the budget says.
     static let retentionFloor = 200
 
+    /// Prunable events only. Installs are excluded from both retention passes —
+    /// they are the permanent download ledger, not diagnostics, and counting them
+    /// here would let a machine with a long install history exhaust the floor and
+    /// stop the size pass giving up request events it should.
     private func eventCount(_ db: OpaquePointer) -> Int {
-        guard let statement = prepare(db, "SELECT count(*) FROM events;"),
+        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind <> 'install';"),
               sqlite3_step(statement) == SQLITE_ROW
         else { return 0 }
         defer { sqlite3_finalize(statement) }
@@ -587,6 +628,148 @@ public actor EventStore {
         return rows.reversed()
     }
 
+    /// Per-app download totals, rebuilt from the install events, heaviest first.
+    ///
+    /// **Aggregated on read rather than kept in a totals table**, and that is what
+    /// makes importing `traffic.json` safe to repeat: an incremental total is
+    /// doubled by a second import, a `SUM` over rows with stable ids is not.
+    /// Affordable because install events are never pruned and there are a few
+    /// hundred of them — one real machine had 586 across the app's entire life.
+    public func appTrafficStats() -> [AppTrafficStat] {
+        guard let db = open(),
+              let statement = prepare(db, """
+                SELECT at, payload FROM events
+                WHERE kind = 'install' ORDER BY at ASC, rowid ASC;
+                """)
+        else { return [] }
+        defer { sqlite3_finalize(statement) }
+
+        let decoder = DuoEvent.decoder()
+        var byApp: [String: AppTrafficStat] = [:]
+        var order: [String] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let date = Self.date(sqlite3_column_int64(statement, 0))
+            guard let json = text(statement, 1),
+                  let event = try? decoder.decode(InstallEvent.self, from: Data(json.utf8))
+            else { continue }
+            if byApp[event.appID] == nil {
+                byApp[event.appID] = AppTrafficStat(
+                    appID: event.appID, appName: event.appName, bundleID: event.bundleID)
+                order.append(event.appID)
+            }
+            // Newest name and bundle id win: the app may have been renamed since
+            // the earliest event, and the row should read as it is called now.
+            byApp[event.appID]?.appName = event.appName
+            byApp[event.appID]?.bundleID = event.bundleID
+            byApp[event.appID]?.totalBytes += event.bytes
+            byApp[event.appID]?.events.append(event.trafficEvent(at: date))
+        }
+        return order.compactMap { byApp[$0] }.sorted { a, b in
+            if a.totalBytes != b.totalBytes { return a.totalBytes > b.totalBytes }
+            return a.appName.localizedCaseInsensitiveCompare(b.appName) == .orderedAscending
+        }
+    }
+
+    /// Import a legacy `traffic.json` once, and record that it happened.
+    ///
+    /// Safe to call on every launch, and safe to call twice: every migrated event
+    /// takes ``InstallEvent/migrationID(appID:date:bytes:)``, so a second import
+    /// replaces its own rows rather than doubling a lifetime total, and the totals
+    /// are summed from those rows rather than incremented. The marker is a second
+    /// belt, not the mechanism.
+    ///
+    /// The source file is **never modified or deleted** — it stays as the user's
+    /// own copy of a history this build is now responsible for.
+    ///
+    /// - Returns: how many events were imported, or nil when there was nothing to
+    ///   do (no file, or already imported).
+    @discardableResult
+    public func importLegacyTraffic(from fileURL: URL? = nil, force: Bool = false) -> Int? {
+        guard let db = open() else { return nil }
+        if !force, metaValue(db, "traffic.json") != nil { return nil }
+        let url = fileURL ?? TrafficStore.defaultFileURL()
+        let stats = TrafficStore.loadStats(from: url)
+        guard !stats.isEmpty else {
+            // Nothing to import is still a completed migration: without recording
+            // it, a machine that never had a traffic.json re-reads a missing file
+            // on every launch forever.
+            setMeta(db, "traffic.json", "empty")
+            return nil
+        }
+
+        var imported = 0
+        guard exec(db, "BEGIN IMMEDIATE;") else { return nil }
+        for stat in stats.values {
+            for legacy in stat.events {
+                let event = InstallEvent(
+                    appID: stat.appID, appName: stat.appName, bundleID: stat.bundleID,
+                    fromVersion: legacy.fromVersion, toVersion: legacy.toVersion,
+                    fromBuild: legacy.fromBuild, toBuild: legacy.toBuild,
+                    sourceName: legacy.sourceName, bytes: legacy.bytes,
+                    downloadKind: legacy.downloadKind,
+                    // Never recorded by the old store, and nil is the honest answer
+                    // rather than a guess about a decade of mostly-successful
+                    // installs.
+                    applied: nil)
+                insert(DuoEvent(
+                    id: InstallEvent.migrationID(
+                        appID: stat.appID, date: legacy.date, bytes: legacy.bytes),
+                    date: legacy.date, client: .app, payload: .install(event)),
+                    into: db)
+                imported += 1
+            }
+        }
+        // Count what actually landed before claiming the migration happened. An
+        // insert can fail for reasons the loop cannot see — a schema older than
+        // this build, a disk that filled — and a marker written anyway means the
+        // next launch skips a migration that never ran, permanently. Cheap
+        // (`kind` is indexed) against the thing it protects.
+        let stored = installEventCount(db)
+        guard stored >= imported else {
+            exec(db, "ROLLBACK;")
+            Log.install.error(
+                "events: traffic.json import wrote \(stored, privacy: .public) of \(imported, privacy: .public) events; not marking it done")
+            return nil
+        }
+        setMeta(db, "traffic.json", ISO8601DateFormatter.duoEvent.string(from: now()))
+        guard exec(db, "COMMIT;") else { exec(db, "ROLLBACK;"); return nil }
+        Log.install.notice(
+            "events: imported \(imported, privacy: .public) install events from traffic.json")
+        return imported
+    }
+
+    private func installEventCount(_ db: OpaquePointer) -> Int {
+        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind = 'install';"),
+              sqlite3_step(statement) == SQLITE_ROW
+        else { return 0 }
+        defer { sqlite3_finalize(statement) }
+        return Int(sqlite3_column_int64(statement, 0))
+    }
+
+    /// The stored value for a `meta` key, or nil. Internal so a test can ask
+    /// whether a migration recorded itself.
+    func metaMarker(_ key: String) -> String? {
+        guard let db = open() else { return nil }
+        return metaValue(db, key)
+    }
+
+    private func metaValue(_ db: OpaquePointer, _ key: String) -> String? {
+        guard let statement = prepare(db, "SELECT value FROM meta WHERE key = ?;") else { return nil }
+        defer { sqlite3_finalize(statement) }
+        bind(statement, 1, key)
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        return text(statement, 0)
+    }
+
+    private func setMeta(_ db: OpaquePointer, _ key: String, _ value: String) {
+        guard let statement = prepare(db, "INSERT OR REPLACE INTO meta VALUES (?, ?);")
+        else { return }
+        defer { sqlite3_finalize(statement) }
+        bind(statement, 1, key)
+        bind(statement, 2, value)
+        step(db, statement)
+    }
+
     /// How many events are stored, and the span they cover.
     public func coverage() -> (count: Int, oldest: Date?, newest: Date?) {
         guard let db = open(),
@@ -663,6 +846,7 @@ public actor EventStore {
               kind      TEXT    NOT NULL,
               purpose   TEXT,
               host      TEXT,
+              app_id    TEXT,
               status    INTEGER,
               bytes_in  INTEGER,
               bytes_out INTEGER,
@@ -671,6 +855,7 @@ public actor EventStore {
             CREATE INDEX IF NOT EXISTS events_at        ON events(at);
             CREATE INDEX IF NOT EXISTS events_kind_at   ON events(kind, at);
             CREATE INDEX IF NOT EXISTS events_host_at   ON events(host, at);
+            CREATE INDEX IF NOT EXISTS events_app_at    ON events(app_id, at);
 
             CREATE TABLE IF NOT EXISTS totals (
               client         TEXT    NOT NULL,
@@ -689,11 +874,32 @@ public actor EventStore {
 
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """)
+        // `CREATE TABLE IF NOT EXISTS` does nothing to a table that is already
+        // there, so a column added after the first release has to be added
+        // explicitly. Found the hard way: `app_id` arrived with the install
+        // events, every INSERT against an older database failed on the unknown
+        // column, and the import marked itself done having written nothing.
+        addColumnIfMissing(db, table: "events", column: "app_id", type: "TEXT")
+
         if let statement = prepare(db, "INSERT OR IGNORE INTO meta VALUES ('schema', ?);") {
             bind(statement, 1, String(DuoEvent.schemaVersion))
             step(db, statement)
             sqlite3_finalize(statement)
         }
+    }
+
+    private func addColumnIfMissing(
+        _ db: OpaquePointer, table: String, column: String, type: String
+    ) {
+        guard let statement = prepare(db, "PRAGMA table_info(\(table));") else { return }
+        var present = false
+        while sqlite3_step(statement) == SQLITE_ROW {
+            if text(statement, 1) == column { present = true; break }
+        }
+        sqlite3_finalize(statement)
+        guard !present else { return }
+        exec(db, "ALTER TABLE \(table) ADD COLUMN \(column) \(type);")
+        Log.app.notice("events: added the \(column, privacy: .public) column")
     }
 
     @discardableResult

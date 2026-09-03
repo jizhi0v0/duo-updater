@@ -44,6 +44,8 @@ public struct DuoEvent: Sendable, Hashable, Identifiable {
     /// it does not.
     public enum Payload: Sendable, Hashable {
         case request(RequestEvent)
+        /// An app updated: which one, between which versions, at what cost.
+        case install(InstallEvent)
         /// A line whose `kind` this build has never heard of, kept as written.
         ///
         /// Not an error and not dropped: a newer app writes into the same log a
@@ -55,6 +57,7 @@ public struct DuoEvent: Sendable, Hashable, Identifiable {
         public var kind: String {
             switch self {
             case .request: return "request"
+            case .install: return "install"
             case .unknown(let kind, _): return kind
             }
         }
@@ -72,9 +75,13 @@ public struct DuoEvent: Sendable, Hashable, Identifiable {
         self.payload = payload
     }
 
-    /// Convenience for the only payload that exists today.
     public var request: RequestEvent? {
         if case .request(let event) = payload { return event }
+        return nil
+    }
+
+    public var install: InstallEvent? {
+        if case .install(let event) = payload { return event }
         return nil
     }
 }
@@ -143,6 +150,8 @@ extension DuoEvent {
         switch payload {
         case .request(let event):
             return String(decoding: try Self.encoder().encode(event), as: UTF8.self)
+        case .install(let event):
+            return String(decoding: try Self.encoder().encode(event), as: UTF8.self)
         case .unknown(_, let json):
             return json
         }
@@ -162,6 +171,13 @@ extension DuoEvent {
             if let data = row.payloadJSON.data(using: .utf8),
                let event = try? Self.decoder().decode(RequestEvent.self, from: data) {
                 payload = .request(event)
+            } else {
+                payload = .unknown(kind: row.kind, json: row.payloadJSON)
+            }
+        case "install":
+            if let data = row.payloadJSON.data(using: .utf8),
+               let event = try? Self.decoder().decode(InstallEvent.self, from: data) {
+                payload = .install(event)
             } else {
                 payload = .unknown(kind: row.kind, json: row.payloadJSON)
             }

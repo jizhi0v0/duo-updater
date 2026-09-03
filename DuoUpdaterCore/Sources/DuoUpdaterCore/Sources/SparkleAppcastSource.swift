@@ -64,7 +64,7 @@ public struct SparkleAppcastSource: UpdateSource {
         // the release timeline in one shot (not just the newest). Keyed on the same
         // version string the timeline dedupes by.
         let history = Self.releaseHistory(from: usable)
-        let bestFields = Self.publishedFields(from: best.pubDate)
+        let bestFields = ReleaseDate.publishedFields(from: best.pubDate)
 
         return RemoteVersion(
             shortVersion: best.shortVersionString,
@@ -85,31 +85,17 @@ public struct SparkleAppcastSource: UpdateSource {
         )
     }
 
-    /// Split a raw `<pubDate>` into the one field it may honestly fill, per
-    /// `ReleaseDate.parseWithPrecision`'s tier: a real time of day becomes
-    /// `publishedAt` — the only tier `ReleaseTimelineStore` may plot to the
-    /// minute — while a bare calendar day (Eudic's appcast ships exactly this:
-    /// `<pubDate>2026-08-31</pubDate>`, #239) becomes `vendorDay` instead of a
-    /// fabricated midnight moment the vendor never stated. Never both, and never
-    /// `publishedAt` for a day-only value — see `ReleaseTimeline`'s three-tier
-    /// doc for why the two must stay separate fields rather than one `Date?`
-    /// with a precision flag beside it.
-    static func publishedFields(from pubDate: String?) -> (publishedAt: Date?, vendorDay: Date?) {
-        guard let parsed = ReleaseDate.parseWithPrecision(pubDate) else { return (nil, nil) }
-        switch parsed.precision {
-        case .minute: return (parsed.date, nil)
-        case .day: return (nil, parsed.date)
-        }
-    }
-
     /// Every in-channel item with a parseable vendor date, turned into a
     /// timeline entry at whatever precision the vendor actually stated (see
-    /// ``publishedFields(from:)``). Pure and separated from `latestVersion` so
-    /// the day/minute routing is unit-testable without a network fetch.
+    /// `ReleaseDate.publishedFields(from:)` — Eudic's appcast is the fixture
+    /// that proves a bare calendar day, `<pubDate>2026-08-31</pubDate>`, routes
+    /// to `vendorDay` rather than a fabricated midnight `publishedAt`, #239).
+    /// Pure and separated from `latestVersion` so the day/minute routing is
+    /// unit-testable without a network fetch.
     static func releaseHistory(from usable: [SparkleAppcastItem]) -> [ReleaseHistoryEntry] {
         usable.compactMap { item in
             guard let v = item.shortVersionString ?? item.version else { return nil }
-            let fields = publishedFields(from: item.pubDate)
+            let fields = ReleaseDate.publishedFields(from: item.pubDate)
             guard fields.publishedAt != nil || fields.vendorDay != nil else { return nil }
             return ReleaseHistoryEntry(version: v, publishedAt: fields.publishedAt, vendorDay: fields.vendorDay)
         }

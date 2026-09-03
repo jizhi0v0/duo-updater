@@ -61,6 +61,27 @@ import Foundation
         #expect(!hubLog.entries.contains { $0.version == "2.5.5" })
         #expect(Set(ideLog.entries.map(\.version)).isDisjoint(with: ["2.12.0", "2.11.0"]))
     }
+
+    /// The run from a row's date to its heading is the one part of the match that
+    /// is not fenced by the row/panel markers, and an unfenced one is how a row
+    /// without a heading pairs its version with the NEXT row's notes — or, for the
+    /// last hub row, with the IDE panel's. Every row on the live page has a
+    /// heading, so nothing here would ever have noticed; this removes one.
+    @Test func aRowWithoutAHeadingIsDroppedRatherThanBorrowingTheNextRows() throws {
+        let recipe = try #require(
+            ChangelogRecipeRegistry.recipe(forBundleID: "com.google.antigravity"))
+        let headless = antigravityChangelogFixture.replacingOccurrences(
+            of: #"<h3 class="heading-7 col-lg-4 astro-l7qxtvnw" data-h3-pin>"#
+                + "Quoting, /boost, and improved Settings</h3>",
+            with: "")
+        #expect(headless != antigravityChangelogFixture, "the heading markup moved")
+
+        let changelog = try #require(ChangelogExtractor.extract(from: headless, using: recipe))
+        // 2.12.0 is gone, and 2.11.0 still has its OWN title and notes.
+        #expect(changelog.entries.map(\.version) == ["2.11.0"])
+        #expect(changelog.entries.first?.title == "Generative UI and UI improvements")
+    }
+
 }
 
 private let antigravityChangelogFixture = #"""

@@ -1166,10 +1166,24 @@ public enum StructuredChangelogDecoder {
     }
 
     /// A content block. Only `heading`, `paragraph` and `unorderedList` carry
-    /// notes on these pages; `codeListing` and `table` are skipped by omission
-    /// (they decode with every field nil).
+    /// notes on these pages; `codeListing` and `table` are skipped by omission.
+    ///
+    /// Every field is decoded with its own `try?` rather than the synthesized
+    /// initializer, and that is not defensive habit — DocC reuses these key NAMES
+    /// at other JSON types (a `links` block's `items` is an array of strings, not
+    /// of objects). The synthesized decoder throws on the first such block, the
+    /// outer `try?` swallows it, and the whole page becomes nil: a total silent
+    /// loss where the intent is to skip one block. Per-field, an unrecognized
+    /// block decodes to a `type` and nothing else, which `appleNotes` ignores.
     private struct AppleBlock: Decodable {
-        struct ListItem: Decodable { let content: [AppleBlock]? }
+        struct ListItem: Decodable {
+            let content: [AppleBlock]?
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                content = (try? c.decodeIfPresent([AppleBlock].self, forKey: .content)) ?? nil
+            }
+            enum CodingKeys: String, CodingKey { case content }
+        }
         let type: String?
         let level: Int?
         let text: String?
@@ -1177,6 +1191,21 @@ public enum StructuredChangelogDecoder {
         let items: [ListItem]?
         /// `aside` (a "Note:" callout) nests its blocks here.
         let content: [AppleBlock]?
+
+        enum CodingKeys: String, CodingKey {
+            case type, level, text, inlineContent, items, content
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            type = (try? c.decodeIfPresent(String.self, forKey: .type)) ?? nil
+            level = (try? c.decodeIfPresent(Int.self, forKey: .level)) ?? nil
+            text = (try? c.decodeIfPresent(String.self, forKey: .text)) ?? nil
+            inlineContent =
+                (try? c.decodeIfPresent([AppleInline].self, forKey: .inlineContent)) ?? nil
+            items = (try? c.decodeIfPresent([ListItem].self, forKey: .items)) ?? nil
+            content = (try? c.decodeIfPresent([AppleBlock].self, forKey: .content)) ?? nil
+        }
     }
 
     /// A run inside a paragraph. `strong`/`emphasis` nest more runs; `reference`
@@ -1224,6 +1253,12 @@ public enum StructuredChangelogDecoder {
         let pageTitle = (doc.metadata?.title ?? "")
             .replacingOccurrences(of: " Release Notes", with: "")
             .trimmingCharacters(in: .whitespaces)
+        // Fail closed rather than half-open. The page title is the only thing that
+        // names the newest build; without it `flush()` would drop that build's
+        // notes and still return the older sections, so the pane would show a
+        // complete-looking changelog that is missing the release the user is
+        // actually on. Returning nil falls back to the vendor's page instead.
+        guard !pageTitle.isEmpty else { return nil }
 
         var entries: [Changelog.Entry] = []
         var version = pageTitle
@@ -1247,10 +1282,16 @@ public enum StructuredChangelogDecoder {
                         if let cap = maxEntries, entries.count >= cap { version = ""; break }
                         version = updated
                         items = []
+                        // The heading that OPENED this entry is not a topic: a note
+                        // filed before the section's first level-3 heading would
+                        // otherwise read "Updates in Xcode 27 Beta 5: …" inside an
+                        // entry already called "Xcode 27 Beta 5".
+                        topic = ""
+                    } else {
+                        // "Overview" and any other level-2 heading belongs to the
+                        // build already open — only `Updates in …` starts a new one.
+                        topic = text == "Overview" ? "" : text
                     }
-                    // "Overview" and any other level-2 heading belongs to the build
-                    // already open — only `Updates in …` starts a new one.
-                    topic = text == "Overview" ? "" : text
                     kind = ""
                 } else if level == 3 {
                     topic = text
@@ -1290,6 +1331,12 @@ public enum StructuredChangelogDecoder {
     /// walking into list items and asides. A list item whose content is several
     /// paragraphs (a fix plus its "Workaround:") becomes ONE note, because they
     /// are one bullet on Apple's page and splitting them strands the workaround.
+    ///
+    /// `codeListing` yields nothing, and that is a deliberate loss worth naming:
+    /// 12 of the Xcode 27 page's bullets embed a snippet, and those bullets keep
+    /// their prose and lose the code. Items are single-line strings that the pane
+    /// renders as plain text, so a multi-line snippet folded into one would read
+    /// as a run-on rather than as code.
     private static func appleNotes(
         in block: AppleBlock, references: [String: AppleDoc.Reference]
     ) -> [String] {

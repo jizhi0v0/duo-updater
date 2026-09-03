@@ -105,6 +105,72 @@ import Foundation
         #expect(ChangelogRecipe.appleDocVersionToken(for: "26.5 beta 3") == "26_5")
         #expect(ChangelogRecipe.appleDocVersionToken(for: "26.5 beta 3") != "26")
     }
+
+    /// The one row in 103 where Apple does not follow its own convention: 26.1.1's
+    /// notes live at `xcode-26_1`, whose title is literally "Xcode 26.1.1 Release
+    /// Notes", while 26.0.1 and 26.4.1 get their own `_1` pages. No mapping
+    /// satisfies both, so this pins the gap as a measurement rather than leaving
+    /// the next reader to rediscover it: a 26.1.1 install fetches a 404 and the
+    /// pane falls back to embedding Apple's page — which is what every Xcode row
+    /// did before this recipe existed.
+    @Test func theOnePatchReleaseAppleFilesUnderItsMinorIsAKnownGap() {
+        #expect(ChangelogRecipe.appleDocVersionToken(for: "26.1.1") == "26_1_1")
+        #expect(ChangelogRecipe.appleDocVersionToken(for: "26.4.1") == "26_4_1")
+        #expect(ChangelogRecipe.appleDocVersionToken(for: "26.0.1") == "26_0_1")
+    }
+
+    /// The page title is the only thing that names the newest build. Without it
+    /// `flush()` would drop that build and still return the older sections — a
+    /// complete-looking changelog missing the release the user is on. Fail closed
+    /// instead, and let the pane fall back to the vendor's page.
+    @Test func aPageThatCannotBeNamedYieldsNothingRatherThanHalfOfItself() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.apple.dt.Xcode"))
+        let format = try #require(recipe.structuredFormat)
+        let untitled = xcodeReleaseNotesFixture.replacingOccurrences(
+            of: #""title":"Xcode 27 Beta 6 Release Notes""#, with: #""role":"article""#)
+        #expect(untitled != xcodeReleaseNotesFixture, "the metadata shape moved")
+        #expect(StructuredChangelogDecoder.decode(
+            untitled, format: format, channel: nil, maxEntries: recipe.maxEntries) == nil)
+    }
+
+    /// DocC reuses these key NAMES at other JSON types — a `links` block's `items`
+    /// is an array of strings, not of objects. Decoded with the synthesized
+    /// initializer that throws, and the outer `try?` turns one unknown block into
+    /// a nil changelog: a total silent loss where the intent is to skip a block.
+    @Test func anUnknownBlockIsSkippedRatherThanVoidingThePage() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.apple.dt.Xcode"))
+        let format = try #require(recipe.structuredFormat)
+        let withLinks = xcodeReleaseNotesFixture.replacingOccurrences(
+            of: #"{"anchor":"Overview","level":2,"text":"Overview","type":"heading"}"#,
+            with: #"{"type":"links","style":"compactGrid","items":["doc://a","doc://b"]},"#
+                + #"{"anchor":"Overview","level":2,"text":"Overview","type":"heading"}"#)
+        #expect(withLinks != xcodeReleaseNotesFixture, "the Overview heading moved")
+
+        let changelog = try #require(StructuredChangelogDecoder.decode(
+            withLinks, format: format, channel: nil, maxEntries: recipe.maxEntries))
+        #expect(changelog.entries.map(\.version) == ["Xcode 27 Beta 6", "Xcode 27 Beta 5"])
+    }
+
+    /// The heading that OPENS an entry is not a topic. Left in place it labels
+    /// every note filed before that section's first level-3 heading with the entry
+    /// name it is already under.
+    @Test func theHeadingThatOpensAnEntryIsNotUsedAsASectionLabel() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.apple.dt.Xcode"))
+        let format = try #require(recipe.structuredFormat)
+        // Move the beta-5 section's first note above its topic heading.
+        let hoisted = xcodeReleaseNotesFixture.replacingOccurrences(
+            of: #"{"anchor":"Coding-Intelligence","level":3,"text":"Coding Intelligence","type":"heading"},"#,
+            with: #"{"inlineContent":[{"text":"A note filed under no topic.","type":"text"}],"type":"paragraph"},"#
+                + #"{"anchor":"Coding-Intelligence","level":3,"text":"Coding Intelligence","type":"heading"},"#)
+        #expect(hoisted != xcodeReleaseNotesFixture, "the beta-5 topic heading moved")
+
+        let changelog = try #require(StructuredChangelogDecoder.decode(
+            hoisted, format: format, channel: nil, maxEntries: recipe.maxEntries))
+        let earlier = try #require(changelog.entries.first { $0.version == "Xcode 27 Beta 5" })
+        #expect(earlier.items.contains("A note filed under no topic."))
+        #expect(!earlier.items.contains { $0.hasPrefix("Updates in ") })
+    }
+
 }
 
 private let xcodeReleaseNotesFixture = #"""

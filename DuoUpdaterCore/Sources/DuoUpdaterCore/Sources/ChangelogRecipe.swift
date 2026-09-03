@@ -515,9 +515,20 @@ public struct ChangelogRecipe: Codable, Sendable {
 
     /// The version as Apple spells it in a `developer.apple.com` release-notes
     /// path: dots become underscores, and a `.0` release is named by its major
-    /// alone. `26.6` → `26_6`, `26.0.1` → `26_0_1`, `27.0` → `27` — verified
-    /// against all 30 modern entries in `xcodereleases.com/data.json`, which
-    /// carries the real `links.notes.url` for every one of them.
+    /// alone. `26.6` → `26_6`, `26.0.1` → `26_0_1`, `27.0` → `27`.
+    ///
+    /// Checked against every `links.notes.url` in `xcodereleases.com/data.json`,
+    /// which carries the real page for each release: **103 rows at 16.x or newer,
+    /// one mismatch.** That one is 26.1.1, which Apple filed under `xcode-26_1`
+    /// (a page whose own title reads "Xcode 26.1.1 Release Notes") while filing
+    /// 26.0.1 and 26.4.1 under their own `_1` pages. It is a vendor inconsistency,
+    /// not a rule this function is failing to express — no mapping satisfies both
+    /// 26.1.1 → `26_1` and 26.4.1 → `26_4_1`.
+    ///
+    /// So a 26.1.1 install fetches a 404 and the pane falls back to embedding
+    /// Apple's page, which is what every Xcode row did before this recipe existed.
+    /// Pinned in `XcodeReleaseNotesChangelogTests` so the gap is a recorded
+    /// measurement rather than something the next reader has to rediscover.
     ///
     /// Neither `{version}` nor `{major}` can express this, and both get it wrong
     /// in a way that shows the user another release's notes rather than failing:
@@ -2802,7 +2813,12 @@ public enum ChangelogRecipeRegistry {
         // recipes detect (hub 2.12.0, IDE 2.5.5).
         //
         // `body` stops at the next row, the next panel, or the section close, so a
-        // row can never absorb the one after it. Items are the lead paragraph
+        // row can never absorb the one after it — and the run up to the `<h3>` is
+        // fenced by the same two markers, because it is otherwise the one
+        // unbounded part of the match: a row shipped without a heading would pair
+        // its version with the NEXT row's notes, and the last hub row would reach
+        // into the IDE panel. Every row on the live page has a heading today, which
+        // is exactly why nothing would have noticed. Items are the lead paragraph
         // (`div.changes`) followed by every `li.caption` in the "Improvements" /
         // "Fixes" / "Patches" disclosure groups — the group labels themselves are
         // dropped, as everywhere else. `<code>/boost</code>` survives as `/boost`
@@ -2813,7 +2829,8 @@ public enum ChangelogRecipeRegistry {
             entryPattern:
                 #"href="/releases\?tab=hub&amp;version=[^"]*"[^>]*>(?<version>[^<]+)</a>"#
                 + #"<br[^>]*>(?<date>[^<]*)</p>"#
-                + #".*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
+                + #"(?:(?!section-row-wrapper|grid-body).)*?"#
+                + #"<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
                 + #"(?<body>.*?)(?=<div class="section-row-wrapper|<div class="grid-body|</section>)"#,
             itemPatterns: [
                 #"(?:<div class="changes[^"]*"[^>]*><p>|<li[^>]*class="caption[^"]*"[^>]*>)"#
@@ -2834,7 +2851,8 @@ public enum ChangelogRecipeRegistry {
             entryPattern:
                 #"href="/releases\?tab=ide&amp;version=[^"]*"[^>]*>(?<version>[^<]+)</a>"#
                 + #"<br[^>]*>(?<date>[^<]*)</p>"#
-                + #".*?<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
+                + #"(?:(?!section-row-wrapper|grid-body).)*?"#
+                + #"<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
                 + #"(?<body>.*?)(?=<div class="section-row-wrapper|<div class="grid-body|</section>)"#,
             itemPatterns: [
                 #"(?:<div class="changes[^"]*"[^>]*><p>|<li[^>]*class="caption[^"]*"[^>]*>)"#
@@ -2858,9 +2876,22 @@ public enum ChangelogRecipeRegistry {
         // is attribution, not a change.
         //
         // The bullet pattern behind it is not redundancy for its own sake: the
-        // table layout starts at 0.42.0, and every release before it (0.30.0 …
-        // 0.41.0, all still on the page) is a plain `- ` list. First-pattern-wins
-        // picks per entry, so both eras render.
+        // table layout starts at 0.44.0, and the older releases still on the page
+        // (0.30.0 … 0.43.0) are plain bullet lists. First-pattern-wins picks per
+        // entry, so both eras render.
+        //
+        // That bullet is `[-*]`, both markers, because this vendor changed marker
+        // mid-history: 0.36.0 and newer write `- `, 0.38.0 and 0.30.0 … 0.35.0
+        // write `* `. A `-`-only pattern does not fail on those — it yields an
+        // entry with no items, which `ChangelogExtractor` drops, so 8 of the 18
+        // releases simply vanished from the rail while the recipe still reported
+        // success. Measured against the live endpoint, not inferred.
+        //
+        // The item capture is `(?:\\[^rn]|[^"\\])`, not `[^\\]`, because the
+        // capture happens BEFORE the JSON unescape: a cell containing `\"` would
+        // be cut at the backslash and rendered as half a sentence. This is the
+        // trap `StructuredFormat.postmanReleaseNotes` documents as the reason that
+        // format stopped using regex at all.
         //
         // `"prerelease":false` in the entry pattern keeps this to the track the
         // user is on — the same policy `.gitHubReleases` states — and the `v`
@@ -2890,7 +2921,7 @@ public enum ChangelogRecipeRegistry {
                 + #"(?:(?!"tag_name"\s*:).)*?"body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
             itemPatterns: [
                 #"\\(?:r\\)?n\|\s(?<item>[A-Za-z(`\[][^|]{15,}?)\s\|"#,
-                #"\\(?:r\\)?n-\s(?<item>[^\\]{15,})"#,
+                #"\\(?:r\\)?n[-*]\s(?<item>(?:\\[^rn]|[^"\\]){15,})"#,
             ],
             mode: .json,
             markdownSource: true,
@@ -2915,6 +2946,12 @@ public enum ChangelogRecipeRegistry {
         // the subject off the row. The `[0-9a-f]{7,10} ` anchor after a newline is
         // what keeps the hash block out — `md5:`/`sha256:` lines start with
         // letters and a colon, so no line of them can match at a line start.
+        //
+        // The item capture is `(?:\\[^rn]|[^"\\])`, not `[^\\]`: the capture runs
+        // BEFORE the JSON unescape, so a commit subject containing `\"` — five of
+        // them in the current 40-release window — would be cut at the backslash and
+        // shown as half a line. Same trap `StructuredFormat.postmanReleaseNotes`
+        // documents as the reason that format abandoned regex.
         //
         // That newline is `\\(?:r\\)?n`, both spellings, because the vendor uses
         // both: every stable body sampled ends its lines `\\r\\n` and every
@@ -2944,7 +2981,7 @@ public enum ChangelogRecipeRegistry {
                 + #"(?:(?!"tag_name"\s*:).)*?"prerelease"\s*:\s*false\s*,"#
                 + #"(?:(?!"tag_name"\s*:).)*?"published_at"\s*:\s*"(?<date>[^"T]+)T"#
                 + #"(?:(?!"tag_name"\s*:).)*?"body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
-            itemPatterns: [#"\\(?:r\\)?n[0-9a-f]{7,10} (?<item>[^\\]{3,})"#],
+            itemPatterns: [#"\\(?:r\\)?n[0-9a-f]{7,10} (?<item>(?:\\[^rn]|[^"\\]){3,})"#],
             mode: .json,
             maxEntries: 20),
 

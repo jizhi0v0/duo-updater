@@ -45,8 +45,14 @@
 | 证据 | — | — | 我们不走 MAU 差分 |
 
 ## Changelog
-- 来源: 未接（官方 release notes 页未核实 URL）
-- Recipe 状态: 暂无——UI 回落到嵌入式网页
+- 来源: **没有可用的**。`learn.microsoft.com/en-us/microsoft-365-copilot/release-notes`
+  存在（HTTP 200），但它是**整个 Microsoft 365 Copilot 服务**的功能公告页，按
+  **日期 × 产品**组织（Excel / Word / Outlook / PowerPoint / OneNote / Viva
+  Insights / SharePoint …），**不是这个 Mac app 的构建说明**。
+- 判据（2026-09-03 抓页实测）: 我们探针从 pkg 文件名读到的 build `1.2608` 在整页出现
+  **0 次**。所以按版本绑的 recipe 永远匹配不上；按日期绑的会把 Excel、Outlook 的功能
+  条目显示在 Copilot app 这一行下面。
+- Recipe 状态: **有意不接**——UI 回落到嵌入式网页，那至少如实呈现为「厂商的页面」。
 
 ## 一键安装
 - 状态: **支持**（`kind: .pkg`，经系统安装器）

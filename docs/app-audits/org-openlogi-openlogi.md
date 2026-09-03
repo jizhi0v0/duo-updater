@@ -53,10 +53,21 @@ beta/nightly 构建或本机需要辨识的 channel 偏好。
 
 ## 一键安装
 
-- 状态: **仅检测**
-- 官方格式: 分架构 DMG
-- 当前阻塞: 尚未获得将一键能力纳入本 PR 的明确确认，因此规则不登记
-  `installAssetPattern`；检测与 release notes 不受影响
+- 状态: **支持**（`installAssetPattern` 钉 arm64 DMG，`kind: .dmg`）
+- 官方格式: 分架构 DMG。每个 release 发 12 个产物（macOS arm64/x86_64、Windows
+  msi/zip、Linux deb/rpm/pkg.tar.zst），**每个都配一个 `.minisig`**，外加 `SHA256SUMS`。
+  所以 pattern 必须以 `\.dmg$` 收尾——不锚定的话
+  `OpenLogi-v0.8.3-macos-arm64.dmg.minisig` 会被截成一个厂商从未发布过的 URL。
+- 端到端验证（2026-09-03）: `~/Applications` 装 0.8.2 → `duo check` 给出
+  `0.8.2 → 0.8.3 [GitHub, in-place]` → `duo install` 绿，落盘 short `0.8.3`、
+  Team `8U3ZJ258K9`。
+- ⚠️ **包没有 stapled notarization ticket**（0.8.2 / 0.8.3 都没有，是这家厂商的发包
+  习惯，不是回归）。`spctl` 仍判 `accepted / Notarized Developer ID`（联网查票），
+  而 `SignatureVerifier` 只查签名有效性与 Team 一致、**不查装订**，所以替换闸不受
+  影响；代价是首次启动时 Gatekeeper 要联网。
+- ⚠️ **`CFBundleVersion` 是时间戳**（`20260830.162827`），与 tag 不同命名空间。
+  当前无害，因为 `GitHubReleasesSource` 把远端 build 置为 `nil`、比较只走 marketing。
+  **不要"顺手改进"成把 tag 塞进 build。**
 
 ## 本机验证
 

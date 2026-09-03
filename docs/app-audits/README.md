@@ -120,6 +120,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**OpenCode Desktop**](ai-opencode-desktop.md) · `ai.opencode.desktop` — G C (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**OpenChamber**](dev-openchamber-desktop.md) · `dev.openchamber.desktop` — G (one-click, native arch dmg) · real DMG verified ✓ · 2026-08-17
 - [x] [**Jan**](jan-ai-app.md) · `jan.ai.app` — G (one-click universal zip) · real app verified ✓ · 2026-08-17
+- [x] [**FluidVoice**](com-FluidApp-app.md) · `com.FluidApp.app` — G (one-click universal dmg) · 真包 v1.6.9 挂载验证 ✓ · 2026-08-30
 - [x] [**Helium**](net-imput-helium.md) · `net.imput.helium` — G (one-click arm64 dmg) · 真包 0.16.2.1 挂载验证 ✓ · **已改走 vendor 自己的 appcast**（`SparkleFeedCatalog` 补 feed 地址——包里没有 `SUFeedURL`，Sparkle 嵌在 Chromium framework 里）：stable+beta 两轨 + delta（40MB vs 124MB 全量），渠道由装机 build 在 feed 里反查得出、不读厂商偏好；GitHub rule 留作兜底。changelog 因此改走 catalog 兜底页 · 2026-08-31
 - [x] [**Claude Status Bar**](com-local-claudestatusbar.md) · `com.local.claudestatusbar` — G (one-click dmg) · 真包 v0.4.4 挂载验证 ✓ · 有一个孤立 prerelease tag `v0.4.0-beta.1`，**决定不接** · 2026-08-31
 - [x] [**claude-devtools**](com-claudecode-context.md) · `com.claudecode.context` — G (one-click arm64 dmg) · 真包 v0.5.0 挂载验证 ✓（GitHub 胜、up to date、release 正文即 changelog；`v0.4.13` 其实是 prerelease，原文说「全部非 prerelease」有误）· 2026-08-31

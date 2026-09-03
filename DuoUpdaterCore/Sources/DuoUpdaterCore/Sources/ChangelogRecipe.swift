@@ -48,6 +48,11 @@ public struct ChangelogRecipe: Codable, Sendable {
     /// (Opera's `changelog-for-134`). Same reason as `{version}`: a fixed URL
     /// there would silently stop covering the installed build at the next major,
     /// and majors ship every few weeks.
+    ///
+    /// `{appleDocVersion}` is the third, for `developer.apple.com` release notes,
+    /// whose path spells the version its own way (`26.6` → `26_6`, `27.0` → `27`).
+    /// See `appleDocVersionToken(for:)` for why neither of the other two can stand
+    /// in for it.
     public let sourceTemplate: String?
 
 
@@ -366,6 +371,19 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// `requestBody`. See `StructuredChangelogDecoder.decodeNotionPageChunk` for
         /// the response shape and how release order is derived.
         case notionPageChunk
+        /// Apple's own release notes for Xcode, as DocC serves them:
+        /// `developer.apple.com/tutorials/data/documentation/xcode-release-notes/
+        /// xcode-<version>-release-notes.json`. The page a user sees at the
+        /// `/documentation/…` URL is a 17 KB SPA shell — fetched 2026-09-03, it
+        /// contains no note text at all — so this JSON is the only readable form.
+        ///
+        /// Regex is not an option here, which is the whole reason this is a
+        /// decoder: a note's text is an *array* of fragments (`text`, `codeVoice`,
+        /// `strong`, `reference`), and on the live Xcode 27 page 83 of 335 notes
+        /// have more than one. Any pattern that captures "the text" captures the
+        /// first fragment, so a quarter of the notes would be silently truncated
+        /// mid-sentence ("When streaming " — the rest lives past a `codeVoice`).
+        case appleDeveloperReleaseNotes
     }
 
     /// Non-nil → this recipe is parsed by a structured decoder, not the regex
@@ -488,7 +506,47 @@ public struct ChangelogRecipe: Codable, Sendable {
             let major = token.split(separator: ".").first.map(String.init) ?? token
             urlString = urlString.replacingOccurrences(of: "{major}", with: major)
         }
+        if urlString.contains("{appleDocVersion}") {
+            urlString = urlString.replacingOccurrences(
+                of: "{appleDocVersion}", with: Self.appleDocVersionToken(for: token))
+        }
         return URL(string: urlString) ?? source
+    }
+
+    /// The version as Apple spells it in a `developer.apple.com` release-notes
+    /// path: dots become underscores, and a `.0` release is named by its major
+    /// alone. `26.6` → `26_6`, `26.0.1` → `26_0_1`, `27.0` → `27`.
+    ///
+    /// Checked against every `links.notes.url` in `xcodereleases.com/data.json`,
+    /// which carries the real page for each release: **103 rows at 16.x or newer,
+    /// one mismatch.** That one is 26.1.1, which Apple filed under `xcode-26_1`
+    /// (a page whose own title reads "Xcode 26.1.1 Release Notes") while filing
+    /// 26.0.1 and 26.4.1 under their own `_1` pages. It is a vendor inconsistency,
+    /// not a rule this function is failing to express — no mapping satisfies both
+    /// 26.1.1 → `26_1` and 26.4.1 → `26_4_1`.
+    ///
+    /// So a 26.1.1 install fetches a 404 and the pane falls back to embedding
+    /// Apple's page, which is what every Xcode row did before this recipe existed.
+    /// Pinned in `XcodeReleaseNotesChangelogTests` so the gap is a recorded
+    /// measurement rather than something the next reader has to rediscover.
+    ///
+    /// Neither `{version}` nor `{major}` can express this, and both get it wrong
+    /// in a way that shows the user another release's notes rather than failing:
+    /// `{major}` maps every 26.x to the Xcode 26.0 page, and Apple ships betas for
+    /// nearly every minor (16.1 … 16.4, 26.1 … 26.5 all had them), so that is the
+    /// common case, not the corner.
+    ///
+    /// Only the leading numeric run is read, because the version handed in is the
+    /// row's *display* version and a prerelease carries its track in that string
+    /// ("27.0 beta 6"). Every beta of a release shares that release's page.
+    static func appleDocVersionToken(for version: String) -> String {
+        var parts = version.prefix { $0.isNumber || $0 == "." }
+            .split(separator: ".").map(String.init)
+        guard !parts.isEmpty else { return version }
+        // Trailing `.0` only, and only on a two-part version: `26.0.1` keeps its
+        // zero (`xcode-26_0_1-release-notes` is a real page).
+        if parts.count == 2, parts[1] == "0" { parts.removeLast() }
+        return parts.joined(separator: "_")
     }
 
     /// Map a (possibly suffix-stripped) version string to the token a vendor uses
@@ -2697,6 +2755,268 @@ public enum ChangelogRecipeRegistry {
         //     out of the pkg filename — appears ZERO times on the page, so no
         //     version-keyed recipe can bind, and a date-keyed one would show
         //     Excel and Outlook features under the Copilot app's row.
+
+        // MARK: - 2026-09-03 AnyDesk / Antigravity / Headlamp / Helium / Xcode
+
+        // AnyDesk — the same plain-text changelog its `VendorProbeRecipe` already
+        // reads for version detection. The vendor's HTML changelog
+        // (`anydesk.com/en/changelog/mac-os`) answers 403 behind a Cloudflare
+        // challenge even under a full Safari UA, so the pane's web-view fallback
+        // renders a challenge page rather than notes; `changelog.txt` answers 200.
+        //
+        // Every platform shares the file, newest first:
+        //
+        //   22.07.2026 - 9.7.3 (macOS)
+        //   ------------------
+        //   New Features:
+        //   - Visibility and online status for AnyDesk One Chat can be set manually
+        //
+        // The `(macOS)` anchor is load-bearing for exactly the reason the probe's
+        // is: Windows runs on a HIGHER number (9.7.15 the day this was written), so
+        // an unanchored pattern lists another platform's releases under this app.
+        // 80 macOS entries on the live file (2026-09-03), newest 9.7.3.
+        //
+        // `[^\n]` in the item pattern, not `.`: every pattern is compiled with
+        // dot-matches-newline, so `^-\s+(?<item>.+)$` would swallow the whole
+        // section as one item. Tags and entities are left alone because the body is
+        // plain text — there is no markup to strip and an `&` is just an `&`.
+        //
+        // The section labels ("New Features:", "Fixed Bugs:", "Other Changes:") are
+        // not captured: items are flat here as everywhere else.
+        ChangelogRecipe(
+            bundleID: "com.philandro.anydesk",
+            source: URL(string: "https://download.anydesk.com/changelog.txt")!,
+            entryPattern:
+                #"(?<date>\d{2}\.\d{2}\.\d{4}) - (?<version>\d+(?:\.\d+)+) \(macOS\)[ \t]*\n-+\n"#
+                + #"(?<body>.*?)(?=\n\d{2}\.\d{2}\.\d{4} - |\z)"#,
+            itemPatterns: [#"(?m)^-\s+(?<item>[^\n]+)"#],
+            stripTags: false,
+            decodeEntities: false),
+
+        // Antigravity — antigravity.google/changelog, which the hub's
+        // `VendorProbeRecipe` already links as its `changelogURL`.
+        //
+        // That recipe's sibling (the IDE) says the page is "JS-rendered — 88 KB
+        // with zero version strings in the served HTML". That reading was of a
+        // *compressed* body: the server answers gzip even for
+        // `Accept-Encoding: identity`, and the 88/99 KB it counted is the gzip
+        // stream. Decoded it is 401 KB of fully server-rendered Astro markup
+        // carrying every release for all four products (2026-09-03) — which is
+        // also why both apps can be covered from the one page.
+        //
+        // One page, four products, one panel each (`data-list-panel`), so the two
+        // recipes must not read each other's releases. They anchor on the release
+        // link instead of the panel wrapper, because the wrapper is an ancestor a
+        // flat regex cannot scope to: every row's version link carries the product
+        // in its own href — `/releases?tab=hub&version=2.12.0`. 18 hub entries and
+        // 30 IDE entries on the live page, versions matching what the two probe
+        // recipes detect (hub 2.12.0, IDE 2.5.5).
+        //
+        // `body` stops at the next row, the next panel, or the section close, so a
+        // row can never absorb the one after it — and the run up to the `<h3>` is
+        // fenced by the same two markers, because it is otherwise the one
+        // unbounded part of the match: a row shipped without a heading would pair
+        // its version with the NEXT row's notes, and the last hub row would reach
+        // into the IDE panel. Every row on the live page has a heading today, which
+        // is exactly why nothing would have noticed. Items are the lead paragraph
+        // (`div.changes`) followed by every `li.caption` in the "Improvements" /
+        // "Fixes" / "Patches" disclosure groups — the group labels themselves are
+        // dropped, as everywhere else. `<code>/boost</code>` survives as `/boost`
+        // through `stripTags`.
+        ChangelogRecipe(
+            bundleID: "com.google.antigravity",
+            source: URL(string: "https://antigravity.google/changelog")!,
+            entryPattern:
+                #"href="/releases\?tab=hub&amp;version=[^"]*"[^>]*>(?<version>[^<]+)</a>"#
+                + #"<br[^>]*>(?<date>[^<]*)</p>"#
+                + #"(?:(?!section-row-wrapper|grid-body).)*?"#
+                + #"<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
+                + #"(?<body>.*?)(?=<div class="section-row-wrapper|<div class="grid-body|</section>)"#,
+            itemPatterns: [
+                #"(?:<div class="changes[^"]*"[^>]*><p>|<li[^>]*class="caption[^"]*"[^>]*>)"#
+                + #"(?<item>.*?)(?:</p>|</li>)"#
+            ],
+            maxEntries: 20),
+
+        // Antigravity IDE — the `ide` panel of the same page, for the second,
+        // separate app (`com.google.antigravity-ide`, a VS Code fork) whose probe
+        // recipe deliberately carried NO `changelogURL` because it could not
+        // confirm the page described the IDE at all. It does: the page's own tab
+        // strip has an "Antigravity IDE" panel, and its newest entry is 2.5.5 —
+        // the exact version that recipe detects. See the hub recipe above for the
+        // shape; this differs only in the `tab=ide` anchor.
+        ChangelogRecipe(
+            bundleID: "com.google.antigravity-ide",
+            source: URL(string: "https://antigravity.google/changelog")!,
+            entryPattern:
+                #"href="/releases\?tab=ide&amp;version=[^"]*"[^>]*>(?<version>[^<]+)</a>"#
+                + #"<br[^>]*>(?<date>[^<]*)</p>"#
+                + #"(?:(?!section-row-wrapper|grid-body).)*?"#
+                + #"<h3[^>]*data-h3-pin[^>]*>(?<title>.*?)</h3>"#
+                + #"(?<body>.*?)(?=<div class="section-row-wrapper|<div class="grid-body|</section>)"#,
+            itemPatterns: [
+                #"(?:<div class="changes[^"]*"[^>]*><p>|<li[^>]*class="caption[^"]*"[^>]*>)"#
+                + #"(?<item>.*?)(?:</p>|</li>)"#
+            ],
+            maxEntries: 20),
+
+        // Headlamp — its GitHub releases, read with regexes rather than through
+        // `structuredFormat: .gitHubReleases`, because that decoder deliberately
+        // refuses this body: `GitHubMarkdownParser` bails on a Markdown TABLE, and
+        // Headlamp writes its whole changelog as tables (142 table rows in v0.45.0
+        // — its own doc comment names this app as the reason the guard exists). So
+        // the pane had nothing structured to show and fell back to embedding the
+        // releases page.
+        //
+        // Each table is `| change | Thanks to:<br>@who<br>#issue |` under a
+        // section heading, with a two-row preamble per table: an `<img>`-only
+        // header pair (stripped to nothing, then dropped by `minItemLength`) and
+        // the `|:--|--:|` alignment row (dropped by requiring a letter-ish first
+        // character and 15+ characters). Only the first cell is taken — the second
+        // is attribution, not a change.
+        //
+        // The bullet pattern behind it is not redundancy for its own sake: the
+        // table layout starts at 0.44.0, and the older releases still on the page
+        // (0.30.0 … 0.43.0) are plain bullet lists. First-pattern-wins picks per
+        // entry, so both eras render.
+        //
+        // That bullet is `[-*]`, both markers, because this vendor changed marker
+        // mid-history: 0.36.0 and newer write `- `, 0.38.0 and 0.30.0 … 0.35.0
+        // write `* `. A `-`-only pattern does not fail on those — it yields an
+        // entry with no items, which `ChangelogExtractor` drops, so 8 of the 18
+        // releases simply vanished from the rail while the recipe still reported
+        // success. Measured against the live endpoint, not inferred.
+        //
+        // The item capture is `(?:\\[^rn]|[^"\\])`, not `[^\\]`, because the
+        // capture happens BEFORE the JSON unescape: a cell containing `\"` would
+        // be cut at the backslash and rendered as half a sentence. This is the
+        // trap `StructuredFormat.postmanReleaseNotes` documents as the reason that
+        // format stopped using regex at all.
+        //
+        // `"prerelease":false` in the entry pattern keeps this to the track the
+        // user is on — the same policy `.gitHubReleases` states — and the `v`
+        // prefix keeps it to the app: the repo interleaves `headlamp-helm-<ver>`
+        // and `headlamp-plugin-*` tags its own `GitHubReleaseRule` already filters.
+        // The gaps between fields refuse to cross a `"tag_name":` so a release with
+        // a null body cannot pair one release's version with the next one's notes.
+        // 18 entries on the live endpoint (2026-09-03), newest 0.45.0.
+        //
+        // `\s*` around every colon: this endpoint serves the SAME document compact
+        // (`"tag_name":"v0.45.0"`) and pretty-printed (`"tag_name": "v0.45.0"`),
+        // and which one you get is not the recipe's to choose — it varied by
+        // request on 2026-09-03. A pattern written against either form alone reads
+        // as a clean "the vendor restyled their page" failure against the other.
+        // The registry's other GitHub-API recipes never met this because they go
+        // through `Decodable`, which cannot see whitespace at all.
+        ChangelogRecipe(
+            bundleID: "com.microsoft.Headlamp",
+            source: URL(
+                string:
+                    "https://api.github.com/repos/kubernetes-sigs/headlamp/releases?per_page=40"
+            )!,
+            entryPattern:
+                #""tag_name"\s*:\s*"v(?<version>[0-9][^"]*)""#
+                + #"(?:(?!"tag_name"\s*:).)*?"prerelease"\s*:\s*false\s*,"#
+                + #"(?:(?!"tag_name"\s*:).)*?"published_at"\s*:\s*"(?<date>[^"T]+)T"#
+                + #"(?:(?!"tag_name"\s*:).)*?"body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
+            itemPatterns: [
+                #"\\(?:r\\)?n\|\s(?<item>[A-Za-z(`\[][^|]{15,}?)\s\|"#,
+                #"\\(?:r\\)?n[-*]\s(?<item>(?:\\[^rn]|[^"\\]){15,})"#,
+            ],
+            mode: .json,
+            markdownSource: true,
+            maxEntries: 20),
+
+        // Helium — its GitHub releases, again with regexes rather than
+        // `.gitHubReleases`: the body is a hash dump followed by two fenced commit
+        // logs, and `GitHubMarkdownParser`'s prose pass would render the md5/sha
+        // lines as "changes" while the fences it skips hold the only real content.
+        //
+        // Nothing else can supply notes. `updates.helium.computer/mac/appcast-arm64.xml`
+        // (the app's own Sparkle feed, and its update source here) carries no
+        // `<description>` and no `<sparkle:releaseNotesLink>` on any item, and
+        // helium.computer publishes no changelog page at all (`/changelog` and
+        // `/releases` both 404) — so the pane fell back to embedding the GitHub
+        // releases page.
+        //
+        // What the vendor does publish is the commit log of the two repos each
+        // build merges — `helium-macos` and `helium-chromium` — as
+        // `<hash> <subject>` lines inside fenced blocks. The hash is consumed
+        // rather than captured: it is a link the pane cannot follow and it pushes
+        // the subject off the row. The `[0-9a-f]{7,10} ` anchor after a newline is
+        // what keeps the hash block out — `md5:`/`sha256:` lines start with
+        // letters and a colon, so no line of them can match at a line start.
+        //
+        // The item capture is `(?:\\[^rn]|[^"\\])`, not `[^\\]`: the capture runs
+        // BEFORE the JSON unescape, so a commit subject containing `\"` — five of
+        // them in the current 40-release window — would be cut at the backslash and
+        // shown as half a line. Same trap `StructuredFormat.postmanReleaseNotes`
+        // documents as the reason that format abandoned regex.
+        //
+        // That newline is `\\(?:r\\)?n`, both spellings, because the vendor uses
+        // both: every stable body sampled ends its lines `\\r\\n` and every
+        // prerelease one `\\n`. A pattern that knows only the first does not fail
+        // on the second — it yields an entry with no changes, which is invisible.
+        //
+        // `"prerelease":false` for the same reason as Headlamp above, and it is not
+        // theoretical here: the vendor tags a build as prerelease for a day or two
+        // before the appcast picks it up (0.16.4.1 on 2026-09-03), and listing it
+        // would show notes for a version this app is not being offered. 33 entries
+        // on the live endpoint, newest 0.16.3.1 — the version the appcast serves.
+        //
+        // `\s*` around every colon: this endpoint serves the SAME document compact
+        // (`"tag_name":"v0.45.0"`) and pretty-printed (`"tag_name": "v0.45.0"`),
+        // and which one you get is not the recipe's to choose — it varied by
+        // request on 2026-09-03. A pattern written against either form alone reads
+        // as a clean "the vendor restyled their page" failure against the other.
+        // The registry's other GitHub-API recipes never met this because they go
+        // through `Decodable`, which cannot see whitespace at all.
+        ChangelogRecipe(
+            bundleID: "net.imput.helium",
+            source: URL(
+                string: "https://api.github.com/repos/imputnet/helium-macos/releases?per_page=40"
+            )!,
+            entryPattern:
+                #""tag_name"\s*:\s*"(?<version>[0-9][^"]*)""#
+                + #"(?:(?!"tag_name"\s*:).)*?"prerelease"\s*:\s*false\s*,"#
+                + #"(?:(?!"tag_name"\s*:).)*?"published_at"\s*:\s*"(?<date>[^"T]+)T"#
+                + #"(?:(?!"tag_name"\s*:).)*?"body"\s*:\s*"(?<body>(?:\\.|[^"\\])*)""#,
+            itemPatterns: [#"\\(?:r\\)?n[0-9a-f]{7,10} (?<item>(?:\\[^rn]|[^"\\]){3,})"#],
+            mode: .json,
+            maxEntries: 20),
+
+        // Xcode — Apple's own release notes, which `XcodeReleasesSource` already
+        // links per release (`links.notes.url` in `xcodereleases.com/data.json`)
+        // and which the pane could only ever embed: the `/documentation/…` URL
+        // serves a 17 KB SPA shell with no note text in it (fetched 2026-09-03).
+        // The `/tutorials/data/…` twin of that URL is the document the shell
+        // fetches, and it carries everything.
+        //
+        // One page per release train, and every beta of a train shares its page:
+        // the top of `xcode-27-release-notes` IS beta 6's notes, with each earlier
+        // beta below it under `Updates in Xcode 27 Beta N`. So a beta install and a
+        // released install read the same recipe and differ only in the page the
+        // template resolves to — `26.6` → `xcode-26_6`, `27.0 beta 6` → `xcode-27`.
+        // See `appleDocVersionToken(for:)` for why that mapping needs its own token
+        // and what `{major}` would get wrong.
+        //
+        // `source` is only reached when no version is supplied at all (a sweep with
+        // no installed Xcode and no detected version); it names the current train,
+        // and being a year out of date there costs nothing the templated path uses.
+        //
+        // Detection-only app, deliberately (an Apple ID gates every prerelease
+        // download), so these notes are the whole of what the row can offer beyond
+        // a version number.
+        ChangelogRecipe(
+            bundleID: "com.apple.dt.Xcode",
+            source: URL(
+                string: "https://developer.apple.com/tutorials/data/documentation"
+                    + "/xcode-release-notes/xcode-27-release-notes.json")!,
+            mode: .json,
+            maxEntries: 20,
+            sourceTemplate: "https://developer.apple.com/tutorials/data/documentation"
+                + "/xcode-release-notes/xcode-{appleDocVersion}-release-notes.json",
+            structuredFormat: .appleDeveloperReleaseNotes),
     ]
 
     /// Group recipes by lowercased bundle id. Most bundle ids map to a single

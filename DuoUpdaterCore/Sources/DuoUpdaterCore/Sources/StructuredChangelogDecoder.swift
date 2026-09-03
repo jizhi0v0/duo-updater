@@ -54,6 +54,8 @@ public enum StructuredChangelogDecoder {
             return decodeAlcoveChangelog(body, maxEntries: maxEntries)
         case .notionPageChunk:
             return decodeNotionPageChunk(body, maxEntries: maxEntries)
+        case .appleDeveloperReleaseNotes:
+            return decodeAppleDeveloperReleaseNotes(body, maxEntries: maxEntries)
         }
     }
 
@@ -1144,5 +1146,236 @@ public enum StructuredChangelogDecoder {
     /// substitute at all, so it is simply omitted rather than shown as a stray `‣`.)
     private static func notionText(_ segments: [NotionTitleSegment]) -> String {
         segments.map { $0.text == "‣" ? "" : $0.text }.joined()
+    }
+
+    // MARK: - Apple developer release notes (developer.apple.com DocC JSON)
+
+    /// One release-notes page as DocC serves it. Every field is optional because
+    /// this walks a document format, not a schema we control: an unrecognized
+    /// block type decodes to a `type` and nothing else, and is skipped.
+    private struct AppleDoc: Decodable {
+        struct Metadata: Decodable { let title: String? }
+        struct Section: Decodable {
+            let kind: String?
+            let content: [AppleBlock]?
+        }
+        struct Reference: Decodable { let title: String? }
+        let metadata: Metadata?
+        let primaryContentSections: [Section]?
+        let references: [String: Reference]?
+    }
+
+    /// A content block. Only `heading`, `paragraph` and `unorderedList` carry
+    /// notes on these pages; `codeListing` and `table` are skipped by omission.
+    ///
+    /// Every field is decoded with its own `try?` rather than the synthesized
+    /// initializer, and that is not defensive habit — DocC reuses these key NAMES
+    /// at other JSON types (a `links` block's `items` is an array of strings, not
+    /// of objects). The synthesized decoder throws on the first such block, the
+    /// outer `try?` swallows it, and the whole page becomes nil: a total silent
+    /// loss where the intent is to skip one block. Per-field, an unrecognized
+    /// block decodes to a `type` and nothing else, which `appleNotes` ignores.
+    private struct AppleBlock: Decodable {
+        struct ListItem: Decodable {
+            let content: [AppleBlock]?
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                content = (try? c.decodeIfPresent([AppleBlock].self, forKey: .content)) ?? nil
+            }
+            enum CodingKeys: String, CodingKey { case content }
+        }
+        let type: String?
+        let level: Int?
+        let text: String?
+        let inlineContent: [AppleInline]?
+        let items: [ListItem]?
+        /// `aside` (a "Note:" callout) nests its blocks here.
+        let content: [AppleBlock]?
+
+        enum CodingKeys: String, CodingKey {
+            case type, level, text, inlineContent, items, content
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            type = (try? c.decodeIfPresent(String.self, forKey: .type)) ?? nil
+            level = (try? c.decodeIfPresent(Int.self, forKey: .level)) ?? nil
+            text = (try? c.decodeIfPresent(String.self, forKey: .text)) ?? nil
+            inlineContent =
+                (try? c.decodeIfPresent([AppleInline].self, forKey: .inlineContent)) ?? nil
+            items = (try? c.decodeIfPresent([ListItem].self, forKey: .items)) ?? nil
+            content = (try? c.decodeIfPresent([AppleBlock].self, forKey: .content)) ?? nil
+        }
+    }
+
+    /// A run inside a paragraph. `strong`/`emphasis` nest more runs; `reference`
+    /// carries only an identifier, whose visible words live in the document's
+    /// `references` table.
+    private struct AppleInline: Decodable {
+        let type: String?
+        let text: String?
+        let code: String?
+        let identifier: String?
+        let inlineContent: [AppleInline]?
+    }
+
+    /// Turn one Apple release-notes page into entries.
+    ///
+    /// The page is a changelog for a whole release *train*, not one build: the
+    /// blocks before the first `## Updates in …` heading are the newest build's
+    /// notes (the page title names it — "Xcode 27 Beta 6 Release Notes"), and each
+    /// `Updates in …` heading opens the delta for one earlier build, newest first.
+    /// A shipped release has no such headings and yields a single entry, which is
+    /// the same code path with nothing to split on.
+    ///
+    /// Notes keep the section they were filed under, as `Topic · Kind: text`.
+    /// That is not decoration: the level-4 heading is what separates "New
+    /// Features" from "Known Issues", and a flat bullet list of Apple's notes
+    /// reads every known issue as a feature. The kind's own `in Xcode 27 Beta 5`
+    /// suffix is dropped — it repeats the entry the note is already under.
+    ///
+    /// No dates: the pages carry none. `publishedAt` for Xcode comes from
+    /// `XcodeReleasesSource`, which deliberately refuses to invent a time of day.
+    static func decodeAppleDeveloperReleaseNotes(
+        _ body: String, maxEntries: Int?
+    ) -> Changelog? {
+        guard let data = body.data(using: .utf8),
+              let doc = try? JSONDecoder().decode(AppleDoc.self, from: data),
+              let blocks = (doc.primaryContentSections ?? [])
+                  .first(where: { $0.kind == "content" })?.content
+        else { return nil }
+
+        let references = doc.references ?? [:]
+        // "Xcode 27 Beta 6 Release Notes" → "Xcode 27 Beta 6". Kept with the
+        // product word: it is how Apple labels the build, and `Verify`'s
+        // changelog-lag check only compares version-SHAPED strings, so a label
+        // cannot be misread as a version that trails the detected one.
+        let pageTitle = (doc.metadata?.title ?? "")
+            .replacingOccurrences(of: " Release Notes", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        // Fail closed rather than half-open. The page title is the only thing that
+        // names the newest build; without it `flush()` would drop that build's
+        // notes and still return the older sections, so the pane would show a
+        // complete-looking changelog that is missing the release the user is
+        // actually on. Returning nil falls back to the vendor's page instead.
+        guard !pageTitle.isEmpty else { return nil }
+
+        var entries: [Changelog.Entry] = []
+        var version = pageTitle
+        var items: [String] = []
+        var topic = ""
+        var kind = ""
+
+        func flush() {
+            guard !version.isEmpty, !items.isEmpty else { return }
+            entries.append(.init(version: version, date: nil, items: items))
+        }
+
+        for block in blocks {
+            if block.type == "heading", let level = block.level {
+                let text = (block.text ?? "").trimmingCharacters(in: .whitespaces)
+                if level <= 2 {
+                    if let updated = updatedBuild(from: text) {
+                        flush()
+                        // Cap before opening the next entry, so the notes of one
+                        // release past the cap are never walked at all.
+                        if let cap = maxEntries, entries.count >= cap { version = ""; break }
+                        version = updated
+                        items = []
+                        // The heading that OPENED this entry is not a topic: a note
+                        // filed before the section's first level-3 heading would
+                        // otherwise read "Updates in Xcode 27 Beta 5: …" inside an
+                        // entry already called "Xcode 27 Beta 5".
+                        topic = ""
+                    } else {
+                        // "Overview" and any other level-2 heading belongs to the
+                        // build already open — only `Updates in …` starts a new one.
+                        topic = text == "Overview" ? "" : text
+                    }
+                    kind = ""
+                } else if level == 3 {
+                    topic = text
+                    kind = ""
+                } else {
+                    kind = strippingBuildSuffix(text)
+                }
+                continue
+            }
+            for note in appleNotes(in: block, references: references) {
+                let label = [topic, kind].filter { !$0.isEmpty }.joined(separator: " · ")
+                items.append(label.isEmpty ? note : "\(label): \(note)")
+            }
+        }
+        flush()
+
+        return entries.isEmpty ? nil : Changelog(entries: entries)
+    }
+
+    /// The build a `## Updates in Xcode 27 Beta 5` heading opens, or nil for any
+    /// other level-2 heading (`Overview`, and whatever else a future page adds).
+    private static func updatedBuild(from heading: String) -> String? {
+        let prefix = "Updates in "
+        guard heading.hasPrefix(prefix) else { return nil }
+        let build = heading.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
+        return build.isEmpty ? nil : build
+    }
+
+    /// `New Features in Xcode 27 Beta 5` → `New Features`. Inside an `Updates in …`
+    /// section every kind heading repeats the build, which the entry already names.
+    private static func strippingBuildSuffix(_ heading: String) -> String {
+        guard let range = heading.range(of: " in Xcode ") else { return heading }
+        return String(heading[heading.startIndex..<range.lowerBound])
+    }
+
+    /// Every note a block contributes, in document order: one per paragraph,
+    /// walking into list items and asides. A list item whose content is several
+    /// paragraphs (a fix plus its "Workaround:") becomes ONE note, because they
+    /// are one bullet on Apple's page and splitting them strands the workaround.
+    ///
+    /// `codeListing` yields nothing, and that is a deliberate loss worth naming:
+    /// 12 of the Xcode 27 page's bullets embed a snippet, and those bullets keep
+    /// their prose and lose the code. Items are single-line strings that the pane
+    /// renders as plain text, so a multi-line snippet folded into one would read
+    /// as a run-on rather than as code.
+    private static func appleNotes(
+        in block: AppleBlock, references: [String: AppleDoc.Reference]
+    ) -> [String] {
+        switch block.type {
+        case "paragraph":
+            let text = appleInlineText(block.inlineContent ?? [], references: references)
+                .trimmingCharacters(in: .whitespaces)
+            return text.isEmpty ? [] : [text]
+        case "unorderedList", "orderedList":
+            return (block.items ?? []).compactMap { item in
+                let text = (item.content ?? [])
+                    .flatMap { appleNotes(in: $0, references: references) }
+                    .joined(separator: " ")
+                return text.isEmpty ? nil : text
+            }
+        case "aside":
+            return (block.content ?? []).flatMap { appleNotes(in: $0, references: references) }
+        default:
+            return []
+        }
+    }
+
+    /// Flatten a paragraph's runs into one string. `codeVoice` keeps its code as
+    /// plain text (the same thing `stripTags` does to a `<code>` element on an
+    /// HTML page), and a `reference` becomes the words the document's reference
+    /// table gives it — "follow the How to reinstall macOS guide." rather than a
+    /// sentence with a hole in it.
+    private static func appleInlineText(
+        _ runs: [AppleInline], references: [String: AppleDoc.Reference]
+    ) -> String {
+        runs.map { run in
+            switch run.type {
+            case "text": return run.text ?? ""
+            case "codeVoice": return run.code ?? ""
+            case "reference":
+                return run.identifier.flatMap { references[$0]?.title } ?? ""
+            default:
+                return appleInlineText(run.inlineContent ?? [], references: references)
+            }
+        }.joined()
     }
 }

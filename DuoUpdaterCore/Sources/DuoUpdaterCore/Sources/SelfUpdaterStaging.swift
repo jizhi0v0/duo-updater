@@ -346,10 +346,11 @@ public enum SelfUpdaterStaging {
                   // Must be a staged copy of THIS app. Rejects Sparkle's own
                   // Updater.app and anything else sharing the cache namespace.
                   dict["CFBundleIdentifier"] as? String == bundleID,
-                  let short = dict["CFBundleShortVersionString"] as? String
+                  let short = VersionSide.plistVersionField(dict["CFBundleShortVersionString"])
             else { continue }
             return StagedSelfUpdate(
-                version: short, buildVersion: dict["CFBundleVersion"] as? String,
+                version: short,
+                buildVersion: VersionSide.plistVersionField(dict["CFBundleVersion"]),
                 stagedBundlePath: url)
         }
         return nil

@@ -382,9 +382,8 @@ public struct AppScanner: Sendable {
         // An app with no marketing version can't be update-checked — these are
         // helper/background bundles (URL handlers, login items) that would only
         // ever show as permanent "unknown" noise. Exclude them.
-        guard let rawShortVersion = (plist["CFBundleShortVersionString"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-              !rawShortVersion.isEmpty
+        guard let rawShortVersion = VersionSide.plistVersionField(
+            plist["CFBundleShortVersionString"])
         else { return nil }
         var shortVersion = rawShortVersion
 
@@ -411,7 +410,7 @@ public struct AppScanner: Sendable {
         var bundleID = plist["CFBundleIdentifier"] as? String
         /// Set only for WeChat DevTools, from its `package.json` (see below).
         var weChatDevToolsChannel: ReleaseChannel?
-        let buildVersion = plist["CFBundleVersion"] as? String
+        let buildVersion = VersionSide.plistVersionField(plist["CFBundleVersion"])
         if bundleID == Self.duoUpdaterBundleID { return nil }
 
         // WeChat DevTools (微信开发者工具) keeps its real identity OUT of Info.plist.

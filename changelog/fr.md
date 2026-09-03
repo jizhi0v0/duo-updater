@@ -4,7 +4,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.3.83
 
-**Les préversions d'UTM reçoivent désormais leurs propres mises à jour, s'installent en un clic et affichent les notes correspondantes.** UTM publie préversions et versions finales sous la même identité d'application et avec des numéros de version simples : une copie en préversion était donc comparée au canal final et déclarée à jour sans autre explication. Elle suit maintenant sa propre lignée — y compris la version que cette lignée finit par publier en version finale — et affiche les notes qui vont avec. Une copie en préversion qui reçoit la version finale de sa lignée revient au canal final ; installez une préversion plus récente pour suivre à nouveau les préversions.
+**Les préversions d'UTM reçoivent désormais leurs propres mises à jour, s'installent en un clic et affichent les notes correspondantes.** Une copie en préversion était auparavant comparée au canal final et déclarée à jour sans autre explication ; elle suit maintenant sa propre lignée et revient au canal final dès qu'elle en reçoit la version finale.
 
 ## 0.3.82
 

@@ -4,7 +4,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 ## 0.3.83
 
-**Las versiones preliminares de UTM ahora reciben sus propias actualizaciones, se instalan con un clic y muestran las notas correspondientes.** UTM publica versiones preliminares y finales con la misma identidad de app y números de versión simples, así que antes una copia preliminar se comparaba con el canal final y se le decía, sin avisar, que estaba al día. Ahora sigue su propia línea —incluida la versión que esa línea acaba publicando como final— y muestra las notas que le corresponden. Una copia preliminar que recibe la versión final de su línea vuelve al canal final; instale una preliminar más reciente para volver a seguir las versiones preliminares.
+**Las versiones preliminares de UTM ahora reciben sus propias actualizaciones, se instalan con un clic y muestran las notas correspondientes.** Antes una copia preliminar se comparaba con el canal final y se le decía, sin avisar, que estaba al día; ahora sigue su propia línea y vuelve al canal final en cuanto recibe la versión final de esa línea.
 
 ## 0.3.82
 

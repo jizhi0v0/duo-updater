@@ -87,6 +87,13 @@ public actor ResolvedChannelStore {
         // Compared on what the entry ASSERTS, not on the whole value: `provenAt`
         // is fresh on every call, so an equality check against the new entry
         // could never short-circuit anything.
+        //
+        // Defence in depth rather than a live saving: the source consults
+        // `channel(for:)` first and returns early on a hit, and that hit is
+        // strictly harder to get than this one, so in practice a caller reaching
+        // here has no entry or a stale one. `provenAt` therefore reads as "when
+        // this copy at this version was first decided", which is the only moment
+        // there was — an entry is never re-proved while it applies.
         if let existing = entries[app.id],
            existing.shortVersion == app.shortVersion,
            existing.buildVersion == app.buildVersion,

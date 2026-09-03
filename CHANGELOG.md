@@ -21,7 +21,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.3.83
 
-**UTM preview builds now get their own updates, install with one click, and show the matching release notes.** UTM ships previews and final builds under the same app identity and plain version numbers, so a preview copy used to be measured against the final track and silently told it was up to date. It now follows its own line — including the release that line eventually ships as final — and shows the notes that go with it. A preview copy that takes the release its line ships as final moves back to the final track; install a newer preview to follow previews again.
+**UTM preview builds now get their own updates, install with one click, and show the matching release notes.** A preview copy used to be measured against the final track and silently told it was up to date; it now follows its own line, and once it takes that line's final release it moves back to the final track.
 
 ## 0.3.82
 

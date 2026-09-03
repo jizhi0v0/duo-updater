@@ -65,8 +65,9 @@ public struct GitHubReleaseRule: Sendable {
     /// tag (`"v"` + `5.0.5` → `v5.0.5`). Non-nil only when stable and prerelease
     /// builds share every local identity signal. The source looks up that exact
     /// release and uses GitHub's `prerelease` bit to decide which rule the
-    /// installed copy belongs to. A missing/unmatched release fails closed
-    /// instead of guessing Stable.
+    /// installed copy belongs to. A missing or unmatched release claims no
+    /// channel and falls back to the stable rule — the copy loses its badge,
+    /// not its row.
     ///
     /// At most one rule per bundle id may set this — `atMostOneDiscoverableRulePerBundleID`
     /// enforces it, because at runtime a second one has no principled tiebreak.
@@ -754,8 +755,10 @@ public struct GitHubReleasesSource: UpdateSource {
                 firstReleaseHTMLURL: nil, sentToken: token != nil)
             // An exact-tag lookup is channel discovery, not the update probe
             // itself. A custom/local build or a release whose tag was removed
-            // simply cannot prove its channel; decline this source instead of
-            // turning that expected miss into a retryable app error.
+            // simply cannot prove its channel; report that as "nothing found"
+            // rather than as a retryable app error. The caller turns it into an
+            // answer on the stable rule — it is the discovery that declines, not
+            // the source.
             if tag != nil, http.statusCode == 404 { return nil }
             throw GitHubError.badStatus(http.statusCode)
         }
@@ -1769,8 +1772,8 @@ public enum GitHubReleaseRegistry {
         // and the literal `UTM.dmg` asset name. The tag is plain numeric too
         // (`v5.0.5`), so no suffix can gate the beta rule. Instead, the source
         // looks up the exact tag for the installed version and reads GitHub's own
-        // authoritative `prerelease` bit to decide WHICH RULE this copy is on. If
-        // the installed tag cannot be proven, it fails closed rather than guessing.
+        // authoritative `prerelease` bit to decide WHICH RULE this copy is on. An
+        // unprovable tag claims no channel and answers on the stable rule.
         //
         // What that bit does NOT mean here is "a parallel Beta train". Measured
         // over all 131 releases: 78 are prereleases, and each minor line ships

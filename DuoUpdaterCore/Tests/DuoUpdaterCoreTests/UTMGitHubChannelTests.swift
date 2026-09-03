@@ -362,3 +362,81 @@ struct UTMGitHubChannelTests {
         #expect(await store.channel(for: installed) == nil)
     }
 }
+
+/// `carriedForward` is what a rescan uses to move a row onto a freshly-scanned
+/// copy. It is tested here rather than in the App because `App/project.yml` has
+/// no test target, and this particular rule has already been got wrong twice:
+/// once by keeping a channel with no evidence behind it, and once by gating
+/// `provenChannel` while the same claim rode along on the carried `remote`.
+struct CarriedForwardChannelTests {
+    private func app(_ short: String, build: String?) -> InstalledApp {
+        InstalledApp(
+            name: "UTM", bundleID: "com.utmapp.UTM",
+            shortVersion: short, buildVersion: build,
+            path: URL(fileURLWithPath: "/Applications/UTM.app"),
+            isMASApp: false, isToolboxManaged: false, sparkleFeedURL: nil)
+    }
+
+    private func remote(_ version: String, channel: ReleaseChannel?) -> RemoteVersion {
+        RemoteVersion(
+            shortVersion: version, version: nil, downloadURL: nil, sourceName: "GitHub",
+            releaseChannel: channel)
+    }
+
+    @Test func anUnchangedCopyKeepsWhatWasKnownAboutIt() {
+        let was = UpdateResult(
+            app: app("5.0.4", build: "123"), remote: remote("5.0.5", channel: .beta),
+            status: .updateAvailable(latest: "5.0.5"), provenChannel: .beta)
+
+        let now = was.carriedForward(
+            onto: app("5.0.4", build: "123"), remote: was.remote,
+            status: .updateAvailable(latest: "5.0.5"), proven: nil)
+
+        #expect(now.effectiveReleaseChannel == .beta)
+    }
+
+    /// The copy was replaced between checks — the exact case `performLocalRescan`
+    /// exists for. Nothing known about the old build describes the new one.
+    @Test func aReplacedCopyKeepsNoChannelFromEitherCarrier() {
+        let was = UpdateResult(
+            app: app("4.7.3", build: "117"), remote: remote("4.7.5", channel: .beta),
+            status: .updateAvailable(latest: "4.7.5"), provenChannel: .beta)
+
+        let now = was.carriedForward(
+            onto: app("4.7.5", build: "118"), remote: was.remote,
+            status: .upToDate, proven: nil)
+
+        #expect(now.provenChannel == nil)
+        #expect(now.remote?.releaseChannel == nil,
+                "the remote's channel describes the copy that WAS on disk; it goes stale with it")
+        #expect(now.effectiveReleaseChannel == .stable)
+    }
+
+    /// A build-only bump is still a different copy — the marketing string alone
+    /// would have called this the same one.
+    @Test func aBuildOnlyBumpCountsAsAReplacedCopy() {
+        let was = UpdateResult(
+            app: app("1.0", build: "230"), remote: remote("1.0", channel: .beta),
+            status: .upToDate, provenChannel: .beta)
+
+        let now = was.carriedForward(
+            onto: app("1.0", build: "232"), remote: was.remote, status: .upToDate, proven: nil)
+
+        #expect(now.effectiveReleaseChannel == .stable)
+    }
+
+    /// Fresh evidence outranks anything carried, including for a copy that did
+    /// change — that is what makes the strict gate above affordable.
+    @Test func aProofAboutTheNewCopyWins() {
+        let was = UpdateResult(
+            app: app("4.7.3", build: "117"), remote: remote("4.7.5", channel: .beta),
+            status: .upToDate, provenChannel: .beta)
+
+        let now = was.carriedForward(
+            onto: app("5.0.5", build: "124"), remote: was.remote,
+            status: .upToDate, proven: .beta)
+
+        #expect(now.effectiveReleaseChannel == .beta)
+        #expect(now.provenChannel == .beta)
+    }
+}

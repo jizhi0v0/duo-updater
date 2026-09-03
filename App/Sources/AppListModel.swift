@@ -1923,7 +1923,15 @@ final class AppListModel {
         // (re-evaluated against the fresh on-disk version) so the list stays put and
         // the menu bar's data shows immediately; the check then overwrites it.
         results = results.isEmpty
-            ? found.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
+            ? found.map { app -> UpdateResult in
+                // Cold start has no prior row to carry, but the store still knows
+                // what was proven about these copies, so a Beta row is a Beta row
+                // from the first paint rather than after the first check lands.
+                let proofs = ResolvedChannelStore.Snapshot()
+                return UpdateResult(
+                    app: app, remote: nil, status: .unknown,
+                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: app, in: proofs))
+            }
             : sorted(mergeScanned(found))
         lastScan = .now
         isScanning = false
@@ -1982,18 +1990,22 @@ final class AppListModel {
         Log.app.info(
             "refresh: checking \(checkable.count, privacy: .public) apps, skipping \(ignored.count, privacy: .public) ignored")
         // Ignored rows are never checked, so nothing downstream will ever put a
-        // proven channel back on them — rebuilding them bare here is not a blank
-        // that the next check repairs, it is permanent until the user un-ignores.
-        // And they are not inert: `prewarmChangelogs` below runs over `checked`
+        // proven channel back on them — rebuilding them bare is not a blank that
+        // the next check repairs, it is permanent until the user un-ignores. And
+        // they are not inert: `prewarmChangelogs` below runs over `checked`
         // unfiltered, so a UTM Beta row that lost its channel here would go and
-        // cache the STABLE changelog against itself.
-        let priorChannels = Dictionary(
-            roundBaseline.map { ($0.id, $0.provenChannel) }, uniquingKeysWith: { a, _ in a })
+        // cache the FINAL track's changelog against itself.
+        //
+        // Read from the store, not from the row we were just holding: on the path
+        // that actually matters — the app was already ignored when DuoUpdater
+        // launched — there is no prior row to read, because nothing ever checked
+        // it. The store is the only thing that survives a restart.
+        let proofs = ResolvedChannelStore.Snapshot()
         let checked = await checker.check(checkable)
             + ignored.map {
                 UpdateResult(
                     app: $0, remote: nil, status: .unknown,
-                    provenChannel: priorChannels[$0.id] ?? nil)
+                    provenChannel: ResolvedChannelStore.provenChannelSnapshot(for: $0, in: proofs))
             }
         results = sorted(CheckRoundWriteBack.publishing(
             checked, changedSince: roundBaseline, live: results))
@@ -2465,6 +2477,7 @@ final class AppListModel {
     /// Apps new since the last scan come in as `.unknown`.
     private func mergeScanned(_ found: [InstalledApp]) -> [UpdateResult] {
         let prior = Dictionary(results.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let proofs = ResolvedChannelStore.Snapshot()
         return found.map { app -> UpdateResult in
             guard let was = prior[app.id] else {
                 return UpdateResult(app: app, remote: nil, status: .unknown)
@@ -2480,19 +2493,15 @@ final class AppListModel {
             // layer up. Same shape as the `RowActions.live` rule in CLAUDE.md:
             // the safe default is what makes the omission compile.
             //
-            // Scoped to the version, exactly as `ResolvedChannelStore.channel(for:)`
-            // is: the proof is about one copy at one version, and this rescan is
-            // the path that exists BECAUSE an app may have updated itself
-            // underneath us. Carrying it unconditionally would keep a Beta badge
-            // on a copy that has just been replaced by a Stable build, and send
-            // its changelog prewarm to the wrong recipe, until the next network
-            // check landed.
-            let sameCopyAsProven = was.app.shortVersion == app.shortVersion
-                && was.app.buildVersion == app.buildVersion
+            // `carriedForward` is in Core and has tests; a version gate written
+            // here covered `provenChannel` and missed that the same claim also
+            // rides on the carried `remote`. `App/project.yml` has no test target,
+            // so a rule that has already been got wrong twice does not belong in
+            // this file.
             func carrying(_ remote: RemoteVersion?, _ status: UpdateStatus) -> UpdateResult {
-                UpdateResult(
-                    app: app, remote: remote, status: status,
-                    provenChannel: sameCopyAsProven ? was.provenChannel : nil)
+                was.carriedForward(
+                    onto: app, remote: remote, status: status,
+                    proven: ResolvedChannelStore.provenChannelSnapshot(for: app, in: proofs))
             }
             // Re-derive status from the cached remote against the fresh on-disk
             // version. With no remote (App Store / Toolbox / unknown) keep what we

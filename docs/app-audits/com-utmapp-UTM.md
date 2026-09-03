@@ -148,9 +148,13 @@ Homebrew 同时发布 `utm` 与 `utm@beta`，二者安装成同一个 `UTM.app` 
 - GitHub 的 `prerelease` 位是判轨依据；上游若重新标记一条既有 release，DuoUpdater 会按上游
   当前声明处理。注意判轨结果按"路径 + 版本"缓存且**不设过期**，所以重新标记要到该拷贝版本变化
   时才会被重新读取。
-- **预览轨是单向的**：4.7.3 (Beta) 拿到转正的 4.7.5 之后，下一轮 exact-tag 查出
-  `prerelease: false`，这份拷贝就回到正式轨，不会再收到 v5 预览。这是"prerelease 是阶段不是轨"
-  的直接推论，但用户可能当成 bug —— 想继续跟预览需要自己去装一个预览版。
+- **预览轨是单向的**：4.7.3 (Beta) 拿到转正的 4.7.5 之后，磁盘版本变了 → store 里那条按
+  "路径 + 两个版本串"建的记录失效 → 重新查 exact tag `v4.7.5` → `prerelease: false` →
+  记 stable。这份拷贝因此回到正式轨，不会再收到 v5 预览。这是"prerelease 是阶段不是轨"
+  的直接推论，但用户可能当成 bug —— 想继续跟预览需要自己去装一个预览版。已写进发布说明。
+- 换版本那一刻到下一次网络检查之间，行的渠道身份由 `UpdateResult.carriedForward` 决定：
+  装机版本一变，**上一轮的 `provenChannel` 和 `remote.releaseChannel` 一起作废**（两者都
+  是对旧拷贝的断言）。这条规则在 Core 有测试 —— 它被写错过两次，都是因为写在了 App 层。
 - Homebrew 两个 cask 都存在且版本正确（`utm` 4.7.5 / `utm@beta` 5.0.5，2026-09-03 实测），
   都装到 `/Applications/UTM.app` 且互相冲突。brew 装过的拷贝由 `HomebrewCaskSource` 先应答
   （它排在 GitHub 之前），此时判轨与 `ResolvedChannelStore` 都不会运行；只有直装的拷贝才走

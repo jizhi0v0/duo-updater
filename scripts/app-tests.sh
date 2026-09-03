@@ -7,17 +7,10 @@
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Per-checkout derived data. A fixed path would be shared by every worktree open
-# at once, and this repo routinely has a dozen: two concurrent runs then collide
-# the way `make test`'s /tmp/duo-loc-check already does, except here the symptom
-# is tests failing rather than a build stalling, which reads as a real regression.
-# `APP_TESTS_DD` overrides, as GALLERY_DD does for the gallery.
-#
-# Two runs in the SAME checkout still share this directory, and two concurrent
-# xcodebuilds on one derived-data path is the hazard CLAUDE.md records for
-# /tmp/duo-loc-check. Not fixed here — `make gallery` and the loc-check have the
-# same shape — so don't run this alongside itself in one checkout.
-DD="${APP_TESTS_DD:-/tmp/duo-app-tests-$(printf %s "$REPO" | shasum | cut -c1-8)}"
+# Per checkout, and the dead ones reclaimed — see scripts/derived_data_path.py.
+# Two runs in the SAME checkout still share it, which is the one collision left;
+# don't run this alongside itself. `APP_TESTS_DD` overrides.
+DD="${APP_TESTS_DD:-$(python3 "$REPO/scripts/derived_data_path.py" app-tests "$REPO")}"
 
 # Exported before xcodegen for the reason install.sh and row-state-gallery.sh
 # state: the spec reads $DUO_TEAM_ID for DEVELOPMENT_TEAM, and regenerating

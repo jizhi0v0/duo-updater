@@ -79,11 +79,12 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///   2. A channel suffix on the bundle id (`com.google.Chrome.canary`).
     ///   3. A standalone channel word in the display name ("Google Chrome Dev").
     ///   4. A pre-release shape in the version string: Mozilla's `b<N>`/`a<N>`/
-    ///      `esr`, GitHub Desktop's full-semver `-beta<N>`, and a prerelease
-    ///      WORD in the version's dash-separated tail (Freelens `-nightly-…`,
-    ///      VLC `-dev`, KeePassXC `-snapshot`) for apps whose bundle id, name,
-    ///      and filename are all silent — see the block comment below for the
-    ///      anchoring that keeps ordinary build-metadata versions out of this.
+    ///      `esr`, full-semver `-beta<N>` / `-beta.<N>` suffixes, and a
+    ///      prerelease WORD in the version's dash-separated tail (Freelens
+    ///      `-nightly-…`, VLC `-dev`, KeePassXC `-snapshot`) for apps whose
+    ///      bundle id, name, and filename are all silent — see the block comment
+    ///      below for the anchoring that keeps ordinary build-metadata versions
+    ///      out of this.
     /// Nothing matched → `.stable`.
     public static func detect(
         name: String,
@@ -261,6 +262,13 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             // `0.3.377-beta.1429+sha`, `0.1.1251-beta+sha` — don't trip it (verified
             // against the real installed bundles 2026-06-06).
             if fullyMatches(#"[0-9]+(\.[0-9]+)+-beta[0-9]+"#, version) { return .beta }
+            // Electron-style dotted beta counter (`3.3.3-beta.3`), verified from
+            // Vorssaint's real beta dmg on 2026-08-30. The WHOLE string still has
+            // to end at the counter. In particular, the stable build-metadata
+            // shape `0.3.377-beta.1429+sha` must remain stable: the `+sha` makes
+            // this pattern fail rather than turning a packaging label into a
+            // release-channel signal.
+            if fullyMatches(#"[0-9]+(\.[0-9]+)+-beta\.[0-9]+"#, version) { return .beta }
 
             // A prerelease WORD in the version's dash-separated tail — the only
             // local channel signal some nightly/snapshot builds have. Freelens

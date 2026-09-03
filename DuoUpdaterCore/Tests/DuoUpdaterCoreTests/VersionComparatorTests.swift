@@ -62,6 +62,25 @@ import Testing
     #expect(VersionComparator.compare("v", "v") == .orderedSame)
 }
 
+/// The tokenizer treats a string with no digits at all — including the empty
+/// string — the same as "0", because a missing trailing component is filled
+/// with `.number("0")` on both sides (see `compare`'s loop). That is correct
+/// for "1.2" vs "1.2.0", and it is exactly why an empty *marketing* or *build*
+/// string must never reach this function: "no version" and "the oldest
+/// version there is" become indistinguishable, and a real "0"-tokenizing
+/// string on the other side ("0", "0.0", "00", "v0") reads as an exact match.
+/// This is the ground fact issue #287's whole helper (`VersionSide
+/// .plistVersionField`) exists to keep out of every plist read.
+@Test func emptyStringTokenizesTheSameAsZero() {
+    #expect(VersionComparator.compare("", "0") == .orderedSame)
+    #expect(VersionComparator.compare("", "0.0") == .orderedSame)
+    #expect(VersionComparator.compare("", "00") == .orderedSame)
+    #expect(VersionComparator.compare("", "v0") == .orderedSame)
+    #expect(VersionComparator.isSame(
+        VersionSide(marketing: "", build: nil),
+        as: VersionSide(marketing: "0", build: nil)))
+}
+
 @Test func evaluatePrefersBuildVersion() {
     let app = InstalledApp(
         name: "X", bundleID: "x", shortVersion: "1.0", buildVersion: "100",
@@ -169,11 +188,115 @@ import Testing
                 "nothing comparable is not sameness")
     }
 
+    /// `isSame(_:as:buildIsDerived:)` is the shared primitive behind both
+    /// `PackageRestartState.resolve` and `AppListModel.pruneStagedPackages` (#285):
+    /// a scanner-substituted build (`AppScanner.buildVersionIsOverridden`'s Xcode,
+    /// 豆包输入法) does not share the other side's namespace, so when
+    /// `buildIsDerived` is true the `lhs` build must be dropped before comparing —
+    /// falling back to marketing alone — rather than let the plain `isSame` rule
+    /// ("every comparable field must agree") veto a real match on an incomparable
+    /// build pair.
+    @Test func isSameWithDerivedBuildFallsBackToMarketing() {
+        // Marketing matches, build is a foreign namespace: derived must call it
+        // the same; the plain rule (every comparable field agrees) must not.
+        #expect(VersionComparator.isSame(
+            s("1.0", "90602"), as: s("1.0", "1"), buildIsDerived: true))
+        #expect(!VersionComparator.isSame(s("1.0", "90602"), as: s("1.0", "1")),
+                "precondition: without the flag the mismatched builds veto it")
+        // Marketing itself differs: dropping the build must not manufacture a
+        // false match out of an unrelated build pair.
+        #expect(!VersionComparator.isSame(
+            s("1.0", "90602"), as: s("1.1", "1"), buildIsDerived: true))
+        // False (the default) must behave exactly like the un-flagged overload.
+        #expect(VersionComparator.isSame(
+            s("1.0", "130"), as: s("1.0", "130"), buildIsDerived: false)
+            == VersionComparator.isSame(s("1.0", "130"), as: s("1.0", "130")))
+    }
+
     /// `hasReached` is the landing test: the exact build, or one past it.
     @Test func hasReachedAcceptsTheTargetOrAnythingPastIt() {
         let target = s("1.0", "130")
         #expect(!VersionComparator.hasReached(target, disk: s("1.0", "129")))
         #expect(VersionComparator.hasReached(target, disk: s("1.0", "130")))
         #expect(VersionComparator.hasReached(target, disk: s("1.0", "131")))
+    }
+
+    /// Two spellings `compare` calls equal must be equal to `isSame` too, and
+    /// therefore to `hasReached`. `isSame` used raw string `==`, so a feed that
+    /// said `v1.2.3` against a plist that said `1.2.3` (or `1.0` against `1.0.0`,
+    /// `1.02` against `1.2`) was "not newer" AND "not the same": a staged package
+    /// read as not the offered version, and a swap landing test that could never
+    /// conclude.
+    @Test(arguments: [
+        ("1.0.0", "1.0"),
+        ("1.0", "1.0.0"),
+        ("v2.0", "2.0"),
+        ("V1.4.3", "1.4.3"),
+        ("1.02", "1.2"),
+        ("1.007", "1.7"),
+        ("007", "7"),
+    ])
+    func isSameAgreesWithCompareOnEquivalentSpellings(a: String, b: String) {
+        #expect(VersionComparator.compare(a, b) == .orderedSame,
+                "precondition: the tokenizer must call these equal")
+        // Marketing respelled, build identical — the shape that bit.
+        #expect(VersionComparator.isSame(s(a, "130"), as: s(b, "130")))
+        #expect(VersionComparator.hasReached(s(a, "130"), disk: s(b, "130")))
+        // Marketing only (a side with no build).
+        #expect(VersionComparator.isSame(s(a, nil), as: s(b, nil)))
+        #expect(VersionComparator.hasReached(s(a, nil), disk: s(b, nil)))
+        // The build half goes through the same tokenizer.
+        #expect(VersionComparator.isSame(s("1.0", a), as: s("1.0", b)))
+    }
+
+    /// The tokenizer must not make `isSame` looser than "same build": a real
+    /// difference on any comparable field is still a difference, and an
+    /// incomparable pair is still not sameness.
+    @Test func tokenizedIsSameStillRejectsRealDifferences() {
+        #expect(!VersionComparator.isSame(s("1.0.1", "130"), as: s("1.0", "130")),
+                "different marketing")
+        #expect(!VersionComparator.isSame(s("v2.0", "130"), as: s("2.0", "131")),
+                "same marketing, spelled differently, but the builds differ")
+        #expect(!VersionComparator.isSame(s("2.0", nil), as: s("2.0-beta1", nil)),
+                "a release is not its own pre-release")
+        #expect(!VersionComparator.isSame(VersionSide(), as: s("v1.0", "1")),
+                "one side empty")
+        #expect(!VersionComparator.isSame(s("1.0", nil), as: s(nil, "1")),
+                "nothing comparable across the two sides")
+        // hasReached keeps its other half: disk past the target still counts.
+        #expect(VersionComparator.hasReached(s("v2.0", "130"), disk: s("2.0", "131")))
+        #expect(!VersionComparator.hasReached(s("v2.0", "131"), disk: s("2.0", "130")))
+    }
+
+    /// `hasReached` must stay `isSame || isNewer`, not "disk is not behind".
+    ///
+    /// Issue #221 offers `!isNewer(target, than: disk)` as an equivalent
+    /// rewrite. It is not, and nothing above catches the difference: with the
+    /// rewrite in place every other expectation in this file still passes. The
+    /// two forms agree wherever both sides carry a comparable field and part
+    /// company exactly where nothing is comparable — `isNewer` answers "cannot
+    /// tell" as `false`, so negating it turns "cannot tell" into "landed".
+    /// That is the fail-open direction on a swap-landing test: `RelaunchProgress`
+    /// would call an unreadable bundle arrived and stop waiting.
+    @Test func hasReachedFailsClosedWhenNothingIsComparable() {
+        #expect(!VersionComparator.hasReached(s("1.0", "130"), disk: VersionSide()))
+        #expect(!VersionComparator.hasReached(VersionSide(), disk: VersionSide()))
+        #expect(!VersionComparator.hasReached(s("1.0", nil), disk: s(nil, "1")),
+                "marketing against a build is not a comparison")
+        #expect(!VersionComparator.hasReached(s(nil, "130"), disk: s("1.0", nil)))
+    }
+
+    /// The tokenizer's separator class is wider than the `v`-prefix and
+    /// zero-padding cases above: `.`, `-`, `_`, `+`, a space and parentheses are
+    /// all one separator, so these pairs are equal too. Pinned not because any
+    /// vendor is known to ship two of them as different builds, but so the next
+    /// reader sees the real size of what `isSame` now calls the same — macOS
+    /// writes builds as `1.0 (123)` by convention, and that shape is in here.
+    @Test func theSeparatorClassIsPartOfWhatIsSameNowAccepts() {
+        for (a, b) in [("1.0-1", "1.0.1"), ("1.0 (1)", "1.0.1"), ("1.0_1", "1.0-1"),
+                       ("3.5.0(1234)", "3.5.0.1234"), ("1.0.0+1", "1.0.0.1")] {
+            #expect(VersionComparator.compare(a, b) == .orderedSame, "\(a) vs \(b)")
+            #expect(VersionComparator.isSame(s("1.0", a), as: s("1.0", b)), "builds \(a) vs \(b)")
+        }
     }
 }

@@ -44,15 +44,43 @@ public extension URLSession {
     /// A transport-level failure (`URLError`) is not retried: `Downloader` owns
     /// that policy for the bytes that matter, and a source that cannot connect
     /// at all is already reported as a retryable row.
+    ///
+    /// `retryableBody` earns the same one retry for a vendor that reports its own
+    /// outage **inside a 200**: an error envelope where the answer should be. That
+    /// is a gateway 5xx wearing a success costume — it says nothing about the
+    /// request, and the same bytes a moment later work — so it belongs on this
+    /// path rather than in a second retry loop somewhere above. Nil for every
+    /// caller but a vendor probe whose recipe declares the envelope's shape; the
+    /// predicate is never consulted otherwise.
+    ///
+    /// **It is consulted on 2xx only**, and that gate is the important half. A
+    /// rejection carries an empty body far more often than an answer does, so a
+    /// predicate written against "no payload" would match a 429 or a 500 too —
+    /// and retrying those is precisely what the rules above refuse to do, for
+    /// reasons (spending the rate-limit budget you are being told about,
+    /// reproducing an origin's own exception) that a body shape does not change.
+    /// A success status is what makes this a *disguised* outage rather than a
+    /// stated one.
     func versionFeedData(
         for request: URLRequest,
         label: String,
-        retryDelay: Duration = URLSession.gatewayRetryDelay
+        retryDelay: Duration = URLSession.gatewayRetryDelay,
+        retryableBody: (@Sendable (Data) -> Bool)? = nil
     ) async throws -> (Data, URLResponse) {
         let first = try await data(for: request)
-        guard let http = first.1 as? HTTPURLResponse,
-              Self.retryableGatewayStatuses.contains(http.statusCode)
-        else { return first }
+        let http = first.1 as? HTTPURLResponse
+        // What we would be retrying, in the words the log line wants. Nil means the
+        // answer is settled and this returns untouched — the path every caller that
+        // passes no predicate keeps taking.
+        let reason: String
+        if let http, Self.retryableGatewayStatuses.contains(http.statusCode) {
+            reason = "HTTP \(http.statusCode)"
+        } else if let http, (200..<300).contains(http.statusCode),
+                  retryableBody?(first.0) == true {
+            reason = "\(first.0.count)-byte error body"
+        } else {
+            return first
+        }
         // Safe by construction rather than by every caller remembering: a body-carrying
         // method is not ours to send twice. `VendorProbeSource` builds GET and POST
         // probes through one code path (`recipe.requestBody` decides), so the guard has
@@ -61,7 +89,7 @@ public extension URLSession {
         let method = (request.httpMethod ?? "GET").uppercased()
         guard method == "GET" || method == "HEAD" else {
             Log.source.info(
-                "\(label, privacy: .public): HTTP \(http.statusCode, privacy: .public) on \(method, privacy: .public) — not retried")
+                "\(label, privacy: .public): \(reason, privacy: .public) on \(method, privacy: .public) — not retried")
             return first
         }
 
@@ -71,7 +99,7 @@ public extension URLSession {
         // `.error` never fires — so at `.debug` a gateway hiccup would leave no
         // trace anywhere.
         Log.source.info(
-            "\(label, privacy: .public): HTTP \(http.statusCode, privacy: .public) — retrying once")
+            "\(label, privacy: .public): \(reason, privacy: .public) — retrying once")
         GatewayRetry.tally?.record()
         // Cancellation must not change the *shape* of the failure a caller sees.
         // `Task.sleep` throws `CancellationError`, which is not a `URLError`, and

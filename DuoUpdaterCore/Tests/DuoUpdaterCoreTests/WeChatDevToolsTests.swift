@@ -112,6 +112,25 @@ private let wechatDevToolsRCLogFixture = """
 }
 """
 
+/// The real `logs/nightly_v2.02.2609022.json`, captured 2026-09-03. Tencent
+/// published the build with no categorized change lines; the per-version document
+/// still carries its version, date, and Nightly description.
+private let wechatDevToolsNightlyEmptyCategoriesFixture = """
+{
+  "version": "2.02.2609022",
+  "update_time": "2026-09-02",
+  "tags": [
+    {
+      "text": "Nightly Electron Build",
+      "text_en": "Nightly Electron Build",
+      "color": "red"
+    }
+  ],
+  "desc": "日常构建版本, 2.02.2603212 开始基于 Electron 36.6(对应 Chromium 136)， 2.01.2602282 且更早之前版本是基于 NW.js 0.54.1（Chromium 93)，用于尽快修复缺陷和敏捷上线小的特性；开发自测验证，稳定性欠佳",
+  "categories": []
+}
+"""
+
 /// The `package.json` each build runs on, as captured from four real bundles on
 /// 2026-08-18 — the installed 2.01.2510290 (NW.js, `Contents/Resources/package.nw/`)
 /// and the 2.02 RC / Stable / Nightly pkg payloads (Electron,
@@ -310,6 +329,29 @@ struct WeChatDevToolsChangelogTests {
             "切换 appid 相关反馈问题",
             "showToast 设置自定义图片时无法显示",
             "修复 第三方 AI 评测 `wx.login`",
+        ])
+    }
+
+    /// A valid Nightly document is not a broken recipe merely because Tencent has
+    /// not attached categorized changes to that build. Derive the decoder settings
+    /// from the registered Nightly recipe and surface the vendor's own description.
+    @Test func fallsBackToDescriptionWhenCategoriesAreEmpty() throws {
+        let recipe = try #require(ChangelogRecipeRegistry.recipe(
+            forBundleID: AppScanner.weChatDevToolsBundleID, channel: .nightly))
+        let format = try #require(recipe.structuredFormat)
+        let changelog = try #require(StructuredChangelogDecoder.decode(
+            wechatDevToolsNightlyEmptyCategoriesFixture,
+            format: format,
+            channel: recipe.channel,
+            maxEntries: recipe.maxEntries))
+        let entry = try #require(changelog.entries.first)
+        #expect(changelog.entries.count == 1)
+        #expect(entry.version == "2.02.2609022")
+        #expect(entry.date == "2026-09-02")
+        #expect(entry.items == [
+            "日常构建版本, 2.02.2603212 开始基于 Electron 36.6(对应 Chromium 136)， "
+                + "2.01.2602282 且更早之前版本是基于 NW.js 0.54.1（Chromium 93)，"
+                + "用于尽快修复缺陷和敏捷上线小的特性；开发自测验证，稳定性欠佳",
         ])
     }
 

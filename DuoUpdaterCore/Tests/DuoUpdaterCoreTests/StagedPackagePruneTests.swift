@@ -57,7 +57,10 @@ struct StagedPackagePruneTests {
     @Test func aRowWaitingOnARelaunchIsKeptWithNoDownloadAndNoOffer() {
         #expect(keep(
             staged: [Self.path: staged("2.0")],
-            onDisk: [Self.path: app("2.0")],
+            // Reads as the OLD version — the mid-swap case. With `app("2.0")`
+            // here the row also satisfies the landed rule, so deleting the
+            // pending branch left this green: it was measuring the wrong branch.
+            onDisk: [Self.path: app("1.0")],
             pending: [Self.path],
             downloadExists: false) == [Self.path])
     }
@@ -175,13 +178,31 @@ struct StagedPackagePruneTests {
         let blind = "/Applications/Alpha.app"      // kept: blind, download present
         let landed = "/Applications/Beta.app"      // kept: landed
         let waiting = "/Applications/Delta.app"    // kept: pending a relaunch
+        let offeredRow = "/Applications/Zeta.app"  // kept: on offer + downloaded
 
         let out = keep(
-            staged: [blind: staged("2.0"), landed: staged("2.0"), waiting: staged("2.0")],
-            onDisk: [landed: app("2.0", path: landed), waiting: app("2.0", path: waiting)],
+            staged: [blind: staged("2.0"), landed: staged("2.0"),
+                     waiting: staged("2.0"), offeredRow: staged("2.0")],
+            onDisk: [landed: app("2.0", path: landed), waiting: app("2.0", path: waiting),
+                     offeredRow: app("1.0", path: offeredRow)],
+            offered: [offeredRow: VersionSide(marketing: "2.0")],
             pending: [waiting])
 
-        #expect(out == [blind, landed, waiting])
+        #expect(out == [blind, landed, waiting, offeredRow])
+    }
+
+    /// The blind branch sorts FIRST in every other multi-entry case, so an
+    /// assignment there happens to give the right answer — the rows after it put
+    /// themselves back. Here it sorts last, so it has something to displace.
+    ///
+    /// Mutation: `kept = [id]` in the blind branch.
+    @Test func aBlindEntryDoesNotDisplaceAnEarlierKeeper() {
+        let landed = "/Applications/Beta.app"
+        let blind = "/Applications/Zeta.app"
+
+        #expect(keep(
+            staged: [landed: staged("2.0"), blind: staged("2.0")],
+            onDisk: [landed: app("2.0", path: landed)]) == [landed, blind])
     }
 }
 
@@ -202,10 +223,6 @@ struct LandedAgreementTests {
             isMASApp: false, isToolboxManaged: false, sparkleFeedURL: nil)
     }
 
-    /// The inputs where the two copies were most likely to drift: a derived
-    /// build, where landing must fall back to marketing alone. Judged as "not
-    /// landed" by either side, the badge never lights and the entry never
-    /// settles (#285).
     /// No on-disk version at all is NOT landing. `resolve` returns `.pending`
     /// for it, and prune must not keep an entry on the strength of it either —
     /// a row we cannot read a version for has told us nothing.
@@ -222,6 +239,10 @@ struct LandedAgreementTests {
             runningLaunchDates: [Date(timeIntervalSince1970: 500)]) == .pending)
     }
 
+    /// The inputs where the two copies were most likely to drift: a derived
+    /// build, where landing must fall back to marketing alone. Judged "not
+    /// landed" by either side, the badge never lights and the entry never
+    /// settles (#285).
     @Test func bothSidesAgreeOnLandingIncludingDerivedBuilds() {
         let stagedAt = Date(timeIntervalSince1970: 1_000)
         let stale = [Date(timeIntervalSince1970: 500)]
@@ -231,6 +252,13 @@ struct LandedAgreementTests {
              VersionSide(marketing: "2.0", build: "20"), true),
             ("plain, still old",
              app("1.0", build: "10", bundleID: "com.example.app"),
+             VersionSide(marketing: "2.0", build: "20"), false),
+            // Separates the flag's two values in the OTHER direction: an
+            // ordinary app whose marketing matches but whose build moved has not
+            // landed. Hardcoding `buildIsDerived: true` throws the build away,
+            // calls it landed, and passed everything until this case existed.
+            ("plain, marketing matches but the build moved",
+             app("2.0", build: "21", bundleID: "com.example.app"),
              VersionSide(marketing: "2.0", build: "20"), false),
             ("derived build, marketing matches, builds differ",
              app("27.0", build: "27A5237l", bundleID: AppScanner.xcodeBundleID),
@@ -263,7 +291,9 @@ struct LandedAgreementTests {
                     StagedPackageFacts(versionSide: stagedSide, stagedAt: stagedAt)],
                 onDisk: ["/Applications/Example.app": installed],
                 offered: [:], pending: [], downloadExists: { _ in false })
-            #expect(kept.isEmpty != expectedLanded, "prune disagrees for \(label)")
+            #expect(
+                kept == (expectedLanded ? ["/Applications/Example.app"] : []),
+                "prune disagrees for \(label)")
         }
     }
 }

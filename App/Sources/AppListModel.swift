@@ -3836,6 +3836,11 @@ final class AppListModel {
             },
             onDisk: Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a }),
             offered: Dictionary(
+                // `!side.isEmpty` is defensive, not required: `VersionComparator
+                // .isSame` returns false when there is nothing comparable, so an
+                // empty side reaches the same answer either way. Kept because it
+                // says what an empty side means here; do not read it as a
+                // precondition Core relies on.
                 results.compactMap { r -> (String, VersionSide)? in
                     guard let side = r.remote?.versionSide, !side.isEmpty else { return nil }
                     return (r.id, side)

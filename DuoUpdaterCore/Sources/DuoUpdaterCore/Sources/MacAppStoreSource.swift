@@ -13,8 +13,21 @@ public struct MacAppStoreSource: UpdateSource {
     private let homeRegion: String
     /// Extra storefronts to probe only when the app isn't in the home store.
     private let fallbackRegions: [String]
+    /// TTL-memoized product-page scrapes (Mac version + notes, Mac-compat flag).
+    /// See `AppStorePageCache` for why a parse failure is cached but a transport
+    /// failure isn't.
+    private let pageCache: AppStorePageCache
+    /// Short-TTL store for `prewarm(_:)`'s batched lookups. `lookup(bundleID:region:)`
+    /// consults it first and falls through to its normal live request on a miss —
+    /// see `AppStoreLookupCache`.
+    private let prewarmCache = AppStoreLookupCache()
 
-    public init(session: URLSession = .updates, region: String? = nil) {
+    public init(
+        session: URLSession = .updates,
+        region: String? = nil,
+        pageCache: AppStorePageCache? = nil,
+        now: @escaping @Sendable () -> Date = Date.init
+    ) {
         self.session = session
         let home = region
             ?? AppStoreStorefront.currentCountry()
@@ -25,6 +38,29 @@ public struct MacAppStoreSource: UpdateSource {
         // case stays at one request per app.
         let common = ["us", "cn", "hk", "tw", "jp", "sg", "kr", "gb"]
         self.fallbackRegions = common.filter { $0 != home }
+        self.pageCache = pageCache ?? AppStorePageCache(now: now)
+    }
+
+    /// Batch-fetch lookups for every installed MAS app's home-store storefront
+    /// before the main per-app fan-out starts, so most of those apps' `lookup()`
+    /// calls hit `prewarmCache` instead of making their own request. Purely
+    /// additive: a chunk that fails to fetch, or an app this never covers (a
+    /// fallback-region probe, or a recheck that skips `prewarm` entirely), just
+    /// falls through to the unchanged per-bundle path in `lookup(bundleID:region:)`.
+    public func prewarm(_ apps: [InstalledApp]) async {
+        let bundleIDs = Array(Set(apps.compactMap { $0.isMASApp ? $0.bundleID : nil }))
+        guard !bundleIDs.isEmpty else { return }
+        for chunk in Self.chunked(bundleIDs, size: 20) {
+            guard let batch = try? await batchLookup(bundleIDs: chunk, region: homeRegion) else { continue }
+            await prewarmCache.store(batch, region: homeRegion)
+        }
+    }
+
+    private static func chunked(_ items: [String], size: Int) -> [[String]] {
+        guard size > 0 else { return [items] }
+        return stride(from: 0, to: items.count, by: size).map {
+            Array(items[$0..<min($0 + size, items.count)])
+        }
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -78,7 +114,19 @@ public struct MacAppStoreSource: UpdateSource {
         let lookupVersion = result.version
         var pageInfo: MacVersionInfo?
         if let trackId = result.trackId {
-            pageInfo = try? await scrapeMacVersion(trackId: trackId, region: region)
+            // The lookup's own `trackViewUrl` for a `mac-software` listing already
+            // lands on this same page with zero redirects (measured: 8/8, version
+            // identical to the constructed `?platform=mac` URL) — using it saves
+            // the 301 the constructed URL otherwise costs every scrape. It's
+            // network-sourced, so it's validated before use; a URL that fails the
+            // check (or is missing) falls back to the constructed URL exactly as
+            // before. Only this call site does this — `iosOnMacVersion` below is a
+            // *different* listing kind ("software") whose `trackViewUrl` points at
+            // the iOS listing, not the Mac one, so it keeps building its own URL.
+            let fallbackURL = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac")
+            if let scrapeURL = validatedProductPageURL(result.trackViewUrl) ?? fallbackURL {
+                pageInfo = try? await cachedMacVersion(trackId: trackId, region: region, url: scrapeURL)
+            }
         }
 
         // The page wins only when it's strictly newer (or the lookup gave nothing).
@@ -135,7 +183,13 @@ public struct MacAppStoreSource: UpdateSource {
         lookupResult: LookupResult,
         region: String
     ) async throws -> RemoteVersion? {
-        guard let info = try await scrapeMacVersion(trackId: trackId, region: region) else {
+        // Deliberately NOT `lookupResult.trackViewUrl`: for a `kind == "software"`
+        // listing (this call site) that URL has no `mt=12` and points at the iOS
+        // listing, not this Mac-specific one — using it would scrape the wrong
+        // page. Always build the Mac product-page URL ourselves.
+        let pageURL = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac")
+        guard let pageURL,
+              let info = try await cachedMacVersion(trackId: trackId, region: region, url: pageURL) else {
             return nil
         }
         let availability = AppStoreAvailability(trackID: trackId, availableRegion: region, homeRegion: homeRegion)
@@ -144,7 +198,6 @@ public struct MacAppStoreSource: UpdateSource {
         // track, not the Mac build, so we instead surface the Mac page's own
         // "What's New" text (scraped in the same pass as the version) inline —
         // exactly what the App Store shows for this app, rather than a web view.
-        let pageURL = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac")
         let notes = info.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         return RemoteVersion(
             shortVersion: info.version,
@@ -169,15 +222,45 @@ public struct MacAppStoreSource: UpdateSource {
         let notes: String?
     }
 
+    /// Validate a network-sourced product-page URL (`LookupResult.trackViewUrl`)
+    /// before trusting it for a scrape. `trackViewUrl` comes off the wire, so a
+    /// scheme/host check guards against following it somewhere unexpected;
+    /// anything that fails returns nil so the caller falls back to the URL it
+    /// would have built itself.
+    private func validatedProductPageURL(_ trackViewUrl: String?) -> URL? {
+        guard let trackViewUrl, let url = URL(string: trackViewUrl),
+              url.scheme == "https", url.host == "apps.apple.com" else { return nil }
+        return url
+    }
+
+    /// `scrapeMacVersion`, memoized through `pageCache` (see it for the caching
+    /// contract). A genuine transport exception still propagates unchanged (as it
+    /// did before this cache existed). A non-2xx response or an undecodable body
+    /// is `.unavailable` — we don't actually know anything, so nothing is cached
+    /// and nil comes back exactly as it did before. A 2xx response that fails to
+    /// PARSE a version is `.success(nil)` — we asked and got a real (if useless)
+    /// answer, so THAT nil is what gets cached: the page won't suddenly start
+    /// parsing before the TTL expires, so there's no reason to pay for it again
+    /// on every check in that window.
+    private func cachedMacVersion(trackId: Int, region: String, url: URL) async throws -> MacVersionInfo? {
+        if let cached = await pageCache.cachedVersion(trackId: trackId, region: region) {
+            return cached
+        }
+        switch try await fetchMacVersion(url: url) {
+        case .success(let info):
+            await pageCache.storeVersion(info, trackId: trackId, region: region)
+            return info
+        case .unavailable:
+            return nil
+        }
+    }
+
     /// Fetches the App Store Mac page and extracts the current Mac version (and
     /// its "What's New" notes) from the embedded amp-api JSON. Both live in the
     /// same shelf item at:
     ///   data[0].data.shelfMapping.mostRecentVersion.items[0]
     /// with `primarySubtitle` = "Version X.Y.Z" and `text` = the release notes.
-    private func scrapeMacVersion(trackId: Int, region: String) async throws -> MacVersionInfo? {
-        guard let url = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac") else {
-            return nil
-        }
+    private func fetchMacVersion(url: URL) async throws -> PageFetchOutcome<MacVersionInfo?> {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.cachePolicy = URLRequest.versionFeedCachePolicy
@@ -188,10 +271,14 @@ public struct MacAppStoreSource: UpdateSource {
         )
 
         let (data, response) = try await session.versionFeedData(
-            for: request, label: "App Store page id\(trackId)")
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-              let html = String(data: data, encoding: .utf8) else { return nil }
-        return extractMacVersionInfo(from: html)
+            for: request, label: "App Store page \(url.absoluteString)")
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            return .unavailable
+        }
+        guard let html = String(data: data, encoding: .utf8) else {
+            return .unavailable
+        }
+        return .success(extractMacVersionInfo(from: html))
     }
 
     /// Parses `<script type="application/json">` blobs in the HTML, looking for
@@ -250,11 +337,27 @@ public struct MacAppStoreSource: UpdateSource {
     /// Reads Apple's `isIOSBinaryMacOSCompatible` flag for the latest build from
     /// the product page's inline amp-api JSON. nil when the page/flag can't be
     /// read — callers treat nil as "assume compatible" so a scrape failure never
-    /// hides a real update.
-    private func scrapeMacCompatibility(trackId: Int, region: String) async throws -> Bool? {
+    /// hides a real update. Memoized through `pageCache`, same contract as
+    /// `cachedMacVersion` above: a non-2xx/undecodable response is `.unavailable`
+    /// (not cached, nil returned exactly as before this cache existed); a 2xx
+    /// response with no readable flag is `.success(nil)` (cached).
+    private func cachedMacCompatibility(trackId: Int, region: String) async throws -> Bool? {
+        if let cached = await pageCache.cachedCompatibility(trackId: trackId, region: region) {
+            return cached
+        }
         guard let url = URL(string: "https://apps.apple.com/\(region)/app/id\(trackId)") else {
+            return nil  // malformed URL never happens for a real trackId/region; nothing to cache
+        }
+        switch try await fetchMacCompatibility(url: url) {
+        case .success(let compat):
+            await pageCache.storeCompatibility(compat, trackId: trackId, region: region)
+            return compat
+        case .unavailable:
             return nil
         }
+    }
+
+    private func fetchMacCompatibility(url: URL) async throws -> PageFetchOutcome<Bool?> {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.cachePolicy = URLRequest.versionFeedCachePolicy
@@ -263,10 +366,14 @@ public struct MacAppStoreSource: UpdateSource {
             forHTTPHeaderField: "User-Agent"
         )
         let (data, response) = try await session.versionFeedData(
-            for: request, label: "App Store compat id\(trackId)")
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-              let html = String(data: data, encoding: .utf8) else { return nil }
-        return extractMacCompatible(from: html)
+            for: request, label: "App Store compat \(url.absoluteString)")
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            return .unavailable
+        }
+        guard let html = String(data: data, encoding: .utf8) else {
+            return .unavailable
+        }
+        return .success(extractMacCompatible(from: html))
     }
 
     /// Finds `data[0].data.lockup.isIOSBinaryMacOSCompatible` in the page's
@@ -304,7 +411,7 @@ public struct MacAppStoreSource: UpdateSource {
         guard let version = result.version else { return nil }
         var macCompatible: Bool?
         if checkMacCompat, let trackId = result.trackId {
-            macCompatible = try await scrapeMacCompatibility(trackId: trackId, region: region)
+            macCompatible = try await cachedMacCompatibility(trackId: trackId, region: region)
         }
         let availability = result.trackId.map {
             AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion, latestMacCompatible: macCompatible)
@@ -329,7 +436,17 @@ public struct MacAppStoreSource: UpdateSource {
 
     /// One lookup against a single storefront. Returns nil when the app isn't
     /// listed there (resultCount == 0).
+    ///
+    /// Checks `prewarmCache` first — `prewarm(_:)` populates it with a batched
+    /// answer for this exact (bundleID, region) before the main per-app fan-out
+    /// starts. A hit (even a cached "not found") skips the network entirely; a
+    /// miss falls through to the unchanged request below, so a prewarm that never
+    /// ran, or that didn't cover this bundle/region, costs nothing extra.
     private func lookup(bundleID: String, region: String) async throws -> LookupResult? {
+        if let cached = await prewarmCache.lookup(bundleID: bundleID, region: region) {
+            return cached
+        }
+
         var components = URLComponents(string: "https://itunes.apple.com/lookup")!
         components.queryItems = [
             URLQueryItem(name: "bundleId", value: bundleID),
@@ -352,6 +469,41 @@ public struct MacAppStoreSource: UpdateSource {
         return decoded.results.first
     }
 
+    /// One batched lookup across up to 20 bundle ids (`itunes.apple.com/lookup`
+    /// accepts a comma-separated `bundleId`; 20 in one request measured at 557
+    /// URL characters / ~31.8 KB response, vs. ~54 KB for 20 separate requests).
+    /// Maps every id that was IN the batch to what came back for it — including
+    /// nil for one the store didn't have — so `AppStoreLookupCache` can record a
+    /// definite miss and `lookup(bundleID:region:)` doesn't repeat the question.
+    private func batchLookup(bundleIDs: [String], region: String) async throws -> [String: LookupResult?] {
+        var components = URLComponents(string: "https://itunes.apple.com/lookup")!
+        components.queryItems = [
+            URLQueryItem(name: "bundleId", value: bundleIDs.joined(separator: ",")),
+            URLQueryItem(name: "country", value: region),
+            URLQueryItem(name: "entity", value: "macSoftware")
+        ]
+        guard let url = components.url else { return [:] }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
+
+        let (data, response) = try await session.versionFeedData(
+            for: request, label: "App Store prewarm lookup (\(bundleIDs.count))")
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw MASError.badStatus(http.statusCode)
+        }
+
+        let decoded = try JSONDecoder().decode(LookupResponse.self, from: data)
+        var byBundleID: [String: LookupResult] = [:]
+        for result in decoded.results {
+            if let bundleID = result.bundleId { byBundleID[bundleID] = result }
+        }
+        var out: [String: LookupResult?] = [:]
+        for bundleID in bundleIDs { out[bundleID] = byBundleID[bundleID] }
+        return out
+    }
+
     private struct LookupResponse: Decodable {
         let results: [LookupResult]
     }
@@ -366,8 +518,22 @@ public struct MacAppStoreSource: UpdateSource {
         /// "mac-software" for native Mac apps; "software" for iOS apps offered
         /// on Apple Silicon (whose `version` is the unrelated iOS version).
         let kind: String?
+        /// The listing's own bundle id — absent from a single-bundleId lookup's
+        /// use (that caller already knows which bundle it asked about), but
+        /// needed by `batchLookup` to map a comma-separated response's several
+        /// results back to the ids that produced them.
+        let bundleId: String?
 
         var isNativeMac: Bool { kind == "mac-software" }
+    }
+
+    /// A page fetch's outcome, in the vocabulary `AppStorePageCache`'s callers
+    /// need: `.success` (even with a nil payload) means "we got a real answer,
+    /// worth memoizing"; `.unavailable` means "a non-2xx response or an
+    /// undecodable body — we don't actually know anything, don't cache this".
+    private enum PageFetchOutcome<T> {
+        case success(T)
+        case unavailable
     }
 
     enum MASError: Error { case badStatus(Int) }

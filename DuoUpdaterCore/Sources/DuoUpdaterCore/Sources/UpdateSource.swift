@@ -11,4 +11,17 @@ public protocol UpdateSource: Sendable {
     /// real failure (network/parse) so the engine can surface an error rather
     /// than silently treating it as "not applicable".
     func latestVersion(for app: InstalledApp) async throws -> RemoteVersion?
+
+    /// Optional hook: given the full app list for a scan, do whatever
+    /// cheaper-in-bulk work would help `latestVersion(for:)` avoid a request it
+    /// would otherwise make per app. `UpdateChecker.check(_ apps:)` calls this
+    /// once, for every source, before its per-app fan-out starts — the only
+    /// point that has the whole list in hand at once. Default is a no-op, so
+    /// only a source that actually has a batched endpoint needs to implement it
+    /// (see `MacAppStoreSource.prewarm`, which batches iTunes lookups).
+    func prewarm(_ apps: [InstalledApp]) async
+}
+
+public extension UpdateSource {
+    func prewarm(_ apps: [InstalledApp]) async {}
 }

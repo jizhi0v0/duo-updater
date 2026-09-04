@@ -1,0 +1,83 @@
+import Foundation
+
+/// TTL-memoized cache for the two things `MacAppStoreSource` scrapes off an App
+/// Store product page: the Mac-track version (+ "What's New" notes) and the
+/// `isIOSBinaryMacOSCompatible` flag. Both are read from more than one call site
+/// per app per check (`nativeMacVersion` and `iosOnMacVersion` both scrape a
+/// version page; `remoteVersion` scrapes a compatibility page), and a full scan
+/// revisits the same trackId/region on every pass — memoizing turns that into
+/// one fetch per hour instead of one per check.
+///
+/// Deliberately caches a *parse failure* (2xx response, no version/flag found)
+/// the same as a *parse success* — an unparseable page costs full price again
+/// only once per TTL window, not once per check, which is the failure mode this
+/// exists to fix (skipping the scrape entirely would instead make the two
+/// call sites for a Mac version disagree with each other and with the lookup
+/// API, since only one of them would ever get a fresh page). A *transport
+/// failure or non-2xx response* is NOT cached: a network blip or a server
+/// hiccup must not freeze a bad answer in place for an hour. Callers keep those
+/// two outcomes apart before they ever reach this cache — see
+/// `MacAppStoreSource.fetchMacVersion`/`fetchMacCompatibility`, whose
+/// `PageFetchOutcome.unavailable` case is exactly "don't cache this".
+///
+/// The outer optional in `cachedVersion`/`cachedCompatibility` distinguishes "no
+/// entry, or a stale one" (nil — go fetch) from "cached, and the cached value is
+/// itself nil" (`.some(nil)` — a real answer, use it). Collapsing those two
+/// would re-fetch a legitimately-nil cached parse failure on every single call,
+/// defeating the point of caching it at all.
+public actor AppStorePageCache {
+
+    private struct Key: Hashable {
+        let trackId: Int
+        let region: String
+    }
+
+    private struct Entry<Value> {
+        let value: Value
+        let fetchedAt: Date
+    }
+
+    /// How long a scraped page stays valid. Default is one hour: App Store
+    /// listings don't update more often than that, and a scan revisits the same
+    /// app every few minutes.
+    let ttl: TimeInterval
+    private let now: @Sendable () -> Date
+
+    private var versionStore: [Key: Entry<MacAppStoreSource.MacVersionInfo?>] = [:]
+    private var compatStore: [Key: Entry<Bool?>] = [:]
+
+    /// `now` is injectable so tests can advance the clock past `ttl` without a
+    /// real sleep.
+    init(ttl: TimeInterval = 3600, now: @escaping @Sendable () -> Date = Date.init) {
+        self.ttl = ttl
+        self.now = now
+    }
+
+    /// The cached Mac-version scrape for (trackId, region), if a fresh entry
+    /// exists. `.some(nil)` means "cached, and the page had no version";
+    /// nil means "not cached (or expired) — go fetch it".
+    func cachedVersion(trackId: Int, region: String) -> MacAppStoreSource.MacVersionInfo?? {
+        let key = Key(trackId: trackId, region: region)
+        guard let entry = versionStore[key], now().timeIntervalSince(entry.fetchedAt) < ttl else {
+            return nil
+        }
+        return .some(entry.value)
+    }
+
+    func storeVersion(_ value: MacAppStoreSource.MacVersionInfo?, trackId: Int, region: String) {
+        versionStore[Key(trackId: trackId, region: region)] = Entry(value: value, fetchedAt: now())
+    }
+
+    /// Same shape as `cachedVersion`, for the Mac-compatibility flag.
+    func cachedCompatibility(trackId: Int, region: String) -> Bool?? {
+        let key = Key(trackId: trackId, region: region)
+        guard let entry = compatStore[key], now().timeIntervalSince(entry.fetchedAt) < ttl else {
+            return nil
+        }
+        return .some(entry.value)
+    }
+
+    func storeCompatibility(_ value: Bool?, trackId: Int, region: String) {
+        compatStore[Key(trackId: trackId, region: region)] = Entry(value: value, fetchedAt: now())
+    }
+}

@@ -40,6 +40,22 @@ public struct UpdateChecker: Sendable {
 
     /// Check every app, returning results in the same order as the input.
     public func check(_ apps: [InstalledApp]) async -> [UpdateResult] {
+        // Give every source a chance to do its cheaper-in-bulk work — e.g.
+        // MacAppStoreSource batching iTunes lookups — before the per-app
+        // fan-out below starts making the individual requests that work would
+        // save. This is the one call site with the whole app list in hand at
+        // once (a single-app recheck still arrives here as a one-element array,
+        // so it still prewarms — for just that one app, same as any live
+        // lookup would). Explicitly drained rather than left to `withTaskGroup`
+        // to auto-await, so it's unambiguous that every source's prewarm has
+        // finished — not merely been scheduled — before the fan-out begins.
+        await withTaskGroup(of: Void.self) { group in
+            for source in sources {
+                group.addTask { await source.prewarm(apps) }
+            }
+            for await _ in group {}
+        }
+
         var results = [UpdateResult?](repeating: nil, count: apps.count)
 
         await withTaskGroup(of: (Int, UpdateResult).self) { group in

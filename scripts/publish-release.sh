@@ -11,6 +11,18 @@
 #   NOTARYTOOL_PROFILE=duoupdater-notary make release
 #   TAG=v0.1.1 TITLE="DuoUpdater 0.1.1" NOTARYTOOL_PROFILE=duoupdater-notary scripts/publish-release.sh
 #
+# Or, with the artifact built on a hosted Mac so anyone can tie it to this source:
+#
+#   1. Run .github/workflows/release-build.yml on the commit being released
+#      (Actions → Release build → Run workflow, or `gh workflow run`).
+#   2. CI_RUN_ID=<that run's id> make release
+#
+# That skips the local build entirely and takes the workflow's artifact, but only
+# after checking its SLSA provenance came from THAT workflow in THIS repository,
+# on a hosted runner — and then re-applying notarize.sh's signing gates by hand,
+# since notarize.sh did not run. No notary profile is needed on this path; the
+# Sparkle EdDSA key still is, which is the whole reason publishing stays here.
+#
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -509,7 +521,67 @@ else
     ( cd "$REPO_ROOT" && make test ) || die "tests failed — refusing to publish."
 fi
 
-if [ "$SKIP_NOTARIZE" = "1" ]; then
+if [ -n "${CI_RUN_ID:-}" ]; then
+    # Take the artifact built by .github/workflows/release-build.yml instead of
+    # building here. The point is not convenience: a locally built binary is one
+    # that nobody outside this Mac can tie to the published source, while this one
+    # carries SLSA build provenance that anyone can check with
+    # `gh attestation verify`. The publishing half stays local because the Sparkle
+    # EdDSA key does — see that workflow's header for why the two keys differ.
+    #
+    # Everything below runs BEFORE the artifact is used for anything, because this
+    # is the one path where the bytes were produced somewhere we do not control.
+    say "CI_RUN_ID=$CI_RUN_ID — using that run's artifact instead of building"
+    ci_dir="$(mktemp -d "${TMPDIR:-/tmp}/duo-ci-artifact.XXXXXX")"
+    gh run download "$CI_RUN_ID" --repo "$RELEASE_REPO" \
+        --name DuoUpdater-notarized --dir "$ci_dir" \
+        || die "could not download the artifact from run $CI_RUN_ID"
+    ci_zip="$ci_dir/DuoUpdater-notarized.zip"
+    [ -f "$ci_zip" ] || die "run $CI_RUN_ID had no DuoUpdater-notarized.zip"
+
+    # Provenance first. `--signer-workflow` is the part that carries the weight:
+    # without it any attestation from any workflow in this repository would pass,
+    # which is most of the guarantee gone. `--deny-self-hosted-runners` matters
+    # here specifically — a self-hosted runner running as the desktop user is why
+    # this repository deleted its previous workflow when it went public.
+    say "Verifying the artifact's build provenance"
+    gh attestation verify "$ci_zip" --repo "$RELEASE_REPO" \
+        --signer-workflow "$RELEASE_REPO/.github/workflows/release-build.yml" \
+        --deny-self-hosted-runners \
+        || die "the artifact from run $CI_RUN_ID has no valid provenance from
+  $RELEASE_REPO/.github/workflows/release-build.yml — refusing to publish it."
+
+    # `notarize.sh` did not run here, so its gates have not run either. They are
+    # not optional just because a green workflow produced the file: this script is
+    # the last place that can refuse, and an unsigned, unstapled or wrongly-teamed
+    # build reaches users as "damaged" with no way back.
+    say "Checking the artifact is signed, hardened and stapled"
+    ci_team="${DUO_TEAM_ID:-RS59HDH7Y3}"
+    ci_unpack="$ci_dir/unpacked"
+    mkdir -p "$ci_unpack"
+    ditto -x -k "$ci_zip" "$ci_unpack" || die "could not unpack $ci_zip"
+    ci_app="$(find "$ci_unpack" -maxdepth 1 -name '*.app' -type d | head -n 1)"
+    [ -n "$ci_app" ] || die "no .app inside the artifact from run $CI_RUN_ID"
+    ci_sig="$(codesign -dvv "$ci_app" 2>&1)"
+    case "$ci_sig" in *"adhoc"*) die "the CI artifact is AD-HOC signed";; esac
+    case "$ci_sig" in
+        *"TeamIdentifier=$ci_team"*) ;;
+        *) die "the CI artifact is not signed by team $ci_team";;
+    esac
+    case "$ci_sig" in
+        *"flags=0x10000(runtime)"*) ;;
+        *) die "the CI artifact does not have the hardened runtime enabled";;
+    esac
+    xcrun stapler validate "$ci_app" >/dev/null 2>&1 \
+        || die "the CI artifact is not stapled — Gatekeeper would need the network to admit it"
+    spctl -a -t exec "$ci_app" >/dev/null 2>&1 \
+        || die "Gatekeeper rejects the CI artifact"
+    printf '   %s\n' "$(printf '%s\n' "$ci_sig" | sed -n 's/^Authority=/Authority=/p' | head -n 1)"
+
+    mkdir -p "$DIST_DIR"
+    cp "$ci_zip" "$FINAL_ZIP"
+    rm -rf "$ci_dir"
+elif [ "$SKIP_NOTARIZE" = "1" ]; then
     say "SKIP_NOTARIZE=1 — NOT rebuilding; reusing $FINAL_ZIP as it stands."
     say "  (its version is checked below, but nothing else about it is.)"
 else

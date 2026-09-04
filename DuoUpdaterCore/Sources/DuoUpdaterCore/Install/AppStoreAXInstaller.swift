@@ -76,12 +76,39 @@ public actor AppStoreAXInstaller {
         /// in, it would be matched with `localizedCaseInsensitiveContains("")` —
         /// which Foundation answers **false** — so `heroOwns` would be false for
         /// every page and the update would fail closed with `.offerButtonNotFound`,
-        /// on an app whose bundle name might well have found its page.
+        /// on an app whose bundle name might well have found its page. Invisible
+        /// marks go the same way `app.name` already sends them (`stripInvisibleMarks`
+        /// exists for exactly this matching), and the value is returned trimmed —
+        /// the Updates list compares row strings with `==`, where a stray space is
+        /// the difference between a match and none.
         var page: String {
-            guard let store, !store.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            else { return bundle }
-            return store
+            let cleaned = AppScanner.stripInvisibleMarks(store ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.isEmpty ? bundle : cleaned
         }
+
+        /// Every name a surface might render for this app, most authoritative first.
+        ///
+        /// Two, because the store's title is **language-dependent and we do not ask
+        /// for a language**: `itunes.apple.com/lookup` returns the storefront's
+        /// default localisation, while App Store.app renders the listing in the
+        /// user's system language. Same app, same storefront, measured 2026-09-05:
+        ///
+        ///     lookup?id=1435447041&country=us            → "DingDing: Redefine Work in AI"
+        ///     lookup?id=1435447041&country=us&lang=zh_cn → "钉钉 - AI时代的工作方式"
+        ///
+        /// So on a non-English Mac the name we fetched is not the name on screen, and
+        /// a single-needle match would fail *every* time — turning an app that used to
+        /// update (the bundle name still matched the hero's developer line) into one
+        /// that never can. The bundle name is the fallback for exactly that.
+        var needles: [String] { page == bundle ? [page] : [page, bundle] }
+    }
+
+    /// Why a lookup answered the way it did — carried alongside the button so the
+    /// probe can say *which* of the four ways it found nothing (see `bind`).
+    private struct Binding {
+        let button: AXUIElement?
+        let note: String
     }
 
     public enum AXError: LocalizedError {
@@ -747,7 +774,6 @@ public actor AppStoreAXInstaller {
 
             // 3. Surface download progress from the offer button title (display only).
             // Once we've pressed Continue the title is meaningless, so stop reading it.
-            let offer = continued ? nil : offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList)
             // Probe: dump what the button actually exposes, once per distinct reading.
             // The whole progress display hangs off `title(offer)`, and an install that
             // reports 0% for its entire download leaves no evidence of why — every line
@@ -756,19 +782,33 @@ public actor AppStoreAXInstaller {
             // string lives in `AXValue`, not `AXTitle` (the same trap `subtreeMentions`
             // and `rowTexts` were both fixed for), and a percentage drawn as a ring may
             // sit on a child rather than on the button.
-            if !continued {
-                let dump = offer.map { probeDump($0) } ?? "button=nil"
-                // Deduped on the reading's *shape*, not its digits: a download ticks the
-                // percentage ~2×/s, and logging each one would put thousands of lines on
-                // disk for one large app while saying nothing new. What is worth a line
-                // is a change of kind — the button appearing or vanishing, "Loading"
-                // becoming a percentage, a percentage becoming "Update".
-                let key = Self.readingShape(dump)
-                if key != lastOfferDump {
-                    lastOfferDump = key
-                    Log.install.notice("appstore-ax: \(appName, privacy: .public) offer \(dump, privacy: .public)")
-                }
+            //
+            // It runs after Continue as well. That window is where `installProgress`
+            // reads and where `swapHasStalled` picks its cap from whether anything is
+            // readable at all — so a swap that dies "unreadable and silent" is exactly
+            // the one whose readings need to be on disk.
+            let binding = bind(in: axApp, names: names, viaUpdatesList: viaUpdatesList)
+            // Key off a cheap reading rather than the dump: `probeDump` walks the
+            // button's subtree with a few hundred cross-process AX calls, and at a
+            // 400 ms poll nearly every one of those would be built only to be thrown
+            // away unchanged. Deduped on the reading's *shape*, not its digits: a
+            // download ticks the percentage ~2×/s, and logging each one would put
+            // thousands of lines on disk for one large app while saying nothing new.
+            // What is worth a line is a change of kind — the button appearing or
+            // vanishing, "Loading" becoming a percentage, a percentage becoming "Update".
+            let key = Self.readingShape(
+                binding.button.map { "found \(title($0) ?? "-")" } ?? "none \(binding.note)")
+            if key != lastOfferDump {
+                lastOfferDump = key
+                // A bare "button=nil" was four states wearing one label: no button on
+                // the page, all of them in other apps' cards, more than one of ours
+                // mid-navigation, or — the DingTalk case — exactly one of ours that the
+                // name test rejected. The note says which, which is the whole question.
+                let detail = binding.button.map { probeDump($0) } ?? "button=nil \(binding.note)"
+                Log.install.notice("appstore-ax: \(appName, privacy: .public) offer \(detail, privacy: .public)")
             }
+            // Once we've pressed Continue the title is meaningless, so stop reading it.
+            let offer = continued ? nil : binding.button
             if let offer, let title = title(offer) {
                 if let fraction = Self.progressFraction(title) {
                     if !sawProgress { Log.install.notice("appstore-ax: \(appName, privacy: .public) download started") }
@@ -796,7 +836,7 @@ public actor AppStoreAXInstaller {
                     }
                     repressed = true
                 } else if idleTicks >= 60 {
-                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — no progress/sheet ~24s after press (the press never took)")
+                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — no progress and no sheet ~24s after press (either it never took, or we lost the button — the `offer` lines above say which)")
                     throw AXError.timedOut
                 }
             }
@@ -965,6 +1005,11 @@ public actor AppStoreAXInstaller {
     /// to "3% loaded" still differs (the word changed), and so does a button appearing
     /// or vanishing, which is the reading that mattered most in the bug this probe was
     /// written for.
+    ///
+    /// Known cost: a child progress ring whose `AXValue` is the numeric fraction also
+    /// collapses, so the dump says a ring exists without ever saying it moved. The
+    /// movement signal we actually act on is the button's own title, which is logged
+    /// with its digits intact on every change of kind.
     static func readingShape(_ dump: String) -> String {
         dump.replacingOccurrences(of: #"[0-9]+(\.[0-9]+)?"#, with: "N", options: .regularExpression)
     }
@@ -994,6 +1039,14 @@ public actor AppStoreAXInstaller {
     ///     button title (which reads "Update"/"更新"/… and is unreliable). Returns nil
     ///     when no row matches — the app isn't in the list yet.
     private func offerButton(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool) -> AXUIElement? {
+        bind(in: axApp, names: names, viaUpdatesList: viaUpdatesList).button
+    }
+
+    /// The lookup above, plus a one-line account of how it decided — the counts and
+    /// the name test, which is the difference between "the page has no button" and
+    /// "the button is there and we refused it". `offerButton` returning nil hid that
+    /// distinction, and it is exactly the distinction the DingTalk bug turned on.
+    private func bind(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool) -> Binding {
         var found: [AXUIElement] = []
         collect(axApp, id: "AppStore.offerButton", into: &found)
         guard viaUpdatesList else {
@@ -1004,16 +1057,19 @@ public actor AppStoreAXInstaller {
             //    if that leaves exactly one. Position is not a discriminator: the topmost
             //    button belongs to whichever page rendered highest, not to us.
             let ours = found.filter { !isInForeignCard($0) }
-            guard Self.shouldPress(heroOwnsPage: heroOwns(names.page, in: axApp),
-                                   ownButtonCount: ours.count) else { return nil }
-            return ours[0]
+            let owns = names.needles.contains { heroOwns($0, in: axApp) }
+            let note = "buttons=\(found.count) ours=\(ours.count) heroOwns=\(owns)"
+            guard Self.shouldPress(heroOwnsPage: owns, ownButtonCount: ours.count) else {
+                return Binding(button: nil, note: note)
+            }
+            return Binding(button: ours[0], note: note)
         }
         // An inline loop (not `compactMap`) so `axApp` never crosses into a closure:
         // Swift 6.2's region-based isolation rejects passing this non-Sendable
         // AXUIElement into the actor-isolated map closure, even though the work is
         // fully synchronous and on-actor. The loop body stays in this isolation
         // domain, so there's nothing to "send".
-        // The Updates list renders the store's listing title too — measured
+        // (The bundle name is one of `names.needles`; see there.) Measured
         // 2026-09-05 by dumping the list's own rows: "WhatsApp Messenger" (bundle
         // "WhatsApp") and "DingDing: Redefine Work in AI" (bundle "DingTalk"); the
         // bundle name appears nowhere. Matching rows by the bundle name therefore
@@ -1022,27 +1078,56 @@ public actor AppStoreAXInstaller {
         // hasn't listed this update yet" — about a row that was right there. This
         // is the region-locked path, so the apps most likely to carry a different
         // store name are the ones that live on it.
-        let appName = names.page
         var rows: [(AXUIElement, [String])] = []
         for btn in found {
             rows.append((btn, rowTexts(in: axApp, for: btn, among: found)))
         }
-        // Try the store's name first, then the bundle's — each exact before loose.
+        // Every exact match before any loose one, and only then the second name.
         //
-        // The store name is what the list renders for an app the account's storefront
+        // The list renders the store's title for an app the account's storefront
         // carries (measured 2026-09-05: "WhatsApp Messenger", "DingDing: Redefine Work
-        // in AI" — never the bundle name). But this path exists for apps the account's
-        // storefront does NOT carry, and there the store has no listing to render from,
-        // so the name on the row may well be the installed bundle's. The one such app
-        // on hand (QQ, cn-only) is named the same in both, so it cannot tell them apart
-        // and this stays unmeasured — hence both needles rather than a guess. Order is
-        // the claim: the measured name wins, the unmeasured one only rescues a row that
-        // nothing else matched.
-        for needle in [appName, names.bundle] {
-            if let exact = rows.first(where: { $0.1.contains(needle) })?.0 { return exact }
-            if let loose = rows.first(where: { row in
-                row.1.contains { $0.localizedCaseInsensitiveContains(needle) }
-            })?.0 { return loose }
+        // in AI" — never the bundle name). But this path exists for apps the storefront
+        // does NOT carry, where the store has no listing to render from and the row may
+        // well be the bundle's; the one such app on hand (QQ, cn-only) is named the same
+        // in both and cannot tell us. Hence two needles.
+        //
+        // Exactness outranks which name it was, because a loose match on this list can
+        // land on another app: the cn storefront carries both "QQ" (451108668) and
+        // "QQ音乐 - #听我想听#" (595615424), both cn-only, so both reach this path and
+        // can share a list. Updating QQ while its own row is absent — not surfaced yet,
+        // or already installing — a contains-match on "QQ" selects QQ Music's row, and
+        // we press *its* button. Trying every exact first is what keeps a present row
+        // from losing to someone else's substring.
+        guard let hit = Self.rowIndex(matching: names.needles, in: rows.map(\.1)) else {
+            return Binding(button: nil, note: "rows=\(rows.count) matched=none")
+        }
+        return Binding(button: rows[hit.index].0,
+                       note: "rows=\(rows.count) matched=\(hit.exact ? "exact" : "loose") on \"\(hit.needle)\"")
+    }
+
+    /// Which Updates-list row a set of needles selects, as a pure rule over the rows'
+    /// own texts — the geometry that produced those texts is in `rowTexts`; the choice
+    /// between them is here, where it can be asserted.
+    ///
+    /// Every exact match is tried before any loose one, across all needles. That order
+    /// is the safety property: a contains-match on this list can land on a different
+    /// app (the cn storefront carries both "QQ" and "QQ音乐 - #听我想听#", both cn-only,
+    /// so both reach this path and can share a list), and a row that is really ours
+    /// must never lose to someone else's substring just because ours was the second
+    /// needle. Loose stays as the last resort for labels that carry decoration.
+    static func rowIndex(matching needles: [String], in rows: [[String]])
+    -> (index: Int, needle: String, exact: Bool)? {
+        for needle in needles {
+            if let i = rows.firstIndex(where: { $0.contains(needle) }) {
+                return (i, needle, true)
+            }
+        }
+        for needle in needles {
+            if let i = rows.firstIndex(where: { row in
+                row.contains { $0.localizedCaseInsensitiveContains(needle) }
+            }) {
+                return (i, needle, false)
+            }
         }
         return nil
     }
@@ -1261,13 +1346,16 @@ public actor AppStoreAXInstaller {
         for attr in [kAXTitleAttribute as String, "AXValue", kAXDescriptionAttribute as String, kAXHelpAttribute as String] {
             if let v = describeAttribute(el, attr) { parts.append("\(attr)=\(v)") }
         }
-        if depth == 0, let names = attributeNames(el) {
-            parts.append("attrs=[\(names.joined(separator: ","))]")
-        }
         var out = parts.joined(separator: " ")
         if depth < 2 {
             let kids = children(el).prefix(6).map { probeDump($0, depth: depth + 1) }
             if !kids.isEmpty { out += " {\(kids.joined(separator: " | "))}" }
+        }
+        // Attribute names last, and only for the button itself: there are ~18 of them
+        // (~250 chars), and ahead of the children they would eat the 400-char budget
+        // and truncate away the subtree this dump exists to show.
+        if depth == 0, let names = attributeNames(el) {
+            out += " attrs=[\(names.joined(separator: ","))]"
         }
         return out.count > 400 ? String(out.prefix(400)) + "…" : out
     }

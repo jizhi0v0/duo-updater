@@ -82,13 +82,39 @@ public extension URLSession {
     /// - **Short request timeout** (`timeoutIntervalForRequest = 15 s`). Sources
     ///   already set this per-request; the session-level setting acts as a safe
     ///   backstop for any request that forgets to.
+    /// The largest body a version probe pulls, measured rather than guessed:
+    /// `download.scdn.co/SpotifyInstaller.zip`, 1,868,156 bytes on 2026-09-04.
+    ///
+    /// Spotify publishes no cheap version API, so its recipe reads the version
+    /// out of a zip entry inside this stub installer — see `VendorProbeRecipe`.
+    static let largestProbeBody = 1_868_156
+
+    /// Sized so the largest probe body is actually cached.
+    ///
+    /// **`URLCache` silently refuses to store a response larger than about 5% of
+    /// its capacity.** Measured on 2026-09-04 against this exact object: not
+    /// stored at 32 MB (5.6% of capacity), stored at 40 MB (4.5%). Apple does
+    /// not document the ratio, so the guard below pins the measurement rather
+    /// than the rule.
+    ///
+    /// This is not a tuning preference. With the old 16 MB the Spotify probe was
+    /// never cached, so `reloadRevalidatingCacheData` had no validator to send
+    /// and every single check re-downloaded the whole 1.87 MB: 92 checks on one
+    /// machine came to **160 MB**, the largest update-check cost by an order of
+    /// magnitude and more than every other app's checks put together. With the
+    /// response cached, the same check is a 304 — **238 wire bytes**, measured.
+    ///
+    /// A capacity is a ceiling, not an allocation: the session holds only what
+    /// it has actually fetched.
+    static let updatesCacheCapacity = 64 * 1024 * 1024
+
     static let updates: URLSession = {
         let config = URLSessionConfiguration.default
         config.httpMaximumConnectionsPerHost = 8
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 90
         config.urlCache = URLCache(
-            memoryCapacity: 16 * 1024 * 1024,   // 16 MB (update feeds + changelog pages)
+            memoryCapacity: URLSession.updatesCacheCapacity,
             diskCapacity:   0                    // see above — credentials must not reach disk
         )
         // A redirect delegate that strips credential headers on a cross-host hop:

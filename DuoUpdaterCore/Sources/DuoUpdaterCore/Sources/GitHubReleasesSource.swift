@@ -52,6 +52,24 @@ public struct GitHubReleaseRule: Sendable {
     /// channel publishes prereleases): fetch the releases list and take the
     /// first tag the pattern matches. When false, use `/releases/latest`.
     public let usePrereleases: Bool
+    /// `per_page` for the list fetch `usePrereleases` triggers. Ignored by a
+    /// `/releases/latest` rule (`usePrereleases == false`) — there's no list to
+    /// page.
+    ///
+    /// Defaults to 20, the size every rule used before this field existed.
+    /// GitHub's `body` (release notes prose) is dead weight here — the version
+    /// probe never reads it — and on six installed `usePrereleases` repos it was
+    /// measured at 6%–51% of the JSON, 421 KB of the 481 KB these six repos cost
+    /// per sweep round at `per_page=20` (2026-09-04, real responses, gzip off).
+    /// Shrinking the page cuts that dead weight, but ONLY as far as the specific
+    /// rule's tag pattern has been measured to need: too small and the release
+    /// this rule is looking for scrolls off the page, which reads as "no update"
+    /// rather than as an error. Set this only after walking the rule's own
+    /// history (`versionPattern`, and for `.installedMajorLineOrNewestStable`,
+    /// the ceiling logic in `lineAnchoredCeiling` — its depth requirement is NOT
+    /// "first match" and must be measured separately) — see the per-rule
+    /// comments in `GitHubReleaseRegistry.rules` for what was measured and when.
+    public let listPageSize: Int
     /// Regex applied to a release's `tag_name`; capture group 1 is the version
     /// (e.g. strip a leading `v`, or a `.stable_00` suffix).
     public let versionPattern: String
@@ -95,6 +113,7 @@ public struct GitHubReleaseRule: Sendable {
         owner: String,
         repo: String,
         usePrereleases: Bool = false,
+        listPageSize: Int = 20,
         versionPattern: String = #"v?([0-9]+(?:\.[0-9]+)+)"#,
         candidateScope: GitHubCandidateScope = .newest,
         installedTagPrefix: String? = nil,
@@ -107,6 +126,7 @@ public struct GitHubReleaseRule: Sendable {
         self.owner = owner
         self.repo = repo
         self.usePrereleases = usePrereleases
+        self.listPageSize = listPageSize
         self.versionPattern = versionPattern
         self.candidateScope = candidateScope
         self.installedTagPrefix = installedTagPrefix
@@ -122,8 +142,11 @@ public struct GitHubReleaseRule: Sendable {
     /// anchor of `beta` would be satisfied by the mere fact it is a beta rule,
     /// forever, whatever happened upstream. `bundleID` is the same shape of
     /// tautology. Everything else is in, including fields added after this list
-    /// was written — see `channelAnchorSurface`.
-    static let nonAnchorFields: Set<String> = ["bundleID", "channel"]
+    /// was written — see `channelAnchorSurface`. `listPageSize` joins them for a
+    /// different reason: it's a request-shaping knob (how many rows to page
+    /// through), not part of which repo/tag/asset the rule accepts, so an
+    /// anchor could never legitimately be pinned to its digits.
+    static let nonAnchorFields: Set<String> = ["bundleID", "channel", "listPageSize"]
 
     /// Everything this rule says about WHICH repository it reads and WHICH
     /// releases and assets it will accept — the text a
@@ -723,7 +746,7 @@ public struct GitHubReleasesSource: UpdateSource {
             endpoint = "https://api.github.com/repos/\(rule.slug)/releases/tags/\(escaped)"
         } else {
             endpoint = list
-                ? "https://api.github.com/repos/\(rule.slug)/releases?per_page=20"
+                ? "https://api.github.com/repos/\(rule.slug)/releases?per_page=\(rule.listPageSize)"
                 : "https://api.github.com/repos/\(rule.slug)/releases/latest"
         }
         guard let url = URL(string: endpoint) else { return nil }
@@ -1222,10 +1245,16 @@ public enum GitHubReleaseRegistry {
         // bundle id dev.zed.Zed-Preview — verified 2026-06-06 to match the install.
         // The rule resolves the right tag (prerelease), so each channel gets its own
         // dmg/bundle id; the gate enforces the Team match. arm64 only.
+        // listPageSize: measured 2026-09-04 against the newest 100 releases —
+        // the newest is always a `-pre` tag (first-match index 0) and the worst
+        // run of non-`-pre` tags between two `-pre` releases is 3 (index gap;
+        // e.g. `v1.5.1-pre`→`v1.5.0-pre`). 5 keeps ~67% headroom over that and
+        // was the real page measured at 32 KB, vs 104 KB at the old per_page=20.
         GitHubReleaseRule(
             bundleID: "dev.zed.Zed-Preview",
             owner: "zed-industries", repo: "zed",
             usePrereleases: true,
+            listPageSize: 5,
             versionPattern: #"v([0-9]+\.[0-9]+\.[0-9]+)-pre"#,
             installAssetPattern: #"^Zed-aarch64\.dmg$"#,
             installerKind: .dmg,
@@ -1449,10 +1478,16 @@ public enum GitHubReleaseRegistry {
         // desktop app — the `Insomnia.Core-` anchor excludes them. Electron app with
         // its own updater, so a fallback; not installed locally, so the Team-gate
         // enforces the match at install time.
+        // listPageSize: not installed on the measuring machine, so measured
+        // directly against the live endpoint (2026-09-04, newest 100 releases):
+        // first-match index 0, worst run of non-`core@` tags between two
+        // `core@` releases is 9 (`core@11.0.0`→`core@10.3.1`, the Design/CLI
+        // trains publish in between). 15 keeps ~67% headroom over that.
         GitHubReleaseRule(
             bundleID: "com.insomnia.app",
             owner: "Kong", repo: "insomnia",
             usePrereleases: true,
+            listPageSize: 15,
             versionPattern: #"core@([0-9]+\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^Insomnia\.Core-[0-9.]+\.dmg$"#,
             installerKind: .dmg),
@@ -1509,10 +1544,17 @@ public enum GitHubReleaseRegistry {
         // `3.5.12-beta2` equals the installed CFBundleShortVersionString (no phantom
         // update/downgrade against the stable 3.5.12). Same `GitHub.Desktop-arm64.zip`
         // one-click as stable.
+        // listPageSize: not installed on the measuring machine, so measured
+        // directly against the live endpoint (2026-09-04, newest 100 releases):
+        // first-match index 1 (the newest release is often the stable
+        // `release-…` tag one spot above), worst run between two `-betaN` tags
+        // is 4 (`release-3.4.16-beta1`→`release-3.4.13-beta2`). 8 keeps 2x
+        // headroom over that.
         GitHubReleaseRule(
             bundleID: "com.github.GitHubClient",
             owner: "desktop", repo: "desktop",
             usePrereleases: true,
+            listPageSize: 8,
             versionPattern: #"release-([0-9]+\.[0-9]+\.[0-9]+-beta[0-9]+)$"#,
             installAssetPattern: #"^GitHub\.Desktop-arm64\.zip$"#,
             installerKind: .zip,
@@ -1632,10 +1674,16 @@ public enum GitHubReleaseRegistry {
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Vorssaint-[0-9.]+\.dmg$"#,
             installerKind: .dmg),
+        // listPageSize: measured 2026-09-04 — only 4 `-beta.` tags exist in the
+        // repo's whole history (73 releases scanned), all consecutive
+        // (first-match index 0, worst gap 1). Small sample, so 5 keeps margin
+        // rather than trimming to the observed minimum; real page measured at
+        // 17 KB, vs 48 KB at the old per_page=20.
         GitHubReleaseRule(
             bundleID: "com.vorssaint.utils",
             owner: "vorssaintapp", repo: "vorssaint-utils",
             usePrereleases: true,
+            listPageSize: 5,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
             installAssetPattern: #"^Vorssaint-[0-9.]+-beta\.[0-9]+\.dmg$"#,
             installerKind: .dmg,
@@ -1796,6 +1844,21 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^UTM\.dmg$"#,
             installerKind: .dmg),
 
+        // listPageSize deliberately left at the 20 default — do NOT copy the
+        // "first-match index 0" number from the stable rule above or from any
+        // simple per-repo table: `.installedMajorLineOrNewestStable` doesn't
+        // walk for the first tag match, it needs `lineAnchoredCeiling` to find
+        // EITHER the newest release in the installed major line OR the newest
+        // STABLE release within the fetched page (whichever's newer) — missing
+        // both makes it decline rather than offer anything. Measured 2026-09-04
+        // against the newest 100 releases, filtering on GitHub's own
+        // `prerelease` bit (not the version pattern, which nearly every tag
+        // matches — 98/100): the newest STABLE release currently sits at index
+        // 6 (UTM is mid-preview-burst right now), and the worst historical run
+        // between two consecutive stable releases in that window was 10
+        // (`v3.1.4`→`v2.4.1`, an older/slower era). A page of 20 comfortably
+        // covers both; trimming it below ~15 would be gambling on the burst
+        // never growing past what's been observed once already.
         GitHubReleaseRule(
             bundleID: "com.utmapp.UTM",
             owner: "utmapp", repo: "UTM",
@@ -1869,13 +1932,16 @@ public enum GitHubReleaseRegistry {
         // releases is bare and non-prerelease, and the anchor keeps a future
         // suffixed one (a release candidate, say) from reading as stable.
         //
-        // Depends on a window the rule doesn't control: the list request is one page
-        // (`per_page=20`, set by the source above, not by the rule). Measured over
-        // the newest 100
-        // releases, consecutive `desktop-v` tags are at most 7 apart, so the desktop
-        // tag sits well inside that page today — but a long burst of web/cli/browser
-        // releases would push it off the page, and the rule would then resolve
-        // nothing, which surfaces as the row going quiet rather than as an error.
+        // Depends on a window the RULE now controls via `listPageSize` (it used
+        // to be a source-wide constant). Measured over the newest 100 releases,
+        // consecutive `desktop-v` tags are at most 7 apart (re-verified
+        // 2026-09-04: same 7, `desktop-v2026.6.0`→`desktop-v2026.5.0` and three
+        // other pairs), so the desktop tag sits well inside a page of 10 today
+        // — chosen over the observed 7 to leave margin rather than trim to the
+        // minimum, per the same logic as every other rule below — but a long
+        // burst of web/cli/browser releases would still push it off the page,
+        // and the rule would then resolve nothing, which surfaces as the row
+        // going quiet rather than as an error.
         //
         // One-click: the universal dmg is com.bitwarden.desktop, Team LTZ2PFU5D6,
         // notarized.
@@ -1883,6 +1949,7 @@ public enum GitHubReleaseRegistry {
             bundleID: "com.bitwarden.desktop",
             owner: "bitwarden", repo: "clients",
             usePrereleases: true,
+            listPageSize: 10,
             versionPattern: #"desktop-v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Bitwarden-[0-9.]+-universal\.dmg$"#,
             installerKind: .dmg),
@@ -2078,10 +2145,18 @@ public enum GitHubReleaseRegistry {
         // the releases came back `x-ratelimit-limit: 60`, i.e. ANONYMOUS,
         // whatever token the user configured. Three rules were quietly doing
         // that. See #135.
+        // listPageSize: measured 2026-09-04 against the newest 100 releases —
+        // first-match index 0 (the interleaved `headlamp-helm-`/`headlamp-plugin-`
+        // tags this comment warns about don't match `^v…$`), worst run between
+        // two app tags is 4 (`v0.23.0`→`v0.22.0`). 8 keeps 2x headroom; a
+        // per_page=5 was measured at 42 KB (barely less than per_page=3's
+        // 40 KB — `body` dominates either way), so 8 doesn't cost meaningfully
+        // more than 5 while leaving real margin over the observed gap of 4.
         GitHubReleaseRule(
             bundleID: "com.microsoft.Headlamp",
             owner: "kubernetes-sigs", repo: "headlamp",
             usePrereleases: true,
+            listPageSize: 8,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Headlamp-[0-9.]+-mac-arm64\.dmg$"#,
             installerKind: .dmg),
@@ -2498,10 +2573,17 @@ public enum GitHubReleaseRegistry {
         // ARK85ZXQ4Z, verified on the mounted nightly artifact. The asset name
         // carries `-nightly.` — which is also why the alpha pattern above cannot
         // drift onto this train: its `[0-9.]+` run refuses the dash.
+        // listPageSize: measured 2026-09-04 against the newest 100 releases —
+        // first-match index 0, worst run between two nightly tags is 2 (the
+        // alpha train's occasional release lands a single non-nightly entry in
+        // between, e.g. `v0.0.39-nightly.20260902.1252`→
+        // `v0.0.38-nightly.20260901.1250`). 5 keeps 2.5x headroom; real page
+        // measured at 9 KB for per_page=3, vs 64 KB at the old per_page=20.
         GitHubReleaseRule(
             bundleID: "com.t3tools.t3code",
             owner: "pingdotgg", repo: "t3code",
             usePrereleases: true,
+            listPageSize: 5,
             versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+\.[0-9]+)$"#,
             installAssetPattern: #"^T3-Code-[0-9.]+-nightly\.[0-9.]+-arm64\.dmg$"#,
             installerKind: .dmg,

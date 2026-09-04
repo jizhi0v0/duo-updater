@@ -3070,6 +3070,7 @@ final class AppListModel {
                         appPath: result.app.path,
                         bundleID: result.app.bundleID,
                         appName: result.app.name,
+                        storeName: result.remote?.appStore?.storeName,
                         currentShortVersion: result.app.shortVersion,
                         viaUpdatesList: true
                     ) { stage in
@@ -3126,6 +3127,7 @@ final class AppListModel {
                             appPath: result.app.path,
                             bundleID: result.app.bundleID,
                             appName: result.app.name,
+                            storeName: result.remote?.appStore?.storeName,
                             currentShortVersion: result.app.shortVersion
                         ) { stage in
                             Task { @MainActor in self.setStage(id, stage) }

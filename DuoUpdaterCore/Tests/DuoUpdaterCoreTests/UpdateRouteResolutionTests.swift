@@ -182,20 +182,20 @@ struct AppStoreGateResolutionTests {
 
     @Test("an ordinary listing resolves to none")
     func ordinaryListing() {
-        let info = AppStoreAvailability(trackID: 1, availableRegion: "us", homeRegion: "us")
+        let info = AppStoreAvailability(trackID: 1, availableRegion: "us", homeRegion: "us", storeName: nil)
         #expect(AppStoreGate.resolve(info) == .none)
     }
 
     @Test("a region mismatch resolves to region")
     func regionMismatch() {
-        let info = AppStoreAvailability(trackID: 1, availableRegion: "cn", homeRegion: "us")
+        let info = AppStoreAvailability(trackID: 1, availableRegion: "cn", homeRegion: "us", storeName: nil)
         #expect(AppStoreGate.resolve(info) == .region)
     }
 
     @Test("a Mac-incompatible latest build resolves to macIncompatible")
     func macIncompatible() {
         let info = AppStoreAvailability(
-            trackID: 1, availableRegion: "us", homeRegion: "us", latestMacCompatible: false)
+            trackID: 1, availableRegion: "us", homeRegion: "us", latestMacCompatible: false, storeName: nil)
         #expect(AppStoreGate.resolve(info) == .macIncompatible)
     }
 
@@ -208,7 +208,7 @@ struct AppStoreGateResolutionTests {
     @Test("macIncompatible outranks region when both are true")
     func macIncompatibleOutranksRegion() {
         let info = AppStoreAvailability(
-            trackID: 1, availableRegion: "cn", homeRegion: "us", latestMacCompatible: false)
+            trackID: 1, availableRegion: "cn", homeRegion: "us", latestMacCompatible: false, storeName: nil)
         #expect(AppStoreGate.resolve(info) == .macIncompatible)
     }
 }

@@ -24,7 +24,7 @@ import ApplicationServices
 ///      `AppStore.offerButton` (the visible title is localized: Update / Open /
 ///      Get / …, so we never match on it; we already know an update is due). We
 ///      bind that button to *this* app structurally before pressing it — see
-///      `offerButton(in:appName:viaUpdatesList:)`. Navigation is asynchronous, so
+///      `offerButton(in:names:viaUpdatesList:)`. Navigation is asynchronous, so
 ///      until the deep link lands App Store still shows whatever it had before (its
 ///      restored Discover page, or another app's product page), whose offer buttons
 ///      are *buy* buttons for apps the user does not own.
@@ -51,6 +51,111 @@ import ApplicationServices
 public actor AppStoreAXInstaller {
 
     public init() {}
+
+    /// The two names one app answers to, kept together so a lookup cannot use one
+    /// where it needed the other.
+    ///
+    /// They are genuinely different strings ("DingTalk" vs "DingDing: Redefine Work
+    /// in AI"), and everything App Store draws — the product page's hero lockup and
+    /// the Updates list row — carries the *store's*, while our own UI, logs and quit
+    /// prompt carry the *bundle's*. Keeping both in one value is what stops a lookup
+    /// from being handed the name the other surface uses; see
+    /// `AppStoreAvailability.storeName` for what that cost.
+    struct AppNames: Sendable, Equatable {
+        /// The installed bundle's name — what our own UI and logs call the app.
+        /// Unlocalized on purpose (see `AppScanner.firstUsableName`), so on a
+        /// non-English Mac it is not what anything on screen says.
+        let bundle: String
+        /// The store's own listing title, when the lookup supplied one.
+        let store: String?
+        /// The bundle's *localized* display name — the app's own name in the user's
+        /// language, straight out of its `InfoPlist.strings`, no request needed.
+        ///
+        /// It follows the same thing App Store follows, so it tracks the listing for
+        /// free: measured 2026-09-05, a process running as zh-Hans reads "钉钉" from
+        /// DingTalk (`zh_CN.lproj`) and "微信" from WeChat (`zh-Hans.lproj`), while the
+        /// same process as en-US reads "DingTalk" and "WeChat". It also catches an app
+        /// whose bundle *file* is named differently from the app itself: AndDrive.app
+        /// calls itself "AndroMeld" in every localization, which is the substring its
+        /// listing title ("AndroMeld: Manager for Android") is built from.
+        let localized: String?
+
+        /// The name App Store renders for this app — on the product page's hero
+        /// lockup and on the Updates list row alike (both measured). The store's
+        /// title when we know it: it is the store's own name for the app, and the
+        /// only one guaranteed to still be there once a page finishes rendering.
+        ///
+        /// A blank title is not an identity, so it counts as no title at all. Left
+        /// in, it would be matched with `localizedCaseInsensitiveContains("")` —
+        /// which Foundation answers **false** — so `heroOwns` would be false for
+        /// every page and the update would fail closed with `.offerButtonNotFound`,
+        /// on an app whose bundle name might well have found its page. Invisible
+        /// marks go the same way `app.name` already sends them (`stripInvisibleMarks`
+        /// exists for exactly this matching), and the value is returned trimmed —
+        /// the Updates list compares row strings with `==`, where a stray space is
+        /// the difference between a match and none.
+        var page: String { Self.clean(store) ?? bundle }
+
+        /// Trimmed, invisible-marks-stripped, and nil when nothing readable is left.
+        static func clean(_ name: String?) -> String? {
+            let cleaned = AppScanner.stripInvisibleMarks(name ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.isEmpty ? nil : cleaned
+        }
+
+        /// Every name a surface might render for this app, most authoritative first.
+        ///
+        /// Two, because the store's title is **language-dependent and we do not ask
+        /// for a language**: `itunes.apple.com/lookup` returns the storefront's
+        /// default localisation, while App Store.app renders the listing in the
+        /// user's system language. Same app, same storefront, measured 2026-09-05:
+        ///
+        ///     lookup?id=1435447041&country=us            → "DingDing: Redefine Work in AI"
+        ///     lookup?id=1435447041&country=us&lang=zh_cn → "钉钉 - AI时代的工作方式"
+        ///
+        /// So on a non-English Mac the name we fetched is not the name on screen, and
+        /// a single-needle match would fail *every* time — turning an app that used to
+        /// update (the bundle name still matched the hero's developer line) into one
+        /// that never can. The bundle name is the fallback for exactly that.
+        var needles: [String] {
+            var out: [String] = []
+            for candidate in [Self.clean(store), Self.clean(localized), bundle] {
+                if let candidate, !out.contains(candidate) { out.append(candidate) }
+            }
+            return out
+        }
+
+        /// The app's own name in the user's language, read from the bundle it is about
+        /// to update.
+        ///
+        /// The lproj is matched explicitly rather than through `localizedInfoDictionary`,
+        /// which measurably does not follow the process's languages: a probe running as
+        /// zh-Hans still read "DingTalk" from it, while the explicit match below read
+        /// "钉钉" (2026-09-05). `preferredLocalizations(from:forPreferences:)` is what
+        /// handles the mapping that matters — DingTalk ships the old-style `zh_CN.lproj`,
+        /// not `zh-Hans.lproj`, and it resolves that pairing correctly.
+        ///
+        /// nil when the bundle localizes no name at all (Keka ships lprojs with no
+        /// `InfoPlist.strings` name), which just leaves the other needles.
+        static func localizedName(at path: URL) -> String? {
+            guard let bundle = Bundle(url: path) else { return nil }
+            let preferred = Bundle.preferredLocalizations(
+                from: bundle.localizations, forPreferences: Locale.preferredLanguages)
+            guard let localization = preferred.first,
+                  let url = bundle.url(forResource: "InfoPlist", withExtension: "strings",
+                                       subdirectory: nil, localization: localization),
+                  let strings = NSDictionary(contentsOf: url) as? [String: Any]
+            else { return nil }
+            return (strings["CFBundleDisplayName"] ?? strings["CFBundleName"]) as? String
+        }
+    }
+
+    /// Why a lookup answered the way it did — carried alongside the button so the
+    /// probe can say *which* of the four ways it found nothing (see `bind`).
+    private struct Binding {
+        let button: AXUIElement?
+        let note: String
+    }
 
     public enum AXError: LocalizedError {
         case notTrusted
@@ -124,6 +229,7 @@ public actor AppStoreAXInstaller {
         appPath: URL,
         bundleID: String?,
         appName: String,
+        storeName: String?,
         currentShortVersion: String?,
         viaUpdatesList: Bool = false,
         onStage: @Sendable @escaping (InstallStage) -> Void,
@@ -133,8 +239,10 @@ public actor AppStoreAXInstaller {
     ) async throws {
         guard Self.isTrusted else { throw AXError.notTrusted }
 
+        let names = AppNames(bundle: appName, store: storeName,
+                             localized: AppNames.localizedName(at: appPath))
         let runningAtStart = bundleID.map { isRunning($0) } ?? false
-        Log.install.info("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
+        Log.install.notice("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) storeName=\(storeName ?? "-", privacy: .public) needles=\(names.needles.joined(separator: " | "), privacy: .public) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
 
         onStage(.checking)
 
@@ -169,11 +277,11 @@ public actor AppStoreAXInstaller {
         // with App Store never frontmost (2026-06-05). So neither path activates; the
         // update runs without stealing focus or flashing App Store to the foreground.
 
-        guard try await waitForOfferButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList, renavigateTrackID: viaUpdatesList ? nil : trackID) != nil else {
+        guard try await waitForOfferButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList, renavigateTrackID: viaUpdatesList ? nil : trackID) != nil else {
             Log.install.error("appstore-ax: \(appName, privacy: .public) offer button not found (viaUpdatesList=\(viaUpdatesList))")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
-        Log.install.info("appstore-ax: \(appName, privacy: .public) offer button located")
+        Log.install.notice("appstore-ax: \(appName, privacy: .public) offer button located")
 
         // Baseline the on-disk version *before* pressing, so completion is gated on
         // the bundle actually changing (see driveToCompletion) rather than on the
@@ -194,7 +302,7 @@ public actor AppStoreAXInstaller {
         // We already know (from detection) an update is due, so press regardless of the
         // localized title — pressing an up-to-date button no-ops. Re-find the button right
         // before pressing: the ref from the wait can go stale if the page re-rendered.
-        guard let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) else {
+        guard let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList) else {
             Log.install.error("appstore-ax: \(appName, privacy: .public) offer button vanished before press")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
@@ -209,13 +317,13 @@ public actor AppStoreAXInstaller {
         // install dies at the 6-min poll cap.
         let sheetBeforePress = quitSheet(in: axApp) != nil
         AXUIElementPerformAction(offer, kAXPressAction as CFString)
-        Log.install.info("appstore-ax: \(appName, privacy: .public) pressed Update (baseline short=\(baseline.short ?? "?", privacy: .public) build=\(baseline.build ?? "?", privacy: .public))")
+        Log.install.notice("appstore-ax: \(appName, privacy: .public) pressed Update (baseline short=\(baseline.short ?? "?", privacy: .public) build=\(baseline.build ?? "?", privacy: .public))")
         onStage(.downloading(fraction: 0))
 
         try await driveToCompletion(
             axApp: axApp,
             bundleID: bundleID,
-            appName: appName,
+            names: names,
             appPath: appPath,
             baseline: baseline,
             viaUpdatesList: viaUpdatesList,
@@ -412,10 +520,10 @@ public actor AppStoreAXInstaller {
     ///     once the app is fully up lands it on the product page.
     /// The refresh is skipped entirely once the target is present (we return above), so a
     /// cache that already carries the row takes the fast path with no reload.
-    private func waitForOfferButton(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool, renavigateTrackID: Int? = nil) async throws -> AXUIElement? {
+    private func waitForOfferButton(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool, renavigateTrackID: Int? = nil) async throws -> AXUIElement? {
         let deadline = viaUpdatesList ? 150 : 80   // ~22s (server re-fetch) vs ~12s at 150ms/poll
         for i in 0..<deadline {
-            if let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) { return offer }
+            if let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList) { return offer }
             // An early nudge once the page has settled (~0.6s), then every ~2.4s.
             if i == 4 || (i > 0 && i % 16 == 0) {
                 if viaUpdatesList {
@@ -450,7 +558,7 @@ public actor AppStoreAXInstaller {
     private func driveToCompletion(
         axApp: AXUIElement,
         bundleID: String?,
-        appName: String,
+        names: AppNames,
         appPath: URL,
         baseline: (short: String?, build: String?),
         viaUpdatesList: Bool,
@@ -460,6 +568,9 @@ public actor AppStoreAXInstaller {
         quitAnswer: @Sendable @escaping () async -> QuitPromptAnswer,
         withdrawQuit: @Sendable @escaping () -> Void
     ) async throws {
+        // Log lines and the user-facing quit prompt name the app the way the user
+        // knows it — the installed bundle — while page lookups use `names.page`.
+        let appName = names.bundle
         // Every press here — the quit sheet's Continue/Cancel and the idle re-press —
         // honors a backgrounded App Store, so nothing activates (see `update`). App Store
         // is never brought to the front for the whole install.
@@ -471,6 +582,7 @@ public actor AppStoreAXInstaller {
         var postContinueTicks = 0 // polls since we pressed Continue (to flag a no-op press)
         var stalledTicks = 0            // consecutive polls with the swap not moving
         var lastInstallProgress: Double? // last "Installing: N% Complete" we read
+        var lastOfferDump: String?      // shape of the last probe we logged (dedupe)
 
         // A sheet already on screen before we press is left over from an earlier
         // install: App Store can leave its "Close This App to Update" sheet up for
@@ -485,7 +597,7 @@ public actor AppStoreAXInstaller {
         // a fast delta's own sheet can beat us to it.
         var leftoverSheet = sheetBeforePress
         if leftoverSheet {
-            Log.install.info("appstore-ax: \(appName, privacy: .public) a sheet was already up before we pressed — ignoring it until it clears")
+            Log.install.notice("appstore-ax: \(appName, privacy: .public) a sheet was already up before we pressed — ignoring it until it clears")
         }
 
         // Is our quit prompt on screen and unanswered? While it is we keep polling —
@@ -506,7 +618,7 @@ public actor AppStoreAXInstaller {
             // Covers both the app-not-running case (installs directly, no sheet) and
             // the post-Continue swap. Keyed on short OR build version changing.
             if Self.versionChanged(from: baseline, appPath: appPath) {
-                Log.install.info("appstore-ax: \(appName, privacy: .public) install complete — bundle version changed on disk")
+                Log.install.notice("appstore-ax: \(appName, privacy: .public) install complete — bundle version changed on disk")
                 onStage(.done)
                 return
             }
@@ -541,7 +653,7 @@ public actor AppStoreAXInstaller {
                 // report a percentage or two before it drops out of the list, and latching
                 // on those would put a large region-locked app back under the 90s cap for
                 // the rest of a swap it can no longer report on.
-                let reading = installProgress(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList)
+                let reading = installProgress(in: axApp, names: names, viaUpdatesList: viaUpdatesList)
                 let watch = Self.swapWatchdog(
                     progress: reading, last: lastInstallProgress, stalledPolls: stalledTicks)
                 lastInstallProgress = watch.last
@@ -589,7 +701,7 @@ public actor AppStoreAXInstaller {
                     // download ran in the background; the user just tapped Relaunch and expects
                     // the app to cycle.
                     if !askedToQuit {
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — asking for Relaunch/Cancel")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — asking for Relaunch/Cancel")
                         requestQuit(appName)
                         askedToQuit = true
                     }
@@ -608,12 +720,12 @@ public actor AppStoreAXInstaller {
                     case .keepWaiting:
                         break
                     case .cancelled:
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) user declined — pressing Cancel")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) user declined — pressing Cancel")
                         withdrawQuit()
                         pressCancel(in: axApp, appName: appName)
                         throw AXError.cancelled
                     case .settledElsewhere:
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
                         withdrawQuit()
                         askedToQuit = false
                         onStage(.installing)
@@ -639,7 +751,7 @@ public actor AppStoreAXInstaller {
                     // a download behind it, so it stays past this grace and still bails.
                     sheetTicks += 1
                     if sheetTicks == 1 {
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) sheet before any download (sawProgress=\(sawProgress), running=\(bundleID.map { isRunning($0) } ?? false)) — waiting to see if a fast delta's progress lands")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) sheet before any download (sawProgress=\(sawProgress), running=\(bundleID.map { isRunning($0) } ?? false)) — waiting to see if a fast delta's progress lands")
                     }
                     if sheetTicks >= 8 {  // ~3.2s — well past the ~0.5s a real download takes to report progress
                         Log.install.error("appstore-ax: \(appName, privacy: .public) needs manual confirmation — no download after ~3s, bailing without pressing")
@@ -673,7 +785,7 @@ public actor AppStoreAXInstaller {
                         appRunning: bundleID.map { isRunning($0) } ?? false
                     ) {
                     case .settledElsewhere:
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
                         withdrawQuit()
                         askedToQuit = false
                         onStage(.installing)
@@ -699,7 +811,7 @@ public actor AppStoreAXInstaller {
                     case .keepWaiting:
                         sheetlessPromptTicks += 1
                         if sheetlessPromptTicks >= 4 {  // ~6s at the 1.5s prompt cadence
-                            Log.install.info("appstore-ax: \(appName, privacy: .public) close-to-update sheet dismissed elsewhere with the app still running — treating as cancelled")
+                            Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet dismissed elsewhere with the app still running — treating as cancelled")
                             withdrawQuit()
                             throw AXError.cancelled
                         }
@@ -709,13 +821,48 @@ public actor AppStoreAXInstaller {
 
             // 3. Surface download progress from the offer button title (display only).
             // Once we've pressed Continue the title is meaningless, so stop reading it.
-            if !continued, let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList), let title = title(offer) {
+            // Probe: dump what the button actually exposes, once per distinct reading.
+            // The whole progress display hangs off `title(offer)`, and an install that
+            // reports 0% for its entire download leaves no evidence of why — every line
+            // that would say so is `.info`, which never reaches disk. `.notice` does.
+            // The subtree comes along because these pages are web-rendered: a text's
+            // string lives in `AXValue`, not `AXTitle` (the same trap `subtreeMentions`
+            // and `rowTexts` were both fixed for), and a percentage drawn as a ring may
+            // sit on a child rather than on the button.
+            //
+            // It runs after Continue as well. That window is where `installProgress`
+            // reads and where `swapHasStalled` picks its cap from whether anything is
+            // readable at all — so a swap that dies "unreadable and silent" is exactly
+            // the one whose readings need to be on disk.
+            let binding = bind(in: axApp, names: names, viaUpdatesList: viaUpdatesList)
+            // Key off a cheap reading rather than the dump: `probeDump` walks the
+            // button's subtree with a few hundred cross-process AX calls, and at a
+            // 400 ms poll nearly every one of those would be built only to be thrown
+            // away unchanged. Deduped on the reading's *shape*, not its digits: a
+            // download ticks the percentage ~2×/s, and logging each one would put
+            // thousands of lines on disk for one large app while saying nothing new.
+            // What is worth a line is a change of kind — the button appearing or
+            // vanishing, "Loading" becoming a percentage, a percentage becoming "Update".
+            let key = Self.readingShape(
+                binding.button.map { "found \(title($0) ?? "-")" } ?? "none \(binding.note)")
+            if key != lastOfferDump {
+                lastOfferDump = key
+                // A bare "button=nil" was four states wearing one label: no button on
+                // the page, all of them in other apps' cards, more than one of ours
+                // mid-navigation, or — the DingTalk case — exactly one of ours that the
+                // name test rejected. The note says which, which is the whole question.
+                let detail = binding.button.map { probeDump($0) } ?? "button=nil \(binding.note)"
+                Log.install.notice("appstore-ax: \(appName, privacy: .public) offer \(detail, privacy: .public)")
+            }
+            // Once we've pressed Continue the title is meaningless, so stop reading it.
+            let offer = continued ? nil : binding.button
+            if let offer, let title = title(offer) {
                 if let fraction = Self.progressFraction(title) {
-                    if !sawProgress { Log.install.info("appstore-ax: \(appName, privacy: .public) download started") }
+                    if !sawProgress { Log.install.notice("appstore-ax: \(appName, privacy: .public) download started") }
                     sawProgress = true
                     onStage(.downloading(fraction: fraction))
                 } else if Self.isLoadingTitle(title) {
-                    if !sawProgress { Log.install.info("appstore-ax: \(appName, privacy: .public) download starting (loading)") }
+                    if !sawProgress { Log.install.notice("appstore-ax: \(appName, privacy: .public) download starting (loading)") }
                     sawProgress = true
                     onStage(.downloading(fraction: 0))
                 }
@@ -730,13 +877,13 @@ public actor AppStoreAXInstaller {
             } else {
                 idleTicks += 1
                 if idleTicks == 30 && !repressed {
-                    Log.install.info("appstore-ax: \(appName, privacy: .public) no progress/sheet after ~12s — re-pressing Update once")
-                    if let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) {
+                    Log.install.notice("appstore-ax: \(appName, privacy: .public) no progress/sheet after ~12s — re-pressing Update once")
+                    if let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList) {
                         AXUIElementPerformAction(offer, kAXPressAction as CFString)
                     }
                     repressed = true
                 } else if idleTicks >= 60 {
-                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — no progress/sheet ~24s after press (the press never took)")
+                    Log.install.error("appstore-ax: \(appName, privacy: .public) timed out — no progress and no sheet ~24s after press (either it never took, or we lost the button — the `offer` lines above say which)")
                     throw AXError.timedOut
                 }
             }
@@ -810,7 +957,7 @@ public actor AppStoreAXInstaller {
         }
         for _ in 0..<60 {  // ~12s at 200ms
             if !isRunning(bundleID) {
-                Log.install.info("appstore-ax: \(appName, privacy: .public) quit — App Store can now swap in the update")
+                Log.install.notice("appstore-ax: \(appName, privacy: .public) quit — App Store can now swap in the update")
                 return
             }
             try? await Task.sleep(for: .milliseconds(200))
@@ -891,10 +1038,27 @@ public actor AppStoreAXInstaller {
     /// ("Installing: N% Complete"), or nil when it isn't showing one — which is normal
     /// both right after Continue, before the install starts reporting, and on the
     /// Updates-list path once the row drops out of the list as it installs.
-    private func installProgress(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool) -> Double? {
-        guard let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList),
+    private func installProgress(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool) -> Double? {
+        guard let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList),
               let text = title(offer) else { return nil }
         return Self.progressFraction(text)
+    }
+
+    /// One offer-button reading with its digits blanked, so two readings that differ
+    /// only by how far the download has got compare equal.
+    ///
+    /// This is what keeps the probe's `.notice` lines to the transitions that carry
+    /// information. Numbers are the only thing dropped — a title going from "Loading"
+    /// to "3% loaded" still differs (the word changed), and so does a button appearing
+    /// or vanishing, which is the reading that mattered most in the bug this probe was
+    /// written for.
+    ///
+    /// Known cost: a child progress ring whose `AXValue` is the numeric fraction also
+    /// collapses, so the dump says a ring exists without ever saying it moved. The
+    /// movement signal we actually act on is the button's own title, which is logged
+    /// with its digits intact on every change of kind.
+    static func readingShape(_ dump: String) -> String {
+        dump.replacingOccurrences(of: #"[0-9]+(\.[0-9]+)?"#, with: "N", options: .regularExpression)
     }
 
     /// A transient pre-progress state ("Loading", "Opening…") shown right after the
@@ -916,11 +1080,20 @@ public actor AppStoreAXInstaller {
     ///     Only if exactly one button survives do we return it; otherwise nil, and the
     ///     caller keeps waiting (and re-navigating) rather than pressing anything.
     ///   • **Updates list** (`viaUpdatesList`): one row per app, each with its own
-    ///     offer button. We pick the row whose nearby text carries `appName`, matching
-    ///     by name rather than position or the localized button title (which reads
-    ///     "Update"/"更新"/… and is unreliable). Returns nil when no row matches — the
-    ///     app isn't in the list yet.
-    private func offerButton(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool) -> AXUIElement? {
+    ///     offer button. We pick the row whose nearby text carries `names.page` — the
+    ///     store's listing title, which is what both surfaces actually render (measured;
+    ///     see the branch) — matching by name rather than position or the localized
+    ///     button title (which reads "Update"/"更新"/… and is unreliable). Returns nil
+    ///     when no row matches — the app isn't in the list yet.
+    private func offerButton(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool) -> AXUIElement? {
+        bind(in: axApp, names: names, viaUpdatesList: viaUpdatesList).button
+    }
+
+    /// The lookup above, plus a one-line account of how it decided — the counts and
+    /// the name test, which is the difference between "the page has no button" and
+    /// "the button is there and we refused it". `offerButton` returning nil hid that
+    /// distinction, and it is exactly the distinction the DingTalk bug turned on.
+    private func bind(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool) -> Binding {
         var found: [AXUIElement] = []
         collect(axApp, id: "AppStore.offerButton", into: &found)
         guard viaUpdatesList else {
@@ -931,25 +1104,79 @@ public actor AppStoreAXInstaller {
             //    if that leaves exactly one. Position is not a discriminator: the topmost
             //    button belongs to whichever page rendered highest, not to us.
             let ours = found.filter { !isInForeignCard($0) }
-            guard Self.shouldPress(heroOwnsPage: heroOwns(appName, in: axApp),
-                                   ownButtonCount: ours.count) else { return nil }
-            return ours[0]
+            let owns = names.needles.contains { heroOwns($0, in: axApp) }
+            let note = "buttons=\(found.count) ours=\(ours.count) heroOwns=\(owns)"
+            guard Self.shouldPress(heroOwnsPage: owns, ownButtonCount: ours.count) else {
+                return Binding(button: nil, note: note)
+            }
+            return Binding(button: ours[0], note: note)
         }
         // An inline loop (not `compactMap`) so `axApp` never crosses into a closure:
         // Swift 6.2's region-based isolation rejects passing this non-Sendable
         // AXUIElement into the actor-isolated map closure, even though the work is
         // fully synchronous and on-actor. The loop body stays in this isolation
         // domain, so there's nothing to "send".
+        // (The bundle name is one of `names.needles`; see there.) Measured
+        // 2026-09-05 by dumping the list's own rows: "WhatsApp Messenger" (bundle
+        // "WhatsApp") and "DingDing: Redefine Work in AI" (bundle "DingTalk"); the
+        // bundle name appears nowhere. Matching rows by the bundle name therefore
+        // failed exactly like the product page did, and failed *misleadingly*: no
+        // row matched, so the install threw `.notInUpdatesList` — "the App Store
+        // hasn't listed this update yet" — about a row that was right there. This
+        // is the region-locked path, so the apps most likely to carry a different
+        // store name are the ones that live on it.
         var rows: [(AXUIElement, [String])] = []
         for btn in found {
             rows.append((btn, rowTexts(in: axApp, for: btn, among: found)))
         }
-        // Prefer an exact app-name match (the row's title text); fall back to a
-        // contains-match for apps whose Updates-list label carries extra decoration.
-        if let exact = rows.first(where: { $0.1.contains(appName) })?.0 { return exact }
-        return rows.first(where: { row in
-            row.1.contains { $0.localizedCaseInsensitiveContains(appName) }
-        })?.0
+        // Every exact match before any loose one, and only then the second name.
+        //
+        // The list renders the store's title for an app the account's storefront
+        // carries (measured 2026-09-05: "WhatsApp Messenger", "DingDing: Redefine Work
+        // in AI" — never the bundle name). But this path exists for apps the storefront
+        // does NOT carry, where the store has no listing to render from and the row may
+        // well be the bundle's; the one such app on hand (QQ, cn-only) is named the same
+        // in both and cannot tell us. Hence two needles.
+        //
+        // Exactness outranks which name it was, because a loose match on this list can
+        // land on another app: the cn storefront carries both "QQ" (451108668) and
+        // "QQ音乐 - #听我想听#" (595615424), both cn-only, so both reach this path and
+        // can share a list. Updating QQ while its own row is absent — not surfaced yet,
+        // or already installing — a contains-match on "QQ" selects QQ Music's row, and
+        // we press *its* button. Trying every exact first is what keeps a present row
+        // from losing to someone else's substring.
+        guard let hit = Self.rowIndex(matching: names.needles, in: rows.map(\.1)) else {
+            return Binding(button: nil, note: "rows=\(rows.count) matched=none")
+        }
+        return Binding(button: rows[hit.index].0,
+                       note: "rows=\(rows.count) matched=\(hit.exact ? "exact" : "loose") on \"\(hit.needle)\"")
+    }
+
+    /// Which Updates-list row a set of needles selects, as a pure rule over the rows'
+    /// own texts — the geometry that produced those texts is in `rowTexts`; the choice
+    /// between them is here, where it can be asserted.
+    ///
+    /// Every exact match is tried before any loose one, across all needles. That order
+    /// is the safety property: a contains-match on this list can land on a different
+    /// app (the cn storefront carries both "QQ" and "QQ音乐 - #听我想听#", both cn-only,
+    /// so both reach this path and can share a list), and a row that is really ours
+    /// must never lose to someone else's substring just because ours was the second
+    /// needle. Loose stays as the last resort for labels that carry decoration.
+    static func rowIndex(matching needles: [String], in rows: [[String]])
+    -> (index: Int, needle: String, exact: Bool)? {
+        for needle in needles {
+            if let i = rows.firstIndex(where: { $0.contains(needle) }) {
+                return (i, needle, true)
+            }
+        }
+        for needle in needles {
+            if let i = rows.firstIndex(where: { row in
+                row.contains { $0.localizedCaseInsensitiveContains(needle) }
+            }) {
+                return (i, needle, false)
+            }
+        }
+        return nil
     }
 
     /// How one of App Store's `AppStore.shelfItem.*` cells relates to the app we're
@@ -1153,6 +1380,48 @@ public actor AppStoreAXInstaller {
     }
 
     private func role(_ el: AXUIElement) -> String { string(el, kAXRoleAttribute as String) ?? "" }
+
+    /// One-line, log-safe snapshot of the offer button and its subtree, for the probe
+    /// in `driveToCompletion`. Values are described rather than string-cast: a progress
+    /// ring's `AXValue` is a number, and reading it as a string is exactly how a
+    /// percentage would go missing without anyone noticing.
+    ///
+    /// Bounded on both axes (2 levels, 6 children, 400 chars) — it is emitted at
+    /// `.notice` on every distinct reading, so it has to stay small.
+    private func probeDump(_ el: AXUIElement, depth: Int = 0) -> String {
+        var parts = ["role=\(role(el))"]
+        for attr in [kAXTitleAttribute as String, "AXValue", kAXDescriptionAttribute as String, kAXHelpAttribute as String] {
+            if let v = describeAttribute(el, attr) { parts.append("\(attr)=\(v)") }
+        }
+        var out = parts.joined(separator: " ")
+        if depth < 2 {
+            let kids = children(el).prefix(6).map { probeDump($0, depth: depth + 1) }
+            if !kids.isEmpty { out += " {\(kids.joined(separator: " | "))}" }
+        }
+        // Attribute names last, and only for the button itself: there are ~18 of them
+        // (~250 chars), and ahead of the children they would eat the 400-char budget
+        // and truncate away the subtree this dump exists to show.
+        if depth == 0, let names = attributeNames(el) {
+            out += " attrs=[\(names.joined(separator: ","))]"
+        }
+        return out.count > 400 ? String(out.prefix(400)) + "…" : out
+    }
+
+    /// An attribute's value as text, whatever its type — `nil` when the attribute is
+    /// absent, so an empty string stays distinguishable from a missing one.
+    private func describeAttribute(_ el: AXUIElement, _ attr: String) -> String? {
+        var v: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(el, attr as CFString, &v) == .success, let v else { return nil }
+        if let s = v as? String { return "\"\(s)\"" }
+        if let n = v as? NSNumber { return n.stringValue }
+        return "<\(CFCopyTypeIDDescription(CFGetTypeID(v)) as String? ?? "?")>"
+    }
+
+    private func attributeNames(_ el: AXUIElement) -> [String]? {
+        var v: CFArray?
+        guard AXUIElementCopyAttributeNames(el, &v) == .success else { return nil }
+        return v as? [String]
+    }
 
     private func title(_ el: AXUIElement) -> String? {
         string(el, kAXTitleAttribute as String) ?? string(el, kAXDescriptionAttribute as String)

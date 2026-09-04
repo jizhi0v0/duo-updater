@@ -108,7 +108,8 @@ public struct MacAppStoreSource: UpdateSource {
         }
 
         let availability = result.trackId.map {
-            AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion)
+            AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion,
+                                 storeName: result.trackName)
         }
         let cleanNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         return RemoteVersion(
@@ -138,7 +139,8 @@ public struct MacAppStoreSource: UpdateSource {
         guard let info = try await scrapeMacVersion(trackId: trackId, region: region) else {
             return nil
         }
-        let availability = AppStoreAvailability(trackID: trackId, availableRegion: region, homeRegion: homeRegion)
+        let availability = AppStoreAvailability(trackID: trackId, availableRegion: region, homeRegion: homeRegion,
+                                                storeName: lookupResult.trackName)
         // The Mac-specific product page, both as the inline web fallback and the
         // "Open page" link. The lookup API's `releaseNotes` here describes the iOS
         // track, not the Mac build, so we instead surface the Mac page's own
@@ -307,7 +309,8 @@ public struct MacAppStoreSource: UpdateSource {
             macCompatible = try await scrapeMacCompatibility(trackId: trackId, region: region)
         }
         let availability = result.trackId.map {
-            AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion, latestMacCompatible: macCompatible)
+            AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion,
+                                 latestMacCompatible: macCompatible, storeName: result.trackName)
         }
         // `releaseNotes` is the "What's New" text for the latest version. Safe to
         // trust here: we only reach this for native Mac listings or wrapped iOS
@@ -329,13 +332,41 @@ public struct MacAppStoreSource: UpdateSource {
 
     /// One lookup against a single storefront. Returns nil when the app isn't
     /// listed there (resultCount == 0).
+    ///
+    /// Asks for the user's own language when we can name it, because the listing is
+    /// localised and two things read it: the "What's New" text we show, and
+    /// `AppStoreAXInstaller`, which has to recognise the name App Store.app renders
+    /// on screen. Without `lang` the API answers in the storefront's default —
+    /// measured 2026-09-05, same app and storefront:
+    ///
+    ///     lookup?id=1435447041&country=us            → "DingDing: Redefine Work in AI"
+    ///     lookup?id=1435447041&country=us&lang=zh_cn → "钉钉 - AI时代的工作方式"
+    ///
+    /// A language the app doesn't have is harmless (`lang=ja_jp` on that app answers
+    /// in its default, 200). A language *code* the API doesn't accept is not: it is a
+    /// **400**, and this method turns any non-2xx into a throw — which would take out
+    /// version detection for every Mac App Store app, not just the AX route. So a
+    /// rejected code is retried once without `lang` and then not sent again for the
+    /// life of the process.
     private func lookup(bundleID: String, region: String) async throws -> LookupResult? {
+        let lang = await LanguageSupport.shared.isRejected
+            ? nil
+            : Self.storeLanguage(preferred: Locale.preferredLanguages, storefront: region)
+        do {
+            return try await lookup(bundleID: bundleID, region: region, lang: lang)
+        } catch MASError.badStatus where lang != nil {
+            await LanguageSupport.shared.markRejected()
+            return try await lookup(bundleID: bundleID, region: region, lang: nil)
+        }
+    }
+
+    private func lookup(bundleID: String, region: String, lang: String?) async throws -> LookupResult? {
         var components = URLComponents(string: "https://itunes.apple.com/lookup")!
         components.queryItems = [
             URLQueryItem(name: "bundleId", value: bundleID),
             URLQueryItem(name: "country", value: region),
             URLQueryItem(name: "entity", value: "macSoftware")
-        ]
+        ] + (lang.map { [URLQueryItem(name: "lang", value: $0)] } ?? [])
         guard let url = components.url else { return nil }
 
         var request = URLRequest(url: url)
@@ -352,6 +383,32 @@ public struct MacAppStoreSource: UpdateSource {
         return decoded.results.first
     }
 
+    /// The `lang` code to ask the lookup API for, or nil when we can't name one.
+    ///
+    /// The API wants `language_region` (`en_us`, `zh_cn`), which is not what
+    /// `Locale.preferredLanguages` hands out — Chinese in particular is identified by
+    /// *script* there ("zh-Hans-US" is Simplified Chinese on a US-region Mac), and the
+    /// script is what picks the listing, not the region. Everything else takes the
+    /// identifier's own region, falling back to the storefront we are asking.
+    ///
+    /// Pure so the mapping is assertable; a wrong code costs one 400 and a retry (see
+    /// the caller), never a silently wrong answer.
+    static func storeLanguage(preferred: [String], storefront: String) -> String? {
+        guard let first = preferred.first else { return nil }
+        let locale = Locale(identifier: first)
+        guard let language = locale.language.languageCode?.identifier.lowercased(),
+              !language.isEmpty else { return nil }
+        if language == "zh" {
+            switch locale.language.script?.identifier {
+            case "Hant": return "zh_tw"
+            default:     return "zh_cn"
+            }
+        }
+        let region = (locale.language.region?.identifier ?? storefront).lowercased()
+        guard !region.isEmpty else { return nil }
+        return "\(language)_\(region)"
+    }
+
     private struct LookupResponse: Decodable {
         let results: [LookupResult]
     }
@@ -360,6 +417,11 @@ public struct MacAppStoreSource: UpdateSource {
         let version: String?
         let trackViewUrl: String?
         let trackId: Int?
+        /// The store's own listing title ("DingDing: Redefine Work in AI"), which is
+        /// what the product page renders — and is NOT the installed bundle's name
+        /// ("DingTalk"). `AppStoreAXInstaller` binds the offer button by that title,
+        /// so it has to come from here; see `AppStoreAvailability.storeName`.
+        let trackName: String?
         /// "What's New in Version X" text for the latest release. Plain text with
         /// embedded newlines (no markup). nil/absent for some listings.
         let releaseNotes: String?
@@ -371,4 +433,15 @@ public struct MacAppStoreSource: UpdateSource {
     }
 
     enum MASError: Error { case badStatus(Int) }
+
+    /// Remembers, for the life of the process, that the lookup API rejected the language
+    /// code we derived — so the fallback costs one wasted request in total rather than
+    /// one per app per check. Deliberately not persisted: the answer belongs to the API,
+    /// and a stale "rejected" on disk would keep a user on the wrong listing language
+    /// long after Apple started accepting their code.
+    private actor LanguageSupport {
+        static let shared = LanguageSupport()
+        private(set) var isRejected = false
+        func markRejected() { isRejected = true }
+    }
 }

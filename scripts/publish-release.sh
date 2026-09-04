@@ -155,16 +155,74 @@ prepare_sparkle_appcast() {
     # what was published — `check_signatures_unchanged` (run below, before anything
     # is pushed) refuses the feed if any already-published item's signature moved,
     # which is exactly what a locally rebuilt zip would cause.
-    local asset_dir history
+    # Where those past archives come from. NOT `dirname "$ASSET_ZIP"`, which is this
+    # checkout's own `dist/` — a per-worktree directory that a fresh worktree has
+    # never written to. 0.3.84 was released from one and shipped with **no deltas at
+    # all**: `Appcast: 1 archives available` (the new zip alone), a feed that is
+    # internally consistent, zero errors, and every existing user downloading 12.6 MB
+    # instead of the 692 KB patch. The published assets are the only copy that is
+    # guaranteed to be byte-for-byte what shipped anyway, so ask GitHub for them and
+    # keep them in one cache that does not move with the checkout.
+    local cache_dir asset_dir tag_list archive_name cached count
+    cache_dir="${DUO_RELEASE_ARCHIVE_CACHE:-$HOME/Library/Caches/duo-updater/release-archives}"
+    mkdir -p "$cache_dir"
+
+    # Seed from this checkout's dist/ when it happens to have them: free, and it keeps
+    # working with no network for anyone who has just built several releases in a row.
     asset_dir="$(dirname "$ASSET_ZIP")"
-    history="$(ls -t "$asset_dir"/DuoUpdater-*-macos.zip 2>/dev/null | head -6)"
-    if [ -n "$history" ]; then
-        # `cp -n`: never clobber the asset just copied in, whose bytes are the ones
-        # being released.
-        printf '%s\n' "$history" | while IFS= read -r archive; do
-            [ -f "$archive" ] && cp -n "$archive" "$appcast_archives_dir/" 2>/dev/null || true
-        done
-        say "Appcast: $(printf '%s\n' "$history" | wc -l | tr -d ' ') archives available for delta generation"
+    for archive in "$asset_dir"/DuoUpdater-*-macos.zip; do
+        [ -f "$archive" ] && cp -n "$archive" "$cache_dir/" 2>/dev/null || true
+    done
+
+    # Then fill the gaps from the releases themselves. `--maximum-deltas` is 5, so the
+    # tool wants the new build plus the five before it; anything older is copied,
+    # diffed and then dropped by the cap.
+    tag_list="$(gh release list --repo "$RELEASE_REPO" --limit 8 --json tagName,isDraft,isPrerelease \
+        --jq '.[] | select(.isDraft == false and .isPrerelease == false) | .tagName' 2>/dev/null || true)"
+    # `while read`, not `for tag in $tag_list`: word-splitting an unquoted variable is
+    # a shell-dependent behaviour (zsh does not split by default), and this loop going
+    # around once with all eight tags glued together fails exactly the way the bug it
+    # fixes did — a name that matches nothing, a download that quietly does nothing.
+    while IFS= read -r tag; do
+        [ -z "$tag" ] && continue
+        [ "$tag" = "$TAG" ] && continue
+        archive_name="DuoUpdater-${tag#v}-macos.zip"
+        [ -f "$cache_dir/$archive_name" ] && continue
+        say "Appcast: fetching $archive_name for delta generation"
+        gh release download "$tag" --repo "$RELEASE_REPO" --pattern "$archive_name" \
+            --dir "$cache_dir" 2>/dev/null || say "Appcast: could not fetch $archive_name — continuing"
+    done <<< "$tag_list"
+
+    # Which six, chosen by RELEASE ORDER and not by file mtime. `ls -t` was the
+    # original rule and it is wrong the moment the cache is filled by downloading:
+    # the files land oldest-tag-last, so newest-mtime-first hands back the six
+    # *oldest* releases — patches from versions almost nobody is running. GitHub
+    # lists releases newest-first, so use that order and stop at six.
+    #
+    # `cp -n` throughout: never clobber the asset copied in above, whose bytes are
+    # the ones being released (its own tag appears in this list on a re-run).
+    while IFS= read -r tag; do
+        [ -z "$tag" ] && continue
+        archive_name="DuoUpdater-${tag#v}-macos.zip"
+        [ -f "$cache_dir/$archive_name" ] || continue
+        cp -n "$cache_dir/$archive_name" "$appcast_archives_dir/" 2>/dev/null || true
+        [ "$(ls "$appcast_archives_dir"/DuoUpdater-*-macos.zip 2>/dev/null | wc -l | tr -d ' ')" -ge 6 ] && break
+    done <<< "$tag_list"
+    count="$(ls "$appcast_archives_dir"/DuoUpdater-*-macos.zip 2>/dev/null | wc -l | tr -d ' ')"
+    say "Appcast: $count archives available for delta generation (cache: $cache_dir)"
+
+    # One archive means one full download for everyone, which is the failure this
+    # block exists to prevent and which is invisible in the feed afterwards. It is
+    # only legitimate when there is genuinely nothing to patch from — a first publish
+    # into an empty feed. Anything else stops here, before a release is created.
+    if [ "$count" -lt 2 ] && [ -s "$appcast_clone_dir/appcast.xml" ]; then
+        if [ "${ALLOW_NO_DELTAS:-0}" = "1" ]; then
+            say "ALLOW_NO_DELTAS=1 — publishing with no binary patches; every user downloads the full archive."
+        else
+            die "only $count archive available, so this release would ship with no binary patches
+  while the published feed has entries to patch from. Check \`gh release list\` and the
+  cache at $cache_dir, or ALLOW_NO_DELTAS=1 to publish full downloads on purpose."
+        fi
     fi
     sparkle_notes="$appcast_archives_dir/$(basename "${ASSET_ZIP%.*}").md"
     cp "$RELEASE_NOTES_FILE" "$sparkle_notes"
@@ -730,7 +788,17 @@ fi
 # the newest LOCAL git tag, and `gh release create` makes the tag on GitHub. Without
 # a fetch first, that guard holds back the release that was just published, prints
 # one `held back` line, and exits 0 — so `npm run sync` looks like it worked.
-site_repo="${DUO_SITE_REPO:-$REPO_ROOT/../duo-updater-site}"
+#
+# ⚠️ Resolved from the MAIN working tree, not from `$REPO_ROOT`. `$REPO_ROOT` is
+# whatever checkout is publishing, and releasing from a worktree makes the default
+# `.claude/worktrees/<name>/../duo-updater-site` — a path that does not exist, so
+# the whole block below is skipped and prints NOTHING. That is what happened on
+# 0.3.84: neither branch ran, and the safeguard written because this step had been
+# forgotten twice was itself silently absent. `git worktree list` names the main
+# tree first, which is the one with a sibling site checkout.
+main_tree="$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null \
+    | awk '/^worktree /{print $2; exit}')"
+site_repo="${DUO_SITE_REPO:-${main_tree:-$REPO_ROOT}/../duo-updater-site}"
 if [ -d "$site_repo/.git" ]; then
     synced="$(git -C "$site_repo" log -1 --pretty=%s 2>/dev/null || true)"
     case "$synced" in
@@ -753,4 +821,16 @@ $(printf '\033[1;33m! duoupdater.app is NOT synced yet.\033[0m') Its last sync c
 EOF
             ;;
     esac
+else
+    # Saying nothing is what this check did on 0.3.84, and "no output" reads exactly
+    # like "nothing to do". If the site checkout cannot be found, say so.
+    cat <<EOF
+
+$(printf '\033[1;33m! Could not check duoupdater.app.\033[0m') No git checkout at:
+     $site_repo
+
+  The site keeps a committed copy of CHANGELOG.md and will stay on the previous
+  version until someone syncs it. Point DUO_SITE_REPO at the checkout, or sync by
+  hand — see the steps in this script beside this message.
+EOF
 fi

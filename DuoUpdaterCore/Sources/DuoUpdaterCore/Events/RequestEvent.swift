@@ -35,7 +35,33 @@ public struct RequestEvent: Codable, Sendable, Hashable {
     /// recorded, for the same reason.
     public let path: String
 
+    /// Whether the request carried a query string, **without carrying it**.
+    ///
+    /// One bit, because dropping the query silently makes the log lie by
+    /// omission: `ime.doubao.com/api/v1/app/download_url` is a complete-looking
+    /// URL whose entire meaning was in the part we refuse to store, and pasting
+    /// it somewhere gets you a different request. The row can now say so.
+    ///
+    /// Nil for every row written before this existed — which is not the same as
+    /// "no query", and is why it is not a plain `Bool`.
+    public let hadQuery: Bool?
+
     /// Which task this hop belonged to, so the hops of one logical fetch regroup.
+    /// Which app this request was made *for*, as ``InstalledApp/id`` — the
+    /// bundle's path.
+    ///
+    /// Not derivable from anything else on the row, which is the reason it is
+    /// stored: `objects.githubusercontent.com/…/asset/12345` says nothing about
+    /// which app it belongs to, so without this the log can answer "what did it
+    /// fetch" and never "what was it doing that for". Filled by
+    /// ``RequestAttribution`` at the point the request is made rather than
+    /// threaded through forty call sites.
+    ///
+    /// Nil is normal and permanent: the Homebrew catalog and the updater's own
+    /// self-update are not made on behalf of any one app, and every row written
+    /// before this field existed has none.
+    public let appID: String?
+
     public let taskID: UUID
     /// 0 for the first request, 1 for the first redirect target, and so on.
     public let hopIndex: Int
@@ -169,16 +195,28 @@ public struct RequestEvent: Codable, Sendable, Hashable {
         }
     }
 
+    /// The app this was for, as a name to put in a column.
+    ///
+    /// Derived here rather than in the view so the window and `duo` agree on
+    /// what to call a bundle, and so the derivation is executed by something:
+    /// `App/Sources` has no test target.
+    public var appName: String? {
+        guard let appID, !appID.isEmpty else { return nil }
+        return URL(fileURLWithPath: appID).deletingPathExtension().lastPathComponent
+    }
+
     public var url: String {
         var text = "\(scheme ?? "https")://\(host)"
         if let port, port != (scheme == "http" ? 80 : 443) { text += ":\(port)" }
         return text + path
     }
 
+
     // swiftlint:disable:next function_body_length
     public init(
         purpose: RequestPurpose, method: String, scheme: String?, host: String,
-        port: Int?, path: String, taskID: UUID, hopIndex: Int, redirectCount: Int,
+        port: Int?, path: String, hadQuery: Bool? = nil, appID: String? = nil,
+        taskID: UUID, hopIndex: Int, redirectCount: Int,
         status: Int?, errorDomain: String? = nil, errorCode: Int? = nil,
         fetchType: FetchType, reusedConnection: Bool = false,
         proxyConnection: Bool = false, cellular: Bool = false,
@@ -204,6 +242,8 @@ public struct RequestEvent: Codable, Sendable, Hashable {
         self.host = host
         self.port = port
         self.path = path
+        self.hadQuery = hadQuery
+        self.appID = appID
         self.taskID = taskID
         self.hopIndex = hopIndex
         self.redirectCount = redirectCount

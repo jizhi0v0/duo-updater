@@ -35,10 +35,14 @@ import Foundation
 public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
 
     private let purpose: RequestPurpose
+    private let appID: String?
     private let store: EventStore
 
-    public init(_ purpose: RequestPurpose, store: EventStore = .shared) {
+    public init(
+        _ purpose: RequestPurpose, appID: String? = nil, store: EventStore = .shared
+    ) {
         self.purpose = purpose
+        self.appID = appID
         self.store = store
         super.init()
     }
@@ -47,7 +51,7 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
         _ session: URLSession, task: URLSessionTask,
         didFinishCollecting metrics: URLSessionTaskMetrics
     ) {
-        let events = Self.events(from: metrics, task: task, purpose: purpose)
+        let events = Self.events(from: metrics, task: task, purpose: purpose, appID: appID)
         guard !events.isEmpty else { return }
         // Synchronous hand-off, not `Task { await store.append(…) }`. This
         // callback is delivered before the fetch's continuation resumes, so
@@ -68,7 +72,7 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
     /// Static and pure so a test can feed it metrics without a network.
     public static func events(
         from metrics: URLSessionTaskMetrics, task: URLSessionTask?,
-        purpose: RequestPurpose
+        purpose: RequestPurpose, appID: String? = nil
     ) -> [RequestEvent] {
         // One id for the whole task, so the hops of one logical fetch can be
         // regrouped after the fact — the thing per-hop rows would otherwise lose.
@@ -93,6 +97,9 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
                 port: url.port,
                 // Path only — the query is dropped. See `RequestEvent.path`.
                 path: url.path,
+                // The presence of a query, never its contents. See RequestEvent.path.
+                hadQuery: !(url.query ?? "").isEmpty,
+                appID: appID,
                 taskID: taskID,
                 hopIndex: index,
                 redirectCount: metrics.redirectCount,
@@ -173,6 +180,12 @@ public extension URLSession {
     func countedData(
         for request: URLRequest, purpose: RequestPurpose, store: EventStore = .shared
     ) async throws -> (Data, URLResponse) {
-        try await data(for: request, delegate: RequestMetricsRecorder(purpose, store: store))
+        // The attribution is read **here**, in the calling task, and handed to
+        // the delegate as a stored property — never read inside the metrics
+        // callback, which runs on the session's delegate queue outside this
+        // task's tree and would see only the default. That is the same trap the
+        // purpose fell into; see this file's header.
+        try await data(for: request, delegate: RequestMetricsRecorder(
+            purpose, appID: RequestAttribution.appID, store: store))
     }
 }

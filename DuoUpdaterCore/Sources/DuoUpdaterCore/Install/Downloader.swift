@@ -179,7 +179,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         didFinishCollecting metrics: URLSessionTaskMetrics
     ) {
         let events = RequestMetricsRecorder.events(
-            from: metrics, task: task, purpose: ledgerPurpose)
+            from: metrics, task: task, purpose: ledgerPurpose, appID: attributedApp)
         guard !events.isEmpty else { return }
         store.stage(events.map {
             DuoEvent(date: $0.responseEnd ?? $0.fetchStart ?? Date(), payload: .request($0))
@@ -192,6 +192,9 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// sit behind a WAF that only serves the file to browser-like requests (e.g.
     /// Oray's `dw.oray.com` requires a `Referer`; without it you get an anti-bot
     /// JS challenge page instead of the dmg). They override the default UA.
+    /// Which app this download is for, captured when `download` is called.
+    private var attributedApp: String?
+
     func download(_ url: URL, headers: [String: String] = [:]) async throws -> URL {
         // Enforce TLS before a single byte moves: every installer routes through
         // here, so this one gate covers Sparkle, Vendor, GitHub, and pkg
@@ -199,6 +202,14 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         // the later signature gates, so we refuse it outright.
         try SecureScheme.requireSecureDownload(url)
         bytesLock.withLock { _bytesDownloaded = 0 }
+        // Read here, in the calling task, and stored for the metrics callback —
+        // which runs on the session's delegate queue, outside this task's tree,
+        // where the task-local reads back as its default. This is the same trap
+        // `RequestMetricsRecorder` documents; the difference is that this class
+        // is its own session delegate rather than going through `countedData`,
+        // so it has to do the capture itself. Without it the biggest rows in the
+        // log — the installers — are the only ones with no app against them.
+        attributedApp = RequestAttribution.appID
 
         // Local files (only ever `file://` in tests) copy straight across: no
         // network, no range, no retry — and the byte count comes from the file

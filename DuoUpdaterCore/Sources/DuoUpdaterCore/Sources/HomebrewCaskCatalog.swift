@@ -142,8 +142,15 @@ public actor HomebrewCaskCatalog {
         // index — measured at 2.1 MB, i.e. larger than every version feed in a
         // full sweep put together. Filed under the same purpose as a 4 KB appcast
         // it would hide inside a bucket it single-handedly dominates.
-        let (data, response) = try await session.versionFeedData(
-            for: request, label: "Homebrew cask catalog", purpose: .catalog)
+        // Attributed to no app, deliberately. This runs inside whichever app's
+        // check happened to find the catalog cold, and filing 2.1 MB against
+        // that app would read as "Anki cost 2.1 MB" when the next fifty apps
+        // ride on the same copy. The same reasoning as the self-update: a shared
+        // fetch belongs to nobody, and nobody is an answer the column can give.
+        let (data, response) = try await RequestAttribution.withApp(nil) {
+            try await session.versionFeedData(
+                for: request, label: "Homebrew cask catalog", purpose: .catalog)
+        }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw CaskError.badStatus(http.statusCode)
         }

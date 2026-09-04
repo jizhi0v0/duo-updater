@@ -280,10 +280,15 @@ public actor InstallCoordinator {
         Log.install.notice(
             "install start: \(label, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(String(describing: route), privacy: .public)")
         do {
-            let outcome = try await performRoute(
-                result, route: route, progress: progress,
-                releaseAfterDownload: releaseAfterDownload,
-                beforeInstallerOpen: beforeInstallerOpen)
+            // Every byte fetched by this install is filed against this app, the
+            // same way its check was — so "everything that went anywhere for
+            // Zed" is one query across both the socket rows and the ledger row.
+            let outcome = try await RequestAttribution.withApp(result.app.id) {
+                try await performRoute(
+                    result, route: route, progress: progress,
+                    releaseAfterDownload: releaseAfterDownload,
+                    beforeInstallerOpen: beforeInstallerOpen)
+            }
             // `applied` is the load-bearing bit: false means the bytes are staged
             // but nothing on disk has changed yet, which is exactly the state that
             // used to be indistinguishable from a finished update.

@@ -69,7 +69,18 @@ public struct UpdateChecker: Sendable {
     }
 
     /// Check one app across all sources in priority order.
+    /// One app's check, with every request it makes filed against that app.
+    ///
+    /// The attribution is set here because this is the one place that knows both
+    /// the app and the whole span of work done for it — a source may fetch a
+    /// feed, follow a redirect and then probe a vendor endpoint, and all of it
+    /// belongs to this app. Setting it any deeper would mean threading an id
+    /// through every update source.
     public func check(_ app: InstalledApp) async -> UpdateResult {
+        await RequestAttribution.withApp(app.id) { await performCheck(app) }
+    }
+
+    private func performCheck(_ app: InstalledApp) async -> UpdateResult {
         // JetBrains Toolbox owns its apps' updates end to end (some even ship a
         // Sparkle feed of their own, e.g. Air/Fleet). We never consult another
         // source for these — that would risk a cross-channel install. Instead we

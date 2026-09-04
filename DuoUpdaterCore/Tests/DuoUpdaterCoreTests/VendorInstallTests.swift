@@ -119,6 +119,32 @@ import CryptoKit
         byKey.values.filter { $0.trackClosedPattern != nil }
             .map { ChannelProofKey($0.bundleID, $0.channel) })
 
+    // Recipes whose probe cannot even be addressed from this machine, because the
+    // endpoint is keyed by an identifier the vendor's own app writes locally —
+    // Codex reads an `installationId` out of Application Support, and without it
+    // `VendorProbeSource` answers `.notApplicable("no device identity at …")`
+    // rather than failing. That is the recipe working as designed, and on a
+    // machine where the app is not installed it is the ONLY possible answer.
+    //
+    // The first CI run failed here for exactly that reason and it read like a
+    // vendor outage: `com.openai.codex [stable]: v?  [nil] — NO URL`. It is the
+    // same shape as CleanShot's resolver — a test that passes for whoever has the
+    // app installed and fails for everyone else — and the same shape as running
+    // this suite anywhere but the author's Mac.
+    //
+    // Derived from the registry, and — following what 0113017 fixed for track
+    // closure — exempt by RESULT, not by declaration: a recipe is skipped only
+    // when its identity is actually absent here. A machine that has the app must
+    // go on being covered, or the exemption quietly deletes the coverage it was
+    // meant to preserve.
+    let unaddressableKeys = Set(
+        byKey.values
+            .filter { recipe in
+                !recipe.identities.isEmpty
+                    && recipe.identities.allSatisfy { $0.value() == nil }
+            }
+            .map { ChannelProofKey($0.bundleID, $0.channel) })
+
     for key in targets {
         let remote = results[key] ?? nil
         // Only when it actually resolved nothing. `trackClosedPattern` is a
@@ -131,6 +157,10 @@ import CryptoKit
         // stops being covered.
         if remote?.downloadURL == nil, dormantTracks.contains(key) {
             log("• \(key): dormant — vendor publishes no current build on this track")
+            continue
+        }
+        if remote?.downloadURL == nil, unaddressableKeys.contains(key) {
+            log("• \(key): no device identity on this machine — the vendor's app is not installed here, so this probe has nothing to address and proved nothing")
             continue
         }
         let kind = remote?.vendorInstallerKind.map { "\($0)" } ?? "nil"

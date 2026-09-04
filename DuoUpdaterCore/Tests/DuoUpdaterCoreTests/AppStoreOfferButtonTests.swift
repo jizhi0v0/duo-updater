@@ -101,6 +101,47 @@ struct AppStoreOfferButtonTests {
         }
     }
 
+    // MARK: - Which name the page must carry
+
+    /// The product page is the *store's* page, so the store's listing title is what
+    /// binds us to it — not the installed bundle's name. Measured on DingTalk
+    /// (2026-09-04): the page's hero lockup renders "DingDing: Redefine Work in AI"
+    /// and, once rendered, carries the string "DingTalk" nowhere at all. Keying the
+    /// binding on the bundle name meant every lookup after the page settled returned
+    /// nil, so the whole download reported 0%.
+    @Test func theProductPageIsRecognisedByTheStoresOwnTitle() {
+        let dingTalk = AppStoreAXInstaller.AppNames(
+            bundle: "DingTalk", store: "DingDing: Redefine Work in AI")
+        #expect(dingTalk.page == "DingDing: Redefine Work in AI")
+        // The Updates list lists what is installed, so that branch keeps the bundle name.
+        #expect(dingTalk.bundle == "DingTalk")
+    }
+
+    /// No store title (the lookup didn't supply one) leaves the bundle name as the
+    /// only thing to match on — the behaviour every App Store update had before.
+    @Test func withoutAStoreTitleTheBundleNameIsAllThereIs() {
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: nil).page == "Keka")
+    }
+
+    // MARK: - What the probe logs
+
+    /// The probe writes to disk on every reading it considers new, and a download
+    /// reports ~2 readings a second — so "new" has to mean a change of kind, not a
+    /// change of digits, or one large app buries its own diagnosis in thousands of
+    /// lines. Percentages collapse; everything else still counts as a transition.
+    @Test func onlyAChangeOfKindIsWorthALogLine() {
+        let a = #"role=AXButton AXTitle="3% loaded" AXDescription="3% loaded""#
+        let b = #"role=AXButton AXTitle="76.6% loaded" AXDescription="76.6% loaded""#
+        #expect(AppStoreAXInstaller.readingShape(a) == AppStoreAXInstaller.readingShape(b))
+
+        let loading = #"role=AXButton AXTitle="Loading" AXDescription="Loading""#
+        let settled = #"role=AXButton AXTitle="Update" AXDescription="Update""#
+        #expect(AppStoreAXInstaller.readingShape(loading) != AppStoreAXInstaller.readingShape(a))
+        #expect(AppStoreAXInstaller.readingShape(settled) != AppStoreAXInstaller.readingShape(a))
+        // The reading that broke DingTalk: the button going missing entirely.
+        #expect(AppStoreAXInstaller.readingShape("button=nil") != AppStoreAXInstaller.readingShape(a))
+    }
+
     // MARK: - Finishing the swap
 
     /// App Store reports the swap on the offer button itself. Pinned against the exact

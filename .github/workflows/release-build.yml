@@ -82,7 +82,26 @@ jobs:
           API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: |
           set -euo pipefail
-          printf '%s' "$API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          key="$RUNNER_TEMP/AuthKey.p8"
+          # Accept the secret either way round. `base64 -i key.p8 | pbcopy` is the
+          # documented path, but the .p8 is already a text PEM, so pasting it
+          # directly is the obvious mistake to make and notarytool's answer to it is
+          # `invalidPrivateKeyContents` — which names neither the secret nor which
+          # of the two shapes it got. Detect, say so, and fail here with a sentence
+          # somebody can act on.
+          if printf '%s' "$API_KEY_P8" | grep -qa -- "-----BEGIN"; then
+            echo "APPLE_API_KEY_P8 is a PEM; using it as-is"
+            printf '%s\n' "$API_KEY_P8" > "$key"
+          else
+            echo "APPLE_API_KEY_P8 is base64; decoding"
+            # Whitespace stripped first: `base64 -i` wraps its output, and a value
+            # that went through a copy-paste can pick up stray newlines either way.
+            printf '%s' "$API_KEY_P8" | tr -d '[:space:]' | base64 --decode > "$key"
+          fi
+          grep -qa -- "-----BEGIN PRIVATE KEY-----" "$key" || {
+            echo "::error::APPLE_API_KEY_P8 did not yield a PEM private key. It must be either the contents of AuthKey_<KEYID>.p8, or that file base64-encoded (base64 -i AuthKey_<KEYID>.p8 | pbcopy)."
+            exit 1
+          }
           xcrun notarytool store-credentials duo-ci \
             --key "$RUNNER_TEMP/AuthKey.p8" \
             --key-id "$API_KEY_ID" \

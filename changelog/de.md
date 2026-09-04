@@ -4,6 +4,8 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 ## 0.3.83
 
+**PDF Expert findet jetzt seine Updates und zeigt, was sich geändert hat.** Es las eine Versionsliste, die der Hersteller seit 2022 nicht mehr ergänzt hat, und meldete sich deshalb als aktuell — ganz gleich, welche Version installiert war. Jetzt folgt es der Liste, die der eigene Updater der App verwendet, und zeigt auch die Hinweise zu früheren Versionen, nicht nur zur neuesten.
+
 **UTM-Vorschauversionen erhalten jetzt eigene Updates, lassen sich mit einem Klick installieren und zeigen die passenden Versionshinweise.** Bisher wurde eine Vorschauversion am finalen Zweig gemessen und stillschweigend als aktuell gemeldet; sie folgt nun ihrem eigenen Zweig und wechselt zurück auf den finalen Zweig, sobald sie dessen finale Fassung übernimmt.
 
 ## 0.3.82

@@ -85,8 +85,10 @@ Info.plist，2026-09-04）**一个都没有 `SUPublicEDKey`**，而四个构建�
 **这条推论对一键安装有实际后果**：`app.sparkleEdPublicKey` 是 nil 的副本，`UpdatePolicy`
 走的是 **unsigned-feed 分支**——闸是代码签名 + 同 Team + 同 bundle id，EdDSA 根本不参与。
 ⚠️ **哪些版本落在这一侧没有逐版测过**：实测有密钥的是 1171 和 1172，实测没有的是 764 / 936 /
-964，中间那一大段（3.4.1 → 3.13）一个都没量。所以只能说"存在没有密钥的旧副本"，不能说
-"3.13 以前都没有"——n=3 不够推出这条。
+964（这三个连 Sparkle 1.x 的 `SUPublicDSAKey` 都没有，不是"用了老签名机制"，是当时压根没开
+签名校验；顺带 DuoUpdater 全仓也不读 DSA），中间那一大段（3.4.1 → 3.13）一个都没量。
+所以只能说"存在没有密钥的旧副本"，不能说"3.13 以前都没有"——n=3 不够推出这条。
+这条分支已经用 964 真机验过，见「一键安装」。
 
 ### 接法：匹配死地址，不是匹配 bundle id
 
@@ -144,10 +146,26 @@ Info.plist，2026-09-04）**一个都没有 `SUPublicEDKey`**，而四个构建�
   `SparkleAppcastParser` 自己解、`SparkleAppcastSource` 带出来（`channel-verify` 打的
   `deltas 2` 就是它）。**不是 `VendorAppcastDeltas`**——那个只从 `VendorProbeSource` 走，
   这个 app 到不了。
-- 路由是 `sparkle` / `in-place`：enclosure 是 zip，带 `sparkle:edSignature`。⚠️ 注意
-  `SUPublicEDKey` **只有 3.13.x 有**（见上），所以对真正卡住的旧版本用户，闸是代码签名 +
-  Team + bundle id，不是 EdDSA。这次验证用的 3.13.1 副本**有**密钥，也就是说
-  **走 EdDSA 的那条分支验过了，unsigned-feed 那条没有**——而后者才是没有密钥的旧副本会走的。
+- 路由是 `sparkle` / `in-place`：enclosure 是 zip，带 `sparkle:edSignature`。
+
+**两条分支都验过了**——因为没有密钥的旧副本走的是另一条闸，而那才是这次改动真正要救的人群：
+
+| 起点 | `SUPublicEDKey` | `SparkleInstaller` 的闸 | 下载量 | 结果 |
+|------|-----------------|------------------------|--------|------|
+| 3.13.1 / 1171 | 有 | EdDSA 验签 + 代码签名/Team/bundle id | 781,078 B（增量） | ✓ 3.13.2 |
+| 3.4.1 / 964 | **两种密钥都没有**（`SUPublicEDKey` 和 Sparkle 1.x 的 `SUPublicDSAKey` 都不存在） | 跳过 EdDSA，只有代码签名 + 同 Team + 同 bundle id | 128,745,812 B（全量） | ✓ 3.13.2 |
+
+3.4.1 那一轮的取材是**死 feed 自己的 enclosure**（`/release/10_15/PDFExpert.zip`）：同 bundle id、
+Team `3L68KQB4HG`、已公证、universal。装完 `codesign --verify --deep --strict` 通过，
+`spctl` 仍是 `Notarized Developer ID / Readdle Technologies Limited`。
+
+`verifiesWithEdDSA` 在 `SparkleInstaller` 里直接由 `sparkleEdPublicKey` 算出
+（`!(publicKey?.isEmpty ?? true)`），所以"跳过 EdDSA"不是观察到的巧合，是这份 bundle 决定的。
+⚠️ 验到的是这条分支**跑通并成功**；它 fail-closed 的方向（换一个 Team 的产物应当被拒）
+没有在这个 app 上试，那由 `InstallPipelineSmokeTests` / `VendorInstallTests` 覆盖。
+
+⚠️ 顺带一个观察：3.4.1 那份放在第二个扫描位置，装完两份拷贝版本相同，
+`dedupeIdenticalInstalls` 把它们折成了一行（保留扫描序在前的那份），与它注释写的一致。
 
 ## 如何复验
 
@@ -197,6 +215,18 @@ duo install com.readdle.PDFExpert-Mac --yes --json
 
 2026-09-04 的实际输出：`{"applied":true,"bytesDownloaded":781078,"route":"sparkle"}`，
 之后 `duo check` 回到 `up-to-date 3.13.2`。
+
+无密钥（unsigned-feed）那条分支同理，只是起点换成死 feed 自己发的 3.4.1，且**放在第二个扫描
+位置**，这样不必动第一份拷贝：
+
+```sh
+curl -o PDFExpert-964.zip https://downloads.pdfexpert.com/release/10_15/PDFExpert.zip
+ditto -x -k PDFExpert-964.zip old && ditto old/"PDF Expert.app" ~/Applications/"PDF Expert.app"
+duo install ~/Applications/"PDF Expert.app" --yes --json
+```
+
+2026-09-04：`{"applied":true,"bytesDownloaded":128745812,"route":"sparkle"}` —— 全量包，
+因为 feed 只发 1170/1171 起跳的增量。跑完把那份拷贝删掉即可。
 
 ## 已知问题 / 未做的事
 

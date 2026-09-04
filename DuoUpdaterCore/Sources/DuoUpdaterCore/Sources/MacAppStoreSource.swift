@@ -108,7 +108,8 @@ public struct MacAppStoreSource: UpdateSource {
         }
 
         let availability = result.trackId.map {
-            AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion)
+            AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion,
+                                 storeName: result.trackName)
         }
         let cleanNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         return RemoteVersion(
@@ -138,7 +139,8 @@ public struct MacAppStoreSource: UpdateSource {
         guard let info = try await scrapeMacVersion(trackId: trackId, region: region) else {
             return nil
         }
-        let availability = AppStoreAvailability(trackID: trackId, availableRegion: region, homeRegion: homeRegion)
+        let availability = AppStoreAvailability(trackID: trackId, availableRegion: region, homeRegion: homeRegion,
+                                                storeName: lookupResult.trackName)
         // The Mac-specific product page, both as the inline web fallback and the
         // "Open page" link. The lookup API's `releaseNotes` here describes the iOS
         // track, not the Mac build, so we instead surface the Mac page's own
@@ -307,7 +309,8 @@ public struct MacAppStoreSource: UpdateSource {
             macCompatible = try await scrapeMacCompatibility(trackId: trackId, region: region)
         }
         let availability = result.trackId.map {
-            AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion, latestMacCompatible: macCompatible)
+            AppStoreAvailability(trackID: $0, availableRegion: region, homeRegion: homeRegion,
+                                 latestMacCompatible: macCompatible, storeName: result.trackName)
         }
         // `releaseNotes` is the "What's New" text for the latest version. Safe to
         // trust here: we only reach this for native Mac listings or wrapped iOS
@@ -360,6 +363,11 @@ public struct MacAppStoreSource: UpdateSource {
         let version: String?
         let trackViewUrl: String?
         let trackId: Int?
+        /// The store's own listing title ("DingDing: Redefine Work in AI"), which is
+        /// what the product page renders — and is NOT the installed bundle's name
+        /// ("DingTalk"). `AppStoreAXInstaller` binds the offer button by that title,
+        /// so it has to come from here; see `AppStoreAvailability.storeName`.
+        let trackName: String?
         /// "What's New in Version X" text for the latest release. Plain text with
         /// embedded newlines (no markup). nil/absent for some listings.
         let releaseNotes: String?

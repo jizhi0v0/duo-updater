@@ -118,7 +118,13 @@ public struct RequestQuery: Sendable, Equatable {
     /// hands the decision back to the reader.
     public static func window(_ input: String) -> RequestQuery {
         var query = parse(input)
-        if !input.lowercased().contains("client:") { query.clients = [.app] }
+        // Asked of the parsed tokens, not of the raw string: a path containing
+        // the literal `client:` — which is ordinary free text — would otherwise
+        // suppress the default and quietly fold `duo`'s rows into every figure.
+        let mentionsClient = tokenize(input).contains {
+            $0.lowercased().hasPrefix("client:")
+        }
+        if !mentionsClient { query.clients = [.app] }
         return query
     }
 
@@ -154,11 +160,25 @@ public struct RequestQuery: Sendable, Equatable {
         // Comparison keys first: `size>10MB` has no colon, so a colon-split would
         // read the whole thing as free text and quietly stop filtering.
         if let (key, comparison, value) = Self.splitComparison(token) {
+            // `size>banana` parses to nothing. Reported rather than dropped: it
+            // is pinned as an ordinary capsule, so left unreported it looks
+            // exactly like a filter that is working while the list quietly
+            // fails to narrow. Asked of *this* token's own field — a first
+            // version checked whether all three bounds were nil, so
+            // `size>10MB took>abc` reported nothing because the size had
+            // already landed.
             switch (key, comparison) {
-            case ("size", ">"): minBytes = Self.bytes(value)
-            case ("size", "<"): maxBytes = Self.bytes(value)
-            case ("took", ">"): minDuration = Self.seconds(value)
-            default: ignoredKeys.append(key)
+            case ("size", ">"):
+                minBytes = Self.bytes(value)
+                if minBytes == nil { ignoredKeys.append(token) }
+            case ("size", "<"):
+                maxBytes = Self.bytes(value)
+                if maxBytes == nil { ignoredKeys.append(token) }
+            case ("took", ">"):
+                minDuration = Self.seconds(value)
+                if minDuration == nil { ignoredKeys.append(token) }
+            default:
+                ignoredKeys.append(token)
             }
             return
         }
@@ -176,15 +196,15 @@ public struct RequestQuery: Sendable, Equatable {
         case "app": apps.append(value)
         case "purpose":
             if let purpose = Self.purpose(value) { purposes.append(purpose) }
-            else { ignoredKeys.append("purpose:\(value)") }
+            else { ignoredKeys.append(token) }
         case "client":
             if value.lowercased() == "all" { clients = [] }
             else if let client = RequestClient(rawValue: value.lowercased()) {
                 clients.append(client)
-            } else { ignoredKeys.append("client:\(value)") }
+            } else { ignoredKeys.append(token) }
         case "status":
             if let status = Self.status(value) { statuses.append(status) }
-            else { ignoredKeys.append("status:\(value)") }
+            else { ignoredKeys.append(token) }
         default:
             // A pasted URL is the common case and a perfectly good thing to
             // search for; anything else shaped like `word:value` is a filter
@@ -479,7 +499,15 @@ public struct RequestQuery: Sendable, Equatable {
     /// Cache hits carry no status of their own, so "no status" alone would read
     /// every cache hit as a failure. Asked of the payload rather than of a column
     /// because it has to hold for rows written before this view existed.
-    static let notCached = "COALESCE(json_extract(payload, '$.fetchType'), '') <> 'localCache'"
+    /// Reads the denormalised column rather than the payload.
+    ///
+    /// It was `json_extract(payload, '$.fetchType') <> 'localCache'`, which no
+    /// index can serve and which the summary asks of every row on every
+    /// refresh: 0.29 s over 40,760 rows, every two seconds, on the actor that
+    /// also has to service writes. ``EventStore`` backfills the column on
+    /// migration, so no row is left NULL to be misread as "not from cache".
+    static let notCached =
+        "COALESCE(from_cache, json_extract(payload, '$.fetchType') = 'localCache', 0) = 0"
 
     static let durationMicros =
         "json_extract(payload, '$.responseEnd') - json_extract(payload, '$.fetchStart')"

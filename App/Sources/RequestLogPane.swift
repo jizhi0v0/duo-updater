@@ -52,7 +52,7 @@ struct RequestLogPane: View {
     var onReset: (RequestQuery) -> Void = { _ in }
     var onExport: (RequestQuery) -> Void = { _ in }
     /// Cheap "has anything changed" probe, polled while the window is open.
-    var onChangeToken: () async -> Int64 = { 0 }
+    var onChangeToken: () async -> String = { "" }
     /// Loads the transactions of one fetch, for a row being expanded.
     /// Forces the field to a value. Only an offline renderer passes it — read
     /// alongside the `@State` rather than seeding it, because `.task` does not
@@ -64,7 +64,7 @@ struct RequestLogPane: View {
     /// would move the row they are reading out from under the pointer, so the
     /// list is held still and this offers the update instead.
     @State private var heldBack = false
-    @State private var lastToken: Int64 = 0
+    @State private var lastToken = ""
     /// Bumped to force a reload that the query itself did not change.
     @State private var refresh = UUID()
     /// Whether this window is the one being looked at. A log nobody is reading

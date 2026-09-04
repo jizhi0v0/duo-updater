@@ -373,8 +373,8 @@ public actor EventStore {
         let sql = """
             INSERT OR REPLACE INTO events
               (id, at, client, kind, purpose, host, app_id, status,
-               bytes_in, bytes_out, payload)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?);
+               bytes_in, bytes_out, payload, from_cache)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?);
             """
         guard let statement = prepare(db, sql) else { return false }
         defer { sqlite3_finalize(statement) }
@@ -388,6 +388,7 @@ public actor EventStore {
         bind(statement, 3, event.client.rawValue)
         bind(statement, 4, event.kind)
         for column in Int32(5)...Int32(10) { sqlite3_bind_null(statement, column) }
+        sqlite3_bind_null(statement, 12)
         if let request = event.request {
             bind(statement, 5, request.purpose.rawValue)
             bind(statement, 6, request.host)
@@ -395,6 +396,7 @@ public actor EventStore {
             // byte that went anywhere for this app" is one query over both
             // altitudes. `kind` is what keeps them from being added together.
             if let appID = request.appID { bind(statement, 7, appID) }
+            sqlite3_bind_int64(statement, 12, request.fromCache ? 1 : 0)
             if let status = request.status {
                 sqlite3_bind_int64(statement, 8, Int64(status))
             }
@@ -742,22 +744,19 @@ public actor EventStore {
             sqlite3_finalize(statement)
         }
 
-        var hosts: [RequestLogSummary.HostSlice] = []
+        // Counted, not listed: the host table left the pane when the log became
+        // the view, so the only surviving reader is the count. Grouping and
+        // allocating a slice per host to produce one integer is work nobody
+        // reads.
+        var hostCount = 0
         let byHost = """
-            SELECT host, COUNT(*), COALESCE(SUM(status = 304), 0),
-                   COALESCE(SUM(bytes_in), 0)
-            FROM events WHERE \(clause) AND host IS NOT NULL
-            GROUP BY host ORDER BY 4 DESC, 2 DESC;
+            SELECT COUNT(DISTINCT host) FROM events
+            WHERE \(clause) AND host IS NOT NULL;
             """
         if let statement = prepare(db, byHost) {
             _ = bindAll(values, into: statement)
-            while sqlite3_step(statement) == SQLITE_ROW {
-                guard let host = text(statement, 0) else { continue }
-                hosts.append(RequestLogSummary.HostSlice(
-                    host: host,
-                    requests: Int(sqlite3_column_int64(statement, 1)),
-                    notModified: Int(sqlite3_column_int64(statement, 2)),
-                    bytesReceived: sqlite3_column_int64(statement, 3)))
+            if sqlite3_step(statement) == SQLITE_ROW {
+                hostCount = Int(sqlite3_column_int64(statement, 0))
             }
             sqlite3_finalize(statement)
         }
@@ -776,7 +775,7 @@ public actor EventStore {
             requests: totals.requests, notModified: totals.notModified,
             cached: totals.cached, problems: totals.problems,
             oldest: totals.oldest, newest: totals.newest,
-            byPurpose: slices, hosts: hosts)
+            byPurpose: slices, hostCount: hostCount)
     }
 
     /// A token that changes when the database has changed, from **any** writer.
@@ -798,13 +797,21 @@ public actor EventStore {
     /// Paired with `writes` because data_version deliberately ignores our own
     /// commits — a viewer that only watched it would never see the app's own
     /// requests arrive.
-    public func changeToken() -> Int64 {
-        guard let db = open(),
-              let statement = prepare(db, "PRAGMA data_version;")
-        else { return writes }
-        defer { sqlite3_finalize(statement) }
-        guard sqlite3_step(statement) == SQLITE_ROW else { return writes }
-        return sqlite3_column_int64(statement, 0) &* 1_000_000 &+ writes
+    public func changeToken() -> String {
+        var version: Int64 = 0
+        if let db = open(), let statement = prepare(db, "PRAGMA data_version;") {
+            defer { sqlite3_finalize(statement) }
+            if sqlite3_step(statement) == SQLITE_ROW {
+                version = sqlite3_column_int64(statement, 0)
+            }
+        }
+        // Two fields, not one packed integer. Packing the write count into the
+        // low digits of the version put a ceiling on it: this machine records
+        // ~26k request events a day, so a menu-bar app left running six weeks
+        // would carry past a million, spill into the next version's range and
+        // hand back a token it had already produced — one silently skipped
+        // refresh.
+        return "\(version):\(writes)"
     }
 
     /// Binds a compiled query's values from index 1, returning the next free index.
@@ -1123,6 +1130,13 @@ public actor EventStore {
         // it. Measured: `events_app_at` was missing from the real store, and so
         // was every statement that followed it.
         addColumnIfMissing(db, table: "events", column: "app_id", type: "TEXT")
+        // Denormalised because the summary asks about it on every row, on every
+        // refresh, and asking the payload meant a JSON parse per row that no
+        // index can serve: 0.29 s over 40,760 rows, repeated every two seconds
+        // for as long as the window is open, on the same actor that has to
+        // service event writes.
+        addColumnIfMissing(db, table: "events", column: "from_cache", type: "INTEGER")
+        backfillFromCache(db)
         exec(db, """
             CREATE TABLE IF NOT EXISTS events (
               id        TEXT PRIMARY KEY,
@@ -1132,6 +1146,7 @@ public actor EventStore {
               purpose   TEXT,
               host      TEXT,
               app_id    TEXT,
+              from_cache INTEGER,
               status    INTEGER,
               bytes_in  INTEGER,
               bytes_out INTEGER,
@@ -1163,6 +1178,46 @@ public actor EventStore {
             step(db, statement)
             sqlite3_finalize(statement)
         }
+    }
+
+    /// Blanks the column and its marker, standing in for a store recorded
+    /// before either existed. Test-only: there is no other way back to that
+    /// state once the migration has run.
+    /// - Parameter keepingMarker: leave the migration marker in place, which is
+    ///   what a downgrade produces — rows written by a build that never heard of
+    ///   the column, in a store whose migration has already run and will not
+    ///   revisit them.
+    func blankFromCacheForTesting(keepingMarker: Bool = false) -> Int {
+        guard let db = open() else { return 0 }
+        _ = exec(db, "UPDATE events SET from_cache = NULL;")
+        // Read before the DELETE: `changes()` reports the most recent statement,
+        // so asking after it counts the marker row instead of the events.
+        let blanked = Int(sqlite3_changes(db))
+        if !keepingMarker {
+            _ = exec(db, "DELETE FROM meta WHERE key = 'from_cache.backfilled';")
+        }
+        return blanked
+    }
+
+    /// Fill the denormalised cache flag from payloads written before the column.
+    ///
+    /// Mandatory rather than best-effort: the predicates read the column
+    /// directly, so a row left NULL would silently count as "not from cache"
+    /// and the figures would disagree with the log they sit above. The value
+    /// was always there — `fetchType` is a payload field from the first
+    /// version — so this is a copy, not a guess. Once, guarded by a marker.
+    private func backfillFromCache(_ db: OpaquePointer) {
+        // `metaValue`, not `metaMarker`: this runs inside schema setup, and
+        // `metaMarker` opens the database, which re-enters schema setup and
+        // recurses until the stack runs out.
+        guard metaValue(db, "from_cache.backfilled") == nil else { return }
+        let sql = """
+            UPDATE events
+            SET from_cache = (json_extract(payload, '$.fetchType') = 'localCache')
+            WHERE from_cache IS NULL AND kind = 'request';
+            """
+        guard exec(db, sql) else { return }
+        setMeta(db, "from_cache.backfilled", ISO8601DateFormatter.duoEvent.string(from: now()))
     }
 
     private func addColumnIfMissing(

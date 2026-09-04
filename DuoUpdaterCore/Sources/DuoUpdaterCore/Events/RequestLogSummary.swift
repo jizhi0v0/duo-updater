@@ -16,14 +16,12 @@ public struct RequestLogSummary: Sendable, Equatable {
         public let requests: Int
         public let bytesReceived: Int64
         public var id: String { purpose.rawValue }
-    }
 
-    public struct HostSlice: Sendable, Equatable, Identifiable {
-        public let host: String
-        public let requests: Int
-        public let notModified: Int
-        public let bytesReceived: Int64
-        public var id: String { host }
+        public init(purpose: RequestPurpose, requests: Int, bytesReceived: Int64) {
+            self.purpose = purpose
+            self.requests = requests
+            self.bytesReceived = bytesReceived
+        }
     }
 
     public let bytesReceived: Int64
@@ -37,13 +35,18 @@ public struct RequestLogSummary: Sendable, Equatable {
     public let oldest: Date?
     public let newest: Date?
     public let byPurpose: [PurposeSlice]
-    public let hosts: [HostSlice]
+    /// How many distinct hosts the filter matched.
+    ///
+    /// A count rather than a list: the host table left the window when the log
+    /// became the view, and grouping every host into an array to produce one
+    /// integer is work nobody reads.
+    public let hostCount: Int
 
     public init(
         bytesReceived: Int64 = 0, bytesSent: Int64 = 0, requests: Int = 0,
         notModified: Int = 0, cached: Int = 0, problems: Int = 0,
         oldest: Date? = nil, newest: Date? = nil,
-        byPurpose: [PurposeSlice] = [], hosts: [HostSlice] = []
+        byPurpose: [PurposeSlice] = [], hostCount: Int = 0
     ) {
         self.bytesReceived = bytesReceived
         self.bytesSent = bytesSent
@@ -54,12 +57,11 @@ public struct RequestLogSummary: Sendable, Equatable {
         self.oldest = oldest
         self.newest = newest
         self.byPurpose = byPurpose
-        self.hosts = hosts
+        self.hostCount = hostCount
     }
 
     public static let empty = RequestLogSummary()
 
-    public var hostCount: Int { hosts.count }
     public var isEmpty: Bool { requests == 0 }
 
     /// A slice's share of the bar. Zero when nothing was received — a sweep that

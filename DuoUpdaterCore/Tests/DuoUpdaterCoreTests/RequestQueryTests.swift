@@ -395,3 +395,150 @@ struct UpdateSessionCacheTests {
         #expect(URLSession.updates.configuration.urlCache?.diskCapacity == 0)
     }
 }
+
+/// The seven defects a review of this change turned up, each pinned so the fix
+/// cannot quietly come undone.
+@Suite(.serialized)
+struct RequestQueryReviewTests {
+
+    @Test("A bound that parses to nothing is reported, not dropped")
+    func unparseableBoundIsReported() {
+        // `size>banana` is pinned as an ordinary capsule, so left unreported it
+        // looks exactly like a filter that works while the list fails to narrow.
+        let query = RequestQuery.parse("size>banana")
+        #expect(query.minBytes == nil)
+        #expect(query.ignoredKeys == ["size>banana"])
+        #expect(RequestQuery.parse("took>soon").ignoredKeys == ["took>soon"])
+        // And a real one still parses.
+        #expect(RequestQuery.parse("size>10MB").minBytes == 10_000_000)
+        #expect(RequestQuery.parse("size>10MB").ignoredKeys.isEmpty)
+    }
+
+    @Test("Each bound is judged on its own, not on whether any bound landed")
+    func boundsAreReportedPerToken() {
+        // The first version asked whether all three bounds were nil, so a good
+        // one masked a bad one: `size>10MB took>abc` reported nothing while
+        // silently applying only half of what the field showed.
+        let query = RequestQuery.parse("size>10MB took>abc")
+        #expect(query.minBytes == 10_000_000)
+        #expect(query.minDuration == nil)
+        #expect(query.ignoredKeys == ["took>abc"])
+    }
+
+    @Test("A row an older build wrote is still counted correctly")
+    func cacheFlagFallsBackToThePayload() async {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("downgrade-\(UUID().uuidString).sqlite")
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(
+                    at: url.deletingLastPathComponent()
+                        .appendingPathComponent(url.lastPathComponent + suffix))
+            }
+        }
+        let store = EventStore(fileURL: url, flushEventCount: 1,
+                               flushDelay: .milliseconds(10))
+        await store.append(DuoEvent(date: Date(timeIntervalSinceNow: -60), client: .app,
+            payload: .request(RequestEvent(
+                purpose: .versionCheck, method: "GET", scheme: "https",
+                host: "example.com", port: nil, path: "/feed",
+                taskID: UUID(), hopIndex: 0, redirectCount: 0,
+                status: nil, fetchType: .localCache))))
+        await store.flush()
+        // Blanking the column *without* clearing the marker is what a downgrade
+        // leaves behind: a build that never heard of the column writes rows the
+        // migration will not revisit, because as far as this store is concerned
+        // it already ran. The payload still says what happened.
+        #expect(await store.blankFromCacheForTesting(keepingMarker: true) == 1)
+        #expect(await store.requestSummary(RequestQuery.window("")).cached == 1)
+        #expect(await store.requestLog(.parse("status:cache")).count == 1)
+    }
+
+    @Test("An ignored token is reported exactly as it was typed")
+    func ignoredTokensKeepTheirCase() {
+        // The capsule matches on the token, so a reconstructed lowercase copy
+        // never matched and the one token filtering nothing was drawn as though
+        // it were working.
+        #expect(RequestQuery.parse("Purpose:banana").ignoredKeys == ["Purpose:banana"])
+        #expect(RequestQuery.parse("STATUS:teapot").ignoredKeys == ["STATUS:teapot"])
+    }
+
+    @Test("`client:` inside ordinary text does not widen the window")
+    func clientScopingReadsTokensNotSubstrings() {
+        // A path with a colon in it is free text. Deciding the scoping by
+        // searching the raw string for "client:" folded `duo`'s sweep — ~150
+        // diagnostic requests — into every figure in the strip.
+        #expect(RequestQuery.window("some/client:x/path").clients == [.app])
+        #expect(RequestQuery.window("").clients == [.app])
+        // An actual token still hands the decision back.
+        #expect(RequestQuery.window("client:cli").clients == [.cli])
+        #expect(RequestQuery.window("client:all").clients.isEmpty)
+    }
+
+    @Test("The cache flag is a column, and history is backfilled into it")
+    func cacheFlagIsDenormalised() async {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fromcache-\(UUID().uuidString).sqlite")
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(
+                    at: url.deletingLastPathComponent()
+                        .appendingPathComponent(url.lastPathComponent + suffix))
+            }
+        }
+        let now = Date(timeIntervalSinceNow: -60)
+        func event(_ fetchType: RequestEvent.FetchType, _ offset: TimeInterval) -> DuoEvent {
+            DuoEvent(date: now.addingTimeInterval(offset), client: .app,
+                payload: .request(RequestEvent(
+                    purpose: .versionCheck, method: "GET", scheme: "https",
+                    host: "example.com", port: nil, path: "/feed",
+                    taskID: UUID(), hopIndex: 0, redirectCount: 0,
+                    status: fetchType == .localCache ? nil : 200,
+                    fetchType: fetchType, responseBodyBytes: 10)))
+        }
+        do {
+            let store = EventStore(fileURL: url, flushEventCount: 1,
+                                   flushDelay: .milliseconds(10))
+            await store.append(event(.localCache, 0))
+            await store.append(event(.networkLoad, 1))
+            await store.flush()
+            // Stands in for a store written before the column existed.
+            #expect(await store.blankFromCacheForTesting() == 2)
+        }
+        // Reopening runs the migration. A row left NULL would be counted as
+        // "not from cache", so the figures would disagree with the log they sit
+        // above — which is why the backfill is mandatory rather than best-effort.
+        let reopened = EventStore(fileURL: url, flushEventCount: 1,
+                                  flushDelay: .milliseconds(10))
+        let summary = await reopened.requestSummary(RequestQuery.window(""))
+        #expect(summary.requests == 2)
+        #expect(summary.cached == 1)
+        #expect(await reopened.requestLog(.parse("status:cache")).count == 1)
+    }
+
+    @Test("The change token carries both fields rather than packing them")
+    func changeTokenCannotCollide() async {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("token-\(UUID().uuidString).sqlite")
+        defer {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(
+                    at: url.deletingLastPathComponent()
+                        .appendingPathComponent(url.lastPathComponent + suffix))
+            }
+        }
+        let store = EventStore(fileURL: url, flushEventCount: 1,
+                               flushDelay: .milliseconds(10))
+        let before = await store.changeToken()
+        await store.append(DuoEvent(date: Date(), client: .app, payload: .request(
+            RequestEvent(purpose: .versionCheck, method: "GET", scheme: "https",
+                         host: "example.com", port: nil, path: "/feed",
+                         taskID: UUID(), hopIndex: 0, redirectCount: 0,
+                         status: 200, fetchType: .networkLoad))))
+        await store.flush()
+        // Our own writes move it — `PRAGMA data_version` deliberately ignores
+        // them, so a viewer watching only that would never see this app's own
+        // requests arrive.
+        #expect(await store.changeToken() != before)
+    }
+}

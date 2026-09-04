@@ -1355,7 +1355,7 @@ final class AppListModel {
 
     /// Cheap probe for "has the log changed", including from `duo` in another
     /// process. See ``EventStore/changeToken()``.
-    func requestChangeToken() async -> Int64 {
+    func requestChangeToken() async -> String {
         await eventStore.changeToken()
     }
 

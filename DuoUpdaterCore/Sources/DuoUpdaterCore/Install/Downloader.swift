@@ -193,7 +193,14 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// Oray's `dw.oray.com` requires a `Referer`; without it you get an anti-bot
     /// JS challenge page instead of the dmg). They override the default UA.
     /// Which app this download is for, captured when `download` is called.
-    private var attributedApp: String?
+    ///
+    /// Behind `bytesLock` for the same reason `_bytesDownloaded` is: it is
+    /// written on the caller's task and read on the session's delegate queue.
+    private var _attributedApp: String?
+    private var attributedApp: String? {
+        get { bytesLock.withLock { _attributedApp } }
+        set { bytesLock.withLock { _attributedApp = newValue } }
+    }
 
     func download(_ url: URL, headers: [String: String] = [:]) async throws -> URL {
         // Enforce TLS before a single byte moves: every installer routes through

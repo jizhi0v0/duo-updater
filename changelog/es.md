@@ -9,9 +9,13 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **«Copy URL» ahora escapa la dirección que te da.** Las rutas con un espacio —las descargas de Firefox, Thunderbird y Bartender, entre otras— se copiaban tal cual: un navegador lo corrige, la línea de comandos no.
 
+**La fila beta de CapCut ya no informa de una comprobación fallida.** Entre una beta y la siguiente —cuando una pasa a versión final y la próxima aún no ha abierto— su fabricante no publica nada en ese canal. Eso aparecía como una fila roja y un «Retry» que no podía funcionar. Ahora la fila simplemente no tiene respuesta de esa fuente hasta que aparece la siguiente beta.
+
 **Audacity ahora muestra la marca que dice con qué está hecha.** Arranca mediante un pequeño lanzador que cede el paso al programa real que tiene al lado, y la marca se leía del lanzador, que no enlaza nada.
 
 **Las notas de versión de la App Store ahora llegan en tu idioma.** Siempre se obtenían en el idioma predeterminado de la tienda, así que un Mac configurado en chino o japonés las seguía leyendo en inglés.
+
+**Las actualizaciones del propio Duo Updater ahora aparecen a su nombre en la ventana «Network».** Su comprobación de versión, sus notas de versión y su descarga figuraban con la columna de app vacía.
 
 **Por dentro.** Una credencial incluida en la ruta de una dirección web se elimina ahora antes de registrar la petición, igual que ya ocurría con las de la cadena de consulta.
 

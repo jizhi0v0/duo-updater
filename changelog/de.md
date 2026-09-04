@@ -9,9 +9,13 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **„Copy URL“ maskiert die Adresse jetzt, bevor es sie herausgibt.** Pfade mit einem Leerzeichen – etwa die Downloads von Firefox, Thunderbird und Bartender – wurden roh kopiert; ein Browser gleicht das aus, die Kommandozeile nicht.
 
+**Die Beta-Zeile von CapCut meldet keine fehlgeschlagene Prüfung mehr.** Zwischen zwei Betas – nachdem eine zur finalen Version geworden ist und bevor die nächste beginnt – veröffentlicht der Hersteller auf diesem Kanal nichts. Das erschien als rote Zeile mit einem „Retry“, das nicht funktionieren konnte. Die Zeile hat nun einfach keine Antwort aus dieser Quelle, bis die nächste Beta erscheint.
+
 **Audacity zeigt jetzt das Zeichen dafür, womit es gebaut ist.** Es startet über einen kleinen Starter, der an das eigentliche Programm daneben übergibt, und das Zeichen wurde am Starter abgelesen – der nichts einbindet.
 
 **App-Store-Versionshinweise erscheinen jetzt in Ihrer Sprache.** Sie wurden immer in der Standardsprache des Stores abgerufen, sodass ein Mac mit chinesischer oder japanischer Sprache sie weiterhin auf Englisch las.
+
+**Die eigenen Updates von Duo Updater erscheinen jetzt unter seinem eigenen Namen im Fenster „Network“.** Seine Versionsprüfung, seine Versionshinweise und sein Download standen alle mit leerer App-Spalte darin.
 
 **Unter der Haube.** Ein Zugangsschlüssel im Pfad einer Webadresse wird jetzt entfernt, bevor die Anfrage aufgezeichnet wird – so wie einer in einer Abfragezeichenfolge schon immer.
 

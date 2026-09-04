@@ -27,9 +27,13 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Copy URL now escapes the address it gives you.** Paths containing a space — Firefox, Thunderbird and Bartender downloads among them — were copied raw, which a browser forgives and a command line does not.
 
+**CapCut's beta row no longer reports a check that failed.** Between betas — after one graduates and before the next opens — its maker publishes nothing on that track, which showed as a red row and a Retry that could not have worked. The row now simply has no answer from that source until the next beta appears.
+
 **Audacity now shows the mark saying what it is built with.** It starts through a small launcher that hands off to the real program beside it, and the mark was being read from the launcher, which links nothing at all.
 
 **App Store release notes now arrive in your language.** They were always fetched in the store's own default language, so a Mac running in Chinese or Japanese still read them in English.
+
+**Duo Updater's own updates now appear under its own name in the Network window.** Its release check, its release notes and its download were all filed with a blank app column.
 
 **Under the hood.** A credential carried inside a web address's path is now removed before the request is recorded, as one in a query string always has been.
 

@@ -2,6 +2,12 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.84
+
+**Los registros de peticiones que exportas ya no llevan tu nombre de cuenta.** Cada fila de una app instalada en tu carpeta personal escribía la ruta completa; ahora muestra `~`, sea cual sea la forma en que extraigas el registro.
+
+**«Copy URL» ahora escapa la dirección que te da.** Las rutas con un espacio —las descargas de Firefox, Thunderbird y Bartender, entre otras— se copiaban tal cual: un navegador lo corrige, la línea de comandos no.
+
 ## 0.3.83
 
 **La ventana «Download Traffic» ahora se llama «Network» y tiene una segunda pestaña.** «Downloads» es el registro que ya tenía: lo que costó cada actualización como archivo. «Requests» es nuevo: cada petición que Duo Updater hace por usted, para qué era, a qué app pertenecía y lo que costó, con un campo de filtro para preguntarle cosas al registro en lugar de recorrerlo. Las cifras de arriba responden a lo que tenga filtrado, no al total histórico.

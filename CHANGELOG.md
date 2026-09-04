@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.84
+
+**Request logs you export no longer carry your account name.** Every row for an app installed in your home folder used to spell out the full path; it now shows `~` instead, whichever way you take the log out.
+
+**Copy URL now escapes the address it gives you.** Paths containing a space — Firefox, Thunderbird and Bartender downloads among them — were copied raw, which a browser forgives and a command line does not.
+
 ## 0.3.83
 
 **The Download Traffic window is now Network, and it has a second tab.** Downloads is the ledger you already had — what each update cost as a file. Requests is new: every fetch Duo Updater makes on your behalf, what it was for, which app it belonged to, and what it cost, with a filter field for asking the log questions rather than scrolling it. The figures at the top answer whatever you have filtered to, not the lifetime total.

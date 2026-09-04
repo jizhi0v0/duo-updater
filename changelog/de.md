@@ -2,6 +2,12 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.3.84
+
+**Exportierte Anfrageprotokolle enthalten nicht mehr Ihren Kontonamen.** Für Apps in Ihrem Benutzerordner stand bisher in jeder Zeile der vollständige Pfad; jetzt steht dort `~`, unabhängig davon, wie Sie das Protokoll herausnehmen.
+
+**„Copy URL“ maskiert die Adresse jetzt, bevor es sie herausgibt.** Pfade mit einem Leerzeichen – etwa die Downloads von Firefox, Thunderbird und Bartender – wurden roh kopiert; ein Browser gleicht das aus, die Kommandozeile nicht.
+
 ## 0.3.83
 
 **Das Fenster „Download Traffic“ heißt jetzt „Network“ und hat einen zweiten Tab.** „Downloads“ ist die Aufstellung, die Sie schon kannten — was jedes Update als Datei gekostet hat. „Requests“ ist neu: jeder Abruf, den Duo Updater für Sie macht, wofür er war, zu welcher App er gehörte und was er gekostet hat, mit einem Filterfeld, um das Protokoll zu befragen statt es zu durchscrollen. Die Zahlen oben beantworten das, wonach Sie gerade gefiltert haben — nicht die Gesamtsumme.

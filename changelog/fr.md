@@ -2,6 +2,12 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.84
+
+**Les journaux de requêtes que vous exportez ne contiennent plus votre nom de compte.** Pour une app installée dans votre dossier personnel, chaque ligne indiquait le chemin complet ; elle affiche désormais `~`, quelle que soit la façon dont vous sortez le journal.
+
+**« Copy URL » échappe désormais l’adresse qu’elle vous donne.** Les chemins comportant une espace — ceux des téléchargements de Firefox, Thunderbird et Bartender, entre autres — étaient copiés tels quels : un navigateur le corrige, la ligne de commande non.
+
 ## 0.3.83
 
 **La fenêtre « Download Traffic » s’appelle désormais « Network » et comporte un second onglet.** « Downloads », c’est le relevé que vous aviez déjà : ce que chaque mise à jour a coûté en tant que fichier. « Requests » est nouveau : chaque requête que Duo Updater effectue pour vous, son objet, l’app à laquelle elle se rattache et ce qu’elle a coûté, avec un champ de filtre pour interroger le journal plutôt que le faire défiler. Les chiffres du haut répondent à ce que vous avez filtré, pas au total de toujours.

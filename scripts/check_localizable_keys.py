@@ -125,11 +125,24 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--derived-data",
-        default="/tmp/duo-loc-check",
-        help="where to build (kept separate from the install build's cache)",
+        default=None,
+        help="where to build (kept separate from the install build's cache); "
+        "defaults to a per-checkout path under /tmp",
     )
     args = parser.parse_args()
-    derived_data = pathlib.Path(args.derived_data)
+    # A per-checkout path, not a fixed one. `make test` runs this in every
+    # worktree, and this repo keeps a couple of dozen open, so a shared cache is
+    # the likeliest of all of them to be built twice at once — CLAUDE.md records
+    # the resulting `database is locked` as something to recognise rather than
+    # something to prevent. See scripts/derived_data_path.py.
+    derived_data = pathlib.Path(
+        args.derived_data
+        or subprocess.run(
+            [sys.executable, str(REPO / "scripts" / "derived_data_path.py"),
+             "loc-check", str(REPO)],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    )
 
     build(derived_data)
     source = keys_from_source(derived_data)

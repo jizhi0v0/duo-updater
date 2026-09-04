@@ -2,6 +2,12 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.3.83
+
+**PDF Expert 现在能找到自己的更新，也会显示改了什么。** 它读的是一份开发方从 2022 年起就不再更新的发布列表，所以无论你装的是哪一版，它都说「已是最新」。现在它跟着这个 app 自己的更新程序所用的那份列表走，并且现在也能看到以往版本的更新说明，而不只是最新的那一条。
+
+**UTM 的预览版现在能收到自己的更新、支持一键安装，并显示对应的更新说明。** 预览版副本以前会被拿去和正式版比较、静默地被告知"已是最新"；现在它跟着自己那条线走，而一旦装上这条线转正后的版本，就回到正式轨。
+
 ## 0.3.82
 
 **又有十五个 app 纳入更新检查，除一个之外都支持一键更新。** AgentsView、AnythingLLM、Chatbox、ChatGPT Classic、DSH Desktop、FluidVoice、GitHub Copilot、Kun、Meetily、Microsoft 365 Copilot、OpenLogi、OpenSuperWhisper、Paseo、T3 Code（alpha 与 nightly 两条线）以及 Vorssaint。例外是 ChatGPT Classic：更新检查照做，但它自带一个会自己更新应用的安装程序，所以这一个仍需你亲自运行。

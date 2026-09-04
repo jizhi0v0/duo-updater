@@ -1,5 +1,45 @@
 import Foundation
 
+/// Which release a rule may offer once the list has been fetched.
+///
+/// `.newest` is the historic behaviour and what every rule but one uses: walk
+/// newest-first and take the first release the patterns accept.
+///
+/// `.installedMajorLineOrNewestStable` exists for a vendor whose prereleases are
+/// not a parallel TRAIN but a stage every release passes through. UTM is the
+/// measured case: of its 131 releases, 78 carry `prerelease: true`, and each
+/// minor line ships previews first and then GRADUATES at a higher patch number
+/// (`v4.7.0…v4.7.3` are "(Beta)", `v4.7.4`/`v4.7.5` are not). Two consequences
+/// follow, and they pull in opposite directions:
+///
+///   * Offering such an install "the newest prerelease" strands it the moment
+///     its own line graduates — measured across the real history, that happened
+///     **14 times**, the worst window running 2024-11-27 → 2025-07-09 with four
+///     stable releases published into the silence.
+///   * Offering it "the newest release of any kind" walks a `v4.7.3` install
+///     onto a `v5.0.5` preview of a line that has not shipped at all, when the
+///     answer it wants is its own line's `v4.7.5`.
+///
+/// So the candidate is `max(newest release in the installed version's major
+/// line, newest stable release)`. Both halves are load-bearing: the first is
+/// what carries a preview install to its own graduation, the second is what
+/// keeps an install on a long-abandoned line from being pinned there forever.
+///
+/// **Major, not minor** — a deliberate choice, and the two differ only in a
+/// shape UTM has never produced. Replaying all 131 releases: a preview line only
+/// ever opens after the previous one graduated, so "newest in major 4" and
+/// "newest in 4.7" have never disagreed. They would if a `v4.8.0 (Beta)` opened
+/// while a `v4.7.3 (Beta)` install was still out there: major carries that
+/// install onto the new preview line, minor holds it at `v4.7.5`. Major is
+/// chosen because a preview install that has not moved to the newer preview line
+/// is the case that goes stale — the "newest stable" half already guarantees it
+/// can never be worse off than a stable install. `ceilingPrefersTheNewerPreviewLineWithinTheMajor`
+/// pins this so it stays a decision rather than an accident.
+public enum GitHubCandidateScope: String, Sendable, Equatable {
+    case newest
+    case installedMajorLineOrNewestStable
+}
+
 /// One app's mapping to a GitHub repository whose Releases drive its version.
 public struct GitHubReleaseRule: Sendable {
     /// `CFBundleIdentifier` of the installed app.
@@ -15,6 +55,23 @@ public struct GitHubReleaseRule: Sendable {
     /// Regex applied to a release's `tag_name`; capture group 1 is the version
     /// (e.g. strip a leading `v`, or a `.stable_00` suffix).
     public let versionPattern: String
+
+    /// How to choose among the releases this rule fetched. `.newest` for every
+    /// rule but UTM beta — see `GitHubCandidateScope` for why that one differs
+    /// and what it measured.
+    public let candidateScope: GitHubCandidateScope
+
+    /// Prefix that turns the installed marketing version into its exact GitHub
+    /// tag (`"v"` + `5.0.5` → `v5.0.5`). Non-nil only when stable and prerelease
+    /// builds share every local identity signal. The source looks up that exact
+    /// release and uses GitHub's `prerelease` bit to decide which rule the
+    /// installed copy belongs to. A missing or unmatched release claims no
+    /// channel and falls back to the stable rule — the copy loses its badge,
+    /// not its row.
+    ///
+    /// At most one rule per bundle id may set this — `atMostOneDiscoverableRulePerBundleID`
+    /// enforces it, because at runtime a second one has no principled tiebreak.
+    public let installedTagPrefix: String?
 
     /// The release channel this rule's endpoint serves. The source refuses to
     /// apply the rule unless the installed app is on the SAME channel, so a
@@ -39,6 +96,8 @@ public struct GitHubReleaseRule: Sendable {
         repo: String,
         usePrereleases: Bool = false,
         versionPattern: String = #"v?([0-9]+(?:\.[0-9]+)+)"#,
+        candidateScope: GitHubCandidateScope = .newest,
+        installedTagPrefix: String? = nil,
         installAssetPattern: String? = nil,
         installerKind: VendorInstallerKind? = nil,
         channel: ReleaseChannel = .stable
@@ -49,6 +108,8 @@ public struct GitHubReleaseRule: Sendable {
         self.repo = repo
         self.usePrereleases = usePrereleases
         self.versionPattern = versionPattern
+        self.candidateScope = candidateScope
+        self.installedTagPrefix = installedTagPrefix
         self.installAssetPattern = installAssetPattern
         self.installerKind = installerKind
     }
@@ -306,15 +367,23 @@ public struct GitHubReleasesSource: UpdateSource {
     private let rules: [String: [GitHubReleaseRule]]
     private let session: URLSession
     private let token: String?
+    /// Where a proven channel is remembered between checks. nil means "prove it
+    /// every time and persist nothing" — the default, so a test that doesn't
+    /// inject one cannot write into the user's real file. `SourceStack` passes
+    /// the shared instance, and passes the SAME instance to `UpdateChecker` so a
+    /// failed check can still read what an earlier one proved.
+    private let channelStore: ResolvedChannelStore?
 
     public init(
         rules: [GitHubReleaseRule] = GitHubReleaseRegistry.rules,
         token: String? = nil,
-        session: URLSession = .updates
+        session: URLSession = .updates,
+        channelStore: ResolvedChannelStore? = nil
     ) {
         self.rules = Dictionary(grouping: rules, by: { $0.bundleID })
         self.token = token
         self.session = session
+        self.channelStore = channelStore
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -346,15 +415,131 @@ public struct GitHubReleasesSource: UpdateSource {
         // the right endpoint; when only a stable rule exists, a detected
         // nightly/beta install finds no match and is skipped rather than offered
         // a cross-channel build.
-        guard let rule = candidates.first(where: { $0.channel == app.releaseChannel }) else {
+        guard let detectedRule = candidates.first(where: { $0.channel == app.releaseChannel }) else {
             Log.source.info(
                 "GitHub skip \(bundleID, privacy: .public): no rule for app channel \(app.releaseChannel.rawValue, privacy: .public)")
             return nil
         }
+        let rule: GitHubReleaseRule
+        if detectedRule.channel == .stable, !app.channelIsAuthoritative,
+           candidates.contains(where: { $0.channel != .stable && $0.installedTagPrefix != nil }) {
+            guard let discovered = try await ruleFromInstalledRelease(
+                for: app, candidates: candidates)
+            else { return nil }
+            rule = discovered
+        } else {
+            rule = detectedRule
+        }
         // A rule exists: let a fetch failure throw, so the checker turns it into
         // a retryable `.error` row rather than swallowing it into a nil that's
         // indistinguishable from "no source for this app".
-        return try await resolve(rule).remote
+        return try await resolve(rule, anchoredTo: app.shortVersion).remote
+    }
+
+    /// Resolve an otherwise-undetectable channel from the exact release that
+    /// produced the installed version. UTM is the motivating case: Stable and
+    /// Beta have one bundle id, one app name, plain numeric versions, and the
+    /// same `UTM.dmg` asset name. The package cannot name its train, but the
+    /// exact GitHub release for tag `v<installed version>` does.
+    ///
+    /// Note what this decides and what it does NOT. It decides which RULE the
+    /// installed copy belongs to — i.e. the identity of the copy on disk. It does
+    /// not decide which release that rule may then offer; a preview install is
+    /// not thereby confined to previews (`GitHubCandidateScope` covers that, and
+    /// explains why confining it was wrong).
+    ///
+    /// If the exact tag disappears, is a draft, or the response no longer carries
+    /// the release-state fields at all, this claims NO channel and answers on the
+    /// stable rule — losing the copy its badge, not its row (see the long note at
+    /// the fallback itself for why the row matters) — and forgets any stored
+    /// proof, so a channel cannot outlive the evidence for it. It never
+    /// manufactures a channel from a nearby release.
+    private func ruleFromInstalledRelease(
+        for app: InstalledApp, candidates: [GitHubReleaseRule]
+    ) async throws -> GitHubReleaseRule? {
+        let discoverable = candidates.filter {
+            $0.channel != .stable && $0.installedTagPrefix != nil
+        }
+        // A second discoverable rule has no principled tiebreak, and returning nil
+        // here would take the STABLE users of this bundle id down with it — the
+        // whole app would vanish from the list on the strength of someone adding
+        // a rule. `atMostOneDiscoverableRulePerBundleID` fails the build for this,
+        // so the runtime path only has to degrade honestly.
+        guard discoverable.count == 1, let rule = discoverable.first,
+              let prefix = rule.installedTagPrefix
+        else {
+            // Reachable only via the registry invariant being broken. Note this
+            // returns the locally detected rule, which for every caller of this
+            // function is the stable one — no path out of here is nil.
+            Log.source.error(
+                "GitHub \(app.bundleID ?? "?", privacy: .public): \(discoverable.count, privacy: .public) discoverable rules, expected exactly 1 — falling back to the locally detected channel")
+            return candidates.first { $0.channel == app.releaseChannel }
+        }
+
+        // Not proving a channel must cost the app its BADGE, not its row. An
+        // unprovable copy still has a perfectly good answer available — the newest
+        // stable release, which is what every install got before this mechanism
+        // existed — and returning nil instead drops GitHub as a source entirely:
+        // UTM has no Sparkle feed and its casks only answer when brew installed
+        // them, so the row falls all the way through to `.unknown` and silently
+        // stops offering the update it could have had.
+        //
+        // This is not hypothetical. `v3.1.3` and `v3.0.4` do not exist upstream
+        // (they were re-cut as `v3.1.3-2` / `v3.0.4-2`), and the tags before
+        // `v2.1.0` — `v2.0b7`, `v1.0-rc6`, `v0.2-fakesign` — cannot form a tag
+        // this rule accepts at all. Every one of those installs would have gone
+        // dark.
+        //
+        // Offering stable to a copy that might be a preview is safe in this
+        // direction: it can only ever be the newest stable release, so a preview
+        // install newer than it resolves as lagging (`laggingRemoteVersion`),
+        // never as a downgrade to install.
+        let stableFallback = candidates.first { $0.channel == .stable }
+
+        guard let installed = app.shortVersion?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !installed.isEmpty,
+              // Validate BEFORE spending a request. A hand-built or renamed copy
+              // whose version can never form a tag this rule would accept would
+              // otherwise cost one guaranteed 404 on every single check.
+              VendorProbeRecipe.extractVersion(from: prefix + installed, pattern: rule.versionPattern)
+                == installed
+        else {
+            Log.source.info(
+                "GitHub \(app.bundleID ?? "?", privacy: .public): installed version cannot form a tag for this rule — answering on the stable rule rather than dropping the row")
+            return stableFallback
+        }
+
+        // A proof is about one copy at one version, so a stored one is as good as
+        // a fresh lookup until that copy changes — and skipping the lookup is what
+        // keeps the steady-state cost at one request per check.
+        if let remembered = await channelStore?.channel(for: app) {
+            return candidates.first { $0.channel == remembered }
+                ?? candidates.first { $0.channel == app.releaseChannel }
+        }
+
+        let tag = prefix + installed
+        // nil here is any of: the 404 `fetchReleases` translates for an exact-tag
+        // lookup, an unbuildable URL, a non-HTTP response, or a 200 whose body did
+        // not decode to a release. They differ in cause and not in consequence —
+        // none of them proves a channel — and a status worth retrying (403, 5xx)
+        // never reaches this line: it throws.
+        guard let release = try await fetchReleases(rule, list: false, tag: tag)?.first,
+              // An explicit `false` and a response that stopped carrying the field
+              // are different answers; only the first one means "stable".
+              release.hasExplicitReleaseState,
+              !release.isDraft
+        else {
+            Log.source.info(
+                "GitHub \(app.bundleID ?? "?", privacy: .public): exact installed release \(tag, privacy: .public) could not prove a channel — answering on the stable rule rather than dropping the row")
+            await channelStore?.forget(app)
+            return stableFallback
+        }
+
+        let proven: ReleaseChannel = release.isPrerelease ? rule.channel : .stable
+        Log.source.info(
+            "GitHub \(app.bundleID ?? "?", privacy: .public): installed tag \(tag, privacy: .public) proves \(proven.rawValue, privacy: .public)")
+        await channelStore?.record(proven, for: app)
+        return candidates.first { $0.channel == proven }
     }
 
     /// Run one rule and report everything that happened — the counterpart to
@@ -365,16 +550,85 @@ public struct GitHubReleasesSource: UpdateSource {
     /// endpoint construction, token handling and cache policy. The "body sample"
     /// is the tag list — for a GitHub rule the tags *are* the surface a version
     /// pattern is written against, and they're what you need to repair one.
-    public func resolveDiagnostic(_ rule: GitHubReleaseRule) async -> ProbeOutcome {
+    /// - anchoredTo: stands in for the installed copy for a line-anchored rule.
+    ///   `duo verify` passes the version of the copy on the sweeping machine when
+    ///   there is one; otherwise this falls back to the newest tag, and the
+    ///   ceiling is then trivially that tag — i.e. **the sweep does not exercise
+    ///   the line-anchoring algorithm**, and is not meant to. What it exercises
+    ///   is the live contract the algorithm depends on: that the exact-tag
+    ///   endpoint still answers and still carries the release-state fields. The
+    ///   algorithm itself is pinned by `lineAnchoredCeiling`'s unit tests, which
+    ///   can put an install anywhere in the history instead of only at the top.
+    public func resolveDiagnostic(
+        _ rule: GitHubReleaseRule, anchoredTo installedVersion: String? = nil
+    ) async -> ProbeOutcome {
         await resolveDiagnostic(
-            rule, preferring: .current,
+            rule, anchoredTo: installedVersion, preferring: .current,
             allowingIntelTranslation: HostArch.canRunIntelBuilds)
+    }
+
+    /// Re-walk the channel-discovery mechanism the way a real install does:
+    /// take the newest release this rule would consider, ask for it by exact tag,
+    /// and require the answer to still carry the fields the decision reads.
+    ///
+    /// Deliberately anchored to a tag taken from the LIVE list rather than to a
+    /// version written down here: a constant would keep passing after the vendor
+    /// moved on, which is the failure this probe exists to prevent.
+    /// Deliberately `throws` rather than catching: a 403 from the shared rate
+    /// limit or a dropped connection is not a broken recipe, and swallowing it
+    /// into `channelDiscoveryBroken` would file an issue against UTM every time
+    /// the hour's budget ran out. Let those reach `resolveDiagnostic`'s existing
+    /// mapping, which already sorts a status code into infra vs recipe. What this
+    /// returns is only the failures that ARE about this mechanism.
+    func channelDiscoveryProbe(
+        _ rule: GitHubReleaseRule
+    ) async throws -> (failure: ProbeFailure?, provenVersion: String?, tags: [String]) {
+        guard let prefix = rule.installedTagPrefix else { return (nil, nil, []) }
+        guard let list = try await fetchReleases(rule, list: true) else {
+            return (.channelDiscoveryBroken("could not fetch the releases list"), nil, [])
+        }
+        let tags = list.map(\.tag)
+        guard let newest = list.first(where: { release in
+            !release.isDraft
+                && VendorProbeRecipe.extractVersion(
+                    from: release.tag, pattern: rule.versionPattern) != nil
+        }),
+        let version = VendorProbeRecipe.extractVersion(
+            from: newest.tag, pattern: rule.versionPattern)
+        else {
+            return (.channelDiscoveryBroken(
+                "no release tag matched the version pattern, so no exact tag can be built"),
+                nil, tags)
+        }
+
+        let tag = prefix + version
+        guard let exact = try await fetchReleases(rule, list: false, tag: tag)?.first else {
+            // `fetchReleases` turns a 404 on an exact-tag lookup into nil — the
+            // one status that really does mean "this mechanism cannot classify
+            // an install on this version".
+            return (.channelDiscoveryBroken(
+                "exact-tag lookup for \(tag) returned nothing — an install on this version could not be classified"),
+                nil, tags)
+        }
+        guard exact.hasExplicitReleaseState else {
+            return (.channelDiscoveryBroken(
+                "\(tag) no longer carries both `prerelease` and `draft`; channel identification reads those fields"),
+                nil, tags)
+        }
+        guard VendorProbeRecipe.extractVersion(
+            from: exact.tag, pattern: rule.versionPattern) == version
+        else {
+            return (.channelDiscoveryBroken(
+                "\(tag) resolved to a different tag (\(exact.tag))"), nil, tags)
+        }
+        return (nil, version, tags)
     }
 
     /// Host parameters are injectable for the architecture-only diagnostic
     /// regression tests; production callers use `resolveDiagnostic(_:)` above.
     func resolveDiagnostic(
         _ rule: GitHubReleaseRule,
+        anchoredTo installedVersion: String? = nil,
         preferring hostArch: HostArch,
         allowingIntelTranslation canRunIntel: Bool
     ) async -> ProbeOutcome {
@@ -394,8 +648,23 @@ public struct GitHubReleasesSource: UpdateSource {
         }
 
         do {
+            // A rule that identifies installs by exact tag is TWO mechanisms, and
+            // only one of them is on the path `resolve` walks. Left alone, a dead
+            // `/releases/tags/…` endpoint would keep this diagnostic green while
+            // every real install of the app dropped out of the user's list — the
+            // sweep would be measuring an algorithm nobody runs. So probe it here,
+            // and let the anchor for the line-anchored resolve below come out of
+            // the same lookup rather than from a hand-maintained constant.
+            var anchor = installedVersion
+            if rule.installedTagPrefix != nil {
+                let discovery = try await channelDiscoveryProbe(rule)
+                if let failure = discovery.failure {
+                    return outcome(remote: nil, failure: failure, tags: discovery.tags)
+                }
+                anchor = anchor ?? discovery.provenVersion
+            }
             let resolved = try await resolve(
-                rule, preferring: hostArch,
+                rule, anchoredTo: anchor, preferring: hostArch,
                 allowingIntelTranslation: canRunIntel)
             if let remote = resolved.remote {
                 return outcome(remote: remote, failure: nil, tags: resolved.tags)
@@ -438,14 +707,25 @@ public struct GitHubReleasesSource: UpdateSource {
     static let maxReleasesWithoutMacOSAsset = 5
 
     /// One GitHub Releases fetch, decoded. nil means the endpoint URL was
-    /// unbuildable or the response wasn't HTTP; a bad status throws so the row
-    /// surfaces a retryable error rather than a dead "unknown".
+    /// unbuildable, the response wasn't HTTP, or an exact-tag discovery got a
+    /// 404; other bad statuses throw so the row surfaces a retryable error rather
+    /// than a dead "unknown".
     private func fetchReleases(
-        _ rule: GitHubReleaseRule, list: Bool
+        _ rule: GitHubReleaseRule, list: Bool, tag: String? = nil
     ) async throws -> [Release]? {
-        let endpoint = list
-            ? "https://api.github.com/repos/\(rule.slug)/releases?per_page=20"
-            : "https://api.github.com/repos/\(rule.slug)/releases/latest"
+        let endpoint: String
+        if let tag {
+            var allowed = CharacterSet.urlPathAllowed
+            allowed.remove(charactersIn: "/")
+            guard let escaped = tag.addingPercentEncoding(withAllowedCharacters: allowed) else {
+                return nil
+            }
+            endpoint = "https://api.github.com/repos/\(rule.slug)/releases/tags/\(escaped)"
+        } else {
+            endpoint = list
+                ? "https://api.github.com/repos/\(rule.slug)/releases?per_page=20"
+                : "https://api.github.com/repos/\(rule.slug)/releases/latest"
+        }
         guard let url = URL(string: endpoint) else { return nil }
 
         var request = URLRequest(url: url)
@@ -473,6 +753,13 @@ public struct GitHubReleasesSource: UpdateSource {
             GitHubEndpointAudit.record(
                 requestedSlug: rule.slug, requestedURL: url, response: http,
                 firstReleaseHTMLURL: nil, sentToken: token != nil)
+            // An exact-tag lookup is channel discovery, not the update probe
+            // itself. A custom/local build or a release whose tag was removed
+            // simply cannot prove its channel; report that as "nothing found"
+            // rather than as a retryable app error. The caller turns it into an
+            // answer on the stable rule — it is the discovery that declines, not
+            // the source.
+            if tag != nil, http.statusCode == 404 { return nil }
             throw GitHubError.badStatus(http.statusCode)
         }
         // Walk releases in document order (GitHub returns newest first) and take
@@ -490,19 +777,87 @@ public struct GitHubReleasesSource: UpdateSource {
         return decoded
     }
 
+    /// `max(newest release in the installed version's major line, newest stable
+    /// release)` — see `GitHubCandidateScope` for the measurement behind it.
+    ///
+    /// Returns nil when the installed string has no major component to anchor on
+    /// (a hand-built or renamed copy). Callers decline instead of guessing: this
+    /// scope exists precisely because "the newest release" is the wrong answer
+    /// for these apps.
+    static func lineAnchoredCeiling(
+        _ releases: [Release], installed: String, pattern: String
+    ) -> String? {
+        guard let installedMajor = VersionComparator.majorComponent(installed) else { return nil }
+        var newestInLine: String?
+        var newestStable: String?
+        for release in releases {
+            // Drafts are filtered before this runs; refusing them here too means
+            // the ceiling cannot be an unpublished build if those two steps are
+            // ever reordered, and lets the property be asserted against THIS
+            // function instead of against the order of its callers.
+            guard !release.isDraft,
+                  let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: pattern)
+            else { continue }
+            if VersionComparator.majorComponent(v) == installedMajor,
+               newestInLine.map({ VersionComparator.isNewer(v, than: $0) }) ?? true {
+                newestInLine = v
+            }
+            if !release.isPrerelease,
+               newestStable.map({ VersionComparator.isNewer(v, than: $0) }) ?? true {
+                newestStable = v
+            }
+        }
+        switch (newestInLine, newestStable) {
+        case let (line?, stable?): return VersionComparator.isNewer(stable, than: line) ? stable : line
+        case let (line?, nil): return line
+        case let (nil, stable?): return stable
+        case (nil, nil): return nil
+        }
+    }
+
     private struct Resolution {
         let remote: RemoteVersion?
         let tags: [String]
         let archIncompatible: Bool
     }
 
+    /// - anchoredTo: the marketing version of the copy on disk, for a rule whose
+    ///   `candidateScope` needs to know which line the user is actually on. nil
+    ///   for every `.newest` rule, and — deliberately — a hard stop rather than a
+    ///   silent fall back to `.newest` for a rule that asked for an anchor: a
+    ///   diagnostic that quietly measured a different algorithm than the one
+    ///   users run is the failure mode `resolveDiagnostic` exists to prevent.
     private func resolve(
         _ rule: GitHubReleaseRule,
+        anchoredTo installedVersion: String? = nil,
         preferring hostArch: HostArch = .current,
         allowingIntelTranslation canRunIntel: Bool = HostArch.canRunIntelBuilds
     ) async throws -> Resolution {
         guard var releases = try await fetchReleases(rule, list: rule.usePrereleases) else {
             return Resolution(remote: nil, tags: [], archIncompatible: false)
+        }
+
+        // Drafts are never releases, even when an authenticated token can see
+        // them, and no scope should be able to offer one.
+        releases = releases.filter { !$0.isDraft }
+
+        // A line-anchored rule may not offer anything ABOVE its ceiling. Applied
+        // as a ceiling rather than by picking one release so the walk-back below
+        // (a release whose macOS asset is missing) still has somewhere to go.
+        if rule.candidateScope == .installedMajorLineOrNewestStable {
+            guard let installedVersion,
+                  let ceiling = Self.lineAnchoredCeiling(
+                    releases, installed: installedVersion, pattern: rule.versionPattern)
+            else {
+                Log.source.info(
+                    "GitHub \(rule.slug, privacy: .public): line-anchored rule has no usable anchor, declining rather than offering the newest release")
+                return Resolution(remote: nil, tags: releases.map(\.tag), archIncompatible: false)
+            }
+            releases = releases.filter { release in
+                guard let v = VendorProbeRecipe.extractVersion(
+                    from: release.tag, pattern: rule.versionPattern) else { return false }
+                return !VersionComparator.isNewer(v, than: ceiling)
+            }
         }
 
         // A rule that names a macOS installer asks a stricter question than "what
@@ -624,7 +979,8 @@ public struct GitHubReleasesSource: UpdateSource {
                     changelogURL: page,
                     publishedAt: publishedFields.publishedAt,
                     vendorDay: publishedFields.vendorDay,
-                    releaseHistory: history
+                    releaseHistory: history,
+                    releaseChannel: rule.channel
                 ), tags: releases.map(\.tag), archIncompatible: false)
             }
         }
@@ -673,11 +1029,15 @@ public struct GitHubReleasesSource: UpdateSource {
         let htmlURL: URL?
         let publishedAt: String?
         let assets: [(name: String, url: URL, size: Int64?)]
-        /// Only ever consulted on the list endpoint. `/releases/latest` is
-        /// computed by GitHub with prereleases excluded, which is precisely why
-        /// stable rules use it — see the fallback in `resolve`.
+        /// Consulted on list endpoints and exact-tag channel discovery.
+        /// `/releases/latest` is computed by GitHub with prereleases excluded,
+        /// which is precisely why stable rules use it — see `resolve`.
         let isPrerelease: Bool
         let isDraft: Bool
+        /// Exact-tag discovery must distinguish an explicit `false` from a
+        /// response whose schema stopped carrying the two release-state fields.
+        /// List filtering keeps its historic missing-means-stable behavior.
+        let hasExplicitReleaseState: Bool
     }
 
     /// What the list endpoint may contribute to a *stable* rule. Split out from
@@ -714,7 +1074,8 @@ public struct GitHubReleasesSource: UpdateSource {
                 publishedAt: obj["published_at"] as? String,
                 assets: assets,
                 isPrerelease: (obj["prerelease"] as? Bool) ?? false,
-                isDraft: (obj["draft"] as? Bool) ?? false
+                isDraft: (obj["draft"] as? Bool) ?? false,
+                hasExplicitReleaseState: obj["prerelease"] is Bool && obj["draft"] is Bool
             )
         }
     }
@@ -1406,16 +1767,45 @@ public enum GitHubReleaseRegistry {
             installAssetPattern: #"^XQuartz-[0-9.]+\.pkg$"#,
             installerKind: .pkg),
 
-        // UTM — virtualiser. The repo publishes v5.x as PRERELEASES while stable
-        // sits at v4.7.5, so `usePrereleases` stays false: `/releases/latest` is
-        // exactly the stable train, and a v5 prerelease can never be pushed at a
-        // stable install. The asset name is constant (`UTM.dmg`, universal).
-        // One-click: com.utmapp.UTM, Team WDNLXAD4W8, notarized.
+        // UTM — virtualiser. Stable and Beta share EVERYTHING visible locally:
+        // bundle id, app name, plain numeric marketing/build versions, Team ID,
+        // and the literal `UTM.dmg` asset name. The tag is plain numeric too
+        // (`v5.0.5`), so no suffix can gate the beta rule. Instead, the source
+        // looks up the exact tag for the installed version and reads GitHub's own
+        // authoritative `prerelease` bit to decide WHICH RULE this copy is on. An
+        // unprovable tag claims no channel and answers on the stable rule.
+        //
+        // What that bit does NOT mean here is "a parallel Beta train". Measured
+        // over all 131 releases: 78 are prereleases, and each minor line ships
+        // previews and then graduates at a higher patch number (`v4.7.0…v4.7.3`
+        // are "(Beta)", `v4.7.4`/`v4.7.5` are not). Confining a preview install to
+        // prereleases therefore strands it at every graduation — 14 times in the
+        // real history, worst window 2024-11-27 → 2025-07-09 with four stable
+        // releases published into the silence — while offering it the newest
+        // release of any kind walks a `v4.7.3` install onto a `v5.0.5` preview
+        // instead of its own line's `v4.7.5`. Hence the line-anchored scope.
+        //
+        // Real v5.0.5 DMG verified 2026-09-03: 302,621,893 bytes, SHA-256
+        // 713afe73c711f01344b8766654be531cd391ed2e30931206f43b5159f143764f;
+        // com.utmapp.UTM 5.0.5 (124), Team WDNLXAD4W8, strict deep signature
+        // valid, Gatekeeper `accepted, source=Notarized Developer ID`.
         GitHubReleaseRule(
             bundleID: "com.utmapp.UTM",
             owner: "utmapp", repo: "UTM",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^UTM\.dmg$"#,
             installerKind: .dmg),
+
+        GitHubReleaseRule(
+            bundleID: "com.utmapp.UTM",
+            owner: "utmapp", repo: "UTM",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            candidateScope: .installedMajorLineOrNewestStable,
+            installedTagPrefix: "v",
+            installAssetPattern: #"^UTM\.dmg$"#,
+            installerKind: .dmg,
+            channel: .beta),
 
         // kitty — terminal. The repo carries a rolling `nightly` prerelease tag, so
         // again `/releases/latest` (not the list) is what keeps a stable install on

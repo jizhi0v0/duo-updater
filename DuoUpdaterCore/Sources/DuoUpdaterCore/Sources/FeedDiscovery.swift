@@ -154,6 +154,18 @@ public enum FeedDiscovery {
         /// The bundle names its own feed. Nothing to propose — this app is
         /// already resolved by `SparkleAppcastSource` today.
         case declared(URL)
+        /// The bundle names an address AND `SparkleFeedCatalog` supersedes it —
+        /// the vendor abandoned that feed, and production reads the live one.
+        ///
+        /// Separate from `.declared` because both sentences that verdict stands
+        /// for are false here: the address the `Info.plist` names is NOT what
+        /// `SparkleAppcastSource` resolves, and "already covered" is exactly the
+        /// reading this app class must not get — a superseding entry is the one
+        /// place a declared feed is not the answer. Before `supersededFeeds`
+        /// existed the two could not disagree (the fill-in table only fires when
+        /// the bundle names nothing), which is why this case is new rather than
+        /// missed.
+        case superseded(declared: URL, live: URL)
         /// One address, and the feed proved it belongs to this bundle on both
         /// version strings. Safe to propose as a `SparkleFeedCatalog` entry.
         case adopt(URL)
@@ -270,7 +282,13 @@ public enum FeedDiscovery {
     /// (the build match) must be settled before "do the version strings agree?",
     /// or a feed that simply doesn't know this app reads as a namespace mismatch.
     static func decide(_ probe: BundleProbe, feedItems: [SparkleAppcastItem]) -> Verdict {
-        if let declared = probe.declaredFeed { return .declared(declared) }
+        if let declared = probe.declaredFeed {
+            if let live = SparkleFeedCatalog.replacement(
+                forBundleID: probe.bundleID, declaredFeed: declared) {
+                return .superseded(declared: declared, live: live)
+            }
+            return .declared(declared)
+        }
         guard probe.shipsSparkle else { return .noKnownUpdater }
         guard let candidate = probe.candidates.first else {
             return .review(.noCandidate, nil)

@@ -48,6 +48,16 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     /// dot-separated numbers their version has — the Zotero `9.0.6` -> `10.0`
     /// shape — and it says both what broke and what the answer is.
     case versionSegmentCountChanged(wouldMatch: String, sampleBytes: Int)
+    /// A rule that identifies an installed copy's channel by looking up its exact
+    /// release (`GitHubReleaseRule.installedTagPrefix`) can no longer do so: the
+    /// tag endpoint is gone, or its answer no longer carries the release-state
+    /// fields the decision reads.
+    ///
+    /// It gets its own case because the ordinary version probe on such a rule
+    /// keeps passing while this is broken — the sweep would stay green while
+    /// every real install of that app quietly dropped out of the list, which is
+    /// exactly the shape `duo verify` exists to catch.
+    case channelDiscoveryBroken(String)
     /// The endpoint answered with a success status and the vendor's own error
     /// envelope in the body — their outage, reported inside a 200. Recognised
     /// only for a recipe that declares the envelope's shape
@@ -86,7 +96,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
             return (code >= 500 || code == 429) ? .infra : .recipe
         case .redirectMissingLocation, .malformedResolvedURL,
              .archiveExtractionFailed, .plistKeyMissing, .versionPatternNoMatch,
-             .versionSegmentCountChanged:
+             .versionSegmentCountChanged, .channelDiscoveryBroken:
             return .recipe
         }
     }
@@ -105,6 +115,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .versionPatternNoMatch: return "versionPatternNoMatch"
         case .versionSegmentCountChanged: return "versionSegmentCountChanged"
         case .vendorErrorEnvelope: return "vendorErrorEnvelope"
+        case .channelDiscoveryBroken: return "channelDiscoveryBroken"
         }
     }
 
@@ -118,6 +129,7 @@ public enum ProbeFailure: Error, Sendable, Equatable {
         case .malformedResolvedURL(let raw): return "cannot parse URL: \(raw)"
         case .archiveExtractionFailed(let why): return why
         case .plistKeyMissing(let entry, let key): return "\(entry) has no key '\(key)'"
+        case .channelDiscoveryBroken(let why): return why
         case .versionPatternNoMatch(let bytes): return "no match in \(bytes)-byte body"
         case .versionSegmentCountChanged(let would, let bytes):
             return "no match in \(bytes)-byte body, but the same pattern with a "

@@ -62,6 +62,10 @@ func describe(_ f: FeedDiscovery.Finding) -> String {
     case .declared(let url):
         lines.append("   declared  \(url.absoluteString)")
         lines.append("      (Info.plist names it; SparkleAppcastSource already resolves this app)")
+    case .superseded(let declared, let live):
+        lines.append("   SUPERSEDED \(declared.absoluteString)")
+        lines.append("      the address the Info.plist names — SparkleFeedCatalog replaces it with")
+        lines.append("      \(live.absoluteString), which is what production actually reads")
     case .adopt(let url):
         lines.append("   ADOPT     \(url.absoluteString)")
         switch p.family {
@@ -141,6 +145,12 @@ if argv[1] == "--scan" {
         case .declared:
             counts["declared", default: 0] += 1
             if gapsOnly { continue }
+        case .superseded:
+            // Not skipped under `--gaps`. The flag means "show me what is not
+            // covered", and an app whose declared address is dead is the one
+            // kind of declared feed that is a coverage question rather than an
+            // answer to one.
+            counts["superseded", default: 0] += 1
         case .adopt:
             counts["adopt", default: 0] += 1
         case .review(let b, _):

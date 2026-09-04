@@ -18,16 +18,24 @@ public struct UpdateChecker: Sendable {
     /// labelled `.testFlightManaged` without a version.
     public let testflight: TestFlightInventory?
 
+    /// The same store the GitHub source writes its channel proofs to. Held here
+    /// so a check that FAILED can still label the row with what an earlier one
+    /// proved; nil simply means no such memory (the default, and every app whose
+    /// bundle can name its own channel is unaffected either way).
+    public let channelStore: ResolvedChannelStore?
+
     public init(
         sources: [any UpdateSource],
         maxConcurrency: Int = 12,
         toolbox: ToolboxSource? = nil,
-        testflight: TestFlightInventory? = nil
+        testflight: TestFlightInventory? = nil,
+        channelStore: ResolvedChannelStore? = nil
     ) {
         self.sources = sources
         self.maxConcurrency = max(1, maxConcurrency)
         self.toolbox = toolbox
         self.testflight = testflight
+        self.channelStore = channelStore
     }
 
     /// Check every app, returning results in the same order as the input.
@@ -65,22 +73,44 @@ public struct UpdateChecker: Sendable {
             }
         }
 
+        // One write per pass, not one per proof: a pass proves a channel for at
+        // most a couple of rows, and each is a line in a file nobody reads until
+        // the next launch.
+        //
+        // Every production path lands here, including the one-row rechecks — they
+        // go through `recheckMany`, which calls this array form with one element.
+        // The single-app `check(_:)` is reached only from the loop above and from
+        // the channel-verify harness, so no caller is left holding an unwritten
+        // proof.
+        await channelStore?.flush()
+
         return results.compactMap { $0 }
     }
 
-    /// Check one app across all sources in priority order.
-    /// One app's check, with every request it makes filed against that app.
+    /// Check one app across all sources in priority order, then label the result
+    /// with any channel an earlier check proved about this copy.
     ///
-    /// The attribution is set here because this is the one place that knows both
-    /// the app and the whole span of work done for it — a source may fetch a
-    /// feed, follow a redirect and then probe a vendor endpoint, and all of it
-    /// belongs to this app. Setting it any deeper would mean threading an id
-    /// through every update source.
+    /// The annotation is a separate step, and deliberately the LAST one, because
+    /// the failure paths below all return `remote: nil` — the row that most needs
+    /// its identity kept is the one that has no fresh evidence to carry it.
+    ///
+    /// Every request made along the way is filed against this app. This is the
+    /// one place that knows both the app and the whole span of work done for it
+    /// — a source may fetch a feed, follow a redirect and then probe a vendor
+    /// endpoint, and all of it belongs here. Setting the attribution any deeper
+    /// would mean threading an id through every update source.
     public func check(_ app: InstalledApp) async -> UpdateResult {
-        await RequestAttribution.withApp(app.id) { await performCheck(app) }
+        await RequestAttribution.withApp(app.id) {
+            var result = await runSources(for: app)
+            if result.remote?.releaseChannel == nil,
+               let proven = await channelStore?.channel(for: app) {
+                result.provenChannel = proven
+            }
+            return result
+        }
     }
 
-    private func performCheck(_ app: InstalledApp) async -> UpdateResult {
+    private func runSources(for app: InstalledApp) async -> UpdateResult {
         // JetBrains Toolbox owns its apps' updates end to end (some even ship a
         // Sparkle feed of their own, e.g. Air/Fleet). We never consult another
         // source for these — that would risk a cross-channel install. Instead we

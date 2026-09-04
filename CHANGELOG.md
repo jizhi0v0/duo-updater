@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.3.83
+
+**PDF Expert now finds its updates, and shows what changed.** It was reading a release list its maker stopped adding to in 2022, so it called itself up to date whatever version you had. It now follows the list the app's own updater uses, and it now carries the release notes for past versions too, not only the newest.
+
+**UTM preview builds now get their own updates, install with one click, and show the matching release notes.** A preview copy used to be measured against the final track and silently told it was up to date; it now follows its own line, and once it takes that line's final release it moves back to the final track.
+
 ## 0.3.82
 
 **Fifteen more apps are watched for updates, and all but one install in a single click.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code — on both its alpha and nightly tracks — and Vorssaint. ChatGPT Classic is the exception: it is checked for you, but it ships an installer that updates the app itself, so that one stays yours to run.

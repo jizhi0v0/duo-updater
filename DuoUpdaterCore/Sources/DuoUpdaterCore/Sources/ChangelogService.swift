@@ -183,12 +183,13 @@ public enum ChangelogService {
     /// Turn a fetched page into entries, by whichever route the recipe declares.
     /// Pure: both the cached path and the diagnostic path go through it, so a
     /// sweep can never parse differently from the app.
-    private static func parse(_ recipe: ChangelogRecipe, body: String?) -> Changelog? {
+    static func parse(_ recipe: ChangelogRecipe, body: String?) -> Changelog? {
         guard let body else { return nil }
         if let format = recipe.structuredFormat {
             return StructuredChangelogDecoder.decode(
                 body, format: format, channel: recipe.channel, maxEntries: recipe.maxEntries,
-                skipSections: recipe.skipSections)
+                skipSections: recipe.skipSections,
+                includesPromotedStable: recipe.includesPromotedStable)
         }
         return ChangelogExtractor.extract(from: body, using: recipe)
     }

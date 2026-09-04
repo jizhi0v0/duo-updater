@@ -659,7 +659,7 @@ private struct WorkbenchSidebarRow: View {
             attributes: [.font: NSFont.preferredFont(forTextStyle: .body)]
         ).size().width
         if isRunning { used += 5 + 6 }
-        let channel = ChannelTag.measuredWidth(for: result.app.releaseChannel)
+        let channel = ChannelTag.measuredWidth(for: result.effectiveReleaseChannel)
         if channel > 0 { used += channel + 6 }
         return used + RuntimeTag.width() + 6 <= Self.narrowestNameColumn ? runtime : nil
     }
@@ -678,7 +678,7 @@ private struct WorkbenchSidebarRow: View {
                     if isRunning {
                         RunningIndicator(size: 5).offset(y: RunningIndicator.opticalNudge)
                     }
-                    ChannelTag(channel: result.app.releaseChannel)
+                    ChannelTag(channel: result.effectiveReleaseChannel)
                     if let runtimeTag {
                         RuntimeTag(runtime: runtimeTag, frameworks: result.app.linkedFrameworks,
                                    overHighlight: isSelected, interactive: false)
@@ -1012,7 +1012,7 @@ private struct DetailHeader: View {
                     HStack(spacing: 8) {
                         Text(result.app.name).font(.title2).bold()
                         if model.isRunning(result) { RunningIndicator(size: 7) }
-                        ChannelTag(channel: result.app.releaseChannel)
+                        ChannelTag(channel: result.effectiveReleaseChannel)
                         // Sized up to sit beside a `.title2` name rather than a
                         // list row's body text — the marks are drawn in a unit box,
                         // so they scale without losing their stroke ratio.

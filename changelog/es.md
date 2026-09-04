@@ -2,6 +2,12 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.3.83
+
+**PDF Expert ya encuentra sus actualizaciones y muestra qué ha cambiado.** Leía una lista de versiones que su fabricante dejó de ampliar en 2022, así que se declaraba actualizado tuvieras la versión que tuvieras. Ahora sigue la lista que usa el propio actualizador de la aplicación y ahora muestra también las notas de versiones anteriores, no solo de la última.
+
+**Las versiones preliminares de UTM ahora reciben sus propias actualizaciones, se instalan con un clic y muestran las notas correspondientes.** Antes una copia preliminar se comparaba con el canal final y se le decía, sin avisar, que estaba al día; ahora sigue su propia línea y vuelve al canal final en cuanto recibe la versión final de esa línea.
+
 ## 0.3.82
 
 **Quince aplicaciones más están vigiladas, y todas menos una se instalan con un solo clic.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code —en sus dos canales, alpha y nightly— y Vorssaint. La excepción es ChatGPT Classic: lo comprobamos por usted, pero trae un instalador que actualiza la app por su cuenta, así que esa actualización sigue estando en sus manos.

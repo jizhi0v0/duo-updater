@@ -144,9 +144,11 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
   文案"会单独报 `TOOLTIP EXTRACTOR FOUND NOTHING` 而不是静默放行。剩下十对的注释写的是
   **故意画成一样**(不是靠 tooltip 区分),没有被这条检查覆盖,也不该被覆盖。
 
-顺带:`App/project.yml` 仍然没有测试 target,所以 `App/Sources` 里的判断没人执行。
-`RowActionStateTests`(Core)钉的是**哪个条件赢**,gallery 钉的是**画出来长什么样**,
-两者都不能替代对方。
+顺带:`App/Sources` 现在有一个**很窄的**测试 target(见下面「App 层的测试 target」),
+它只编译被点名的文件,gallery 覆盖的这几个视图**不在里面**。所以对行的画法而言,
+下面这三者仍然各管各的、都不能替代对方:`RowActionStateTests`(Core)钉的是
+**哪个条件赢**,gallery 钉的是**画出来长什么样**,`DuoUpdaterAppTests` 钉的是
+**App 这一侧有没有按 state 去组装行**。
 
 ## 修 issue:三条不能省的
 
@@ -158,7 +160,20 @@ popover 和工作台是同一份数据的两个视图(工作台 = 放大版 popo
 
 - **合并前独立复算。** 凡是正确性落在一条**规则**上的(正则、版本比较、条目选择),把规则移植到 Python 打真实响应体,而不是重读 Swift。#76 靠这个确认了 feed 是发布时间序、以及新加的"winner 条目只能含一次匹配"不会误伤 671 条里的任何一条。两个独立证人胜过一个。
 
-顺带:`make test` 会跑 `scripts/check_localizable_keys.py`,它用固定路径 `/tmp/duo-loc-check` 做构建缓存,**两个 worktree 同时跑会锁冲突**。看到 `database is locked` 先查是不是自己撞自己(`ps` 要 grep `xcodebuild`,不只是 `swift-test`),别当成真失败。
+顺带:**构建缓存路径一律经 `scripts/derived_data_path.py` 取,别写死。** 它按 checkout 派生
+(`/tmp/duo-<用途>-<hash8>`)并顺手回收已经不存在的 checkout 留下的那些。
+`check_localizable_keys.py`(在 `make test` 里)、`row-state-gallery.sh`、`app-tests.sh` 都走它。
+
+以前 loc-check 用死路径 `/tmp/duo-loc-check`,**两个 worktree 同时 `make test` 会撞
+xcodebuild 的 SQLite 锁**,症状是 `database is locked` 或者干脆卡住——而这两种都长得像真失败。
+现在这个前提没了(实测 28 个 worktree 算出 28 个不同路径)。如果**还是**看到
+`database is locked`,先查是不是自己撞自己(`ps` 要 grep `xcodebuild`,不只是 `swift-test`),
+再看是不是同一个 checkout 里跑了两遍——**同 checkout 并发是唯一剩下的碰撞面**,没修。
+
+⚠️ **回收是刻意 fail-closed 的**:只删同时满足「名字是 `duo-<用途>-<8 位 hex>`」和「带 `origin`
+标记且标记指向的 checkout 已经没了」的目录。手工造的那些(`/tmp/duo-dd-292`、`/tmp/duo-pr240-dd`
+之类)一律不碰——2026-09-04 量的时候 `/tmp` 里有 **19G** 这类缓存、每份约 450M,而磁盘只剩
+38G。**给每个 checkout 发一个独立路径而不回收,等于把一个会误判的失败换成一块满了的盘。**
 
 ## 断言「没有 X」「到处都 Y」之前，先量一遍
 
@@ -216,9 +231,100 @@ skip 一次把 app **永久静音**、真实更新后 Rollback 行被藏起来�
   —— 备份标签喂给 workbench 过滤器那处就是这样漏的。合法的 marketing-first 比较用
   `version-lint:allow-marketing-first` 加理由豁免,别改规则。
 
-顺带一条会决定你把代码放哪:**`App/Sources` 有一万三千行、`App/project.yml` 里没有测试 target**,
-所以那里的判断没人执行。14 处里 9 处长在那儿,不是巧合。**判断逻辑放 Core**(`RelaunchProgress`、
-`PackageRestartState`、`VisibilityRules` 都是这么落的),App 只留接线。
+顺带一条会决定你把代码放哪:**`App/Sources` 有两万行,其中只有被 `DuoUpdaterAppTests`
+点名的那几个文件在跑**(见下节),其余的判断没人执行。14 处里 9 处长在那儿,不是巧合。
+**判断逻辑放 Core**(`RelaunchProgress`、`PackageRestartState`、`VisibilityRules`、
+`UpdatePolicy.needsAction`、`BadgeReadout`、`RowActionFacts.assemble` 都是这么落的),
+App 只留接线;接线本身要可测,就放进 `ScanRowAssembly` 这类无 UI 依赖的文件。
+
+⚠️ **"接线"不等于"必须留在 App"。** 2026-09-04 搬 `needsAction` / `badgeCount` /
+`rowState` 时先量了一遍依赖:那三处引用的 `InstallStage`、`RowActionFacts`、`UpdateRoute`、
+`stagedRelaunchLine` **全都已经在 Core**,`AppListModel` 的七张表也全是
+`[String: X]` / `Set<String>` 这种 Core 看得见的类型。所以它们整块搬进 Core 就行,
+根本不需要用 App 那个窄 target。**动手前先量依赖,别默认"它在 App 里所以只能在 App 测"**
+——`App/Sources` 里剩下的东西有多少是这种情况,没量过。
+
+## App 层的测试 target
+
+`make test` 里多了一步 `scripts/app-tests.sh`,跑 `DuoUpdaterAppTests`(`App/project.yml`)。
+在它之前,`App/Sources` 那两万行**只被编译、从不被执行**:`make test` 跑的是两个 SwiftPM 包,
+唯一碰到 App 代码的 `check_localizable_keys.py` 只取编译器吐的字符串元数据、不运行任何代码。
+2026-09-03 那批 13 条缺陷里有 4 条长在这儿,条条编译通过、条条 `make test` 全绿,而且
+**其中 3 条是修上一条时新引入的**——反馈回路断了,复审就成了唯一的网。
+
+规矩:
+
+- **它覆盖的是「纯的那一半」,接线仍然只有复审看着。** `ScanRowAssembly` 被执行了,但
+  「哪份快照在什么时候取」还在 `AppListModel` 里、还在 target 之外——而 #314 那 4 条缺陷
+  恰恰是这类。可以真的试一下:把 `performRefresh` 里的
+  `let provenNow = ResolvedChannelStore.Snapshot()` 挪到 `await checker.check(checkable)`
+  **之前**,它就违反了紧挨着的那句注释("Read after the check, not before"),而**编译通过、
+  9 条测试全绿**。给 `merged` 传一份过期的 `prior` 同理。别把这一节读成「App 层的行组装
+  现在有覆盖了」。
+  (⚠️ 第一版这里写的是「把 `proofs` 和 `provenNow` 对调」——那两个变量在**两个不同的函数**里,
+  从来不同时在作用域内,照着做会发现根本改不了。举例的变异必须是真能做出来的那一个。)
+- **这个 target 只编译被点名的文件,不是整个 `Sources`。** 这不是为了省时间:
+  `AppListModel.swift` 引用 `SettingsView`,会把整棵 SwiftUI 拉进来;而
+  `AppListModel.init` 会注册通知、装两个 FSEvent 流、KVO 观察全机进程、起周期检查循环
+  ——**一个构造它的测试 bundle 就是一个会去打厂商端点的测试 bundle**。
+  往 `sources` 里加文件是一个决定:加进去的东西必须不依赖 SwiftUI、不依赖 `AppListModel`,
+  违反了会当场编译失败,**那个失败就是这条规矩本身**。
+- **它是 hostless 的**(没有 `TEST_HOST`),所以不需要 app bundle、不签名、不要
+  `DEVELOPMENT_TEAM`。但 `app-tests.sh` 仍然像 `row-state-gallery.sh` 一样先
+  `export DUO_TEAM_ID` 再 `xcodegen generate`——理由同那边:生成时缺 team 会把
+  `DEVELOPMENT_TEAM` 写空,炸的是下一次 `make install`。
+- **只在 `project.yml` 比 `project.pbxproj` 新的时候才重新生成。** 无条件生成会重写
+  `project.pbxproj`,让紧随其后的 `check_localizable_keys.py` 的增量构建每次失效,
+  `make test` 从此每次全量重编整个 app。
+- **derived data 路径走 `scripts/derived_data_path.py`**(见上),`APP_TESTS_DD` 可覆盖。
+  写死路径会复刻多 worktree 撞锁的坑,而这里的症状是**测试随机失败**,
+  比"构建变慢"更容易被误读成真回归。
+- **每条用例都要写清它对应哪一行变异**,并且合并前真的跑一遍那个变异确认它变红。
+  `ScanRowAssemblyTests` 现在是 9 条用例 / 10 个变异,10 个全部**编译通过**(不是靠编译
+  错误变红)且只打中该打中的用例。没有对应变异的用例(`anUnprovenCopyFallsBackToItsBundle`
+  是 fixture 守卫)要在注释里说明。
+- ⚠️ **「这个分支的 carry 没丢」不等于「这个分支还在」。** 第一版把 Toolbox 和 TestFlight
+  两个早返回合成一条用例、只断言 channel 活着,于是**把这两个分支整个删掉,8 条测试全绿**
+  ——那份 fixture 让 `evaluateToolbox`、`evaluate`、`was.status` 三者答案相同,状态那一半是
+  `f(X)==f(X)`。现在两条用例各自断言 status,并且 fixture 刻意让三者**互不相同**。
+  加用例时先问:**有没有一份输入能让"正确实现"和"删掉这段"给出不同答案?** 造不出来
+  就说明这条用例没在量这段代码。
+  ⚠️ 准确的说法是「**正确答案与每一个错答案都不同**」,不是「三个候选互不相同」——实测这两份
+  fixture 里 `evaluate` 和 `was.status` 恰好相等,闸照样成立,但照着"三者互不相同"去推下一份
+  fixture 会瞄错属性。
+- ⚠️ **防空过闸要比「名字集合」,不要比两个总数。** 这条闸被写错过三次,每次都是实测才发现:
+  1. **读运行摘要**:某条用例标了 `.disabled()` 时,swift-testing 的摘要**仍然**是
+     `Test run with 9 tests` —— 它数的是它知道的、不是它跑过的,所以闸在用例被关掉时放行。
+  2. **拿逐条行数去比声明条数**:`@Test(.disabled("…"))` 换行写(**这个仓库的主流写法**,
+     理由长了必然换行)会把两边**同时减一**,闸自己抵消掉。
+  3. **同一个总数闸**会在第一条参数化用例出现时**把全绿的运行判红**。
+  所以现在是 `scripts/app_test_coverage.py`:从源码抽出声明的用例名(跨行的 `@Test` 也算,
+  跳过注释),从日志抽出真的跑过的用例名,断言前者 ⊆ 后者,并且**把没跑的那条名字打出来**。
+  三个变异实测:同行 `.disabled()`、换行 `.disabled()`、target 里拿掉 `- path: Tests`,
+  三个都红且点名;参数化用例不再误红。
+- ⚠️ **从日志抽用例名的两个坑,都是量出来的、不是猜出来的**:
+  (1) 行首**不能锚 `^`** —— xcodebuild 会在某些行前面加 `XCTestOutputBarrier` 标记(有时还
+  被截断成半个 token),swift-testing 还会吐一个 U+200B,实测让 `grep -c "^✔ Test …"`
+  把 8 条数成 7 条。要数**出现次数**。(我第一版把原因写成"并行输出交织、两条记录挤到一行",
+  复审去数了九份真实日志:**零行**含两条记录 —— 现象对、机制错。)
+  (2) 括号**不一定是空的、`passed` 也不一定紧跟在括号后面**:参数化用例打的是
+  `Test foo(_:) with 2 test cases passed`。两个假设各让闸错过一次。
+- ⚠️ **「用例是否真的在跑」这件事目前只有 `app-tests.sh` 那条闸在管;「用例是否真的在量代码」
+  只有这份文件的一段话在管。** 没有任何挂进 `make test` 的东西会去跑变异——
+  `make gallery` 的 `mayLookAlike`/`mayBeBlank` 是这个仓库把同类规矩变成构建失败的先例,
+  这里还没有等价物。所以上面那两条是**约定**,不是闸。
+- ⚠️ **fixture 不能比生产的判据宽。** `Proofs` 第一版按路径答,而真正的
+  `provenChannelSnapshot` 要求 path + `shortVersion` + `buildVersion` 三者全中——于是一条
+  用例断言了**生产代码根本产生不出来的结果**。fixture 现在按「一份拷贝的一个版本」作键。
+- **harness 自己也要有防空过闸,而且这条闸也要变异验证。** `app-tests.sh` 会在
+  「执行了 0 个用例」时失败(target 不再编译 `App/Tests`、或 xcodebuild 改了摘要行),
+  实测:把 `- path: Tests` 从 target 里拿掉,它红;拿回来,9 executed。没有这条闸的话,
+  `App/Tests` 被改名之后 `make test` 会永远绿着什么都不跑。
+- ⚠️ **`set -o pipefail` 会让「grep 没匹配到」变成脚本失败。** 第一版在 `set -e` 恢复之后
+  用 `... | grep ... | head` 输出结果,于是**成功路径上**只要 xcodebuild 改了摘要措辞,
+  一次全绿的运行就会以无任何信息的失败告终。现在每个过滤都带 `|| true`,完整日志落盘到
+  `$DD/app-tests.log` 并在失败信息里报出路径(第一版让人「重跑一遍看完整日志」,而重跑
+  给出的是同样被过滤的 40 行——那条提示是假的)。
 
 ## 供应商 recipe 的失效是常态
 

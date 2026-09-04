@@ -15,9 +15,13 @@ public enum SourceStack {
     ///     makes short check intervals viable; nil is supported and just means
     ///     the unauthenticated budget.
     ///   - alcove: the user's Alcove licence, when they have entered one.
+    ///   - channelStore: where a source may remember a channel it PROVED
+    ///     remotely, so it survives a failed check and costs one request rather
+    ///     than one per check. Pass the same instance to `UpdateChecker`.
     public static func make(
         githubToken: String?,
-        alcove: AlcoveUpdateSource.Credentials? = nil
+        alcove: AlcoveUpdateSource.Credentials? = nil,
+        channelStore: ResolvedChannelStore? = nil
     ) -> [any UpdateSource] {
         var sources: [any UpdateSource] = [
             MacAppStoreSource(),
@@ -29,7 +33,7 @@ public enum SourceStack {
             HomebrewCaskSource(),
             // GitHub Releases for apps distributed that way (detection only unless
             // a rule names an installable asset).
-            GitHubReleasesSource(token: githubToken),
+            GitHubReleasesSource(token: githubToken, channelStore: channelStore),
         ]
         // Alcove's licensed update channel, ahead of the vendor probe: it's the only
         // surface carrying release notes, an exact publish time and an installable

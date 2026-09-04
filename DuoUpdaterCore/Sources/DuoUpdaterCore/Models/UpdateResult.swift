@@ -227,6 +227,21 @@ public struct RemoteVersion: Sendable, Hashable {
     /// store dedupes by version). Empty for sources that only resolve one release.
     public let releaseHistory: [ReleaseHistoryEntry]
 
+    /// The channel of the rule that produced this answer.
+    ///
+    /// Set by every GitHub rule, not only the discovering one — so it is NOT a
+    /// flag meaning "discovery happened", and `UpdateChecker` deliberately tests
+    /// it for nil rather than reading it as one. For every other app it merely
+    /// echoes the bundle's own signals, because the rule was selected by them;
+    /// the case it exists for is UTM, whose installed app cannot distinguish its
+    /// tracks and whose exact release record can.
+    ///
+    /// A `var` because it goes STALE: it describes the copy that was on disk when
+    /// the check ran, so a rescan that finds a different version there must clear
+    /// it rather than carry a claim about a copy that is gone
+    /// (`carriedForward(onto:remote:status:proven:)`).
+    public var releaseChannel: ReleaseChannel?
+
     /// Binary patches this release publishes, one per build it can upgrade from.
     /// Empty for every source that doesn't publish them — which is most: of the
     /// eleven Sparkle feeds readable on this machine only Keka's carried patches
@@ -258,7 +273,8 @@ public struct RemoteVersion: Sendable, Hashable {
         publishedAt: Date? = nil,
         vendorDay: Date? = nil,
         releaseHistory: [ReleaseHistoryEntry] = [],
-        deltas: [DeltaPatch] = []
+        deltas: [DeltaPatch] = [],
+        releaseChannel: ReleaseChannel? = nil
     ) {
         self.shortVersion = shortVersion
         self.version = version
@@ -285,6 +301,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.vendorDay = vendorDay
         self.releaseHistory = releaseHistory
         self.deltas = deltas
+        self.releaseChannel = releaseChannel
     }
 
     /// Best version string to show the user.
@@ -304,6 +321,55 @@ public struct RemoteVersion: Sendable, Hashable {
 }
 
 extension UpdateResult {
+    /// The channel to present and use for channel-specific notes. Normally the
+    /// installed bundle already knows it; a source may override only when it has
+    /// stronger evidence tied to that exact installed release.
+    ///
+    /// Order matters: this check's own evidence, then what an earlier check
+    /// proved about the same copy (see `provenChannel` — without it a failed
+    /// check would silently repaint a Beta row as Stable), then the bundle's own
+    /// signals.
+    public var effectiveReleaseChannel: ReleaseChannel {
+        remote?.releaseChannel ?? provenChannel ?? app.releaseChannel
+    }
+
+    /// Move this row onto a freshly-scanned copy at the same path.
+    ///
+    /// Exists because a rescan re-derives a row's VERDICT while its IDENTITY has
+    /// to be re-established rather than assumed, and the two halves were getting
+    /// mixed up one at a time. Both mistakes have been made here already: keeping
+    /// a channel that no longer had evidence, and — after that was fixed with a
+    /// version gate on `provenChannel` alone — keeping the same claim anyway
+    /// because it was ALSO riding on the carried `remote`, which had no gate.
+    ///
+    /// Three inputs, in order of authority:
+    ///
+    ///   * `proven` — what a source established about the copy at THIS version.
+    ///     Version-scoped at the store, so it is either about this copy or absent.
+    ///   * the previous row's own channel, but only while the copy on disk is
+    ///     unchanged. `performLocalRescan` exists because an app may replace
+    ///     itself underneath us, so this is the case that has to be checked, not
+    ///     the exotic one.
+    ///   * nothing — the row falls back to the bundle's local signals, which for
+    ///     an app that cannot name its own channel means the conservative answer.
+    ///
+    /// Compared with `==` on both version strings rather than through
+    /// `VersionComparator`: this asks "is this the same build", not "which is
+    /// newer", and an app whose marketing string never moves is exactly why the
+    /// build half is included.
+    public func carriedForward(
+        onto rescanned: InstalledApp, remote: RemoteVersion?, status: UpdateStatus,
+        proven: ReleaseChannel?
+    ) -> UpdateResult {
+        let sameCopy = app.shortVersion == rescanned.shortVersion
+            && app.buildVersion == rescanned.buildVersion
+        var carried = remote
+        if !sameCopy { carried?.releaseChannel = nil }
+        return UpdateResult(
+            app: rescanned, remote: carried, status: status,
+            provenChannel: proven ?? (sameCopy ? provenChannel : nil))
+    }
+
     /// What to call the INSTALLED build in any UI — the menu bar, the workbench row,
     /// `duo check`.
     ///
@@ -498,12 +564,25 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     public let remote: RemoteVersion?
     public let status: UpdateStatus
 
+    /// What a source proved about this copy's channel on some earlier, successful
+    /// check — read back from `ResolvedChannelStore` by `UpdateChecker`.
+    ///
+    /// `remote` is nil for `.error` and `.unknown`, so an app whose channel can
+    /// only be proven remotely (UTM) would otherwise lose its identity on any
+    /// failed check: the Beta badge would vanish and the changelog cache key
+    /// would flip to `:stable`. This field is what a failed row falls back to.
+    public var provenChannel: ReleaseChannel?
+
     public var id: String { app.id }
 
-    public init(app: InstalledApp, remote: RemoteVersion?, status: UpdateStatus) {
+    public init(
+        app: InstalledApp, remote: RemoteVersion?, status: UpdateStatus,
+        provenChannel: ReleaseChannel? = nil
+    ) {
         self.app = app
         self.remote = remote
         self.status = status
+        self.provenChannel = provenChannel
     }
 
     public var hasUpdate: Bool {

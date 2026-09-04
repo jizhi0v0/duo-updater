@@ -108,3 +108,21 @@ public struct ListActivity: Sendable, Equatable {
         canInstallAll && targetCount() > 1
     }
 }
+
+/// What the menu-bar badge should read.
+///
+/// A full refresh blanks every row to `.unknown` before the check repopulates
+/// it, so the live count dips to 0 mid-pass — which made the badge flicker to
+/// the "no updates" icon and back. While a scan or check is in flight the badge
+/// holds the last settled count; otherwise it tracks the live one, so ignoring
+/// or skipping an app updates it at once.
+///
+/// The held value is snapshotted by the caller immediately BEFORE it blanks the
+/// rows. That ordering is the caller's to get right and cannot be checked here;
+/// what is checked here is that a pass in flight reads the held value and a
+/// settled list reads the live one.
+public enum BadgeReadout {
+    public static func count(live: Int, held: Int, isScanning: Bool, isChecking: Bool) -> Int {
+        (isScanning || isChecking) ? held : live
+    }
+}

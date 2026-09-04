@@ -392,13 +392,10 @@ final class AppListModel {
     /// or it is the build over again), which is exactly the case where the target's
     /// build has to stay for the two sides to be comparable at all.
     func restartFromSide(_ id: String) -> UpdateResult.VersionSide? {
-        guard let runningBuild = runningVersionByID[id] else { return nil }
-        let build = UpdateResult.strippingBuildPrefix(runningBuild)
-        // Prefer the rollback backup's marketing (authoritative, written when *we*
-        // installed); fall back to the build→marketing history recovered for apps
-        // that self-updated outside us.
-        let marketing = backupVersions[id] ?? recoveredRestartMarketing[id]
-        return .init(marketing: marketing == build ? nil : marketing, build: build)
+        RestartLine.fromSide(
+            runningBuild: runningVersionByID[id],
+            backupMarketing: backupVersions[id],
+            recoveredMarketing: recoveredRestartMarketing[id])
     }
 
     /// The raw staged self-update for a row, if its own updater has downloaded a
@@ -473,29 +470,34 @@ final class AppListModel {
     /// warning that makes that safe lives in the popover. What it may not do is
     /// render a state as nothing.
     func rowState(for result: UpdateResult) -> RowActionState {
-        RowAction.state(for: RowActionFacts(
-            status: result.status,
-            awaitingQuitConfirm: awaitingQuitConfirm[result.id],
-            isRelaunching: relaunching.contains(result.id),
-            hasPendingBatchRestart: pendingBatchRestart[result.id] != nil,
-            justUpdated: justUpdated.contains(result.id),
-            installStage: installing[result.id],
+        // The assembly is `RowActionFacts.assemble` in Core, where it can be
+        // tested; this is the wiring that hands it the tables. `self.` on the
+        // route because it is an `@autoclosure` the facts hold rather than a
+        // value they copy — see `RowActionFacts.route`.
+        RowAction.state(for: RowActionFacts.assemble(
+            for: result,
+            tables: rowStateTables,
             isIgnored: prefs.isIgnored(result.app),
-            isVersionSkipped: prefs.isVersionSkipped(result.app, version: result.remote?.versionSide),
-            stagedRelaunchTarget: actionableStaged(result).map { result.stagedRelaunchLine($0).to },
-            needsRestart: needsRestart.contains(result.id),
-            // Feeds the `.unknown` / `.upToDate` rungs' source-hint and channel
-            // priority — moved here from the popover's own `isMASApp` /
-            // `isTestFlightApp` / `sparkleFeedURL` reads (issue #260), so the
-            // priority between them lives in `RowAction.state` rather than a view.
-            isMASApp: result.app.isMASApp,
-            isTestFlightApp: result.app.isTestFlightApp,
-            hasSparkleFeed: result.app.sparkleFeedURL != nil,
-            // `self.` because the route is an `@autoclosure` the facts hold rather
-            // than a value they copy — see `RowActionFacts.route`. The capture is
-            // safe: the struct is built and consumed in this one expression, and
-            // the closure is called (at most once) before it returns.
+            isVersionSkipped: prefs.isVersionSkipped(
+                result.app, version: result.remote?.versionSide),
             route: self.rowRoute(for: result)))
+    }
+
+    /// The per-row tables as Core wants them. Seven copies of a
+    /// copy-on-write collection: retains, no allocation.
+    ///
+    /// `.live` rather than the plain initialiser, which defaults every table:
+    /// this is the one place completeness matters, so an eighth table has to
+    /// break here rather than go quiet. Same rule as `RowActions.live`.
+    private var rowStateTables: RowStateTables {
+        RowStateTables.live(
+            installing: installing,
+            needsRestart: needsRestart,
+            pendingBatchRestart: pendingBatchRestart,
+            pendingSelfUpdate: pendingSelfUpdate,
+            relaunching: relaunching,
+            awaitingQuitConfirm: awaitingQuitConfirm,
+            justUpdated: justUpdated)
     }
 
     /// How an available update would be applied. Resolved here rather than in each
@@ -541,10 +543,10 @@ final class AppListModel {
     /// A pending update the user hasn't ignored or skipped — what the badge counts
     /// and what "Update All" acts on.
     func isActionableUpdate(_ result: UpdateResult) -> Bool {
-        guard result.hasUpdate else { return false }
-        if prefs.isIgnored(result.app) { return false }
-        if prefs.isVersionSkipped(result.app, version: result.remote?.versionSide) { return false }
-        return true
+        UpdatePolicy.isActionableUpdate(
+            result,
+            isIgnored: prefs.isIgnored(result.app),
+            isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) })
     }
 
     var updateCount: Int { results.filter(isActionableUpdate).count }
@@ -578,14 +580,13 @@ final class AppListModel {
     /// blind pass indefinitely: the count filters `results`, and a deleted app has
     /// no row there.
     func needsAction(_ result: UpdateResult) -> Bool {
-        if isActionableUpdate(result) { return true }
-        guard !prefs.isIgnored(result.app) else { return false }
-        return needsRestart.contains(result.id)
-            || pendingBatchRestart[result.id] != nil
-            // Short-circuited on the raw map first: this runs per row on the render
-            // path, and `nudgeableStaged` builds sanitised preference keys out of the
-            // full bundle path before it can answer "nothing is staged".
-            || (pendingSelfUpdate[result.id] != nil && nudgeableStaged(result) != nil)
+        UpdatePolicy.needsAction(
+            result,
+            isIgnored: prefs.isIgnored(result.app),
+            isVersionSkipped: { prefs.isVersionSkipped(result.app, version: $0) },
+            needsRestart: needsRestart.contains(result.id),
+            hasPendingBatchRestart: pendingBatchRestart[result.id] != nil,
+            staged: pendingSelfUpdate[result.id])
     }
 
     /// How many rows `needsAction` marks — the badge's number, and the popover's
@@ -617,7 +618,11 @@ final class AppListModel {
     /// it — which made the badge flicker to the "no updates" icon and back. While a
     /// scan/check is in flight we hold the last settled count instead; otherwise we
     /// track `actionCount` live (so ignoring/skipping an app updates it at once).
-    var badgeCount: Int { (isScanning || isChecking) ? heldBadgeCount : actionCount }
+    var badgeCount: Int {
+        BadgeReadout.count(
+            live: actionCount, held: heldBadgeCount,
+            isScanning: isScanning, isChecking: isChecking)
+    }
     @ObservationIgnored private var heldBadgeCount = 0
 
     // MARK: - Homebrew formulae (CLI tools)
@@ -1303,7 +1308,9 @@ final class AppListModel {
     /// and the App Store source re-reads the signed-in storefront region.
     private func makeSources(token: String?) -> [any UpdateSource] {
         hasGitHubToken = (token != nil)
-        return SourceStack.make(githubToken: token, alcove: alcoveCredentials())
+        return SourceStack.make(
+            githubToken: token, alcove: alcoveCredentials(),
+            channelStore: ResolvedChannelStore.shared)
     }
 
     /// Alcove's licensed-update credentials, or nil if either secret is missing
@@ -1563,7 +1570,7 @@ final class AppListModel {
     private func applicableRecipe(for result: UpdateResult) -> ChangelogRecipe? {
         guard result.remote?.appStore == nil else { return nil }
         return ChangelogRecipeRegistry.recipe(
-            forBundleID: result.app.bundleID, channel: result.app.releaseChannel,
+            forBundleID: result.app.bundleID, channel: result.effectiveReleaseChannel,
             version: changelogTargetVersion(for: result))
     }
 
@@ -1589,7 +1596,7 @@ final class AppListModel {
               let recipe = applicableRecipe(for: result) else { return }
         let targetVersion = changelogTargetVersion(for: result)
         let key = ChangelogCacheKey(
-            bundleID: bundleID, channel: result.app.releaseChannel, version: targetVersion)
+            bundleID: bundleID, channel: result.effectiveReleaseChannel, version: targetVersion)
         // A `.loaded` that was only ever painted from the disk cache is not done:
         // it still owes one network read, because the entry filed under this
         // version's key may have been fetched before the vendor published that
@@ -1651,7 +1658,7 @@ final class AppListModel {
         else { return nil }
         return ChangelogCacheKey(
             bundleID: bundleID,
-            channel: result.app.releaseChannel,
+            channel: result.effectiveReleaseChannel,
             version: changelogTargetVersion(for: result))
     }
 
@@ -2023,9 +2030,15 @@ final class AppListModel {
         // check lands a few seconds later. Carry the prior status/remote forward
         // (re-evaluated against the fresh on-disk version) so the list stays put and
         // the menu bar's data shows immediately; the check then overwrites it.
+        // Cold start has no prior row to carry, but the store still knows what was
+        // proven about these copies, so a Beta row is a Beta row from the first
+        // paint rather than only after the first check lands. `Snapshot` is one
+        // file read for the whole list — that is what it exists for, and the
+        // first draft of this had it inside the loop, i.e. once per installed app.
+        let proofs = ResolvedChannelStore.Snapshot()
         results = results.isEmpty
-            ? found.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
-            : sorted(mergeScanned(found))
+            ? ScanRowAssembly.unchecked(found, proofs: proofs)
+            : sorted(mergeScanned(found, proofs: proofs))
         lastScan = .now
         isScanning = false
 
@@ -2067,7 +2080,8 @@ final class AppListModel {
             sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
-            testflight: testflight)
+            testflight: testflight,
+            channelStore: ResolvedChannelStore.shared)
         // Ignored apps are not asked after. Nothing would be said about the answer,
         // so the request is pure cost — and against an unauthenticated GitHub hour
         // it is cost that crowds out the apps the user does watch.
@@ -2081,8 +2095,23 @@ final class AppListModel {
         let ignored = found.filter { !prefs.deservesCheck($0) }
         Log.app.info(
             "refresh: checking \(checkable.count, privacy: .public) apps, skipping \(ignored.count, privacy: .public) ignored")
-        let checked = await checker.check(checkable)
-            + ignored.map { UpdateResult(app: $0, remote: nil, status: .unknown) }
+        // Ignored rows are never checked, so nothing downstream will ever put a
+        // proven channel back on them — rebuilding them bare is not a blank that
+        // the next check repairs, it is permanent until the user un-ignores. And
+        // they are not inert: `prewarmChangelogs` below runs over `checked`
+        // unfiltered, so a UTM Beta row that lost its channel here would go and
+        // cache the FINAL track's changelog against itself.
+        //
+        // Read from the store, not from the row we were just holding: on the path
+        // that actually matters — the app was already ignored when DuoUpdater
+        // launched — there is no prior row to read, because nothing ever checked
+        // it. The store is the only thing that survives a restart.
+        let checkedRows = await checker.check(checkable)
+        // Read after the check, not before: the round just flushed whatever it
+        // proved, and a copy that was un-ignored and re-ignored between passes
+        // should pick that up. A second read of a small file, once per round.
+        let provenNow = ResolvedChannelStore.Snapshot()
+        let checked = checkedRows + ScanRowAssembly.unchecked(ignored, proofs: provenNow)
         results = sorted(CheckRoundWriteBack.publishing(
             checked, changedSince: roundBaseline, live: results))
         // Pre-warm the disk changelog cache for anything pending, so opening its
@@ -2545,44 +2574,14 @@ final class AppListModel {
         }
     }
 
-    /// Merge a fresh disk scan onto the current rows, carrying each app's prior
-    /// status/remote forward (re-evaluated against the new on-disk version) so a
-    /// rescan doesn't blank out what we already knew. Shared by `refreshLocal` (the
-    /// network-free rescan) and the in-flight `performRefresh` (so the sidebar holds
-    /// the menu bar's data instead of flashing `.unknown` rows during a re-check).
-    /// Apps new since the last scan come in as `.unknown`.
-    private func mergeScanned(_ found: [InstalledApp]) -> [UpdateResult] {
-        let prior = Dictionary(results.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        return found.map { app -> UpdateResult in
-            guard let was = prior[app.id] else {
-                return UpdateResult(app: app, remote: nil, status: .unknown)
-            }
-            // Re-derive status from the cached remote against the fresh on-disk
-            // version. With no remote (App Store / Toolbox / unknown) keep what we
-            // had, just refreshed to the new bundle info.
-            guard let remote = was.remote else {
-                return UpdateResult(app: app, remote: nil, status: was.status)
-            }
-            // A Toolbox row can't be re-run through `evaluate` (its verdict is a
-            // Toolbox build compare, not a compare against `shortVersion`), but it
-            // must still settle when Toolbox installs the update itself between our
-            // checks — otherwise the cached "update available" stands beside the
-            // freshly-rescanned version, reading "262.132.21 → 262.132.21".
-            if remote.sourceName == "Toolbox" {
-                return UpdateResult(
-                    app: app, remote: remote,
-                    status: UpdateChecker.evaluateToolbox(
-                        cached: was.status, installed: app, remote: remote))
-            }
-            // TestFlight owns its betas' status (its own cache, not a version
-            // compare) — keep it; don't re-evaluate.
-            guard remote.sourceName != "TestFlight" else {
-                return UpdateResult(app: app, remote: remote, status: was.status)
-            }
-            return UpdateResult(
-                app: app, remote: remote,
-                status: UpdateChecker.evaluate(installed: app, remote: remote))
-        }
+    /// Merge a fresh disk scan onto the current rows. The assembly itself is in
+    /// `ScanRowAssembly` so it can be tested; this is the wiring that hands it
+    /// the rows currently on screen.
+    private func mergeScanned(
+        _ found: [InstalledApp],
+        proofs: ResolvedChannelStore.Snapshot = ResolvedChannelStore.Snapshot()
+    ) -> [UpdateResult] {
+        ScanRowAssembly.merged(found, prior: results, proofs: proofs)
     }
 
     /// Update one app's install stage, coalescing download progress to whole
@@ -2592,18 +2591,12 @@ final class AppListModel {
     /// cuts that churn by ~50× and removes the visible jitter when several apps
     /// download at once.
     private func setStage(_ id: String, _ stage: InstallStage) {
-        // Progress callbacks dispatch un-awaited onto the main actor, so a late tick
-        // can land after the install finished and cleared `installing[id]`. Resurrecting
-        // a stale stage here would re-show a phantom row and wedge the re-entrancy
-        // guard (`installing[id] == nil`). Every real stage is preceded by a direct
-        // `installing[id] = …` assignment, so a nil here means the install is over.
-        guard installing[id] != nil else { return }
-        if case .downloading(let f) = stage,
-           case .downloading(let prev)? = installing[id],
-           Int(f * 100) == Int(prev * 100) {
-            return  // same whole percent — nothing the user can see changed
-        }
-        installing[id] = stage
+        // Both rules — never resurrect a finished install, and skip a tick that
+        // does not move the whole percent — are `InstallProgressCoalescing` in
+        // Core, where they are executed.
+        guard let folded = InstallProgressCoalescing.fold(
+            current: installing[id], incoming: stage) else { return }
+        installing[id] = folded
     }
 
     /// Flash an "Updated ✓" confirmation on a just-completed row, then let it go.
@@ -3472,74 +3465,56 @@ final class AppListModel {
     /// Rebuilds `packageRestartPending` from scratch each pass; the caller unions it
     /// into `needsRestart`. Must run before `computeRestartInfo` finalizes that set.
     private func reconcilePackageRestarts() {
-        guard !stagedPackages.isEmpty else {
-            packageRestartPending.removeAll()
-            notifiedPackageRestart.removeAll()
-            return
-        }
-        let launchDates = runningLaunchDatesByPath()
-        let onDiskByID = Dictionary(
-            results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a })
+        // The decision is `PackageRestartReconciler` in Core, where its
+        // one-line rules — decide nothing from a blind pass, carry a lit badge
+        // through a momentary old read, release the notify-once guard only on a
+        // real resolution — are executed. This is the effects half.
+        // One dictionary, used for the decision AND for the announcements below.
+        // Looking the app up a second way would put "recorded as notified" and
+        // "actually notified" on two different sources: `outcome.notified` is
+        // assigned unconditionally, so a lookup that missed would leave the id in
+        // the notify-once guard with no banner ever posted — silent, and
+        // permanent. The old code could not diverge because both lived in one
+        // branch holding one `app`.
+        let onDisk = Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a })
+        let outcome = PackageRestartReconciler.reconcile(
+            staged: stagedPackages.mapValues {
+                StagedPackageFacts(versionSide: $0.versionSide, stagedAt: $0.stagedAt)
+            },
+            onDisk: onDisk,
+            launchDates: runningLaunchDatesByPath(),
+            previouslyPending: packageRestartPending,
+            previouslyNotified: notifiedPackageRestart)
 
-        var pending: Set<String> = []
-        var settledIDs: [String] = []
-        for (id, staged) in stagedPackages {
-            guard let app = onDiskByID[id] else {
-                // The row is missing from THIS scan — the bundle can be briefly
-                // unreadable while Installer swaps it. Decide nothing from a blind
-                // pass: carry a restart that was already pending forward so one
-                // missed scan can't drop the badge (or let `pruneStagedPackages`
-                // reclaim the entry). A genuinely deleted app is reclaimed later by
-                // the file-existence backstop in prune.
-                if packageRestartPending.contains(id) { pending.insert(id) }
+        packageRestartPending = outcome.pending
+        notifiedPackageRestart = outcome.notified
+        for id in outcome.settled { stagedPackages[id] = nil }
+
+        for id in outcome.toNotify {
+            // `toNotify` only ever holds ids the reconciler resolved through
+            // `onDisk`, so a miss here is impossible rather than merely unlikely.
+            // Logged instead of skipped silently: the guard is already set, so a
+            // swallowed announcement never comes back.
+            guard let app = onDisk[id] else {
+                Log.install.error("no row for a package restart to announce: \(id, privacy: .public)")
                 continue
             }
-            let key = app.path.resolvingSymlinksInPath().path
-            let state = PackageRestartState.resolve(
-                onDiskVersion: app.versionSide,
-                stagedVersion: staged.versionSide,
-                stagedAt: staged.stagedAt,
-                runningLaunchDates: launchDates[key] ?? [],
-                buildIsDerived: AppScanner.buildVersionIsOverridden(
-                    bundleID: app.bundleID))
-            switch state {
-            case .pending:
-                // Not landed. Normally there's no badge yet; but if one was already
-                // lit (landed earlier) and the version momentarily reads old — a
-                // partial `package.json` read mid-swap — carry it rather than
-                // flickering the badge off and re-notifying on the next good pass.
-                if packageRestartPending.contains(id) { pending.insert(id) }
-            case .readyToRestart:
-                pending.insert(id)
-                if notifiedPackageRestart.insert(id).inserted {
-                    let version = app.shortVersion
-                    // Badge always; banner only if the user keeps update notifications
-                    // on — the pkg lands out of a rescan, not a click, so this is an
-                    // unsolicited background event like the "new update" nudge.
-                    if prefs.notifyOnUpdates {
-                        UpdateNotifier.readyToRestart(
-                            app: app.name, version: version, appID: app.bundleID)
-                    }
-                    Log.install.info("package landed, awaiting restart: \(app.name, privacy: .public) \(version ?? "?", privacy: .public)")
-                }
-            case .settled:
-                // Landed with nothing stale running (never open, or already
-                // relaunched). The install is fully done — drop the re-open entry.
-                settledIDs.append(id)
+            let version = app.shortVersion
+            // Badge always; banner only if the user keeps update notifications on
+            // — the pkg lands out of a rescan, not a click, so this is an
+            // unsolicited background event like the "new update" nudge.
+            if prefs.notifyOnUpdates {
+                UpdateNotifier.readyToRestart(
+                    app: app.name, version: version, appID: app.bundleID)
             }
+            Log.install.info("package landed, awaiting restart: \(app.name, privacy: .public) \(version ?? "?", privacy: .public)")
         }
-        packageRestartPending = pending
-        for id in settledIDs { stagedPackages[id] = nil }
-        // Clear the notify-once guard ONLY when a restart genuinely resolves (settled,
-        // or its staged entry is gone) — never merely because the id fell out of
-        // `pending` for one pass, which would let the same landing re-notify. (A
-        // DuoUpdater relaunch, which doesn't persist this set, can still re-remind
-        // once for a restart that was already pending — acceptable, it's real.)
-        notifiedPackageRestart.formIntersection(Set(stagedPackages.keys))
-        if !settledIDs.isEmpty {
+
+        if !outcome.settled.isEmpty {
             persistStagedPackages()
         }
     }
+
 
     /// The restart happened (or the app was already gone), so a landed pkg has
     /// nothing left to restart: drop its pending state, the one-time-notify guard,
@@ -3949,42 +3924,33 @@ final class AppListModel {
     /// button that can't do anything.
     private func pruneStagedPackages() {
         guard !stagedPackages.isEmpty else { return }
-        let onDisk = Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a })
-        let offered = Dictionary(
-            results.compactMap { r -> (String, VersionSide)? in
-                guard let side = r.remote?.versionSide, !side.isEmpty else { return nil }
-                return (r.id, side)
+        // The rules are `StagedPackagePrune` in Core, which shares its "has this
+        // landed" test with `PackageRestartState` rather than keeping a second
+        // copy of the expression here.
+        let keep = StagedPackagePrune.keep(
+            staged: stagedPackages.mapValues {
+                StagedPackageFacts(versionSide: $0.versionSide, stagedAt: $0.stagedAt)
             },
-            uniquingKeysWith: { a, _ in a })
-        let kept = stagedPackages.filter { id, staged in
-            // A landed package that left a stale copy running is no longer "on offer"
-            // (the app is now current) and its download may have been swept, yet its
-            // entry must survive to keep the Restart badge lit until the app is
-            // relaunched. `reconcilePackageRestarts` retires it once it settles.
-            if packageRestartPending.contains(id) { return true }
-            let fileThere = FileManager.default.fileExists(atPath: staged.url.path)
-            guard let app = onDisk[id] else {
-                // Row missing from THIS scan (bundle mid-swap): don't reclaim on a
-                // blind pass — a genuinely deleted app is still bounded by the file
-                // backstop once its download is swept.
-                return fileThere
-            }
-            // Landed (the app now IS the staged version): keep so restart tracking
-            // survives a one-scan flicker of the launch-time signal, even if the
-            // download was swept. Reconcile settles it once the copy is fresh/gone.
-            // `buildIsDerived` matches the guard `reconcilePackageRestarts` passes
-            // to `PackageRestartState.resolve` — same two inputs, same namespace
-            // problem for `AppScanner.buildVersionIsOverridden` apps (#285).
-            if VersionComparator.isSame(app.versionSide, as: staged.versionSide,
-                buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)
-            ) { return true }
-            // Otherwise it's only usable while still on offer and re-openable.
-            return offered[id].map {
-                VersionComparator.isSame($0, as: staged.versionSide)
-            } == true && fileThere
-        }
-        guard kept.count != stagedPackages.count else { return }
-        stagedPackages = kept
+            onDisk: Dictionary(results.map { ($0.id, $0.app) }, uniquingKeysWith: { a, _ in a }),
+            offered: Dictionary(
+                // `!side.isEmpty` is defensive, not required: `VersionComparator
+                // .isSame` returns false when there is nothing comparable, so an
+                // empty side reaches the same answer either way. Kept because it
+                // says what an empty side means here; do not read it as a
+                // precondition Core relies on.
+                results.compactMap { r -> (String, VersionSide)? in
+                    guard let side = r.remote?.versionSide, !side.isEmpty else { return nil }
+                    return (r.id, side)
+                },
+                uniquingKeysWith: { a, _ in a }),
+            pending: packageRestartPending,
+            downloadExists: { [stagedPackages] id in
+                guard let url = stagedPackages[id]?.url else { return false }
+                return FileManager.default.fileExists(atPath: url.path)
+            })
+
+        guard keep.count != stagedPackages.count else { return }
+        stagedPackages = stagedPackages.filter { keep.contains($0.key) }
         persistStagedPackages()
     }
 
@@ -5474,11 +5440,6 @@ final class AppListModel {
         Log.app.info("permissions: accessibility=\(self.accessibilityTrusted, privacy: .public) appManagement=\(String(describing: self.appManagementStatus), privacy: .public)")
     }
 
-    /// Upper bound on how long after launch the first auto-check may wait. Caps the
-    /// persisted-`lastCheck` interval for the first tick only, so a relaunch refreshes
-    /// within minutes instead of sleeping a full (up to 6h) interval — while a flurry
-    /// of dev relaunches inside this window is still throttled to one check.
-    private static let launchCheckFloor: TimeInterval = 5 * 60
 
     /// Drop the App Nap opt-out (if held). Called when switching to manual, where
     /// there's no loop to keep alive.
@@ -5516,24 +5477,12 @@ final class AppListModel {
             var isFirstCheck = true
             while !Task.isCancelled {
                 guard let self else { return }
-                // The FIRST check after launch uses a small floor instead of the
-                // full interval. `lastCheck` is persisted across relaunches (so we
-                // don't re-check on *every* launch), but a fresh process starts with
-                // an empty in-memory list — without this floor a relaunch that
-                // inherited a recent `lastCheck` would sleep a whole interval (up to
-                // 6h) showing nothing. The floor refreshes promptly after launch
-                // while still throttling rapid dev relaunches within a few minutes.
-                let effectiveInterval = isFirstCheck ? min(interval, Self.launchCheckFloor) : interval
-                // Sleep only until the next check is *due* relative to the last one
-                // — zero (run now) when we're already overdue, e.g. a cold launch.
-                let due = (self.lastCheck ?? .distantPast).addingTimeInterval(effectiveInterval)
-                // A cold launch with nothing in memory yet shows the empty zero-badge
-                // icon until something populates `results`. Check immediately in that
-                // case rather than waiting out the floor, so the menu-bar icon
-                // reflects real state right after (re)launch without a click.
-                let wait = (isFirstCheck && self.results.isEmpty)
-                    ? 0
-                    : max(0, due.timeIntervalSinceNow)
+                // The arithmetic — the launch floor, the due time, and the
+                // run-now case for a cold launch with nothing in memory — is
+                // `CheckSchedule.nextWait` in Core, where it is executed.
+                let wait = CheckSchedule.nextWait(
+                    now: .now, lastCheck: self.lastCheck, interval: interval,
+                    isFirstCheck: isFirstCheck, hasResults: !self.results.isEmpty)
                 if wait > 0 {
                     try? await Task.sleep(for: .seconds(wait))
                     guard !Task.isCancelled else { return }
@@ -5554,6 +5503,12 @@ final class AppListModel {
                 } else {
                     let why = offline ? "offline" : "busy"
                     Log.app.info("scheduler: tick deferred (\(why, privacy: .public)) — retrying in 60s")
+                    // The only back-off on this path, and the condition that reaches it
+                    // is decided elsewhere: `CheckSchedule.nextWait` returns 0 for a cold
+                    // launch with an empty list, and a deferred tick leaves both
+                    // `isFirstCheck` and `lastCheck` untouched — so the next call answers
+                    // 0 again. Cold launch plus no network lands exactly here. Do not
+                    // remove this sleep on the grounds that the wait above covers it.
                     try? await Task.sleep(for: .seconds(60))
                 }
             }
@@ -5956,7 +5911,8 @@ final class AppListModel {
             sources: makeSources(token: githubToken),
             maxConcurrency: prefs.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
-            testflight: testflight)
+            testflight: testflight,
+            channelStore: ResolvedChannelStore.shared)
         return await checker.check(fresh)
     }
 
@@ -6326,33 +6282,14 @@ final class AppListModel {
     ///
     /// …except while the order is frozen (see `pinRowOrder`), when every row the
     /// user can already see keeps the slot it had, whatever its rank has become.
+    /// The order is `RowOrder.sorted` in Core, where it is executed. This is the
+    /// wiring that hands it the tables it ranks by.
     private func sorted(_ list: [UpdateResult]) -> [UpdateResult] {
-        func rank(_ r: UpdateResult) -> Int {
-            if needsRestart.contains(r.id) { return 0 }
-            // A staged build that IS the latest is one relaunch from live, just like
-            // needs-restart — top tier. One that trails the latest ranks as a normal
-            // pending update (it'll show Update).
-            if actionableStaged(r) != nil { return 0 }
-            if r.hasUpdate { return 1 }
-            return 2
-        }
-        return list.sorted { a, b in
-            // Frozen: pinned rows hold their recorded slot, and anything that showed
-            // up since the freeze goes after them (inserting into the middle would
-            // push the pinned rows down, which is the thing being prevented).
-            if !pinnedOrder.isEmpty {
-                switch (pinnedOrder[a.id], pinnedOrder[b.id]) {
-                case let (pa?, pb?): return pa < pb
-                case (_?, nil): return true
-                case (nil, _?): return false
-                case (nil, nil): break  // both new — fall through to the normal order
-                }
-            }
-            let ra = rank(a), rb = rank(b)
-            if ra != rb { return ra < rb }
-            return a.app.name.localizedCaseInsensitiveCompare(b.app.name) == .orderedAscending
-        }
+        RowOrder.sorted(
+            list, needsRestart: needsRestart,
+            stagedSelfUpdates: pendingSelfUpdate, pinnedOrder: pinnedOrder)
     }
+
 
     // MARK: - Frozen row order
     //
@@ -6398,12 +6335,13 @@ final class AppListModel {
     /// Safe to call from every settle point; it no-ops until the last one.
     private func releaseRowOrder() {
         guard !pinnedOrder.isEmpty else { return }
-        guard installing.isEmpty, !isInstallingAll, relaunching.isEmpty, justUpdated.isEmpty
-        else {
-            let holding = !installing.isEmpty ? "installing (\(installing.count))"
-                : isInstallingAll ? "batch install"
-                : !relaunching.isEmpty ? "relaunching (\(relaunching.count))"
-                : "just-updated confirmation"
+        // The condition — and which reason gets logged — is `RowOrderFreeze` in
+        // Core, where it is executed. A release term missing here produces a
+        // permanently frozen list, which from outside is indistinguishable from
+        // a freeze that never engaged.
+        if let holding = RowOrderFreeze.holdReason(
+            installCount: installing.count, isInstallingAll: isInstallingAll,
+            relaunchCount: relaunching.count, justUpdatedCount: justUpdated.count) {
             Log.app.debug("row order: still frozen — \(holding, privacy: .public)")
             return
         }

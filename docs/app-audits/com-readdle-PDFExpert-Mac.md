@@ -3,10 +3,10 @@
 ## 基本信息
 - Bundle ID: `com.readdle.PDFExpert-Mac`
 - Team ID: `3L68KQB4HG`（`Developer ID Application: Readdle Technologies Limited`，spctl `source=Notarized Developer ID`）
-- 观测版本: `3.13.2` / build `1172`
-  （证据全部取自厂商产物：appcast 指向的 `pem3/versions/1172/PDFExpert.zip`，解开后读
-  `PDF Expert.app/Contents/Info.plist`，2026-09-04。**这次没有从任何装机副本取证**，
-  所以下面凡是需要一份运行中的拷贝才能做的核对，都标了 needs-verify。
+- 观测版本: `3.13.2` / build `1172`（真机端到端验证 ✓，2026-09-04）
+  （最初的证据全部取自厂商产物：appcast 指向的 `pem3/versions/1172/PDFExpert.zip`，解开后读
+  `PDF Expert.app/Contents/Info.plist`。当天晚些时候补做了真机验证——**降到官方 3.13.1
+  再让 Duo 更新回 3.13.2**，见「如何复验」。
   另有一个 `PDF Expert Installer.app`（`com.readdle.PDFExpert-Installer` 1.5.1）——
   那是个下载壳，不是本体，只用来佐证 ATS 例外域名。）
 - 自更新机制: Sparkle（`SUFeedURL` + `SUPublicEDKey` + `SUEnableAutomaticChecks` 都在 Info.plist 里）
@@ -18,7 +18,7 @@
 
 |             | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |-------------|---------|----------|-----|--------|-------------|
-| **stable**  | ✓       | ✗        | ✓   | —      | —           |
+| **stable**  | ✓ 一键  | ✗        | ✓   | —      | —           |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: 官网副本 = **Sparkle**；App Store 副本 = **MAS**。
 
@@ -82,10 +82,11 @@ https://downloads.pdfexpert.com/pem3/release/appcast.xml
 Info.plist，2026-09-04）**一个都没有 `SUPublicEDKey`**，而四个构建的 `SUFeedURL` 全是同一个
 死地址。所以能与装机副本对照的公钥只存在于新 feed 自己发的那份产物里。
 
-**这条推论对一键安装有实际后果**：真正卡住的用户（3.13 以前的任何一版，也正是这次改动要救的
-那批）`app.sparkleEdPublicKey` 是 nil，`UpdatePolicy` 走的是 **unsigned-feed 分支**——闸是
-代码签名 + 同 Team + 同 bundle id，**EdDSA 对他们根本不生效**。下面「一键安装」一节里那些
-关于签名的话是在 1172 上量的，不描述真正会按那个按钮的人。
+**这条推论对一键安装有实际后果**：`app.sparkleEdPublicKey` 是 nil 的副本，`UpdatePolicy`
+走的是 **unsigned-feed 分支**——闸是代码签名 + 同 Team + 同 bundle id，EdDSA 根本不参与。
+⚠️ **哪些版本落在这一侧没有逐版测过**：实测有密钥的是 1171 和 1172，实测没有的是 764 / 936 /
+964，中间那一大段（3.4.1 → 3.13）一个都没量。所以只能说"存在没有密钥的旧副本"，不能说
+"3.13 以前都没有"——n=3 不够推出这条。
 
 ### 接法：匹配死地址，不是匹配 bundle id
 
@@ -132,16 +133,21 @@ Info.plist，2026-09-04）**一个都没有 `SUPublicEDKey`**，而四个构建�
 
 ## 一键安装
 
-- 走通用 Sparkle 安装路径：enclosure 是 zip，带 `sparkle:edSignature`。⚠️ `SUPublicEDKey`
-  **只有 3.13.x 有**（见上），所以对需要更新的旧版本用户，闸是代码签名 + Team + bundle id，
-  不是 EdDSA。
-  zip 里的 `.app` 是 `Developer ID` 签名 + 已公证、Team `3L68KQB4HG`，universal 二进制在
-  arm64 宿主上可运行。这几个闸的输入都已经核实过（见上），**但没有端到端跑过一次安装**
-  ——那需要一份装机副本，这次没有。标 needs-verify。
-- `sparkle:deltas` 在 feed 里（1172←1171 是 781 KB，对 128 MB 全量包），由
+**真机端到端跑通 ✓**（2026-09-04）：`duo install com.readdle.PDFExpert-Mac` 在一份真实的
+3.13.1 副本上跑完，`applied: true`，磁盘上变成 3.13.2 / 1172，
+`codesign --verify --deep --strict` 通过，`spctl` 仍是
+`Notarized Developer ID / Readdle Technologies Limited (3L68KQB4HG)`，app 能正常启动，
+`duo backups` 里留下 3.13.1 的回滚点。
+
+- **走的是增量包，不是全量**：`bytesDownloaded: 781078` —— 正好是 feed 里
+  `PDF Expert1172-1171.delta` 的字节数，对 128 MB 的全量 zip。增量由
   `SparkleAppcastParser` 自己解、`SparkleAppcastSource` 带出来（`channel-verify` 打的
   `deltas 2` 就是它）。**不是 `VendorAppcastDeltas`**——那个只从 `VendorProbeSource` 走，
-  这个 app 到不了。增量是否真的能应用未实测。
+  这个 app 到不了。
+- 路由是 `sparkle` / `in-place`：enclosure 是 zip，带 `sparkle:edSignature`。⚠️ 注意
+  `SUPublicEDKey` **只有 3.13.x 有**（见上），所以对真正卡住的旧版本用户，闸是代码签名 +
+  Team + bundle id，不是 EdDSA。这次验证用的 3.13.1 副本**有**密钥，也就是说
+  **走 EdDSA 的那条分支验过了，unsigned-feed 那条没有**——而后者才是没有密钥的旧副本会走的。
 
 ## 如何复验
 
@@ -177,6 +183,20 @@ duo verify --only pdfexpert --samples
 
 2026-09-04：`changelog ✓ 1`，`version 3.13.2`。（`duo verify` 用的是**已安装的** CLI，
 先 `make cli`。）
+
+一键安装的端到端复验（会替换掉一份真实副本，跑完自己回到最新版）：
+
+```sh
+# 1. 换成厂商官方的上一版
+curl -o PDFExpert-1171.zip https://downloads.pdfexpert.com/pem3/versions/1171/PDFExpert.zip
+ditto -x -k PDFExpert-1171.zip old && ditto old/"PDF Expert.app" "/Applications/PDF Expert.app"
+duo check --all --json | grep pdfexpert     # → hasUpdate true, route in-place, latest 3.13.2
+# 2. 让引擎自己装回去
+duo install com.readdle.PDFExpert-Mac --yes --json
+```
+
+2026-09-04 的实际输出：`{"applied":true,"bytesDownloaded":781078,"route":"sparkle"}`，
+之后 `duo check` 回到 `up-to-date 3.13.2`。
 
 ## 已知问题 / 未做的事
 

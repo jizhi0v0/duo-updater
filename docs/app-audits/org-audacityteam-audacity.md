@@ -39,6 +39,16 @@
 - 格式: cask app
 - 阻塞: direct-install detection not implemented.
 
+## 打包形状（runtime 标记相关）
+- `CFBundleExecutable` 是 **`Wrapper`**，不是 `Audacity`：70,080 字节的启动器，`otool -L` 只有
+  `libSystem.B.dylib`，`strings` 里只有 `Audacity` 和 `AUDACITY_PRESERVE_LIBRARY_PATH`——
+  作用是设好 dylib 搜索路径再 exec 同目录的 `Audacity`（21,251,232 字节，链 AppKit）。
+- `Contents/Frameworks` 里 **144 个 `lib-*.dylib`，一个 `.framework` 都没有**，所以按布局判定
+  runtime 的规则全部落空。
+- 后果：`AppRuntimeDetector` 原来把标记读在 `Wrapper` 上，Audacity 一行没有 runtime 徽章。
+  2026-09-05 加了「退到 `Contents/MacOS/<bundle 名>` 再读一次」的规则后判为 `native` +
+  `Links AppKit`。实测于 3.7.8.0（mini，macOS 26.6）。
+
 ## 已知问题
 - Preview/alpha builds share the stable bundle id and currently have no safe detection signal.
 

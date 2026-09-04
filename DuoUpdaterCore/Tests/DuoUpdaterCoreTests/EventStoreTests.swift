@@ -525,6 +525,56 @@ struct EventStoreTests {
     /// would simply record nothing, every total would read zero, and the summary
     /// would say the updater used no network at all. This is the test that fails
     /// instead.
+    /// The other half of that measurement: the attribution has to survive the
+    /// trip too.
+    ///
+    /// `RequestAttribution` is a task-local, and this file's header records that
+    /// a task-local read *inside* the metrics callback comes back as the default
+    /// — the callback runs on the session's delegate queue, outside the calling
+    /// task's tree. `countedData` therefore reads it in the caller and hands it
+    /// to the delegate. Nothing about that arrangement is self-evident from the
+    /// code, and if it regressed every row would simply carry a null app and
+    /// `app:` would answer "no such requests" for every app on the machine.
+    @Test("A request made inside an attribution scope records which app it was for")
+    func attributionReachesTheStoredEvent() async throws {
+        let server = try Server(redirectFirst: false)
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+
+        let session = URLSession(configuration: .ephemeral)
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/feed.xml")!)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        await RequestAttribution.withApp("/Applications/Zed.app") {
+            _ = try? await session.countedData(for: request, purpose: .versionCheck, store: store)
+        }
+
+        let event = try #require(await Self.settle(store).first?.request)
+        #expect(event.appID == "/Applications/Zed.app")
+        // And it is queryable, which is the whole point of storing it.
+        #expect(await store.requestLog(.parse("app:Zed")).count == 1)
+    }
+
+    @Test("Outside a scope the app is nil, not a stale neighbour")
+    func attributionDoesNotLeakBetweenApps() async throws {
+        let server = try Server(redirectFirst: false)
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+
+        let session = URLSession(configuration: .ephemeral)
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/feed.xml")!)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        await RequestAttribution.withApp("/Applications/Zed.app") {
+            _ = try? await session.countedData(for: request, purpose: .versionCheck, store: store)
+        }
+        // The Homebrew catalog and the self-update belong to no app. Filing them
+        // against whichever app was checked last would be worse than nil.
+        _ = try? await session.countedData(for: request, purpose: .catalog, store: store)
+
+        let events = await Self.settle(store).compactMap(\.request)
+        #expect(events.count == 2)
+        #expect(events.first { $0.purpose == .catalog }?.appID == nil)
+    }
+
     @Test("Metrics arrive for a completion-handler fetch, with timings, address and wire bytes")
     func metricsAreDeliveredForDataForRequest() async throws {
         let server = try Server(redirectFirst: false)

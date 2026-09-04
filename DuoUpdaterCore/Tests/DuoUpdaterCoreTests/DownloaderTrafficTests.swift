@@ -328,7 +328,15 @@ struct DownloaderTrafficTests {
 
         let url = URL(string: "http://127.0.0.1:\(server.port)/blob.bin")!
         let downloader = Downloader(destinationDir: workDir, store: store) { _ in }
-        _ = try await downloader.download(url)
+        // Inside an attribution scope, because the installers are the biggest
+        // rows in the log and this class is the one path that does NOT go
+        // through `countedData`: it is its own session delegate, and the metrics
+        // callback runs on the delegate queue where the task-local reads back as
+        // nil. It captures the value in `download` instead — silently, if that
+        // capture is ever dropped, which is what this asserts.
+        try await RequestAttribution.withApp("/Applications/Amp.app") {
+            _ = try await downloader.download(url)
+        }
 
         // Both attempts, since both really crossed the network.
         for _ in 0..<100 {
@@ -340,6 +348,8 @@ struct DownloaderTrafficTests {
         #expect(events.count == 2)
         #expect(events.allSatisfy { $0.purpose == .install })
         #expect(events.allSatisfy { $0.host == "127.0.0.1" })
+        #expect(events.allSatisfy { $0.appID == "/Applications/Amp.app" },
+                "the download rows must name the app they were for")
         // And the rollup the events fed, in the same transaction: headers on top
         // of the body, and never less than it.
         let total = await store.totals().totals.first

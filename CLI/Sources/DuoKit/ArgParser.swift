@@ -49,7 +49,7 @@ public struct Args {
         "only", "route", "max-concurrency", "source",
         "baseline", "report", "markdown", "out", "max-calls",
         "model", "variant",
-        "since", "limit", "kind", "host", "purpose", "client",
+        "since", "limit", "kind", "host", "purpose", "client", "filter",
     ]
 
     /// A repeatable comma-separated flag, lowercased and de-duplicated.

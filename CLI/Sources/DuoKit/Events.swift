@@ -15,6 +15,14 @@ public enum Events {
 
     public struct Options: Sendable {
         public var query = EventQuery()
+        /// The window's query language, when `--filter` was given.
+        ///
+        /// Takes over from the flags above when present, and narrows to request
+        /// rows: it is the same parser the Requests tab compiles its field with,
+        /// so a filter that answered one way in the window answers the same way
+        /// here. Install events are not requests and drop out — that is the
+        /// point of the scoping, not an oversight.
+        public var filter: RequestQuery?
         /// Print what the store holds and where, instead of the events.
         public var showStatus = false
 
@@ -48,7 +56,15 @@ public enum Events {
         // while the same command advertises that query strings are never
         // recorded. The payload is otherwise emitted exactly as stored.
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        for row in await store.rawRows(options.query) {
+        let rows: [EventRow]
+        if var filter = options.filter {
+            filter.since = options.query.since
+            filter.until = options.query.until
+            rows = await store.requestRows(filter, limit: options.query.limit).reversed()
+        } else {
+            rows = await store.rawRows(options.query)
+        }
+        for row in rows {
             print(row.json.replacingOccurrences(of: home, with: "~"))
         }
         return 0

@@ -137,6 +137,11 @@ events options:
   --purpose <name>    versioncheck, changelog, changelogimage, catalog, install,
                       selfupdate, other.
   --client <app|cli>  Only the menu-bar app's events, or only duo's.
+  --filter <query>    The Requests tab's own syntax, e.g.
+                      'host:api.github.com status:problems took>5s'.
+                      Keys: host: app: purpose: status: client: size> took>;
+                      bare words match host and path; a repeated key is OR.
+                      Narrows to request events, so the install ledger drops out.
   --status            Where the store is, how big, what it covers, what it keeps.
 
   Every filter runs in SQL against an index, so narrowing is cheaper than
@@ -358,6 +363,15 @@ case "events":
             die("unknown client '\(client)'; expected app or cli", code: 2)
         }
         eventOptions.query.client = parsed
+    }
+    if let filter = args.value("filter") {
+        let parsed = RequestQuery.parse(filter)
+        // An unrecognised key would otherwise widen the dump while looking like
+        // it narrowed it — the same failure the window prints in orange.
+        if !parsed.ignoredKeys.isEmpty {
+            die("unrecognised filter: \(parsed.ignoredKeys.joined(separator: ", "))", code: 2)
+        }
+        eventOptions.filter = parsed
     }
     eventOptions.showStatus = args.has("status")
     let events = eventOptions

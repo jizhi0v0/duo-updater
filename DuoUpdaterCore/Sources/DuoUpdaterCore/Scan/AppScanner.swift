@@ -94,8 +94,13 @@ public struct AppScanner: Sendable {
     ///
     /// We deliberately do not consult the localized `InfoPlist.strings`: every name
     /// in this app comes from the unlocalized plist (WeChat is "WeChat", not
-    /// "微信"), and the AX/App Store matching that `stripInvisibleMarks` exists for
-    /// compares against those same strings.
+    /// "微信"), so rows, logs and prompts all say the same thing.
+    ///
+    /// That used to be justified by the AX/App Store matching comparing against these
+    /// same strings. It no longer is: App Store renders the *localized* listing, so on
+    /// a non-English Mac the name here is not the name on screen. The matching reads
+    /// the localized name itself — `AppStoreAXInstaller.AppNames.localizedName` — and
+    /// keeps this one as a needle beside it, rather than changing what the UI says.
     ///
     /// The last candidate is the caller's non-optional backstop (the bundle's
     /// filename); if even that is blank the name is genuinely unknowable and an

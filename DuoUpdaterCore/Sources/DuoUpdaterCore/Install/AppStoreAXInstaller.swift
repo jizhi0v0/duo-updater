@@ -63,9 +63,22 @@ public actor AppStoreAXInstaller {
     /// `AppStoreAvailability.storeName` for what that cost.
     struct AppNames: Sendable, Equatable {
         /// The installed bundle's name — what our own UI and logs call the app.
+        /// Unlocalized on purpose (see `AppScanner.firstUsableName`), so on a
+        /// non-English Mac it is not what anything on screen says.
         let bundle: String
         /// The store's own listing title, when the lookup supplied one.
         let store: String?
+        /// The bundle's *localized* display name — the app's own name in the user's
+        /// language, straight out of its `InfoPlist.strings`, no request needed.
+        ///
+        /// It follows the same thing App Store follows, so it tracks the listing for
+        /// free: measured 2026-09-05, a process running as zh-Hans reads "钉钉" from
+        /// DingTalk (`zh_CN.lproj`) and "微信" from WeChat (`zh-Hans.lproj`), while the
+        /// same process as en-US reads "DingTalk" and "WeChat". It also catches an app
+        /// whose bundle *file* is named differently from the app itself: AndDrive.app
+        /// calls itself "AndroMeld" in every localization, which is the substring its
+        /// listing title ("AndroMeld: Manager for Android") is built from.
+        let localized: String?
 
         /// The name App Store renders for this app — on the product page's hero
         /// lockup and on the Updates list row alike (both measured). The store's
@@ -81,10 +94,13 @@ public actor AppStoreAXInstaller {
         /// exists for exactly this matching), and the value is returned trimmed —
         /// the Updates list compares row strings with `==`, where a stray space is
         /// the difference between a match and none.
-        var page: String {
-            let cleaned = AppScanner.stripInvisibleMarks(store ?? "")
+        var page: String { Self.clean(store) ?? bundle }
+
+        /// Trimmed, invisible-marks-stripped, and nil when nothing readable is left.
+        static func clean(_ name: String?) -> String? {
+            let cleaned = AppScanner.stripInvisibleMarks(name ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            return cleaned.isEmpty ? bundle : cleaned
+            return cleaned.isEmpty ? nil : cleaned
         }
 
         /// Every name a surface might render for this app, most authoritative first.
@@ -101,7 +117,37 @@ public actor AppStoreAXInstaller {
         /// a single-needle match would fail *every* time — turning an app that used to
         /// update (the bundle name still matched the hero's developer line) into one
         /// that never can. The bundle name is the fallback for exactly that.
-        var needles: [String] { page == bundle ? [page] : [page, bundle] }
+        var needles: [String] {
+            var out: [String] = []
+            for candidate in [Self.clean(store), Self.clean(localized), bundle] {
+                if let candidate, !out.contains(candidate) { out.append(candidate) }
+            }
+            return out
+        }
+
+        /// The app's own name in the user's language, read from the bundle it is about
+        /// to update.
+        ///
+        /// The lproj is matched explicitly rather than through `localizedInfoDictionary`,
+        /// which measurably does not follow the process's languages: a probe running as
+        /// zh-Hans still read "DingTalk" from it, while the explicit match below read
+        /// "钉钉" (2026-09-05). `preferredLocalizations(from:forPreferences:)` is what
+        /// handles the mapping that matters — DingTalk ships the old-style `zh_CN.lproj`,
+        /// not `zh-Hans.lproj`, and it resolves that pairing correctly.
+        ///
+        /// nil when the bundle localizes no name at all (Keka ships lprojs with no
+        /// `InfoPlist.strings` name), which just leaves the other needles.
+        static func localizedName(at path: URL) -> String? {
+            guard let bundle = Bundle(url: path) else { return nil }
+            let preferred = Bundle.preferredLocalizations(
+                from: bundle.localizations, forPreferences: Locale.preferredLanguages)
+            guard let localization = preferred.first,
+                  let url = bundle.url(forResource: "InfoPlist", withExtension: "strings",
+                                       subdirectory: nil, localization: localization),
+                  let strings = NSDictionary(contentsOf: url) as? [String: Any]
+            else { return nil }
+            return (strings["CFBundleDisplayName"] ?? strings["CFBundleName"]) as? String
+        }
     }
 
     /// Why a lookup answered the way it did — carried alongside the button so the
@@ -193,9 +239,10 @@ public actor AppStoreAXInstaller {
     ) async throws {
         guard Self.isTrusted else { throw AXError.notTrusted }
 
-        let names = AppNames(bundle: appName, store: storeName)
+        let names = AppNames(bundle: appName, store: storeName,
+                             localized: AppNames.localizedName(at: appPath))
         let runningAtStart = bundleID.map { isRunning($0) } ?? false
-        Log.install.notice("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) storeName=\(storeName ?? "-", privacy: .public) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
+        Log.install.notice("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) storeName=\(storeName ?? "-", privacy: .public) needles=\(names.needles.joined(separator: " | "), privacy: .public) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
 
         onStage(.checking)
 

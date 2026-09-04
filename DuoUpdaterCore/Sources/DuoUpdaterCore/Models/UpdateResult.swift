@@ -30,8 +30,12 @@ public struct AppStoreAvailability: Sendable, Hashable {
     /// failed and the download reported 0% for its whole run.
     public let storeName: String?
 
+    // `storeName` has no default on purpose: it is the name the App Store renders,
+    // and a producer that forgets it doesn't fail — it quietly sends the AX installer
+    // back to matching on the bundle name, which is the bug this field exists to fix.
+    // Every construction site should have to answer the question.
     public init(trackID: Int, availableRegion: String, homeRegion: String?,
-                latestMacCompatible: Bool? = nil, storeName: String? = nil) {
+                latestMacCompatible: Bool? = nil, storeName: String?) {
         self.trackID = trackID
         self.availableRegion = availableRegion
         self.homeRegion = homeRegion

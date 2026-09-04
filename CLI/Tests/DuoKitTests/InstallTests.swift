@@ -82,7 +82,7 @@ import DuoUpdaterCore
         let decision = Install.classify(
             result(source: "App Store",
                    appStore: AppStoreAvailability(
-                    trackID: 1, availableRegion: "us", homeRegion: "us")),
+                    trackID: 1, availableRegion: "us", homeRegion: "us", storeName: nil)),
             settings: settings(), environment: environment())
         guard case .refuse(let why) = decision else {
             Issue.record("expected a refusal, got \(decision)")

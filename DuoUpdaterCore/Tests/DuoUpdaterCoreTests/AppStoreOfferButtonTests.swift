@@ -111,7 +111,7 @@ struct AppStoreOfferButtonTests {
     /// nil, so the whole download reported 0%.
     @Test func theProductPageIsRecognisedByTheStoresOwnTitle() {
         let dingTalk = AppStoreAXInstaller.AppNames(
-            bundle: "DingTalk", store: "DingDing: Redefine Work in AI")
+            bundle: "DingTalk", store: "DingDing: Redefine Work in AI", localized: "DingTalk")
         #expect(dingTalk.page == "DingDing: Redefine Work in AI")
         // Both are tried, the store's first: the lookup asks for no language, so the
         // title we hold is the storefront's default while App Store renders the user's
@@ -120,12 +120,32 @@ struct AppStoreOfferButtonTests {
         #expect(dingTalk.needles == ["DingDing: Redefine Work in AI", "DingTalk"])
     }
 
+    /// A third needle that costs no request and tracks the language on its own: the
+    /// bundle's localized name. On a Chinese Mac DingTalk calls itself "钉钉", which is
+    /// what its listing is titled with there; AndDrive calls itself "AndroMeld" in every
+    /// language, which is the substring its English listing title is built from — the
+    /// one case where the installed *file* name ("AndDrive") matches nothing at all.
+    @Test func theBundlesOwnLocalizedNameIsANeedleToo() {
+        let zh = AppStoreAXInstaller.AppNames(
+            bundle: "DingTalk", store: "钉钉 - AI时代的工作方式", localized: "钉钉")
+        #expect(zh.needles == ["钉钉 - AI时代的工作方式", "钉钉", "DingTalk"])
+
+        let andDrive = AppStoreAXInstaller.AppNames(
+            bundle: "AndDrive", store: "AndroMeld: Manager for Android", localized: "AndroMeld")
+        #expect(andDrive.needles == ["AndroMeld: Manager for Android", "AndroMeld", "AndDrive"])
+
+        // Same string in two places is one needle, not two passes over the same text.
+        let same = AppStoreAXInstaller.AppNames(bundle: "Keka", store: "Keka", localized: "Keka")
+        #expect(same.needles == ["Keka"])
+    }
+
     /// One needle when both names are the same string — a second pass over the same
     /// text can only cost time, and on the Updates list it would also let a loose
     /// match run twice before any other name got its exact one.
     @Test func anAppNamedTheSameInBothPlacesIsLookedUpOnce() {
-        #expect(AppStoreAXInstaller.AppNames(bundle: "QQ", store: "QQ").needles == ["QQ"])
-        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: nil).needles == ["Keka"])
+        #expect(AppStoreAXInstaller.AppNames(bundle: "QQ", store: "QQ", localized: "QQ").needles == ["QQ"])
+        #expect(AppStoreAXInstaller.AppNames(bundle: "QQ", store: nil, localized: nil).needles == ["QQ"])
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: nil, localized: nil).needles == ["Keka"])
     }
 
     /// Invisible marks and stray spaces are not identity. `app.name` is already run
@@ -133,9 +153,9 @@ struct AppStoreOfferButtonTests {
     /// disk), and the Updates list compares row strings with `==`, where one space is
     /// the difference between a match and none.
     @Test func aStoreTitleIsCleanedTheSameWayTheBundleNameIs() {
-        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "  Keka  ").page == "Keka")
-        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "\u{200E}").page == "Keka")
-        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "\u{200E}Keka").page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "  Keka  ", localized: nil).page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "\u{200E}", localized: nil).page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "\u{200E}Keka", localized: nil).page == "Keka")
     }
 
     /// An exact match on *any* needle beats a loose match on the first one, because a
@@ -173,9 +193,9 @@ struct AppStoreOfferButtonTests {
     /// page (Foundation's `contains("")` is false), which would fail the update
     /// closed rather than fall back to the name that might have worked.
     @Test func withoutAStoreTitleTheBundleNameIsAllThereIs() {
-        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: nil).page == "Keka")
-        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "").page == "Keka")
-        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "  \n ").page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: nil, localized: nil).page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "", localized: nil).page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "  \n ", localized: nil).page == "Keka")
     }
 
     // MARK: - What the probe logs

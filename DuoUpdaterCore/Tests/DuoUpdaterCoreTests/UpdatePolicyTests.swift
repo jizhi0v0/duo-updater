@@ -89,7 +89,7 @@ private func storeAvailability(
 ) -> AppStoreAvailability {
     AppStoreAvailability(
         trackID: 123, availableRegion: availableRegion, homeRegion: homeRegion,
-        latestMacCompatible: latestMacCompatible)
+        latestMacCompatible: latestMacCompatible, storeName: nil)
 }
 
 // MARK: - canAutoInstall

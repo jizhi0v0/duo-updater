@@ -115,3 +115,26 @@ import Foundation
 
     #expect(result.releaseNotes == nil)
 }
+
+/// The listing is localised, and two things read it: the "What's New" text we show,
+/// and `AppStoreAXInstaller`, which must recognise the name App Store.app renders.
+/// Without `lang` the API answers in the storefront's default — measured 2026-09-05,
+/// same app and storefront: `country=us` gives "DingDing: Redefine Work in AI",
+/// `country=us&lang=zh_cn` gives "钉钉 - AI时代的工作方式".
+///
+/// The API wants `language_region`, which is not the shape `Locale.preferredLanguages`
+/// hands out. Chinese is the case that matters and the case that is easy to get wrong:
+/// it is identified by *script* there, and the script — not the region — picks the
+/// listing, so a Simplified-Chinese Mac in the US region still wants `zh_cn`.
+@Test func asksTheLookupForTheUsersOwnLanguage() {
+    #expect(MacAppStoreSource.storeLanguage(preferred: ["zh-Hans-US"], storefront: "us") == "zh_cn")
+    #expect(MacAppStoreSource.storeLanguage(preferred: ["zh-Hans-CN"], storefront: "cn") == "zh_cn")
+    #expect(MacAppStoreSource.storeLanguage(preferred: ["zh-Hant-TW"], storefront: "tw") == "zh_tw")
+    #expect(MacAppStoreSource.storeLanguage(preferred: ["zh-Hant-HK"], storefront: "hk") == "zh_tw")
+    #expect(MacAppStoreSource.storeLanguage(preferred: ["en-US"], storefront: "us") == "en_us")
+    #expect(MacAppStoreSource.storeLanguage(preferred: ["ja-JP"], storefront: "jp") == "ja_jp")
+    // No region of its own: ask in the storefront we are already asking.
+    #expect(MacAppStoreSource.storeLanguage(preferred: ["fr"], storefront: "ca") == "fr_ca")
+    // Nothing to name, nothing to send — which is exactly the old behaviour.
+    #expect(MacAppStoreSource.storeLanguage(preferred: [], storefront: "us") == nil)
+}

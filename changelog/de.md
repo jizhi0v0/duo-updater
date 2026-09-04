@@ -6,7 +6,11 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **Exportierte Anfrageprotokolle enthalten nicht mehr Ihren Kontonamen.** Für Apps in Ihrem Benutzerordner stand bisher in jeder Zeile der vollständige Pfad; jetzt steht dort `~`, unabhängig davon, wie Sie das Protokoll herausnehmen.
 
+**Der Tab „Requests“ sagt jetzt, was er erfasst und was nicht.** Erfasst werden die Abrufe, die Duo Updater selbst durchführt. Eine Seite mit Versionshinweisen lädt ihre eigenen Bilder und Schriften, und Updates aus dem App Store und von Homebrew werden von eigenen Werkzeugen ausgeführt – nichts davon erscheint dort, und das Fenster sagt es nun, statt es Ihrer Annahme zu überlassen.
+
 **„Copy URL“ maskiert die Adresse jetzt, bevor es sie herausgibt.** Pfade mit einem Leerzeichen – etwa die Downloads von Firefox, Thunderbird und Bartender – wurden roh kopiert; ein Browser gleicht das aus, die Kommandozeile nicht.
+
+**Unter der Haube.** Ein Zugangsschlüssel im Pfad einer Webadresse wird jetzt entfernt, bevor die Anfrage aufgezeichnet wird – so wie einer in einer Abfragezeichenfolge schon immer.
 
 ## 0.3.83
 

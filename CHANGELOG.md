@@ -23,7 +23,11 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **Request logs you export no longer carry your account name.** Every row for an app installed in your home folder used to spell out the full path; it now shows `~` instead, whichever way you take the log out.
 
+**The Requests tab now says what it does and does not cover.** It records the fetches Duo Updater makes itself. A release-notes page loads its own images and fonts, and App Store and Homebrew updates are carried out by separate tools — none of that appears there, and the window now says so instead of leaving you to assume.
+
 **Copy URL now escapes the address it gives you.** Paths containing a space — Firefox, Thunderbird and Bartender downloads among them — were copied raw, which a browser forgives and a command line does not.
+
+**Under the hood.** A credential carried inside a web address's path is now removed before the request is recorded, as one in a query string always has been.
 
 ## 0.3.83
 

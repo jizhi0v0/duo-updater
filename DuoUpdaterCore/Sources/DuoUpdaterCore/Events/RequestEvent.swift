@@ -33,6 +33,13 @@ public struct RequestEvent: Codable, Sendable, Hashable {
     /// into every unencrypted backup — the same reasoning that set
     /// `diskCapacity: 0` on `URLSession.updates`. Headers and bodies are never
     /// recorded, for the same reason.
+    ///
+    /// The path itself is not stored verbatim either: ``RecordedPath`` takes out
+    /// the two shapes it can recognise before this is written. That is a much
+    /// narrower net than the query rule above — a query parameter announces
+    /// itself by name and a path segment does not — and it is narrow on purpose,
+    /// because a redaction here is permanent and this field's whole job is to say
+    /// which file was fetched. See that type for what it deliberately keeps.
     public let path: String
 
     /// Whether the request carried a query string, **without carrying it**.

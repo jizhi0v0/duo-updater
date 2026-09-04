@@ -134,7 +134,7 @@ public actor AppStoreAXInstaller {
         guard Self.isTrusted else { throw AXError.notTrusted }
 
         let runningAtStart = bundleID.map { isRunning($0) } ?? false
-        Log.install.info("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
+        Log.install.notice("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
 
         onStage(.checking)
 
@@ -173,7 +173,7 @@ public actor AppStoreAXInstaller {
             Log.install.error("appstore-ax: \(appName, privacy: .public) offer button not found (viaUpdatesList=\(viaUpdatesList))")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
-        Log.install.info("appstore-ax: \(appName, privacy: .public) offer button located")
+        Log.install.notice("appstore-ax: \(appName, privacy: .public) offer button located")
 
         // Baseline the on-disk version *before* pressing, so completion is gated on
         // the bundle actually changing (see driveToCompletion) rather than on the
@@ -209,7 +209,7 @@ public actor AppStoreAXInstaller {
         // install dies at the 6-min poll cap.
         let sheetBeforePress = quitSheet(in: axApp) != nil
         AXUIElementPerformAction(offer, kAXPressAction as CFString)
-        Log.install.info("appstore-ax: \(appName, privacy: .public) pressed Update (baseline short=\(baseline.short ?? "?", privacy: .public) build=\(baseline.build ?? "?", privacy: .public))")
+        Log.install.notice("appstore-ax: \(appName, privacy: .public) pressed Update (baseline short=\(baseline.short ?? "?", privacy: .public) build=\(baseline.build ?? "?", privacy: .public))")
         onStage(.downloading(fraction: 0))
 
         try await driveToCompletion(
@@ -471,6 +471,7 @@ public actor AppStoreAXInstaller {
         var postContinueTicks = 0 // polls since we pressed Continue (to flag a no-op press)
         var stalledTicks = 0            // consecutive polls with the swap not moving
         var lastInstallProgress: Double? // last "Installing: N% Complete" we read
+        var lastOfferDump: String?      // shape of the last probe we logged (dedupe)
 
         // A sheet already on screen before we press is left over from an earlier
         // install: App Store can leave its "Close This App to Update" sheet up for
@@ -485,7 +486,7 @@ public actor AppStoreAXInstaller {
         // a fast delta's own sheet can beat us to it.
         var leftoverSheet = sheetBeforePress
         if leftoverSheet {
-            Log.install.info("appstore-ax: \(appName, privacy: .public) a sheet was already up before we pressed — ignoring it until it clears")
+            Log.install.notice("appstore-ax: \(appName, privacy: .public) a sheet was already up before we pressed — ignoring it until it clears")
         }
 
         // Is our quit prompt on screen and unanswered? While it is we keep polling —
@@ -506,7 +507,7 @@ public actor AppStoreAXInstaller {
             // Covers both the app-not-running case (installs directly, no sheet) and
             // the post-Continue swap. Keyed on short OR build version changing.
             if Self.versionChanged(from: baseline, appPath: appPath) {
-                Log.install.info("appstore-ax: \(appName, privacy: .public) install complete — bundle version changed on disk")
+                Log.install.notice("appstore-ax: \(appName, privacy: .public) install complete — bundle version changed on disk")
                 onStage(.done)
                 return
             }
@@ -589,7 +590,7 @@ public actor AppStoreAXInstaller {
                     // download ran in the background; the user just tapped Relaunch and expects
                     // the app to cycle.
                     if !askedToQuit {
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — asking for Relaunch/Cancel")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet shown — asking for Relaunch/Cancel")
                         requestQuit(appName)
                         askedToQuit = true
                     }
@@ -608,12 +609,12 @@ public actor AppStoreAXInstaller {
                     case .keepWaiting:
                         break
                     case .cancelled:
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) user declined — pressing Cancel")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) user declined — pressing Cancel")
                         withdrawQuit()
                         pressCancel(in: axApp, appName: appName)
                         throw AXError.cancelled
                     case .settledElsewhere:
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
                         withdrawQuit()
                         askedToQuit = false
                         onStage(.installing)
@@ -639,7 +640,7 @@ public actor AppStoreAXInstaller {
                     // a download behind it, so it stays past this grace and still bails.
                     sheetTicks += 1
                     if sheetTicks == 1 {
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) sheet before any download (sawProgress=\(sawProgress), running=\(bundleID.map { isRunning($0) } ?? false)) — waiting to see if a fast delta's progress lands")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) sheet before any download (sawProgress=\(sawProgress), running=\(bundleID.map { isRunning($0) } ?? false)) — waiting to see if a fast delta's progress lands")
                     }
                     if sheetTicks >= 8 {  // ~3.2s — well past the ~0.5s a real download takes to report progress
                         Log.install.error("appstore-ax: \(appName, privacy: .public) needs manual confirmation — no download after ~3s, bailing without pressing")
@@ -673,7 +674,7 @@ public actor AppStoreAXInstaller {
                         appRunning: bundleID.map { isRunning($0) } ?? false
                     ) {
                     case .settledElsewhere:
-                        Log.install.info("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
+                        Log.install.notice("appstore-ax: \(appName, privacy: .public) quit confirmed in App Store — withdrawing our prompt")
                         withdrawQuit()
                         askedToQuit = false
                         onStage(.installing)
@@ -699,7 +700,7 @@ public actor AppStoreAXInstaller {
                     case .keepWaiting:
                         sheetlessPromptTicks += 1
                         if sheetlessPromptTicks >= 4 {  // ~6s at the 1.5s prompt cadence
-                            Log.install.info("appstore-ax: \(appName, privacy: .public) close-to-update sheet dismissed elsewhere with the app still running — treating as cancelled")
+                            Log.install.notice("appstore-ax: \(appName, privacy: .public) close-to-update sheet dismissed elsewhere with the app still running — treating as cancelled")
                             withdrawQuit()
                             throw AXError.cancelled
                         }
@@ -709,13 +710,35 @@ public actor AppStoreAXInstaller {
 
             // 3. Surface download progress from the offer button title (display only).
             // Once we've pressed Continue the title is meaningless, so stop reading it.
-            if !continued, let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList), let title = title(offer) {
+            let offer = continued ? nil : offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList)
+            // Probe: dump what the button actually exposes, once per distinct reading.
+            // The whole progress display hangs off `title(offer)`, and an install that
+            // reports 0% for its entire download leaves no evidence of why — every line
+            // that would say so was `.info`, which never reaches disk. `.notice` does.
+            // The subtree comes along because these pages are web-rendered: a text's
+            // string lives in `AXValue`, not `AXTitle` (the same trap `subtreeMentions`
+            // and `rowTexts` were both fixed for), and a percentage drawn as a ring may
+            // sit on a child rather than on the button.
+            if !continued {
+                let dump = offer.map { probeDump($0) } ?? "button=nil"
+                // Deduped on the reading's *shape*, not its digits: a download ticks the
+                // percentage ~2×/s, and logging each one would put thousands of lines on
+                // disk for one large app while saying nothing new. What is worth a line
+                // is a change of kind — the button appearing or vanishing, "Loading"
+                // becoming a percentage, a percentage becoming "Update".
+                let key = Self.readingShape(dump)
+                if key != lastOfferDump {
+                    lastOfferDump = key
+                    Log.install.notice("appstore-ax: \(appName, privacy: .public) offer \(dump, privacy: .public)")
+                }
+            }
+            if let offer, let title = title(offer) {
                 if let fraction = Self.progressFraction(title) {
-                    if !sawProgress { Log.install.info("appstore-ax: \(appName, privacy: .public) download started") }
+                    if !sawProgress { Log.install.notice("appstore-ax: \(appName, privacy: .public) download started") }
                     sawProgress = true
                     onStage(.downloading(fraction: fraction))
                 } else if Self.isLoadingTitle(title) {
-                    if !sawProgress { Log.install.info("appstore-ax: \(appName, privacy: .public) download starting (loading)") }
+                    if !sawProgress { Log.install.notice("appstore-ax: \(appName, privacy: .public) download starting (loading)") }
                     sawProgress = true
                     onStage(.downloading(fraction: 0))
                 }
@@ -730,7 +753,7 @@ public actor AppStoreAXInstaller {
             } else {
                 idleTicks += 1
                 if idleTicks == 30 && !repressed {
-                    Log.install.info("appstore-ax: \(appName, privacy: .public) no progress/sheet after ~12s — re-pressing Update once")
+                    Log.install.notice("appstore-ax: \(appName, privacy: .public) no progress/sheet after ~12s — re-pressing Update once")
                     if let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) {
                         AXUIElementPerformAction(offer, kAXPressAction as CFString)
                     }
@@ -810,7 +833,7 @@ public actor AppStoreAXInstaller {
         }
         for _ in 0..<60 {  // ~12s at 200ms
             if !isRunning(bundleID) {
-                Log.install.info("appstore-ax: \(appName, privacy: .public) quit — App Store can now swap in the update")
+                Log.install.notice("appstore-ax: \(appName, privacy: .public) quit — App Store can now swap in the update")
                 return
             }
             try? await Task.sleep(for: .milliseconds(200))
@@ -895,6 +918,18 @@ public actor AppStoreAXInstaller {
         guard let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList),
               let text = title(offer) else { return nil }
         return Self.progressFraction(text)
+    }
+
+    /// One offer-button reading with its digits blanked, so two readings that differ
+    /// only by how far the download has got compare equal.
+    ///
+    /// This is what keeps the probe's `.notice` lines to the transitions that carry
+    /// information. Numbers are the only thing dropped — a title going from "Loading"
+    /// to "3% loaded" still differs (the word changed), and so does a button appearing
+    /// or vanishing, which is the reading that mattered most in the bug this probe was
+    /// written for.
+    static func readingShape(_ dump: String) -> String {
+        dump.replacingOccurrences(of: #"[0-9]+(\.[0-9]+)?"#, with: "N", options: .regularExpression)
     }
 
     /// A transient pre-progress state ("Loading", "Opening…") shown right after the
@@ -1153,6 +1188,45 @@ public actor AppStoreAXInstaller {
     }
 
     private func role(_ el: AXUIElement) -> String { string(el, kAXRoleAttribute as String) ?? "" }
+
+    /// One-line, log-safe snapshot of the offer button and its subtree, for the probe
+    /// in `driveToCompletion`. Values are described rather than string-cast: a progress
+    /// ring's `AXValue` is a number, and reading it as a string is exactly how a
+    /// percentage would go missing without anyone noticing.
+    ///
+    /// Bounded on both axes (2 levels, 6 children, 400 chars) — it is emitted at
+    /// `.notice` on every distinct reading, so it has to stay small.
+    private func probeDump(_ el: AXUIElement, depth: Int = 0) -> String {
+        var parts = ["role=\(role(el))"]
+        for attr in [kAXTitleAttribute as String, "AXValue", kAXDescriptionAttribute as String, kAXHelpAttribute as String] {
+            if let v = describeAttribute(el, attr) { parts.append("\(attr)=\(v)") }
+        }
+        if depth == 0, let names = attributeNames(el) {
+            parts.append("attrs=[\(names.joined(separator: ","))]")
+        }
+        var out = parts.joined(separator: " ")
+        if depth < 2 {
+            let kids = children(el).prefix(6).map { probeDump($0, depth: depth + 1) }
+            if !kids.isEmpty { out += " {\(kids.joined(separator: " | "))}" }
+        }
+        return out.count > 400 ? String(out.prefix(400)) + "…" : out
+    }
+
+    /// An attribute's value as text, whatever its type — `nil` when the attribute is
+    /// absent, so an empty string stays distinguishable from a missing one.
+    private func describeAttribute(_ el: AXUIElement, _ attr: String) -> String? {
+        var v: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(el, attr as CFString, &v) == .success, let v else { return nil }
+        if let s = v as? String { return "\"\(s)\"" }
+        if let n = v as? NSNumber { return n.stringValue }
+        return "<\(CFCopyTypeIDDescription(CFGetTypeID(v)) as String? ?? "?")>"
+    }
+
+    private func attributeNames(_ el: AXUIElement) -> [String]? {
+        var v: CFArray?
+        guard AXUIElementCopyAttributeNames(el, &v) == .success else { return nil }
+        return v as? [String]
+    }
 
     private func title(_ el: AXUIElement) -> String? {
         string(el, kAXTitleAttribute as String) ?? string(el, kAXDescriptionAttribute as String)

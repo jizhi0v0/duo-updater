@@ -176,6 +176,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**TypeWhisper**](com-typewhisper-mac.md) · `com.typewhisper.mac` — S(stable+rc+daily) C · 三轨 tag 过、共享 bundle id · 真包 1.6.0/rc2/daily 三轨验证 ✓ · **rc 轨当时被判成 stable**（rc 包 short 也是 `1.6.0`），引擎已修 + 装 rc2 上机复验 · changelog 走官网 recipe（feed 无 inline；页面 mac/Windows 混排，须锚平台徽章）· 2026-08-31
 - [x] [**OpenUsage**](com-robinebers-openusage.md) · `com.robinebers.openusage` — S(stable+beta) C · 真包 v0.7.10 挂载验证 ✓（beta 显式 channel tag，beta 包实测正确升 stable）· **feed 51 条全无 `<description>`**，changelog 走 `ChangelogCatalog` 兜底到 GitHub releases（2026-08-31 补）· 2026-08-31
 - [x] [**Supacode**](app-supabit-supacode.md) · `app.supabit.supacode` — S · default+tip 两轨真包验证 ✓（tip 经 build 反查推断，零 recipe）· **2026-08-31 复验发现 tip 轨当时被判成 default**（tip 包 short 与 default 条目同为 `0.10.8`，渠道推断按文档序先撞上 short），引擎已修为两趟匹配；tip 条目本身无 changelog · 2026-08-31
+- [x] [**PDF Expert**](com-readdle-PDFExpert-Mac.md) · `com.readdle.PDFExpert-Mac` — S C · ⚠️ bundle 的 `SUFeedURL` 指着一份 **2022 年冻结**的 feed（build 764），其中一条没有 `maximumSystemVersion`，于是通用 Sparkle 源在现代 Mac 上读到 2.5.22 并判「已是最新」——零报错、cask 又是 `auto_updates` 无人兜底，这个 app 一直是隐形的。新增 `SparkleFeedCatalog.supersededFeeds` 按**死地址**（不是 bundle id）换到 pem3 feed；判据是 pem3 的 `edSignature` 用装机 bundle 自己的 `SUPublicEDKey` 验签通过 ✓。changelog 走 recipe 解 `fullReleaseNotesLink` 那张页（88 条，appcast 那份只有最新一版）· ⚠️ 证据全取自厂商产物，未做端到端安装，一键路径 needs-verify · 2026-09-04
 
 ## Investigated — blocked safely
 

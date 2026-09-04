@@ -119,8 +119,13 @@ struct AppStoreOfferButtonTests {
 
     /// No store title (the lookup didn't supply one) leaves the bundle name as the
     /// only thing to match on — the behaviour every App Store update had before.
+    /// A blank one counts as none: matching on "" makes `heroOwns` false for every
+    /// page (Foundation's `contains("")` is false), which would fail the update
+    /// closed rather than fall back to the name that might have worked.
     @Test func withoutAStoreTitleTheBundleNameIsAllThereIs() {
         #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: nil).page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "").page == "Keka")
+        #expect(AppStoreAXInstaller.AppNames(bundle: "Keka", store: "  \n ").page == "Keka")
     }
 
     // MARK: - What the probe logs

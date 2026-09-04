@@ -71,7 +71,17 @@ public actor AppStoreAXInstaller {
         /// lockup and on the Updates list row alike (both measured). The store's
         /// title when we know it: it is the store's own name for the app, and the
         /// only one guaranteed to still be there once a page finishes rendering.
-        var page: String { store ?? bundle }
+        ///
+        /// A blank title is not an identity, so it counts as no title at all. Left
+        /// in, it would be matched with `localizedCaseInsensitiveContains("")` —
+        /// which Foundation answers **false** — so `heroOwns` would be false for
+        /// every page and the update would fail closed with `.offerButtonNotFound`,
+        /// on an app whose bundle name might well have found its page.
+        var page: String {
+            guard let store, !store.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else { return bundle }
+            return store
+        }
     }
 
     public enum AXError: LocalizedError {

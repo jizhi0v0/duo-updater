@@ -2,6 +2,12 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l'anglais.
 
+## 0.3.84
+
+**L’onglet « Requests » indique désormais ce qu’il couvre et ce qu’il ne couvre pas.** Il enregistre les requêtes que Duo Updater effectue lui-même. Une page de notes de version charge ses propres images et polices, et les mises à jour de l’App Store et de Homebrew sont effectuées par des outils distincts : rien de tout cela n’y figure, et la fenêtre le dit maintenant au lieu de vous laisser le supposer.
+
+**Sous le capot.** Un identifiant présent dans le chemin d’une adresse web est désormais retiré avant l’enregistrement de la requête, comme l’était déjà celui d’une chaîne de requête.
+
 ## 0.3.83
 
 **La fenêtre « Download Traffic » s’appelle désormais « Network » et comporte un second onglet.** « Downloads », c’est le relevé que vous aviez déjà : ce que chaque mise à jour a coûté en tant que fichier. « Requests » est nouveau : chaque requête que Duo Updater effectue pour vous, son objet, l’app à laquelle elle se rattache et ce qu’elle a coûté, avec un champ de filtre pour interroger le journal plutôt que le faire défiler. Les chiffres du haut répondent à ce que vous avez filtré, pas au total de toujours.

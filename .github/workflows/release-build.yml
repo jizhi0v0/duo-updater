@@ -1,0 +1,132 @@
+# Build, sign, notarize and attest the release artifact on a GitHub-hosted Mac.
+#
+# What this workflow deliberately does NOT do: create a release, push an appcast,
+# or touch anything already published. It has no `contents: write`. The artifact
+# comes out as a workflow artifact and the publishing half stays on the author's
+# Mac, because that half needs the Sparkle EdDSA key — and a leaked Developer ID
+# certificate can be revoked by Apple, while a leaked Sparkle key lets anyone push
+# an update to every installed copy and Sparkle documents no rotation or
+# revocation path for it. The two keys are not the same kind of secret, so they do
+# not live in the same place.
+#
+# The attestation still covers what ships: `dist/DuoUpdater-notarized.zip` and the
+# published `DuoUpdater-<version>-macos.zip` are byte-identical (publish-release.sh
+# copies it), and provenance binds to the digest, so it verifies wherever the file
+# is uploaded from.
+#
+# Manual trigger only. No `push`, no `pull_request`, and never
+# `pull_request_target`: this is the workflow that has secrets, so nothing a fork
+# can influence may start it.
+name: Release build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read       # no release is created here
+  id-token: write      # Sigstore OIDC, for the provenance signature
+  attestations: write  # write the attestation to the repository
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # A throwaway keychain, made the default so `notarytool --keychain-profile`
+      # and `codesign` both find what they need without either being told about
+      # it. Deleted in the always-run step at the end; the runner is torn down
+      # regardless, but leaving it to that would be relying on someone else's
+      # cleanup for a private key.
+      - name: Load the signing certificate
+        env:
+          CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [ -n "${CERT_P12:-}" ] || { echo "::error::APPLE_CERT_P12 is not set"; exit 1; }
+          kc="$RUNNER_TEMP/duo-build.keychain-db"
+          kcpass="$(uuidgen)"
+          security create-keychain -p "$kcpass" "$kc"
+          # -lut 21600: do NOT let the keychain auto-lock partway through a build
+          # that can run for tens of minutes. A mid-build lock shows up as a
+          # codesign failure with nothing pointing at the cause.
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$kcpass" "$kc"
+          printf '%s' "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$kc" \
+            -P "${CERT_PASSWORD:-}" -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/cert.p12"
+          # Without this, codesign blocks on a UI prompt that no one can answer
+          # and the job hangs until its timeout rather than failing.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$kcpass" "$kc" >/dev/null
+          security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s "$kc"
+          echo "DUO_CI_KEYCHAIN=$kc" >> "$GITHUB_ENV"
+          # Names only, never the identity's private material.
+          security find-identity -v -p codesigning "$kc" | sed 's/) .*(/) …(/'
+
+      # Written into the same throwaway keychain, so scripts/notarize.sh runs
+      # unmodified: it takes a profile name and nothing else, which is what keeps
+      # the CI path and the local path from drifting into two procedures.
+      - name: Store notarization credentials
+        env:
+          API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          xcrun notarytool store-credentials duo-ci \
+            --key "$RUNNER_TEMP/AuthKey.p8" \
+            --key-id "$API_KEY_ID" \
+            --issuer "$API_ISSUER_ID" \
+            --keychain "$DUO_CI_KEYCHAIN"
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+      # The same script the author runs locally. Its own gates refuse an ad-hoc
+      # signature, a wrong team, a missing hardened runtime and a get-task-allow
+      # entitlement, so a CI build that is signed wrongly fails here rather than
+      # becoming an artifact nobody checked.
+      - name: Build and notarize
+        env:
+          NOTARYTOOL_PROFILE: duo-ci
+        run: make notarize
+
+      - name: Record what was built
+        run: |
+          set -euo pipefail
+          zip=dist/DuoUpdater-notarized.zip
+          [ -f "$zip" ] || { echo "::error::$zip was not produced"; exit 1; }
+          shasum -a 256 "$zip"
+          ls -l "$zip"
+
+      # Binds this exact file, by digest, to this commit and this workflow, signed
+      # with a short-lived Sigstore certificate. Anyone can check it afterwards:
+      #   gh attestation verify DuoUpdater-<version>-macos.zip --repo jizhi0v0/duo-updater
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: dist/DuoUpdater-notarized.zip
+
+      - name: Upload the artifact
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v4
+        with:
+          name: DuoUpdater-notarized
+          path: dist/DuoUpdater-notarized.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove the signing keychain
+        if: always()
+        run: |
+          security default-keychain -s login.keychain-db 2>/dev/null || true
+          [ -n "${DUO_CI_KEYCHAIN:-}" ] && security delete-keychain "$DUO_CI_KEYCHAIN" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/AuthKey.p8" 2>/dev/null || true
+          exit 0

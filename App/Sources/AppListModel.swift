@@ -1368,8 +1368,11 @@ final class AppListModel {
 
     /// The matching rows exactly as stored, one JSON object per line.
     func exportRequestLog(_ query: RequestQuery) async -> String {
+        // `exportJSON`, not `json`. This one is a file the user is about to hand
+        // to someone, and it claims to be the shape `duo events` emits — so it
+        // has to abbreviate the home directory the way that command does.
         await eventStore.requestRows(query, limit: 100_000)
-            .map(\.json).joined(separator: "\n") + "\n"
+            .map(\.exportJSON).joined(separator: "\n") + "\n"
     }
 
     /// Discard every recorded request and every running total.

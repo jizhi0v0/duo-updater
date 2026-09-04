@@ -33,6 +33,13 @@ public struct RequestEvent: Codable, Sendable, Hashable {
     /// into every unencrypted backup — the same reasoning that set
     /// `diskCapacity: 0` on `URLSession.updates`. Headers and bodies are never
     /// recorded, for the same reason.
+    ///
+    /// The path itself is not stored verbatim either: ``RecordedPath`` takes out
+    /// the two shapes it can recognise before this is written. That is a much
+    /// narrower net than the query rule above — a query parameter announces
+    /// itself by name and a path segment does not — and it is narrow on purpose,
+    /// because a redaction here is permanent and this field's whole job is to say
+    /// which file was fetched. See that type for what it deliberately keeps.
     public let path: String
 
     /// Whether the request carried a query string, **without carrying it**.
@@ -205,10 +212,31 @@ public struct RequestEvent: Codable, Sendable, Hashable {
         return URL(fileURLWithPath: appID).deletingPathExtension().lastPathComponent
     }
 
+    /// The row as something you can paste into a browser or `curl`.
+    ///
+    /// **The path is percent-encoded on the way out, because it was decoded on
+    /// the way in.** `URL.path` hands back the *decoded* path, so a request for
+    /// `Firefox%20155.0.dmg` is stored as `Firefox 155.0.dmg` — measured: 18 of
+    /// the 590 distinct paths on one real machine carry a literal space, all of
+    /// them Mozilla, Bartender and Termius download URLs. Concatenating that
+    /// straight into a URL string produced something that is not a URL and does
+    /// not fetch, which is the one job this property has.
+    ///
+    /// Re-encoding cannot undo an encoded *separator*: a `%2F` arrived here as a
+    /// plain `/` and is now indistinguishable from a real segment boundary. That
+    /// loss happens at write time in ``RequestMetricsRecorder``, not here, and no
+    /// row on the machine measured above has one.
+    ///
+    /// The displayed form is deliberately *not* this one — the table shows
+    /// `host + path` decoded, because a human reading a row wants
+    /// `Firefox 155.0.dmg`. Only the copy is escaped.
     public var url: String {
         var text = "\(scheme ?? "https")://\(host)"
         if let port, port != (scheme == "http" ? 80 : 443) { text += ":\(port)" }
-        return text + path
+        // `.urlPathAllowed` escapes `?`, `#` and `%` as well as space — verified,
+        // and it has to: a decoded `%3F` left bare would turn the tail of a path
+        // into a query string, which is a worse lie than an unfetchable URL.
+        return text + (path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path)
     }
 
 

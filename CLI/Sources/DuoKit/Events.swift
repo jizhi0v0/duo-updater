@@ -49,13 +49,6 @@ public enum Events {
             return 0
         }
 
-        // The home directory is abbreviated on the way out. An install event's
-        // `appID` is a bundle path, and on a real machine a third of them sit
-        // under `/Users/<name>/Applications`, so a dump framed as something to
-        // pipe elsewhere would carry the account name in every one of them —
-        // while the same command advertises that query strings are never
-        // recorded. The payload is otherwise emitted exactly as stored.
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
         let rows: [EventRow]
         if var filter = options.filter {
             filter.since = options.query.since
@@ -64,8 +57,11 @@ public enum Events {
         } else {
             rows = await store.rawRows(options.query)
         }
+        // `exportJSON`, not `json`: the home directory is abbreviated on the way
+        // out, so a dump framed as something to pipe elsewhere does not carry the
+        // account name in every bundle path. See `EventRow.exportJSON`.
         for row in rows {
-            print(row.json.replacingOccurrences(of: home, with: "~"))
+            print(row.exportJSON)
         }
         return 0
     }

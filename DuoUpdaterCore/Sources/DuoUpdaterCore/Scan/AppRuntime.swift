@@ -119,9 +119,18 @@ public struct LinkedFrameworks: OptionSet, Sendable, Hashable, Codable {
 ///    expensive to do for every app, so it runs only for the bundles the first
 ///    two sources have already narrowed to a handful. See the `tauri` rule below.
 ///
-/// Returns nil when none of the three recognizes anything, which is the honest answer
+/// Source 2 is asked at most twice. Where a bundle's declared executable is a
+/// launcher rather than the app — Audacity's `Wrapper` sets a dylib path and execs
+/// the binary beside it — the load commands describe the stub, so the rules are
+/// retried against `Contents/MacOS/<bundle name>`. That is the only place any
+/// source is consulted about a file the plist did not name; see the rule at the
+/// end of `read`.
+///
+/// Returns nil when none of them recognizes anything, which is the honest answer
 /// for a launcher shell script, a Python app, or a C++ app that links neither
 /// AppKit nor a bundled toolkit — the UI shows no badge rather than a wrong one.
+/// A launcher whose payload is a dylib rather than a binary beside it, LibreOffice
+/// among them, still lands here.
 public enum AppRuntimeDetector {
 
     /// Injected so the rules can be tested without a real Mach-O binary on disk.
@@ -284,7 +293,11 @@ public enum AppRuntimeDetector {
         }
 
         // Everything left is decided by what the binary links, so an unreadable one
-        // ends the enquiry.
+        // ends the enquiry — including for the launcher-stub retry below, which is
+        // deliberately reachable only from a *successful* read that proved nothing.
+        // A declared executable that is missing or cannot be read is the case this
+        // file has always failed closed on, and reading a different file instead
+        // would be the guess it refuses to make.
         guard let libraries else { return reading(nil) }
 
         // Tauri — the one case decided by reading a binary's *contents*, and the
@@ -338,19 +351,150 @@ public enum AppRuntimeDetector {
             return reading(.tauri)
         }
 
-        // Mac Catalyst apps link the iOS frameworks shipped under /System/iOSSupport.
-        if libraries.contains(where: { $0.contains("/System/iOSSupport/") }) { return reading(.catalyst) }
+        // Mac Catalyst and native, both read off the load commands in hand.
+        //
+        // The framework set is handed in rather than recomputed inside, and the
+        // reason is measured rather than assumed: this line is where every app the
+        // layout rules did not settle arrives, which is most of a library — 91 of
+        // the 161 bundles on the machine this was written on (86 native, 1
+        // catalyst, 4 unlabelled). The version that recomputed it here cost +15ms
+        // on that sweep and +6ms on a 60-app one, against +0.4ms for the retry
+        // below. `frameworks(in:)` is three substring scans over a load-command
+        // list that runs to hundreds of entries, which is cheap once per bundle and
+        // is not free twice.
+        if let verdict = linkVerdict(libraries, frameworks: frameworks) { return verdict }
 
+        // The declared executable answered nothing — and for one shape that is
+        // because it is not the app. Audacity's `CFBundleExecutable` is `Wrapper`,
+        // a 70 KB launcher that links libSystem and nothing else; it sets the dylib
+        // search path and executes `Contents/MacOS/Audacity`, which is where the
+        // AppKit link is. Every rule above was correct about the file it was
+        // pointed at, and none of them was looking at the app.
+        //
+        // The retry reads the binary *named after the bundle*, which is positive
+        // evidence rather than a search: `Contents/MacOS` is otherwise full of
+        // helpers and command-line tools — LibreOffice keeps ten beside `soffice`
+        // — and adopting any of their load commands would attribute a subprocess's
+        // runtime to its host. That is the same trap `nestedInterface` documents
+        // one level up.
+        //
+        // Which also fixes the shape and not the class, so: LibreOffice itself is
+        // still unlabelled after this. Its launcher is the same 53 KB shape as
+        // Audacity's, but its payload is `Contents/Frameworks/libmergedlo.dylib`,
+        // not a binary beside the stub, and no rule here reads a dylib. Xcode's
+        // debug-dylib builds (`<Name>.debug.dylib` beside a `<Name>` stub) miss for
+        // the same reason and then miss again, since there the declared executable
+        // *is* the one named after the bundle.
+        //
+        // It cannot recurse. The sibling is a file, not a bundle, so nothing
+        // re-enters `read`; the guard against the declared executable's own path
+        // means no binary is read twice; and only the link-based rules are retried,
+        // never the Tauri proof — that one is a whole-binary byte search, the one
+        // read in this file measured in hundreds of milliseconds rather than
+        // fractions of one, and a launcher stub is not what it was budgeted for. A
+        // Tauri app hiding behind a stub therefore reads as native, which is the
+        // direction this file already fails in.
+        //
+        // Cost is a `stat` for the bundles that would otherwise have gone
+        // unlabelled — 4 of 161 on one machine here, 3 of 60 on another — and one
+        // more `linkedLibraries` call for the few that have the file. Nothing at
+        // all for the rest: a bundle that reached a verdict returned above. The
+        // read is bounded by the load-command region rather than by file size, so
+        // Audacity's 21 MB payload measured 0.12ms, and the whole-library sweep is
+        // indistinguishable from the sweep before this existed.
+        if let payload = payloadNamedAfterTheBundle(
+            bundleAt: bundleURL, declaredExecutable: executable, fm: fm),
+           let payloadLibraries = linkedLibraries(payload),
+           let verdict = linkVerdict(payloadLibraries, frameworks: Self.frameworks(in: payloadLibraries)) {
+            return verdict
+        }
+
+        return reading(nil)
+    }
+
+    /// The verdict a load-command list settles on its own, or nil where it settles
+    /// nothing. Split out so the launcher-stub retry reaches the same two rules the
+    /// declared executable does, from one copy.
+    private static func linkVerdict(_ libraries: Set<String>, frameworks: LinkedFrameworks) -> Reading? {
+        // Mac Catalyst apps link the iOS frameworks shipped under /System/iOSSupport.
+        if libraries.contains(where: { $0.contains("/System/iOSSupport/") }) {
+            return Reading(runtime: .catalyst, frameworks: frameworks)
+        }
         // Native covers anything drawing through Apple's own frameworks, including
         // an app that renders its whole interface itself on top of them — Zed's
         // GPUI links AppKit and Metal and draws every pixel with the latter. The
         // distinction this enum makes is against *cross-platform runtimes*, not
         // against custom renderers, and `frameworks` carries the detail.
         if frameworks.contains(.appKit) || frameworks.contains(.swiftUI) {
-            return reading(.native)
+            return Reading(runtime: .native, frameworks: frameworks)
         }
+        return nil
+    }
 
-        return reading(nil)
+    /// `Contents/MacOS/<bundle name>`, when that is a real file and not the
+    /// executable the plist already named.
+    ///
+    /// The name comes from the bundle on disk rather than from `CFBundleName`,
+    /// which is a display string a vendor may localize or leave off entirely; the
+    /// payload beside a launcher is named after the bundle the packager built. The
+    /// cost of that choice, stated because it is invisible: a bundle the user
+    /// renamed in Finder loses the retry and goes back to unlabelled.
+    ///
+    /// A directory is refused. `Contents/MacOS/<name>.app` — the nested-bundle
+    /// location — normally cannot collide here because the extension makes the
+    /// names differ, but `Foo.app.app` is enough to defeat that reasoning
+    /// (`deletingPathExtension` yields `Foo.app`), so the guard is load-bearing
+    /// rather than defensive. It follows symlinks, which is why a link to a
+    /// directory is refused too.
+    private static func payloadNamedAfterTheBundle(
+        bundleAt bundleURL: URL, declaredExecutable: URL?, fm: FileManager
+    ) -> URL? {
+        let name = bundleURL.deletingPathExtension().lastPathComponent
+        guard !name.isEmpty else { return nil }
+        let url = bundleURL.appendingPathComponent("Contents/MacOS").appendingPathComponent(name)
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else {
+            return nil
+        }
+        // Asked last, of a file that exists: identity costs two more trips to the
+        // filesystem, and there is nothing to compare until there is a candidate.
+        guard !isTheSameFile(url, declaredExecutable) else { return nil }
+        return url
+    }
+
+    /// Whether two paths name one file — asked so the retry never re-reads the
+    /// binary the plist already named.
+    ///
+    /// Comparing the two paths as strings is not enough, and neither near-miss is
+    /// exotic. `/Applications` and `/tmp` are both case-*insensitive* by default, so
+    /// a bundle named `Ghostty.app` declaring `ghostty` has one binary and two
+    /// spellings of it — and that spelling is the house style of cargo-bundled
+    /// apps, five of which are installed on the machine this was written on. A
+    /// symlink does the same thing with two genuinely different names; LibreOffice
+    /// ships three in `Contents/MacOS`. Both defeat a `==` and neither defeats
+    /// `fileExists`, so the retry would open and parse the same Mach-O twice — for
+    /// the whole population of apps this cannot help, since those are exactly the
+    /// ones that reach it.
+    ///
+    /// Each is asked of the path a symlink resolves to, and then of the file
+    /// itself: `fileResourceIdentifier` is read for the link rather than through it
+    /// — a symlink and its target come back as two different files — so resolving
+    /// first is what makes the second name compare equal. The identifier then
+    /// settles the case-only pairs, and settles them per volume: on a
+    /// case-*sensitive* one, where `foo` and `Foo` really are two files, the retry
+    /// still happens and is still right. An unreadable identifier falls back to
+    /// allowing the retry — one wasted read is the harmless direction.
+    private static func isTheSameFile(_ lhs: URL, _ rhs: URL?) -> Bool {
+        guard let rhs else { return false }
+        let left = lhs.resolvingSymlinksInPath()
+        let right = rhs.resolvingSymlinksInPath()
+        if left.path == right.path { return true }
+        guard let leftID = (try? left.resourceValues(forKeys: [.fileResourceIdentifierKey]))?
+                .fileResourceIdentifier,
+              let rightID = (try? right.resourceValues(forKeys: [.fileResourceIdentifierKey]))?
+                .fileResourceIdentifier
+        else { return false }
+        return leftID.isEqual(rightID)
     }
 
     /// The bundle whose contents describe the app's interface: the bundle itself

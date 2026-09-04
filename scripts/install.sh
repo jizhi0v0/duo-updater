@@ -18,7 +18,17 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="$REPO/App"
-DD="${DERIVED_DATA:-/tmp/duo-dd}"
+
+# Per checkout, and the dead ones reclaimed — see scripts/derived_data_path.py,
+# which app-tests.sh and row-state-gallery.sh already go through. This used to be
+# a fixed /tmp/duo-dd shared by every worktree open at once, which is a couple of
+# dozen here: two concurrent builds collide on one derived-data directory, and
+# the failure reads as a broken build rather than as contention. Two runs in the
+# SAME checkout still share it — the one collision left, and not worth a lock.
+# `DERIVED_DATA` overrides, and is exported so the checks this script calls can
+# name the directory they want you to delete.
+DD="${DERIVED_DATA:-$(python3 "$REPO/scripts/derived_data_path.py" install "$REPO")}"
+export DERIVED_DATA="$DD"
 PRODUCT="$DD/Build/Products/Release/DuoUpdater.app"
 DEST="/Applications/DuoUpdater.app"
 # The Developer ID team the build signs with, and the identity every gate in
@@ -37,11 +47,29 @@ say "Generating Xcode project from App/project.yml"
 ( cd "$APP_DIR" && xcodegen generate >/dev/null )
 
 say "Building Release (Developer ID signing)"
+# To a file rather than to /dev/null. xcodebuild prints compile errors on
+# STDOUT, so discarding it left a failed install showing thirteen lines that say
+# only "** BUILD FAILED **" — the reason existed and was thrown away, and the
+# only way to see it was to reconstruct the command by hand. Per process, not
+# just per checkout: a second run in this checkout would otherwise truncate the
+# log the first one is about to quote from.
+mkdir -p "$DD"
+LOG="$DD/install-$$.log"
+set +e
 xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
            -scheme DuoUpdater -configuration Release \
-           -derivedDataPath "$DD" build >/dev/null
+           -derivedDataPath "$DD" build > "$LOG" 2>&1
+STATUS=$?
+set -e
+if [ $STATUS -ne 0 ]; then
+  # `|| true` because `set -o pipefail` is on and a grep that matches nothing
+  # exits 1 — which under errexit would abort this script before it prints the
+  # log path, turning "here is what broke" back into silence.
+  grep -E "error:|warning: .*(signing|provisioning)|\*\* BUILD FAILED" "$LOG" | head -40 || true
+  die "build failed — full log: $LOG"
+fi
 
-[ -d "$PRODUCT" ] || die "build produced no app at $PRODUCT"
+[ -d "$PRODUCT" ] || die "build produced no app at $PRODUCT (log: $LOG)"
 
 say "Re-signing Sparkle helper tools"
 identity="$(codesign -dvv "$PRODUCT" 2>&1 | sed -n 's/^Authority=//p' | head -n 1)"

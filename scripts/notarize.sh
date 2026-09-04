@@ -16,6 +16,11 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="$REPO/App"
 DD="${DERIVED_DATA:-/tmp/duo-notary-dd}"
+# Exported so verify-localizations.sh can name this directory in the one message
+# whose whole content is "delete the derived-data directory" — the release path
+# uses a different one from `make install`, and a remedy naming the wrong
+# directory is worse than one naming none.
+export DERIVED_DATA="$DD"
 BUILD_APP="$DD/Build/Products/Release/DuoUpdater.app"
 STAGE_DIR="${DIST_DIR:-$REPO/dist/notarize}"
 STAGE_APP="$STAGE_DIR/DuoUpdater.app"

@@ -72,6 +72,7 @@ struct RequestLogPane: View {
     @Environment(\.controlActiveState) private var activeState
     @State private var confirmingReset = false
     @State private var explainingCounts = false
+    @State private var explainingScope = false
 
     /// Coarse date ranges, as a menu rather than tokens. Two reasons: a date is
     /// the one filter nobody wants to type, and it is the one that decides how
@@ -750,6 +751,7 @@ struct RequestLogPane: View {
             } else {
                 Text("\(summary.requests) requests")
             }
+            scopeNote
             if heldBack {
                 Button {
                     heldBack = false
@@ -790,6 +792,43 @@ struct RequestLogPane: View {
             // answer to what keeping this machine updated has cost.
             Text("Every request and every running total goes. The Downloads tab is not affected.")
         }
+    }
+
+    /// Says what the log is a log *of*, and — the part that needs saying — what
+    /// it is not.
+    ///
+    /// Every figure in this window is scoped to the requests this app issues
+    /// through its own session. That is nearly all of its own traffic, but it is
+    /// not everything this Mac sends on an app's behalf: a release-notes page is
+    /// rendered in a web view that fetches its own images and fonts, and App
+    /// Store and Homebrew updates are carried out by separate tools that do
+    /// their own networking. None of that is recorded here and none of it can
+    /// be — so a window that says "13 hosts" without qualification is inviting
+    /// the reading that those are the only thirteen.
+    ///
+    /// `duo requests` has said this since it shipped, in its one-line summary
+    /// ("what DuoUpdater *itself* put on the network"). This window had no
+    /// equivalent, and it is the one most people will see.
+    ///
+    /// Always visible rather than a tooltip on the count, for the reason the
+    /// counts explainer next to it is a button and not a tooltip: nobody hovers
+    /// a figure they do not already suspect of being interesting, and the whole
+    /// point here is to reach the reader who suspects nothing.
+    private var scopeNote: some View {
+        Button(String(localized: "What this covers")) { explainingScope.toggle() }
+            .buttonStyle(.link)
+            .popover(isPresented: $explainingScope, arrowEdge: .top) {
+                VStack(alignment: .leading, spacing: 10) {
+                    explain(
+                        String(localized: "Recorded here"),
+                        String(localized: "Every fetch Duo Updater makes itself: update checks, release notes, and the downloads it installs for you."))
+                    explain(
+                        String(localized: "Not recorded here"),
+                        String(localized: "A release-notes page loads in a web view that fetches its own images and fonts, and App Store and Homebrew updates are carried out by separate tools. Those requests are not Duo Updater's to record, so this is not a log of everything your Mac sends."))
+                }
+                .padding(14)
+                .frame(width: 340)
+            }
     }
 
     private var emptyState: some View {

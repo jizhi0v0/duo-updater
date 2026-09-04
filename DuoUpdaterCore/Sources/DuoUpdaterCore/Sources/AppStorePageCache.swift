@@ -27,6 +27,25 @@ import Foundation
 /// defeating the point of caching it at all.
 public actor AppStorePageCache {
 
+    /// The process-wide cache, and the one production actually uses.
+    ///
+    /// **This has to outlive the source that reads it, and by default it did
+    /// not.** `AppListModel.makeSources` rebuilds the whole source stack on
+    /// every check — deliberately, so a token change and the signed-in
+    /// storefront region are re-read — so a `MacAppStoreSource` lives about
+    /// seven seconds. A per-instance cache with a one-hour TTL is therefore
+    /// born and destroyed inside a single scan and never survives to answer
+    /// the next one: measured 2026-09-04, the product-page fetches per scan
+    /// round did not fall at all (20.6 → 23.6 requests, 623 → 786 KB) while
+    /// every other change in the same batch landed. The unit tests missed it
+    /// because they exercise one instance twice, which is exactly the thing
+    /// that was already working.
+    ///
+    /// Same shape as `ChangelogCache.shared`, `ResolvedChannelStore.shared`
+    /// and `EventStore.shared` for the same reason. Tests inject their own
+    /// instance (with a fake clock) through `MacAppStoreSource.init`.
+    public static let shared = AppStorePageCache()
+
     private struct Key: Hashable {
         let trackId: Int
         let region: String

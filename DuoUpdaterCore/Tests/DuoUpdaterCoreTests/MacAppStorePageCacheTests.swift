@@ -167,7 +167,8 @@ struct MacAppStorePageCacheTests {
             return (404, Data())
         }
 
-        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us")
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
         _ = try await source.latestVersion(for: Self.nativeMacApp(bundleID: "com.example.usestrackviewurl"))
 
         #expect(ScriptedHTTP.count(matching: { $0.absoluteString == trackViewURL }) == 1)
@@ -200,7 +201,8 @@ struct MacAppStorePageCacheTests {
             return (404, Data())
         }
 
-        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us")
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
         let app = InstalledApp(
             name: "Demo", bundleID: "com.example.iosonmac",
             shortVersion: "1.0.0", buildVersion: "100",
@@ -234,7 +236,8 @@ struct MacAppStorePageCacheTests {
             return (404, Data())
         }
 
-        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us")
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
         _ = try await source.latestVersion(for: Self.nativeMacApp(bundleID: "com.example.evilhost"))
 
         #expect(ScriptedHTTP.count(matching: { $0.absoluteString == constructedURL }) == 1)
@@ -266,7 +269,8 @@ struct MacAppStorePageCacheTests {
                 version: "1.5.0", trackId: trackId, trackViewUrl: "not-a-product-url", bundleId: bundleID))
         }
 
-        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us")
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
         let app = Self.nativeMacApp(bundleID: bundleID)
 
         await source.prewarm([app])
@@ -294,13 +298,59 @@ struct MacAppStorePageCacheTests {
                 version: "1.5.0", trackId: trackId, trackViewUrl: "not-a-product-url", bundleId: bundleID))
         }
 
-        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us")
+        let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                       pageCache: AppStorePageCache())
         let app = Self.nativeMacApp(bundleID: bundleID)
 
         // `prewarm` deliberately never called for this app/source.
         let remote = try await source.latestVersion(for: app)
         #expect(remote?.shortVersion == "1.5.0")
         #expect(ScriptedHTTP.count(matching: { $0.host == "itunes.apple.com" }) == 1)
+    }
+
+    /// A REBUILT source stack still sees the cached page.
+    ///
+    /// This is the case whose absence let the original bug ship. Every other
+    /// caching test here exercises one `MacAppStoreSource` twice — and that
+    /// always worked. Production never does that: `AppListModel.makeSources`
+    /// rebuilds the whole stack on every check (deliberately, so a token
+    /// change and the storefront region are re-read), so the source that
+    /// scraped a page is gone by the next scan. With a per-instance cache the
+    /// one-hour TTL therefore never spanned two scans, and the product-page
+    /// traffic did not drop at all in production (measured 2026-09-04:
+    /// 20.6 → 23.6 requests per round, 623 → 786 KB) while every other change
+    /// in the same batch landed exactly as predicted.
+    ///
+    /// So this constructs the source the way production does — twice, with the
+    /// DEFAULT cache — rather than reusing one. `trackId` is unique to this
+    /// test because that default is process-wide.
+    ///
+    /// Mutation run: restoring `pageCache ?? AppStorePageCache(...)` as the
+    /// default turns this red (2 page fetches, not 1) and leaves every other
+    /// test in this file green — which is precisely the asymmetry that made
+    /// the bug invisible.
+    @Test func aRebuiltSourceStackStillSeesTheCachedPage() async throws {
+        ScriptedHTTP.reset()
+        let trackId = 4701
+        let trackViewURL = "https://apps.apple.com/us/app/demo/id\(trackId)?mt=12"
+        ScriptedHTTP.serve { request in
+            guard let url = request.url else { return nil }
+            if url.host == "itunes.apple.com" {
+                return (200, Self.lookupJSON(version: "1.5.0", trackId: trackId, trackViewUrl: trackViewURL))
+            }
+            if url.absoluteString == trackViewURL { return (200, Data(Self.versionPageHTML.utf8)) }
+            return (404, Data())
+        }
+        let app = Self.nativeMacApp(bundleID: "com.example.rebuiltstack")
+
+        // Two separate stacks, exactly as two consecutive checks build them.
+        _ = try await MacAppStoreSource(session: ScriptedHTTP.session(), region: "us")
+            .latestVersion(for: app)
+        _ = try await MacAppStoreSource(session: ScriptedHTTP.session(), region: "us")
+            .latestVersion(for: app)
+
+        #expect(ScriptedHTTP.count(matching: { $0.absoluteString == trackViewURL }) == 1,
+                "the second stack re-scraped the page — the cache did not outlive the source")
     }
 }
 
@@ -361,4 +411,5 @@ private final class ScriptedHTTP: URLProtocol, @unchecked Sendable {
     }
 
     override func stopLoading() {}
+
 }

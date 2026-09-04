@@ -25,8 +25,7 @@ public struct MacAppStoreSource: UpdateSource {
     public init(
         session: URLSession = .updates,
         region: String? = nil,
-        pageCache: AppStorePageCache? = nil,
-        now: @escaping @Sendable () -> Date = Date.init
+        pageCache: AppStorePageCache? = nil
     ) {
         self.session = session
         let home = region
@@ -38,7 +37,10 @@ public struct MacAppStoreSource: UpdateSource {
         // case stays at one request per app.
         let common = ["us", "cn", "hk", "tw", "jp", "sg", "kr", "gb"]
         self.fallbackRegions = common.filter { $0 != home }
-        self.pageCache = pageCache ?? AppStorePageCache(now: now)
+        // `.shared`, not a fresh instance: the source stack is rebuilt every
+        // check, so a per-instance cache would die with it and the TTL would
+        // never span two scans. See `AppStorePageCache.shared`.
+        self.pageCache = pageCache ?? .shared
     }
 
     /// Batch-fetch lookups for every installed MAS app's home-store storefront
@@ -537,4 +539,109 @@ public struct MacAppStoreSource: UpdateSource {
     }
 
     enum MASError: Error { case badStatus(Int) }
+}
+
+// MARK: - `duo verify` diagnostics
+//
+// Everything below is read-only plumbing for `duo verify`'s App Store sweep
+// (see `MacAppStoreProbeRegistry`). It calls the SAME private lookup/fetch
+// helpers `latestVersion(for:)` itself uses — never a reimplementation — but
+// reports SHAPE (did the endpoint answer the question we asked) rather than
+// VALUE (what version it answered with). Asserting a specific version string
+// here would make this sweep something that has to be touched on every
+// vendor release, which is exactly the kind of check nobody keeps green —
+// see `MacAppStoreProbeRegistry`'s doc comment.
+//
+// Deliberately UN-cached: `pageCache`/`prewarmCache` exist so the shipping
+// app doesn't re-fetch a page it just scraped a minute ago. A verify run
+// wants a live answer on every sweep, not whatever the last check happened to
+// leave cached — so these bypass both caches and call the private fetch
+// helpers directly.
+
+/// The two fields `duo verify` actually checks off a lookup hit. Never the
+/// version or release notes, which change on every release and are not the
+/// premise anything here depends on.
+public struct AppStoreLookupShape: Sendable, Equatable {
+    public let kind: String?
+    public let trackId: Int?
+}
+
+/// One product-page fetch's outcome, in the vocabulary `duo verify` needs.
+/// `.reachable(found: false)` is the finding worth having: a 2xx page the
+/// production parser can no longer read is A2/A3's silent-failure mode.
+public enum AppStorePageShapeCheck: Sendable {
+    case reachable(found: Bool)
+    case unreachable(httpStatus: Int?)
+}
+
+extension MacAppStoreSource {
+    /// Un-cached single-bundle lookup. Same request `latestVersion(for:)`
+    /// itself makes (bypassing `prewarmCache`, which a verify run never
+    /// populates — there is no `prewarm(_:)` call in this sweep).
+    public func verifyLookup(bundleID: String, region: String) async throws -> AppStoreLookupShape? {
+        guard let result = try await lookup(bundleID: bundleID, region: region) else { return nil }
+        return AppStoreLookupShape(kind: result.kind, trackId: result.trackId)
+    }
+
+    /// `trackViewUrl` off the same single lookup, for the case that wants to
+    /// test the redirect path.
+    public func verifyTrackViewURL(bundleID: String, region: String) async throws -> URL? {
+        guard let result = try await lookup(bundleID: bundleID, region: region) else { return nil }
+        return result.trackViewUrl.flatMap { URL(string: $0) }
+    }
+
+    /// One batched lookup — production's `batchLookup`, exposed read-only.
+    /// Maps every id in the batch to what came back for it, including nil for
+    /// one the store legitimately didn't have.
+    public func verifyBatchLookup(
+        bundleIDs: [String], region: String
+    ) async throws -> [String: AppStoreLookupShape?] {
+        let raw = try await batchLookup(bundleIDs: bundleIDs, region: region)
+        var out: [String: AppStoreLookupShape?] = [:]
+        for (id, result) in raw {
+            out[id] = result.map { AppStoreLookupShape(kind: $0.kind, trackId: $0.trackId) }
+        }
+        return out
+    }
+
+    /// Does `url` still land with ZERO redirects? A2's optimization (skip the
+    /// constructed `?platform=mac` URL's 301 by trusting the lookup's own
+    /// `trackViewUrl`) is only a win while this holds. If Apple stops handing
+    /// back a canonical URL, `validatedProductPageURL` already falls back
+    /// safely — but silently pays the 301 again on every check, which is
+    /// exactly what this is here to surface instead of leaving unmeasured.
+    public func verifyZeroRedirect(
+        _ url: URL
+    ) async throws -> (finalHost: String?, statusCode: Int?, zeroRedirects: Bool) {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { return (nil, nil, false) }
+        return (http.url?.host, http.statusCode, http.url == url)
+    }
+
+    /// Un-cached fetch + parse of the Mac-track version shelf at `trackId`'s
+    /// `?platform=mac` product page — the same page `nativeMacVersion` and
+    /// `iosOnMacVersion` both scrape, bypassing `pageCache`.
+    public func verifyVersionPageShape(trackId: Int, region: String) async throws -> AppStorePageShapeCheck {
+        guard let url = URL(string: "https://apps.apple.com/\(region)/app/-/id\(trackId)?platform=mac")
+        else { return .unreachable(httpStatus: nil) }
+        switch try await fetchMacVersion(url: url) {
+        case .success(let info): return .reachable(found: info != nil)
+        case .unavailable: return .unreachable(httpStatus: nil)
+        }
+    }
+
+    /// Un-cached fetch + parse of the `isIOSBinaryMacOSCompatible` flag at
+    /// `trackId`'s plain (non `?platform=mac`) product page — the page
+    /// `remoteVersion(checkMacCompat: true)` scrapes, bypassing `pageCache`.
+    public func verifyMacCompatPageShape(trackId: Int, region: String) async throws -> AppStorePageShapeCheck {
+        guard let url = URL(string: "https://apps.apple.com/\(region)/app/id\(trackId)")
+        else { return .unreachable(httpStatus: nil) }
+        switch try await fetchMacCompatibility(url: url) {
+        case .success(let compat): return .reachable(found: compat != nil)
+        case .unavailable: return .unreachable(httpStatus: nil)
+        }
+    }
 }

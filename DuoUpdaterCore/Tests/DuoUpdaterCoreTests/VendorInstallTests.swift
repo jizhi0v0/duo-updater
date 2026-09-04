@@ -121,9 +121,15 @@ import CryptoKit
 
     for key in targets {
         let remote = results[key] ?? nil
-        if dormantTracks.contains(key) {
-            #expect(remote?.downloadURL == nil,
-                    "\(key) resolves again — the vendor reopened this track, so drop its trackClosedPattern")
+        // Only when it actually resolved nothing. `trackClosedPattern` is a
+        // permanent property of the recipe — it says how this vendor SIGNALS
+        // dormancy, not that the track is closed today — so keying the exemption
+        // on the declaration alone breaks twice over: the sweep fails the day the
+        // vendor reopens the track (and advises deleting the very declaration
+        // that keeps the row calm next time it closes), and while the track IS
+        // open the assertions below are skipped, so a working channel quietly
+        // stops being covered.
+        if remote?.downloadURL == nil, dormantTracks.contains(key) {
             log("• \(key): dormant — vendor publishes no current build on this track")
             continue
         }

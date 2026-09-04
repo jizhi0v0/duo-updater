@@ -4,7 +4,11 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 ## 0.3.84
 
+**Los registros de peticiones que exportas ya no llevan tu nombre de cuenta.** Cada fila de una app instalada en tu carpeta personal escribía la ruta completa; ahora muestra `~`, sea cual sea la forma en que extraigas el registro.
+
 **La pestaña «Requests» ahora dice qué incluye y qué no.** Registra las peticiones que hace el propio Duo Updater. Una página de notas de versión carga sus propias imágenes y tipografías, y las actualizaciones de la App Store y de Homebrew las realizan herramientas aparte: nada de eso aparece ahí, y ahora la ventana lo dice en vez de dejar que lo supongas.
+
+**«Copy URL» ahora escapa la dirección que te da.** Las rutas con un espacio —las descargas de Firefox, Thunderbird y Bartender, entre otras— se copiaban tal cual: un navegador lo corrige, la línea de comandos no.
 
 **Por dentro.** Una credencial incluida en la ruta de una dirección web se elimina ahora antes de registrar la petición, igual que ya ocurría con las de la cadena de consulta.
 

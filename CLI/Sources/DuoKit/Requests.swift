@@ -62,7 +62,10 @@ public enum Requests {
                 // instant, so every interval a consumer computed was zero. It also
                 // made this command and `duo events` disagree about the same
                 // event. One shape, straight from the database.
-                print("[" + (await store.rawRows(query)).map(\.json).joined(separator: ",\n") + "]")
+                // `exportJSON`, like `duo events`: same rows, same store, so the
+                // account name must not depend on which command you asked.
+                print("[" + (await store.rawRows(query)).map(\.exportJSON)
+                    .joined(separator: ",\n") + "]")
             } else {
                 let rows = await store.events(query)
                 printRecent(rows.compactMap { event in event.request.map { (event, $0) } })

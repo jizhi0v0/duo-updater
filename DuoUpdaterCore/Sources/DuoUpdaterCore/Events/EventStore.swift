@@ -1397,11 +1397,36 @@ public struct EventRow: Sendable, Hashable {
 
     /// The whole event as one JSON object, envelope included — what a dump emits
     /// and what a visualiser reads.
+    ///
+    /// Raw. Anything that *prints* this to a user should emit ``exportJSON``
+    /// instead; see there for what the difference is and why it exists.
     public var json: String {
         """
         {"v":\(DuoEvent.schemaVersion),"id":"\(id.uuidString)",\
         "at":"\(ISO8601DateFormatter.duoEvent.string(from: date))",\
         "client":"\(client.rawValue)","kind":"\(kind)","payload":\(payloadJSON)}
         """
+    }
+
+    /// ``json`` with the home directory abbreviated to `~`.
+    ///
+    /// **This is the form every dump must print, and it is a property rather
+    /// than a line at each call site because the two call sites had already
+    /// drifted.** An event's `appID` is a bundle path, and on a real machine a
+    /// large share of them sit under `/Users/<name>/Applications` — measured:
+    /// 55 of 145 distinct bundles, so a dump framed as something to pipe
+    /// elsewhere carried the account name in every one of those rows. `duo
+    /// events` abbreviated them; `duo requests --json` printed the same rows
+    /// from the same store and did not, which meant the same event answered
+    /// differently depending on which command you asked. The payload is
+    /// otherwise emitted exactly as stored.
+    ///
+    /// Best-effort by construction: it rewrites the serialized text, so a home
+    /// directory whose name needs JSON escaping would not match. That is not a
+    /// gap worth code — the alternative is re-encoding the payload, which is
+    /// the one thing a raw dump exists not to do (see ``Events``).
+    public var exportJSON: String {
+        json.replacingOccurrences(
+            of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
     }
 }

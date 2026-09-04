@@ -4,7 +4,11 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.3.84
 
+**Les journaux de requêtes que vous exportez ne contiennent plus votre nom de compte.** Pour une app installée dans votre dossier personnel, chaque ligne indiquait le chemin complet ; elle affiche désormais `~`, quelle que soit la façon dont vous sortez le journal.
+
 **L’onglet « Requests » indique désormais ce qu’il couvre et ce qu’il ne couvre pas.** Il enregistre les requêtes que Duo Updater effectue lui-même. Une page de notes de version charge ses propres images et polices, et les mises à jour de l’App Store et de Homebrew sont effectuées par des outils distincts : rien de tout cela n’y figure, et la fenêtre le dit maintenant au lieu de vous laisser le supposer.
+
+**« Copy URL » échappe désormais l’adresse qu’elle vous donne.** Les chemins comportant une espace — ceux des téléchargements de Firefox, Thunderbird et Bartender, entre autres — étaient copiés tels quels : un navigateur le corrige, la ligne de commande non.
 
 **Sous le capot.** Un identifiant présent dans le chemin d’une adresse web est désormais retiré avant l’enregistrement de la requête, comme l’était déjà celui d’une chaîne de requête.
 

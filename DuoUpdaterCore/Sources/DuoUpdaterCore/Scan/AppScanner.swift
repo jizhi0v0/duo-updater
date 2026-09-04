@@ -466,6 +466,17 @@ public struct AppScanner: Sendable {
         // authoritative the way `ChannelBinding` below does, so the channel is
         // still inferred from the feed's own items. See the type's doc comment.
         if feedURL == nil { feedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
+        // The narrower gap: the bundle DOES name a feed, and the vendor stopped
+        // publishing to it. Matched on the dead address itself, not on the bundle
+        // id, so the entry stops applying the moment the app names anything else —
+        // see `SparkleFeedCatalog.replacement(forBundleID:declaredFeed:)`. Placed
+        // after the fill-in because a fill-in address is ours already and has
+        // nothing to supersede, and before `ChannelBinding` below because a
+        // binding's `feedOverride` is a channel decision and still outranks this.
+        if let live = SparkleFeedCatalog.replacement(
+            forBundleID: bundleID, declaredFeed: feedURL) {
+            feedURL = live
+        }
 
         // Update ownership deliberately stays with the scanned install bundle.
         // `AppRuntimeDetector.interfaceBundle` may descend into a nested GUI to

@@ -1,7 +1,8 @@
 import Foundation
 
-/// Sparkle feed addresses for apps that ship a Sparkle updater but keep the
-/// address in code instead of `Info.plist`.
+/// Sparkle feed addresses the bundle's own `Info.plist` does not give us: the
+/// app keeps the address in code (``feeds``), or it states one the vendor has
+/// stopped publishing to (``supersededFeeds``).
 ///
 /// `AppScanner` learns an app's feed from one key, `SUFeedURL`. An app that sets
 /// it up programmatically (`SPUUpdaterDelegate.feedURLString`, or a
@@ -34,6 +35,14 @@ import Foundation
 /// Chromium framework
 /// (`Helium Framework.framework/Versions/<v>/Frameworks/Sparkle.framework`), so
 /// the flag reads false for the one app in this table.
+///
+/// ``supersededFeeds`` is the second, narrower gap: a bundle that *does* state an
+/// address, at a feed the vendor has abandoned. Everything above says a stated
+/// address is the app speaking for itself and must be honoured — that still
+/// holds, which is why replacing one is not a lookup by bundle id but a match
+/// against the exact dead address, recorded here beside its replacement. The
+/// moment the vendor edits `SUFeedURL` to anything else, the match fails and the
+/// bundle's own word wins again.
 public enum SparkleFeedCatalog {
     /// bundleID (lowercased) → appcast. Lowercase keys only; `feed(forBundleID:)`
     /// lowercases its argument, so a key with a capital is unreachable — the same
@@ -54,10 +63,70 @@ public enum SparkleFeedCatalog {
         "net.imput.helium": URL(string: "https://updates.helium.computer/mac/appcast-arm64.xml")!,
     ]
 
+    /// A feed the bundle still declares, paired with the one its vendor actually
+    /// ships from. Both halves are load-bearing: `declared` is the match key, not
+    /// documentation.
+    struct SupersededFeed: Sendable, Equatable {
+        /// The `SUFeedURL` the bundle states verbatim today.
+        let declared: URL
+        /// The appcast the vendor's own updater reads instead.
+        let live: URL
+    }
+
+    /// bundleID (lowercased) → the dead feed it declares and the live one to use.
+    /// Same lowercase-key rule as `feeds`.
+    static let supersededFeeds: [String: SupersededFeed] = [
+        // PDF Expert (Readdle). Its `SUFeedURL` points at `/release/appcast.xml`,
+        // which the vendor froze on 2022-07-12: four items, newest build 764
+        // (2.5.22, July 2022). Three of them cap out at `maximumSystemVersion`
+        // 10.10–10.12, but the fourth does NOT, so on a current Mac the generic
+        // source resolves that feed, picks 2.5.22 as "latest", finds it older than
+        // the installed 3.13.2 and reports the app up to date — forever, with no
+        // error anywhere. Nothing else picks the app up either: the `pdf-expert`
+        // cask is `auto_updates: true`, which `HomebrewCaskSource` skips by design.
+        // The live feed is `/pem3/release/appcast.xml`.
+        //
+        // Why this address and not merely a newer-looking one. The pem3 item for
+        // build 1172 links a zip whose `.app` is Developer ID-signed by Team
+        // 3L68KQB4HG and notarized (`spctl` accepts it) — Apple's attestation that
+        // Readdle produced it, which no operator of that CDN path could forge — and
+        // Homebrew's `pdf-expert` cask, maintained by nobody here, points at the
+        // same tree and the same build. The zip's own `SUPublicEDKey`
+        // (`K5sdt9UTWp/TcP48oRVycKUqWUbi0Tp37zrWtFYCCfw=`) does verify that item's
+        // `sparkle:edSignature` over the exact 128 MB payload (Ed25519, checked
+        // 2026-09-04), but note what that is and is not: the key and the payload
+        // both come from the pem3 tree, so it proves the feed is internally
+        // consistent, NOT that this key is the one the app in front of a user
+        // holds. It cannot be made independent — 764, 936 and 964, the builds the
+        // DEAD feed serves, carry no `SUPublicEDKey` at all (range-read from their
+        // zips, 2026-09-04), and all four builds declare the same dead address.
+        // The signature that actually gates the install for a stuck user is
+        // therefore the Developer ID / Team check, not EdDSA (see
+        // `UpdatePolicy`'s unsigned-feed branch).
+        "com.readdle.pdfexpert-mac": SupersededFeed(
+            declared: URL(string: "https://downloads.pdfexpert.com/release/appcast.xml")!,
+            live: URL(string: "https://downloads.pdfexpert.com/pem3/release/appcast.xml")!),
+    ]
+
     /// The curated feed for an app that publishes none of its own, if we have one.
     /// Case-insensitive on bundle id, matching `ChangelogCatalog`'s convention.
     public static func feed(forBundleID bundleID: String?) -> URL? {
         guard let bundleID else { return nil }
         return feeds[bundleID.lowercased()]
+    }
+
+    /// The live feed to use in place of `declaredFeed`, when that is an address we
+    /// have recorded as abandoned for this app.
+    ///
+    /// Nil unless `declaredFeed` matches the recorded dead address exactly. A
+    /// bundle-id-only lookup would pin the app to our copy of the truth and keep
+    /// pinning it after the vendor fixes their plist; matching the address means
+    /// the entry expires by itself the moment the app stops naming the dead feed.
+    public static func replacement(forBundleID bundleID: String?, declaredFeed: URL?) -> URL? {
+        guard let bundleID, let declaredFeed,
+              let entry = supersededFeeds[bundleID.lowercased()],
+              entry.declared.absoluteString == declaredFeed.absoluteString
+        else { return nil }
+        return entry.live
     }
 }

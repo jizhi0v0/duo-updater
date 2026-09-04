@@ -10,6 +10,8 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **«Copy URL» ahora escapa la dirección que te da.** Las rutas con un espacio —las descargas de Firefox, Thunderbird y Bartender, entre otras— se copiaban tal cual: un navegador lo corrige, la línea de comandos no.
 
+**Audacity ahora muestra la marca que dice con qué está hecha.** Arranca mediante un pequeño lanzador que cede el paso al programa real que tiene al lado, y la marca se leía del lanzador, que no enlaza nada.
+
 **Por dentro.** Una credencial incluida en la ruta de una dirección web se elimina ahora antes de registrar la petición, igual que ya ocurría con las de la cadena de consulta.
 
 ## 0.3.83

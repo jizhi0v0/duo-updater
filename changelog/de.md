@@ -10,6 +10,8 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **„Copy URL“ maskiert die Adresse jetzt, bevor es sie herausgibt.** Pfade mit einem Leerzeichen – etwa die Downloads von Firefox, Thunderbird und Bartender – wurden roh kopiert; ein Browser gleicht das aus, die Kommandozeile nicht.
 
+**Audacity zeigt jetzt das Zeichen dafür, womit es gebaut ist.** Es startet über einen kleinen Starter, der an das eigentliche Programm daneben übergibt, und das Zeichen wurde am Starter abgelesen – der nichts einbindet.
+
 **Unter der Haube.** Ein Zugangsschlüssel im Pfad einer Webadresse wird jetzt entfernt, bevor die Anfrage aufgezeichnet wird – so wie einer in einer Abfragezeichenfolge schon immer.
 
 ## 0.3.83

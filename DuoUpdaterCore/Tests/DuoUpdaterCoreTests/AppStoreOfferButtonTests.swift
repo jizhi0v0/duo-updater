@@ -206,8 +206,9 @@ struct AppStoreOfferButtonTests {
     /// lines. Percentages collapse; everything else still counts as a transition.
     @Test func onlyAChangeOfKindIsWorthALogLine() {
         let a = #"role=AXButton AXTitle="3% loaded" AXDescription="3% loaded""#
-        let b = #"role=AXButton AXTitle="76.6% loaded" AXDescription="76.6% loaded""#
-        #expect(AppStoreAXInstaller.readingShape(a) == AppStoreAXInstaller.readingShape(b))
+        let nearby = #"role=AXButton AXTitle="3.4% loaded" AXDescription="3.4% loaded""#
+        #expect(AppStoreAXInstaller.readingShape(a) == AppStoreAXInstaller.readingShape(nearby),
+                "a download ticks ~2×/s; a fraction of a percent is not news")
 
         let loading = #"role=AXButton AXTitle="Loading" AXDescription="Loading""#
         let settled = #"role=AXButton AXTitle="Update" AXDescription="Update""#
@@ -215,6 +216,30 @@ struct AppStoreOfferButtonTests {
         #expect(AppStoreAXInstaller.readingShape(settled) != AppStoreAXInstaller.readingShape(a))
         // The reading that broke DingTalk: the button going missing entirely.
         #expect(AppStoreAXInstaller.readingShape("button=nil") != AppStoreAXInstaller.readingShape(a))
+    }
+
+    /// The regression this replaced. Blanking digits outright made every percentage one
+    /// shape, so a whole download logged its first reading and nothing else: measured on
+    /// the same app either side of the change, WhatsApp left 47 readings on disk on
+    /// 2026-09-04 and one ("0.3% loaded") on 2026-09-05. Movement is the single thing
+    /// the swap watchdog reasons about, so the probe has to be able to show it.
+    ///
+    /// Mutation: replace the bucket with a bare `"N"` — red here, green everywhere else.
+    @Test func aDownloadThatMovedLeavesMoreThanOneLine() {
+        let shapes = ["0.3% loaded", "12% loaded", "40% loaded", "80% loaded", "99.5% loaded"]
+            .map { AppStoreAXInstaller.readingShape(#"AXTitle="\#($0)""#) }
+        #expect(Set(shapes).count == shapes.count,
+                "each tenth of a download must be its own line: \(shapes)")
+    }
+
+    /// Bucketing must not turn the key into a unique string per poll, which is the same
+    /// collapse in the other direction — a probe that logs every reading is one nobody
+    /// reads. Numbers that are counts, not percentages, share the top bucket.
+    ///
+    /// Mutation: drop the `min(…, 10)` cap — red here alone.
+    @Test func numbersPastAHundredShareTheTopBucket() {
+        #expect(AppStoreAXInstaller.readingShape("buttons=100 ours=1")
+                == AppStoreAXInstaller.readingShape("buttons=4096 ours=1"))
     }
 
     // MARK: - Finishing the swap
@@ -301,7 +326,7 @@ struct AppStoreOfferButtonTests {
         for poll in 0..<400 {
             let reading = Double(poll) / 400          // still climbing
             (last, stalled) = AppStoreAXInstaller.swapWatchdog(
-                progress: reading, last: last, stalledPolls: stalled)
+                progress: reading, last: last, stalledPolls: stalled, appRunning: false)
             #expect(stalled == 0, "movement at poll \(poll) must reset the count")
             #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled, progressReadable: true))
         }
@@ -314,10 +339,78 @@ struct AppStoreOfferButtonTests {
         var stalled = 0
         for _ in 0..<225 {
             (last, stalled) = AppStoreAXInstaller.swapWatchdog(
-                progress: nil, last: last, stalledPolls: stalled)
+                progress: nil, last: last, stalledPolls: stalled, appRunning: false)
         }
         #expect(stalled == 225)
         #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled, progressReadable: true))
+    }
+
+    /// The WhatsApp run of 2026-09-05, replayed. App Store parks the swap at a fixed
+    /// percentage until the app closes, so while the app is open a frozen number is the
+    /// store waiting for *us*, not a dead swap. Counting it measured the user's decision
+    /// instead of the store's liveness: the button sat at 80% for the two minutes the
+    /// app stayed up, the user quit it by hand at 01:37:40, and 3.4s later the counter —
+    /// which had run that whole time — hit its cap and threw. App Store then finished on
+    /// its own, the new build on disk 11s after we called the update a failure.
+    ///
+    /// Mutation: drop `appRunning ? stalledPolls :` from `swapWatchdog` — red here on
+    /// three expectations, and the second half still holds it honest the other way
+    /// (freezing unconditionally is `aFrozenPercentageCountsAsStalled`'s mutation).
+    @Test func aFrozenPercentageIsNotAStallWhileTheAppIsStillOpen() {
+        var last: Double? = 0.8
+        var stalled = 0
+        for _ in 0..<400 {  // ~2.5 min of the app refusing to quit
+            (last, stalled) = AppStoreAXInstaller.swapWatchdog(
+                progress: 0.8, last: last, stalledPolls: stalled, appRunning: true)
+        }
+        #expect(stalled == 0, "a store waiting for the app to close has not stalled")
+        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled, progressReadable: true))
+
+        // The app quits: now the number really is the store's to move, and the swap gets
+        // its full ~90s from that moment — not from a countdown already spent.
+        for _ in 0..<224 {
+            (last, stalled) = AppStoreAXInstaller.swapWatchdog(
+                progress: 0.8, last: last, stalledPolls: stalled, appRunning: false)
+        }
+        #expect(!AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled, progressReadable: true))
+        (last, stalled) = AppStoreAXInstaller.swapWatchdog(
+            progress: 0.8, last: last, stalledPolls: stalled, appRunning: false)
+        #expect(AppStoreAXInstaller.swapHasStalled(stalledPolls: stalled, progressReadable: true),
+                "a swap that is genuinely quiet with nothing left to wait for still bails")
+    }
+
+    /// Movement still resets the count while the app is open — the freeze must not
+    /// quietly become "never count anything", which would leave the 6-min cap as the
+    /// only bound on a swap that died with the app up.
+    ///
+    /// Mutation: add `!appRunning` to the guard, so a running app skips the reset — red
+    /// here alone.
+    @Test func movementIsStillMovementWhileTheAppIsOpen() {
+        let (last, stalled) = AppStoreAXInstaller.swapWatchdog(
+            progress: 0.5, last: 0.4, stalledPolls: 17, appRunning: true)
+        #expect(stalled == 0)
+        #expect(last == 0.5)
+    }
+
+    /// What a spent budget means. After Continue the stall counter no longer runs while
+    /// the app is open, so the only way to reach the cap there is an app that never
+    /// quit — a finished download waiting on one keystroke, which the generic timeout
+    /// tells nobody. Before Continue the budget runs out for ordinary reasons and keeps
+    /// the plain timeout, whether or not the app happens to be open.
+    ///
+    /// Mutations: return `.timedOut` unconditionally, and drop the `continued &&` term
+    /// — the first is red on the opening three expectations, the second on the last.
+    @Test func aSpentBudgetWithTheAppStillOpenAsksForTheQuitByName() {
+        let stillOpen = AppStoreAXInstaller.exhaustedBudgetError(
+            appName: "WhatsApp", continued: true, appRunning: true)
+        #expect(stillOpen == .appStillOpen("WhatsApp"))
+        #expect(stillOpen.errorDescription?.contains("WhatsApp") == true)
+        #expect(stillOpen.errorDescription != AppStoreAXInstaller.AXError.timedOut.errorDescription)
+
+        #expect(AppStoreAXInstaller.exhaustedBudgetError(
+            appName: "WhatsApp", continued: true, appRunning: false) == .timedOut)
+        #expect(AppStoreAXInstaller.exhaustedBudgetError(
+            appName: "WhatsApp", continued: false, appRunning: true) == .timedOut)
     }
 
     /// A percentage frozen on the same number is not movement — a wedged install must
@@ -327,7 +420,7 @@ struct AppStoreOfferButtonTests {
         var stalled = 0
         for _ in 0..<10 {
             (last, stalled) = AppStoreAXInstaller.swapWatchdog(
-                progress: 0.4, last: last, stalledPolls: stalled)
+                progress: 0.4, last: last, stalledPolls: stalled, appRunning: false)
         }
         #expect(stalled == 10)
         #expect(last == 0.4)

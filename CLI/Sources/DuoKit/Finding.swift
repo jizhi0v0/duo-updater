@@ -8,12 +8,20 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
     case vendor
     case github
     case changelog
+    /// `MacAppStoreSource` isn't a recipe — it has no per-app config to sweep,
+    /// it asks Apple's lookup API whatever bundle id an installed app carries.
+    /// This registry instead sweeps `MacAppStoreProbeRegistry`'s committed list
+    /// of long-lived App Store apps, checking that the lookup `kind` and the
+    /// product-page shapes `MacAppStoreSource` parses still look the way its
+    /// code assumes — see `MacAppStoreProbeRegistry`'s doc comment.
+    case appStore = "appstore"
 
     public var label: String {
         switch self {
         case .vendor: return "vendor probe"
         case .github: return "GitHub rule"
         case .changelog: return "changelog"
+        case .appStore: return "App Store probe"
         }
     }
 }

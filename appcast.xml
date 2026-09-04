@@ -18,7 +18,7 @@
         -->
         <item>
             <title>0.3.84</title>
-            <pubDate>Sat, 05 Sep 2026 02:44:09 +0800</pubDate>
+            <pubDate>Sat, 05 Sep 2026 05:28:01 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.84</link>
             <sparkle:version>93</sparkle:version>
             <sparkle:shortVersionString>0.3.84</sparkle:shortVersionString>
@@ -41,6 +41,13 @@
 **Under the hood.** A credential carried inside a web address's path is now removed before the request is recorded, as one in a query string always has been.
 ]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater-0.3.84-macos.zip" length="12637976" type="application/octet-stream" sparkle:edSignature="V+nt8h8ieoY+Y8ov0SrpjxtmDqiLA7PESTGGyHPDCd8y1borr23Z7whu5bfrrH1Z/FWl6vJDlvCL1z7NRdnpDQ=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater93-92.delta" sparkle:deltaFrom="92" length="692214" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="xdzcIA8qFTBxhxUIUDJIBpa0vz7M2o21aO+IxFpI8IV4LBIl31jVI8l16Esq/R3QkActIxp/miztg7EewXxyAg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater93-91.delta" sparkle:deltaFrom="91" length="1310410" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="DE+wOarCuXuUZ6U0uhhggPJzp19wcf4Dww2slUbtHw3MDqQbvCx4AX0UXbZoufuO9ThOjNtebHr0oAa4gRxGDQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater93-90.delta" sparkle:deltaFrom="90" length="1348658" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="EHrTWJFpnYUpC5VuIShNo+GWwjm5J5vXwoa97ded+EeE+RpErnnV6TaNHeeksMazsWACkTdTD9WPLmb3qcreDw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater93-89.delta" sparkle:deltaFrom="89" length="1472530" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="oBKn1/hB9maZJrvYqlf0r2UZI0M3dI3vf/rP6is9Mgq59soCy1LRw0Rl2FH8A7QprTaUlpQ+PIa3A6FygKcYAA=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater93-88.delta" sparkle:deltaFrom="88" length="1566794" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="YKPZta3er/ARFbVzyMvQnATG98E6d1hKclDwrT5xd927bQ41KFcyP9vVoq4qrd2HZ/koT6EZBbYHxkmuBg0/BQ=="/>
+            </sparkle:deltas>
         </item>
         <item>
             <title>0.3.83</title>
@@ -50,16 +57,6 @@
             <sparkle:shortVersionString>0.3.83</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**The Download Traffic window is now Network, and it has a second tab.** Downloads is the ledger you already had — what each update cost as a file. Requests is new: every fetch Duo Updater makes on your behalf, what it was for, which app it belonged to, and what it cost, with a filter field for asking the log questions rather than scrolling it. The figures at the top answer whatever you have filtered to, not the lifetime total.
-
-**Checking Spotify for updates barely uses the network now.** Spotify publishes no version file anywhere, so the check reads the version out of a two-megabyte installer stub — and was fetching the whole thing every time, around the clock. It now asks whether that file has changed and skips the download when it has not.
-
-**PDF Expert now finds its updates, and shows what changed.** It was reading a release list its maker stopped adding to in 2022, so it called itself up to date whatever version you had. It now follows the list the app's own updater uses, and it now carries the release notes for past versions too, not only the newest.
-
-**UTM preview builds now get their own updates, install with one click, and show the matching release notes.** A preview copy used to be measured against the final track and silently told it was up to date; it now follows its own line, and once it takes that line's final release it moves back to the final track.
-
-**Under the hood.** The recorded requests moved into the same store as the download ledger, so the two accounts of one download can no longer drift apart. Your existing ledger carries across untouched.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater-0.3.83-macos.zip" length="12606545" type="application/octet-stream" sparkle:edSignature="awhSK0jNW0I23e6WnazBdfeJzT2toyVN2wSAv0WJHxZnN32slIG2RbKLmq+7jo7Nyp1JNKBRPoml7zygjqdlBA=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-90.delta" sparkle:deltaFrom="90" length="1259082" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="MBe2Lm8Da2KyU0bOSUC4fLqSzrHN+O0fiJSnM8bHCbQovw5l0gnsYkkcyzq5VrybbV1zFjLrhtooW2gdJFhxBw=="/>
@@ -77,12 +74,6 @@
             <sparkle:shortVersionString>0.3.82</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Fifteen more apps are watched for updates, and all but one install in a single click.** AgentsView, AnythingLLM, Chatbox, ChatGPT Classic, DSH Desktop, FluidVoice, GitHub Copilot, Kun, Meetily, Microsoft 365 Copilot, OpenLogi, OpenSuperWhisper, Paseo, T3 Code — on both its alpha and nightly tracks — and Vorssaint. ChatGPT Classic is the exception: it is checked for you, but it ships an installer that updates the app itself, so that one stays yours to run.
-
-**Eight apps now show their release notes inside Duo Updater instead of sending you to a web page.** Xcode, Antigravity, Antigravity IDE, AnyDesk, AnythingLLM, Chatbox, Headlamp and Helium. Three of them had nothing to send you to in the first place: AnyDesk's page answers a bot challenge, Helium's makers publish no notes page at all, and Antigravity IDE had no link of any kind.
-
-**Xcode betas say what changed in each beta.** The row used to offer a build number and a link; it now lists Apple's notes for the beta you are on and every beta before it in that release.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.82/DuoUpdater-0.3.82-macos.zip" length="12212865" type="application/octet-stream" sparkle:edSignature="VIuqOIWCqfcs4IlxuY913xSt0dtsROLZ1KqEsrJS2ah6LN3Cf1ledL9rpj93zSU4dncVLLKyR6alm6AR6SmBAg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.82/DuoUpdater91-90.delta" sparkle:deltaFrom="90" length="457698" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="QcaxJJGkyQDIsdVNC2koxj8kYS/3N/gO6wdetfu/1cQssdF4N6AC2uw9ZEXa2l+S5VClpdatd80bL5URlHvvCQ=="/>

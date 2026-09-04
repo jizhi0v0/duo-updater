@@ -17,6 +17,32 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.84</title>
+            <pubDate>Sat, 05 Sep 2026 02:44:09 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.84</link>
+            <sparkle:version>93</sparkle:version>
+            <sparkle:shortVersionString>0.3.84</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Request logs you export no longer carry your account name.** Every row for an app installed in your home folder used to spell out the full path; it now shows `~` instead, whichever way you take the log out.
+
+**The Requests tab now says what it does and does not cover.** It records the fetches Duo Updater makes itself. A release-notes page loads its own images and fonts, and App Store and Homebrew updates are carried out by separate tools — none of that appears there, and the window now says so instead of leaving you to assume.
+
+**Copy URL now escapes the address it gives you.** Paths containing a space — Firefox, Thunderbird and Bartender downloads among them — were copied raw, which a browser forgives and a command line does not.
+
+**CapCut's beta row no longer reports a check that failed.** Between betas — after one graduates and before the next opens — its maker publishes nothing on that track, which showed as a red row and a Retry that could not have worked. The row now simply has no answer from that source until the next beta appears.
+
+**Audacity now shows the mark saying what it is built with.** It starts through a small launcher that hands off to the real program beside it, and the mark was being read from the launcher, which links nothing at all.
+
+**App Store release notes now arrive in your language.** They were always fetched in the store's own default language, so a Mac running in Chinese or Japanese still read them in English.
+
+**Duo Updater's own updates now appear under its own name in the Network window.** Its release check, its release notes and its download were all filed with a blank app column.
+
+**Under the hood.** A credential carried inside a web address's path is now removed before the request is recorded, as one in a query string always has been.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.84/DuoUpdater-0.3.84-macos.zip" length="12637976" type="application/octet-stream" sparkle:edSignature="V+nt8h8ieoY+Y8ov0SrpjxtmDqiLA7PESTGGyHPDCd8y1borr23Z7whu5bfrrH1Z/FWl6vJDlvCL1z7NRdnpDQ=="/>
+        </item>
+        <item>
             <title>0.3.83</title>
             <pubDate>Fri, 04 Sep 2026 17:05:58 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.83</link>
@@ -99,16 +125,6 @@
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.80/DuoUpdater89-84.delta" sparkle:deltaFrom="84" length="1002818" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="WDh+ffw7SNxI3PXOXa0kfoqe5b6IeYgMcK6D1CarAKqg66CKac8iFybUXVbYjLASJNjojkH+BMD8/JQ/pBuaCw=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.80/DuoUpdater89-83.delta" sparkle:deltaFrom="83" length="1043634" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Bi5T2tB1Bfl4Y9gl3tFNtHdWqtykY6lBwjDmq+F102Kd0aeN/Bro1McmJdsCvLXj78YpVzAChRwGyfKl7s6HBA=="/>
             </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.79</title>
-            <pubDate>Wed, 02 Sep 2026 01:07:58 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.79</link>
-            <sparkle:version>88</sparkle:version>
-            <sparkle:shortVersionString>0.3.79</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.79/DuoUpdater-0.3.79-macos.zip" length="12081773" type="application/octet-stream" sparkle:edSignature="Mk5h5ehgxrGCiiM37lb7It4J4GuBS63GqthF0YWhCNX8hgGlS5RtvAUUz7qr/TrPXYR25RGAoLO1SSbVyFU1Bw=="/>
         </item>
     </channel>
 </rss>

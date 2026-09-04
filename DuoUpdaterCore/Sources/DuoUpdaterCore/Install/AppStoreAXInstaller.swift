@@ -24,7 +24,7 @@ import ApplicationServices
 ///      `AppStore.offerButton` (the visible title is localized: Update / Open /
 ///      Get / …, so we never match on it; we already know an update is due). We
 ///      bind that button to *this* app structurally before pressing it — see
-///      `offerButton(in:appName:viaUpdatesList:)`. Navigation is asynchronous, so
+///      `offerButton(in:names:viaUpdatesList:)`. Navigation is asynchronous, so
 ///      until the deep link lands App Store still shows whatever it had before (its
 ///      restored Discover page, or another app's product page), whose offer buttons
 ///      are *buy* buttons for apps the user does not own.
@@ -51,6 +51,28 @@ import ApplicationServices
 public actor AppStoreAXInstaller {
 
     public init() {}
+
+    /// The two names one app answers to, kept together so a lookup cannot use one
+    /// where it needed the other.
+    ///
+    /// They are genuinely different strings ("DingTalk" vs "DingDing: Redefine Work
+    /// in AI"), and everything App Store draws — the product page's hero lockup and
+    /// the Updates list row — carries the *store's*, while our own UI, logs and quit
+    /// prompt carry the *bundle's*. Keeping both in one value is what stops a lookup
+    /// from being handed the name the other surface uses; see
+    /// `AppStoreAvailability.storeName` for what that cost.
+    struct AppNames: Sendable, Equatable {
+        /// The installed bundle's name — what our own UI and logs call the app.
+        let bundle: String
+        /// The store's own listing title, when the lookup supplied one.
+        let store: String?
+
+        /// The name App Store renders for this app — on the product page's hero
+        /// lockup and on the Updates list row alike (both measured). The store's
+        /// title when we know it: it is the store's own name for the app, and the
+        /// only one guaranteed to still be there once a page finishes rendering.
+        var page: String { store ?? bundle }
+    }
 
     public enum AXError: LocalizedError {
         case notTrusted
@@ -124,6 +146,7 @@ public actor AppStoreAXInstaller {
         appPath: URL,
         bundleID: String?,
         appName: String,
+        storeName: String?,
         currentShortVersion: String?,
         viaUpdatesList: Bool = false,
         onStage: @Sendable @escaping (InstallStage) -> Void,
@@ -133,8 +156,9 @@ public actor AppStoreAXInstaller {
     ) async throws {
         guard Self.isTrusted else { throw AXError.notTrusted }
 
+        let names = AppNames(bundle: appName, store: storeName)
         let runningAtStart = bundleID.map { isRunning($0) } ?? false
-        Log.install.notice("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
+        Log.install.notice("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) storeName=\(storeName ?? "-", privacy: .public) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
 
         onStage(.checking)
 
@@ -169,7 +193,7 @@ public actor AppStoreAXInstaller {
         // with App Store never frontmost (2026-06-05). So neither path activates; the
         // update runs without stealing focus or flashing App Store to the foreground.
 
-        guard try await waitForOfferButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList, renavigateTrackID: viaUpdatesList ? nil : trackID) != nil else {
+        guard try await waitForOfferButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList, renavigateTrackID: viaUpdatesList ? nil : trackID) != nil else {
             Log.install.error("appstore-ax: \(appName, privacy: .public) offer button not found (viaUpdatesList=\(viaUpdatesList))")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
@@ -194,7 +218,7 @@ public actor AppStoreAXInstaller {
         // We already know (from detection) an update is due, so press regardless of the
         // localized title — pressing an up-to-date button no-ops. Re-find the button right
         // before pressing: the ref from the wait can go stale if the page re-rendered.
-        guard let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) else {
+        guard let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList) else {
             Log.install.error("appstore-ax: \(appName, privacy: .public) offer button vanished before press")
             throw viaUpdatesList ? AXError.notInUpdatesList : AXError.offerButtonNotFound
         }
@@ -215,7 +239,7 @@ public actor AppStoreAXInstaller {
         try await driveToCompletion(
             axApp: axApp,
             bundleID: bundleID,
-            appName: appName,
+            names: names,
             appPath: appPath,
             baseline: baseline,
             viaUpdatesList: viaUpdatesList,
@@ -412,10 +436,10 @@ public actor AppStoreAXInstaller {
     ///     once the app is fully up lands it on the product page.
     /// The refresh is skipped entirely once the target is present (we return above), so a
     /// cache that already carries the row takes the fast path with no reload.
-    private func waitForOfferButton(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool, renavigateTrackID: Int? = nil) async throws -> AXUIElement? {
+    private func waitForOfferButton(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool, renavigateTrackID: Int? = nil) async throws -> AXUIElement? {
         let deadline = viaUpdatesList ? 150 : 80   // ~22s (server re-fetch) vs ~12s at 150ms/poll
         for i in 0..<deadline {
-            if let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) { return offer }
+            if let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList) { return offer }
             // An early nudge once the page has settled (~0.6s), then every ~2.4s.
             if i == 4 || (i > 0 && i % 16 == 0) {
                 if viaUpdatesList {
@@ -450,7 +474,7 @@ public actor AppStoreAXInstaller {
     private func driveToCompletion(
         axApp: AXUIElement,
         bundleID: String?,
-        appName: String,
+        names: AppNames,
         appPath: URL,
         baseline: (short: String?, build: String?),
         viaUpdatesList: Bool,
@@ -460,6 +484,9 @@ public actor AppStoreAXInstaller {
         quitAnswer: @Sendable @escaping () async -> QuitPromptAnswer,
         withdrawQuit: @Sendable @escaping () -> Void
     ) async throws {
+        // Log lines and the user-facing quit prompt name the app the way the user
+        // knows it — the installed bundle — while page lookups use `names.page`.
+        let appName = names.bundle
         // Every press here — the quit sheet's Continue/Cancel and the idle re-press —
         // honors a backgrounded App Store, so nothing activates (see `update`). App Store
         // is never brought to the front for the whole install.
@@ -542,7 +569,7 @@ public actor AppStoreAXInstaller {
                 // report a percentage or two before it drops out of the list, and latching
                 // on those would put a large region-locked app back under the 90s cap for
                 // the rest of a swap it can no longer report on.
-                let reading = installProgress(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList)
+                let reading = installProgress(in: axApp, names: names, viaUpdatesList: viaUpdatesList)
                 let watch = Self.swapWatchdog(
                     progress: reading, last: lastInstallProgress, stalledPolls: stalledTicks)
                 lastInstallProgress = watch.last
@@ -710,11 +737,11 @@ public actor AppStoreAXInstaller {
 
             // 3. Surface download progress from the offer button title (display only).
             // Once we've pressed Continue the title is meaningless, so stop reading it.
-            let offer = continued ? nil : offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList)
+            let offer = continued ? nil : offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList)
             // Probe: dump what the button actually exposes, once per distinct reading.
             // The whole progress display hangs off `title(offer)`, and an install that
             // reports 0% for its entire download leaves no evidence of why — every line
-            // that would say so was `.info`, which never reaches disk. `.notice` does.
+            // that would say so is `.info`, which never reaches disk. `.notice` does.
             // The subtree comes along because these pages are web-rendered: a text's
             // string lives in `AXValue`, not `AXTitle` (the same trap `subtreeMentions`
             // and `rowTexts` were both fixed for), and a percentage drawn as a ring may
@@ -754,7 +781,7 @@ public actor AppStoreAXInstaller {
                 idleTicks += 1
                 if idleTicks == 30 && !repressed {
                     Log.install.notice("appstore-ax: \(appName, privacy: .public) no progress/sheet after ~12s — re-pressing Update once")
-                    if let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList) {
+                    if let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList) {
                         AXUIElementPerformAction(offer, kAXPressAction as CFString)
                     }
                     repressed = true
@@ -914,8 +941,8 @@ public actor AppStoreAXInstaller {
     /// ("Installing: N% Complete"), or nil when it isn't showing one — which is normal
     /// both right after Continue, before the install starts reporting, and on the
     /// Updates-list path once the row drops out of the list as it installs.
-    private func installProgress(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool) -> Double? {
-        guard let offer = offerButton(in: axApp, appName: appName, viaUpdatesList: viaUpdatesList),
+    private func installProgress(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool) -> Double? {
+        guard let offer = offerButton(in: axApp, names: names, viaUpdatesList: viaUpdatesList),
               let text = title(offer) else { return nil }
         return Self.progressFraction(text)
     }
@@ -951,11 +978,12 @@ public actor AppStoreAXInstaller {
     ///     Only if exactly one button survives do we return it; otherwise nil, and the
     ///     caller keeps waiting (and re-navigating) rather than pressing anything.
     ///   • **Updates list** (`viaUpdatesList`): one row per app, each with its own
-    ///     offer button. We pick the row whose nearby text carries `appName`, matching
-    ///     by name rather than position or the localized button title (which reads
-    ///     "Update"/"更新"/… and is unreliable). Returns nil when no row matches — the
-    ///     app isn't in the list yet.
-    private func offerButton(in axApp: AXUIElement, appName: String, viaUpdatesList: Bool) -> AXUIElement? {
+    ///     offer button. We pick the row whose nearby text carries `names.page` — the
+    ///     store's listing title, which is what both surfaces actually render (measured;
+    ///     see the branch) — matching by name rather than position or the localized
+    ///     button title (which reads "Update"/"更新"/… and is unreliable). Returns nil
+    ///     when no row matches — the app isn't in the list yet.
+    private func offerButton(in axApp: AXUIElement, names: AppNames, viaUpdatesList: Bool) -> AXUIElement? {
         var found: [AXUIElement] = []
         collect(axApp, id: "AppStore.offerButton", into: &found)
         guard viaUpdatesList else {
@@ -966,7 +994,7 @@ public actor AppStoreAXInstaller {
             //    if that leaves exactly one. Position is not a discriminator: the topmost
             //    button belongs to whichever page rendered highest, not to us.
             let ours = found.filter { !isInForeignCard($0) }
-            guard Self.shouldPress(heroOwnsPage: heroOwns(appName, in: axApp),
+            guard Self.shouldPress(heroOwnsPage: heroOwns(names.page, in: axApp),
                                    ownButtonCount: ours.count) else { return nil }
             return ours[0]
         }
@@ -975,16 +1003,38 @@ public actor AppStoreAXInstaller {
         // AXUIElement into the actor-isolated map closure, even though the work is
         // fully synchronous and on-actor. The loop body stays in this isolation
         // domain, so there's nothing to "send".
+        // The Updates list renders the store's listing title too — measured
+        // 2026-09-05 by dumping the list's own rows: "WhatsApp Messenger" (bundle
+        // "WhatsApp") and "DingDing: Redefine Work in AI" (bundle "DingTalk"); the
+        // bundle name appears nowhere. Matching rows by the bundle name therefore
+        // failed exactly like the product page did, and failed *misleadingly*: no
+        // row matched, so the install threw `.notInUpdatesList` — "the App Store
+        // hasn't listed this update yet" — about a row that was right there. This
+        // is the region-locked path, so the apps most likely to carry a different
+        // store name are the ones that live on it.
+        let appName = names.page
         var rows: [(AXUIElement, [String])] = []
         for btn in found {
             rows.append((btn, rowTexts(in: axApp, for: btn, among: found)))
         }
-        // Prefer an exact app-name match (the row's title text); fall back to a
-        // contains-match for apps whose Updates-list label carries extra decoration.
-        if let exact = rows.first(where: { $0.1.contains(appName) })?.0 { return exact }
-        return rows.first(where: { row in
-            row.1.contains { $0.localizedCaseInsensitiveContains(appName) }
-        })?.0
+        // Try the store's name first, then the bundle's — each exact before loose.
+        //
+        // The store name is what the list renders for an app the account's storefront
+        // carries (measured 2026-09-05: "WhatsApp Messenger", "DingDing: Redefine Work
+        // in AI" — never the bundle name). But this path exists for apps the account's
+        // storefront does NOT carry, and there the store has no listing to render from,
+        // so the name on the row may well be the installed bundle's. The one such app
+        // on hand (QQ, cn-only) is named the same in both, so it cannot tell them apart
+        // and this stays unmeasured — hence both needles rather than a guess. Order is
+        // the claim: the measured name wins, the unmeasured one only rescues a row that
+        // nothing else matched.
+        for needle in [appName, names.bundle] {
+            if let exact = rows.first(where: { $0.1.contains(needle) })?.0 { return exact }
+            if let loose = rows.first(where: { row in
+                row.1.contains { $0.localizedCaseInsensitiveContains(needle) }
+            })?.0 { return loose }
+        }
+        return nil
     }
 
     /// How one of App Store's `AppStore.shelfItem.*` cells relates to the app we're

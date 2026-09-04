@@ -367,20 +367,58 @@ struct ArchitectureDowngradeWiringTests {
         guard let apps = try? FileManager.default.contentsOfDirectory(
             at: URL(fileURLWithPath: "/Applications"), includingPropertiesForKeys: nil
         ) else { return nil }
-        // Known-small candidates first, so the test doesn't end up copying and
-        // zipping a multi-hundred-MB app just because it sorts first.
-        let preferred = ["NotchBadge.app", "AppCleaner.app", "Klack.app"]
-        let ordered = apps.filter { $0.pathExtension == "app" }.sorted { a, b in
-            (preferred.firstIndex(of: a.lastPathComponent) ?? .max)
-                < (preferred.firstIndex(of: b.lastPathComponent) ?? .max)
-        }
-        for app in ordered {
-            guard SignatureVerifier.executableArchitectures(ofAppAt: app) == [arm, intel],
+        // Small enough MEASURED, not by name. The list here used to be
+        // ["NotchBadge.app", "AppCleaner.app", "Klack.app"] — the author's small
+        // apps — with everything else in whatever order the directory came back.
+        // A machine without those three takes the fallback, and on the first CI
+        // run that was Xcode: `vendorInstallerApplyRefusesTheDowngrade` spent 593
+        // seconds of a 60-minute budget copying it, twice. A hand-kept list of
+        // one machine's apps is exactly the kind of fixture choice this repository
+        // keeps getting wrong; the size is the actual requirement, so measure it.
+        for app in apps where app.pathExtension == "app" {
+            guard bundleIsUnder(sizeCap, at: app),
+                  SignatureVerifier.executableArchitectures(ofAppAt: app) == [arm, intel],
                   (try? SignatureVerifier.teamIdentifier(at: app)) != nil
             else { continue }
+            print("ARCH DOWNGRADE FIXTURE: \(app.lastPathComponent)")
             return app
         }
+        // Both callers treat nil as "nothing to prove with" and return, so this
+        // branch is the tests passing while executing none of the code they exist
+        // for. That is defensible — not every machine has a universal signed app —
+        // but it must not be SILENT, which it was: the size cap added above makes
+        // the empty case more reachable, and a fixture-shaped hole reads exactly
+        // like a green run. Say so where anyone reading a CI log will see it.
+        print("""
+            ARCH DOWNGRADE FIXTURE: none found under \(sizeCap / 1024 / 1024) MB in \
+            /Applications — the two downgrade-wiring tests PROVED NOTHING on this run.
+            """)
         return nil
+    }
+
+    /// The copy budget for a fixture: it is copied twice and zipped once per test,
+    /// by two tests. 200 MB of that is already generous; Xcode is a hundred times
+    /// it. Measured on the author's Mac 2026-09-05: 55 universal signed candidates
+    /// in /Applications, 17 of them under 50 MB, the largest 2.8 GB — so the cap
+    /// removes the tail without emptying the population.
+    private static let sizeCap: Int64 = 200 * 1024 * 1024
+
+    /// Whether `url`'s regular files total less than `cap`, **giving up as soon as
+    /// they don't**. The early exit is the point: without it, deciding to reject a
+    /// 20 GB app costs a full recursive walk of 20 GB, which is most of what the
+    /// cap was added to avoid.
+    private static func bundleIsUnder(_ cap: Int64, at url: URL) -> Bool {
+        guard let walk = FileManager.default.enumerator(
+            at: url, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]) else { return false }
+        var total: Int64 = 0
+        for case let file as URL in walk {
+            guard let v = try? file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
+                  v.isRegularFile == true else { continue }
+            total += Int64(v.fileSize ?? 0)
+            if total >= cap { return false }
+        }
+        return true
     }
 
     /// Builds the "installed universal / downloaded x86_64-only" fixture pair
@@ -402,6 +440,23 @@ struct ArchitectureDowngradeWiringTests {
         let thinApp = thinDir.appendingPathComponent(fixture.lastPathComponent)
         try run(["/bin/cp", "-R", fixture.path, thinApp.path])
         guard let exe = Bundle(url: thinApp)?.executableURL else { return nil }
+        // Everything below rewrites `exe` in place. It must be the copy.
+        //
+        // On the first CI run (2026-09-05) it was not: the error carried
+        // `NSSourceFilePathErrorKey=/Applications/Xcode_26.2.app/Contents/MacOS/Xcode.thin`,
+        // so `lipo`, `removeItem` and `moveItem` had been aimed at a real installed
+        // application rather than at `thinDir`. The mechanism is still unexplained —
+        // probed locally on 2026-09-05, `Bundle(url:)` does return the copy's own
+        // executable even when a `Bundle` for the original already exists — so this
+        // refuses on the fact rather than trusting an explanation nobody has.
+        let scratchRoot = scratch.resolvingSymlinksInPath().path
+        guard exe.resolvingSymlinksInPath().path.hasPrefix(scratchRoot + "/") else {
+            Issue.record("""
+                fixture executable resolved outside the scratch copy — refusing to \
+                rewrite it. exe=\(exe.path) scratch=\(scratchRoot)
+                """)
+            return nil
+        }
         try run(["/usr/bin/lipo", "-thin", "x86_64", exe.path, "-output", exe.path + ".thin"])
         try FileManager.default.removeItem(at: exe)
         try FileManager.default.moveItem(at: URL(fileURLWithPath: exe.path + ".thin"), to: exe)

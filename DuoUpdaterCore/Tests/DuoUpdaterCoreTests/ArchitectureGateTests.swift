@@ -375,7 +375,19 @@ struct ArchitectureDowngradeWiringTests {
         // seconds of a 60-minute budget copying it, twice. A hand-kept list of
         // one machine's apps is exactly the kind of fixture choice this repository
         // keeps getting wrong; the size is the actual requirement, so measure it.
-        for app in apps where app.pathExtension == "app" {
+        for candidate in apps where candidate.pathExtension == "app" {
+            // Resolved first, because /Applications can hold SYMLINKS to apps and
+            // every step below behaves differently on one. Measured on a GitHub
+            // runner 2026-09-05: `/Applications/Xcode_26.2.0.app` is a link to
+            // `/Applications/Xcode_26.2.app`, and that single fact produced every
+            // symptom in #336 — `enumerator` does not descend a link, so a 20 GB
+            // Xcode passed a 200 MB cap with a measured size of zero; `cp -R` copies
+            // the link rather than the tree, so the "scratch copy" pointed back at
+            // the original and `lipo`/`removeItem`/`moveItem` were aimed at a real
+            // installed app; and `ditto -c -k` followed it, which is where 593
+            // seconds went. Resolving here fixes all three at the source, and the
+            // scratch guard in `makeDowngradeFixture` stays as the backstop.
+            let app = candidate.resolvingSymlinksInPath()
             guard bundleIsUnder(sizeCap, at: app),
                   SignatureVerifier.executableArchitectures(ofAppAt: app) == [arm, intel],
                   (try? SignatureVerifier.teamIdentifier(at: app)) != nil

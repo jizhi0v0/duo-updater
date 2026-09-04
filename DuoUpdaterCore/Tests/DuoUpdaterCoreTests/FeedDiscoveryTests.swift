@@ -54,6 +54,30 @@ private func item(
     #expect(verdict == .declared(URL(string: declared)!))
 }
 
+/// The one declared feed that is NOT an answer. Before `SparkleFeedCatalog`
+/// could supersede an address, `.declared` meant "the Info.plist names it and
+/// `SparkleAppcastSource` already resolves this app" — two claims that moved
+/// together. For a superseded bundle the first is true and the second is false,
+/// and `decide` has to say so: reporting `.declared` here would tell the reader
+/// the app is covered by the very address production refuses to use.
+@Test func aBundleWhoseDeclaredFeedIsSupersededSaysSoRatherThanClaimingCoverage() throws {
+    let entry = try #require(SparkleFeedCatalog.supersededFeeds["com.readdle.pdfexpert-mac"])
+    let verdict = FeedDiscovery.decide(
+        probe(id: "com.readdle.PDFExpert-Mac", marketing: "3.13.2", build: "1172",
+              declared: entry.declared.absoluteString),
+        feedItems: [item(short: "3.13.2", version: "1172")])
+    #expect(verdict == .superseded(declared: entry.declared, live: entry.live))
+
+    // And a bundle naming any other address is untouched — the case above is not
+    // "this bundle id", it is "this address".
+    let elsewhere = "https://downloads.pdfexpert.com/pem4/release/appcast.xml"
+    #expect(FeedDiscovery.decide(
+        probe(id: "com.readdle.PDFExpert-Mac", marketing: "3.13.2", build: "1172",
+              declared: elsewhere),
+        feedItems: [item(short: "3.13.2", version: "1172")])
+        == .declared(URL(string: elsewhere)!))
+}
+
 // MARK: - the version-namespace gates
 
 @Test func braveStyleChromiumPrefixedMarketingIsRefused() {

@@ -17,6 +17,33 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.3.83</title>
+            <pubDate>Fri, 04 Sep 2026 17:05:58 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.83</link>
+            <sparkle:version>92</sparkle:version>
+            <sparkle:shortVersionString>0.3.83</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**The Download Traffic window is now Network, and it has a second tab.** Downloads is the ledger you already had — what each update cost as a file. Requests is new: every fetch Duo Updater makes on your behalf, what it was for, which app it belonged to, and what it cost, with a filter field for asking the log questions rather than scrolling it. The figures at the top answer whatever you have filtered to, not the lifetime total.
+
+**Checking Spotify for updates barely uses the network now.** Spotify publishes no version file anywhere, so the check reads the version out of a two-megabyte installer stub — and was fetching the whole thing every time, around the clock. It now asks whether that file has changed and skips the download when it has not.
+
+**PDF Expert now finds its updates, and shows what changed.** It was reading a release list its maker stopped adding to in 2022, so it called itself up to date whatever version you had. It now follows the list the app's own updater uses, and it now carries the release notes for past versions too, not only the newest.
+
+**UTM preview builds now get their own updates, install with one click, and show the matching release notes.** A preview copy used to be measured against the final track and silently told it was up to date; it now follows its own line, and once it takes that line's final release it moves back to the final track.
+
+**Under the hood.** The recorded requests moved into the same store as the download ledger, so the two accounts of one download can no longer drift apart. Your existing ledger carries across untouched.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater-0.3.83-macos.zip" length="12606545" type="application/octet-stream" sparkle:edSignature="awhSK0jNW0I23e6WnazBdfeJzT2toyVN2wSAv0WJHxZnN32slIG2RbKLmq+7jo7Nyp1JNKBRPoml7zygjqdlBA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-90.delta" sparkle:deltaFrom="90" length="1259082" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="MBe2Lm8Da2KyU0bOSUC4fLqSzrHN+O0fiJSnM8bHCbQovw5l0gnsYkkcyzq5VrybbV1zFjLrhtooW2gdJFhxBw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-89.delta" sparkle:deltaFrom="89" length="1388414" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="UdpC1qvdkr/5/2Ku+b7TFc1np+0c9H8NMcKrIB+dgcH0J+gglJ3zkZvLeGie4yQ81rILVxy4EhAvP/W+8mclDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-87.delta" sparkle:deltaFrom="87" length="1513950" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="ORy25x1sOwXyfwYNBooUQKQUqA8Wl06RGEpiEUPM6LxOpnYrFI0YkO0SusSZ+OT7nux3sjER7DqdwNmAaSlfDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-86.delta" sparkle:deltaFrom="86" length="1531694" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="wIyQfaOztAcC0qI4HSf/JxgFfDs51SGRNNGtIbD22zCUHcaE3agO1+isQG94sMw37GG91Nn+WfCYOGHlxudwCg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.83/DuoUpdater92-85.delta" sparkle:deltaFrom="85" length="1627826" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="c26mPw83eW2byN0x+3y2jX6G2kQOWr+M92O2I4q3ohDFnIyqLwva9IbVmX8NQa1h+xHXuNbCxbOyDHehubIMAw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.82</title>
             <pubDate>Thu, 03 Sep 2026 15:48:04 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.82</link>
@@ -82,23 +109,6 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.79/DuoUpdater-0.3.79-macos.zip" length="12081773" type="application/octet-stream" sparkle:edSignature="Mk5h5ehgxrGCiiM37lb7It4J4GuBS63GqthF0YWhCNX8hgGlS5RtvAUUz7qr/TrPXYR25RGAoLO1SSbVyFU1Bw=="/>
-        </item>
-        <item>
-            <title>0.3.78</title>
-            <pubDate>Tue, 01 Sep 2026 21:50:46 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.3.78</link>
-            <sparkle:version>87</sparkle:version>
-            <sparkle:shortVersionString>0.3.78</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.78/DuoUpdater-0.3.78-macos.zip" length="12068421" type="application/octet-stream" sparkle:edSignature="64rb0xwD0A3sguYT+332ieI7FwE2s/W0T6LKmw9ubLLVaYY16qutbEv3mlB0RSDMfqt9GS0YHIajQcYA7XUFDw=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.78/DuoUpdater87-86.delta" sparkle:deltaFrom="86" length="464334" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="B7EhSg0zU/ftBh4/dKwJYglf3xvIqK8uxGLdtBu62ENUlqaV38GZS/IxFcNnKBa6x53quhC85CJ1xD2Nh2FZCg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.78/DuoUpdater87-85.delta" sparkle:deltaFrom="85" length="766602" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="ofqQFaB99l/g5N5bFsEw529peJdpVn5wWArqFnr+D6I/0dCGutn/dgWTl5/r95v4rNRiTbykeH7z16vYGPYYBg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.78/DuoUpdater87-84.delta" sparkle:deltaFrom="84" length="799842" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="bfMpmcpy1/ziLPm+6K0mY2iDHzLbLnF+7T77yBF6fuWgc99HqHGAf2aIChAKz0dDqBExeuB8YO1I0E2cAhe0Cg=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.78/DuoUpdater87-83.delta" sparkle:deltaFrom="83" length="832078" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="E2YWLb3iIaxFzCaKzgrdawICnlit8lPLiQ6YV2tujEtCkYlQUDMm9tFK4+Zzd34HOKPORG4DpNu7/UKlmcbHCQ=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.3.78/DuoUpdater87-82.delta" sparkle:deltaFrom="82" length="868646" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="BE+4gxNhdxv5rzjy7mQoUk/dIiNgGPJcelgGmzBzsDJ9uc+KRWHxg0GFuz92YJQhkxKasD3ifwRZnhtVYR8zDQ=="/>
-            </sparkle:deltas>
         </item>
     </channel>
 </rss>

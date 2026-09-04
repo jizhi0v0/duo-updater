@@ -413,14 +413,21 @@ if let remote {
 // `--check`.
 // Mirror `AppScanner`'s feed resolution EXACTLY, in its order: the bundle's own
 // `SUFeedURL`, else `SparkleFeedCatalog` for an app that keeps the address in
-// code, and a `ChannelBinding.feedOverride` on top of either. Reading only the
-// Info.plist key made this harness answer "GitHub" for an installed Helium while
+// code, then `SparkleFeedCatalog`'s superseding table for a bundle that names a
+// feed its vendor abandoned, and a `ChannelBinding.feedOverride` on top of any of
+// them. Reading only the Info.plist key made this harness answer "GitHub" for an
+// installed Helium while
 // `--check` — the same machine, the same production chain — answered "Sparkle".
 // A harness that disagrees with production about which source wins is worse than
 // no harness.
 var chainFeedURL = (info["SUFeedURL"] as? String)
     .flatMap { URL(string: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
 if chainFeedURL == nil { chainFeedURL = SparkleFeedCatalog.feed(forBundleID: bundleID) }
+let supersededFeed = chainFeedURL
+if let live = SparkleFeedCatalog.replacement(
+    forBundleID: bundleID, declaredFeed: chainFeedURL) {
+    chainFeedURL = live
+}
 if let override = bound?.feedOverride { chainFeedURL = override }
 
 let chainApp = InstalledApp(
@@ -466,7 +473,7 @@ case .error(let e): chainStatus = "error: \(e)"
 print("""
   ─────────────────────────────────────────────
   UpdateChecker.check() — full production source chain
-    SUFeedURL       \(chainApp.sparkleFeedURL?.absoluteString ?? "<none>")\(info["SUFeedURL"] == nil && chainApp.sparkleFeedURL != nil ? "  (SparkleFeedCatalog — not in Info.plist)" : "")
+    SUFeedURL       \(chainApp.sparkleFeedURL?.absoluteString ?? "<none>")\(info["SUFeedURL"] == nil && chainApp.sparkleFeedURL != nil ? "  (SparkleFeedCatalog — not in Info.plist)" : "")\(supersededFeed.map { $0 != chainApp.sparkleFeedURL && bound?.feedOverride == nil ? "\n    superseded    \($0.absoluteString)  (the address the bundle states; SparkleFeedCatalog replaced it)" : "" } ?? "")
     winning source  \(chained.remote?.sourceName ?? "<none>")
     latest          \(chained.remote?.displayVersion ?? "<none>")
     download        \(chained.remote?.downloadURL?.absoluteString ?? "<nil>")
